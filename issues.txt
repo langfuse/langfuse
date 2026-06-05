@@ -1,0 +1,572 @@
+
+   • Packages in scope: @langfuse/ee, @langfuse/shared, @repo/eslint-config, @repo/eslint-plugin, @repo/typescript-config, web, worker
+   • Running lint in 7 packages
+   • Remote caching disabled
+
+web:lint: cache miss, executing 1759908602f4e192
+web:lint: $ dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --max-warnings 0
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ChatMessages/index.tsx
+web:lint:   52:36  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "messages" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/DiffViewer.tsx
+web:lint:   146:5  warning  Avoid adjusting state when a prop changes. Instead, adjust "diffLines" directly during render when "oldString" and "newString" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ModelParameters/index.tsx
+web:lint:   85:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "modelSettingsUsed" directly during render when "modelParams" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   87:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "modelSettingsUsed" directly during render when "modelParams" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/date-picker.tsx
+web:lint:   115:5  warning  Avoid storing derived state. Instead, compute "internalDateRange" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint:   307:7  warning  Avoid storing derived state. Instead, compute "internalDateRange" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint:   313:9  warning  Avoid storing derived state. Instead, compute "internalDateRange" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint:   318:9  warning  Avoid storing derived state. Instead, compute "internalDateRange" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint:   321:7  warning  Avoid storing derived state. Instead, compute "internalDateRange" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/editor/PromptLinkingEditor.tsx
+web:lint:   32:9  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "isDialogOpen" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   36:9  warning  Avoid chaining state changes. When possible, update "cursorPosition" along with other relevant state simultaneously                react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/layouts/app-layout/hooks/useAuthSession.ts
+web:lint:   26:49  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "retryCount" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   42:47  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "retryCount" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   43:7   warning  Avoid chaining state changes. When possible, update "retryCount" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/star-toggle.tsx
+web:lint:   145:5  warning  Avoid storing derived state. Instead, compute "optimisticValue" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/table/data-table-controls.tsx
+web:lint:    578:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "expanded" to the parent component                                                       react-you-might-not-need-an-effect/no-event-handler
+web:lint:    579:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "showAll" directly during render when "expanded" changes, or refactor your state to avoid this need entirely      react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:    580:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "searchQuery" directly during render when "expanded" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:    877:5   warning  Avoid storing derived state. Instead, compute "localValue" directly during render                                                                                            react-you-might-not-need-an-effect/no-derived-state
+web:lint:   1038:5   warning  Avoid storing derived state. Instead, compute "localValue" directly during render                                                                                            react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/table/data-table-pagination.tsx
+web:lint:   43:5   warning  Avoid storing derived state. Instead, compute "inputState" directly during render                                          react-you-might-not-need-an-effect/no-derived-state
+web:lint:   49:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "currentPage" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   49:23  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "pageCount" to the parent component    react-you-might-not-need-an-effect/no-event-handler
+web:lint:   49:36  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "pageCount" to the parent component    react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/table/table-view-presets/hooks/useTableViewManager.ts
+web:lint:   166:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "disabled" to the parent component                                                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   167:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "isInitialized" directly when the event occurs                                                                             react-you-might-not-need-an-effect/no-event-handler
+web:lint:   174:45  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "allowBackendSystemPresets" to the parent component                                                                        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   189:7   warning  Avoid chaining state changes. When possible, update "isInitialized" along with other relevant state simultaneously                                                                                             react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   189:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "isInitialized" directly during render when "disabled" and "allowBackendSystemPresets" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   190:7   warning  Avoid chaining state changes. When possible, update "isLoading" along with other relevant state simultaneously                                                                                                 react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   190:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "isLoading" directly during render when "disabled" and "allowBackendSystemPresets" changes, or refactor your state to avoid this need entirely      react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   197:43  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "allowBackendSystemPresets" to the parent component                                                                        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   207:47  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "allowBackendSystemPresets" to the parent component                                                                        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   217:5   warning  Avoid chaining state changes. When possible, update "isInitialized" along with other relevant state simultaneously                                                                                             react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   217:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "isInitialized" directly during render when "disabled" and "allowBackendSystemPresets" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   218:5   warning  Avoid chaining state changes. When possible, update "isLoading" along with other relevant state simultaneously                                                                                                 react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   218:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "isLoading" directly during render when "disabled" and "allowBackendSystemPresets" changes, or refactor your state to avoid this need entirely      react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   354:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "disabled" to the parent component                                                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   378:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "isInitialized" directly during render when "disabled" and "tableName" changes, or refactor your state to avoid this need entirely                  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   393:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "disabled" to the parent component                                                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   401:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "isInitialized" directly during render when "disabled" changes, or refactor your state to avoid this need entirely                                  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   402:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "isLoading" directly during render when "disabled" changes, or refactor your state to avoid this need entirely                                      react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   417:28  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "currentFilterState" to the parent component                                                                               react-you-might-not-need-an-effect/no-event-handler
+web:lint:   432:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "isLoading" directly during render when "currentFilterState" changes, or refactor your state to avoid this need entirely                            react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/table/use-cases/sessions.tsx
+web:lint:   391:9  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "sessions" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/trace/components/IOPreview/IOPreviewJSON.tsx
+web:lint:   183:5  warning  Avoid passing data to parents in an effect. Instead, fetch ""useMemo"" in the parent and pass it down to "IOPreviewJSONInner" as a prop  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/trace/components/IOPreview/components/hooks/useCorrectionEditor.ts
+web:lint:   32:5   warning  Avoid storing derived state. Instead, compute "value" directly during render                                                                                                       react-you-might-not-need-an-effect/no-derived-state
+web:lint:   39:13  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "value" directly when the event occurs                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   49:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "isValidJson" directly during render when "strictJsonMode" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/trace/components/_layout/TraceLayoutDesktop.tsx
+web:lint:   72:7  warning  Avoid initializing state in an effect. Instead, initialize "isNavigationPanelCollapsed"'s "useState()" with "true". For SSR hydration, prefer "useSyncExternalStore"  react-you-might-not-need-an-effect/no-initialize-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/trace/components/_shared/JSONTableView/JSONTableView.tsx
+web:lint:   145:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "virtualized" to the parent component                  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   145:26  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "onVisibleItemsChange" to the parent component         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   153:7   warning  Avoid passing data to parents in an effect. Instead, fetch ""useVirtualizer"" in the parent and pass it down to "JSONTableView" as a prop  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/AdvancedJsonViewer/components/TruncatedString.tsx
+web:lint:   54:9  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "isTruncated" to the parent component                                                                  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   55:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "triggerWidth" directly during render when "value" and "maxLength" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/AdvancedJsonViewer/hooks/useMonospaceCharWidth.ts
+web:lint:   46:9  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "charWidth" directly when the event occurs                                             react-you-might-not-need-an-effect/no-event-handler
+web:lint:   88:9  warning  Avoid chaining state changes. When possible, update "charWidth" along with other relevant state simultaneously                                                             react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   88:9  warning  Avoid adjusting state when a prop changes. Instead, adjust "charWidth" directly during render when "fontSize" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/AdvancedJsonViewer/hooks/useMultiSectionTreeState.ts
+web:lint:    89:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "externalExpansionState" to the parent component                                                            react-you-might-not-need-an-effect/no-event-handler
+web:lint:    89:36  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stateChanged" to the parent component                                                                      react-you-might-not-need-an-effect/no-event-handler
+web:lint:    94:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "expansionVersion" directly during render when "externalExpansionState" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   133:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "searchQuery" to the parent component                                                                       react-you-might-not-need-an-effect/no-event-handler
+web:lint:   133:25  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "searchQuery" to the parent component                                                                       react-you-might-not-need-an-effect/no-event-handler
+web:lint:   157:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "expansionVersion" directly during render when "searchQuery" changes, or refactor your state to avoid this need entirely             react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/PrettyJsonView.tsx
+web:lint:   567:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stickyTopLevelKey" to the parent component                                                                                   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   576:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "stickyOffsets" directly during render when "stickyTopLevelKey" and "data" and "expanded" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   721:5   warning  Avoid passing data to parents in an effect. Instead, fetch ""useMemo"" in the parent and pass it down to "JsonPrettyTable" as a prop                                                                              react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   791:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "expandAllRef" to the parent component                                                                                        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   797:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "smartDefaultsLevel" to the parent component                                                                                  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   797:39  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "smartDefaultsLevel" to the parent component                                                                                  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   948:42  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component                                                                                               react-you-might-not-need-an-effect/no-event-handler
+web:lint:   953:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "jsonIsCollapsed" directly during render when "props" changes, or refactor your state to avoid this need entirely                                      react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/callout.tsx
+web:lint:   44:10  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "dismissedCallout" directly when the event occurs                                                                                                                                                                                                                                              react-you-might-not-need-an-effect/no-event-handler
+web:lint:   44:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "dismissedCallout" to the parent component                                                                                                                                                                                                                                                     react-you-might-not-need-an-effect/no-event-handler
+web:lint:   45:7   warning  Avoid chaining state changes. When possible, update "isVisible" along with other relevant state simultaneously                                                                                                                                                                                                                                                                     react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   45:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "isVisible" directly during render when "id" and "onDismiss" and "variant" and "align" and "align" and "children" and "actions" and "actions" and "ttlMs" and "onDismiss" and "variant" and "align" and "align" and "children" and "actions" and "actions" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   55:7   warning  Avoid chaining state changes. When possible, update "isVisible" along with other relevant state simultaneously                                                                                                                                                                                                                                                                     react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   55:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "isVisible" directly during render when "id" and "onDismiss" and "variant" and "align" and "align" and "children" and "actions" and "actions" and "ttlMs" and "onDismiss" and "variant" and "align" and "align" and "children" and "actions" and "actions" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   57:7   warning  Avoid chaining state changes. When possible, update "isVisible" along with other relevant state simultaneously                                                                                                                                                                                                                                                                     react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   57:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "isVisible" directly during render when "id" and "onDismiss" and "variant" and "align" and "align" and "children" and "actions" and "actions" and "ttlMs" and "onDismiss" and "variant" and "align" and "align" and "children" and "actions" and "actions" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/multi-select-combobox.tsx
+web:lint:   79:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "isLoading" to the parent component            react-you-might-not-need-an-effect/no-event-handler
+web:lint:   79:23  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "searchResults" to the parent component        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   80:7   warning  Avoid storing derived state. Instead, compute "previousResults" directly during render                                             react-you-might-not-need-an-effect/no-derived-state
+web:lint:   99:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "showDropdown" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/slider.tsx
+web:lint:   30:11  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   30:26  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   32:13  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "value" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   32:36  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "value" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   34:11  warning  Avoid storing derived state. Instead, compute "inputValue" directly during render                                    react-you-might-not-need-an-effect/no-derived-state
+web:lint:   36:11  warning  Avoid storing derived state. Instead, compute "inputValue" directly during render                                    react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/time-picker-input.tsx
+web:lint:   53:11  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "flag" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/components/ui/time-picker.tsx
+web:lint:   35:5  warning  Avoid adjusting state when a prop changes. Instead, adjust "period" directly during render when "date" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/ee/features/billing/components/BillingInvoiceTable.tsx
+web:lint:    94:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "isFirstPage" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:    94:22  warning  Avoid chaining state changes. When possible, update "virtualTotal" along with other relevant state simultaneously                 react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   102:7   warning  Avoid storing derived state. Instead, compute "virtualTotal" directly during render                                               react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/ee/features/sso-settings/components/SSOSettings.tsx
+web:lint:   320:9  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "dialogOpen" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/annotation-queues/components/AnnotationQueueItemPage.tsx
+web:lint:    54:12  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "itemId" directly when the event occurs       react-you-might-not-need-an-effect/no-event-handler
+web:lint:    54:12  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "itemId" to the parent component              react-you-might-not-need-an-effect/no-event-handler
+web:lint:    63:5   warning  Avoid storing derived state. Instead, compute "seenItemIds" directly during render                                                react-you-might-not-need-an-effect/no-derived-state
+web:lint:   140:8   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "seenItemIds" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/auth-credentials/components/ResetPasswordButton.tsx
+web:lint:   30:5  warning  Avoid adjusting state when a prop changes. Instead, adjust "isValidEmail" directly during render when "email" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/automations/components/automationForm.tsx
+web:lint:   230:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "isEditing" to the parent component   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   230:22  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "automation" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   231:7   warning  Avoid storing derived state. Instead, compute "activeTab" directly during render                                          react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/batch-actions/components/AddObservationsToDatasetDialog/MappingStep.tsx
+web:lint:   38:7  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "isObjectType" to the parent component                          react-you-might-not-need-an-effect/no-event-handler
+web:lint:   39:7  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "config" to the parent component                                react-you-might-not-need-an-effect/no-event-handler
+web:lint:   41:8  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "config" to the parent component                                react-you-might-not-need-an-effect/no-event-handler
+web:lint:   52:9  warning  Avoid passing data to parents in an effect. Instead, fetch ""generateEntriesFromSchema"" in the parent and pass it down to "MappingStep" as a prop  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/batch-actions/components/AddObservationsToDatasetDialog/components/MappingPreviewPanel.tsx
+web:lint:   165:7  warning  Avoid passing data to parents in an effect. Instead, fetch ""useMemo" and "useMemo"" in the parent and pass it down to "MappingPreviewPanel" as a prop  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/column-visibility/hooks/useColumnOrder.ts
+web:lint:   29:26  warning  Avoid passing data to parents in an effect. Instead, return ""c"" from "useColumnOrder"                                                                                                                    react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   36:5   warning  Avoid passing data to parents in an effect. Instead, return ""window" and "localStorage" and "JSON" and "console" and "window" and "localStorage" and "JSON" and "console" and "c"" from "useColumnOrder"  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/column-visibility/hooks/useColumnVisibility.ts
+web:lint:   58:37  warning  Avoid passing data to parents in an effect. Instead, return ""localStorageKey" and "localStorage" and "console" and "column" and "column" and "column" and "visibilityState" and "visibilityState" and "column" and "column"" from "useColumnVisibility"  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/comments/CommentDrawerButton.tsx
+web:lint:   74:9  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "shouldAutoOpen" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   74:9  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "shouldAutoOpen" to the parent component         react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/comments/CommentList.tsx
+web:lint:   165:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "searchQuery" directly during render when "objectId" and "objectType" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   183:5   warning  Avoid passing data to parents in an effect. Instead, fetch ""useMentionAutocomplete"" in the parent and pass it down to "CommentList" as a prop                                               react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   222:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "onDraftChange" to the parent component                                                                   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   223:5   warning  Avoid passing data to parents in an effect. Instead, fetch ""Boolean"" in the parent and pass it down to "CommentList" as a prop                                                              react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   261:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "pendingSelection" to the parent component                                                                react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/comments/hooks/useMentionAutocomplete.ts
+web:lint:   30:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "enabled" to the parent component                                                                                                       react-you-might-not-need-an-effect/no-event-handler
+web:lint:   36:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "lastAtIndex" to the parent component                                                                                                   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   37:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "showDropdown" directly during render when "getTextareaValue" and "cursorPosition" and "enabled" changes, or refactor your state to avoid this need entirely     react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   38:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "mentionStartPos" directly during render when "getTextareaValue" and "cursorPosition" and "enabled" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   46:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "isValidStart" to the parent component                                                                                                  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   47:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "showDropdown" directly during render when "getTextareaValue" and "cursorPosition" and "enabled" changes, or refactor your state to avoid this need entirely     react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   56:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "showDropdown" directly during render when "getTextareaValue" and "cursorPosition" and "enabled" changes, or refactor your state to avoid this need entirely     react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   61:5   warning  Avoid storing derived state. Instead, compute "mentionStartPos" directly during render                                                                                                                                      react-you-might-not-need-an-effect/no-derived-state
+web:lint:   63:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "showDropdown" directly during render when "getTextareaValue" and "cursorPosition" and "enabled" changes, or refactor your state to avoid this need entirely     react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   64:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "selectedIndex" directly during render when "getTextareaValue" and "cursorPosition" and "enabled" changes, or refactor your state to avoid this need entirely    react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/dashboard/components/ModelSelector.tsx
+web:lint:   139:9  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "firstAllModelUpdate" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   140:7  warning  Avoid chaining state changes. When possible, update "selectedModels" along with other relevant state simultaneously                       react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   141:7  warning  Avoid chaining state changes. When possible, update "firstAllModelUpdate" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/datasets/components/DatasetForm.tsx
+web:lint:   216:11  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "onValidationChange" to the parent component                                react-you-might-not-need-an-effect/no-event-handler
+web:lint:   227:33  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "isSubmitting" to the parent component                                      react-you-might-not-need-an-effect/no-event-handler
+web:lint:   230:11  warning  Avoid passing data to parents in an effect. Instead, fetch ""useForm" and "api" and "api" and "api"" in the parent and pass it down to "DatasetForm" as a prop  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/datasets/components/DatasetRunAggregateColumnHelpers.tsx
+web:lint:   59:27  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "runId" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   59:68  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "runId" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/datasets/components/DatasetRunsTable.tsx
+web:lint:   339:5  warning  Avoid passing data to parents in an effect. Instead, fetch ""useMemo"" in the parent and pass it down to "DatasetRunsTable" as a prop  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/datasets/components/EditDatasetItemDialog.tsx
+web:lint:   108:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "datasetItem" to the parent component                                                                react-you-might-not-need-an-effect/no-event-handler
+web:lint:   108:24  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "open" to the parent component                                                                       react-you-might-not-need-an-effect/no-event-handler
+web:lint:   114:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "formError" directly during render when "datasetItem" and "open" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/datasets/hooks/useCsvMapping.ts
+web:lint:   61:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "preview" to the parent component               react-you-might-not-need-an-effect/no-event-handler
+web:lint:   69:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "hasInputSchema" to the parent component        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   69:29  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "hasExpectedSchema" to the parent component     react-you-might-not-need-an-effect/no-event-handler
+web:lint:   69:51  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "isInitialized" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   75:11  warning  Avoid passing data to parents in an effect. Instead, return ""c" and "findDefaultColumn"" from "useCsvMapping"                      react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   78:11  warning  Avoid passing data to parents in an effect. Instead, return ""c" and "findDefaultColumn"" from "useCsvMapping"                      react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   81:11  warning  Avoid passing data to parents in an effect. Instead, return ""c" and "findDefaultColumn"" from "useCsvMapping"                      react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   84:7   warning  Avoid storing derived state. Instead, compute "mapping" directly during render                                                      react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/evals/components/inner-evaluator-form.tsx
+web:lint:   506:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   526:7   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   527:8   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/evals/components/variable-mapping-card.tsx
+web:lint:   130:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "showPreview" directly during render when "form" and "disabled" and "compatibilityCheckWasPerformed" and "isNewCompatible" changes, or refactor your state to avoid this need entirely             react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   132:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "showPreview" directly during render when "form" and "disabled" and "compatibilityCheckWasPerformed" and "isNewCompatible" changes, or refactor your state to avoid this need entirely             react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   136:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "selectedPreviewPointer" directly during render when "form" and "disabled" and "compatibilityCheckWasPerformed" and "isNewCompatible" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/evals/hooks/useCodeEvalSourceValidation.ts
+web:lint:   98:5  warning  Avoid adjusting state when a prop changes. Instead, adjust "isPending" directly during render when "enabled" and "sourceCode" and "sourceCodeLanguage" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/evals/hooks/useEvaluationModel.ts
+web:lint:   29:9  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "selectedModel" to the parent component                                             react-you-might-not-need-an-effect/no-event-handler
+web:lint:   36:7  warning  Avoid passing data to parents in an effect. Instead, return ""UIModelParams" and "prev" and "getEnabledModelParamState" and "api" and "api"" from "useEvaluationModel"  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/evals/hooks/useEvaluatorTarget.ts
+web:lint:   36:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "userFacingTarget" directly during render when "targetObject" changes, or refactor your state to avoid this need entirely          react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   38:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "userFacingTarget" directly during render when "targetObject" changes, or refactor your state to avoid this need entirely          react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   40:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "userFacingTarget" directly during render when "targetObject" changes, or refactor your state to avoid this need entirely          react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   41:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "useOtelDataForExperiment" directly during render when "targetObject" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   44:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "userFacingTarget" directly during render when "targetObject" changes, or refactor your state to avoid this need entirely          react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   45:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "useOtelDataForExperiment" directly during render when "targetObject" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/evals/hooks/useExtractVariables.ts
+web:lint:    77:10  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "extractionError" directly when the event occurs                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:    87:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "isLoading" to the parent component                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-you-might-not-need-an-effect/no-event-handler
+web:lint:    88:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "extractedVariables" directly during render when "variables" and "variableMapping" and "variables" and "isLoading" and "previewData" and "previewData" and "previewData" and "previewData" changes, or refactor your state to avoid this need entirely                                                                                                                                                                                                                                                                                                                                                                            react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:    94:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "extractedVariables" directly during render when "variables" and "variableMapping" and "variables" and "isLoading" and "previewData" and "previewData" and "previewData" and "previewData" changes, or refactor your state to avoid this need entirely                                                                                                                                                                                                                                                                                                                                                                            react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   105:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "idChanged" to the parent component                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-you-might-not-need-an-effect/no-event-handler
+web:lint:   110:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "shouldExtract" to the parent component                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   115:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "idChanged" to the parent component                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      react-you-might-not-need-an-effect/no-event-handler
+web:lint:   116:7   warning  Avoid storing derived state. Instead, compute "extractedVariables" directly during render                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    react-you-might-not-need-an-effect/no-derived-state
+web:lint:   122:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "isExtracting" directly during render when "variables" and "variableMapping" and "variables" and "isLoading" and "previewData" and "previewData" and "previewData" and "previewData" changes, or refactor your state to avoid this need entirely                                                                                                                                                                                                                                                                                                                                                                                  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   123:5   warning  Avoid adjusting state when a prop changes. Instead, adjust "extractionError" directly during render when "variables" and "variableMapping" and "variables" and "isLoading" and "previewData" and "previewData" and "previewData" and "previewData" changes, or refactor your state to avoid this need entirely                                                                                                                                                                                                                                                                                                                                                                               react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   126:29  warning  Avoid passing data to parents in an effect. Instead, return ""EvalTargetObject" and "variable" and "selectedColumnId" and "selectedColumnId" and "EvalTargetObject" and "object" and "object" and "objectName" and "observations" and "observations" and "objectName" and "observations" and "observations" and "objectName" and "observations" and "observations" and "api" and "api" and "object" and "api" and "console" and "object" and "variable" and "extractValueFromObjectAsString" and "extractValueFromObjectAsString" and "extractValueFromObjectAsString" and "variable" and "extractValueFromObjectAsString" and "extractValueFromObjectAsString"" from "useExtractVariables"  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/evals/hooks/useTemplateValidation.ts
+web:lint:   27:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedTemplate" directly when the event occurs                                                     react-you-might-not-need-an-effect/no-event-handler
+web:lint:   29:9   warning  Avoid chaining state changes. When possible, update "isSelectionValid" along with other relevant state simultaneously                                                                     react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   29:9   warning  Avoid adjusting state when a prop changes. Instead, adjust "isSelectionValid" directly during render when "onValidSelection" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   31:11  warning  Avoid passing live state to parents in an effect. Instead, return ""selectedTemplate"" from "useTemplateValidation"                                                                       react-you-might-not-need-an-effect/no-pass-live-state-to-parent
+web:lint:   31:11  warning  Avoid passing data to parents in an effect. Instead, return ""EvalTemplate"" from "useTemplateValidation"                                                                                 react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   36:13  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedTemplate" directly when the event occurs                                                     react-you-might-not-need-an-effect/no-event-handler
+web:lint:   37:9   warning  Avoid chaining state changes. When possible, update "isSelectionValid" along with other relevant state simultaneously                                                                     react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   37:9   warning  Avoid adjusting state when a prop changes. Instead, adjust "isSelectionValid" directly during render when "onValidSelection" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   41:13  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedTemplate" directly when the event occurs                                                     react-you-might-not-need-an-effect/no-event-handler
+web:lint:   42:9   warning  Avoid chaining state changes. When possible, update "isSelectionValid" along with other relevant state simultaneously                                                                     react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   42:9   warning  Avoid adjusting state when a prop changes. Instead, adjust "isSelectionValid" directly during render when "onValidSelection" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   45:7   warning  Avoid chaining state changes. When possible, update "isSelectionValid" along with other relevant state simultaneously                                                                     react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   45:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "isSelectionValid" directly during render when "onValidSelection" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   48:7   warning  Avoid passing live state to parents in an effect. Instead, return ""selectedTemplate"" from "useTemplateValidation"                                                                       react-you-might-not-need-an-effect/no-pass-live-state-to-parent
+web:lint:   48:7   warning  Avoid passing data to parents in an effect. Instead, return ""EvalTemplate"" from "useTemplateValidation"                                                                                 react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/evals/hooks/useTemplatesValidation.ts
+web:lint:   42:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "isSelectionValid" directly during render when "selectedTemplateIds" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   54:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "isSelectionValid" directly during render when "selectedTemplateIds" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   57:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "isSelectionValid" directly during render when "selectedTemplateIds" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/experiments/components/MultiStepExperimentForm.tsx
+web:lint:   286:10  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedPromptName" directly when the event occurs     react-you-might-not-need-an-effect/no-event-handler
+web:lint:   286:32  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedPromptVersion" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/experiments/components/table/ExperimentsTable.tsx
+web:lint:   143:7  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "defaultFilter" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   144:7  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "defaultFilter" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/experiments/hooks/useExperimentEvaluatorSelection.ts
+web:lint:   35:5  warning  Avoid storing derived state. Instead, compute "activeTemplates" directly during render    react-you-might-not-need-an-effect/no-derived-state
+web:lint:   40:5  warning  Avoid storing derived state. Instead, compute "inactiveTemplates" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/filters/components/filter-builder.tsx
+web:lint:   112:40  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "filterState" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   115:5   warning  Avoid storing derived state. Instead, compute "wipFilterState" directly during render                                      react-you-might-not-need-an-effect/no-derived-state
+web:lint:   340:40  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "filterState" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   343:5   warning  Avoid storing derived state. Instead, compute "wipFilterState" directly during render                                      react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/filters/hooks/useKeyedSessionStorageState.ts
+web:lint:   33:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "state" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   33:23  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "storageKey" to the parent component    react-you-might-not-need-an-effect/no-event-handler
+web:lint:   35:5   warning  Avoid storing derived state. Instead, compute "state" directly during render                                                react-you-might-not-need-an-effect/no-derived-state
+web:lint:   35:5   warning  Avoid chaining state changes. When possible, update "state" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   46:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "state" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   46:23  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "storageKey" to the parent component    react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/filters/hooks/useSidebarFilterState.tsx
+web:lint:   627:7   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stateLocationType" to the parent component                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   628:7   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stateLocationType" to the parent component                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   632:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "pendingFiltersQuery" directly when the event occurs                                                react-you-might-not-need-an-effect/no-event-handler
+web:lint:   635:39  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "pendingFiltersQuery" directly when the event occurs                                                react-you-might-not-need-an-effect/no-event-handler
+web:lint:   636:7   warning  Avoid chaining state changes. When possible, update "pendingFiltersQuery" along with other relevant state simultaneously                                                                react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   636:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "pendingFiltersQuery" directly during render when "hookOptions" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   648:7   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stateLocationType" to the parent component                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   649:7   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stateLocationType" to the parent component                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint: ESLint found too many warnings (maximum: 0).
+web:lint:   654:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "pendingFiltersQuery" directly when the event occurs                                                react-you-might-not-need-an-effect/no-event-handler
+web:lint:   658:9   warning  Avoid chaining state changes. When possible, update "pendingFiltersQuery" along with other relevant state simultaneously                                                                react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   658:9   warning  Avoid adjusting state when a prop changes. Instead, adjust "pendingFiltersQuery" directly during render when "hookOptions" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   663:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stateLocationType" to the parent component                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   672:7   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stateLocationType" to the parent component                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   689:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "stateLocationType" to the parent component                                                         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   690:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "pendingFiltersQuery" directly when the event occurs                                                react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/filters/savedViewImplicitEnvironmentRegression.clienttest.tsx
+web:lint:   126:13  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "value" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   126:31  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "value" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   126:54  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "value" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/filters/sidebarFilterSessionPersistence.clienttest.tsx
+web:lint:   46:13  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "value" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   46:31  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "value" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/models/components/test-match/TestModelMatchDialog.tsx
+web:lint:   61:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "open" to the parent component                                                        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   62:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "modelName" directly during render when "open" changes, or refactor your state to avoid this need entirely     react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   63:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "usageDetails" directly during render when "open" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   64:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "hasSubmitted" directly during render when "open" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/playground/page/components/CreateOrEditLLMSchemaDialog.tsx
+web:lint:   89:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "existingLlmSchema" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   89:31  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component              react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/playground/page/components/CreateOrEditLLMToolDialog.tsx
+web:lint:   89:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "existingLlmTool" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   89:29  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component            react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/playground/page/components/JumpToPlaygroundButton.tsx
+web:lint:   128:7   warning  Avoid chaining state changes. When possible, update "capturedState" along with other relevant state simultaneously                                                                                              react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   128:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "capturedState" directly during render when "props" and "props" and "props" and "props" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   129:16  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "generationData" to the parent component                                                                                    react-you-might-not-need-an-effect/no-event-handler
+web:lint:   130:7   warning  Avoid chaining state changes. When possible, update "capturedState" along with other relevant state simultaneously                                                                                              react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   130:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "capturedState" directly during render when "props" and "props" and "props" and "props" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   138:7   warning  Avoid chaining state changes. When possible, update "isAvailable" along with other relevant state simultaneously                                                                                                react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   140:7   warning  Avoid chaining state changes. When possible, update "isAvailable" along with other relevant state simultaneously                                                                                                react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/playground/page/components/MultiWindowPlayground.tsx
+web:lint:   78:9  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "currentCount" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/playground/page/context/index.tsx
+web:lint:   532:10  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "cacheLoaded" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   536:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "messages" directly when the event occurs     react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/playground/page/hooks/useModelParams.ts
+web:lint:   182:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "modelParams" directly when the event occurs        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   204:39  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "modelParams" directly when the event occurs        react-you-might-not-need-an-effect/no-event-handler
+web:lint:   222:8   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "promptConfigSelectionKey" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   224:8   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "promptConfigModel" to the parent component         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   229:5   warning  Avoid storing derived state. Instead, compute "modelParams" directly during render                                                      react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/playground/page/hooks/usePersistedWindowIds.ts
+web:lint:   24:5  warning  Avoid initializing state in an effect. Instead, initialize "windowIds"'s "useState()" with "savedWindowIds ?? [uuidv4()]". For SSR hydration, prefer "useSyncExternalStore"  react-you-might-not-need-an-effect/no-initialize-state
+web:lint:   25:5  warning  Avoid initializing state in an effect. Instead, initialize "isLoaded"'s "useState()" with "true". For SSR hydration, prefer "useSyncExternalStore"                           react-you-might-not-need-an-effect/no-initialize-state
+web:lint:   30:9  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "isLoaded" directly when the event occurs                                                react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/playground/page/index.tsx
+web:lint:   44:5  warning  Avoid initializing state in an effect. Instead, initialize "isMac"'s "useState()" with "window.navigator.userAgent.includes("Mac")". For SSR hydration, prefer "useSyncExternalStore"  react-you-might-not-need-an-effect/no-initialize-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/prompts/components/NewPromptForm/PromptChatMessages.tsx
+web:lint:    60:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "messages" directly during render when "initialMessages" changes, or refactor your state to avoid this need entirely        react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:    71:5  warning  Avoid adjusting state when a prop changes. Instead, adjust "messages" directly during render when "initialMessages" changes, or refactor your state to avoid this need entirely        react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   101:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "availableRoles" directly during render when "initialMessages" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   141:5  warning  Avoid passing live state to parents in an effect. Instead, lift ""messages"" to the parent and pass it down to "PromptChatMessages" as a prop                                          react-you-might-not-need-an-effect/no-pass-live-state-to-parent
+web:lint:   141:5  warning  Avoid passing data to parents in an effect. Instead, fetch ""ChatMessageWithId"" in the parent and pass it down to "PromptChatMessages" as a prop                                      react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/prompts/components/NewPromptForm/ReviewPromptDialog.tsx
+web:lint:   53:9  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "open" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   54:7  warning  Avoid storing derived state. Instead, compute "newPromptValue" directly during render                                      react-you-might-not-need-an-effect/no-derived-state
+web:lint:   54:7  warning  Avoid chaining state changes. When possible, update "newPromptValue" along with other relevant state simultaneously        react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/prompts/components/NewPromptForm/index.tsx
+web:lint:   190:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "initialMessages" directly during render when "props" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   191:16  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "initialPrompt" to the parent component                                                   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   192:7   warning  Avoid storing derived state. Instead, compute "initialMessages" directly during render                                                                                        react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/prompts/components/PromptSelectionDialog.tsx
+web:lint:   50:9  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "isOpen" to the parent component                                                                  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   51:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "selectedPromptName" directly during render when "isOpen" changes, or refactor your state to avoid this need entirely      react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   52:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "selectedTag" directly during render when "isOpen" changes, or refactor your state to avoid this need entirely             react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   53:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "selectionType" directly during render when "isOpen" changes, or refactor your state to avoid this need entirely           react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   54:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "selectedVersionOrLabel" directly during render when "isOpen" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   61:9  warning  Avoid storing derived state. Instead, compute "selectedTag" directly during render                                                                                                    react-you-might-not-need-an-effect/no-derived-state
+web:lint:   65:9  warning  Avoid storing derived state. Instead, compute "selectedTag" directly during render                                                                                                    react-you-might-not-need-an-effect/no-derived-state
+web:lint:   70:7  warning  Avoid chaining state changes. When possible, update "selectedTag" along with other relevant state simultaneously                                                                      react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/prompts/components/SetPromptVersionLabels/index.tsx
+web:lint:   74:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "justOpened" to the parent component                                                                               react-you-might-not-need-an-effect/no-event-handler
+web:lint:   74:23  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "promptChangedWhileOpen" to the parent component                                                                   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   75:7   warning  Avoid storing derived state. Instead, compute "selectedLabels" directly during render                                                                                                                  react-you-might-not-need-an-effect/no-derived-state
+web:lint:   76:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "createdLabels" directly during render when "isOpen" and "prompt" and "prompt" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   77:7   warning  Avoid adjusting state when a prop changes. Instead, adjust "searchValue" directly during render when "isOpen" and "prompt" and "prompt" changes, or refactor your state to avoid this need entirely    react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/prompts/components/prompt-history.tsx
+web:lint:   31:7   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   33:7   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "props" to the parent component   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   33:38  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "prompt" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/prompts/hooks/usePromptNameValidation.tsx
+web:lint:   16:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "currentName" to the parent component   react-you-might-not-need-an-effect/no-event-handler
+web:lint:   16:26  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "allPrompts" to the parent component    react-you-might-not-need-an-effect/no-event-handler
+web:lint:   18:26  warning  Avoid passing data to parents in an effect. Instead, return ""prompt"" from "usePromptNameValidation"                       react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   26:11  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "currentError" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/scores/components/AnnotationForm.tsx
+web:lint:   92:5  warning  Avoid storing derived state. Instead, compute "localValue" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/slack/components/ChannelSelector.tsx
+web:lint:   189:9  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "scrollNode" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/trace-graph-view/components/TraceGraphCanvas.tsx
+web:lint:   379:7   warning  Avoid passing data to parents in an effect. Instead, fetch ""node" and "LANGFUSE_START_NODE_NAME" and "node" and "LANGFUSE_END_NODE_NAME" and "node" and "LANGGRAPH_START_NODE_NAME" and "node" and "LANGGRAPH_END_NODE_NAME" and "node" and "LANGFUSE_START_NODE_NAME" and "node" and "LANGFUSE_END_NODE_NAME" and "node" and "LANGGRAPH_START_NODE_NAME" and "node" and "LANGGRAPH_END_NODE_NAME" and "node" and "LANGFUSE_START_NODE_NAME" and "node" and "LANGFUSE_END_NODE_NAME" and "node" and "LANGGRAPH_START_NODE_NAME" and "node" and "LANGGRAPH_END_NODE_NAME" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node" and "node"" in the parent and pass it down to "TraceGraphCanvas" as a prop  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   413:26  warning  Avoid passing data to parents in an effect. Instead, fetch ""node"" in the parent and pass it down to "TraceGraphCanvas" as a prop                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/trace-graph-view/components/TraceGraphView.tsx
+web:lint:   106:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "selectedNodeName" directly during render when "agentGraphData" changes, or refactor your state to avoid this need entirely           react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   107:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "currentObservationIndices" directly during render when "agentGraphData" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   111:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "previousSelectedNode" directly during render when "agentGraphData" changes, or refactor your state to avoid this need entirely       react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   113:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "selectedNodeName" directly during render when "agentGraphData" changes, or refactor your state to avoid this need entirely           react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   114:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "previousSelectedNode" directly during render when "agentGraphData" changes, or refactor your state to avoid this need entirely       react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/widgets/chart-library/ChartLoadingState.tsx
+web:lint:   48:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "showHint" directly during render when "hintDelayMs" and "isLoading" changes, or refactor your state to avoid this need entirely                          react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   63:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "showProgressPhase" directly during render when "isLoading" and "showSpinner" and "progress" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/widgets/chart-library/PivotTable.tsx
+web:lint:   327:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "currentDefaultSort" to the parent component      react-you-might-not-need-an-effect/no-event-handler
+web:lint:   327:32  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "lastDefaultSort" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   328:7   warning  Avoid storing derived state. Instead, compute "lastDefaultSort" directly during render                                                react-you-might-not-need-an-effect/no-derived-state
+web:lint:   328:7   warning  Avoid chaining state changes. When possible, update "lastDefaultSort" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   331:11  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "onSortChange" to the parent component            react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/widgets/components/DashboardGrid.tsx
+web:lint:   18:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "matches" directly during render when "query" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   18:7  warning  Avoid using an effect to subscribe to an external store. Instead, use "useSyncExternalStore" to manage "matches"                                                      react-you-might-not-need-an-effect/no-external-store-subscription
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/widgets/components/DashboardWidget.tsx
+web:lint:   121:24  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "sortState" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   122:7   warning  Avoid chaining state changes. When possible, update "sortState" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/features/widgets/components/WidgetForm.tsx
+web:lint:    497:7   warning  Avoid storing derived state. Instead, compute "selectedView" directly during render                                                     react-you-might-not-need-an-effect/no-derived-state
+web:lint:    498:7   warning  Avoid storing derived state. Instead, compute "selectedMeasure" directly during render                                                  react-you-might-not-need-an-effect/no-derived-state
+web:lint:    499:7   warning  Avoid storing derived state. Instead, compute "selectedAggregation" directly during render                                              react-you-might-not-need-an-effect/no-derived-state
+web:lint:    500:7   warning  Avoid storing derived state. Instead, compute "selectedDimension" directly during render                                                react-you-might-not-need-an-effect/no-derived-state
+web:lint:    501:7   warning  Avoid storing derived state. Instead, compute "pivotDimensions" directly during render                                                  react-you-might-not-need-an-effect/no-derived-state
+web:lint:    502:7   warning  Avoid storing derived state. Instead, compute "selectedMetrics" directly during render                                                  react-you-might-not-need-an-effect/no-derived-state
+web:lint:    526:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedChartType" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:    548:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "defaultSortColumn" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:    549:7   warning  Avoid storing derived state. Instead, compute "defaultSortColumn" directly during render                                                react-you-might-not-need-an-effect/no-derived-state
+web:lint:    549:7   warning  Avoid chaining state changes. When possible, update "defaultSortColumn" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:    550:7   warning  Avoid storing derived state. Instead, compute "defaultSortOrder" directly during render                                                 react-you-might-not-need-an-effect/no-derived-state
+web:lint:    550:7   warning  Avoid chaining state changes. When possible, update "defaultSortOrder" along with other relevant state simultaneously                   react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:    826:7   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedDimension" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:    828:7   warning  Avoid storing derived state. Instead, compute "selectedDimension" directly during render                                                react-you-might-not-need-an-effect/no-derived-state
+web:lint:    828:7   warning  Avoid chaining state changes. When possible, update "selectedDimension" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:    834:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedChartType" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:    834:48  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "pivotDimensions" directly when the event occurs    react-you-might-not-need-an-effect/no-event-handler
+web:lint:    835:7   warning  Avoid storing derived state. Instead, compute "pivotDimensions" directly during render                                                  react-you-might-not-need-an-effect/no-derived-state
+web:lint:    835:7   warning  Avoid chaining state changes. When possible, update "pivotDimensions" along with other relevant state simultaneously                    react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:    841:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedChartType" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:    841:48  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "selectedMetrics" directly when the event occurs    react-you-might-not-need-an-effect/no-event-handler
+web:lint:    843:7   warning  Avoid storing derived state. Instead, compute "selectedMetrics" directly during render                                                  react-you-might-not-need-an-effect/no-derived-state
+web:lint:    868:29  warning  Avoid storing derived state. Instead, compute "selectedChartType" directly during render                                                react-you-might-not-need-an-effect/no-derived-state
+web:lint:    868:29  warning  Avoid chaining state changes. When possible, update "selectedChartType" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:    870:7   warning  Avoid storing derived state. Instead, compute "selectedAggregation" directly during render                                              react-you-might-not-need-an-effect/no-derived-state
+web:lint:    870:7   warning  Avoid chaining state changes. When possible, update "selectedAggregation" along with other relevant state simultaneously                react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   1414:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "autoLocked" directly when the event occurs         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   1442:5   warning  Avoid storing derived state. Instead, compute "widgetName" directly during render                                                       react-you-might-not-need-an-effect/no-derived-state
+web:lint:   1442:5   warning  Avoid chaining state changes. When possible, update "widgetName" along with other relevant state simultaneously                         react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   1456:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "autoLocked" directly when the event occurs         react-you-might-not-need-an-effect/no-event-handler
+web:lint:   1484:5   warning  Avoid storing derived state. Instead, compute "widgetDescription" directly during render                                                react-you-might-not-need-an-effect/no-derived-state
+web:lint:   1484:5   warning  Avoid chaining state changes. When possible, update "widgetDescription" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/hooks/use-environment-filter-options-cache.tsx
+web:lint:   124:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "projectId" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/hooks/use-mobile.tsx
+web:lint:   17:5  warning  Avoid using an effect to subscribe to an external store. Instead, use "useSyncExternalStore" to manage "isMobile"                                                                    react-you-might-not-need-an-effect/no-external-store-subscription
+web:lint:   17:5  warning  Avoid initializing state in an effect. Instead, initialize "isMobile"'s "useState()" with "window.innerWidth < MOBILE_BREAKPOINT". For SSR hydration, prefer "useSyncExternalStore"  react-you-might-not-need-an-effect/no-initialize-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/hooks/useDashboardQueryScheduler.tsx
+web:lint:   210:41  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "resetKey" to the parent component      react-you-might-not-need-an-effect/no-event-handler
+web:lint:   490:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "enabled" to the parent component       react-you-might-not-need-an-effect/no-event-handler
+web:lint:   491:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "activeResult" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   492:9   warning  Avoid using props and effects as an event handler. Instead, move the code that uses "activeResult" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/hooks/useEnvironmentFilter.tsx
+web:lint:   56:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "availableEnvironments" to the parent component                                                                                                      react-you-might-not-need-an-effect/no-event-handler
+web:lint:   62:5   warning  Avoid passing data to parents in an effect. Instead, return ""useLocalStorage" and "EnvironmentVisibility" and "env" and "undefined" and "useLocalStorage" and "EnvironmentVisibility" and "env" and "env"" from "useEnvironmentFilter"  react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/hooks/useFormPersistence.ts
+web:lint:   41:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "enabled" to the parent component                                                               react-you-might-not-need-an-effect/no-event-handler
+web:lint:   49:9   warning  Avoid passing data to parents in an effect. Instead, return ""JSON" and "Partial" and "T" and "T"" from "useFormPersistence"                                                        react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint:   53:9   warning  Avoid adjusting state when a prop changes. Instead, adjust "hadDraft" directly during render when "enabled" and "form" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint:   54:9   warning  Avoid adjusting state when a prop changes. Instead, adjust "hasDraft" directly during render when "enabled" and "form" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/hooks/useParsedObservation.ts
+web:lint:   261:47  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "baseObservation" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/hooks/useSSEDashboardQuery.ts
+web:lint:   231:7  warning  Avoid adjusting state when a prop changes. Instead, adjust "status" directly during render when "options" and "options" changes, or refactor your state to avoid this need entirely  react-you-might-not-need-an-effect/no-adjust-state-on-prop-change
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/hooks/useUniqueNameValidation.tsx
+web:lint:   20:10  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "currentName" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   25:24  warning  Avoid passing data to parents in an effect. Instead, return ""name"" from "useUniqueNameValidation"                        react-you-might-not-need-an-effect/no-pass-data-to-parent
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/pages/auth/sign-in.tsx
+web:lint:   517:7  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "runningOnHuggingFaceSpaces" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/pages/project/[projectId]/dashboards/[dashboardId]/index.tsx
+web:lint:   292:28  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "localDashboardDefinition" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   293:7   warning  Avoid chaining state changes. When possible, update "localDashboardDefinition" along with other relevant state simultaneously                  react-you-might-not-need-an-effect/no-chain-state-updates
+web:lint:   306:9   warning  Avoid using state and effects as an event handler. Instead, call the code that uses "localDashboardDefinition" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint:   308:10  warning  Avoid using state and effects as an event handler. Instead, call the code that uses "localDashboardDefinition" directly when the event occurs  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/pages/project/[projectId]/settings/integrations/blobstorage.tsx
+web:lint:   289:5  warning  Avoid storing derived state. Instead, compute "integrationType" directly during render  react-you-might-not-need-an-effect/no-derived-state
+web:lint: 
+web:lint: /Users/ben.bachem/dev/repos/langfuse/langfuse/web/src/pages/project/[projectId]/users/index.tsx
+web:lint:   277:9  warning  Avoid using props and effects as an event handler. Instead, move the code that uses "users" to the parent component  react-you-might-not-need-an-effect/no-event-handler
+web:lint: 
+web:lint: ✖ 363 problems (0 errors, 363 warnings)
+web:lint: 
+web:lint: [ELIFECYCLE] Command failed with exit code 1.
+
+ Tasks:    4 successful, 5 total
+Cached:    4 cached, 5 total
+  Time:    1.76s 
+Failed:    web#lint
+
+[ELIFECYCLE] Command failed with exit code 1.
