@@ -656,6 +656,41 @@ describe("webCallouts router", () => {
     expect(stored?.requestHeaderKeys).toEqual(["Authorization", "X-New"]);
   });
 
+  it("rejects blank values for new or renamed request headers", async () => {
+    const { caller, prismaStub, projectId } = await prepare();
+    const endpoint = await createEndpoint(caller, projectId, {
+      requestHeaders: {
+        Authorization: "Bearer secret-token",
+      },
+    });
+
+    await expect(
+      caller.webCallouts.upsert({
+        projectId,
+        id: endpoint.id,
+        name: "Default",
+        url: "https://example.com/callout",
+        enabled: true,
+        toastMessage: "Sent to app",
+        requestHeaders: {
+          "X-Auth": "",
+        },
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message:
+        'Header "X-Auth" value is required when adding or renaming a header.',
+    });
+
+    const stored = prismaStub.endpoints.find(
+      (candidate) => candidate.id === endpoint.id,
+    );
+    expect(stored?.requestHeaders).toBe(
+      'encrypted:{"Authorization":"Bearer secret-token"}',
+    );
+    expect(stored?.requestHeaderKeys).toEqual(["Authorization"]);
+  });
+
   it("clears request headers when all configured keys are removed", async () => {
     const { caller, prismaStub, projectId } = await prepare();
     const endpoint = await createEndpoint(caller, projectId, {
@@ -771,6 +806,25 @@ describe("webCallouts router", () => {
         sessionId: null,
       }),
     ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(fetchWithSecureRedirects).not.toHaveBeenCalled();
+  });
+
+  it("does not invoke when a trace without session is paired with a session id", async () => {
+    const { caller, prismaStub, projectId } = await prepare();
+    prismaStub.sessions.add(`${projectId}:session-1`);
+    await createEndpoint(caller, projectId);
+
+    await expect(
+      caller.webCallouts.invoke({
+        projectId,
+        traceId: "trace-1",
+        observationId: null,
+        sessionId: "session-1",
+      }),
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Trace does not belong to the provided session.",
+    });
     expect(fetchWithSecureRedirects).not.toHaveBeenCalled();
   });
 
