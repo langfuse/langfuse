@@ -5,9 +5,8 @@ owner map for humans and agents. Prefer `README.md` over `FEATURE.md` to match
 the existing `web/src/features/*` convention. Use `FEATURE.md` only if a folder
 already has a user-facing or generated README.
 
-The README is not a changelog. It should describe durable boundaries: entry
-points, subfolders, state ownership, performance-sensitive interactions, and
-where to find deeper migration notes.
+The README is not a changelog. It should describe durable boundaries and point
+to deeper migration notes.
 
 ## Required Sections
 
@@ -32,21 +31,9 @@ where to find deeper migration notes.
 
 ## State Ownership Rules
 
-- Server data remains in tRPC/React Query unless a pure prepared view model is
-  needed for rendering.
-- URL state remains in router/filter hooks, but feature-specific interpretation
-  belongs in a controller hook, pure helper, or local store action.
-- Local feature stores are created by the mounted page/view and destroyed on
-  unmount. This is the default for Langfuse pages because they are often
-  local-state heavy.
-- Global stores are only for product state shared across routes or features.
-  Do not globalize state to hide prop drilling or controller complexity.
-- DOM integration state, such as virtualizer measurement, observers, and
-  third-party mutation handling, belongs in narrow integration hooks.
-- View components should render props or subscribe to a small store slice. They
-  should not derive controller state or own feature workflows.
-- Complex feature workflows should live in `actions/*.ts` or store actions, not
-  inline in page controllers or view components.
+Use the ownership baseline in `big-feature-rules.md`. The README only needs to
+name where each state category lives in this feature and where known spread
+state remains.
 
 ## Performance And Stability Map
 
@@ -60,7 +47,7 @@ must stay narrow. Typical examples:
 - browser translation or other third-party DOM mutation
 - resize and dynamic row measurement
 
-For each interaction, state which boundary should update. The page controller
+For each interaction, state which boundary should update. The page component
 should not rerun expensive data preparation, recreate column/config objects, or
 rerender unchanged expensive cells for unrelated state changes.
 
@@ -99,4 +86,4 @@ Feature README updates should match the PR size:
   boundary being improved.
 
 The README should help the next contributor avoid falling back into the same
-controller component, not argue that the migration is complete.
+large component, not argue that the migration is complete.

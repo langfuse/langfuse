@@ -1,54 +1,34 @@
 # Local Feature State
 
-Large frontend features should not let one controller component own everything.
-That shape guarantees broad rerenders: one checkbox or row-hover state change
-reruns the component that also builds filters, columns, data wrappers, expensive
-cells, actions, drawers, and routing glue.
+Large frontend features should not let one component or hook own everything.
+That shape makes one checkbox, hover, or row-selection change rerun the code
+that also builds filters, columns, data wrappers, expensive cells, drawers,
+actions, and routing glue.
 
-This is not just inefficient. It is unstable. Broad rerenders recreate
-identities, refire effects, reset row-local state, retrigger query containers,
-and can feed virtualization or DOM-measurement loops. The goal is to make each
-state change wake only the UI and actions that semantically depend on it.
+The goal is to make each state change wake only the UI and actions that
+semantically depend on it.
 
 ## Default Pattern
 
-1. Keep the page/view as the lifecycle owner.
-2. Create one local vanilla Zustand store per mounted feature instance with a
-   lazy `useState` initializer.
-3. Provide only the stable store instance through context.
-4. Keep server/query state in tRPC/React Query.
-5. Keep URL state in the router/filter hooks.
-6. Move state-changing logic into named store actions.
-7. Split UI into small subscribers that select only the state they need.
-8. Keep expensive cells/rows view-only behind narrow containers.
-9. Put complex data preparation in pure functions before render.
-10. Put complex user actions in external async functions or store actions.
-11. Bridge local store state and React Query data explicitly in a feature hook
-    when they need to influence each other.
-12. Add or update the feature root `README.md` for large features so entry
-    points, folder boundaries, state ownership, and relevant agent docs are
-    discoverable before the next change.
+Start from the ownership baseline in `big-feature-rules.md`, then add a local
+vanilla Zustand store only when state is high-frequency, shared across multiple
+subtrees in the mounted feature, or must survive row/item remounts.
+
+Use this shape:
+
+1. The page/view creates one store instance with lazy `useState`.
+2. Context provides only the stable store instance.
+3. Components subscribe to the smallest useful slice.
+4. Mutations live in named store actions.
+5. Complex user workflows live in `actions/*.ts` or store actions.
+6. Expensive cells/rows stay view-only behind narrow containers.
+7. Large feature roots have a short `README.md` owner map.
 
 ## Feature README
 
-Use `README.md` in the feature root, matching the existing
-`web/src/features/*` convention. Keep it short. It should answer:
-
-- What surface does this feature own?
-- Which files are page/view lifecycle owners?
-- Which subfolders contain shared components, surface-private components, pure
-  helpers, stores, or integration hooks?
-- Where does server state, route state, local feature state, and imperative DOM
-  integration state belong?
-- Which high-frequency interactions are performance or stability boundaries?
-- Which agent docs or migration notes should be read before extending the
-  feature?
-
-Do not use the README as a changelog. If the feature has known architectural
-debt, record only durable state-boundary facts and link to the relevant agent
-reference note.
-
-For a concrete owner-map template, read `feature-readmes.md`.
+For a concrete owner-map template, read `feature-readmes.md`. Do not use the
+README as a changelog; record durable ownership facts and the next migration
+slice.
 
 ## Why Local, Not Global
 
@@ -63,7 +43,7 @@ cross-route state leaks, and makes ownership visible.
 
 Global state is reserved for product state that is genuinely shared across
 features or routes. Do not promote state globally to avoid prop drilling or to
-make a controller component smaller.
+make a large component smaller.
 
 Do not add a store just to make a PR look architectural. If the immediate
 problem is an inline export workflow, duplicated filter option shaping, or a
@@ -99,21 +79,10 @@ Complex workflows should be independent functions. Put surface-specific actions
 in `actions/*.ts`, or make them named store actions when they are tightly coupled
 to local feature state.
 
-The component is responsible for hooks and lifecycle wiring:
-
-- call tRPC/React Query hooks
-- read route params
-- create or access the local store
-- get analytics capture functions
-- pass the narrow dependencies to the action
-
-The action owns the workflow:
-
-- fetch/refetch data through callbacks it receives
-- read state from a passed store if needed
-- call pure data-preparation helpers
-- perform browser side effects such as file downloads
-- emit analytics through a passed capture function
+The component wires hooks, route params, stores, analytics, and query helpers.
+The action owns the workflow: refetching through callbacks, reading the passed
+store if needed, calling pure helpers, performing browser side effects, and
+emitting analytics.
 
 Actions must not call React hooks. If a workflow needs a lot of context, pass
 the local store instance or a small dependency object rather than threading long
@@ -131,9 +100,8 @@ await exportFeatureData({
 });
 ```
 
-For substantial data shaping, export a pure helper next to the action, e.g.
-`buildFeatureExportData(...)`. That keeps the action testable without rendering
-the page.
+For substantial data shaping, export a pure helper next to the action so the
+transformation can be tested without rendering the page.
 
 ## Store Shape
 
@@ -155,7 +123,7 @@ instance when updating.
 
 ## Anti-Patterns
 
-- A table/list controller owns selection, filters, columns, routing, peek state,
+- A table/list component owns selection, filters, columns, routing, peek state,
   batch actions, local dialogs, and expensive rendered cells.
 - Context provider `value` changes on row selection, hover, scroll, active row,
   expanded row, or other high-frequency state.
@@ -167,13 +135,12 @@ instance when updating.
 - Memoization is the only fix. `memo` helps, but it does not fix a bad state
   boundary.
 - A callback depends on an inline config object and changes identity on every
-  controller render.
+  render.
 - Components subscribe to large objects when they only need a boolean.
-- `useEffect` derives ordinary UI state from fetched data. Prepare data
-  directly from query results instead.
+- `useEffect` derives ordinary UI state from fetched data.
 - A component passes a long chain of feature context through props just so a
   button can perform an action.
-- A page controller keeps a complex async workflow inline because all the hooks
+- A page component keeps a complex async workflow inline because all the hooks
   happen to be in scope there.
 
 ## Migration Steps

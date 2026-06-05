@@ -1,22 +1,12 @@
 # Virtualized Lists
 
 Virtualized lists are render-boundary infrastructure. They should calculate
-which item shells are visible and position those shells. They should not become
-row controllers.
+which item shells are visible and position those shells. They should not make
+each row own feature state, effects, subscriptions, data loading, and workflows.
 
-## Current Langfuse Surfaces
-
-TanStack virtualized surfaces currently include:
-
-- `web/src/components/trace/components/_shared/VirtualizedTree.tsx`
-- `web/src/components/trace/components/_shared/VirtualizedList.tsx`
-- `web/src/components/trace/components/_shared/JSONTableView/JSONTableView.tsx`
-- `web/src/components/trace/components/TraceTimeline/index.tsx`
-- `web/src/components/ui/AdvancedJsonViewer/VirtualizedMultiSectionViewer.tsx`
-- `web/src/features/slack/components/ChannelSelector.tsx`
-
-Review these with the same state-boundary rules before adding measurement,
-row-local effects, or controller state.
+Langfuse uses `@tanstack/react-virtual` for virtualization. Find current
+callsites before changing a virtualized surface, then apply the same
+state-boundary rules as any large feature.
 
 ## Smartness Trap
 
@@ -67,9 +57,9 @@ explicitly chooses that. Langfuse must work under browser translation.
 ## Row Rules
 
 - The virtualizer owns positioning only.
-- Row load state lives outside the row instance if remounts are expected.
+- State that must survive remounts lives outside the row instance.
 - Expensive row content should be a memoized view component.
-- Row containers may subscribe to local store slices and queries.
+- Narrow row containers may subscribe to local store slices and queries.
 - View components should receive stable props and perform no effects.
 - Feature-scoped row containers belong under `src/features/*`; shared
   `src/components/*` row exports should be context-free.
@@ -86,6 +76,6 @@ explicitly chooses that. Langfuse must work under browser translation.
 3. Move row-local state that must survive virtualization into a local store.
 4. Stabilize callbacks and config objects passed to rows.
 5. Replace live `measureElement` with fixed estimates or controlled measurement.
-6. Move row data preparation into pure functions or feature-local containers.
+6. Move row logic into pure helpers or feature-local containers.
 7. Verify with browser translation enabled, horizontal resize, and small
    vertical scroll deltas.

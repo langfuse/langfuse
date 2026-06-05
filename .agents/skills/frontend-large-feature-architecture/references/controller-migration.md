@@ -1,19 +1,11 @@
 # Controller Migration Guide
 
-Use this when a frontend surface has grown into one component that owns data
-fetching, route glue, filters, table/list state, selection, drawers, actions,
-and expensive rendering.
+Use this when a frontend surface has grown into one component or hook that owns
+data fetching, route glue, filters, table/list state, selection, drawers,
+actions, and expensive rendering.
 
-The future target is not "everything in a store." The target is clear
-ownership:
-
-- the page/view owns lifecycle and creates feature-scoped dependencies
-- server state remains in tRPC/React Query
-- route state remains in router/filter hooks
-- high-frequency local UI state lives in a per-mount feature store
-- pure data preparation lives in named helper functions
-- complex workflows live in `actions/*.ts` or store actions
-- rendered components are mostly view-only
+The target is clear ownership, not "everything in a store." Start from the
+ownership baseline in `big-feature-rules.md`.
 
 Most existing features are not there yet. Migrate in narrow slices and keep
 behavior stable.
@@ -40,9 +32,9 @@ feature moves forward.
 
 1. **Map the controller.** List every state group, query, derived value, effect,
    callback, action, and expensive child render owned by the component.
-2. **Classify state.** Separate server/query state, route state, persisted
-   browser state, high-frequency local UI state, derived view data, imperative
-   integration state, and one-off modal/form state.
+2. **Classify state.** Separate server/query, route, persisted browser,
+   high-frequency local UI, derived view data, imperative integration, and
+   one-off modal/form state.
 3. **Instrument one symptom.** Pick a concrete interaction such as row
    selection, scroll, filter change, drawer open, form step change, or
    saved-view change. Measure what rerenders, remounts, refetches, or
@@ -52,9 +44,8 @@ feature moves forward.
    column/view state, wizard step state, or pure data preparation. Do not
    migrate everything at once.
 5. **Choose the lightest tool.** A pure helper or action extraction may be the
-   right first PR. Add a local store only when state is high-frequency,
-   cross-component within the mounted feature, or currently reruns unrelated
-   expensive rendering.
+   right first PR. Add a local store only when selective subscriptions or
+   per-mount persistence are needed.
 6. **Create a local store instance when needed.** Use lazy `useState` in the
    page/view:
 
@@ -67,8 +58,8 @@ feature moves forward.
 7. **Move mutations into named actions.** Put state-changing logic in store
    actions or external action functions. Keep components responsible for user
    events, not workflows.
-8. **Split containers from views.** Containers may subscribe to store slices,
-   call hooks, or fetch data. Views should render props or tiny selected values.
+8. **Split containers from views.** Containers may subscribe, call hooks, or
+   fetch data. Views should render props or tiny selected values.
 9. **Move data preparation out of render.** Put expensive or complicated
    transformations in pure functions. Backend data should flow into compiled UI
    data, then into rendering.
@@ -86,41 +77,32 @@ feature moves forward.
 
 ## Feature-Specific First Slices
 
-Use the feature's current shape to pick the first slice. These are common
-Langfuse patterns seen in large surfaces:
+Use the feature's current shape to pick the first slice:
 
 - **Traces and observations tables**: start with row selection, select-all,
-  batch actions, or expensive cell data wrappers. Keep filters, saved views,
-  pagination, and peek routing unchanged in the first PR.
+  batch actions, or expensive cell wrappers.
 - **Session detail and session events**: isolate virtualization, lazy-row load
-  state, and dynamic measurement from rendered row content. Keep shared session
-  components context-free when other features import them.
+  state, and dynamic measurement from rendered row content.
 - **Experiment result tables**: start with selected-row state, filter-target
   mapping, run/evaluation batch actions, or pure helpers for comparison column
-  construction. Do not mix this with layout/view-mode redesigns.
+  construction.
 - **Experiment creation wizards**: separate submitted form data from display
   state such as active step, selected prompt labels, schema display names, and
-  evaluator selection. Extract default-name/default-run derivation before
-  moving state.
+  evaluator selection.
 - **Prompt management**: split prompt detail route/query state, label/version
-  selection, prompt history data preparation, and mutation workflows. Actions
-  such as duplicate, delete, set labels, and create prompt should be callable
-  outside render components.
+  selection, prompt history data preparation, and mutation workflows.
 - **Eval template and evaluator forms**: extract form defaults, model/provider
   preparation, validation helpers, and submit workflows before adding a store.
-  Most of this state is form-local; use a store only when multiple mounted
-  subtrees need selective subscriptions.
 - **Datasets and dataset runs**: isolate active-cell/compare-field state,
-  table selection, run comparison preparation, and upload/import workflows. Do
-  not let table row UI own run-level actions.
+  table selection, run comparison preparation, and upload/import workflows.
 
 If a feature already has hooks for part of this work, treat them as partial
 migration, not proof that the whole surface is healthy.
 
-## What Good Looks Like
+## Acceptance Criteria
 
 - A local state change wakes only components that selected that state.
-- Page controllers no longer rebuild columns, filters, row wrappers, and action
+- Page components no longer rebuild columns, filters, row wrappers, and action
   callbacks for unrelated row-level changes.
 - Expensive rows/cells are view-only behind narrow containers.
 - Effects are integration boundaries or one-time initialization, not ordinary
@@ -129,13 +111,12 @@ migration, not proof that the whole surface is healthy.
 - The feature README tells the next developer what has improved, what remains
   spread, and what the next small PR should target.
 
-## What To Avoid
+Avoid:
 
 - Replacing a giant component with a giant global store.
 - Moving all state at once without measured acceptance criteria.
 - Treating memoization as the architecture.
 - Putting provider-coupled store hooks into shared `src/components/*` exports.
-- Creating a feature folder structure without documenting ownership boundaries.
 - Leaving a workflow inline in the page because the page had every dependency in
   scope.
 - Using the README as a victory statement while hiding remaining controller

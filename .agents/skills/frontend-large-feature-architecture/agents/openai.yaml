@@ -1,7 +1,7 @@
 interface:
   display_name: "Frontend Feature Architecture"
-  short_description: "Refactor large React features safely"
-  default_prompt: "Use $frontend-large-feature-architecture to refactor this large frontend surface into local state, stable subscriptions, and view-only render boundaries."
+  short_description: "Build, change, or refactor React features"
+  default_prompt: "Use $frontend-large-feature-architecture to build, change, or refactor this large frontend surface with clear state ownership, stable subscriptions, and view-only render boundaries."
 
 policy:
   allow_implicit_invocation: true
