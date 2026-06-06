@@ -362,6 +362,16 @@ CD on `main`
 
 - Publish Docker image to GitHub Packages if CI passes. Done on every push to `main` branch. Only released versions are tagged with `latest`.
 
+### Version tests
+
+Our CI pipeline runs multiple configurations of Langfuse - the "plain" deployment, an "azure" specific deployment, and a "redis-cluster" deployment
+using the specific `docker-compose.dev-*.yml` files at the repository root.
+
+Additionally, we use those files to test different ClickHouse versions.
+- Azure: Use 24.3 for compatibility testing with our lowest supported version.
+- Redis Cluster: Use 26.5 as the latest available ClickHouse release.
+- Plain: Use 25.12 as the current Cloud version.
+
 ## Staging environment
 
 We run a staging environment at [https://staging.langfuse.com](https://staging.langfuse.com) that is automatically deployed on every push to `main` branch.
