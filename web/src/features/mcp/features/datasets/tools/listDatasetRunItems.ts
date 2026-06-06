@@ -1,4 +1,4 @@
-import { listDatasetRunItemsByRunIdForApi } from "@/src/features/public-api/server/dataset-run-items-api-service";
+import { listDatasetRunItemsByRunIdForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { GetDatasetRunItemsV1Response } from "@/src/features/public-api/types/datasets";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";

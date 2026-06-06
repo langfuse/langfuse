@@ -676,7 +676,7 @@ export async function handleSubscriptionChanged(
     // Invalidate API keys in Redis for it to be updated
     await invalidateCachedOrgApiKeys(parsedOrg.id);
 
-    void auditLog({
+    auditLog({
       session: {
         user: { id: "stripe-webhook" },
         orgId: parsedOrg.id,
@@ -714,7 +714,7 @@ export async function handleSubscriptionChanged(
     await updateOrgBillingCycleAnchor(parsedOrg.id);
     await invalidateCachedOrgApiKeys(parsedOrg.id);
 
-    void auditLog({
+    auditLog({
       session: {
         user: { id: "stripe-webhook" },
         orgId: parsedOrg.id,

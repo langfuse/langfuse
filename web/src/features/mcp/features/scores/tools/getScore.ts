@@ -11,8 +11,10 @@ import { ScoresApiService } from "@/src/features/public-api/server/scores-api-se
 
 export const [getScoreTool, handleGetScore] = defineTool({
   name: "getScore",
-  description:
-    "Fetch one score by ID from the current Langfuse project using the v2 /api/public/v2/scores/{scoreId} semantics. Returns the public score object directly.",
+  description: [
+    "Fetch one score by ID from the current Langfuse project.",
+    "Score reads are eventually consistent: a score created with createScore may not be returned by getScore immediately. If a newly created score is not found, wait briefly and retry.",
+  ].join("\n"),
   baseSchema: GetScoreQueryV2,
   inputSchema: GetScoreQueryV2,
   handler: async (input, context) => {

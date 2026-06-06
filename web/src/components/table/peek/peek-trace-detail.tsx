@@ -4,7 +4,7 @@ import { Trace } from "@/src/components/trace/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TablePeekView } from "@/src/components/table/peek";
 
-export const PeekViewTraceDetail = ({
+const PeekViewTraceDetail = ({
   trace,
 }: {
   trace: ReturnType<typeof usePeekData>;
