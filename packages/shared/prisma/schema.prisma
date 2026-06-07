@@ -77,6 +77,8 @@ model User {
   commentReactions          CommentReaction[]
   notificationPreferences   NotificationPreference[]
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
+  inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
+  inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
 
   @@map("users")
 }
@@ -171,6 +173,9 @@ model Project {
   AnnotationQueueAssignment AnnotationQueueAssignment[]
   NotificationPreference    NotificationPreference[]
   DefaultView               DefaultView[]
+  InAppAgentConversation    InAppAgentConversation[]
+  InAppAgentEvent           InAppAgentEvent[]
+  InAppAgentRun             InAppAgentRun[]
 
   @@index([orgId])
   @@map("projects")
@@ -204,6 +209,72 @@ model ApiKey {
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
   @@map("api_keys")
+}
+
+enum InAppAgentConversationVisibilityScope {
+  PERSONAL
+  PROJECT
+}
+
+model InAppAgentConversation {
+  id                String
+  projectId         String                                @map("project_id")
+  project           Project                               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdByUserId   String?                               @map("created_by_user_id")
+  createdByUser     User?                                 @relation("InAppAgentConversationCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  title             String?
+  visibilityScope   InAppAgentConversationVisibilityScope @default(PERSONAL) @map("visibility_scope")
+  providerSessionId String?                               @map("provider_session_id")
+  deletedAt         DateTime?                             @map("deleted_at")
+  createdAt         DateTime                              @default(now()) @map("created_at")
+  updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
+
+  events InAppAgentEvent[]
+  runs   InAppAgentRun[]
+
+  @@id([id, projectId])
+  @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
+  @@map("in_app_agent_conversations")
+}
+
+model InAppAgentEvent {
+  projectId      String                 @map("project_id")
+  project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId String                 @map("conversation_id")
+  conversation   InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
+  runId          String                 @map("run_id")
+  run            InAppAgentRun          @relation(fields: [runId, projectId], references: [id, projectId], onDelete: Cascade)
+  sequenceNumber Int                    @map("sequence_number")
+  type           String
+  event          Json                   @db.JsonB
+  createdAt      DateTime               @default(now()) @map("created_at")
+
+  @@id([projectId, conversationId, sequenceNumber])
+  @@index([projectId, runId], map: "in_app_agent_events_project_run_idx")
+  @@map("in_app_agent_events")
+}
+
+model InAppAgentRun {
+  id                String
+  projectId         String                 @map("project_id")
+  project           Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId    String                 @map("conversation_id")
+  conversation      InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
+  triggeredByUserId String?                @map("triggered_by_user_id")
+  triggeredByUser   User?                  @relation("InAppAgentRunTriggeredByUser", fields: [triggeredByUserId], references: [id], onDelete: SetNull)
+  model             String?
+  mcpApiKeyId       String?                @map("mcp_api_key_id")
+  errorCode         String?                @map("error_code")
+  errorMessage      String?                @map("error_message")
+  finishedAt        DateTime?              @map("finished_at")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @default(now()) @updatedAt @map("updated_at")
+
+  events InAppAgentEvent[]
+
+  @@id([id, projectId])
+  @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
+  @@map("in_app_agent_runs")
 }
 
 model BackgroundMigration {

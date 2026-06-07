@@ -43,7 +43,9 @@ import { EvalTargetObject } from "@langfuse/shared";
 const orgIds: string[] = [];
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true" ? describe : describe.skip;
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+    ? describe
+    : describe.skip;
 
 async function prepare() {
   const { project, org } = await createOrgProjectAndApiKey();
@@ -264,13 +266,13 @@ maybe("evals.testRunCodeEval", () => {
     ]);
 
     const mutableEnv = env as unknown as {
-      LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: "true" | "false";
+      LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
     };
     const originalEventsTableFlagsFlag =
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS;
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
 
     try {
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS = "false";
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
 
       const response = await caller.evals.testRunCodeEval({
         projectId: project.id,
@@ -314,7 +316,7 @@ maybe("evals.testRunCodeEval", () => {
         executionTraceFromTimestamp: expect.any(Date),
       });
     } finally {
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS =
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
         originalEventsTableFlagsFlag;
     }
   });

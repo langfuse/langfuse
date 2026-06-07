@@ -22,7 +22,6 @@ import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
-import { env } from "../../../env";
 
 let projectId = "";
 const environment = "default";
@@ -2923,36 +2922,6 @@ async function getClickhouseRecord<T extends TableName>(
       query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
       format: "JSONEachRow",
     });
-
-    if (
-      tableName === "traces" &&
-      env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
-    ) {
-      query = await clickhouseClient().query({
-        query: `SELECT
-                  id,
-                  name as name,
-                  user_id as user_id,
-                  metadata as metadata,
-                  release as release,
-                  version as version,
-                  project_id,
-                  environment,
-                  public as public,
-                  bookmarked as bookmarked,
-                  tags,
-                  input as input,
-                  output as output,
-                  session_id as session_id,
-                  0 as is_deleted,
-                  start_time as timestamp,
-                  created_at,
-                  updated_at,
-                  updated_at as event_ts
-          FROM traces_all_amt FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
-        format: "JSONEachRow",
-      });
-    }
 
     result = (await query.json())[0];
   };

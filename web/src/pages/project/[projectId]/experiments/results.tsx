@@ -159,10 +159,10 @@ export default function ExperimentResults() {
             onBaselineClear={clearBaseline}
           />
         }
-        defaultMainSize={75}
-        defaultSidebarSize={25}
-        minMainSize={50}
-        maxSidebarSize={40}
+        defaultPrimarySize={75}
+        defaultSecondarySize={25}
+        minPrimarySize={50}
+        maxSecondarySize={40}
       />
     </Page>
   );

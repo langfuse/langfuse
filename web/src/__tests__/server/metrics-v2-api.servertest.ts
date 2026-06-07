@@ -14,7 +14,7 @@ import {
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 
-const hasV2Apis = env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true";
+const hasV2Apis = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 const maybe = hasV2Apis ? describe : describe.skip;
 
 describe("/api/public/v2/metrics API Endpoint", () => {
