@@ -24,6 +24,7 @@ import {
   PreferredClickhouseService,
 } from "../clickhouse/client";
 import { convertClickhouseToDomain } from "./traces_converters";
+import { hasAnyEvent } from "./events";
 import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
@@ -381,9 +382,9 @@ export const hasAnyTrace = async (projectId: string) => {
     },
   });
 
-  // Persist positive result in PostgreSQL — once a project has traces, it stays true
-  // Only update if not already set to avoid unnecessary writes
-  if (result) {
+  const persistHasTracesFlag = async () => {
+    // Persist positive result in PostgreSQL — once a project has traces, it stays true
+    // Only update if not already set to avoid unnecessary writes
     try {
       await prisma.project.updateMany({
         where: { id: projectId, hasTraces: false },
@@ -396,9 +397,22 @@ export const hasAnyTrace = async (projectId: string) => {
         error,
       });
     }
+  };
+
+  if (result) {
+    await persistHasTracesFlag();
+    return true;
   }
 
-  return result;
+  const hasAnyEventData = await hasAnyEvent(projectId);
+
+  if (!hasAnyEventData) {
+    return false;
+  }
+
+  await persistHasTracesFlag();
+
+  return true;
 };
 
 export const getTraceCountsByProjectInCreationInterval = async ({
