@@ -49,6 +49,39 @@ describe("flattenTreeWithTimelineMetrics", () => {
       expect(result[0]?.metrics.timeToFirstToken).toBeUndefined();
     });
 
+    it("is undefined when completionStartTime precedes startTime (clock drift)", () => {
+      const node = {
+        ...baseNode({ id: "n1", startTime: new Date("2024-01-01T00:00:02Z") }),
+        completionStartTime: new Date("2024-01-01T00:00:01Z"), // before start
+      };
+      const result = flattenTreeWithTimelineMetrics(
+        [node as unknown as TreeNode],
+        new Set(),
+        traceStart,
+        totalDuration,
+      );
+
+      expect(result[0]?.metrics.timeToFirstToken).toBeUndefined();
+      expect(result[0]?.metrics.firstTokenTimeOffset).toBeUndefined();
+    });
+
+    it("is undefined when completionStartTime equals startTime", () => {
+      const nodeStart = new Date("2024-01-01T00:00:02Z");
+      const node = {
+        ...baseNode({ id: "n1", startTime: nodeStart }),
+        completionStartTime: nodeStart,
+      };
+      const result = flattenTreeWithTimelineMetrics(
+        [node as unknown as TreeNode],
+        new Set(),
+        traceStart,
+        totalDuration,
+      );
+
+      expect(result[0]?.metrics.timeToFirstToken).toBeUndefined();
+      expect(result[0]?.metrics.firstTokenTimeOffset).toBeUndefined();
+    });
+
     it("computes TTFT in seconds from completionStartTime", () => {
       const node = {
         ...baseNode({ id: "n1" }),

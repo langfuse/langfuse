@@ -44,8 +44,15 @@ export function TimelineBar({
   const duration = latency ? latency * 1000 : undefined;
   const hasChildren = node.children.length > 0;
 
-  // Render split bar for streaming LLMs (first token time)
-  if (firstTokenTimeOffset) {
+  // Render split bar for streaming LLMs (first token time).
+  // Require a strictly positive time-to-first-token so clock-drift cases where
+  // completionStartTime <= startTime fall back to a normal bar instead of
+  // showing a negative TTFT or a diamond positioned outside the bar.
+  if (
+    firstTokenTimeOffset &&
+    isPresent(timeToFirstToken) &&
+    timeToFirstToken > 0
+  ) {
     const firstTokenWidth = firstTokenTimeOffset - startOffset;
     const completionWidth = itemWidth - firstTokenWidth;
 
@@ -74,19 +81,17 @@ export function TimelineBar({
           />
 
           {/* Diamond marker at the first-token split point with TTFT tooltip */}
-          {isPresent(timeToFirstToken) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <div
-                  className="bg-primary-accent hover:bg-hover-primary-accent absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 cursor-default"
-                  style={{ left: `${firstTokenWidth}px` }}
-                />
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                Time to first token: {formatIntervalSeconds(timeToFirstToken)}
-              </TooltipContent>
-            </Tooltip>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className="bg-primary-accent hover:bg-hover-primary-accent absolute top-1/2 z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 cursor-default"
+                style={{ left: `${firstTokenWidth}px` }}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              Time to first token: {formatIntervalSeconds(timeToFirstToken)}
+            </TooltipContent>
+          </Tooltip>
 
           {/* Completion time bar */}
           <div

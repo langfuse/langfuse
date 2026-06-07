@@ -120,6 +120,34 @@ describe("TimelineBar", () => {
       });
     });
 
+    it("does not render diamond when timeToFirstToken is negative (clock drift)", () => {
+      renderWithTooltip({
+        ...baseProps,
+        metrics: {
+          ...baseProps.metrics,
+          firstTokenTimeOffset: 80,
+          timeToFirstToken: -1.23,
+        },
+      });
+      expect(document.querySelector("[class*='rotate-45']")).toBeNull();
+      // falls back to a normal bar
+      expect(screen.getByText("test-generation")).toBeInTheDocument();
+      expect(screen.queryByText("First token")).not.toBeInTheDocument();
+    });
+
+    it("does not render diamond when timeToFirstToken is zero", () => {
+      renderWithTooltip({
+        ...baseProps,
+        metrics: {
+          ...baseProps.metrics,
+          firstTokenTimeOffset: 80,
+          timeToFirstToken: 0,
+        },
+      });
+      expect(document.querySelector("[class*='rotate-45']")).toBeNull();
+      expect(screen.queryByText("First token")).not.toBeInTheDocument();
+    });
+
     it("renders 'First token' label in split bar", () => {
       renderWithTooltip({
         ...baseProps,
