@@ -1,0 +1,6 @@
+export const DEFAULT_CROSS_PROJECT_TRACE_CORRELATION_KEY =
+  "crossProjectCorrelationId";
+
+export const CROSS_PROJECT_TRACE_CORRELATION_KEY_PATTERN = /^[A-Za-z0-9_$.-]+$/;
+
+export const CROSS_PROJECT_TRACE_CORRELATION_KEY_MAX_LENGTH = 128;

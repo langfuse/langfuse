@@ -105,6 +105,8 @@ model Organization {
   cloudFreeTierUsageThresholdState String?                  @map("cloud_free_tier_usage_threshold_state")
   aiFeaturesEnabled                Boolean                  @default(false) @map("ai_features_enabled")
   aiTelemetryEnabled               Boolean                  @default(true) @map("ai_telemetry_enabled")
+  crossProjectTraceTrackingEnabled Boolean                  @default(false) @map("cross_project_trace_tracking_enabled")
+  crossProjectTraceCorrelationKey  String                   @default("crossProjectCorrelationId") @map("cross_project_trace_correlation_key")
   organizationMemberships          OrganizationMembership[]
   projects                         Project[]
   MembershipInvitation             MembershipInvitation[]

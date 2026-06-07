@@ -16,8 +16,19 @@ import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import {
+  CROSS_PROJECT_TRACE_CORRELATION_KEY_MAX_LENGTH,
+  CROSS_PROJECT_TRACE_CORRELATION_KEY_PATTERN,
+} from "@/src/features/trace-correlation/constants";
 
 import { env } from "@/src/env.mjs";
+
+const crossProjectTraceCorrelationKeySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(CROSS_PROJECT_TRACE_CORRELATION_KEY_MAX_LENGTH)
+  .regex(CROSS_PROJECT_TRACE_CORRELATION_KEY_PATTERN);
 
 export const organizationsRouter = createTRPCRouter({
   create: authenticatedProcedure
@@ -127,15 +138,20 @@ export const organizationsRouter = createTRPCRouter({
           orgId: z.string(),
           aiFeaturesEnabled: z.boolean().optional(),
           aiTelemetryEnabled: z.boolean().optional(),
+          crossProjectTraceTrackingEnabled: z.boolean().optional(),
+          crossProjectTraceCorrelationKey:
+            crossProjectTraceCorrelationKeySchema.optional(),
         })
         .refine(
           (data) =>
             data.name ||
             data.aiFeaturesEnabled !== undefined ||
-            data.aiTelemetryEnabled !== undefined,
+            data.aiTelemetryEnabled !== undefined ||
+            data.crossProjectTraceTrackingEnabled !== undefined ||
+            data.crossProjectTraceCorrelationKey !== undefined,
           {
             message:
-              "At least one of name, aiFeaturesEnabled or aiTelemetryEnabled is required",
+              "At least one of name, aiFeaturesEnabled, aiTelemetryEnabled, crossProjectTraceTrackingEnabled or crossProjectTraceCorrelationKey is required",
           },
         ),
     )
@@ -170,6 +186,10 @@ export const organizationsRouter = createTRPCRouter({
           name: input.name,
           aiFeaturesEnabled: input.aiFeaturesEnabled,
           aiTelemetryEnabled: input.aiTelemetryEnabled,
+          crossProjectTraceTrackingEnabled:
+            input.crossProjectTraceTrackingEnabled,
+          crossProjectTraceCorrelationKey:
+            input.crossProjectTraceCorrelationKey,
         },
       });
 

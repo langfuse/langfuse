@@ -210,6 +210,8 @@ export const events = {
     "delete_organization",
     "ai_features_toggle",
     "ai_telemetry_toggle",
+    "cross_project_trace_tracking_toggle",
+    "cross_project_trace_correlation_key_update",
   ],
   help_popup: ["opened", "href_clicked"],
   navigate_detail_pages: ["button_click_prev_or_next"],

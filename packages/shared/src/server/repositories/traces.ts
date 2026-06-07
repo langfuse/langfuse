@@ -39,6 +39,41 @@ import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { prisma } from "../../db";
 
+export type RelatedTraceLookupRecord = {
+  projectId: string;
+  traceId: string;
+  traceName: string | null;
+  timestamp: Date;
+  source: "traces" | "events_core";
+};
+
+export const buildRelatedTracesByMetadataCorrelationQuery = () => `
+  SELECT
+    project_id,
+    trace_id,
+    nullIf(trace_name, '') AS trace_name,
+    trace_timestamp AS timestamp
+  FROM (
+    SELECT
+      project_id,
+      id AS trace_id,
+      argMax(name, event_ts) AS trace_name,
+      argMax(timestamp, event_ts) AS trace_timestamp,
+      argMax(metadata, event_ts) AS trace_metadata,
+      argMax(is_deleted, event_ts) AS is_deleted
+    FROM traces
+    WHERE project_id IN ({projectIds: Array(String)})
+      AND timestamp >= {fromTimestamp: DateTime64(3)}
+      AND timestamp <= {toTimestamp: DateTime64(3)}
+    GROUP BY project_id, id
+  )
+  WHERE is_deleted = 0
+    AND has(mapKeys(trace_metadata), {correlationKey: String})
+    AND trace_metadata[{correlationKey: String}] = {correlationValue: String}
+  ORDER BY trace_timestamp ASC, project_id ASC
+  LIMIT {limit: UInt32}
+`;
+
 /**
  * Checks if trace exists in clickhouse.
  * Additionally, give back the timestamp of the trace as metadata.
@@ -617,6 +652,66 @@ export const getTraceByIdFromTracesTable = async ({
   });
 
   return res.shift();
+};
+
+export const getRelatedTracesByMetadataCorrelation = async ({
+  projectIds,
+  correlationKey,
+  correlationValue,
+  fromTimestamp,
+  toTimestamp,
+  limit,
+  sourceProjectId,
+}: {
+  projectIds: string[];
+  correlationKey: string;
+  correlationValue: string;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  limit: number;
+  sourceProjectId: string;
+}): Promise<RelatedTraceLookupRecord[]> => {
+  if (projectIds.length === 0) return [];
+
+  const records = await measureAndReturn({
+    operationName: "getRelatedTracesByMetadataCorrelation",
+    projectId: sourceProjectId,
+    input: {
+      params: {
+        projectIds,
+        correlationKey,
+        correlationValue,
+        fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
+        toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
+        limit,
+      },
+      tags: {
+        feature: "tracing",
+        type: "trace",
+        kind: "relatedAcrossProjects",
+        projectId: sourceProjectId,
+      },
+    },
+    fn: (input) =>
+      queryClickhouse<{
+        project_id: string;
+        trace_id: string;
+        trace_name: string | null;
+        timestamp: string;
+      }>({
+        query: buildRelatedTracesByMetadataCorrelationQuery(),
+        params: input.params,
+        tags: input.tags,
+      }),
+  });
+
+  return records.map((row) => ({
+    projectId: row.project_id,
+    traceId: row.trace_id,
+    traceName: row.trace_name,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    source: "traces",
+  }));
 };
 
 export const getTracesGroupedByName = async (
