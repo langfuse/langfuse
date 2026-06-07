@@ -137,11 +137,13 @@ export const projectsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "project:update",
       });
-      throwIfNoEntitlement({
-        entitlement: "data-retention",
-        sessionUser: ctx.session.user,
-        projectId: input.projectId,
-      });
+      if (input.retention !== null && input.retention > 0) {
+        throwIfNoEntitlement({
+          entitlement: "data-retention",
+          sessionUser: ctx.session.user,
+          projectId: input.projectId,
+        });
+      }
 
       const project = await ctx.prisma.project.update({
         where: {
