@@ -2576,6 +2576,15 @@ export class OtelIngestionProcessor {
         unknown
       >;
 
+      // Track which cache fields this function freshly populates so we only
+      // re-derive `input` for fields we actually added (avoids double-subtracting
+      // when extractGenericGenAiUsageDetails already computed input as
+      // inputTokens − cacheReadTokens − cacheCreationTokens).
+      let addedCacheRead = false;
+      let addedCacheCreation = false;
+      let addedCacheCreation5m = false;
+      let addedCacheCreation1h = false;
+
       // cache_read_input_tokens → input_cached_tokens
       if (
         anthropicUsage["cache_read_input_tokens"] !== undefined &&
@@ -2584,6 +2593,7 @@ export class OtelIngestionProcessor {
         usageDetails["input_cached_tokens"] = Number(
           anthropicUsage["cache_read_input_tokens"],
         );
+        addedCacheRead = true;
       }
 
       // cache_creation_input_tokens → input_cache_creation
@@ -2594,6 +2604,7 @@ export class OtelIngestionProcessor {
         usageDetails["input_cache_creation"] = Number(
           anthropicUsage["cache_creation_input_tokens"],
         );
+        addedCacheCreation = true;
       }
 
       // Duration-specific cache creation breakdown (5m / 1h TTLs)
@@ -2612,6 +2623,7 @@ export class OtelIngestionProcessor {
         ) {
           usageDetails["input_cache_creation_5m"] =
             cacheCreation["ephemeral_5m_input_tokens"];
+          addedCacheCreation5m = true;
         }
         if (
           typeof cacheCreation["ephemeral_1h_input_tokens"] === "number" &&
@@ -2619,10 +2631,11 @@ export class OtelIngestionProcessor {
         ) {
           usageDetails["input_cache_creation_1h"] =
             cacheCreation["ephemeral_1h_input_tokens"];
+          addedCacheCreation1h = true;
         }
 
         // Subtract duration-specific counts from total to avoid double counting
-        if (usageDetails["input_cache_creation"] !== undefined) {
+        if (addedCacheCreation) {
           usageDetails["input_cache_creation"] = Math.max(
             usageDetails["input_cache_creation"] -
               (usageDetails["input_cache_creation_5m"] ?? 0) -
@@ -2632,18 +2645,17 @@ export class OtelIngestionProcessor {
         }
       }
 
-      // Re-derive `input` as uncached remainder if we added cache fields
+      // Re-derive `input` as uncached remainder for fields this function added
       if (
         usageDetails["input"] !== undefined &&
-        (usageDetails["input_cached_tokens"] !== undefined ||
-          usageDetails["input_cache_creation"] !== undefined)
+        (addedCacheRead || addedCacheCreation || addedCacheCreation5m || addedCacheCreation1h)
       ) {
         usageDetails["input"] = Math.max(
           usageDetails["input"] -
-            (usageDetails["input_cached_tokens"] ?? 0) -
-            (usageDetails["input_cache_creation"] ?? 0) -
-            (usageDetails["input_cache_creation_5m"] ?? 0) -
-            (usageDetails["input_cache_creation_1h"] ?? 0),
+            (addedCacheRead ? (usageDetails["input_cached_tokens"] ?? 0) : 0) -
+            (addedCacheCreation ? (usageDetails["input_cache_creation"] ?? 0) : 0) -
+            (addedCacheCreation5m ? (usageDetails["input_cache_creation_5m"] ?? 0) : 0) -
+            (addedCacheCreation1h ? (usageDetails["input_cache_creation_1h"] ?? 0) : 0),
           0,
         );
       }
