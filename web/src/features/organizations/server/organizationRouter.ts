@@ -16,10 +16,33 @@ import { redis } from "@langfuse/shared/src/server";
 import { createBillingServiceFromContext } from "@/src/ee/features/billing/server/stripeBillingService";
 import { isCloudBillingEnabled } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
+  // Resolves a single organization in the same shape as
+  // session.user.organizations[number]. Used as a fallback by useOrganization
+  // for Langfuse admins, whose session does not contain customer orgs. Access
+  // (membership or admin) is enforced server-side by
+  // protectedOrganizationProcedure, and the org is read via the server-resolved
+  // ctx.session.orgId rather than the raw input — so this cannot be used to
+  // read organizations the caller is not authorized for.
+  byId: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(async ({ ctx }) => {
+      const organization = await buildAdminOrgContext(
+        ctx.prisma,
+        ctx.session.orgId,
+      );
+      if (!organization) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Organization not found",
+        });
+      }
+      return organization;
+    }),
   create: authenticatedProcedure
     .input(organizationNameSchema)
     .mutation(async ({ input, ctx }) => {

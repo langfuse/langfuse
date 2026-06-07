@@ -1,4 +1,5 @@
 import { env } from "@/src/env.mjs";
+import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/router";
 
@@ -15,13 +16,28 @@ export const useQueryOrganization = () => {
 
 export const useOrganization = (organizationId: string | null) => {
   const session = useSession();
+  const isAdmin = session.data?.user?.admin === true;
 
   // Always call hooks first, then handle conditional logic in the return
-  const organization = organizationId
+  const fromSession = organizationId
     ? session.data?.user?.organizations.find((org) => org.id === organizationId)
     : null;
 
-  return organization ?? null;
+  // Admin fallback: Langfuse admins are not members of customer orgs, so the
+  // org is absent from their session. Resolve it from the admin-aware API
+  // instead. The query is disabled for everyone else, so non-admins keep the
+  // exact previous behavior (membership-only, no extra request).
+  const adminFallback = api.organizations.byId.useQuery(
+    { orgId: organizationId as string },
+    {
+      enabled: Boolean(organizationId) && isAdmin && !fromSession,
+      staleTime: 60_000,
+    },
+  );
+
+  if (fromSession) return fromSession;
+  if (isAdmin) return adminFallback.data ?? null;
+  return null;
 };
 
 export const useLangfuseCloudRegion = (): {
