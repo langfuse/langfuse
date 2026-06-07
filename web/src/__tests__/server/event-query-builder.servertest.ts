@@ -190,6 +190,25 @@ describe("EventsQueryBuilder", () => {
     );
   });
 
+  it("should include release in event list and detail field sets", () => {
+    const buildQuery = (
+      ...fieldSets: Parameters<EventsQueryBuilder["selectFieldSet"]>
+    ) =>
+      new EventsQueryBuilder({
+        projectId: "test-project",
+      })
+        .selectFieldSet(...fieldSets)
+        .buildWithParams().query;
+
+    [
+      buildQuery("base"),
+      buildQuery("baseWithoutTools"),
+      buildQuery("byIdBase"),
+    ].forEach((query) => {
+      expect(query).toContain("e.release as release");
+    });
+  });
+
   it("should include experiment item metadata in eval field set", () => {
     const query = new EventsQueryBuilder({
       projectId: "test-project",
