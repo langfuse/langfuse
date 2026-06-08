@@ -297,7 +297,7 @@ export function CommentList({
 
   const utils = api.useUtils();
   const invalidateCommentQueries = async () => {
-    void (async () => {
+    (async () => {
       await onCommentChange?.();
     })().catch(() => undefined);
 

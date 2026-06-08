@@ -357,6 +357,18 @@ export const eventsTableCols =
 
 type EventsTableColumnId = (typeof eventsTableColsDefinition)[number]["id"];
 
+export type NumericEventsTableColumnId = Extract<
+  (typeof eventsTableColsDefinition)[number],
+  { type: "number" }
+>["id"];
+
+export const isNumericEventsTableColumnId = (
+  column: EventsTableColumnId,
+): column is NumericEventsTableColumnId =>
+  eventsTableColsDefinition.some(
+    (col) => col.id === column && col.type === "number",
+  );
+
 // Subset of columns that are allowed to be used as filters in the MCP observations API
 const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [
   "id",

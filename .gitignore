@@ -11,6 +11,7 @@ migrate
 /coverage
 **/coverage/
 /certs/
+.playwright-mcp/*
 
 # database
 /prisma/db.sqlite
@@ -24,6 +25,9 @@ next-env.d.ts
 
 # production
 /build
+
+# claude worktrees
+.claude/worktrees
 
 # idea
 .idea
@@ -78,7 +82,6 @@ node_modules
 .turbo
 
 web/test-results/*
-.playwright-mcp/*
 .codex-artifacts/
 
 # Local DeepSec workspace and generated scan state

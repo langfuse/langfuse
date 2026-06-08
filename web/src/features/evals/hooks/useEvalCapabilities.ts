@@ -48,20 +48,37 @@ export function useEvalCapabilities(
   const evalCounts = api.evals.counts.useQuery({ projectId });
   const hasLegacyEvals = (evalCounts.data?.legacyConfigCount ?? 0) > 0;
 
-  // Only hide legacy options for new cloud users (canToggleV4 = false)
-  // Non-cloud deployments always see legacy options
-  // Use === true to default to false while session is loading, preventing flash of legacy options
-  // New users (canToggleV4 = false) default to observation-level evals regardless of v3/v4
+  // The legacy eval experience depends on whether the deployment still writes
+  // the legacy tables and on the user's rollout cohort. Use === true / explicit
+  // mode checks so we default to hidden while the session is loading, which
+  // prevents a flash of legacy options.
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const canToggleV4 = session?.user?.canToggleV4 === true;
+  const v4WriteMode = session?.environment?.v4WriteMode;
+
+  // Whether a *new* config may use the legacy experience (independent of
+  // hasLegacyEvals, which always keeps legacy visible so existing legacy
+  // evaluators stay manageable):
+  // - events_only: legacy tables are no longer written → no new legacy evals.
+  // - dual: self-hosted deployments always allow legacy; on Cloud only cohorts
+  //   that can still toggle V4 (orgs created before the rollout cutoff).
+  // - legacy: legacy is the only experience.
+  const modeAllowsNewLegacy =
+    v4WriteMode === "events_only"
+      ? false
+      : v4WriteMode === "dual"
+        ? isLangfuseCloud
+          ? canToggleV4
+          : true
+        : v4WriteMode === "legacy"; // legacy → true; undefined (loading) → false
 
   return {
     isNewCompatible: isOtel,
     // True when v4 beta is enabled (SDK check query was run)
     compatibilityCheckWasPerformed: isBetaEnabled,
-    // Allow legacy if: not code eval AND (not cloud OR user has legacy evals OR user can toggle v4)
-    allowLegacy:
-      !isCodeEvalConfig && (!isLangfuseCloud || hasLegacyEvals || canToggleV4),
+    // Allow legacy if: not a code eval AND (user has legacy evals to manage OR
+    // the deployment mode/cohort offers the legacy experience).
+    allowLegacy: !isCodeEvalConfig && (hasLegacyEvals || modeAllowsNewLegacy),
     // Allow propagation filters only when using OTEL and spans are propagating
     allowPropagationFilters: isOtel && isPropagating,
     isLoading:

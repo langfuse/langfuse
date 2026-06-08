@@ -8,7 +8,7 @@ import { clickhouseClient, redis } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
 import { IngestionService } from "../../services/IngestionService";
-import { env } from "../../env";
+import { env, v4WritesToEventsTable } from "../../env";
 
 let internalTraceIngestionService: IngestionService | undefined;
 
@@ -37,7 +37,7 @@ async function writeInternalEventInputs(params: {
     ),
   );
 
-  if (env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true") {
+  if (v4WritesToEventsTable(env)) {
     for (const eventRecord of eventRecords) {
       service.writeEventRecord(eventRecord);
     }
