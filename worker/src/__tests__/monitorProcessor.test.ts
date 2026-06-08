@@ -675,6 +675,37 @@ const cases: ProcessCase[] = [
     },
   },
   {
+    name: "InvalidRequestError on getTriggers: rethrows, stays ACTIVE, not ERROR_BAD_QUERY",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+      },
+    ],
+    injectError: {
+      stage: "getTriggers",
+      errorClass: "invalid-request",
+      message: "bad trigger filter",
+    },
+    expect: {
+      throws: "bad trigger filter",
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          status: "ACTIVE",
+          severity: "OK",
+          severityChangedAt: tenMinutesAgo,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
     name: "error on publish: claim, no complete, no sev change, emit (publish fired before throwing)",
     monitors: [
       {
@@ -1142,6 +1173,9 @@ describe("MonitorProcessor.process (integration)", () => {
 
     const getTriggers: GetTriggerConfigurations = async () => {
       if (c.injectError?.stage === "getTriggers") {
+        if (c.injectError.errorClass === "invalid-request") {
+          throw new InvalidRequestError(c.injectError.message);
+        }
         throw new Error(c.injectError.message);
       }
       // Trigger ids line up with the monitor's seeded triggerIds so the

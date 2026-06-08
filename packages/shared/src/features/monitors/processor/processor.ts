@@ -30,6 +30,9 @@ import { renderAlertMessage } from "./renderAlertMessage";
 /** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads data settled past the events-table write lag. */
 export const monitorEvaluationOffsetMs = 30 * 1000;
 
+/** badMonitorQuery sentinels a query whose shape is permanently invalid (QueryBuilder rejected it). */
+const badMonitorQuery = Symbol("badMonitorQuery");
+
 /** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
 export class MonitorProcessor {
   constructor(
@@ -49,52 +52,58 @@ export class MonitorProcessor {
       span.setAttribute("monitors", monitors.length);
       if (monitors.length === 0) return;
 
-      try {
-        const [metrics, triggers] = await Promise.all([
-          instrumentAsync({ name: "queryMetrics" }, () =>
-            this.queryMetrics(event),
-          ),
-          instrumentAsync({ name: "getTriggerConfigurations" }, () =>
-            this.getTriggerConfigurations({
-              projectId: event.projectId,
-              eventSource: TriggerEventSource.Monitor,
-              status: JobConfigState.ACTIVE,
-            }),
-          ),
-        ]);
-        span.setAttribute("metrics", Object.keys(metrics).length);
-        span.setAttribute("triggers", triggers.length);
-
-        const [completions, monitorWebhookInputs] = instrumentSync(
-          { name: "processMonitors" },
+      const [metrics, triggers] = await Promise.all([
+        instrumentAsync<Record<string, number | null> | typeof badMonitorQuery>(
+          { name: "queryMetrics" },
           () =>
-            processMonitors({
-              monitors,
-              metrics,
-              triggers,
-              now,
-              runAt: event.runAt,
-              publishedAt: event.publishedAt,
+            this.queryMetrics(event).catch((error) => {
+              // Only a build-time query-shape failure is a permanent bad query.
+              // CH timeout/resource/infra errors are transient — rethrow so the
+              // job fails and the scheduler TTL rescue retries.
+              if (error instanceof InvalidRequestError) return badMonitorQuery;
+              throw error;
             }),
-        );
-        span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
+        ),
+        instrumentAsync({ name: "getTriggerConfigurations" }, () =>
+          this.getTriggerConfigurations({
+            projectId: event.projectId,
+            eventSource: TriggerEventSource.Monitor,
+            status: JobConfigState.ACTIVE,
+          }),
+        ),
+      ]);
 
-        await instrumentAsync({ name: "publishWebhookInputs" }, () =>
-          this.publishWebhookInputs(monitorWebhookInputs),
+      if (metrics === badMonitorQuery) {
+        await instrumentAsync({ name: "markErrorBadQuery" }, () =>
+          this.markErrorBadQuery({ event, monitors, now }),
         );
-
-        await instrumentAsync({ name: "complete" }, () =>
-          this.complete({ projectId: event.projectId, completions }),
-        );
-      } catch (error) {
-        if (error instanceof InvalidRequestError) {
-          await instrumentAsync({ name: "markErrorBadQuery" }, () =>
-            this.markErrorBadQuery({ event, monitors, now }),
-          );
-          return; // permanent query shape; do not retry
-        }
-        throw error; // transient; let BullMQ fail + scheduler TTL rescue retry
+        return; // permanent query shape; do not retry
       }
+
+      span.setAttribute("metrics", Object.keys(metrics).length);
+      span.setAttribute("triggers", triggers.length);
+
+      const [completions, monitorWebhookInputs] = instrumentSync(
+        { name: "processMonitors" },
+        () =>
+          processMonitors({
+            monitors,
+            metrics,
+            triggers,
+            now,
+            runAt: event.runAt,
+            publishedAt: event.publishedAt,
+          }),
+      );
+      span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
+
+      await instrumentAsync({ name: "publishWebhookInputs" }, () =>
+        this.publishWebhookInputs(monitorWebhookInputs),
+      );
+
+      await instrumentAsync({ name: "complete" }, () =>
+        this.complete({ projectId: event.projectId, completions }),
+      );
     });
   }
 
