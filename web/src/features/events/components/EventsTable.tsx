@@ -99,6 +99,8 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type EventsTableRow = {
   // Identity fields
@@ -516,6 +518,8 @@ export default function ObservationsEventsTable({
       defaultHidden: true,
     });
 
+  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
+
   const { selectActionColumn } = TableSelectionManager<EventsTableRow>({
     projectId,
     tableName: "observations",
@@ -523,7 +527,72 @@ export default function ObservationsEventsTable({
     setSelectAll,
   });
 
+  const traceDeleteMutation = api.traces.deleteMany.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Traces deleted",
+        description:
+          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
+      });
+    },
+    onSettled: () => {
+      utils.events.all.invalidate();
+      utils.events.countAll.invalidate();
+      utils.traces.all.invalidate();
+    },
+  });
+
+  const selectedTraceIds = useMemo(() => {
+    const visibleObservationsById = new Map(
+      (observations.rows ?? []).map((observation) => [
+        observation.id,
+        observation,
+      ]),
+    );
+    return [
+      ...new Set(
+        Object.keys(selectedRows)
+          .map(
+            (observationId) =>
+              visibleObservationsById.get(observationId)?.traceId,
+          )
+          .filter((traceId): traceId is string => Boolean(traceId)),
+      ),
+    ];
+  }, [observations.rows, selectedRows]);
+
+  const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
+    if (selectedTraceIds.length === 0) return;
+
+    await traceDeleteMutation.mutateAsync({
+      projectId,
+      traceIds: selectedTraceIds,
+      isBatchAction: false,
+    });
+    setSelectedRows({});
+  };
+
   const tableActions: TableAction[] = [
+    ...(hasTraceDeletionEntitlement
+      ? [
+          {
+            id: ActionId.TraceDelete,
+            type: BatchActionType.Delete,
+            label: "Delete Traces",
+            description:
+              "This permanently deletes the traces related to the selected observations and cannot be undone. All observations in those traces will be deleted, not only the selected observations. Trace deletion happens asynchronously and may take up to 24 hours.",
+            disabled: selectAll || selectedTraceIds.length === 0,
+            disabledReason: selectAll
+              ? "Delete traces is only available for observations selected on the current page."
+              : "Selected observations are missing trace IDs.",
+            accessCheck: {
+              scope: "traces:delete",
+              entitlement: "trace-deletion",
+            },
+            execute: handleDeleteTraces,
+          } as TableAction,
+        ]
+      : []),
     {
       id: ActionId.ObservationAddToAnnotationQueue,
       type: BatchActionType.Create,
