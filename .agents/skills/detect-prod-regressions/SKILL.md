@@ -2,11 +2,12 @@
 name: detect-prod-regressions
 description: |
   Proactively detect production regressions in Langfuse by comparing recent
-  Datadog errors, error logs, error spans, and API route latency signals against
-  baseline benchmarks or traces across prod-us, prod-eu, prod-hipaa, and
-  prod-jp. Use when asked to sweep production for new bugs, catch regressions
-  early, catch low-occurrence coding bugs or edge cases, compare recent changes
-  to Datadog measurements, or hand measured production evidence to the
+  Datadog errors, error logs, error spans, API route latency signals, and queue
+  consumer health signals against baseline benchmarks or traces across prod-us,
+  prod-eu, prod-hipaa, and prod-jp. Use when asked to sweep production for new
+  bugs, catch regressions early, catch low-occurrence coding bugs or edge
+  cases, find slow degradation that may not alert, compare recent changes to
+  Datadog measurements, or hand measured production evidence to the
   linear-bug-triage skill for Linear action.
 ---
 
@@ -15,7 +16,9 @@ description: |
 Run this skill as an evidence-first production sweep. The deliverable is a set
 of measured candidate bugs handed to
 [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for Linear action, plus a
-short summary of what was checked.
+short summary of what was checked. Always produce a markdown findings table in
+the chat response, even when the table is empty or all candidates end in
+`none`.
 
 ## Required Scope
 
@@ -27,9 +30,13 @@ scope:
 - `prod-hipaa`
 - `prod-jp`
 
-Query both Datadog sites when needed. Default to the EU site for `prod-eu` and
-the US site for the other production envs, but verify by querying facets or
-running a small count query rather than assuming where a tag lives.
+Use the Datadog site that owns the environment:
+
+- `datadog-us`: `prod-us`, `prod-hipaa`
+- `datadog-eu`: `prod-eu`, `prod-jp`
+
+If a query unexpectedly returns no data, verify with a small count/facet query
+before declaring `No measurements found`.
 
 ## Measurement Rules
 
@@ -53,6 +60,67 @@ running a small count query rather than assuming where a tag lives.
   logs, spans, traces, or flamegraphs only after a cluster is identified.
 - Do not infer customer impact, root cause, or severity beyond what the
   measurements support.
+
+## Investigation Phases
+
+For broad sweeps, do not start root-causing the first interesting spike while
+the data universe is still incomplete.
+
+1. **Phase 1: Retrieve all candidate data.** Query every environment and every
+   requested surface first. Capture recent and baseline measurements for
+   errors, latency, throughput, saturation, queue backlog, queue delay, and
+   worker failures. Rank findings only after the full cross-env pass is done.
+2. **Phase 2: Investigate each finding.** For every ranked finding, run a
+   focused root-cause pass using
+   [`debug-issue-with-datadog`](../debug-issue-with-datadog/SKILL.md): cluster
+   exceptions, inspect slow spans/dependencies, sample traces when needed, map
+   the result to code, and classify the likely driver. Distinguish exception
+   spikes, slow databases, slow ClickHouse, upstream API failures, blob/storage
+   failures, worker capacity contention, and instrumentation gaps.
+3. **Phase 3: Cross-reference incident.io and Linear.** After Datadog findings
+   exist, query incident.io and Linear before proposing any new action. Look for
+   already-accepted incidents, incident follow-ups, linked Datadog alerts,
+   existing bug tickets, duplicate reports, and recently fixed issues that match
+   the same env/service/route/queue/error/dependency. Treat this as read-only
+   enrichment unless the user explicitly approves writes.
+
+The final answer must separate these phases: first say what data was retrieved
+and ranked, then give the in-depth investigation for each finding, then explain
+whether incident.io or Linear already tracks each finding.
+
+## Markdown Evidence Artifact
+
+For every run that queries Datadog or produces ranked findings, create a
+Markdown evidence artifact before the first Datadog query and keep it updated
+throughout the run. Use a timestamped local path under the ignored
+`.codex-artifacts/` directory unless the user requests another location, for
+example:
+
+```text
+.codex-artifacts/production-regression-sweeps/<YYYY-MM-DD-HHMM>-<scope>.md
+```
+
+The artifact is the durable working memory for the sweep. Append to it after
+each phase and after each per-finding drilldown so intermediate results survive
+context compaction, subprocess loss, or a long investigation. Do not wait until
+the end to write the file.
+
+Include these sections as they become available:
+
+- Scope, local and UTC windows, Datadog sites queried, and assumptions.
+- Phase 1 raw retrieval notes: every query family run, filters used, envs
+  checked, metric/span/log groups returned, and `No measurements found` entries.
+- Candidate ranking table with recent/baseline measurements and deltas.
+- Phase 2 per-finding drilldowns: exception clusters, slow dependency evidence,
+  representative trace/log IDs or links, code paths inspected, confidence, and
+  rejected hypotheses.
+- Phase 3 incident.io and Linear enrichment: records searched, matches found,
+  duplicates/recent fixes, and gaps.
+- Final findings table and proposed actions.
+
+Keep sensitive values out of the artifact. Prefer Datadog/incident/Linear links,
+stable IDs, route/queue names, counts, timings, and normalized error classes
+over raw payloads or secrets.
 
 ## Baseline Window
 
@@ -98,24 +166,176 @@ For each environment, check:
    - Fetch representative traces only after grouping identifies a candidate
      regression.
 
-4. **API route latencies**
-   - Focus on `service:web` HTTP spans and metrics such as
-     `trace.http_request.duration` when available.
-   - Compare p50, p95, and p99 by route/resource and environment.
+4. **API route latencies and errors**
+   - Start from `operation_name:http.server`; when sweeping APIs and queues
+     together, use `operation_name:(http.server OR bullmq.consumer)`.
+   - Focus on p50, p95, p99, error counts/rates, and request volume by
+     route/resource, service, and environment.
+   - For tRPC APIs, filter and group `/api/trpc` traffic separately.
+   - For public APIs, derive route families from `web/src/pages/api/public/**`
+     and related Fern/API sources instead of relying only on Datadog's raw
+     high-cardinality resource names. Include route variants such as `/index`
+     when Next.js Pages Router instrumentation emits them.
+   - Treat `web-ingestion` as ingestion-only traffic: legacy ingestion API,
+     OTEL ingestion, and media. Do not mix it with regular public API route
+     conclusions.
    - Rank candidates by worsening over time, not only by absolute latency:
      recent versus baseline deltas, slope, and newly introduced tail latency.
    - Use trace samples or flamegraphs for routes whose latency materially
      regressed.
 
+5. **Queue consumer health**
+   - Discover queue consumers from `operation_name:bullmq.consumer
+     service:(worker OR worker-cpu)`, grouped by `@peer.messaging.destination`
+     or `resource_name` when the destination facet is missing.
+   - Prioritize queue backlog, queue delay, failures, errors, and request rate
+     before consumer processing latency. Processing latency is useful for
+     root-cause context, but a queue can degrade because jobs wait too long even
+     when the handler itself is fast.
+   - For each queue/environment, collect recent and baseline values for:
+     `langfuse.queue.<queue>.length`,
+     `langfuse.queue.<queue>.dlq_length`,
+     `langfuse.queue.<queue>.wait_time.95percentile`,
+     `langfuse.queue.<queue>.error`,
+     `langfuse.queue.<queue>.failed`, and
+     `langfuse.queue.<queue>.request`.
+   - Use the queue metric naming convention from
+     `packages/shared/src/server/instrumentation/index.ts`: queue names are
+     lowercased, hyphens become underscores, and a trailing `_queue` is removed.
+   - Also check special non-queue backlog/delay metrics when relevant, such as
+     event propagation partition backlog/delay and experiment backfill delay.
+
 Keep Datadog links for every query, trace, dashboard, or flamegraph used as
 evidence.
 
+## In-Depth Finding Drilldown
+
+After Phase 1 ranks the candidates, investigate each finding independently.
+Use this minimum drilldown unless the data makes a step irrelevant:
+
+1. Aggregate the affected span/metric/log cluster in the recent window by
+   `env`, `service`, `resource_name`, status, count, and p95/p99 duration.
+2. For errors, group by `error.type`, normalized `error.message`, status code,
+   route/queue, and tenant/project identifiers when present.
+3. For latency or backlog, inspect dependency spans before naming a cause:
+   Prisma/Postgres, ClickHouse, Redis, blob storage/S3/Azure, LLM providers,
+   PostHog, or other upstream APIs.
+4. Fetch representative traces only after the aggregate identifies a specific
+   route, queue, dependency, or error class.
+5. Map the finding to the owning code path using the repo map in
+   `debug-issue-with-datadog`, then cite files in the response.
+6. Label confidence as `high`, `medium`, or `low`. Use `medium` or `low` when
+   logs are fragmented, sampling is thin, or the likely cause is inferred from
+   capacity/correlation rather than directly visible in a trace.
+
+## incident.io and Linear Enrichment
+
+After Datadog has produced one or more candidate findings, query incident.io and
+Linear before recommending new tickets, alert changes, or follow-ups.
+
+For incident.io:
+
+- Search incidents, alerts, escalations, and follow-ups in the recent window and
+  a small surrounding buffer when handoff/timeline timing might differ.
+- Match by environment, service, route/resource, queue name, monitor title,
+  dependency, error class, customer impact, and Datadog alert or trace links.
+- Record whether the finding is already an accepted incident, linked to an
+  incident follow-up, alert-only/noise, or not represented.
+- Do not create incidents, follow-ups, or comments unless the user explicitly
+  asks.
+
+For Linear:
+
+- Search existing bugs and recently completed issues using the route/queue,
+  service, error type/message, dependency name, monitor title, and likely owning
+  code path.
+- Include the `bug` label universe when the task is a production bug sweep; use
+  text search only as enrichment, not as the only source.
+- Mark each finding as `existing issue`, `existing follow-up`, `recently fixed`,
+  `duplicate/no action`, or `new candidate`.
+- Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for deduplication,
+  evidence comments, or issue creation only after the human approves writes.
+
+## Compiled Findings List
+
+End every non-empty sweep with one compiled list of final findings. This list
+is the authoritative summary after Datadog retrieval, per-finding drilldown,
+and incident.io/Linear enrichment.
+
+Every finding must have a canonical link. Prefer links in this order:
+
+1. **Linear issue** when an existing or newly approved bug/follow-up tracks the
+   work.
+2. **incident.io incident or follow-up** when the finding is already part of an
+   incident response or accepted follow-up.
+3. **Datadog monitor, alert, or metric graph** when no Linear or incident.io
+   object exists yet. Link the most representative metric/alert for the measured
+   regression, such as queue length/wait time, route latency, error rate, or the
+   monitor/page that fired.
+
+Do not leave findings orphaned. If a finding is real but not represented in
+Linear or incident.io, use the Datadog metric/alert link as the canonical link
+and set the proposed action to `none`, `monitor`, or `create Linear candidate`
+based on the evidence.
+
+## Findings Table
+
+Before any Linear handoff, render the measured candidates in a markdown table
+in the main response. This table is required output for every run so the human
+can quickly review what was checked.
+
+Use this structure unless the sweep needs one extra evidence column:
+
+| ID | Finding | Canonical Link | Link Type | Envs | Service / Resource | Recent Window | Baseline Window | Delta / Regression Summary | Key Datadog Evidence | incident.io / Linear Status | Proposed Action |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| F1 | Concise bug or regression label | Linear issue, incident/follow-up, or Datadog metric/alert link | `Linear`, `incident.io`, or `Datadog` | `prod-hipaa` | `web-iso` / `clickhouse - query` | Counts, rates, or latency for the recent window | Matching baseline measurement or `No measurements found` | One-line comparison grounded in the measurements | Logs / spans / trace / dashboard links | Existing incident/follow-up/issue or `none found` | `create new`, `comment existing`, `link to incident`, `monitor`, or `none` |
+
+Rules:
+
+- Include one row per issue-worthy candidate and one row for notable
+  non-actionable signals when they explain why no Linear action is proposed.
+- Fill `Canonical Link` for every row. It must point to a Linear issue,
+  incident.io incident/follow-up, or Datadog monitor/alert/metric graph.
+- Use exact absolute windows with timezone somewhere immediately above or below
+  the table.
+- Fill `incident.io / Linear Status` after querying both systems, or write
+  `Unavailable: <reason>` or `Not queried: <reason>` if a system cannot be
+  checked.
+- Write `No measurements found` in the relevant cells when a requested signal is
+  unavailable.
+- If no issue-worthy regressions are measured, still render the table with a
+  single row whose proposed action is `none`.
+
+## Slack Handoff
+
+Only send Slack when the user asks for a Slack handoff or the run is explicitly
+part of a scheduled/proactive sweep that expects Slack output. For ad-hoc
+review-only or dry-run validation tasks, do not send Slack; state `Slack not
+sent: <reason>` in the final response.
+
+When Slack is in scope, send a message to `#max-and-agents`. Use the
+[`slack-outgoing-message`](../../../../../../.codex/plugins/cache/openai-curated/slack/63976030/skills/slack-outgoing-message/SKILL.md)
+skill before finalizing the message text.
+
+The Slack message must:
+
+- Summarize the windows compared and the environments checked.
+- Include the findings as a short bullet list derived from the markdown table,
+  with the canonical link for each finding.
+- Ask explicitly which findings, if any, should become Linear issues.
+- Point the human back to the markdown table in the main response for full
+  evidence.
+
+If Slack is in scope and there are no issue-worthy findings, still post to
+`#max-and-agents`, but say that no Linear action is currently recommended.
+
 ## Linear Handoff
 
-For every confirmed candidate bug, use
-[`linear-bug-triage`](../linear-bug-triage/SKILL.md) for Linear search,
-deduplication, evidence comments, Triage issue creation, labels, and ticket
-formatting. Treat that skill as the source of truth for Linear behavior.
+For every confirmed candidate bug that is not already sufficiently tracked, use
+[`linear-bug-triage`](../linear-bug-triage/SKILL.md) for Linear search and
+deduplication first. Create issues, add evidence comments, or change labels only
+after the human explicitly approves Linear writes. Treat that skill as the
+source of truth for Linear behavior.
 
 Hand off:
 
@@ -125,12 +345,23 @@ Hand off:
   messages.
 - Datadog links for every query, trace, dashboard, metric graph, or flamegraph
   used as evidence.
+- incident.io incidents, alerts, escalations, and follow-ups that are already
+  related or were checked and found unrelated.
+- Existing Linear issues checked, including duplicate or recently fixed tickets.
 
 ## Final Response
 
 Summarize:
 
+- The required compiled findings table, with a canonical Linear, incident.io,
+  or Datadog link for every finding.
+- The Markdown evidence artifact path.
 - The windows compared and all prod environments checked.
+- The incident.io and Linear records checked for each finding, including
+  `none found` where applicable.
+- The Slack message sent to `#max-and-agents`, or `Slack not sent: <reason>`,
+  including whether it requested Linear issue creation decisions or reported no
+  issue-worthy findings.
 - New Linear issues created, with links.
 - Existing Linear issues commented on, with links.
 - Candidate signals skipped with "No measurements found".

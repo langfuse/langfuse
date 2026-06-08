@@ -37,6 +37,13 @@ Read the inputs first, then plan the Datadog sweep, then read the code, then
 write the analysis. Do not skip ahead to suggested patches before the data
 supports them.
 
+When this skill is invoked from a broad regression sweep with multiple
+findings, treat the sweep output as the candidate universe. Do not restart with
+an open-ended search unless a finding has insufficient measurements. Investigate
+each finding in turn and produce a per-finding cause table that separates
+exceptions, slow database/dependency spans, upstream API failures, queue
+backlog/delay, and instrumentation gaps.
+
 1. **Intake.** Pull every signal already available in the report. See
    [`references/intake.md`](references/intake.md). For a Linear URL/ID, fetch
    the issue *and* its comments via the Linear MCP — the description is often
@@ -59,14 +66,20 @@ supports them.
    hypothesis — Langfuse incidents commonly have *multiple* coexisting root
    causes, not one.
 
-5. **Map clusters to code.** For each cluster, open the relevant handler file
+5. **Check slow dependencies before naming the cause.** For latency, backlog,
+   or queue-delay findings, inspect child/dependency spans before calling the
+   issue "slow DB" or "slow handler". Explicitly check for Prisma/Postgres,
+   ClickHouse, Redis, blob storage/S3/Azure, LLM providers, PostHog, and other
+   upstream HTTP calls when they are plausible for the code path.
+
+6. **Map clusters to code.** For each cluster, open the relevant handler file
    from the repo-debug map and read enough of it to confirm or refute the
    hypothesis. Cite specific files and line ranges in the output.
 
-6. **Write the analysis** using
+7. **Write the analysis** using
    [`references/output-template.md`](references/output-template.md).
 
-7. **Deliver.** Default: print the analysis in chat. If the user asked for it,
+8. **Deliver.** Default: print the analysis in chat. If the user asked for it,
    also save under the workflow they specified (file, Linear comment via, etc.).
 
 ## Datadog MCP Usage Notes
@@ -74,7 +87,8 @@ supports them.
 Two Datadog MCP servers are typically available — one bound to the EU site
 (`datadoghq.eu`) and one to the US site (`datadoghq.com`). Always run
 region-relevant queries against **both** unless intake clearly localizes the
-incident. The `prod-eu` / `prod-us` env tags live on each side respectively.
+incident. Use `datadog-us` for `prod-us` and `prod-hipaa`; use `datadog-eu`
+for `prod-eu` and `prod-jp`.
 
 - Span search filter pattern:
   `service:worker resource_name:"process posthog-integration-project" status:error`

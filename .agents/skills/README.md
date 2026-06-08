@@ -77,6 +77,9 @@ Open: [code-review/SKILL.md](code-review/SKILL.md)
 Use for:
 - proactive Datadog sweeps across `prod-us`, `prod-eu`, `prod-hipaa`, and `prod-jp`
 - comparing recent production errors, logs, spans, and API latency to baselines
+- finding quiet API or queue-consumer degradation that may not trigger alerts
+- running the phased flow: retrieve the full candidate data set, investigate
+  each finding in depth, then cross-reference incident.io and Linear
 - handing measured regressions to `linear-bug-triage` for Linear issues or comments
 
 Open: [detect-prod-regressions/SKILL.md](detect-prod-regressions/SKILL.md)
