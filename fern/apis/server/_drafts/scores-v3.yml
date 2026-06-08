@@ -18,6 +18,9 @@ service:
         Use the `fields` parameter to include optional field groups beyond the
         default `core`. Unknown group names return HTTP 400.
 
+        Unknown query parameters (e.g. `field` instead of `fields`) return HTTP
+        400 rather than being silently ignored.
+
         Currently in preview for Langfuse Cloud v4 users; not yet available on
         self-hosted Langfuse.
       method: GET
