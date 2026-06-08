@@ -36,6 +36,7 @@ import {
 } from "@/src/features/filters/components/filter-builder";
 import {
   type EvalTemplate,
+  EvalTemplateSourceCodeLanguage,
   variableMapping,
   observationVariableMapping,
 } from "@langfuse/shared";
@@ -86,7 +87,9 @@ import {
   FlaskConical,
   InfoIcon,
   ListTree,
+  ExternalLink,
 } from "lucide-react";
+import Link from "next/link";
 import {
   isDatasetTarget,
   isEventTarget,
@@ -106,6 +109,15 @@ import {
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/variable-mapping-card";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import {
+  getCodeEvalVariableMapping,
+  isCodeEvalTemplate,
+  resolveCodeEvalTarget,
+} from "@/src/features/evals/utils/code-eval-template-utils";
+import { CodeEvalTestRunCard } from "@/src/features/evals/components/code-eval-test-run-card";
+import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
+import { cn } from "@/src/utils/tailwind";
 
 /**
  * Adds propagation warnings to columns that require OTEL SDK with span propagation
@@ -290,6 +302,58 @@ const ObservationsPreview = memo(
 
 ObservationsPreview.displayName = "ObservationsPreview";
 
+function getCodeEvalSourceLanguageLabel(
+  sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"],
+) {
+  return sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
+    ? "Python"
+    : "TypeScript";
+}
+
+function CodeEvalSourceLink({
+  projectId,
+  evalTemplate,
+}: {
+  projectId: string;
+  evalTemplate: EvalTemplate;
+}) {
+  const sourceCodeLanguage =
+    evalTemplate.sourceCodeLanguage ??
+    EvalTemplateSourceCodeLanguage.TYPESCRIPT;
+  const languageLabel = getCodeEvalSourceLanguageLabel(sourceCodeLanguage);
+
+  const editButton = evalTemplate.projectId ? (
+    <Button asChild variant="outline">
+      <Link
+        href={`/project/${projectId}/evals/templates/${evalTemplate.id}?mode=edit`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Edit source code
+        <ExternalLink className="ml-1 h-3.5 w-3.5" />
+      </Link>
+    </Button>
+  ) : (
+    <Button
+      variant="outline"
+      disabled
+      title="Only user-managed templates can be edited"
+    >
+      Edit source code
+      <ExternalLink className="ml-1 h-3.5 w-3.5" />
+    </Button>
+  );
+
+  return (
+    <div className="bg-muted/20 flex max-w-[500px] items-center justify-between gap-3 rounded-md border px-3 py-2">
+      <span className="text-muted-foreground text-sm">{languageLabel}</span>
+      {editButton}
+    </div>
+  );
+}
+
+const EMPTY_FILTER_STATE: z.infer<typeof singleFilter>[] = [];
+
 export const InnerEvaluatorForm = (props: {
   projectId: string;
   evalTemplate: EvalTemplate;
@@ -318,6 +382,10 @@ export const InnerEvaluatorForm = (props: {
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const [showTraceConfirmDialog, setShowTraceConfirmDialog] = useState(false);
+  const { isBetaEnabled } = useV4Beta();
+  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const isCodeEvalConfig =
+    isCodeEvalEnabled && isCodeEvalTemplate(props.evalTemplate);
 
   // Destructure eval capabilities passed from parent
   const { allowLegacy, allowPropagationFilters } = props.evalCapabilities;
@@ -359,9 +427,41 @@ export const InnerEvaluatorForm = (props: {
       props.defaultTarget ??
       EvalTargetObject.EVENT,
   );
-  const defaultTarget = defaultTargetResult.success
+  const parsedDefaultTarget = defaultTargetResult.success
     ? defaultTargetResult.data
     : EvalTargetObject.EVENT;
+  const defaultTarget = isCodeEvalConfig
+    ? resolveCodeEvalTarget(parsedDefaultTarget)
+    : parsedDefaultTarget;
+
+  const getDefaultMapping = () => {
+    if (isCodeEvalConfig) {
+      return getCodeEvalVariableMapping();
+    }
+
+    if (props.existingEvaluator?.variableMapping) {
+      return isEventTarget(props.existingEvaluator.targetObject) ||
+        isExperimentTarget(props.existingEvaluator.targetObject)
+        ? z
+            .array(observationVariableMapping)
+            .parse(props.existingEvaluator.variableMapping)
+        : z
+            .array(variableMapping)
+            .parse(props.existingEvaluator.variableMapping);
+    }
+
+    return z.array(variableMapping).parse(
+      props.evalTemplate
+        ? props.evalTemplate.vars.map((v) => ({
+            templateVariable: v,
+            langfuseObject: "trace" as const,
+            objectName: null,
+            selectedColumnId: "input",
+            jsonSelector: null,
+          }))
+        : [],
+    );
+  };
 
   const form = useForm({
     resolver: zodResolver(evalConfigFormSchema),
@@ -379,26 +479,7 @@ export const InnerEvaluatorForm = (props: {
             ? // For new observation evaluators, default to GENERATION type
               DEFAULT_OBSERVATION_FILTER
             : [],
-      mapping: props.existingEvaluator?.variableMapping
-        ? isEventTarget(props.existingEvaluator.targetObject) ||
-          isExperimentTarget(props.existingEvaluator.targetObject)
-          ? z
-              .array(observationVariableMapping)
-              .parse(props.existingEvaluator.variableMapping)
-          : z
-              .array(variableMapping)
-              .parse(props.existingEvaluator.variableMapping)
-        : z.array(variableMapping).parse(
-            props.evalTemplate
-              ? props.evalTemplate.vars.map((v) => ({
-                  templateVariable: v,
-                  langfuseObject: "trace" as const,
-                  objectName: null,
-                  selectedColumnId: "input",
-                  jsonSelector: null,
-                }))
-              : [],
-          ),
+      mapping: getDefaultMapping(),
       sampling: props.existingEvaluator?.sampling
         ? props.existingEvaluator.sampling.toNumber()
         : 1,
@@ -417,12 +498,13 @@ export const InnerEvaluatorForm = (props: {
 
   const currentMapping = form.watch("mapping") ?? [];
   const syncStatus = useVariableMappingSync({
-    templateVars: props.evalTemplate?.vars,
+    templateVars: isCodeEvalConfig ? [] : props.evalTemplate?.vars,
     currentMapping: currentMapping,
   });
 
   useEffect(() => {
     if (!props.evalTemplate) return;
+    if (isCodeEvalConfig) return;
 
     const mapping = form.getValues("mapping");
 
@@ -471,6 +553,7 @@ export const InnerEvaluatorForm = (props: {
     props.disabled,
     props.existingEvaluator,
     syncStatus,
+    isCodeEvalConfig,
   ]);
 
   const utils = api.useUtils();
@@ -497,6 +580,22 @@ export const InnerEvaluatorForm = (props: {
   );
 
   const watchedTarget = form.watch("target");
+  const watchedScoreName = form.watch("scoreName");
+  const watchedFilter = form.watch("filter") ?? EMPTY_FILTER_STATE;
+  const shouldShowExperimentEventsPreview =
+    isExperimentTarget(watchedTarget) && isBetaEnabled;
+  const shouldShowEventsPreview =
+    isEventTarget(watchedTarget) || shouldShowExperimentEventsPreview;
+  const previewTableVisible = !props.disabled && !props.hidePreviewTable;
+  const previewAlreadyShowsSdkWarning =
+    previewTableVisible && shouldShowEventsPreview;
+  const eventsPreviewFilterState = useMemo(
+    () =>
+      shouldShowExperimentEventsPreview
+        ? getExperimentEvalPreviewFilters(watchedFilter)
+        : watchedFilter,
+    [shouldShowExperimentEventsPreview, watchedFilter],
+  );
 
   // Clear mapping error if user switches away from trace target
   useEffect(() => {
@@ -550,8 +649,21 @@ export const InnerEvaluatorForm = (props: {
       return;
     }
 
+    if (
+      isCodeEvalConfig &&
+      !isEventTarget(values.target) &&
+      !isExperimentTarget(values.target)
+    ) {
+      form.setError("target", {
+        type: "manual",
+        message: "Code evaluators can only run on observations or experiments.",
+      });
+      return;
+    }
+
     // Block NEW trace-level evals that target observations
     if (
+      !isCodeEvalConfig &&
       props.mode !== "edit" &&
       isTraceTarget(values.target) &&
       values.mapping.some(
@@ -566,10 +678,15 @@ export const InnerEvaluatorForm = (props: {
       return;
     }
 
-    const validatedVarMapping = validateAndTransformVariableMapping(
-      values.mapping,
-      values.target as EvalTargetObject,
-    );
+    const validatedVarMapping = isCodeEvalConfig
+      ? {
+          success: true as const,
+          data: getCodeEvalVariableMapping(),
+        }
+      : validateAndTransformVariableMapping(
+          values.mapping,
+          values.target as EvalTargetObject,
+        );
 
     if (!validatedVarMapping.success) {
       form.setError("mapping", {
@@ -624,7 +741,7 @@ export const InnerEvaluatorForm = (props: {
         props.onFormSuccess?.();
 
         if (props.mode !== "edit" && !props.preventRedirect) {
-          void router.push(`/project/${props.projectId}/evals`);
+          router.push(`/project/${props.projectId}/evals`);
           // Don't reset form when redirecting - it will unmount anyway
         } else {
           // Only reset form when NOT redirecting
@@ -671,18 +788,19 @@ export const InnerEvaluatorForm = (props: {
     } else if (newUserFacingTarget === "event") {
       actualTarget = EvalTargetObject.EVENT;
     } else {
-      // offline-experiment: only use EXPERIMENT if beta is enabled AND OTEL is selected
-      actualTarget = useOtelDataForExperiment
+      // offline-experiment: code evaluators always use the observation-backed experiment target
+      actualTarget = isCodeEvalConfig
         ? EvalTargetObject.EXPERIMENT
-        : EvalTargetObject.DATASET;
+        : useOtelDataForExperiment
+          ? EvalTargetObject.EXPERIMENT
+          : EvalTargetObject.DATASET;
     }
 
     // Transform variable mapping for new target type
     const currentMapping = form.getValues("mapping");
-    const newMapping = targetState.transformMapping(
-      currentMapping,
-      actualTarget,
-    );
+    const newMapping = isCodeEvalConfig
+      ? getCodeEvalVariableMapping()
+      : targetState.transformMapping(currentMapping, actualTarget);
 
     // Update form state with target-appropriate default filters
     form.setValue(
@@ -699,21 +817,40 @@ export const InnerEvaluatorForm = (props: {
     return actualTarget;
   }
 
+  const shouldShowCodeEvalTestPanel =
+    isCodeEvalConfig &&
+    !props.disabled &&
+    (isEventTarget(watchedTarget) ||
+      (isExperimentTarget(watchedTarget) && isBetaEnabled));
+  const shouldShowCodeEvalSourceLinkInSettingsCard =
+    isCodeEvalConfig &&
+    !props.disabled &&
+    isExperimentTarget(watchedTarget) &&
+    !isBetaEnabled;
+
   const formBody = (
-    <div className="grid gap-4">
-      <FormField
-        control={form.control}
-        name="scoreName"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Generated Score Name</FormLabel>
-            <FormControl>
-              <Input {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+    <div
+      className={cn(
+        "grid gap-4",
+        shouldShowCodeEvalTestPanel &&
+          "xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:items-start",
+      )}
+    >
+      <div className={cn(shouldShowCodeEvalTestPanel && "xl:col-span-2")}>
+        <FormField
+          control={form.control}
+          name="scoreName"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Generated Score Name</FormLabel>
+              <FormControl>
+                <Input {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      </div>
       {!props.hideTargetSection && (
         <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
           {hasInvalidTraceFilters && (
@@ -872,9 +1009,10 @@ export const InnerEvaluatorForm = (props: {
 
             {!props.hideTargetSelection &&
               props.mode !== "edit" &&
-              !props.disabled && (
+              !props.disabled &&
+              !previewAlreadyShowsSdkWarning && (
                 <EvalVersionCallout
-                  targetObject={form.watch("target")}
+                  targetObject={watchedTarget}
                   evalCapabilities={props.evalCapabilities}
                 />
               )}
@@ -1131,19 +1269,19 @@ export const InnerEvaluatorForm = (props: {
                 />
 
                 {/* Preview based on target type */}
-                {!props.disabled && !props.hidePreviewTable && (
+                {previewTableVisible && (
                   <>
                     {isTraceTarget(form.watch("target")) && (
                       <TracesPreview
                         projectId={props.projectId}
-                        filterState={form.watch("filter") ?? []}
+                        filterState={watchedFilter}
                       />
                     )}
 
-                    {isEventTarget(form.watch("target")) && (
+                    {shouldShowEventsPreview && (
                       <ObservationsPreview
                         projectId={props.projectId}
-                        filterState={form.watch("filter") ?? []}
+                        filterState={eventsPreviewFilterState}
                         isNewCompatible={props.evalCapabilities.isNewCompatible}
                         compatibilityCheckWasPerformed={
                           props.evalCapabilities.compatibilityCheckWasPerformed
@@ -1203,25 +1341,42 @@ export const InnerEvaluatorForm = (props: {
                     )}
                   </>
                 )}
+                {shouldShowCodeEvalSourceLinkInSettingsCard ? (
+                  <CodeEvalSourceLink
+                    projectId={props.projectId}
+                    evalTemplate={props.evalTemplate}
+                  />
+                ) : null}
               </>
             )}
           </div>
         </Card>
       )}
-      <VariableMappingCard
-        projectId={props.projectId}
-        availableVariables={availableVariables}
-        evalTemplate={props.evalTemplate}
-        form={form}
-        disabled={props.disabled}
-        shouldWrapVariables={props.shouldWrapVariables}
-        hideAdvancedSettings={props.hideAdvancedSettings}
-        oldConfigId={props.oldConfigId}
-        isNewCompatible={props.evalCapabilities.isNewCompatible}
-        compatibilityCheckWasPerformed={
-          props.evalCapabilities.compatibilityCheckWasPerformed
-        }
-      />
+      {shouldShowCodeEvalTestPanel ? (
+        <CodeEvalTestRunCard
+          projectId={props.projectId}
+          evalTemplate={props.evalTemplate}
+          target={watchedTarget}
+          scoreName={watchedScoreName}
+          disabled={props.disabled}
+          enableExecutionTracePeek={!props.existingEvaluator}
+        />
+      ) : isCodeEvalConfig ? null : (
+        <VariableMappingCard
+          projectId={props.projectId}
+          availableVariables={availableVariables}
+          evalTemplate={props.evalTemplate}
+          form={form}
+          disabled={props.disabled}
+          shouldWrapVariables={props.shouldWrapVariables}
+          hideAdvancedSettings={props.hideAdvancedSettings}
+          oldConfigId={props.oldConfigId}
+          isNewCompatible={props.evalCapabilities.isNewCompatible}
+          compatibilityCheckWasPerformed={
+            props.evalCapabilities.compatibilityCheckWasPerformed
+          }
+        />
+      )}
     </div>
   );
 

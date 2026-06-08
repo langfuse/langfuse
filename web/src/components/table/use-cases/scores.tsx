@@ -209,16 +209,16 @@ export default function ScoresTable({
       });
     },
     onSettled: () => {
-      void utils.scores.all.invalidate();
-      void utils.scores.allFromEvents.invalidate();
-      void utils.scores.countAllFromEvents.invalidate();
+      utils.scores.all.invalidate();
+      utils.scores.allFromEvents.invalidate();
+      utils.scores.countAllFromEvents.invalidate();
 
       if (traceId) {
-        void utils.traces.byIdWithObservationsAndScores.invalidate({
+        utils.traces.byIdWithObservationsAndScores.invalidate({
           projectId,
           traceId,
         });
-        void utils.events.scoresForTrace.invalidate({
+        utils.events.scoresForTrace.invalidate({
           projectId,
           traceId,
         });
@@ -383,8 +383,6 @@ export default function ScoresTable({
   const getCountPayload = {
     projectId,
     filter: backendFilterState,
-    page: 0,
-    limit: 1,
     orderBy: null,
   };
 

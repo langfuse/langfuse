@@ -1,6 +1,12 @@
 # Langfuse MCP Server
 
-Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to interact with your Langfuse prompts programmatically.
+Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to interact with Langfuse programmatically.
+
+A complete list of tools can be seen under [mcp.reference.langfuse.com](https://mcp.reference.langfuse.com).
+
+> ⚠️ **API stability**:
+> This MCP server is self-describing. Clients should dynamically inspect available tools and schemas rather than assuming a static interface.
+> Tool availability and schemas may evolve over time, including the addition, removal, or modification of tools and fields. Clients are expected to tolerate schema changes and refresh capabilities dynamically.
 
 ## Quick Start (Local Development)
 
@@ -37,55 +43,11 @@ Model Context Protocol (MCP) server for Langfuse, enabling AI assistants to inte
        --header "Authorization: Basic {your-base64-token}"
    ```
 
-4. **Verify**
+4. **Verify prompt access**
    In Claude Code: `List all prompts in the project`
 
----
-
-## Available Tools
-
-The MCP server provides 6 tools for prompt management:
-
-- **`getPrompt`** - Fetch a specific prompt by name with optional label or version (fully resolved with dependencies)
-- **`getPromptUnresolved`** - Fetch a specific prompt WITHOUT resolving dependencies (useful for prompt composition analysis)
-- **`listPrompts`** - List all prompts in the project with filtering (name/label/tag/updatedAt range) and pagination
-- **`createTextPrompt`** - Create a new text prompt version
-- **`createChatPrompt`** - Create a new chat prompt version (OpenAI-style messages)
-- **`updatePromptLabels`** - Add/move labels across prompt versions
-
-**Implementation:** See [`/web/src/features/mcp/features/prompts/tools/`](/web/src/features/mcp/features/prompts/tools/) for detailed schemas, parameters, and examples for each tool.
-
-### Prompt Resolution: `getPrompt` vs `getPromptUnresolved`
-
-Langfuse supports **prompt composition** where prompts can reference other prompts via dependency tags like `@@@langfusePrompt:name=xxx|label=yyy@@@`. The MCP server provides two tools for fetching prompts with different resolution behaviors:
-
-#### `getPrompt` (Fully Resolved)
-- **Use when**: You want the final, executable prompt ready to send to an LLM
-- **Behavior**: Recursively resolves all dependency tags by fetching and inserting referenced prompts
-- **Returns**: Final prompt content with all dependencies replaced
-- **Example**:
-  ```
-  Input:  "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
-  Output: "You are helpful. Always be kind and respectful."
-  ```
-
-#### `getPromptUnresolved` (Raw)
-- **Use when**: You want to analyze prompt composition, debug dependencies, or understand the prompt structure
-- **Behavior**: Returns raw prompt content with dependency tags intact
-- **Returns**: Original prompt content with `@@@langfusePrompt:...@@@` tags preserved
-- **Example**:
-  ```
-  Input:  "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
-  Output: "You are helpful. @@@langfusePrompt:name=base-rules|label=production@@@"
-  ```
-
-**Use Cases for `getPromptUnresolved`**:
-- Understanding how prompts compose together (prompt stacking)
-- Debugging dependency chains before execution
-- Analyzing prompt structure and references
-- Building tools that manage prompt composition
-
----
+5. **Verify observation access**
+   In Claude Code: `List recent Langfuse observations`
 
 ## Architecture
 
@@ -138,8 +100,8 @@ This design:
 
 Tools include hints for clients about their behavior:
 
-- **`readOnly: true`**: Safe operations that don't modify data (getPrompt, listPrompts)
-- **`destructive: true`**: Operations that create/modify data (createTextPrompt, createChatPrompt, updatePromptLabels)
+- **`readOnlyHint: true`**: Safe operations that don't modify data
+- **`destructiveHint: true`**: Operations that modify data in ways that are non-revertable. If an operation only creates entities, without updating existing, it can omit this.
 
 Clients like Claude Code can use these annotations to:
 
@@ -148,7 +110,7 @@ Clients like Claude Code can use these annotations to:
 
 ### Audit Logging
 
-All write operations (createTextPrompt, createChatPrompt, updatePromptLabels) automatically create audit log entries with before/after snapshots.
+All write operations should audit-log entries with before/after snapshots.
 
 ---
 

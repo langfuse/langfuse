@@ -35,10 +35,10 @@ import { type MediaReturnType } from "@/src/features/media/validation";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import DOMPurify from "dompurify";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
 import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { Button } from "@/src/components/ui/button";
+import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import {
   getPromptReferenceMarkdownHref,
   getPromptReferenceMarkdownLabel,
@@ -62,33 +62,6 @@ type ReactMarkdownNodeChildren = Exclude<
 // ReactMarkdown does not render raw HTML by default for security reasons, to prevent XSS (Cross-Site Scripting) attacks.
 // html is rendered as plain text by default.
 const MemoizedReactMarkdown: FC<Options> = memo(ReactMarkdown);
-
-const getSafeUrl = (href: string | undefined | null): string | null => {
-  if (!href || typeof href !== "string") return null;
-
-  // DOMPurify's default sanitization is quite permissive but safe
-  // It blocks javascript:, data: with scripts, vbscript:, etc.
-  // But allows http:, https:, ftp:, mailto:, tel:, and many others
-  try {
-    const sanitized = DOMPurify.sanitize(href, {
-      // ALLOWED_TAGS: An array of HTML tags that are explicitly permitted in the output.
-      // Setting this to an empty array means that no HTML tags are allowed.
-      // Any HTML tag found within the 'href' string would be stripped out.
-      ALLOWED_TAGS: [],
-
-      // ALLOWED_ATTR: An array of HTML attributes that are explicitly permitted on allowed tags.
-      // Setting this to an empty array means that no HTML attributes are allowed.
-      // Similar to ALLOWED_TAGS, this ensures that if any attributes are somehow
-      // embedded within the URL string (e.g., malformed or attempting injection),
-      // they will be removed by DOMPurify. We only expect a pure URL string.
-      ALLOWED_ATTR: [],
-    });
-
-    return sanitized || null;
-  } catch {
-    return null;
-  }
-};
 
 const isTextElement = (
   child: ReactNode,
@@ -285,7 +258,7 @@ function MarkdownRenderer({
               }
 
               // Handle regular links
-              const safeHref = getSafeUrl(href);
+              const safeHref = getSafeLinkUrl(href);
               if (safeHref) {
                 return (
                   <Link
@@ -371,8 +344,10 @@ function MarkdownRenderer({
               );
             },
             img({ src, alt }) {
-              return src && typeof src === "string" ? (
-                <ResizableImage src={src} alt={alt} />
+              const safeSrc =
+                typeof src === "string" ? getSafeImageUrl(src) : null;
+              return safeSrc ? (
+                <ResizableImage src={safeSrc} alt={alt} />
               ) : null;
             },
             hr() {
@@ -484,7 +459,7 @@ export function MarkdownView({
   });
 
   const handleOnCopy = () => {
-    void copyTextToClipboard(markdownContent);
+    copyTextToClipboard(markdownContent);
   };
 
   const handleOnValueChange = () => {
@@ -566,40 +541,50 @@ export function MarkdownView({
           )
         ) : (
           // content parts (multi-modal)
-          (markdown ?? []).map((content, index) =>
-            isOpenAITextContentPart(content) ? (
-              <MarkdownRenderer
-                key={index}
-                markdown={content.text}
-                theme={theme}
-                customCodeHeaderClassName={customCodeHeaderClassName}
-              />
-            ) : isOpenAIImageContentPart(content) ? (
-              OpenAIUrlImageUrl.safeParse(content.image_url.url).success ? (
-                <div key={index}>
-                  <ResizableImage src={content.image_url.url.toString()} />
-                </div>
-              ) : MediaReferenceStringSchema.safeParse(content.image_url.url)
-                  .success ? (
-                <LangfuseMediaView
-                  mediaReferenceString={content.image_url.url}
+          (markdown ?? []).map((content, index) => {
+            if (isOpenAITextContentPart(content)) {
+              return (
+                <MarkdownRenderer
+                  key={index}
+                  markdown={content.text}
+                  theme={theme}
+                  customCodeHeaderClassName={customCodeHeaderClassName}
                 />
+              );
+            }
+
+            if (isOpenAIImageContentPart(content)) {
+              const imageUrl = content.image_url.url;
+              const safeImageUrl =
+                typeof imageUrl === "string" &&
+                OpenAIUrlImageUrl.safeParse(imageUrl).success
+                  ? getSafeImageUrl(imageUrl)
+                  : null;
+
+              return safeImageUrl ? (
+                <div key={index}>
+                  <ResizableImage src={safeImageUrl} />
+                </div>
+              ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
+                <LangfuseMediaView mediaReferenceString={imageUrl} />
               ) : (
                 <div className="grid grid-cols-[auto_1fr] items-center gap-2">
                   <span title="<Base64 data URI>" className="h-4 w-4">
                     <ImageOff className="h-4 w-4" />
                   </span>
                   <span className="truncate text-sm">
-                    {content.image_url.url.toString()}
+                    {imageUrl.toString()}
                   </span>
                 </div>
-              )
-            ) : content.type === "input_audio" ? (
+              );
+            }
+
+            return content.type === "input_audio" ? (
               <LangfuseMediaView
                 mediaReferenceString={content.input_audio.data}
               />
-            ) : null,
-          )
+            ) : null;
+          })
         )}
         {audio ? (
           <>

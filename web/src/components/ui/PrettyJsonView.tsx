@@ -682,6 +682,9 @@ function JsonPrettyTable({
           row={row}
           expandedCells={expandedCells}
           toggleCellExpansion={toggleCellExpansion}
+          preserveStringWhitespace={
+            row.original.key === "code_eval_source_code"
+          }
         />
       ),
     },
@@ -1272,7 +1275,7 @@ export function PrettyJsonView(props: {
       event.preventDefault();
     }
     const textToCopy = stringifyJsonNode(parsedJson);
-    void copyTextToClipboard(textToCopy);
+    copyTextToClipboard(textToCopy);
 
     if (event) {
       event.currentTarget.focus();

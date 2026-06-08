@@ -85,7 +85,7 @@ function DatasetCompareInternal() {
   // Auto-redirect when experiments beta is active (e.g., user arrives via bookmark/back button)
   useEffect(() => {
     if (isExperimentsBetaActive && projectId && runIds && runIds.length > 0) {
-      void router.push(toExperimentsResultsUrl(projectId, runIds));
+      router.push(toExperimentsResultsUrl(projectId, runIds));
     }
   }, [isExperimentsBetaActive, projectId, runIds, router]);
 
@@ -109,7 +109,7 @@ function DatasetCompareInternal() {
     setExperimentsBetaEnabled(enabled);
 
     if (enabled && runIds && runIds.length > 0) {
-      void router.push(toExperimentsResultsUrl(projectId, runIds));
+      router.push(toExperimentsResultsUrl(projectId, runIds));
     }
   };
 
@@ -236,7 +236,7 @@ function DatasetCompareInternal() {
                       | undefined;
                     if (baselineRunId === changedValueId) {
                       const { baseline, ...restQuery } = router.query;
-                      void router.push({
+                      router.push({
                         pathname: router.pathname,
                         query: { ...restQuery, runs: newRunIds },
                       });

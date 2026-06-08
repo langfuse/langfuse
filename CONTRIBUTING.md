@@ -111,7 +111,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.10.33.0
+- Pnpm v.11.4.0
 - Docker to run the database locally
 - Clickhouse client
 
@@ -324,8 +324,8 @@ We're using Vitest in the `web` package. There are two types of unit tests:
 To run a specific test by name within a file, run:
 
 ```sh
-cd web  # or with --filter=web
-pnpm test -- prompts.v2.servertest -t "should handle special characters in prompt names"
+cd web  # or use `pnpm --filter web test ...` from the repository root
+pnpm test prompts.v2.servertest -t "should handle special characters in prompt names"
 ```
 
 To run all tests:
@@ -345,7 +345,7 @@ pnpm run test:watch
 For the `worker` package, we're also using Vitest to run unit tests.
 
 ```sh
-pnpm run test --filter=worker -- FILE_YOU_WANT_TO_TEST.ts -t "test name"
+pnpm --filter worker run test FILE_YOU_WANT_TO_TEST.ts -t "test name"
 ```
 
 ## CI/CD

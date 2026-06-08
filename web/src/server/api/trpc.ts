@@ -94,6 +94,7 @@ import {
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { BaseError, parseIO } from "@langfuse/shared";
+import { type Flag } from "@/src/features/feature-flags/types";
 
 setUpSuperjson();
 
@@ -170,6 +171,11 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
+      logger.warn("ClickHouse resource limit exceeded", {
+        errorType: res.error.cause.errorType,
+        message: res.error.cause.message,
+        tags: res.error.cause.tags,
+      });
       logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
@@ -363,6 +369,23 @@ export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
 
+/** requireFeatureFlag gates a procedure behind a server-side feature flag. */
+export const requireFeatureFlag = (flag: Flag) =>
+  t.middleware(({ ctx, next }) => {
+    const session = ctx.session;
+    const enabled =
+      (session?.user?.featureFlags?.[flag] ?? false) ||
+      (session?.user?.admin ?? false) ||
+      (session?.environment?.enableExperimentalFeatures ?? false);
+    if (!enabled) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Feature "${flag}" is not enabled for this user`,
+      });
+    }
+    return next();
+  });
+
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
@@ -457,6 +480,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const fromTimestamp = result.data.fromTimestamp;
   const verbosity = result.data.verbosity;
 
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const clickhouseTrace = await getTraceById({
     traceId,
     projectId,
@@ -563,7 +587,9 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   const { sessionId, projectId } = result.data;
 
-  // trace sessions are stored in postgres. No need to check for clickhouse eligibility.
+  // trace_sessions should be a sparse metadata side-table: a row only exists once a
+  // session has been bookmarked or published.
+  // If it's not marked as public, we fallback to the usual user-based project access check.
   const session = await ctx.prisma.traceSession.findFirst({
     where: {
       id: sessionId,
@@ -574,22 +600,14 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     },
   });
 
-  if (!session) {
-    logger.error(
-      `Session with id ${sessionId} not found for project ${projectId}`,
-    );
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Session not found",
-    });
-  }
+  const isPublicSession = session?.public ?? false;
 
   const userSessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
   if (
-    !session.public &&
+    !isPublicSession &&
     !userSessionProject &&
     ctx.session?.user?.admin !== true
   ) {

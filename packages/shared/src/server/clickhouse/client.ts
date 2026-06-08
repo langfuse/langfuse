@@ -13,6 +13,21 @@ export type PreferredClickhouseService =
   | "ReadOnly"
   | "EventsReadOnly";
 
+type ServiceClickhouseSettings = {
+  enable_full_text_index?: 1;
+};
+
+/**
+ * Remove these once we remove corresponding variables
+ */
+const EVENTS_TABLE_READ_PATH_ENV_KEYS = [
+  "LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS",
+  "LANGFUSE_ENABLE_EVENTS_TABLE_UI",
+  "LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS",
+  "LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS",
+  "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN",
+] as const;
+
 /**
  * ClickHouseClientManager provides a singleton pattern for managing ClickHouse clients.
  * It creates and reuses clients based on their configuration to avoid creating
@@ -45,21 +60,45 @@ export class ClickHouseClientManager {
   private generateClientSettings(
     opts: NodeClickHouseClientConfigOptions,
     preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
-  ): NodeClickHouseClientConfigOptions {
+  ): {
+    settings: NodeClickHouseClientConfigOptions;
+    serviceClickhouseSettings: ServiceClickhouseSettings;
+  } {
+    const serviceClickhouseSettings = this.getServiceClickhouseSettings(
+      preferredClickhouseService,
+    );
     const keyParams = {
       url: this.getClickhouseUrl(preferredClickhouseService),
       username: env.CLICKHOUSE_USER,
       password: env.CLICKHOUSE_PASSWORD,
       database: env.CLICKHOUSE_DB,
       http_headers: opts?.http_headers ?? {},
-      settings: opts?.clickhouse_settings,
+      settings: {
+        ...serviceClickhouseSettings,
+        ...opts?.clickhouse_settings,
+      },
       ...(opts.request_timeout
         ? { request_timeout: opts.request_timeout }
         : {}),
 
       // Include any other relevant config options
     };
-    return keyParams;
+    return { settings: keyParams, serviceClickhouseSettings };
+  }
+
+  private getServiceClickhouseSettings(
+    preferredClickhouseService: PreferredClickhouseService,
+  ): ServiceClickhouseSettings {
+    return preferredClickhouseService === "EventsReadOnly" &&
+      this.isEventsTableReadPathEnabled()
+      ? { enable_full_text_index: 1 }
+      : {};
+  }
+
+  private isEventsTableReadPathEnabled(): boolean {
+    return EVENTS_TABLE_READ_PATH_ENV_KEYS.some(
+      (key) => process.env[key] === "true",
+    );
   }
 
   private generateClientSettingsKey(
@@ -95,7 +134,7 @@ export class ClickHouseClientManager {
     opts: NodeClickHouseClientConfigOptions,
     preferredClickhouseService: PreferredClickhouseService = "ReadWrite",
   ): ClickhouseClientType {
-    const settings = this.generateClientSettings(
+    const { settings, serviceClickhouseSettings } = this.generateClientSettings(
       opts,
       preferredClickhouseService,
     );
@@ -153,7 +192,14 @@ export class ClickHouseClientManager {
                 update_parallel_mode: env.CLICKHOUSE_UPDATE_PARALLEL_MODE,
               }
             : {}),
+          // Workaround for a 25.12 bug where lightweight updates/deletes
+          // interact incorrectly with lazy materialization. Remove after
+          // ClickHouse 26.4, or earlier if the fix is backported.
+          ...(env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION === "true"
+            ? { query_plan_optimize_lazy_materialization: 0 }
+            : {}),
           ...cloudOptions,
+          ...serviceClickhouseSettings,
           ...opts.clickhouse_settings,
           async_insert: 1,
           wait_for_async_insert: 1, // if disabled, we won't get errors from clickhouse

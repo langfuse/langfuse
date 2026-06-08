@@ -20,12 +20,15 @@ import {
   GCPServiceAccountKeySchema,
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   EvaluatorBlockReason,
   getEvaluatorBlockMetadata,
+  type LLMConnectionConfig,
 } from "@langfuse/shared";
+import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/defaultModelEvalTemplateRepository";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,
@@ -127,11 +130,13 @@ async function testLLMConnection(
     ];
 
     // Parse config properly for type safety
-    let parsedConfig: Record<string, string> | null = null;
+    let parsedConfig: LLMConnectionConfig | null = null;
     if (params.config && params.adapter === LLMAdapter.Bedrock) {
       const bedrockConfig = BedrockConfigSchema.parse(params.config);
 
       parsedConfig = { region: bedrockConfig.region };
+    } else if (params.config && params.adapter === LLMAdapter.OpenAI) {
+      parsedConfig = OpenAIConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
       const vertexAIConfig = VertexAIConfigSchema.parse(params.config);
       parsedConfig = vertexAIConfig.location
@@ -351,15 +356,9 @@ export const llmApiKeyRouter = createTRPCRouter({
         }
 
         if (!!defaultModel && defaultModel.llmApiKeyId === llmApiKey?.id) {
-          const evalTemplates = await tx.evalTemplate.findMany({
-            where: {
-              OR: [{ projectId: input.projectId }, { projectId: null }],
-              provider: null,
-              model: null,
-            },
-            select: {
-              id: true,
-            },
+          const evalTemplateIds = await findDefaultModelEvalTemplateIds({
+            tx,
+            projectId: input.projectId,
           });
 
           const defaultModelBlockResult = await blockEvaluatorConfigsInTx({
@@ -367,7 +366,7 @@ export const llmApiKeyRouter = createTRPCRouter({
             projectId: input.projectId,
             where: {
               evalTemplateId: {
-                in: evalTemplates.map((template) => template.id),
+                in: evalTemplateIds,
               },
             },
             blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,

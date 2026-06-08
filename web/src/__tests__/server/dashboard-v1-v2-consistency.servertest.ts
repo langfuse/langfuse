@@ -1,6 +1,6 @@
 import { v4 } from "uuid";
-import { type QueryType } from "@/src/features/query/types";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
+import { executeQuery } from "@langfuse/shared/query/server";
+import { type QueryType } from "@langfuse/shared/query";
 import {
   createOrgProjectAndApiKey,
   createTrace,
@@ -28,7 +28,7 @@ import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 
 // Skip when events table is not enabled (v2 queries require events_core).
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -207,7 +207,7 @@ async function seedFromSeeder(targetProjectId: string) {
   const maxTs = new Date(maxTsResult[0]?.max_ts ?? Date.now());
 
   let maxTsEvents = new Date(0);
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true") {
+  if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
     const maxTsEventsResult = await queryClickhouse<{ max_ts: string }>({
       query: `SELECT max(event_ts) as max_ts FROM events_core WHERE project_id = {projectId: String}`,
       params: { projectId: targetProjectId },
@@ -441,7 +441,7 @@ describe("dashboard v1 vs v2 consistency", () => {
   let toTimestamp: string;
 
   beforeAll(async () => {
-    if (env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS !== "true") return;
+    if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") return;
 
     const org = await createOrgProjectAndApiKey();
     projectId = org.projectId;
@@ -477,6 +477,7 @@ describe("dashboard v1 vs v2 consistency", () => {
             cloudConfig: undefined,
             metadata: {},
             aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,

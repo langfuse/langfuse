@@ -28,7 +28,7 @@ import {
 import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import type { FilterConfig } from "../lib/filter-config";
+import type { FilterConfig, FilterStateMigration } from "../lib/filter-config";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 /**
@@ -42,6 +42,7 @@ import type { PeekTableStateContextValue } from "@/src/components/table/peek/con
 export function decodeAndNormalizeFilters(
   filtersQuery: string,
   columnDefinitions: ColumnDefinition[],
+  migrateFilterState?: FilterStateMigration,
 ): FilterState {
   try {
     const filters = decodeFiltersGeneric(filtersQuery);
@@ -59,10 +60,13 @@ export function decodeAndNormalizeFilters(
     // This prevents duplicates when old URLs use display names (e.g., "Environment")
     // and user adds new filters with column IDs (e.g., "environment")
     const normalized = normalizeFilterColumnNames(filters, columnDefinitions);
+    const migrated = migrateFilterState
+      ? migrateFilterState(normalized)
+      : normalized;
 
     // Validate normalized filters
     const result: FilterState = [];
-    for (const filter of normalized) {
+    for (const filter of migrated) {
       const validationResult = singleFilter.safeParse(filter);
       if (validationResult.success) {
         const canonicalColumnId = knownColumns.get(
@@ -516,9 +520,14 @@ export function useSidebarFilterState(
       return "";
     })();
 
-    return decodeAndNormalizeFilters(rawQuery, config.columnDefinitions);
+    return decodeAndNormalizeFilters(
+      rawQuery,
+      config.columnDefinitions,
+      config.migrateFilterState,
+    );
   }, [
     config.columnDefinitions,
+    config.migrateFilterState,
     stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,

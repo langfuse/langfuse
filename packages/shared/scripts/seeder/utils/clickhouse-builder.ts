@@ -24,6 +24,21 @@ export class ClickHouseQueryBuilder {
     return str.replace(/'/g, "''");
   }
 
+  private buildNestedMetadataMapSql(
+    baseEntries: string[],
+    rowExpression: string = "number",
+  ): string {
+    return `map(
+          ${baseEntries.join(",\n          ")},
+          'customer.id', concat('customer_', toString(${rowExpression} % 100)),
+          'customer.plan', arrayElement(['free', 'pro', 'enterprise'], 1 + (${rowExpression} % 3)),
+          'customer.region.code', arrayElement(['eu-central-1', 'us-east-1', 'ap-south-1'], 1 + (${rowExpression} % 3)),
+          'routing.queue', arrayElement(['support-chat', 'sales-chat', 'ops-chat'], 1 + (${rowExpression} % 3)),
+          'routing.priority', arrayElement(['low', 'normal', 'high'], 1 + (${rowExpression} % 3)),
+          'flags.beta', if(${rowExpression} % 2 = 0, 'true', 'false')
+        )`;
+  }
+
   /**
    * Creates INSERT query for trace data using VALUES syntax.
    * Use for: Small datasets, detailed trace objects with all fields populated.
@@ -93,7 +108,7 @@ export class ClickHouseQueryBuilder {
         toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
         concat('trace-', toString(number % 10)) AS name,
         if(randUniform(0, 1) < 0.3, concat('user_', toString(rand() % 1000)), NULL) AS user_id,
-        map('generated', 'bulk') AS metadata,
+        ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
         NULL AS release,
         NULL AS version,
         '${projectId}' AS project_id,
@@ -162,7 +177,7 @@ export class ClickHouseQueryBuilder {
           when type = 'SPAN' then concat('span-', toString(number % 10))
           else concat('event-', toString(number % 10))
         end AS name,
-        map('key', 'value') AS metadata,
+        ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
         if(randUniform(0, 1) < 0.85, 'DEFAULT', if(randUniform(0, 1) < 0.7, 'DEBUG', if(randUniform(0, 1) < 0.3, 'ERROR', 'WARNING'))) AS level,
         NULL AS status_message,
         NULL AS version,

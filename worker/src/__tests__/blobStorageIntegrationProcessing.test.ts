@@ -1,4 +1,20 @@
-import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
+import {
+  expect,
+  it,
+  describe,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+  vi,
+} from "vitest";
+
+const originalCloudRegion = vi.hoisted(() => {
+  const cloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  return cloudRegion;
+});
+
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -34,7 +50,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 // and at least azurite doesn't handle them gracefully.
 const maybeIt = env.LANGFUSE_USE_AZURE_BLOB === "true" ? it.skip : it;
 const maybeDescribe =
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -69,6 +85,14 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       forcePathStyle: true,
       useAzureBlob: false,
     });
+  });
+
+  afterAll(() => {
+    if (originalCloudRegion) {
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    } else {
+      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    }
   });
 
   afterEach(async () => {
