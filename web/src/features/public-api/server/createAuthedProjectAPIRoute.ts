@@ -73,6 +73,12 @@ export type AuthedProjectAPIRouteConfig<
    * return stale or empty data.
    */
   rejectInEventsOnlyMode?: boolean;
+  /**
+   * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN
+   * is not "true". Set this on routes that depend on v4 data structures or
+   * query patterns only available when the v4 preview is enabled.
+   */
+  requiresV4?: boolean;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -308,6 +314,17 @@ export const createAuthedProjectAPIRoute = <
       res.status(404).json({
         message:
           "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+      });
+      return;
+    }
+
+    if (
+      routeConfig.requiresV4 &&
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true"
+    ) {
+      res.status(404).json({
+        message:
+          "This endpoint requires Langfuse v4. Learn more at: https://langfuse.com/docs/v4",
       });
       return;
     }

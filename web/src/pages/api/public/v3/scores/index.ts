@@ -106,6 +106,7 @@ export default withMiddlewares({
     name: "Get Scores V3",
     querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
+    requiresV4: true,
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_ENABLE_SCORES_V3_API !== "true") {
         // Returns 404 to authenticated callers when disabled. Note: auth and
