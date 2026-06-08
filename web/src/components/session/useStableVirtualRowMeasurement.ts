@@ -12,6 +12,24 @@ type StableVirtualRowMeasurementOptions = {
   virtualizer: Virtualizer<HTMLDivElement, Element>;
 };
 
+type StableVirtualRowMeasurementStateApi = ReturnType<
+  typeof createStableVirtualRowMeasurementState
+>;
+
+/**
+ * Controlled row measurement for session detail virtualization.
+ *
+ * Use this instead of live `virtualizer.measureElement` for dynamic,
+ * text-heavy rows where browser translation or async content can repeatedly
+ * mutate DOM height while scrolling. It observes the row shell, defers commits
+ * during active scroll, and clamps short-lived height oscillation before calling
+ * `virtualizer.resizeItem`.
+ *
+ * Keep this session-local until another virtualized surface has the same
+ * symptoms: dynamic row height, scroll jumps, or measurement churn. If that
+ * happens, extract a shared hook with generic HTMLElement support, injectable
+ * config, explicit unmount cleanup tests, and callsite-specific browser checks.
+ */
 export function useStableVirtualRowMeasurement({
   index,
   itemKey,
@@ -25,7 +43,14 @@ export function useStableVirtualRowMeasurement({
   const latestIndexRef = useRef(index);
   const latestIsScrollingRef = useRef(isScrolling);
   const itemKeyRef = useRef(itemKey);
-  const measurementStateRef = useRef(createStableVirtualRowMeasurementState());
+  const measurementStateRef =
+    useRef<StableVirtualRowMeasurementStateApi | null>(null);
+
+  if (measurementStateRef.current === null) {
+    measurementStateRef.current = createStableVirtualRowMeasurementState();
+  }
+
+  const measurementState = measurementStateRef.current;
 
   latestIndexRef.current = index;
   latestIsScrollingRef.current = isScrolling;
@@ -56,8 +81,8 @@ export function useStableVirtualRowMeasurement({
   );
 
   const commitPendingHeight = useCallback(() => {
-    resizeCommittedHeight(measurementStateRef.current.commitPendingHeight());
-  }, [resizeCommittedHeight]);
+    resizeCommittedHeight(measurementState.commitPendingHeight());
+  }, [measurementState, resizeCommittedHeight]);
 
   const scheduleHeightCommit = useCallback(
     (height: number) => {
@@ -67,14 +92,14 @@ export function useStableVirtualRowMeasurement({
         frameRef.current = null;
 
         if (latestIsScrollingRef.current) {
-          measurementStateRef.current.setPendingHeight(height);
+          measurementState.setPendingHeight(height);
           return;
         }
 
-        resizeCommittedHeight(measurementStateRef.current.commitHeight(height));
+        resizeCommittedHeight(measurementState.commitHeight(height));
       });
     },
-    [cancelScheduledWork, resizeCommittedHeight],
+    [cancelScheduledWork, measurementState, resizeCommittedHeight],
   );
 
   useEffect(() => {
@@ -83,7 +108,7 @@ export function useStableVirtualRowMeasurement({
     if (itemKeyChanged) {
       itemKeyRef.current = itemKey;
       cancelScheduledWork();
-      measurementStateRef.current.reset();
+      measurementState.reset();
 
       if (nodeRef.current) {
         scheduleHeightCommit(nodeRef.current.getBoundingClientRect().height);
@@ -92,7 +117,7 @@ export function useStableVirtualRowMeasurement({
       return;
     }
 
-    if (isScrolling || !measurementStateRef.current.hasPendingHeight()) {
+    if (isScrolling || !measurementState.hasPendingHeight()) {
       return;
     }
 
@@ -112,6 +137,7 @@ export function useStableVirtualRowMeasurement({
     commitPendingHeight,
     isScrolling,
     itemKey,
+    measurementState,
     scheduleHeightCommit,
   ]);
 
