@@ -306,29 +306,6 @@ Rules:
 - If no issue-worthy regressions are measured, still render the table with a
   single row whose proposed action is `none`.
 
-## Slack Handoff
-
-Only send Slack when the user asks for a Slack handoff or the run is explicitly
-part of a scheduled/proactive sweep that expects Slack output. For ad-hoc
-review-only or dry-run validation tasks, do not send Slack; state `Slack not
-sent: <reason>` in the final response.
-
-When Slack is in scope, send a message to `#max-and-agents`. Use the
-[`slack-outgoing-message`](../../../../../../.codex/plugins/cache/openai-curated/slack/63976030/skills/slack-outgoing-message/SKILL.md)
-skill before finalizing the message text.
-
-The Slack message must:
-
-- Summarize the windows compared and the environments checked.
-- Include the findings as a short bullet list derived from the markdown table,
-  with the canonical link for each finding.
-- Ask explicitly which findings, if any, should become Linear issues.
-- Point the human back to the markdown table in the main response for full
-  evidence.
-
-If Slack is in scope and there are no issue-worthy findings, still post to
-`#max-and-agents`, but say that no Linear action is currently recommended.
-
 ## Linear Handoff
 
 For every confirmed candidate bug that is not already sufficiently tracked, use
@@ -359,9 +336,6 @@ Summarize:
 - The windows compared and all prod environments checked.
 - The incident.io and Linear records checked for each finding, including
   `none found` where applicable.
-- The Slack message sent to `#max-and-agents`, or `Slack not sent: <reason>`,
-  including whether it requested Linear issue creation decisions or reported no
-  issue-worthy findings.
 - New Linear issues created, with links.
 - Existing Linear issues commented on, with links.
 - Candidate signals skipped with "No measurements found".
