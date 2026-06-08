@@ -21,6 +21,12 @@ const PlaygroundPromptConfigSchema = z
   })
   .loose();
 
+/** Config keys owned by the playground; callers strip these before re-applying. */
+export const PLAYGROUND_CONFIG_KEYS = [
+  "tools",
+  "structuredOutputSchema",
+] as const;
+
 const generateId = () => Math.random().toString(36).substring(2);
 
 /**
