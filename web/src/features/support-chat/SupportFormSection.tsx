@@ -57,7 +57,11 @@ type SupportFormValues = z.output<typeof SupportFormSchema>;
 const FILE_UPLOAD_CONSTRAINTS = {
   maxFiles: 5,
   maxFileSizeBytes: PYLON_MAX_FILE_SIZE_BYTES, // 10MB (Pylon API limit)
-  maxCombinedBytes: 50 * 1024 * 1024, // 50MB
+  // Files are sent to /api/support/upload-attachments as base64-encoded JSON,
+  // which inflates the body by ~33%. The endpoint's bodyParser caps the body
+  // at 50MB, so the raw combined size must stay below ~37.5MB to fit. Use 35MB
+  // for headroom (JSON overhead, multiple files).
+  maxCombinedBytes: 35 * 1024 * 1024, // 35MB raw (~47MB once base64-encoded)
 } as const;
 
 /**
@@ -265,13 +269,13 @@ export function SupportFormSection({
         throw new Error(validation.error);
       }
 
-      // 1) Upload attachments to Pylon (best-effort)
+      // 1) Upload attachments to Pylon. This is the only attachment path, so
+      // do NOT swallow failures: let them propagate to the outer catch (which
+      // surfaces the error via form.setError) instead of silently dropping the
+      // user's files while still creating the thread.
       let pylonAttachmentUrls: string[] = [];
       if (files && files.length) {
-        pylonAttachmentUrls = await uploadFilesToPylon(files).catch((err) => {
-          console.warn("Pylon attachment upload failed (best-effort):", err);
-          return [] as string[];
-        });
+        pylonAttachmentUrls = await uploadFilesToPylon(files);
       }
 
       // 2) Create the support thread in Pylon
