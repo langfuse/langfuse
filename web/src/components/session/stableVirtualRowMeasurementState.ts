@@ -20,6 +20,7 @@ type StableVirtualRowMeasurementState = {
   oscillationPair: OscillationPair | null;
   oscillationCount: number;
   oscillationWindowStartedAt: number;
+  lastObservationAt: number;
   frozenMinHeight: number | null;
 };
 
@@ -33,6 +34,7 @@ const createInitialState = (): StableVirtualRowMeasurementState => ({
   oscillationPair: null,
   oscillationCount: 0,
   oscillationWindowStartedAt: 0,
+  lastObservationAt: 0,
   frozenMinHeight: null,
 });
 
@@ -50,7 +52,7 @@ export function createStableVirtualRowMeasurementState(
 
     if (
       state.frozenMinHeight !== null &&
-      now - state.oscillationWindowStartedAt > config.oscillationWindowMs
+      now - state.lastObservationAt > config.oscillationWindowMs
     ) {
       state.frozenMinHeight = null;
       state.oscillationPair = null;
@@ -58,6 +60,7 @@ export function createStableVirtualRowMeasurementState(
       state.oscillationWindowStartedAt = 0;
       state.previousObservedHeight = null;
     }
+    state.lastObservationAt = now;
 
     const previousObservedHeight = state.previousObservedHeight;
     if (
@@ -115,8 +118,11 @@ export function createStableVirtualRowMeasurementState(
     reset() {
       state = createInitialState();
     },
-    setPendingHeight(height: number) {
+    setPendingHeight(height: number, now = Date.now()) {
       state.pendingHeight = height;
+      if (Math.ceil(height) > 0) {
+        state.lastObservationAt = now;
+      }
     },
     hasPendingHeight() {
       return state.pendingHeight !== null;

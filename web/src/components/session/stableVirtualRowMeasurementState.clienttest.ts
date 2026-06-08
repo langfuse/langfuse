@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createStableVirtualRowMeasurementState } from "@/src/components/session/stableVirtualRowMeasurementState";
 
 describe("createStableVirtualRowMeasurementState", () => {
@@ -40,6 +40,7 @@ describe("createStableVirtualRowMeasurementState", () => {
       oscillationPair: null,
       oscillationCount: 0,
       oscillationWindowStartedAt: 0,
+      lastObservationAt: 0,
       frozenMinHeight: null,
     });
   });
@@ -116,6 +117,32 @@ describe("createStableVirtualRowMeasurementState", () => {
       committedHeight: 200,
       frozenMinHeight: 200,
     });
+  });
+
+  it("keeps scroll-deferred oscillation clamped after the rolling window", () => {
+    const measurement = createStableVirtualRowMeasurementState();
+
+    expect(measurement.commitHeight(100, 0)).toBe(100);
+    expect(measurement.commitHeight(200, 100)).toBe(200);
+    expect(measurement.commitHeight(100, 200)).toBe(100);
+    expect(measurement.commitHeight(200, 300)).toBe(200);
+    expect(measurement.commitHeight(100, 400)).toBeNull();
+
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(1_300);
+      measurement.setPendingHeight(200);
+      vi.setSystemTime(1_400);
+      measurement.setPendingHeight(100);
+
+      expect(measurement.commitPendingHeight(1_410)).toBeNull();
+      expect(measurement.getSnapshot()).toMatchObject({
+        committedHeight: 200,
+        frozenMinHeight: 200,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("releases a frozen shrink after the oscillation window expires", () => {
