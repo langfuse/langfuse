@@ -21,7 +21,7 @@
     "**/coverage/",
     "**/.next/",
     "**/.*",
-    "**/*test*.*",
+    "**/*.test.*",
     "**/worker-thread.js"
   ],
   "rules": {

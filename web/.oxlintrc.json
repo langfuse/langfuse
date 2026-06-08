@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "extends": ["../oxlint.base.json"],
   "plugins": ["nextjs", "unicorn"],
   "jsPlugins": ["../scripts/lint/oxlint-plugin-langfuse/index.mjs"],
   "categories": {
@@ -46,6 +47,15 @@
     ],
     "langfuse/no-in-source-vitest": "warn",
     "langfuse/no-tailwind-overflow-scroll": "warn",
+    "no-case-declarations": "off",
+    "no-constant-binary-expression": "off",
+    "no-empty": "off",
+    "no-extra-boolean-cast": "off",
+    "no-prototype-builtins": "off",
+    "no-unsafe-finally": "off",
+    "no-unused-vars": "off",
+    "no-useless-catch": "off",
+    "no-useless-escape": "off",
     "nextjs/google-font-display": "warn",
     "nextjs/google-font-preconnect": "warn",
     "nextjs/next-script-for-ga": "warn",
@@ -70,7 +80,7 @@
   },
   "overrides": [
     {
-      "files": ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+      "files": ["**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
       "rules": {
         "react/display-name": "error",
         "react/jsx-key": [
