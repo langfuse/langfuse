@@ -66,11 +66,13 @@ import {
   JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
 } from "@/src/features/evals/server/audit-log-resource-types";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
-import { runCodeEvalTest } from "@/src/features/evals/server/codeEvalTestRun";
+import {
+  CodeEvalTestRunSetupError,
+  runCodeEvalTest,
+} from "@/src/features/evals/server/codeEvalTestRun";
 import {
   assertCodeEvalJobConfigCanRun,
-  CodeEvalJobConfigInvalidTargetError,
-  CodeEvalJobConfigPreflightError,
+  CodeEvalJobConfigError,
 } from "@/src/features/evals/server/codeEvalJobConfigValidation";
 import {
   CreateEvalTemplateInputSchema,
@@ -371,16 +373,14 @@ const assertCodeEvalJobConfigCanRunForTRPC = async ({
       filter,
     });
   } catch (error) {
-    if (error instanceof CodeEvalJobConfigInvalidTargetError) {
+    if (error instanceof CodeEvalJobConfigError) {
+      // An invalid target is a malformed request; every other preflight
+      // failure surfaces as a precondition the caller must resolve first.
       throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: error.message,
-      });
-    }
-
-    if (error instanceof CodeEvalJobConfigPreflightError) {
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
+        code:
+          error.code === "invalid_target"
+            ? "BAD_REQUEST"
+            : "PRECONDITION_FAILED",
         message: error.message,
       });
     }
@@ -388,6 +388,30 @@ const assertCodeEvalJobConfigCanRunForTRPC = async ({
     throw error;
   }
 };
+
+function toCodeEvalTRPCError(error: CodeEvalTestRunSetupError) {
+  switch (error.code) {
+    case "TEMPLATE_NOT_FOUND":
+    case "OBSERVATION_NOT_FOUND":
+      return new TRPCError({
+        code: "NOT_FOUND",
+        message: error.message,
+      });
+    case "UNSUPPORTED_LANGUAGE":
+    case "INVALID_TARGET":
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
+    case "DISPATCHER_NOT_CONFIGURED":
+      return new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: error.message,
+      });
+    default:
+      return assertUnreachable(error.code);
+  }
+}
 
 export const evalRouter = createTRPCRouter({
   codeEvalCapabilities: authenticatedProcedure.query(() =>
@@ -1040,19 +1064,28 @@ export const evalRouter = createTRPCRouter({
         mapping: input.mapping,
       });
 
-      return runCodeEvalTest({
-        prisma: ctx.prisma,
-        orgId: ctx.session.orgId,
-        projectId: input.projectId,
-        evalTemplateId: input.evalTemplateId,
-        target: input.target,
-        mapping: input.mapping,
-        scoreName: input.scoreName,
-        observationId: input.observationId,
-        traceId: input.traceId,
-        startTime: input.startTime,
-        shouldReadFromObservationsTable: input.shouldReadFromObservationsTable,
-      });
+      try {
+        return await runCodeEvalTest({
+          prisma: ctx.prisma,
+          orgId: ctx.session.orgId,
+          projectId: input.projectId,
+          evalTemplateId: input.evalTemplateId,
+          target: input.target,
+          mapping: input.mapping,
+          scoreName: input.scoreName,
+          observationId: input.observationId,
+          traceId: input.traceId,
+          startTime: input.startTime,
+          shouldReadFromObservationsTable:
+            input.shouldReadFromObservationsTable,
+        });
+      } catch (error) {
+        if (error instanceof CodeEvalTestRunSetupError) {
+          throw toCodeEvalTRPCError(error);
+        }
+
+        throw error;
+      }
     }),
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplateInputSchema)

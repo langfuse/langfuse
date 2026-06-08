@@ -26,6 +26,7 @@ import {
   type PublicEvaluationRuleTargetType,
   type PublicEvaluatorModelConfigType,
   type PublicEvaluatorOutputDefinitionType,
+  type PublicEvaluatorTypeType,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import {
   CODE_EVAL_TEMPLATE_VARIABLES,
@@ -49,9 +50,7 @@ export function toPublicEvaluatorType(type: EvalTemplateType) {
 }
 
 export function toStoredEvaluatorType(
-  type:
-    | typeof PUBLIC_EVALUATOR_TYPE_CODE
-    | typeof PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+  type: PublicEvaluatorTypeType,
 ): EvalTemplateType {
   return type === PUBLIC_EVALUATOR_TYPE_CODE
     ? EvalTemplateType.CODE
@@ -423,9 +422,7 @@ export function toJobConfigurationInput(params: {
     mapping?: PublicEvaluationRuleMappingType[];
   };
   evaluatorVariables: string[];
-  evaluatorType:
-    | typeof PUBLIC_EVALUATOR_TYPE_CODE
-    | typeof PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE;
+  evaluatorType: PublicEvaluatorTypeType;
 }) {
   validateEvaluationRuleFilters({
     target: params.input.target,

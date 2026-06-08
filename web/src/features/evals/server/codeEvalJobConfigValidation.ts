@@ -7,21 +7,26 @@ import {
 } from "@langfuse/shared";
 import type { PrismaClient } from "@prisma/client";
 import { env } from "@/src/env.mjs";
-import { runCodeEvalTestForJobConfig } from "@/src/features/evals/server/codeEvalTestRun";
+import {
+  CodeEvalTestRunSetupError,
+  runCodeEvalTestForJobConfig,
+} from "@/src/features/evals/server/codeEvalTestRun";
+import { assertUnreachable } from "@/src/utils/types";
 
-export class CodeEvalJobConfigInvalidTargetError extends Error {
-  constructor() {
-    super("Code evaluators can only run on observations or experiments.");
-    this.name = "CodeEvalJobConfigInvalidTargetError";
-    Object.setPrototypeOf(this, CodeEvalJobConfigInvalidTargetError.prototype);
-  }
-}
+export type CodeEvalJobConfigErrorCode =
+  | "invalid_target"
+  | "invalid_request"
+  | "resource_not_found"
+  | "preflight_failed";
 
-export class CodeEvalJobConfigPreflightError extends Error {
-  constructor(message: string) {
+export class CodeEvalJobConfigError extends Error {
+  constructor(
+    message: string,
+    readonly code: CodeEvalJobConfigErrorCode = "preflight_failed",
+  ) {
     super(message);
-    this.name = "CodeEvalJobConfigPreflightError";
-    Object.setPrototypeOf(this, CodeEvalJobConfigPreflightError.prototype);
+    this.name = "CodeEvalJobConfigError";
+    Object.setPrototypeOf(this, CodeEvalJobConfigError.prototype);
   }
 }
 
@@ -39,7 +44,10 @@ export async function assertCodeEvalJobConfigCanRun(params: {
     params.target !== EvalTargetObject.EVENT &&
     params.target !== EvalTargetObject.EXPERIMENT
   ) {
-    throw new CodeEvalJobConfigInvalidTargetError();
+    throw new CodeEvalJobConfigError(
+      "Code evaluators can only run on observations or experiments.",
+      "invalid_target",
+    );
   }
 
   const parsedMapping = z
@@ -56,11 +64,29 @@ export async function assertCodeEvalJobConfigCanRun(params: {
       mapping: parsedMapping,
       scoreName: params.scoreName,
       filter: params.filter,
+    }).catch((error) => {
+      if (!(error instanceof CodeEvalTestRunSetupError)) {
+        throw error;
+      }
+
+      switch (error.code) {
+        case "INVALID_TARGET":
+          throw new CodeEvalJobConfigError(error.message, "invalid_target");
+        case "TEMPLATE_NOT_FOUND":
+          throw new CodeEvalJobConfigError(error.message, "resource_not_found");
+        case "UNSUPPORTED_LANGUAGE":
+          throw new CodeEvalJobConfigError(error.message, "invalid_request");
+        case "DISPATCHER_NOT_CONFIGURED":
+        case "OBSERVATION_NOT_FOUND":
+          throw new CodeEvalJobConfigError(error.message);
+        default:
+          return assertUnreachable(error.code);
+      }
     });
 
     if (!result) {
       if (params.target !== EvalTargetObject.EXPERIMENT) {
-        throw new CodeEvalJobConfigPreflightError(
+        throw new CodeEvalJobConfigError(
           "No matching observation found to test this code evaluator. Adjust the filters and try again.",
         );
       }
@@ -69,7 +95,7 @@ export async function assertCodeEvalJobConfigCanRun(params: {
     }
 
     if (!result.success) {
-      throw new CodeEvalJobConfigPreflightError(result.error.message);
+      throw new CodeEvalJobConfigError(result.error.message);
     }
   }
 }

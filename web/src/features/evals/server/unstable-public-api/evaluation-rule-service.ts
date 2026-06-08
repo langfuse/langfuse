@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
@@ -8,8 +7,7 @@ import {
 } from "@langfuse/shared";
 import {
   assertCodeEvalJobConfigCanRun,
-  CodeEvalJobConfigInvalidTargetError,
-  CodeEvalJobConfigPreflightError,
+  CodeEvalJobConfigError,
 } from "@/src/features/evals/server/codeEvalJobConfigValidation";
 import {
   isCodeEvalEnabled,
@@ -37,6 +35,7 @@ import {
   assertEvaluatorDefinitionCanRunForPublicApi,
 } from "./validation";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import { assertUnreachable } from "@/src/utils/types";
 
 const MAX_ACTIVE_EVALUATION_RULES = 50;
 
@@ -103,51 +102,34 @@ async function assertEvaluationRuleCanRunForPublicApi(params: {
       filter: params.filter,
     });
   } catch (error) {
-    if (error instanceof CodeEvalJobConfigInvalidTargetError) {
-      throw createUnstablePublicApiError({
-        httpCode: 400,
-        code: "invalid_request",
-        message: error.message,
-        details: {
-          evaluatorName: params.template.name,
-        },
-      });
-    }
-
-    if (error instanceof CodeEvalJobConfigPreflightError) {
-      throw createUnstablePublicApiError({
-        httpCode: 422,
-        code: "evaluator_preflight_failed",
-        message: error.message,
-        details: {
-          evaluatorName: params.template.name,
-        },
-      });
-    }
-
-    // The shared code-eval preflight (`runCodeEvalTestForObservation`) still
-    // throws raw TRPCErrors for dispatcher/template/language failures because it
-    // is also consumed by the tRPC test endpoint. Translate them here so the
-    // public API returns its documented structured errors instead of a 500.
-    if (error instanceof TRPCError) {
-      throw createUnstablePublicApiError({
-        httpCode:
-          error.code === "NOT_FOUND"
-            ? 404
-            : error.code === "BAD_REQUEST"
-              ? 400
-              : 422,
-        code:
-          error.code === "NOT_FOUND"
-            ? "resource_not_found"
-            : error.code === "BAD_REQUEST"
-              ? "invalid_request"
-              : "evaluator_preflight_failed",
-        message: error.message,
-        details: {
-          evaluatorName: params.template.name,
-        },
-      });
+    if (error instanceof CodeEvalJobConfigError) {
+      const details = { evaluatorName: params.template.name };
+      switch (error.code) {
+        case "invalid_target":
+        case "invalid_request":
+          throw createUnstablePublicApiError({
+            httpCode: 400,
+            code: "invalid_request",
+            message: error.message,
+            details,
+          });
+        case "resource_not_found":
+          throw createUnstablePublicApiError({
+            httpCode: 404,
+            code: "resource_not_found",
+            message: error.message,
+            details,
+          });
+        case "preflight_failed":
+          throw createUnstablePublicApiError({
+            httpCode: 422,
+            code: "evaluator_preflight_failed",
+            message: error.message,
+            details,
+          });
+        default:
+          return assertUnreachable(error.code);
+      }
     }
 
     throw error;

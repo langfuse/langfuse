@@ -13822,7 +13822,8 @@ components:
           $ref: '#/components/schemas/unstableEvaluatorScope'
           description: Whether the evaluator family is project-owned or Langfuse-managed.
         type:
-          $ref: '#/components/schemas/unstableCodeEvaluatorType'
+          type: string
+          const: code
           description: Must be `code`.
       required:
         - name
@@ -13833,11 +13834,6 @@ components:
       type: string
       enum:
         - llm_as_judge
-    unstableCodeEvaluatorType:
-      title: unstableCodeEvaluatorType
-      type: string
-      enum:
-        - code
     unstableEvaluationRuleEvaluator:
       title: unstableEvaluationRuleEvaluator
       type: object

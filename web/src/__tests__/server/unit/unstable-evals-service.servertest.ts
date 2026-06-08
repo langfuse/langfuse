@@ -114,13 +114,12 @@ import {
   JobConfigState,
 } from "@langfuse/shared";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
-import { TRPCError } from "@trpc/server";
 import { createUnstablePublicApiError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
   createPublicEvaluationRule,
   updatePublicEvaluationRule,
 } from "@/src/features/evals/server/unstable-public-api/evaluation-rule-service";
-import { CodeEvalJobConfigPreflightError } from "@/src/features/evals/server/codeEvalJobConfigValidation";
+import { CodeEvalJobConfigError } from "@/src/features/evals/server/codeEvalJobConfigValidation";
 import { createPublicEvaluator } from "@/src/features/evals/server/unstable-public-api/evaluator-service";
 import * as queryModule from "@/src/features/evals/server/unstable-public-api/queries";
 import * as validationModule from "@/src/features/evals/server/unstable-public-api/validation";
@@ -761,7 +760,7 @@ describe("unstable public eval services", () => {
       template: codeTemplate,
     });
     mockAssertCodeEvalJobConfigCanRun.mockRejectedValueOnce(
-      new CodeEvalJobConfigPreflightError("Evaluator failed during test run"),
+      new CodeEvalJobConfigError("Evaluator failed during test run"),
     );
 
     await expect(
@@ -796,19 +795,15 @@ describe("unstable public eval services", () => {
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
   });
 
-  it("translates raw TRPCErrors from the code-eval preflight into structured public API errors", async () => {
+  it("translates code-eval preflight request failures into structured public API errors", async () => {
     mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
       template: codeTemplate,
     });
-    // `runCodeEvalTestForObservation` throws raw TRPCErrors (it is shared with
-    // the tRPC test endpoint); the public API must surface them as documented
-    // structured errors, not a 500.
     mockAssertCodeEvalJobConfigCanRun.mockRejectedValueOnce(
-      new TRPCError({
-        code: "BAD_REQUEST",
-        message:
-          "This code evaluator language is not supported by the configured dispatcher.",
-      }),
+      new CodeEvalJobConfigError(
+        "This code evaluator language is not supported by the configured dispatcher.",
+        "invalid_request",
+      ),
     );
 
     await expect(
@@ -833,6 +828,43 @@ describe("unstable public eval services", () => {
       code: "invalid_request",
       message:
         "This code evaluator language is not supported by the configured dispatcher.",
+    });
+
+    expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
+  });
+
+  it("translates code-eval invalid-target failures into structured public API errors", async () => {
+    mockLoadEvaluatorForEvaluationRule.mockResolvedValueOnce({
+      template: codeTemplate,
+    });
+    mockAssertCodeEvalJobConfigCanRun.mockRejectedValueOnce(
+      new CodeEvalJobConfigError(
+        "Code evaluators can only run on observations or experiments.",
+        "invalid_target",
+      ),
+    );
+
+    await expect(
+      createPublicEvaluationRule({
+        orgId: "org_123",
+        projectId: "project_123",
+        input: PostUnstableEvaluationRuleBody.parse({
+          name: "exact_match_live",
+          evaluator: {
+            name: "Exact match",
+            scope: "project",
+            type: PUBLIC_EVALUATOR_TYPE_CODE,
+          },
+          target: "observation",
+          enabled: true,
+          sampling: 1,
+          filter: [],
+        }),
+      }),
+    ).rejects.toMatchObject({
+      httpCode: 400,
+      code: "invalid_request",
+      message: "Code evaluators can only run on observations or experiments.",
     });
 
     expect(mockedPrisma.jobConfiguration.create).not.toHaveBeenCalled();
@@ -1204,9 +1236,7 @@ describe("unstable public eval services", () => {
       template: codeTemplate,
     });
     mockAssertCodeEvalJobConfigCanRun.mockRejectedValueOnce(
-      new CodeEvalJobConfigPreflightError(
-        "Evaluator failed during update test run",
-      ),
+      new CodeEvalJobConfigError("Evaluator failed during update test run"),
     );
 
     await expect(

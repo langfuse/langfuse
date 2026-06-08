@@ -227,6 +227,7 @@ export type PublicEvaluatorModelConfigType = z.infer<
 export type PublicEvaluatorOutputDefinitionType = z.infer<
   typeof PublicEvaluatorOutputDefinition
 >;
+export type PublicEvaluatorTypeType = z.infer<typeof PublicEvaluatorType>;
 export type PublicEvaluatorScopeType = z.infer<typeof PublicEvaluatorScope>;
 export type PublicEvaluationRuleTargetType = z.infer<
   typeof PublicEvaluationRuleTarget

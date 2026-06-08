@@ -600,16 +600,12 @@ types:
         type: commons.EvaluatorScope
         docs: Whether the evaluator family is project-owned or Langfuse-managed.
       type:
-        type: CodeEvaluatorType
+        type: literal<"code">
         docs: Must be `code`.
 
   LlmAsJudgeEvaluatorType:
     enum:
       - llm_as_judge
-
-  CodeEvaluatorType:
-    enum:
-      - code
 
   EvaluationRuleEvaluator:
     docs: |
