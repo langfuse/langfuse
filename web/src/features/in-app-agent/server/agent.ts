@@ -9,6 +9,8 @@ import type {
   AgUiEvent,
   AgUiRunAgentInput,
 } from "@/src/features/in-app-agent/schema";
+import type { InAppAgentTracingConfig } from "@/src/features/in-app-agent/server/instrumentation";
+import { createInAppAgentInstrumentation } from "@/src/features/in-app-agent/server/instrumentation";
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
@@ -36,6 +38,7 @@ type CreateAgUiStreamOptions = {
     publicKey: string;
     secretKey: string;
   };
+  langfuseTracing?: InAppAgentTracingConfig;
 };
 
 export function createAgUiStream(params: {
@@ -50,6 +53,10 @@ export function createAgUiStream(params: {
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
     `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
   ).toString("base64")}`;
+  const instrumentation = createInAppAgentInstrumentation({
+    input: params.input,
+    tracing: params.options.langfuseTracing,
+  });
 
   let subscription: { unsubscribe: () => void } | undefined;
   let ending = false;
@@ -127,6 +134,8 @@ export function createAgUiStream(params: {
           return;
         }
 
+        instrumentation?.endWithError(error);
+        instrumentation?.flush();
         ending = true;
         closed = true;
         shouldEnqueue = false;
@@ -216,6 +225,8 @@ export function createAgUiStream(params: {
           return;
         }
 
+        instrumentation?.end({ aborted: true });
+        instrumentation?.flush();
         ending = true;
         shouldEnqueue = false;
         removeAbortHandler();
@@ -291,10 +302,14 @@ export function createAgUiStream(params: {
                 return;
               }
 
-              for (const agUiEvent of normalizeAdapterEvent(
+              const agUiEvents = normalizeAdapterEvent(
                 event satisfies AgUiEvent,
                 params.input,
-              )) {
+              );
+
+              instrumentation?.recordEvents(agUiEvents);
+
+              for (const agUiEvent of agUiEvents) {
                 if (
                   agUiEvent.type === EventType.RUN_ERROR &&
                   streamedRunError === null
@@ -321,7 +336,10 @@ export function createAgUiStream(params: {
               }
 
               if (streamedRunError !== null) {
-                closeController(handleStreamedRunError);
+                closeController(() => {
+                  instrumentation?.flush();
+                  return handleStreamedRunError();
+                });
                 return;
               }
 
@@ -331,10 +349,12 @@ export function createAgUiStream(params: {
                 threadId: params.input.threadId,
               });
 
-              enqueueEvent(createRunErrorEvent(params.input, error), () =>
+              const runErrorEvent = createRunErrorEvent(params.input, error);
+              instrumentation?.recordEvents([runErrorEvent]);
+              enqueueEvent(runErrorEvent, () =>
                 params.options.onError?.(error),
               );
-              closeController();
+              closeController(() => instrumentation?.flush());
             },
             complete() {
               if (ending || closed) {
@@ -348,8 +368,15 @@ export function createAgUiStream(params: {
 
               closeController(
                 streamedRunError === null
-                  ? params.options.onComplete
-                  : handleStreamedRunError,
+                  ? () => {
+                      instrumentation?.end({});
+                      instrumentation?.flush();
+                      return params.options.onComplete?.();
+                    }
+                  : () => {
+                      instrumentation?.flush();
+                      return handleStreamedRunError();
+                    },
               );
             },
           });
@@ -370,10 +397,10 @@ export function createAgUiStream(params: {
             threadId: params.input.threadId,
           });
 
-          enqueueEvent(createRunErrorEvent(params.input, error), () =>
-            params.options.onError?.(error),
-          );
-          closeController();
+          const runErrorEvent = createRunErrorEvent(params.input, error);
+          instrumentation?.recordEvents([runErrorEvent]);
+          enqueueEvent(runErrorEvent, () => params.options.onError?.(error));
+          closeController(() => instrumentation?.flush());
         });
     },
     cancel() {
@@ -382,6 +409,8 @@ export function createAgUiStream(params: {
       }
 
       ending = true;
+      instrumentation?.end({ aborted: true });
+      instrumentation?.flush();
       shouldEnqueue = false;
       removeAbortHandler();
       interruptAdapter?.();
