@@ -1,5 +1,5 @@
-import { EventType } from "@ag-ui/core";
 import { compactEvents } from "@ag-ui/client";
+import { EventType } from "@ag-ui/core";
 
 import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
@@ -14,6 +14,7 @@ import {
   type AgUiEvent,
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
+import { compactTextMessageChunks } from "@/src/features/in-app-agent/server/eventCompaction";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
@@ -690,34 +691,6 @@ function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
 
 function compactPersistedEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
   return compactEvents(compactTextMessageChunks(events)) as AgUiEvent[];
-}
-
-function compactTextMessageChunks(events: readonly AgUiEvent[]): AgUiEvent[] {
-  const compactedEvents: AgUiEvent[] = [];
-
-  for (const event of events) {
-    const previousEvent = compactedEvents.at(-1);
-
-    if (
-      event.type === EventType.TEXT_MESSAGE_CHUNK &&
-      previousEvent?.type === EventType.TEXT_MESSAGE_CHUNK &&
-      getString(event, "messageId") === getString(previousEvent, "messageId") &&
-      getTextChunkRole(event) === "assistant" &&
-      getTextChunkRole(previousEvent) === "assistant"
-    ) {
-      compactedEvents[compactedEvents.length - 1] = {
-        ...previousEvent,
-        delta:
-          (getString(previousEvent, "delta") ?? "") +
-          (getString(event, "delta") ?? ""),
-      };
-      continue;
-    }
-
-    compactedEvents.push(event);
-  }
-
-  return compactedEvents;
 }
 
 function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {

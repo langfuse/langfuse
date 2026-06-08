@@ -77,42 +77,62 @@ export const Conversation = meta.story({
       {
         id: "user-1",
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Which traces had the highest latency today?",
-          },
-        ],
+        content: {
+          type: "text",
+          text: "Which traces had the highest latency today?",
+        },
       },
       {
-        id: "assistant-1",
+        id: "assistant-tool-1",
         role: "assistant",
-        content: [
-          {
-            type: "text",
-            text: "Start by filtering traces by timestamp, then sort by latency. Open the slowest traces to inspect long-running observations.",
-          },
-        ],
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_queryMetrics",
+              args: JSON.stringify({
+                view: "observations",
+                dimensions: [],
+                metrics: [{ measure: "count", aggregation: "count" }],
+                filters: [],
+                fromTimestamp: "2025-06-30T00:00:00Z",
+                toTimestamp: "2025-07-06T23:59:59Z",
+              }),
+              result: JSON.stringify({ data: [{ count_count: 0 }] }),
+            },
+            {
+              type: "tool",
+              name: "langfuse_getTraces",
+              args: JSON.stringify({ limit: 10 }),
+              result: JSON.stringify({ data: [] }),
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-text-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Start by filtering traces by timestamp, then sort by latency. Open the slowest traces to inspect long-running observations.",
+        },
       },
       {
         id: "user-2",
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Can I compare that with scores?",
-          },
-        ],
+        content: {
+          type: "text",
+          text: "Can I compare that with scores?",
+        },
       },
       {
         id: "assistant-2",
         role: "assistant",
-        content: [
-          {
-            type: "text",
-            text: "Yes. Add score filters or group the traces by score name to see whether latency correlates with lower quality.",
-          },
-        ],
+        content: {
+          type: "text",
+          text: "Yes. Add score filters or group the traces by score name to see whether latency correlates with lower quality.",
+        },
       },
     ],
   },
@@ -124,21 +144,99 @@ export const LoadingResponse = meta.story({
       {
         id: "user-1",
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Summarize recent ingestion errors.",
-          },
-        ],
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
       },
       {
         id: "assistant-1",
         role: "assistant",
-        content: [
-          {
-            type: "loading",
-          },
-        ],
+        content: {
+          type: "loading",
+        },
+      },
+    ],
+  },
+});
+
+export const LoadingAfterToolCall = meta.story({
+  args: {
+    isInputDisabled: true,
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "How many OpenAI tokens were used last week?",
+        },
+      },
+      {
+        id: "assistant-tool-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_queryMetrics",
+              args: JSON.stringify({
+                view: "observations",
+                metrics: [{ measure: "totalTokens", aggregation: "sum" }],
+                filters: [
+                  {
+                    column: "providedModelName",
+                    operator: "contains",
+                    value: "gpt",
+                    type: "string",
+                  },
+                ],
+              }),
+              result: JSON.stringify({
+                data: [{ sum_totalTokens: 6848204 }],
+              }),
+            },
+          ],
+        },
+      },
+      {
+        id: "assistant-text-1",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: "Let me check what model names are available to better identify OpenAI models.",
+        },
+      },
+      {
+        id: "assistant-tool-2",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          isLoading: true,
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_getObservationFilterValues",
+              args: JSON.stringify({
+                column: "providedModelName",
+                limit: 50,
+                fromStartTime: "2026-06-01T00:00:00Z",
+                toStartTime: "2026-06-08T00:00:00Z",
+              }),
+              result: JSON.stringify({
+                type: "VALUES",
+                column: "providedModelName",
+                values: [
+                  {
+                    value: "gpt-4",
+                    count: 41700,
+                  },
+                ],
+              }),
+            },
+          ],
+        },
       },
     ],
   },
@@ -151,22 +249,18 @@ export const Connecting = meta.story({
       {
         id: "user-1",
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Summarize recent ingestion errors.",
-          },
-        ],
+        content: {
+          type: "text",
+          text: "Summarize recent ingestion errors.",
+        },
       },
       {
         id: "connecting",
         role: "assistant",
-        content: [
-          {
-            type: "loading",
-            label: "Connecting...",
-          },
-        ],
+        content: {
+          type: "loading",
+          label: "Connecting...",
+        },
       },
     ],
   },
@@ -179,12 +273,10 @@ export const Error = meta.story({
       {
         id: "user-1",
         role: "user",
-        content: [
-          {
-            type: "text",
-            text: "Help me inspect this trace.",
-          },
-        ],
+        content: {
+          type: "text",
+          text: "Help me inspect this trace.",
+        },
       },
     ],
   },

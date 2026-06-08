@@ -1,14 +1,28 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, Wrench } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { cn } from "@/src/utils/tailwind";
+import { useMemo } from "react";
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
-  | { type: "text"; text: string };
+  | { type: "text"; text: string }
+  | {
+      type: "toolGroup";
+      tools: InAppAgentToolCallContent[];
+      isLoading?: boolean;
+    };
+
+export type InAppAgentToolCallContent = {
+  type: "tool";
+  name: string;
+  args: string;
+  result?: string;
+  error?: string;
+};
 
 export type InAppAgentMessageProps = {
   role: InAppAgentMessageRole;
@@ -22,6 +36,25 @@ export function InAppAgentMessage({
   isCompact = false,
 }: InAppAgentMessageProps) {
   const isUser = role === "user";
+
+  if (content.type === "toolGroup") {
+    return (
+      <div
+        className={cn(
+          "bg-card text-card-foreground border-border rounded-2xl border py-2 shadow-xs",
+          isCompact
+            ? "rounded-xl py-1 text-[0.775rem]"
+            : "rounded-2xl py-1.5 text-sm",
+        )}
+      >
+        <ToolCallGroup
+          tools={content.tools}
+          isLoading={content.isLoading}
+          isCompact={isCompact}
+        />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -40,6 +73,126 @@ export function InAppAgentMessage({
       ) : (
         <MessageText role={role} text={content.text} isCompact={isCompact} />
       )}
+    </div>
+  );
+}
+
+function ToolCallGroup({
+  tools,
+  isLoading = false,
+  isCompact = false,
+}: {
+  tools: InAppAgentToolCallContent[];
+  isLoading?: boolean;
+  isCompact?: boolean;
+}) {
+  const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${tools.length === 1 ? "tool" : "tools"}`;
+
+  const paddingX = cn(isCompact ? "px-2.5" : "px-3");
+  const iconSize = isCompact ? "size-3" : "size-4";
+
+  return (
+    <details className="group/tool-group min-w-0">
+      <summary
+        className={cn(
+          "flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden",
+          paddingX,
+        )}
+      >
+        {isLoading ? (
+          <Loader2
+            className={cn(
+              "text-muted-foreground shrink-0 animate-spin",
+              iconSize,
+            )}
+          />
+        ) : (
+          <Wrench className={cn("text-muted-foreground shrink-0", iconSize)} />
+        )}
+        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="text-muted-foreground text-xs group-open/tool-group:hidden">
+          Show
+        </span>
+        <span className="text-muted-foreground hidden text-xs group-open/tool-group:inline">
+          Hide
+        </span>
+      </summary>
+      <div
+        className={cn("border-border mt-2 space-y-2 border-t pt-2", paddingX)}
+      >
+        {tools.map((tool, index) => (
+          <div key={`${tool.name}-${index}`} className="rounded-lg">
+            <ToolCallDetails tool={tool} />
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function ToolCallDetails({ tool }: { tool: InAppAgentToolCallContent }) {
+  const resultLabel = tool.error ? "Error" : "Result";
+
+  return (
+    <details className="group/tool min-w-0">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
+        <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">Used {tool.name}</span>
+        <span className="text-muted-foreground text-xs group-open/tool:hidden">
+          Show
+        </span>
+        <span className="text-muted-foreground hidden text-xs group-open/tool:inline">
+          Hide
+        </span>
+      </summary>
+      <div className="mt-2 space-y-2">
+        <ToolPayload label="Arguments" value={tool.args} />
+        {tool.result !== undefined || tool.error !== undefined ? (
+          <ToolPayload
+            label={resultLabel}
+            value={tool.error ?? tool.result ?? ""}
+            isError={Boolean(tool.error)}
+          />
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function ToolPayload({
+  label,
+  value,
+  isError = false,
+}: {
+  label: string;
+  value: string;
+  isError?: boolean;
+}) {
+  const toolPayload = useMemo(() => {
+    const trimmedValue = value.trim();
+
+    if (!trimmedValue) {
+      return "{}";
+    }
+
+    try {
+      return JSON.stringify(JSON.parse(trimmedValue), null, 2);
+    } catch {
+      return value;
+    }
+  }, [value]);
+
+  return (
+    <div className="space-y-1">
+      <p className="text-muted-foreground text-xs font-medium">{label}</p>
+      <pre
+        className={cn(
+          "bg-muted text-muted-foreground max-h-64 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap",
+          isError && "text-destructive",
+        )}
+      >
+        {toolPayload}
+      </pre>
     </div>
   );
 }

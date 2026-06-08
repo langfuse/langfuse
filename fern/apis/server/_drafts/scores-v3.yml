@@ -15,6 +15,12 @@ service:
         - `BOOLEAN` → boolean
         - `CATEGORICAL`, `TEXT`, `CORRECTION` → string
 
+        Use the `fields` parameter to include optional field groups beyond the
+        default `core`. Unknown group names return HTTP 400.
+
+        Unknown query parameters (e.g. `field` instead of `fields`) return HTTP
+        400 rather than being silently ignored.
+
         Currently in preview for Langfuse Cloud v4 users; not yet available on
         self-hosted Langfuse.
       method: GET
@@ -25,9 +31,121 @@ service:
           limit:
             type: optional<integer>
             docs: Number of items per page. Maximum 100, default 50. Requests with a limit greater than 100 return HTTP 400.
+          cursor:
+            type: optional<string>
+            docs: URL-safe base64 (base64url) cursor for pagination. Use the cursor from the previous response to get the next page. Absent on the final page.
+          fields:
+            type: optional<string>
+            docs: >
+              Comma-separated field groups to include. Allowed: core, details,
+              subject, annotation. Defaults to "core". Unknown names return HTTP 400.
+          id:
+            type: optional<string>
+            docs: Comma-separated list of score IDs to filter by (OR within, AND across filters).
+          name:
+            type: optional<string>
+            docs: Comma-separated list of score names to filter by.
+          source:
+            type: optional<string>
+            docs: Comma-separated list of score sources to filter by (e.g. API, ANNOTATION, EVAL). Case-insensitive — `api` and `API` are equivalent.
+          dataType:
+            type: optional<string>
+            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Case-insensitive — `numeric` and `NUMERIC` are equivalent. Must be a single value when used with value, valueMin, or valueMax; otherwise the request returns HTTP 400. Must be NUMERIC when used with valueMin or valueMax.
+          environment:
+            type: optional<string>
+            docs: Comma-separated list of environments to filter by.
+          configId:
+            type: optional<string>
+            docs: Comma-separated list of score config IDs to filter by.
+          queueId:
+            type: optional<string>
+            docs: Comma-separated list of annotation queue IDs to filter by.
+          authorUserId:
+            type: optional<string>
+            docs: Comma-separated list of author user IDs to filter by.
+          value:
+            type: optional<string>
+            docs: >
+              Comma-separated list of exact values to filter by. Requires a
+              single dataType from NUMERIC, BOOLEAN, or CATEGORICAL; any other
+              dataType, multiple dataTypes, or omitting dataType returns HTTP
+              400. For BOOLEAN, each value must be "true" or "false"; for
+              NUMERIC, each value must be a finite number. Otherwise the
+              request returns HTTP 400.
+          valueMin:
+            type: optional<double>
+            docs: Inclusive lower bound on the numeric value. Requires dataType=NUMERIC as a single value; otherwise the request returns HTTP 400.
+          valueMax:
+            type: optional<double>
+            docs: Inclusive upper bound on the numeric value. Requires dataType=NUMERIC as a single value; otherwise the request returns HTTP 400.
+          traceId:
+            type: optional<string>
+            docs: Comma-separated list of trace IDs to filter by. Mutually exclusive with sessionId, experimentId. May be combined with observationId to scope the observation lookup to a specific trace.
+          sessionId:
+            type: optional<string>
+            docs: Comma-separated list of session IDs to filter by. Mutually exclusive with traceId, observationId, experimentId.
+          observationId:
+            type: optional<string>
+            docs: >
+              Comma-separated list of observation IDs to filter by. Requires traceId to be specified,
+              because observation IDs are scoped to a trace. Mutually exclusive with sessionId, experimentId.
+              Returns HTTP 400 when used without traceId.
+          experimentId:
+            type: optional<string>
+            docs: Comma-separated list of dataset run IDs (experiment IDs) to filter by. Mutually exclusive with traceId, sessionId, observationId.
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Inclusive lower bound on the score timestamp.
+          toTimestamp:
+            type: optional<datetime>
+            docs: Exclusive upper bound on the score timestamp.
       response: GetScoresV3Response
 
 types:
+  ScoreSubjectTraceV3:
+    properties:
+      id:
+        type: string
+        docs: The trace ID.
+
+  ScoreSubjectObservationV3:
+    properties:
+      id:
+        type: string
+        docs: The observation ID.
+      traceId:
+        type: optional<string>
+        docs: The parent trace ID, if available.
+
+  ScoreSubjectSessionV3:
+    properties:
+      id:
+        type: string
+        docs: The session ID.
+
+  ScoreSubjectExperimentV3:
+    properties:
+      id:
+        type: string
+        docs: The dataset run ID (experiment ID).
+
+  ScoreSubjectV3:
+    docs: A reference to the entity this score is attached to. Discriminated by "kind" — one of trace, observation, session, or experiment.
+    discriminant: kind
+    union:
+      trace:
+        type: ScoreSubjectTraceV3
+        docs: Subject is a trace-level score.
+      observation:
+        type: ScoreSubjectObservationV3
+        docs: Subject is an observation-level score scoped to a trace.
+      session:
+        type: ScoreSubjectSessionV3
+        docs: Subject is a session-level score.
+      experiment:
+        type: ScoreSubjectExperimentV3
+        docs: Subject is a dataset run (experiment) score.
+
   BaseScoreV3:
     properties:
       id: string
@@ -40,6 +158,24 @@ types:
         docs: The environment from which this score originated.
       createdAt: datetime
       updatedAt: datetime
+      comment:
+        type: optional<nullable<string>>
+        docs: Optional comment attached to the score. Present when "details" is included in the fields parameter.
+      configId:
+        type: optional<nullable<string>>
+        docs: The score config ID, if this score was created from a config. Present when "details" is included in the fields parameter.
+      metadata:
+        type: optional<map<string, unknown>>
+        docs: Arbitrary metadata attached to the score. Present when "details" is included in the fields parameter.
+      authorUserId:
+        type: optional<nullable<string>>
+        docs: The user who created this score, if available. Present when "annotation" is included in the fields parameter.
+      queueId:
+        type: optional<nullable<string>>
+        docs: The annotation queue this score belongs to, if any. Present when "annotation" is included in the fields parameter.
+      subject:
+        type: optional<ScoreSubjectV3>
+        docs: The entity this score is attached to (trace, observation, session, or experiment). Present when "subject" is included in the fields parameter.
 
   NumericScoreV3:
     extends: BaseScoreV3
@@ -98,6 +234,9 @@ types:
   GetScoresV3Meta:
     properties:
       limit: integer
+      cursor:
+        type: optional<string>
+        docs: URL-safe base64 (base64url) cursor for the next page. Absent when there are no more results.
 
   GetScoresV3Response:
     properties:

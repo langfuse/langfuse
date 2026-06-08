@@ -31,7 +31,7 @@ const AUTO_SCROLL_THRESHOLD_PX = 200;
 export type InAppAgentWindowMessage = {
   id: string;
   role: InAppAgentMessageRole;
-  content: InAppAgentMessageContent[];
+  content: InAppAgentMessageContent;
 };
 
 export type InAppAgentWindowConversation = {
@@ -269,27 +269,27 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               </div>
             ) : null}
 
-            <ol className="flex w-full flex-col gap-4 pb-4">
-              {messages.map((message) => (
-                <li
-                  key={message.id}
-                  className={cn(
-                    "w-fit max-w-[92%]",
-                    message.role === "user" && "ml-auto",
-                  )}
-                >
-                  <div className="flex w-full">
-                    {message.content.map((content, index) => (
-                      <InAppAgentMessage
-                        key={`${message.id}-${index}`}
-                        role={message.role}
-                        content={content}
-                        isCompact={!isExpanded}
-                      />
-                    ))}
-                  </div>
-                </li>
-              ))}
+            <ol className="flex w-full flex-col gap-3 pb-4">
+              {messages.map((message) => {
+                const hasToolContent = message.content.type === "toolGroup";
+
+                return (
+                  <li
+                    key={message.id}
+                    className={cn(
+                      "max-w-[92%]",
+                      hasToolContent ? "w-full" : "w-fit",
+                      message.role === "user" && "ml-auto",
+                    )}
+                  >
+                    <InAppAgentMessage
+                      role={message.role}
+                      content={message.content}
+                      isCompact={!isExpanded}
+                    />
+                  </li>
+                );
+              })}
             </ol>
 
             {error ? (

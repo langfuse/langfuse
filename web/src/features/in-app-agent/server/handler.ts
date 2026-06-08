@@ -137,6 +137,7 @@ export default async function handler(request: Request) {
         organization: {
           select: {
             aiFeaturesEnabled: true,
+            aiTelemetryEnabled: true,
           },
         },
       },
@@ -151,6 +152,7 @@ export default async function handler(request: Request) {
     const sanitizedInput = sanitizeAgentInput(input);
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
+    const targetProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
     if (!bedrockModelId) {
       throw new BaseError(
@@ -281,6 +283,28 @@ export default async function handler(request: Request) {
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
               },
+              langfuseTracing:
+                project.organization.aiTelemetryEnabled && targetProjectId
+                  ? {
+                      targetProjectId,
+                      environment: "langfuse-in-app-agent",
+                      userId: auth.userId,
+                      traceId: conversation.id,
+                      metadata: {
+                        langfuse_ai_feature: "in-app-agent",
+                        langfuse_user_id: auth.userId,
+                        langfuse_project_id: projectId,
+                        conversation_id: conversation.id,
+                        thread_id: sanitizedInput.threadId,
+                        run_id: sanitizedInput.runId,
+                        cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                        agent_session_type:
+                          parsedState.data.type === "existingConversation"
+                            ? "existing"
+                            : "new",
+                      },
+                    }
+                  : undefined,
             },
           });
 
