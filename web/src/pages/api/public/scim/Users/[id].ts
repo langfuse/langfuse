@@ -1,9 +1,58 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { Prisma, prisma, type User } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
-import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
+
+// SCIM `active: true` (PUT/PATCH) is an idempotent "ensure provisioned" signal,
+// not a role assignment. If the membership is missing we create it with the
+// default NONE role; if it already exists we leave its role untouched so a
+// roleless IdP sync cannot silently downgrade an existing member. Returns true
+// only when a membership was actually created, so callers audit real changes
+// and skip no-ops.
+async function provisionMembershipIfMissing({
+  userId,
+  orgId,
+  apiKeyId,
+}: {
+  userId: string;
+  orgId: string;
+  apiKeyId: string;
+}): Promise<boolean> {
+  const existing = await prisma.organizationMembership.findUnique({
+    where: { orgId_userId: { orgId, userId } },
+    select: { id: true },
+  });
+  if (existing) {
+    return false;
+  }
+  try {
+    const created = await prisma.organizationMembership.create({
+      data: { userId, orgId, role: "NONE" },
+    });
+    await auditLog({
+      resourceType: "orgMembership",
+      resourceId: created.id,
+      action: "create",
+      after: created,
+      apiKeyId,
+      orgId,
+    });
+    return true;
+  } catch (error) {
+    // A concurrent provisioning request created the row first. Treat the
+    // unique-constraint violation (P2002) as a successful no-op so the
+    // periodic IdP full-sync stays idempotent.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
 
 // Mirrors the tRPC `deleteMembership` invariant. Wraps the owner-count check
 // and the membership delete in a single Serializable transaction so two
@@ -14,31 +63,35 @@ async function deprovisionOrReject(
   res: NextApiResponse,
   userId: string,
   orgId: string,
+  apiKeyId: string,
 ): Promise<boolean> {
   try {
     const outcome = await prisma.$transaction(
       async (tx) => {
         const membership = await tx.organizationMembership.findUnique({
           where: { orgId_userId: { orgId, userId } },
-          select: { role: true },
         });
-        if (membership?.role === "OWNER") {
+        // Already absent: nothing to delete. Idempotent success, no audit.
+        if (!membership) {
+          return { result: "noop" as const };
+        }
+        if (membership.role === "OWNER") {
           const ownerCount = await tx.organizationMembership.count({
             where: { orgId, role: "OWNER" },
           });
           if (ownerCount <= 1) {
-            return "lastOwner" as const;
+            return { result: "lastOwner" as const };
           }
         }
-        await tx.organizationMembership.deleteMany({
-          where: { userId, orgId },
+        await tx.organizationMembership.delete({
+          where: { orgId_userId: { orgId, userId } },
         });
-        return "deleted" as const;
+        return { result: "deleted" as const, membership };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-    if (outcome === "lastOwner") {
+    if (outcome.result === "lastOwner") {
       logger.warn(
         `[SCIM] Refused to remove last OWNER ${userId} from org ${orgId}`,
       );
@@ -49,6 +102,18 @@ async function deprovisionOrReject(
         status: 403,
       });
       return false;
+    }
+
+    // Only audit when a membership was actually removed.
+    if (outcome.result === "deleted") {
+      await auditLog({
+        resourceType: "orgMembership",
+        resourceId: outcome.membership.id,
+        action: "delete",
+        before: outcome.membership,
+        apiKeyId,
+        orgId,
+      });
     }
     return true;
   } catch (error) {
@@ -140,13 +205,31 @@ export default async function handler(
   try {
     switch (req.method) {
       case "PATCH":
-        return handlePatch(req, res, user, authCheck.scope.orgId);
+        return handlePatch(
+          req,
+          res,
+          user,
+          authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+        );
       case "PUT":
-        return handlePut(req, res, user, authCheck.scope.orgId);
+        return handlePut(
+          req,
+          res,
+          user,
+          authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+        );
       case "GET":
         return handleGet(req, res, user, authCheck.scope.orgId);
       case "DELETE":
-        return handleDelete(req, res, user, authCheck.scope.orgId);
+        return handleDelete(
+          req,
+          res,
+          user,
+          authCheck.scope.orgId,
+          authCheck.scope.apiKeyId,
+        );
       default:
         // This should never happen due to the check at the beginning
         return res.status(405).json({
@@ -222,6 +305,7 @@ async function handlePatch(
   res: NextApiResponse,
   user: User,
   orgId: string,
+  apiKeyId: string,
 ) {
   let body = req.body;
 
@@ -279,27 +363,21 @@ async function handlePatch(
       typeof op.value.active === "boolean"
     ) {
       if (op.value.active) {
-        // Provision the user by adding them to the organization
-        await prisma.organizationMembership.upsert({
-          where: {
-            orgId_userId: {
-              orgId: orgId,
-              userId: user.id,
-            },
-          },
-          create: {
-            userId: user.id,
-            orgId: orgId,
-            role: "NONE",
-          },
-          update: {},
+        // Ensure the membership exists with the default NONE role; never
+        // modify an existing membership's role.
+        const created = await provisionMembershipIfMissing({
+          userId: user.id,
+          orgId,
+          apiKeyId,
         });
         logger.info(
-          `[SCIM] Provisioned user ${user.id} in org ${orgId} via PATCH`,
+          created
+            ? `[SCIM] Provisioned user ${user.id} in org ${orgId} with role NONE via PATCH`
+            : `[SCIM] User ${user.id} already a member of org ${orgId}; no changes via PATCH`,
         );
       } else {
         // Deprovision atomically: check + delete in one Serializable txn.
-        if (!(await deprovisionOrReject(res, user.id, orgId))) {
+        if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId))) {
           return;
         }
         logger.info(
@@ -329,6 +407,7 @@ async function handlePut(
   res: NextApiResponse,
   user: User,
   orgId: string,
+  apiKeyId: string,
 ) {
   let body = req.body;
 
@@ -364,45 +443,29 @@ async function handlePut(
     });
   }
 
-  // Handle active status for provisioning/deprovisioning
+  // Handle active status for provisioning/deprovisioning.
+  //
+  // `active: true` is an idempotent "ensure provisioned" signal, not a role
+  // assignment: we create the membership with the default NONE role when it is
+  // missing and make no changes when it already exists. Any `roles` in the
+  // payload are intentionally ignored here so that a periodic IdP full-sync
+  // (which typically omits roles) cannot downgrade an existing member's role.
+  // Role changes go through the create (POST) flow or the in-app UI.
   if (typeof body.active === "boolean") {
     if (body.active) {
-      // Determine role from roles array if provided
-      let role: Role = "NONE";
-      if (body.roles && Array.isArray(body.roles) && body.roles.length > 0) {
-        const roleSchema = z.array(
-          z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]),
-        );
-        const parsedRoles = roleSchema.safeParse(body.roles);
-        if (parsedRoles.success) {
-          // Use the first valid role
-          role = parsedRoles.data[0];
-        }
-      }
-
-      // Provision the user by adding them to the organization
-      await prisma.organizationMembership.upsert({
-        where: {
-          orgId_userId: {
-            orgId: orgId,
-            userId: user.id,
-          },
-        },
-        create: {
-          userId: user.id,
-          orgId: orgId,
-          role: role,
-        },
-        update: {
-          role: role,
-        },
+      const created = await provisionMembershipIfMissing({
+        userId: user.id,
+        orgId,
+        apiKeyId,
       });
       logger.info(
-        `[SCIM] Provisioned user ${user.id} in org ${orgId} with role ${role} via PUT`,
+        created
+          ? `[SCIM] Provisioned user ${user.id} in org ${orgId} with role NONE via PUT`
+          : `[SCIM] User ${user.id} already a member of org ${orgId}; no changes via PUT`,
       );
     } else {
       // Deprovision atomically: check + delete in one Serializable txn.
-      if (!(await deprovisionOrReject(res, user.id, orgId))) {
+      if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId))) {
         return;
       }
       logger.info(
@@ -435,9 +498,10 @@ async function handleDelete(
   res: NextApiResponse,
   user: User,
   orgId: string,
+  apiKeyId: string,
 ) {
   // Deprovision atomically: check + delete in one Serializable txn.
-  if (!(await deprovisionOrReject(res, user.id, orgId))) {
+  if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId))) {
     return;
   }
   logger.info(`[SCIM] Removed user ${user.id} from org ${orgId} via DELETE`);
