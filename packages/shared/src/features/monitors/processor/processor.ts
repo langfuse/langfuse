@@ -2,7 +2,6 @@ import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
 import { env } from "../../../env";
-import { InternalServerError } from "../../../errors";
 import { TriggerEventSource } from "../../../domain/automations";
 import { matchesTriggerFilter } from "../../../server/automations";
 import {
@@ -15,6 +14,7 @@ import {
 } from "../../../server/repositories/automation-repository";
 import { executeQuery as defaultExecuteQuery } from "../../query/server/queryExecutor";
 import type { QueryType } from "../../query/types";
+import { isValidQuery } from "../isValidQuery";
 import {
   MonitorQueueEventSchema,
   type MonitorQueueEvent,
@@ -30,12 +30,8 @@ import { renderAlertMessage } from "./renderAlertMessage";
 /** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads data settled past the events-table write lag. */
 export const monitorEvaluationOffsetMs = 30 * 1000;
 
-/** badMonitorQuery sentinels a query whose shape is permanently invalid (QueryBuilder rejected it). */
-class ErrorBadMonitorQuery extends InternalServerError {
-  constructor(error: Error) {
-    super(`query could not be executed ${error}`);
-  }
-}
+/** ErrorBadQuery sentinels a metric whose shape doesn't resolve against the v2 data model or whose batch query failed to execute. */
+export const ErrorBadQuery = Symbol("ErrorBadQuery");
 
 /** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
 export class MonitorProcessor {
@@ -58,9 +54,7 @@ export class MonitorProcessor {
 
       const [metrics, triggers] = await Promise.all([
         instrumentAsync({ name: "queryMetrics" }, () =>
-          this.queryMetrics(event).catch((error) => {
-            return new ErrorBadMonitorQuery(error);
-          }),
+          this.queryMetrics(event),
         ),
         instrumentAsync({ name: "getTriggerConfigurations" }, () =>
           this.getTriggerConfigurations({
@@ -70,14 +64,6 @@ export class MonitorProcessor {
           }),
         ),
       ]);
-
-      if (metrics instanceof ErrorBadMonitorQuery) {
-        await instrumentAsync({ name: "errorBadQuery" }, () =>
-          this.errorBadQuery({ event, monitors, now }),
-        );
-        span.setAttribute("executeQuery Error", metrics.toString());
-        return;
-      }
 
       span.setAttribute("metrics", Object.keys(metrics).length);
       span.setAttribute("triggers", triggers.length);
@@ -140,23 +126,39 @@ export class MonitorProcessor {
     return prismaMonitors.map(monitorFromPrisma);
   }
 
-  /** queryMetrics runs the monitor's scalar query and returns each metric coerced to number | null. */
-  private async queryMetrics(
-    event: MonitorQueueEvent,
-  ): Promise<Record<string, number | null>> {
-    const rows = await this.executeQuery(
-      event.projectId,
-      buildMonitorQuery(event),
-      "v2",
-      true,
-    );
-    const row = (rows[0] ?? {}) as Record<string, unknown>;
-    return Object.fromEntries(
-      Object.entries(row).map(([name, value]) => [
-        name,
-        parseNumericValue(value),
-      ]),
-    );
+  /** queryMetrics pre-screens the batch's metrics against the v2 data model, runs the accepted ones, and returns each metric keyed by `${aggregation}_${measure}` as a number, null, or the ErrorBadQuery sentinel. */
+  private async queryMetrics(event: MonitorQueueEvent): Promise<MetricMap> {
+    const validation = isValidQuery({
+      view: event.view,
+      metrics: event.metrics,
+      filters: event.filters,
+    });
+    const metricMap: MetricMap = {};
+    for (const metric of validation.rejected) {
+      metricMap[metricKey(metric)] = ErrorBadQuery;
+    }
+    if (validation.accepted.length === 0) return metricMap;
+
+    try {
+      const rows = await this.executeQuery(
+        event.projectId,
+        buildMonitorQuery(validation.accepted, event),
+        "v2",
+        true,
+      );
+      const row = (rows[0] ?? {}) as Record<string, unknown>;
+      for (const metric of validation.accepted) {
+        const key = metricKey(metric);
+        metricMap[key] = parseNumericValue(row[key]);
+      }
+      metricMap["count_count"] = parseNumericValue(row["count_count"]);
+    } catch {
+      for (const metric of validation.accepted) {
+        metricMap[metricKey(metric)] = ErrorBadQuery;
+      }
+      metricMap["count_count"] = ErrorBadQuery;
+    }
+    return metricMap;
   }
 
   private async publishWebhookInputs(
@@ -180,34 +182,19 @@ export class MonitorProcessor {
       }),
     );
   }
-
-  /** errorBadQuery flips the claimed monitors to ERROR_BAD_QUERY when their query shape is permanently invalid. */
-  private async errorBadQuery(args: {
-    event: MonitorQueueEvent;
-    monitors: Monitor[];
-    now: Date;
-  }): Promise<void> {
-    if (args.monitors.length === 0) return;
-    await this.db.$executeRaw(
-      buildErrorBadQueryQuery({
-        projectId: args.event.projectId,
-        publishedAt: args.event.publishedAt,
-        claimedAt: args.now,
-        severityChangedAt: args.now,
-        monitorIds: args.monitors.map((m) => m.id),
-      }),
-    );
-  }
 }
 
-/** buildMonitorQuery converts a MonitorQueueEvent into the scalar QueryType executeQuery accepts. */
-function buildMonitorQuery(event: MonitorQueueEvent): QueryType {
+/** buildMonitorQuery converts the accepted metrics of a MonitorQueueEvent into the scalar QueryType executeQuery accepts. */
+function buildMonitorQuery(
+  acceptedMetrics: QueryType["metrics"],
+  event: MonitorQueueEvent,
+): QueryType {
   const { fromTimestamp, toTimestamp } = evaluationWindow(
     event.window,
     event.runAt,
   );
   const metrics = dedupeMetrics([
-    ...event.metrics,
+    ...acceptedMetrics,
     { measure: "count", aggregation: "count" as const },
   ]);
   return {
@@ -226,11 +213,16 @@ function buildMonitorQuery(event: MonitorQueueEvent): QueryType {
 function dedupeMetrics(metrics: QueryType["metrics"]): QueryType["metrics"] {
   const seen = new Set<string>();
   return metrics.filter((m) => {
-    const key = `${m.aggregation}_${m.measure}`;
+    const key = metricKey(m);
     if (seen.has(key)) return false;
     seen.add(key);
     return true;
   });
+}
+
+/** metricKey is the `${aggregation}_${measure}` column name a metric resolves to in the query result row. */
+function metricKey(metric: { measure: string; aggregation: string }): string {
+  return `${metric.aggregation}_${metric.measure}`;
 }
 
 /** evaluationWindow returns the `[runAt - window, runAt]` edges, both shifted back by monitorEvaluationOffsetMs. */
@@ -258,7 +250,7 @@ function parseNumericValue(raw: unknown): number | null {
 /** processMonitors evaluates every claimed monitor, collecting the completions to persist and the webhook inputs to publish. */
 function processMonitors(args: {
   monitors: Monitor[];
-  metrics: Record<string, number | null>;
+  metrics: MetricMap;
   triggers: TriggerDomainWithActions[];
   now: Date;
   runAt: Date;
@@ -281,19 +273,35 @@ function processMonitors(args: {
   return [completions, monitorWebhookInputs];
 }
 
-/** processMonitor evaluates one monitor and returns its lifecycle completion plus any webhook inputs to publish. */
+/** processMonitor evaluates one monitor and returns its lifecycle completion plus any webhook inputs to publish; a bad-query metric short-circuits to an ERROR_BAD_QUERY completion with no alert. */
 function processMonitor(args: {
   monitor: Monitor;
-  metrics: Record<string, number | null>;
+  metrics: MetricMap;
   triggers: TriggerDomainWithActions[];
   now: Date;
   runAt: Date;
   publishedAt: Date;
 }): [MonitorCompletion, MonitorWebhookInput[]] {
   const { monitor, metrics, triggers, now, runAt, publishedAt } = args;
-  const value = getValue(metrics, monitor.metric);
+  const value = getMetricValue(metrics, monitor.metric);
+  if (value === ErrorBadQuery) {
+    return [
+      {
+        monitorId: monitor.id,
+        lastClaimedAt: now,
+        lastCompletedAt: now,
+        publishedAt,
+        status: "ERROR_BAD_QUERY",
+        severity: "PAUSED",
+        severityChangedAt: now,
+        alertedAt: monitor.alertedAt,
+      },
+      [],
+    ];
+  }
+
   const severity = computeSeverity({
-    value: metrics["count_count"] === 0 ? null : value,
+    value,
     operator: monitor.thresholdOperator,
     alertThreshold: monitor.alertThreshold,
     warningThreshold: monitor.warningThreshold ?? null,
@@ -314,12 +322,15 @@ function processMonitor(args: {
   return [completion, toMonitorWebhookInputs({ alert, automations, now })];
 }
 
-/** getValue reads a monitor's scalar result from the metrics map, keyed by `${aggregation}_${measure}`. */
-function getValue(
-  metrics: Record<string, number | null>,
+/** getMetricValue reads a monitor's scalar result from the metrics map, returning the ErrorBadQuery sentinel before the zero-count NO_DATA gate so a rejected metric flips rather than reads NO_DATA. */
+function getMetricValue(
+  metrics: MetricMap,
   metric: Monitor["metric"],
-): number | null {
-  return metrics[`${metric.aggregation}_${metric.measure}`] ?? null;
+): MetricValue {
+  const value = metrics[metricKey(metric)];
+  if (value === ErrorBadQuery) return ErrorBadQuery;
+  if (metrics["count_count"] === 0) return null;
+  return value ?? null;
 }
 
 /** getAutomations returns the automations under every trigger that consumes this alert. */
@@ -401,7 +412,7 @@ function buildCompleteQuery(args: {
   const valueRows = Prisma.join(
     args.completions.map(
       (c) =>
-        Prisma.sql`(${c.monitorId}, ${c.lastClaimedAt}::timestamptz, ${c.lastCompletedAt}::timestamptz, ${c.publishedAt}::timestamptz, ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
+        Prisma.sql`(${c.monitorId}, ${c.lastClaimedAt}::timestamptz, ${c.lastCompletedAt}::timestamptz, ${c.publishedAt}::timestamptz, ${c.status}::"MonitorStatus", ${c.severity}::"MonitorSeverity", ${c.severityChangedAt}::timestamptz, ${c.alertedAt}::timestamptz)`,
     ),
     ", ",
   );
@@ -409,6 +420,7 @@ function buildCompleteQuery(args: {
     UPDATE monitors AS m
     SET
       last_completed_at = data.last_completed_at,
+      status = data.status,
       severity = data.severity,
       severity_changed_at = data.severity_changed_at,
       alerted_at = data.alerted_at
@@ -417,6 +429,7 @@ function buildCompleteQuery(args: {
       last_claimed_at,
       last_completed_at,
       published_at,
+      status,
       severity,
       severity_changed_at,
       alerted_at
@@ -429,27 +442,11 @@ function buildCompleteQuery(args: {
   `;
 }
 
-/** buildErrorBadQueryQuery builds the CAS-guarded UPDATE that pauses every claimed monitor under ERROR_BAD_QUERY. */
-function buildErrorBadQueryQuery(args: {
-  projectId: string;
-  publishedAt: Date;
-  claimedAt: Date;
-  severityChangedAt: Date;
-  monitorIds: string[];
-}): Prisma.Sql {
-  return Prisma.sql`
-    UPDATE monitors AS m
-    SET
-      status = 'ERROR_BAD_QUERY'::"MonitorStatus",
-      severity = 'PAUSED'::"MonitorSeverity",
-      severity_changed_at = ${args.severityChangedAt}::timestamptz
-    WHERE m.id IN (${Prisma.join(args.monitorIds)})
-      AND m.project_id = ${args.projectId}
-      AND m.last_claimed_at = ${args.claimedAt}::timestamptz -- no-op if another worker re-claimed since
-      AND m.status = 'ACTIVE' -- no-op if the user paused since claim
-      AND m.last_published_at = ${args.publishedAt}::timestamptz -- no-op if the scheduler rescued/republished since claim
-  `;
-}
+/** MetricValue is one metric's evaluated result: a number, null (missing/non-finite), or the ErrorBadQuery sentinel. */
+export type MetricValue = number | null | typeof ErrorBadQuery;
+
+/** MetricMap keys each metric's MetricValue by `${aggregation}_${measure}`. */
+type MetricMap = Record<string, MetricValue>;
 
 /** MonitorPublisher publishes one MonitorWebhookInput onto the webhook queue. */
 export type MonitorPublisher = (input: MonitorWebhookInput) => Promise<void>;

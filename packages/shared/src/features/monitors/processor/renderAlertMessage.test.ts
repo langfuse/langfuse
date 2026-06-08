@@ -42,6 +42,7 @@ const completion = (severity: MonitorSeverity): MonitorCompletion => ({
   lastClaimedAt: t0,
   lastCompletedAt: t0,
   publishedAt: t0,
+  status: "ACTIVE",
   severity,
   severityChangedAt: null,
   alertedAt: null,

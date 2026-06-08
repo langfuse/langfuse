@@ -6,7 +6,7 @@ describe("isValidQuery", () => {
   it("accepts a valid (view, measure, aggregation) tuple", () => {
     const result = isValidQuery({
       view: "observations",
-      metric: { measure: "count", aggregation: "count" },
+      metrics: [{ measure: "count", aggregation: "count" }],
       filters: [],
     });
     expect(result.valid).toBe(true);
@@ -15,7 +15,7 @@ describe("isValidQuery", () => {
   it("rejects an unknown measure for the view", () => {
     const result = isValidQuery({
       view: "observations",
-      metric: { measure: "bogus_measure", aggregation: "count" },
+      metrics: [{ measure: "bogus_measure", aggregation: "count" }],
       filters: [],
     });
     expect(result.valid).toBe(false);
@@ -28,7 +28,7 @@ describe("isValidQuery", () => {
   it("rejects a `metadata` filter column: too expensive at evaluation cadence", () => {
     const result = isValidQuery({
       view: "observations",
-      metric: { measure: "count", aggregation: "count" },
+      metrics: [{ measure: "count", aggregation: "count" }],
       filters: [
         {
           type: "stringObject",
@@ -51,7 +51,7 @@ describe("isValidQuery", () => {
     expect(() =>
       isValidQuery({
         view: "bogus" as never,
-        metric: { measure: "count", aggregation: "count" },
+        metrics: [{ measure: "count", aggregation: "count" }],
         filters: [],
       }),
     ).toThrow(/View 'bogus' is not supported/);
@@ -62,7 +62,7 @@ describe("isValidQuery", () => {
     (measure) => {
       const result = isValidQuery({
         view: "observations",
-        metric: { measure, aggregation: "count" },
+        metrics: [{ measure, aggregation: "count" }],
         filters: [],
       });
       expect(result.valid).toBe(false);
@@ -75,7 +75,7 @@ describe("isValidQuery", () => {
   it("rejects histogram aggregation (bucket array is not comparable to a scalar threshold)", () => {
     const result = isValidQuery({
       view: "observations",
-      metric: { measure: "count", aggregation: "histogram" },
+      metrics: [{ measure: "count", aggregation: "histogram" }],
       filters: [],
     });
     expect(result.valid).toBe(false);
@@ -101,7 +101,7 @@ describe("isValidQuery", () => {
   ])("rejects a $type filter with duplicate value entries", (filter) => {
     const result = isValidQuery({
       view: "observations",
-      metric: { measure: "count", aggregation: "count" },
+      metrics: [{ measure: "count", aggregation: "count" }],
       filters: [filter],
     });
     expect(result.valid).toBe(false);
@@ -116,7 +116,7 @@ describe("isValidQuery", () => {
     // is not a valid monitor filter.
     const result = isValidQuery({
       view: "observations",
-      metric: { measure: "count", aggregation: "count" },
+      metrics: [{ measure: "count", aggregation: "count" }],
       filters: [
         {
           type: "string",
@@ -130,6 +130,59 @@ describe("isValidQuery", () => {
     if (!result.valid) {
       expect(result.reason).toContain("metadata");
       expect(result.reason).toContain("not supported for monitors");
+    }
+  });
+
+  it("partitions a mixed batch: keeps valid metrics, rejects only the invalid ones", () => {
+    const valid = { measure: "count", aggregation: "count" as const };
+    const invalid = { measure: "bogus_measure", aggregation: "count" as const };
+    const result = isValidQuery({
+      view: "observations",
+      metrics: [valid, invalid],
+      filters: [],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.accepted).toEqual([valid]);
+      expect(result.rejected).toEqual([invalid]);
+      expect(result.reason).toContain("bogus_measure");
+    }
+  });
+
+  it("accepts an all-valid batch: every metric accepted, none rejected", () => {
+    const metrics = [{ measure: "count", aggregation: "count" as const }];
+    const result = isValidQuery({
+      view: "observations",
+      metrics,
+      filters: [],
+    });
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.accepted).toEqual(metrics);
+      expect(result.rejected).toEqual([]);
+    }
+  });
+
+  it("rejects a bad filter as a whole-query failure: every metric rejected, none accepted", () => {
+    const metrics = [{ measure: "count", aggregation: "count" as const }];
+    const result = isValidQuery({
+      view: "observations",
+      metrics,
+      filters: [
+        {
+          type: "stringObject",
+          column: "metadata",
+          key: "tenant",
+          operator: "=",
+          value: "acme",
+        },
+      ],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.accepted).toEqual([]);
+      expect(result.rejected).toEqual(metrics);
+      expect(result.reason).toContain("metadata");
     }
   });
 });

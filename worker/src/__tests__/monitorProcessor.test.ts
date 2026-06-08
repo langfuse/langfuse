@@ -25,11 +25,14 @@ type MonitorSeverity =
   | "PAUSED";
 type ThresholdOperator = "GT" | "GTE" | "LT" | "LTE" | "EQ" | "NEQ";
 
+type Metric = { measure: string; aggregation: string };
+
 type SeedOverrides = Partial<{
   schedulerBatchId: bigint;
   windowMs: bigint;
   status: MonitorStatus;
   view: MonitorView;
+  metric: Metric;
   alertThreshold: number;
   warningThreshold: number | null;
   thresholdOperator: ThresholdOperator;
@@ -123,10 +126,10 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       projectId,
       view: seed.view ?? "OBSERVATIONS",
       filters: [] as unknown as Prisma.InputJsonValue,
-      metric: {
+      metric: (seed.metric ?? {
         measure: "count",
         aggregation: "count",
-      } as unknown as Prisma.InputJsonValue,
+      }) as unknown as Prisma.InputJsonValue,
       windowMs: seed.windowMs ?? fiveMinutesMs,
       cadenceMs: oneMinuteMs,
       thresholdOperator: seed.thresholdOperator ?? "GT",
@@ -155,8 +158,25 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
   });
 }
 
-/** makeEvent builds the MonitorQueueEvent for the seeded monitors; metricName matches `${aggregation}_${measure}` from the seed's default metric. */
-function makeEvent(projectId: string, monitorIds: string[]): MonitorQueueEvent {
+/** makeEvent builds the MonitorQueueEvent for the seeded monitors, deduping each monitor's metric into the batch and keying metricName by `${aggregation}_${measure}`. */
+function makeEvent(
+  projectId: string,
+  monitors: (string | { id: string; metric?: Metric })[],
+): MonitorQueueEvent {
+  const seeds = monitors.map((m) =>
+    typeof m === "string" ? { id: m, metric: undefined } : m,
+  );
+  const metricOf = (m: (typeof seeds)[number]): Metric =>
+    m.metric ?? { measure: "count", aggregation: "count" };
+  const seen = new Set<string>();
+  const metrics: Metric[] = [];
+  for (const s of seeds) {
+    const metric = metricOf(s);
+    const key = `${metric.aggregation}_${metric.measure}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    metrics.push(metric);
+  }
   return {
     projectId,
     schedulerBatchId: 0n,
@@ -165,11 +185,14 @@ function makeEvent(projectId: string, monitorIds: string[]): MonitorQueueEvent {
     view: "observations",
     filters: [],
     window: "5m",
-    metrics: [{ measure: "count", aggregation: "count" }],
-    monitors: monitorIds.map((id) => ({
-      monitorId: id,
-      metricName: "count_count",
-    })),
+    metrics: metrics as MonitorQueueEvent["metrics"],
+    monitors: seeds.map((s) => {
+      const metric = metricOf(s);
+      return {
+        monitorId: s.id,
+        metricName: `${metric.aggregation}_${metric.measure}`,
+      };
+    }),
   };
 }
 
@@ -613,7 +636,7 @@ const cases: ProcessCase[] = [
           severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
-          lastCompletedAt: null,
+          lastCompletedAt: justAfterRunAt,
         },
       ],
     },
@@ -643,7 +666,7 @@ const cases: ProcessCase[] = [
           severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
-          lastCompletedAt: null,
+          lastCompletedAt: justAfterRunAt,
         },
       ],
     },
@@ -1136,6 +1159,84 @@ const cases: ProcessCase[] = [
       ],
     },
   },
+  {
+    name: "mixed metric batch: valid-metric monitor completes, invalid-metric monitor flips ERROR_BAD_QUERY only for itself",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedAt: runAt,
+      },
+      {
+        id: monitorBId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+        metric: { measure: "bogus_measure", aggregation: "count" },
+      },
+    ],
+    ch: [{ count_count: 200 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 1,
+      publishMatch: {
+        payload: {
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: { monitorId: monitorAId, severity: "ALERT" },
+        },
+      },
+      rows: [
+        {
+          id: monitorAId,
+          status: "ACTIVE",
+          severity: "ALERT",
+          severityChangedAt: justAfterRunAt,
+          alertedAt: justAfterRunAt,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: justAfterRunAt,
+        },
+        {
+          id: monitorBId,
+          status: "ERROR_BAD_QUERY",
+          severity: "PAUSED",
+          severityChangedAt: justAfterRunAt,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: justAfterRunAt,
+        },
+      ],
+    },
+  },
+  {
+    name: "rejected metric in a zero-count window: flips ERROR_BAD_QUERY, not NO_DATA",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+        metric: { measure: "bogus_measure", aggregation: "count" },
+        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+      },
+    ],
+    ch: [{ count_count: 0 }],
+    triggers: [matchAnyAlertTrigger],
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          status: "ERROR_BAD_QUERY",
+          severity: "PAUSED",
+          severityChangedAt: justAfterRunAt,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: justAfterRunAt,
+        },
+      ],
+    },
+  },
 ];
 
 describe("MonitorProcessor.process (integration)", () => {
@@ -1220,7 +1321,7 @@ describe("MonitorProcessor.process (integration)", () => {
 
     const event = makeEvent(
       projectId,
-      c.monitors.map((m) => m.id),
+      c.monitors.map((m) => ({ id: m.id, metric: m.metric })),
     );
     if (c.expect.throws) {
       await expect(processor.process(event, justAfterRunAt)).rejects.toThrow(

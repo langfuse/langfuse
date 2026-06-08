@@ -146,7 +146,7 @@ export const validateMonitorQuery = (
 ): void => {
   const result = isValidQuery({
     view: input.view,
-    metric: input.metric,
+    metrics: [input.metric],
     filters: input.filters,
   });
   if (!result.valid) {

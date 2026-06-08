@@ -2,6 +2,7 @@ import type {
   MonitorNoData,
   MonitorRenotify,
   MonitorSeverity,
+  MonitorStatus,
   Monitor,
 } from "../types";
 
@@ -23,6 +24,7 @@ export function applyStateMachine(args: {
         lastClaimedAt: now,
         lastCompletedAt: now,
         publishedAt,
+        status: prev.status,
         severity: "PAUSED",
         severityChangedAt: prev.severityChangedAt,
         alertedAt: prev.alertedAt,
@@ -49,6 +51,7 @@ export function applyStateMachine(args: {
       lastClaimedAt: now,
       lastCompletedAt: now,
       publishedAt,
+      status: prev.status,
       severity: next.severity,
       severityChangedAt: severityChanged ? now : prev.severityChangedAt,
       alertedAt: emit ? now : prev.alertedAt,
@@ -147,6 +150,7 @@ export type MonitorCompletion = {
   lastClaimedAt: Date;
   lastCompletedAt: Date;
   publishedAt: Date;
+  status: MonitorStatus;
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
