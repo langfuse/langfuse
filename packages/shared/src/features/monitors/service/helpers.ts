@@ -268,16 +268,15 @@ export const updateStatusAndSeverity = (
 } => {
   if (!next) return {};
   const fromActive = current === MonitorStatusSchema.enum.ACTIVE;
-  const toActve = next === MonitorStatusSchema.enum.ACTIVE;
-  const toPaused = fromActive && !toActve;
-  const toActive = !fromActive && toActve;
+  const toActive = next === MonitorStatusSchema.enum.ACTIVE;
+  const toPaused = fromActive && !toActive;
   if (toPaused)
     return {
       status: next,
       severity: PrismaMonitorSeverity.PAUSED,
       severityChangedAt: new Date(),
     };
-  if (toActive)
+  if (!fromActive && toActive)
     return {
       status: next,
       severity: PrismaMonitorSeverity.UNKNOWN,
