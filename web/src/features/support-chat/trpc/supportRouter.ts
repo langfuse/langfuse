@@ -15,6 +15,7 @@ import {
   SeveritySchema,
   TopicSchema,
   TopicGroups,
+  isHighTierSupportPlan,
 } from "../formConstants";
 
 import {
@@ -34,6 +35,8 @@ import {
 const CreateSupportThreadInput = z.object({
   messageType: MessageTypeSchema,
   severity: SeveritySchema,
+  /** Manual Sev-1 escalation; only honored for high-tier plans (enforced below). */
+  isHighPriority: z.boolean().optional(),
   topic: TopicSchema,
   message: z.string().trim().min(1),
   url: z.url().optional(),
@@ -148,6 +151,12 @@ export const supportRouter = createTRPCRouter({
         currentSupportRequestContext.organizationId = organization.id;
       }
 
+      // Only honor a manual high-priority request for high-tier plans; ignore
+      // the client-supplied flag otherwise so it cannot be used to force Sev-1.
+      const honorHighPriority =
+        input.isHighPriority === true &&
+        isHighTierSupportPlan(currentSupportRequestContext.plan);
+
       const { topLevel, subtype } = splitTopic(input.topic);
 
       // Generate a short unique identifier to prevent Gmail from merging threads
@@ -190,7 +199,9 @@ export const supportRouter = createTRPCRouter({
             requesterEmail: email,
             requesterName: fullName,
             tags: ["Langfuse"],
-            priority: mapSeverityToPylonPriority(input.severity),
+            priority: honorHighPriority
+              ? "urgent"
+              : mapSeverityToPylonPriority(input.severity),
             attachmentUrls: input.pylonAttachmentUrls,
             customFields: [
               ...(input.url
@@ -215,6 +226,7 @@ export const supportRouter = createTRPCRouter({
                 value: mapToPylonCaseSeverity({
                   severity: input.severity,
                   plan: currentSupportRequestContext.plan,
+                  isHighPriority: honorHighPriority,
                 }),
               },
             ],
