@@ -430,7 +430,10 @@ export const AutomationForm = ({
     if (actionType === "WEBHOOK") {
       // Use action handler to get default values with proper typing
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const webhookDefaults = handler.getDefaultValues(automation);
+      const webhookDefaults = handler.getDefaultValues(
+        automation,
+        resolvedEventSource,
+      );
       return {
         ...baseValues,
         actionType: "WEBHOOK" as const,
