@@ -85,6 +85,8 @@ import {
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 10;
 const USERS_PER_PAGE_IN_POPOVER = 50;
+// Keep this near TanStack's default to avoid waking too many lazy row loaders.
+const SESSION_VIRTUALIZER_OVERSCAN = 5;
 
 export function SessionUsers({
   projectId,
@@ -314,7 +316,7 @@ export const SessionPage: React.FC<{
     count: session.data?.traces.length ?? 0,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 300,
-    overscan: 10,
+    overscan: SESSION_VIRTUALIZER_OVERSCAN,
     getItemKey: (index) => session.data?.traces[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
@@ -885,7 +887,7 @@ export const SessionEventsPage: React.FC<{
     count: tracesQuery.data?.length ?? 0,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 320,
-    overscan: 10,
+    overscan: SESSION_VIRTUALIZER_OVERSCAN,
     getItemKey: (index) => tracesQuery.data?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();

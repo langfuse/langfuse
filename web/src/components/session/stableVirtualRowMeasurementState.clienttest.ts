@@ -115,4 +115,42 @@ describe("createStableVirtualRowMeasurementState", () => {
       oscillationWindowStartedAt: 0,
     });
   });
+
+  it("clears stale frozen state after the oscillation window expires", () => {
+    const measurement = createStableVirtualRowMeasurementState();
+
+    measurement.commitHeight(100, 0);
+    measurement.commitHeight(200, 100);
+    measurement.commitHeight(100, 200);
+    measurement.commitHeight(200, 300);
+    measurement.commitHeight(100, 400);
+
+    expect(measurement.commitHeight(200, 1_200)).toBeNull();
+    expect(measurement.getSnapshot()).toMatchObject({
+      committedHeight: 200,
+      frozenMinHeight: null,
+      oscillationPair: null,
+      oscillationCount: 0,
+      oscillationWindowStartedAt: 0,
+    });
+  });
+
+  it("clears stale frozen state after later legitimate growth", () => {
+    const measurement = createStableVirtualRowMeasurementState();
+
+    measurement.commitHeight(100, 0);
+    measurement.commitHeight(200, 100);
+    measurement.commitHeight(100, 200);
+    measurement.commitHeight(200, 300);
+    measurement.commitHeight(100, 400);
+
+    expect(measurement.commitHeight(260, 1_200)).toBe(260);
+    expect(measurement.getSnapshot()).toMatchObject({
+      committedHeight: 260,
+      frozenMinHeight: null,
+      oscillationPair: null,
+      oscillationCount: 0,
+      oscillationWindowStartedAt: 0,
+    });
+  });
 });
