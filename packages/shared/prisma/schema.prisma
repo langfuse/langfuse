@@ -174,7 +174,6 @@ model Project {
   InAppAgentConversation    InAppAgentConversation[]
   InAppAgentEvent           InAppAgentEvent[]
   InAppAgentRun             InAppAgentRun[]
-  observationMedias         ObservationMedia[]
 
   @@index([orgId])
   @@map("projects")
@@ -1375,7 +1374,6 @@ model ObservationMedia {
   traceId       String   @map("trace_id")
   observationId String   @map("observation_id")
   field         String   @map("field")
-  project       Project  @relation(fields: [projectId], references: [id])
 
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, mediaId])
