@@ -38,10 +38,12 @@ export const MonitorAutomationsPanel = ({
   projectId,
   triggerIds,
   onTriggerIdsChange,
+  hasAccess = true,
 }: {
   projectId: string;
   triggerIds: string[];
   onTriggerIdsChange: (next: string[]) => void;
+  hasAccess?: boolean;
 }) => {
   const automations = api.automations.getAutomations.useQuery(
     {
@@ -68,6 +70,7 @@ export const MonitorAutomationsPanel = ({
 
   /** handleToggle flips membership for a trigger ID and calls onTriggerIdsChange with the new array. */
   const handleToggle = (triggerId: string) => {
+    if (!hasAccess) return;
     onTriggerIdsChange(toggle(triggerId, triggerIds, liveTriggerIds));
   };
 
@@ -98,8 +101,9 @@ export const MonitorAutomationsPanel = ({
                     <li key={automation.id}>
                       <div
                         role="button"
-                        tabIndex={0}
+                        tabIndex={hasAccess ? 0 : -1}
                         aria-pressed={checked}
+                        aria-disabled={!hasAccess}
                         onClick={handleClick}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
@@ -107,7 +111,10 @@ export const MonitorAutomationsPanel = ({
                             handleClick();
                           }
                         }}
-                        className="hover:bg-muted/60 focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs outline-hidden transition-colors focus-visible:ring-2"
+                        className={cn(
+                          "hover:bg-muted/60 focus-visible:ring-ring flex cursor-pointer items-center gap-2 rounded-md border p-2 text-xs outline-hidden transition-colors focus-visible:ring-2",
+                          !hasAccess && "pointer-events-none opacity-50",
+                        )}
                       >
                         <RowCheckbox checked={checked} />
                         <ActionIcon

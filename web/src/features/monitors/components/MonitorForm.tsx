@@ -855,6 +855,7 @@ export const MonitorForm = ({
                   </p>
                   <MonitorAutomationsPanel
                     projectId={projectId}
+                    hasAccess={hasAccess}
                     triggerIds={(watched.triggerIds ?? []) as string[]}
                     onTriggerIdsChange={(next) =>
                       form.setValue("triggerIds", next, {
