@@ -87,4 +87,25 @@ describe("parsePlaygroundConfig", () => {
       parsePlaygroundConfig({ tools: [{ name: "missing_fields" }] }),
     ).toEqual({ tools: [], structuredOutputSchema: null });
   });
+
+  it("keeps valid entries when a sibling is malformed", () => {
+    const config = {
+      tools: [tool, { name: "missing_fields" }],
+      structuredOutputSchema: schema,
+    };
+
+    const parsed = parsePlaygroundConfig(config);
+
+    // The one bad tool is skipped, the valid tool and schema survive.
+    expect(parsed.tools.map((t) => t.name)).toEqual([tool.name]);
+    expect(parsed.structuredOutputSchema?.name).toBe(schema.name);
+
+    // A malformed schema must not discard valid tools, and vice versa.
+    expect(
+      parsePlaygroundConfig({
+        tools: [tool],
+        structuredOutputSchema: { name: 1 },
+      }).tools.map((t) => t.name),
+    ).toEqual([tool.name]);
+  });
 });

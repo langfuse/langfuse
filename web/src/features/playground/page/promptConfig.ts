@@ -4,22 +4,14 @@ import { LLMJSONSchema, LLMToolDefinitionSchema } from "@langfuse/shared";
 import { type PlaygroundSchema, type PlaygroundTool } from "./types";
 
 /**
- * Slice of `prompt.config` used to round-trip playground tools and structured
- * output schemas between the LLM playground and saved prompts. Stored alongside
- * any other user-defined config keys, so parsing is intentionally lenient.
+ * Slice of `prompt.config` used to round-trip a structured output schema
+ * between the LLM playground and saved prompts.
  */
-const PlaygroundPromptConfigSchema = z
-  .object({
-    tools: z.array(LLMToolDefinitionSchema).optional(),
-    structuredOutputSchema: z
-      .object({
-        name: z.string(),
-        description: z.string(),
-        schema: LLMJSONSchema,
-      })
-      .optional(),
-  })
-  .loose();
+const StructuredOutputConfigSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  schema: LLMJSONSchema,
+});
 
 /** Config keys owned by the playground; callers strip these before re-applying. */
 export const PLAYGROUND_CONFIG_KEYS = [
@@ -31,23 +23,29 @@ const generateId = () => Math.random().toString(36).substring(2);
 
 /**
  * Extracts playground tools and structured output schema persisted on a
- * prompt's `config`. Returns empty defaults when the config does not contain
- * (valid) playground state.
+ * prompt's `config`. Tools and schema are parsed independently and malformed
+ * tool entries are skipped, so one bad entry never discards valid siblings.
  */
 export function parsePlaygroundConfig(config: unknown): {
   tools: PlaygroundTool[];
   structuredOutputSchema: PlaygroundSchema | null;
 } {
-  const parsed = PlaygroundPromptConfigSchema.safeParse(config);
-  if (!parsed.success) return { tools: [], structuredOutputSchema: null };
+  const record =
+    config && typeof config === "object" && !Array.isArray(config)
+      ? (config as Record<string, unknown>)
+      : {};
 
-  const tools = (parsed.data.tools ?? []).map((tool) => ({
-    ...tool,
-    id: generateId(),
-  }));
+  const rawTools = Array.isArray(record.tools) ? record.tools : [];
+  const tools = rawTools.flatMap((tool) => {
+    const parsed = LLMToolDefinitionSchema.safeParse(tool);
+    return parsed.success ? [{ ...parsed.data, id: generateId() }] : [];
+  });
 
-  const structuredOutputSchema = parsed.data.structuredOutputSchema
-    ? { ...parsed.data.structuredOutputSchema, id: generateId() }
+  const parsedSchema = StructuredOutputConfigSchema.safeParse(
+    record.structuredOutputSchema,
+  );
+  const structuredOutputSchema = parsedSchema.success
+    ? { ...parsedSchema.data, id: generateId() }
     : null;
 
   return { tools, structuredOutputSchema };
