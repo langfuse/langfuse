@@ -312,9 +312,9 @@ function evaluate(ctx: EvaluationContext): EvaluationResult {
   params.append("tool", decodedName);
   params.append("tool", "validate");
   params.sort();
-  const paramNames = params.keys();
-  const paramValues = params.values();
-  const paramEntries = params.entries();
+  const paramNames = Array.from(params.keys());
+  const paramValues = Array.from(params.values());
+  const paramEntries = Array.from(params.entries());
   const sealedArgs = Object.seal(weatherArgs);
   const frozenArgs = Object.freeze(sealedArgs);
   const hasLocation =
@@ -473,9 +473,9 @@ function evaluate(ctx: EvaluationContext): EvaluationResult {
     Object.hasOwn(toolCall ?? {}, "arguments"),
   );
 
-  const ids = JSON.stringify(actual)
-    .matchAll(/"id":\\s*"([^"]+)"/g)
-    .map((match) => match[1]);
+  const ids = Array.from(
+    JSON.stringify(actual).matchAll(/"id":\\s*"([^"]+)"/g),
+  ).map((match) => match[1]);
   const idScore = ids
     .map((id: string) => id.at(0)?.codePointAt(0) ?? 0)
     .fill(0, ids.length)
@@ -525,6 +525,41 @@ function evaluate(ctx: EvaluationContext): EvaluationResult {
     expect(
       result.diagnostics.some((diagnostic) =>
         diagnostic.message.includes("Property 'random' does not exist"),
+      ),
+    ).toBe(true);
+  });
+
+  it("requires Array.from before using array helpers on iterators", async () => {
+    const result = await validateCodeEvalSourceWithLanguage({
+      source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+function evaluate(ctx: EvaluationContext): EvaluationResult {
+  const params = new URLSearchParams("tool=validate");
+  const hasTool = params.keys().includes("tool");
+  const ids = JSON.stringify(ctx.observation.output ?? {})
+    .matchAll(/"id":\\s*"([^"]+)"/g)
+    .map((match) => match[1]);
+
+  return {
+    scores: [{
+      name: "iterator helpers",
+      value: hasTool && ids.length > 0,
+      dataType: "BOOLEAN",
+    }],
+  };
+}
+`,
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+
+    expect(result.hasErrors).toBe(true);
+    expect(
+      result.diagnostics.some((diagnostic) =>
+        diagnostic.message.includes("Property 'includes' does not exist"),
+      ),
+    ).toBe(true);
+    expect(
+      result.diagnostics.some((diagnostic) =>
+        diagnostic.message.includes("Property 'map' does not exist"),
       ),
     ).toBe(true);
   });

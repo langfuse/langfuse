@@ -131,6 +131,13 @@ interface ArrayConstructor {
     values: IterableLike<T>,
     mapfn: (value: T, index: number) => U,
   ): U[];
+  from<T>(values: IteratorLike<T>): T[];
+  from<T, U>(
+    values: IteratorLike<T>,
+    mapfn: (value: T, index: number) => U,
+  ): U[];
+  from<K, V>(values: Map<K, V>): [K, V][];
+  from<T>(values: Set<T>): T[];
   isArray(value: unknown): value is unknown[];
   of<T>(...items: T[]): T[];
 }
@@ -225,17 +232,26 @@ interface IterableLike<T> {
   values(): T[];
 }
 
+interface IteratorResult<T> {
+  done?: boolean;
+  value: T;
+}
+
+interface IteratorLike<T> {
+  next(): IteratorResult<T>;
+}
+
 interface Map<K, V> {
   readonly size: number;
   clear(): void;
   delete(key: K): boolean;
-  entries(): [K, V][];
+  entries(): IteratorLike<[K, V]>;
   forEach(callbackfn: (value: V, key: K, map: Map<K, V>) => void): void;
   get(key: K): V | undefined;
   has(key: K): boolean;
-  keys(): K[];
+  keys(): IteratorLike<K>;
   set(key: K, value: V): this;
-  values(): V[];
+  values(): IteratorLike<V>;
 }
 
 interface MapConstructor {
@@ -362,11 +378,11 @@ interface Set<T> {
   add(value: T): this;
   clear(): void;
   delete(value: T): boolean;
-  entries(): [T, T][];
+  entries(): IteratorLike<[T, T]>;
   forEach(callbackfn: (value: T, value2: T, set: Set<T>) => void): void;
   has(value: T): boolean;
-  keys(): T[];
-  values(): T[];
+  keys(): IteratorLike<T>;
+  values(): IteratorLike<T>;
 }
 
 interface SetConstructor {
@@ -386,7 +402,7 @@ interface String {
   lastIndexOf(searchString: string, position?: number): number;
   localeCompare(that: string): number;
   match(regexp: RegExp): RegExpMatchArray | null;
-  matchAll(regexp: RegExp): RegExpMatchArray[];
+  matchAll(regexp: RegExp): IteratorLike<RegExpMatchArray>;
   normalize(form?: string): string;
   padEnd(maxLength: number, fillString?: string): string;
   padStart(maxLength: number, fillString?: string): string;
@@ -548,12 +564,12 @@ declare class URLSearchParams {
   get(name: string): string | null;
   getAll(name: string): string[];
   has(name: string): boolean;
-  keys(): string[];
+  keys(): IteratorLike<string>;
   set(name: string, value: string): void;
   sort(): void;
   toString(): string;
-  values(): string[];
-  entries(): string[][];
+  values(): IteratorLike<string>;
+  entries(): IteratorLike<[string, string]>;
 }
 `;
 
