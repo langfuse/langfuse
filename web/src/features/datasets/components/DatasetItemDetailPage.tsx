@@ -28,9 +28,6 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { EditDatasetItemDialog } from "@/src/features/datasets/components/EditDatasetItemDialog";
 import { useDatasetVersion } from "@/src/features/datasets/hooks/useDatasetVersion";
 import { toDatasetSchema } from "@/src/features/datasets/utils/datasetItemUtils";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
-
 export const DatasetItemDetailPage = ({
   activeTab,
   withPadding = true,
@@ -51,11 +48,6 @@ export const DatasetItemDetailPage = ({
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { selectedVersion } = useDatasetVersion();
   const isViewingOldVersion = selectedVersion !== null;
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-  } = useExperimentAccess();
 
   const dataset = api.datasets.byId.useQuery({
     datasetId,
@@ -202,12 +194,6 @@ export const DatasetItemDetailPage = ({
         ),
         actionButtonsRight: (
           <>
-            {canUseExperimentsBetaToggle && (
-              <ExperimentsBetaSwitch
-                enabled={isExperimentsBetaEnabled}
-                onEnabledChange={setExperimentsBetaEnabled}
-              />
-            )}
             <DetailPageNav
               currentId={itemId}
               path={(entry) =>
