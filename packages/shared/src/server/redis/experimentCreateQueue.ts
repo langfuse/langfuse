@@ -1,11 +1,7 @@
 import { Queue } from "bullmq";
 import { logger } from "../logger";
 import { TQueueJobTypes, QueueName } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 
 export class ExperimentCreateQueue {
   private static instance: Queue<
@@ -17,17 +13,14 @@ export class ExperimentCreateQueue {
   > | null {
     if (ExperimentCreateQueue.instance) return ExperimentCreateQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    ExperimentCreateQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.ExperimentCreate,
+    );
+    ExperimentCreateQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.ExperimentCreate]>(
           QueueName.ExperimentCreate,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.ExperimentCreate),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

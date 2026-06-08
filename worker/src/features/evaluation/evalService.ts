@@ -1,17 +1,16 @@
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
+  EvalTemplateType,
   JobConfigState,
   JobExecutionStatus,
   type JobExecution,
   type JobConfiguration,
-  type EvalTemplate,
 } from "@prisma/client";
 import {
   QueueJobs,
   QueueName,
   EvalExecutionEvent,
-  traceException,
   logger,
   EvalExecutionQueue,
   checkTraceExistsAndGetTimestamp,
@@ -34,6 +33,7 @@ import {
   isLLMCompletionError,
   blockEvaluatorConfigs,
   EvaluatorBlockSource,
+  type CodeEvalScoreWithName,
 } from "@langfuse/shared/src/server";
 import {
   mapTraceFilterColumn,
@@ -56,9 +56,11 @@ import {
   getEvaluatorBlockMetadata,
   getBlockReasonForInvalidModelConfig,
   isJobConfigExecutable,
+  type EvalTemplateLlmAsAJudge,
   PersistedEvalOutputDefinitionSchema,
   ScoreDataTypeEnum,
   validateEvalOutputResult,
+  type EvalOutputResult,
   extractValueFromObject,
   validateEvaluatorFiltersForTarget,
 } from "@langfuse/shared";
@@ -73,12 +75,16 @@ import {
   buildEvalExecutionMetadata,
   getEnvironmentFromVariables,
 } from "./evalRuntime";
-import { buildEvalScoreWritePayloads } from "./evalScoreEvent";
+import {
+  completeEvalExecution,
+  type EvalExecutionResult,
+} from "./evalCompletion";
 import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
-import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import { type ExtractedVariable } from "@langfuse/shared/src/server";
+import { buildEvalExecutionSpanAttributes } from "./evalSpanAttributes";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -253,6 +259,7 @@ export const createEvalJobs = async ({
     try {
       // Fetch trace data and store it. If observation data is required, we'll make a separate lookup.
       // Those fields are used rarely, though.
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       cachedTrace = await getTraceById({
         traceId: event.traceId,
         projectId: event.projectId,
@@ -710,8 +717,7 @@ export const createEvalJobs = async ({
  * It handles:
  * - Compiling the prompt with extracted variables
  * - Calling the LLM with structured output
- * - Persisting the score to S3 and queueing for ingestion
- * - Updating job execution status
+ * - Returning the validated eval output and completion metadata
  *
  * Note: Callers are responsible for:
  * - Fetching and validating job, config, and template
@@ -724,27 +730,28 @@ export const createEvalJobs = async ({
  * @param params.config - Pre-fetched job configuration
  * @param params.template - Pre-fetched eval template
  * @param params.extractedVariables - Pre-extracted variables from trace/observation data
+ * @param params.executionMetadata - Metadata identifying this eval execution
  * @param params.deps - Optional dependency injection for testing (defaults to production deps)
  */
-export async function executeLLMAsJudgeEvaluation({
+export async function runLLMAsJudgeEvaluation({
   projectId,
   jobExecutionId,
   job,
   config,
   template,
   extractedVariables,
-  environment,
-  deps = createProductionEvalExecutionDeps(),
+  executionMetadata,
+  deps,
 }: {
   projectId: string;
   jobExecutionId: string;
   job: JobExecution;
   config: JobConfiguration;
-  template: EvalTemplate;
+  template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
-  environment: string;
-  deps?: EvalExecutionDeps;
-}): Promise<void> {
+  executionMetadata: Record<string, string>;
+  deps: EvalExecutionDeps;
+}): Promise<EvalExecutionResult> {
   return instrumentAsync(
     { name: "eval.execute-llm-as-judge" },
     async (span) => {
@@ -806,7 +813,7 @@ export async function executeLLMAsJudgeEvaluation({
         parsedOutputDefinition.data,
       );
 
-      span.setAttribute("eval.job_configuration.id", config.id);
+      span.setAttributes(buildEvalExecutionSpanAttributes({ config }));
       span.setAttribute("eval.template.version", template.version);
       span.setAttribute("eval.score.name", config.scoreName);
       span.setAttribute(
@@ -851,17 +858,7 @@ export async function executeLLMAsJudgeEvaluation({
       // Prepare LLM call
       const messages = buildEvalMessages(prompt);
 
-      const primaryScoreId = randomUUID();
-      span.setAttribute("eval.score.id", primaryScoreId);
       const executionTraceId = createW3CTraceId(jobExecutionId);
-
-      const executionMetadata = buildEvalExecutionMetadata({
-        jobExecutionId,
-        jobConfigurationId: job.jobConfigurationId,
-        targetTraceId: job.jobInputTraceId,
-        targetObservationId: job.jobInputObservationId,
-        targetDatasetItemId: job.jobInputDatasetItemId,
-      });
 
       // Call LLM
       const llmOutput = await instrumentAsync(
@@ -898,7 +895,6 @@ export async function executeLLMAsJudgeEvaluation({
                 environment: LangfuseInternalTraceEnvironment.LLMJudge,
                 metadata: {
                   ...executionMetadata,
-                  score_id: primaryScoreId,
                 },
               },
             });
@@ -949,72 +945,91 @@ export async function executeLLMAsJudgeEvaluation({
         }`,
       );
 
-      const scoreWritePayloads = buildEvalScoreWritePayloads({
+      const scores = toNormalizedScores({
         outputResult: parsedLLMOutput.data,
-        primaryScoreId,
-        traceId: job.jobInputTraceId,
-        observationId: job.jobInputObservationId,
         scoreName: config.scoreName,
-        environment,
+      });
+
+      span.setAttribute("eval.score.count", scores.length);
+
+      return {
+        scores,
         executionTraceId,
         metadata: executionMetadata,
-      });
-
-      span.setAttribute("eval.score.count", scoreWritePayloads.length);
-
-      // Write score to S3 and enqueue for ingestion
-      try {
-        await Promise.all(
-          scoreWritePayloads.map(async ({ scoreId, eventId, event }) => {
-            await deps.uploadScore({
-              projectId,
-              scoreId,
-              eventId,
-              event,
-            });
-
-            await deps.enqueueScoreIngestion({
-              projectId,
-              scoreId,
-              eventId,
-            });
-          }),
-        );
-      } catch (e) {
-        logger.error(`Failed to persist score: ${e}`, e);
-        traceException(e);
-        throw new Error(
-          `Failed to write score ${primaryScoreId} into IngestionQueue`,
-        );
-      }
-
-      logger.debug(
-        `Persisted ${scoreWritePayloads.length} score(s) for job ${jobExecutionId}`,
-      );
-
-      // Update job execution status
-      await deps.updateJobExecution({
-        id: jobExecutionId,
-        projectId,
-        data: {
-          status: JobExecutionStatus.COMPLETED,
-          endTime: new Date(),
-          jobOutputScoreId: primaryScoreId,
-          executionTraceId,
-        },
-      });
-
-      logger.debug(
-        `Eval job ${job.id} completed with ${
-          parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
-            ? `score ${parsedLLMOutput.data.score}`
-            : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
-              ? `score ${parsedLLMOutput.data.score}`
-              : `matches ${parsedLLMOutput.data.matches.join(",")}`
-        }`,
-      );
+      };
     },
   );
+}
+
+function toNormalizedScores(params: {
+  outputResult: EvalOutputResult;
+  scoreName: string;
+}): CodeEvalScoreWithName[] {
+  const { outputResult, scoreName } = params;
+  const baseFields = {
+    name: scoreName,
+    comment: outputResult.reasoning,
+  };
+
+  if (outputResult.dataType === ScoreDataTypeEnum.NUMERIC) {
+    return [
+      {
+        ...baseFields,
+        dataType: ScoreDataTypeEnum.NUMERIC,
+        value: outputResult.score,
+      },
+    ];
+  }
+
+  if (outputResult.dataType === ScoreDataTypeEnum.BOOLEAN) {
+    return [
+      {
+        ...baseFields,
+        dataType: ScoreDataTypeEnum.BOOLEAN,
+        value: outputResult.score ? 1 : 0,
+      },
+    ];
+  }
+
+  return outputResult.matches.map((value) => ({
+    ...baseFields,
+    dataType: ScoreDataTypeEnum.CATEGORICAL,
+    value,
+  }));
+}
+
+export async function executeLLMAsJudgeEvaluation(
+  params: Omit<
+    Parameters<typeof runLLMAsJudgeEvaluation>[0],
+    "deps" | "executionMetadata"
+  > & {
+    environment: string;
+    deps?: EvalExecutionDeps;
+  },
+): Promise<void> {
+  const deps = params.deps ?? createProductionEvalExecutionDeps();
+  const executionMetadata = buildEvalExecutionMetadata({
+    jobExecutionId: params.jobExecutionId,
+    jobConfigurationId: params.job.jobConfigurationId,
+    targetTraceId: params.job.jobInputTraceId,
+    targetObservationId: params.job.jobInputObservationId,
+    targetDatasetItemId: params.job.jobInputDatasetItemId,
+  });
+  const result = await runLLMAsJudgeEvaluation({
+    ...params,
+    deps,
+    executionMetadata,
+  });
+
+  await completeEvalExecution({
+    projectId: params.projectId,
+    jobExecutionId: params.jobExecutionId,
+    traceId: params.job.jobInputTraceId,
+    observationId: params.job.jobInputObservationId,
+    environment: params.environment,
+    deps,
+    result,
+  });
 }
 
 /**
@@ -1091,6 +1106,7 @@ export const evaluate = async ({
   const template = await prisma.evalTemplate.findFirst({
     where: {
       id: config.evalTemplateId,
+      type: EvalTemplateType.LLM_AS_JUDGE,
       OR: [{ projectId: event.projectId }, { projectId: null }],
     },
   });
@@ -1126,7 +1142,7 @@ export const evaluate = async ({
     jobExecutionId: event.jobExecutionId,
     job,
     config,
-    template,
+    template: template as EvalTemplateLlmAsAJudge,
     extractedVariables,
     environment:
       getEnvironmentFromVariables(extractedVariables) ??
@@ -1151,13 +1167,13 @@ export async function extractVariablesFromTracingData({
   traceTimestamp?: Date;
   datasetItemId?: string;
   datasetItemValidFrom?: Date;
-}): Promise<{ var: string; value: string; environment?: string }[]> {
+}): Promise<ExtractedVariable[]> {
   // Internal cache for this function call to avoid duplicate database lookups.
   // We do not cache dataset items as Postgres is cheaper than ClickHouse.
   const traceCache = new Map<string, TraceDomain | null>();
   const observationCache = new Map<string, Observation | null>();
 
-  const results: { var: string; value: string; environment?: string }[] = [];
+  const results: ExtractedVariable[] = [];
 
   // We run through this list sequentially to make use of caching.
   // The performance improvement by parallel execution should be less than the improvement we gain by caching.
@@ -1221,7 +1237,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(datasetItem, mapping),
+        value: parseDatabaseRowValue(datasetItem, mapping),
       });
       continue;
     }
@@ -1244,6 +1260,7 @@ export async function extractVariablesFromTracingData({
       const traceCacheKey = `${projectId}:${traceId}`;
       let trace = traceCache.get(traceCacheKey);
       if (!traceCache.has(traceCacheKey)) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         trace = await getTraceById({
           traceId,
           projectId,
@@ -1266,7 +1283,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(trace, mapping),
+        value: parseDatabaseRowValue(trace, mapping),
         environment: trace.environment,
       });
       continue;
@@ -1327,7 +1344,7 @@ export async function extractVariablesFromTracingData({
 
       results.push({
         var: variable,
-        value: parseDatabaseRowToString(observation, mapping),
+        value: parseDatabaseRowValue(observation, mapping),
         environment: observation.environment,
       });
       continue;
@@ -1342,10 +1359,13 @@ export async function extractVariablesFromTracingData({
 const snakeToCamel = (s: string) =>
   s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 
-export const parseDatabaseRowToString = (
+// Returns the typed value extracted from a database row. LLM-as-judge
+// stringifies at template-substitution time via `compileEvalPrompt`; code-
+// based evaluators consume the typed value directly.
+export const parseDatabaseRowValue = (
   dbRow: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,
-): string => {
+): unknown => {
   // Prisma returns camelCase keys, but selectedColumnId may be snake_case
   const selectedColumn =
     dbRow[mapping.selectedColumnId] ??

@@ -1,10 +1,14 @@
 import {
   InvalidRequestError,
   ObservationTypeDomain,
+  isNumericEventsTableColumnId,
   type timeFilter,
 } from "@langfuse/shared";
 import { z } from "zod";
-import { getEventFilterValuePage } from "@/src/features/events/server/eventsService";
+import {
+  getEventFilterNumericRange,
+  getEventFilterValuePage,
+} from "@/src/features/events/server/eventsService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
@@ -22,13 +26,20 @@ const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "traceName",
   "level",
   "promptName",
+  "promptVersion",
   "modelId",
   "providedModelName",
+  "totalCost",
+  "totalTokens",
+  "latency",
+  "timeToFirstToken",
   "tags",
   "hasParentObservation",
 ] as const satisfies readonly ObservationMcpFilterColumn[];
 
 const FilterValueColumnSchema = z.enum(OBSERVATION_MCP_FILTER_VALUE_COLUMNS);
+
+type FilterValueColumn = z.infer<typeof FilterValueColumnSchema>;
 
 const GetObservationFilterValuesBaseSchema = z.object({
   column: FilterValueColumnSchema,
@@ -74,7 +85,7 @@ const buildStartTimeFilter = (params: {
 
 const normalizeFilterOptions = (
   values: unknown[],
-  column: z.infer<typeof FilterValueColumnSchema>,
+  column: FilterValueColumn,
 ): FilterOption[] => {
   const normalizeValue = (value: unknown): string | boolean | null => {
     if (typeof value === "string") {
@@ -149,7 +160,7 @@ export const [
 ] = defineTool({
   name: "getObservationFilterValues",
   description:
-    "List available values for an observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. Use the returned cursor to page through long value lists.",
+    "List example values for a string or boolean observation filter field, such as names, types, levels, environments, model names, tags, users, or sessions. For numeric metric fields, returns a range with min, max, avg, and count. Use the returned cursor to page through long value lists.",
   baseSchema: GetObservationFilterValuesBaseSchema,
   inputSchema: GetObservationFilterValuesBaseSchema,
   handler: async (input, context) => {
@@ -166,11 +177,27 @@ export const [
           toStartTime: input.toStartTime,
         });
 
-        const offset = decodeObservationFilterValueCursor(input.cursor);
-
-        // The `tags` column is stored in the database as `traceTags`
         const eventsColumn =
           input.column === "tags" ? "traceTags" : input.column;
+
+        if (isNumericEventsTableColumnId(eventsColumn)) {
+          const range = await getEventFilterNumericRange({
+            column: eventsColumn,
+            projectId: context.projectId,
+            startTimeFilter,
+            hasParentObservation: input.hasParentObservation,
+            observationType: input.observationType,
+          });
+
+          return {
+            type: "RANGE",
+            column: input.column,
+            range: range ?? null,
+            meta: {},
+          };
+        }
+
+        const offset = decodeObservationFilterValueCursor(input.cursor);
 
         const page = await getEventFilterValuePage({
           column: eventsColumn,
@@ -194,6 +221,7 @@ export const [
         );
 
         return {
+          type: "VALUES",
           column: input.column,
           values: normalizedValues,
           meta:

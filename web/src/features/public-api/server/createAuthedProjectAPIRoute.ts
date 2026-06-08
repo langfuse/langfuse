@@ -65,6 +65,14 @@ export type AuthedProjectAPIRouteConfig<
    * Only set this to true on non-mutating (GET) routes that should be callable by the in-app agent.
    */
   allowInAppAgentKey?: boolean;
+  /**
+   * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_WRITE_MODE is
+   * "events_only". Set this on routes that read from the legacy traces or
+   * observations ClickHouse tables without an events_full fallback — those
+   * tables are no longer populated in events_only mode and would silently
+   * return stale or empty data.
+   */
+  rejectInEventsOnlyMode?: boolean;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -289,6 +297,21 @@ export const createAuthedProjectAPIRoute = <
   routeConfig: AuthedProjectAPIRouteConfig<TQuery, TBody, TResponse>,
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
   return async (req: NextApiRequest, res: NextApiResponse) => {
+    // Short-circuit routes that read from legacy traces/observations tables
+    // when the deployment is in events_only mode — those tables are no longer
+    // populated, so the response would be stale or empty. Returning 404 keeps
+    // the surface area consistent with "this endpoint is not available here".
+    if (
+      routeConfig.rejectInEventsOnlyMode &&
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
+    ) {
+      res.status(404).json({
+        message:
+          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+      });
+      return;
+    }
+
     let auth: AuthHeaderValidVerificationResult & {
       scope: { projectId: string; accessLevel: RouteAccessLevel };
     };

@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.175.0",
+  "version": "3.179.1",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -79,6 +79,7 @@
     "@typescript/native-preview": "7.0.0-dev.20260122.3",
     "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9.39.2",
+    "google-auth-library": "^10.6.2",
     "msw": "^2.6.5",
     "prettier": "^3.8.3",
     "ts-node": "^10.9.2",

@@ -1,5 +1,5 @@
 import { Job, Processor } from "bullmq";
-import { JobExecutionStatus } from "@langfuse/shared";
+import { EvalTemplateType, JobExecutionStatus } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   QueueName,
@@ -296,7 +296,10 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
         );
       }
 
-      await processObservationEval({ event: job.data.payload });
+      await processObservationEval({
+        event: job.data.payload,
+        executionType: EvalTemplateType.LLM_AS_JUDGE,
+      });
       return true;
     } catch (e) {
       const executionTraceId = createW3CTraceId(

@@ -29,10 +29,10 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   isEventTarget,
+  isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
   isTraceOrDatasetObject,
-  isTraceOrEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   FormControl,
@@ -53,6 +53,13 @@ import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMa
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  type EvalPreviewPointer,
+  buildEvalPreviewNavigationPath,
+  getEvalPreviewDetailPageListKey,
+  getEvalPreviewPointerFromDetailPageEntry,
+} from "@/src/features/evals/hooks/useEvalPreviewNavigation";
 
 export const VariableMappingCard = ({
   projectId,
@@ -80,14 +87,18 @@ export const VariableMappingCard = ({
   compatibilityCheckWasPerformed?: boolean;
 }) => {
   const [showPreview, setShowPreview] = useState(false);
-  const [selectedPreviewIds, setSelectedPreviewIds] = useState<{
-    traceId?: string;
-    observationId?: string;
-  }>();
+  const [selectedPreviewPointer, setSelectedPreviewPointer] =
+    useState<EvalPreviewPointer>();
   const router = useRouter();
+  const { isBetaEnabled } = useV4Beta();
   const peekId =
     typeof router.query.peek === "string" ? router.query.peek : undefined;
   const isPeekView = Boolean(peekId);
+  const target = form.watch("target");
+  const shouldShowPreviewForTarget =
+    isTraceTarget(target) ||
+    isEventTarget(target) ||
+    (isExperimentTarget(target) && isBetaEnabled);
 
   const { fields } = useFieldArray({
     control: form.control,
@@ -103,40 +114,50 @@ export const VariableMappingCard = ({
     projectId,
     form,
     disabled,
-    isPeekView ? (selectedPreviewIds ?? {}) : undefined,
+    isPeekView ? selectedPreviewPointer : undefined,
   );
 
   const nonOtelCompatible = compatibilityCheckWasPerformed && !isNewCompatible;
+  const shouldDisablePreviewForNonOtel =
+    nonOtelCompatible && (isEventTarget(target) || isExperimentTarget(target));
 
   useEffect(() => {
-    const target = form.getValues("target");
-    // Disable preview for event targets only when SDK check was performed and user is not on OTEL SDK
-    const shouldDisableForNonOtel = isEventTarget(target) && nonOtelCompatible;
-
-    if (isTraceOrEventTarget(target) && !disabled && !shouldDisableForNonOtel) {
+    if (
+      shouldShowPreviewForTarget &&
+      !disabled &&
+      !shouldDisablePreviewForNonOtel
+    ) {
       setShowPreview(true);
     } else {
-      // For dataset and experiment targets, or event targets without OTEL SDK
       setShowPreview(false);
     }
 
     if (isPeekView) {
-      setSelectedPreviewIds(undefined);
+      setSelectedPreviewPointer(undefined);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch("target"), disabled, isPeekView, nonOtelCompatible]);
+  }, [
+    target,
+    disabled,
+    isPeekView,
+    shouldShowPreviewForTarget,
+    shouldDisablePreviewForNonOtel,
+  ]);
 
   useEffect(() => {
     if (isPeekView) {
-      setSelectedPreviewIds(undefined);
+      setSelectedPreviewPointer(undefined);
     }
   }, [isPeekView, peekId]);
 
-  // Hide preview controls for event targets only when SDK check was performed and user is not on OTEL SDK
   const shouldShowPreviewControls =
-    isTraceOrEventTarget(form.watch("target")) &&
-    !disabled &&
-    !(isEventTarget(form.watch("target")) && nonOtelCompatible);
+    shouldShowPreviewForTarget && !disabled && !shouldDisablePreviewForNonOtel;
+  const previewNavigationListKey = getEvalPreviewDetailPageListKey(
+    target,
+    isBetaEnabled,
+  );
+  const evalPreviewBasePath = hideAdvancedSettings
+    ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
+    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
@@ -149,48 +170,33 @@ export const VariableMappingCard = ({
             disabled={disabled}
           />
           {showPreview &&
-            (previewData ? (
+            (previewData && previewNavigationListKey ? (
               <DetailPageNav
                 currentId={
                   previewData.type === EvalTargetObject.EVENT
                     ? previewData.observationId
                     : previewData.traceId
                 }
-                listKey={
-                  isEventTarget(form.watch("target"))
-                    ? "observations"
-                    : "traces"
-                }
+                listKey={previewNavigationListKey}
                 onNavigate={
                   isPeekView
                     ? (entry) => {
-                        if (isEventTarget(form.watch("target"))) {
-                          setSelectedPreviewIds({
-                            traceId: entry.params?.traceId,
-                            observationId: entry.id,
-                          });
-                        } else {
-                          setSelectedPreviewIds({
-                            traceId: entry.id,
-                            observationId: undefined,
-                          });
-                        }
+                        setSelectedPreviewPointer(
+                          getEvalPreviewPointerFromDetailPageEntry(
+                            entry,
+                            target,
+                          ),
+                        );
                       }
                     : undefined
                 }
-                path={(entry) => {
-                  const isEvent = isEventTarget(form.watch("target"));
-                  const basePath = hideAdvancedSettings
-                    ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
-                    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
-                  if (isEvent) {
-                    // For observations/events: entry.id is observationId, entry.params.traceId is traceId
-                    return `${basePath}&traceId=${entry.params?.traceId}&observationId=${entry.id}`;
-                  } else {
-                    // For traces: entry.id is traceId
-                    return `${basePath}&traceId=${entry.id}`;
-                  }
-                }}
+                path={(entry) =>
+                  buildEvalPreviewNavigationPath({
+                    basePath: evalPreviewBasePath,
+                    entry,
+                    target,
+                  })
+                }
               />
             ) : (
               <div className="flex flex-row gap-1">

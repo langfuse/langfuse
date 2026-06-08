@@ -42,6 +42,9 @@ const EnvSchema = z.object({
   REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
   REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK: z
+    .enum(["true", "false"])
+    .default("false"),
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
@@ -81,6 +84,7 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
+  CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
@@ -152,6 +156,25 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_CODE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_CODE_EVAL_DISPATCHER: z
+    .enum(["insecure-local", "aws-lambda"])
+    .optional(),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
+    .string()
+    .default("code-based-eval-executor-node"),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_PYTHON_FUNCTION_NAME: z
+    .string()
+    .default("code-based-eval-executor-python"),
+  LANGFUSE_CODE_EVAL_LOCAL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2_000),
   LANGFUSE_TRACE_UPSERT_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
@@ -241,6 +264,14 @@ const EnvSchema = z.object({
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+
+  // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
+  // public API routes that rely on the legacy traces/observations tables.
+  // The worker owns the writes; the web only needs to know whether legacy
+  // tables are still being populated to decide whether to serve reads.
+  LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+    .enum(["legacy", "dual", "events_only"])
+    .default("legacy"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z

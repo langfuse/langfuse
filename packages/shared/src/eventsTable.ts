@@ -1,5 +1,9 @@
 import { type ColumnDefinition } from "./tableDefinitions";
 
+export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
+export const eventsTableIsRootObservationSql =
+  "(e.parent_span_id = '' OR e.is_app_root = true)";
+
 type MutableDeep<T> = T extends readonly (infer U)[]
   ? MutableDeep<U>[]
   : T extends object
@@ -274,7 +278,13 @@ const eventsTableColsDefinition = [
     name: "Has Parent Observation",
     id: "hasParentObservation",
     type: "boolean",
-    internal: "e.parent_span_id != ''",
+    internal: eventsTableHasParentObservationSql,
+  },
+  {
+    name: "Is Root Observation",
+    id: "isRootObservation",
+    type: "boolean",
+    internal: eventsTableIsRootObservationSql,
   },
   {
     name: "Experiment Dataset ID",
@@ -346,6 +356,18 @@ export const eventsTableCols =
     ColumnDefinition[];
 
 type EventsTableColumnId = (typeof eventsTableColsDefinition)[number]["id"];
+
+export type NumericEventsTableColumnId = Extract<
+  (typeof eventsTableColsDefinition)[number],
+  { type: "number" }
+>["id"];
+
+export const isNumericEventsTableColumnId = (
+  column: EventsTableColumnId,
+): column is NumericEventsTableColumnId =>
+  eventsTableColsDefinition.some(
+    (col) => col.id === column && col.type === "number",
+  );
 
 // Subset of columns that are allowed to be used as filters in the MCP observations API
 const OBSERVATION_MCP_ALLOWED_EVENTS_TABLE_FILTER_COLUMN_IDS = [

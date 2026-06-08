@@ -6,6 +6,16 @@ export default [
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
 
+  // Tests legitimately exercise backwards-compatible (deprecated) read paths
+  // such as getTraceById/getObservationById, so allow them in test code.
+  {
+    name: "langfuse/web/tests-allow-deprecated",
+    files: ["src/__tests__/**", "src/__e2e__/**", "**/*.servertest.ts"],
+    rules: {
+      "@typescript-eslint/no-deprecated": "off",
+    },
+  },
+
   // Restrict react-icons imports
   {
     name: "langfuse/web/react-icons-restriction",

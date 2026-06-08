@@ -1,16 +1,18 @@
 import { type ZodType, z } from "zod";
 
 import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
-import { ChatVertexAI } from "@langchain/google-vertexai";
+import { ChatGoogle } from "@langchain/google";
 import { ChatBedrockConverse } from "@langchain/aws";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import {
   AIMessage,
+  AIMessageChunk,
   BaseMessage,
+  ContentBlock,
   HumanMessage,
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
+import { ContextOverflowError } from "@langchain/core/errors";
 import {
   BytesOutputParser,
   StringOutputParser,
@@ -22,6 +24,8 @@ import GCPServiceAccountKeySchema, {
   BedrockAccessKeysSchema,
   BedrockConfigSchema,
   BedrockCredentialSchema,
+  LLMConnectionConfig,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
@@ -51,13 +55,19 @@ import {
 } from "./utils";
 import { logger } from "../logger";
 import { LLMCompletionError } from "./errors";
+import {
+  createSecureGoogleAIStudioApiClient,
+  createSecureVertexAIApiClient,
+} from "./googleSecureApiClient";
+import { createSecureLlmFetch } from "./secureLlmFetch";
 
 export type CompletionWithReasoning = { text: string; reasoning?: string };
-type AIMessageContent = AIMessage["content"];
-type AIMessageContentBlock = Exclude<AIMessageContent, string>[number];
 type SplitAIMessageContent = {
   text: string;
-  contentWithoutThinking: AIMessageContent;
+  // Standard `ContentBlock` shape exposed by `AIMessage#contentBlocks`, stripped
+  // of `tool_call` and `reasoning` blocks. A plain string is preserved when the
+  // upstream message carried plain-string content.
+  contentWithoutThinking: string | Array<ContentBlock.Standard>;
   reasoning?: string;
 };
 
@@ -67,20 +77,35 @@ const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
   "Unterminated string in JSON at position",
   "TypeError",
   "reached the end of its life",
+  "prompt is too long",
+  // secureLlmFetch validation failures: synchronous, status-less errors that
+  // would otherwise default to 500 + retryable and burn the eval-retry budget
+  // on permanent config or redirect-target failures.
+  "Only HTTP and HTTPS protocols are allowed",
+  "Only HTTPS base URLs are allowed",
+  "Blocked hostname detected",
+  "Blocked IP address detected",
+  "Redirect validation failed",
+  "Maximum redirects",
+  "Circular redirect detected",
 ] as const;
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+const AZURE_OPENAI_API_KEY_HEADER = "api-key";
+const ANTHROPIC_API_KEY_HEADER = "x-api-key";
 
-// Maps adapters to the content block types that represent "thinking".
-// Used to extract reasoning separately and strip thinking parts from parsed output.
-const THINKING_BLOCK_TYPES: Partial<Record<LLMAdapter, Set<string>>> = {
-  [LLMAdapter.Bedrock]: new Set(["reasoning_content"]),
-  [LLMAdapter.VertexAI]: new Set(["reasoning"]),
-  [LLMAdapter.GoogleAIStudio]: new Set(["reasoning"]),
-};
+// Adapters whose models can return separate reasoning content. We route their
+// responses through `AIMessage#contentBlocks`, which normalizes provider-specific
+// shapes (Bedrock `reasoning_content`, Gemini `{ thought: true }` text parts, etc.)
+// into the documented `{ type: "reasoning", reasoning: string }` standard block.
+const ADAPTERS_WITH_REASONING_SUPPORT = new Set<LLMAdapter>([
+  LLMAdapter.Bedrock,
+  LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
+]);
 
-function getThinkingBlockTypes(adapter: LLMAdapter): Set<string> | undefined {
-  return THINKING_BLOCK_TYPES[adapter];
+function adapterSupportsReasoning(adapter: LLMAdapter): boolean {
+  return ADAPTERS_WITH_REASONING_SUPPORT.has(adapter);
 }
 
 const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
@@ -162,7 +187,7 @@ type LLMCompletionParams = {
     secretKey: string;
     extraHeaders?: string | null;
     baseURL?: string | null;
-    config?: Record<string, string> | null;
+    config?: LLMConnectionConfig | null;
   };
   structuredOutputSchema?: ZodType | LLMJSONSchema;
   callbacks?: BaseCallbackHandler[];
@@ -312,15 +337,23 @@ export async function fetchLLMCompletion(
   const proxyUrl = env.HTTPS_PROXY;
   const proxyDispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
   const timeoutMs = env.LANGFUSE_FETCH_LLM_COMPLETION_TIMEOUT_MS;
+  const secureLlmFetch = (
+    logContext: string,
+    additionalSensitiveHeaders?: string[],
+  ) =>
+    createSecureLlmFetch({
+      logContext,
+      additionalSensitiveHeaders,
+      dispatcher: proxyDispatcher,
+    });
 
-  let chatModel:
-    | ChatOpenAI
-    | ChatAnthropic
-    | ChatBedrockConverse
-    | ChatVertexAI
-    | ChatGoogleGenerativeAI;
+  let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
+  let usesOpenAIResponsesApi = false;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    const isClaude45Family =
+    const shouldNormalizeAnthropicSamplingParams =
+      modelParams.model?.includes("claude-opus-4-8") ||
+      modelParams.model?.includes("claude-opus-4-7") ||
+      modelParams.model?.includes("claude-sonnet-4-6") ||
       modelParams.model?.includes("claude-sonnet-4-5") ||
       modelParams.model?.includes("claude-opus-4-1") ||
       modelParams.model?.includes("claude-opus-4-5") ||
@@ -337,9 +370,9 @@ export async function fetchLLMCompletion(
         maxRetries,
         defaultHeaders: extraHeaders,
         timeout: timeoutMs,
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
-        }),
+        fetch: secureLlmFetch("Anthropic LLM base URL", [
+          ANTHROPIC_API_KEY_HEADER,
+        ]),
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
@@ -348,7 +381,7 @@ export async function fetchLLMCompletion(
 
     chatModel = new ChatAnthropic(chatOptions);
 
-    if (isClaude45Family) {
+    if (shouldNormalizeAnthropicSamplingParams) {
       if (chatModel.topP === -1) {
         chatModel.topP = undefined;
       }
@@ -374,6 +407,8 @@ export async function fetchLLMCompletion(
       url: baseURL,
       modelName: modelParams.model,
     });
+    const openAIConfig = OpenAIConfigSchema.parse(config ?? {});
+    usesOpenAIResponsesApi = openAIConfig.useResponsesApi;
 
     chatModel = new ChatOpenAI({
       apiKey,
@@ -390,10 +425,9 @@ export async function fetchLLMCompletion(
         baseURL: processedBaseURL,
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
-        }),
+        fetch: secureLlmFetch("OpenAI LLM base URL"),
       },
+      useResponsesApi: openAIConfig.useResponsesApi,
       modelKwargs: modelParams.providerOptions,
       timeout: timeoutMs,
     });
@@ -412,9 +446,9 @@ export async function fetchLLMCompletion(
       configuration: {
         timeout: timeoutMs,
         defaultHeaders: extraHeaders,
-        ...(proxyDispatcher && {
-          fetchOptions: { dispatcher: proxyDispatcher },
-        }),
+        fetch: secureLlmFetch("Azure OpenAI LLM base URL", [
+          AZURE_OPENAI_API_KEY_HEADER,
+        ]),
       },
       modelKwargs: modelParams.providerOptions,
     });
@@ -472,7 +506,7 @@ export async function fetchLLMCompletion(
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
-    chatModel = new ChatVertexAI({
+    chatModel = new ChatGoogle({
       model: modelParams.model,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
@@ -480,7 +514,11 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       maxRetries,
       location,
-      authOptions,
+      vertexai: true,
+      apiClient: createSecureVertexAIApiClient({
+        authOptions,
+        dispatcher: proxyDispatcher,
+      }),
       ...(modelParams.maxReasoningTokens !== undefined && {
         maxReasoningTokens: modelParams.maxReasoningTokens,
       }),
@@ -491,20 +529,20 @@ export async function fetchLLMCompletion(
       modelParams.providerOptions,
     );
 
-    chatModel = new ChatGoogleGenerativeAI({
+    chatModel = new ChatGoogle({
       model: modelParams.model,
-      baseUrl: baseURL ?? undefined,
       temperature: modelParams.temperature,
       maxOutputTokens: modelParams.max_tokens,
       topP: modelParams.top_p,
       callbacks: finalCallbacks,
       maxRetries,
       apiKey,
-      ...(googleProviderOptions
-        ? {
-            thinkingConfig: googleProviderOptions as any, // Typecast as thinkingLevel is intentionally looser typed
-          }
-        : {}),
+      apiClient: createSecureGoogleAIStudioApiClient({
+        apiKey,
+        baseURL,
+        dispatcher: proxyDispatcher,
+      }),
+      ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
     });
   } else {
     const _exhaustiveCheck: never = modelParams.adapter;
@@ -533,7 +571,9 @@ export async function fetchLLMCompletion(
       }
     : runConfig;
 
-  const thinkingTypes = getThinkingBlockTypes(modelParams.adapter);
+  const supportsReasoning = adapterSupportsReasoning(modelParams.adapter);
+  const shouldNormalizeStreamingContentBlocks =
+    supportsReasoning || usesOpenAIResponsesApi;
 
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
@@ -541,10 +581,9 @@ export async function fetchLLMCompletion(
       // Thinking-capable adapters may produce reasoning blocks that corrupt JSON schema
       // parsing. Force function calling so the parser reads from tool_calls instead.
       const structuredOutputSchema = params.structuredOutputSchema;
-      const structuredOutputConfig =
-        thinkingTypes != null
-          ? { method: "functionCalling" as const }
-          : undefined;
+      const structuredOutputConfig = supportsReasoning
+        ? { method: "functionCalling" as const }
+        : undefined;
 
       const structuredOutput = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
@@ -578,28 +617,20 @@ export async function fetchLLMCompletion(
             .invoke(finalMessages, runConfigWithTimeout),
       });
 
-      if (thinkingTypes != null && Array.isArray(result.content)) {
-        const { contentWithoutThinking, reasoning } = splitAIMessageContent(
-          result.content,
-          thinkingTypes,
-        );
-        const parsed = ToolCallResponseSchema.safeParse({
-          content: contentWithoutThinking,
-          tool_calls: result.tool_calls,
-        });
-        if (!parsed.success)
-          throw Error("Failed to parse LLM tool call result");
-
-        return {
-          ...parsed.data,
-          ...(reasoning ? { reasoning } : {}),
-        };
-      }
-
-      const parsed = ToolCallResponseSchema.safeParse(result);
+      // Always normalize through `splitAIMessage` so we feed the schema the
+      // standard `contentBlocks` shape regardless of provider, instead of the
+      // raw, provider-specific message content.
+      const { contentWithoutThinking, reasoning } = splitAIMessage(result);
+      const parsed = ToolCallResponseSchema.safeParse({
+        content: contentWithoutThinking,
+        tool_calls: result.tool_calls,
+      });
       if (!parsed.success) throw Error("Failed to parse LLM tool call result");
 
-      return parsed.data;
+      return {
+        ...parsed.data,
+        ...(reasoning ? { reasoning } : {}),
+      };
     }
 
     if (streaming)
@@ -609,23 +640,22 @@ export async function fetchLLMCompletion(
         abortController: runtimeTimeoutController,
         operation: () =>
           chatModel
-            .pipe(createBytesOutputParser(thinkingTypes))
+            .pipe(
+              createBytesOutputParser(shouldNormalizeStreamingContentBlocks),
+            )
             .stream(finalMessages, runConfigWithTimeout),
       });
 
     // content with thinking blocks can't be handled by StringOutputParser
     // Invoke model directly and extract text + reasoning separately.
-    if (thinkingTypes != null) {
+    if (supportsReasoning) {
       const aiMessage = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
         timeoutMs,
         abortController: runtimeTimeoutController,
         operation: () => chatModel.invoke(finalMessages, runConfigWithTimeout),
       });
-      const completion = extractCompletionWithReasoning(
-        aiMessage,
-        thinkingTypes,
-      );
+      const completion = extractCompletionWithReasoning(aiMessage);
 
       // Bedrock only returns reasoning blocks for selected models. Preserve the
       // historical plain-string shape when the response contains no reasoning.
@@ -651,19 +681,19 @@ export async function fetchLLMCompletion(
 
     return completion;
   } catch (e) {
-    const responseStatusCode =
-      (e as any)?.response?.status ??
-      (e as any)?.status ??
-      // Bedrock errors have status code in $metadata.httpStatusCode
-      (e as any)?.$metadata?.httpStatusCode ??
-      500;
+    const responseStatusCode = getErrorResponseStatusCode(e) ?? 500;
     const rawMessage = e instanceof Error ? e.message : String(e);
-    const message = extractCleanErrorMessage(rawMessage);
+    // Anthropic/OpenAI/Azure SDKs wrap synchronous fetch errors as
+    // `APIConnectionError { message: "Connection error.", cause: original }`,
+    // hiding the actual secureLlmFetch validation reason. Walk the `.cause`
+    // chain for both retryability classification and the user-visible message
+    // so operators see "Blocked hostname detected" / "Redirect validation
+    // failed ..." instead of the unhelpful wrapper text.
+    const nonRetryableCauseMessage = findNonRetryableCauseMessage(e);
+    const message =
+      nonRetryableCauseMessage ?? extractCleanErrorMessage(rawMessage);
 
-    // Check for non-retryable error patterns in message
-    const hasNonRetryablePattern = NON_RETRYABLE_LLM_ERROR_PATTERNS.some(
-      (pattern) => message.includes(pattern),
-    );
+    const hasNonRetryablePattern = nonRetryableCauseMessage !== undefined;
 
     // Determine retryability:
     // - 429 (rate limit): retryable with custom delay
@@ -672,7 +702,9 @@ export async function fetchLLMCompletion(
     // - Non-retryable patterns: not retryable
     let isRetryable = false;
 
-    if (
+    if (ContextOverflowError.isInstance(e)) {
+      isRetryable = false;
+    } else if (
       e instanceof Error &&
       (e.name === "InsufficientQuotaError" || e.name === "ThrottlingException")
     ) {
@@ -703,12 +735,8 @@ export async function fetchLLMCompletion(
 
 function extractCompletionWithReasoning(
   message: AIMessage,
-  thinkingBlockTypes: Set<string>,
 ): CompletionWithReasoning {
-  const { text, reasoning } = splitAIMessageContent(
-    message.content,
-    thinkingBlockTypes,
-  );
+  const { text, reasoning } = splitAIMessage(message);
 
   return {
     text,
@@ -717,53 +745,57 @@ function extractCompletionWithReasoning(
 }
 
 function createBytesOutputParser(
-  thinkingBlockTypes: Set<string> | undefined,
+  normalizeContentBlocks: boolean,
 ): BytesOutputParser {
-  return thinkingBlockTypes != null
-    ? new ThinkingBlockFilteringBytesOutputParser(thinkingBlockTypes)
+  return normalizeContentBlocks
+    ? new ContentBlockBytesOutputParser()
     : new BytesOutputParser();
 }
 
-class ThinkingBlockFilteringBytesOutputParser extends BytesOutputParser {
-  constructor(private readonly thinkingBlockTypes: Set<string>) {
-    super();
-  }
-
-  protected _baseMessageContentToString(
-    content: Exclude<AIMessageContent, string>,
-  ): string {
-    return splitAIMessageContent(content, this.thinkingBlockTypes).text;
+class ContentBlockBytesOutputParser extends BytesOutputParser {
+  // Override `_baseMessageToString` (not `_baseMessageContentToString`) so we
+  // have the whole AIMessage(Chunk) and can read `contentBlocks`, which the
+  // langchain provider translator normalizes into standard blocks. This strips
+  // reasoning blocks and also avoids serializing OpenAI Responses API lifecycle
+  // chunks such as empty `final_answer` phase markers.
+  protected _baseMessageToString(message: BaseMessage): string {
+    if (AIMessage.isInstance(message) || AIMessageChunk.isInstance(message)) {
+      return splitAIMessage(message).text;
+    }
+    return typeof message.content === "string"
+      ? message.content
+      : super._baseMessageToString(message);
   }
 }
 
-function splitAIMessageContent(
-  content: AIMessageContent,
-  thinkingBlockTypes: Set<string>,
+// Reads the standard `contentBlocks` view of an AIMessage(Chunk) and splits it
+// into displayable text, reasoning, and a content array stripped of reasoning
+// and tool_call blocks (tool calls live on `message.tool_calls`).
+function splitAIMessage(
+  message: AIMessage | AIMessageChunk,
 ): SplitAIMessageContent {
-  if (typeof content === "string") {
-    return { text: content, contentWithoutThinking: content };
-  }
-
-  if (!Array.isArray(content)) {
-    return { text: String(content), contentWithoutThinking: content };
+  if (typeof message.content === "string") {
+    return { text: message.content, contentWithoutThinking: message.content };
   }
 
   const textParts: string[] = [];
   const reasoningParts: string[] = [];
-  const contentWithoutThinking: AIMessageContentBlock[] = [];
+  const contentWithoutThinking: Array<ContentBlock.Standard> = [];
 
-  for (const block of content) {
-    if (typeof block === "string") {
-      textParts.push(block);
-      contentWithoutThinking.push(block as AIMessageContentBlock);
-    } else if (thinkingBlockTypes.has(block.type)) {
-      const reasoning = extractReasoningBlockText(block);
-      if (typeof reasoning === "string") reasoningParts.push(reasoning);
-    } else {
-      const text = extractTextBlockText(block);
-      if (typeof text === "string") textParts.push(text);
-      contentWithoutThinking.push(block);
+  for (const block of message.contentBlocks) {
+    if (block.type === "reasoning") {
+      if (typeof block.reasoning === "string")
+        reasoningParts.push(block.reasoning);
+      continue;
     }
+    if (block.type === "tool_call") {
+      // Already represented in `message.tool_calls`; omit to avoid duplicates.
+      continue;
+    }
+    if (block.type === "text" && typeof block.text === "string") {
+      textParts.push(block.text);
+    }
+    contentWithoutThinking.push(block);
   }
 
   return {
@@ -773,19 +805,6 @@ function splitAIMessageContent(
       ? { reasoning: reasoningParts.join("") }
       : {}),
   };
-}
-
-function extractTextBlockText(block: AIMessageContentBlock) {
-  return (block as any).text ?? (block as any).reasoning;
-}
-
-function extractReasoningBlockText(block: AIMessageContentBlock) {
-  const reasoningText = (block as any).reasoningText;
-
-  if (typeof reasoningText === "string") return reasoningText;
-  if (typeof reasoningText?.text === "string") return reasoningText.text;
-
-  return extractTextBlockText(block);
 }
 
 /**
@@ -805,6 +824,57 @@ function processOpenAIBaseURL(params: {
   }
 
   return url.replace("{model}", modelName);
+}
+
+// Walks an error and its `.cause` chain (cycle-safe), yielding each link.
+function* walkCauseChain(error: unknown): Generator<unknown> {
+  const visited = new Set<unknown>();
+  for (
+    let current: unknown = error;
+    current && !visited.has(current);
+    current = (current as any).cause
+  ) {
+    visited.add(current);
+    yield current;
+  }
+}
+
+function findNonRetryableCauseMessage(error: unknown): string | undefined {
+  for (const current of walkCauseChain(error)) {
+    if (!(current instanceof Error)) continue;
+    const message = extractCleanErrorMessage(current.message);
+    if (NON_RETRYABLE_LLM_ERROR_PATTERNS.some((p) => message.includes(p))) {
+      return message;
+    }
+  }
+  return undefined;
+}
+
+function getErrorResponseStatusCode(error: unknown): number | undefined {
+  for (const current of walkCauseChain(error)) {
+    if (!current || typeof current !== "object") continue;
+    const errorLike = current as any;
+    const statusCode = [
+      errorLike.response?.status,
+      errorLike.status,
+      errorLike.statusCode,
+      // Bedrock errors have status code in $metadata.httpStatusCode.
+      errorLike.$metadata?.httpStatusCode,
+    ]
+      .map(toHttpStatusCode)
+      .find((code) => code !== undefined);
+    if (statusCode !== undefined) return statusCode;
+  }
+  return undefined;
+}
+
+function toHttpStatusCode(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 100 &&
+    value <= 599
+    ? value
+    : undefined;
 }
 
 function extractCleanErrorMessage(rawMessage: string): string {

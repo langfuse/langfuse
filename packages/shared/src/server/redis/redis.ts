@@ -1,4 +1,5 @@
 import Redis, { RedisOptions, Cluster, ClusterOptions } from "ioredis";
+import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
@@ -34,6 +35,11 @@ export const redisQueueRetryOptions: Partial<RedisOptions> = {
     return err.message.includes("READONLY") ? 2 : false;
   },
 };
+
+type BullMQOptionsWithRedis = Pick<
+  QueueBaseOptions,
+  "connection" | "prefix" | "skipVersionCheck"
+>;
 
 /**
  * Parse Redis node definitions from environment variable
@@ -247,6 +253,48 @@ export const getQueuePrefix = (queueName: string): string | undefined => {
 
   // Non-cluster mode: Return prefix or undefined
   return redisKeyPrefix ?? undefined;
+};
+
+const getBullMQOptionsForRedisConnection = (
+  queueName: string,
+  connection: BullMQOptionsWithRedis["connection"],
+): BullMQOptionsWithRedis => ({
+  connection,
+  prefix: getQueuePrefix(queueName),
+  ...(env.LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK === "true"
+    ? { skipVersionCheck: true }
+    : {}),
+});
+
+/**
+ * Creates a new Redis connection and returns the BullMQ queue options that use it.
+ * Returns null only when the Redis connection cannot be created.
+ */
+export const createBullMQQueueOptionsWithRedis = (
+  queueName: string,
+): BullMQOptionsWithRedis | null => {
+  const connection = createNewRedisInstance({
+    enableOfflineQueue: false,
+    ...redisQueueRetryOptions,
+  });
+
+  return connection
+    ? getBullMQOptionsForRedisConnection(queueName, connection)
+    : null;
+};
+
+/**
+ * Creates a new Redis connection and returns the BullMQ worker options that use it.
+ * Returns null only when the Redis connection cannot be created.
+ */
+export const createBullMQWorkerOptionsWithRedis = (
+  queueName: string,
+): BullMQOptionsWithRedis | null => {
+  const connection = createNewRedisInstance(redisQueueRetryOptions);
+
+  return connection
+    ? getBullMQOptionsForRedisConnection(queueName, connection)
+    : null;
 };
 
 /**

@@ -1,12 +1,10 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { getCommentForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   GetCommentV1Query,
   GetCommentV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { publicComment } from "../schema";
 
 export const [getCommentTool, handleGetComment] = defineTool({
   name: "getComment",
@@ -19,20 +17,12 @@ export const [getCommentTool, handleGetComment] = defineTool({
       context,
       attributes: { "mcp.comment_id": input.commentId },
       fn: async () => {
-        const comment = await prisma.comment.findUnique({
-          where: {
-            id: input.commentId,
-            projectId: context.projectId,
-          },
+        const result = await getCommentForApi({
+          commentId: input.commentId,
+          projectId: context.projectId,
         });
 
-        if (!comment) {
-          throw new LangfuseNotFoundError(
-            "Comment not found within authorized project",
-          );
-        }
-
-        return GetCommentV1Response.parse(publicComment(comment));
+        return GetCommentV1Response.parse(result);
       },
     }),
   readOnlyHint: true,

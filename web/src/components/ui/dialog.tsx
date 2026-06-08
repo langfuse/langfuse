@@ -51,6 +51,7 @@ const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     closeOnInteractionOutside?: boolean;
+    confirmCloseOnEscape?: string;
     stopPropagationOnEnterSpace?: boolean;
   } & VariantProps<typeof dialogContentVariants>
 >(
@@ -59,7 +60,9 @@ const DialogContent = React.forwardRef<
       className,
       children,
       closeOnInteractionOutside = false,
+      confirmCloseOnEscape,
       stopPropagationOnEnterSpace = true,
+      onEscapeKeyDown,
       size,
       ...props
     },
@@ -72,6 +75,19 @@ const DialogContent = React.forwardRef<
         e.stopPropagation();
       }
     };
+    const handleEscapeKeyDown: React.ComponentPropsWithoutRef<
+      typeof DialogPrimitive.Content
+    >["onEscapeKeyDown"] = (e) => {
+      onEscapeKeyDown?.(e);
+
+      if (e.defaultPrevented || !confirmCloseOnEscape) {
+        return;
+      }
+
+      if (!window.confirm(confirmCloseOnEscape)) {
+        e.preventDefault();
+      }
+    };
 
     return (
       <DialogPortal>
@@ -81,6 +97,7 @@ const DialogContent = React.forwardRef<
           className={cn(dialogContentVariants({ size, className }))}
           aria-describedby={undefined}
           onKeyDown={handleKeyDown}
+          onEscapeKeyDown={handleEscapeKeyDown}
           onPointerDownOutside={(e) => {
             if (!closeOnInteractionOutside) {
               e.preventDefault();

@@ -15,6 +15,7 @@ import {
   evalJobTraceCreatorQueueProcessor,
   llmAsJudgeExecutionQueueProcessorBuilder,
 } from "./queues/evalQueue";
+import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { onShutdown } from "./utils/shutdown";
 import helmet from "helmet";
@@ -43,8 +44,9 @@ import {
   EvalExecutionQueue,
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
+  CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
-import { env } from "./env";
+import { env, v4WritesToEventsTable } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
 import { prisma } from "@langfuse/shared/src/db";
@@ -92,6 +94,7 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
+import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 
 const app = express();
 
@@ -263,6 +266,22 @@ if (env.QUEUE_CONSUMER_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       llmAsJudgeExecutionQueueProcessorBuilder(shardName),
       {
         concurrency: env.LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
+}
+
+if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
+  const codeEvalShardNames = CodeEvalExecutionQueue.getShardNames();
+  codeEvalShardNames.forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      codeEvalExecutionQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY,
         lockDuration: 60000,
         stalledInterval: 120000,
         maxStalledCount: 3,
@@ -589,9 +608,11 @@ if (env.QUEUE_CONSUMER_ENTITY_CHANGE_QUEUE_IS_ENABLED === "true") {
   );
 }
 
+// The event-propagation queue is required whenever we write to events_full
+// (V4 WRITE_MODE in {dual, events_only}).
 if (
   env.QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED === "true" &&
-  env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+  v4WritesToEventsTable(env)
 ) {
   // Instantiate the queue to trigger scheduled jobs
   EventPropagationQueue.getInstance();
@@ -620,10 +641,10 @@ export const batchProjectCleaners: BatchProjectCleaner[] = [];
 
 if (env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true") {
   for (const table of BATCH_DELETION_TABLES) {
-    // Only start the events table cleaners if the events table experiment is enabled
+    // Only start the events table cleaners when V4 write mode targets events_full.
     if (
       (table !== "events_full" && table !== "events_core") ||
-      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+      v4WritesToEventsTable(env)
     ) {
       const cleaner = new BatchProjectCleaner(table);
       batchProjectCleaners.push(cleaner);
@@ -637,10 +658,10 @@ export const batchDataRetentionCleaners: BatchDataRetentionCleaner[] = [];
 
 if (env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_ENABLED === "true") {
   for (const table of BATCH_DATA_RETENTION_TABLES) {
-    // Only start the events table cleaners if the events table experiment is enabled
+    // Only start the events table cleaners when V4 write mode targets events_full.
     if (
       (table !== "events_full" && table !== "events_core") ||
-      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+      v4WritesToEventsTable(env)
     ) {
       const cleaner = new BatchDataRetentionCleaner(table);
       batchDataRetentionCleaners.push(cleaner);
@@ -685,6 +706,14 @@ export let batchTraceDeletionCleaner: BatchTraceDeletionCleaner | null = null;
 if (env.LANGFUSE_BATCH_TRACE_DELETION_CLEANER_ENABLED === "true") {
   batchTraceDeletionCleaner = new BatchTraceDeletionCleaner();
   batchTraceDeletionCleaner.start();
+}
+
+// ClickHouse deleted-mask cleaner for physically applying lightweight delete masks
+export let deletedMaskCleaner: DeletedMaskCleaner | null = null;
+
+if (env.LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED === "true") {
+  deletedMaskCleaner = new DeletedMaskCleaner();
+  deletedMaskCleaner.start();
 }
 
 // Queue metrics background reporter
