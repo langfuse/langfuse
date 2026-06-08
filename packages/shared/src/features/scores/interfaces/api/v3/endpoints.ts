@@ -55,59 +55,62 @@ const csvEnumParam = <T extends readonly string[]>(
     )
     .optional();
 
-// GET /v3/scores — all filter params optional; superRefine validation lives in the handler.
-export const GetScoresQueryV3 = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(50),
-  fields: fieldsParam,
-  // Identifier filters (multi-value, comma-separated)
-  id: csvStringParam,
-  name: csvStringParam,
-  source: csvEnumParam(ScoreSourceArray, "source"),
-  dataType: csvEnumParam(ScoreDataTypeArray, "dataType"),
-  environment: csvStringParam,
-  configId: csvStringParam,
-  queueId: csvStringParam,
-  authorUserId: csvStringParam,
-  // Value filters
-  value: csvStringParam,
-  // Treat empty string as absent so `?valueMin=` doesn't silently coerce to 0
-  // and narrow results to `value >= 0`. Zod 4 rejects ±Infinity / NaN out of
-  // the box, so `.finite()` is not needed.
-  valueMin: z.preprocess(
-    (v) => (v === "" ? undefined : v),
-    z.coerce.number().optional(),
-  ),
-  valueMax: z.preprocess(
-    (v) => (v === "" ? undefined : v),
-    z.coerce.number().optional(),
-  ),
-  // Entity-bounded filters
-  traceId: csvStringParam,
-  sessionId: csvStringParam,
-  observationId: csvStringParam,
-  experimentId: csvStringParam,
-  // Timestamp filters — preprocess empty string to undefined so ?fromTimestamp=
-  // from a templating system is treated as absent, consistent with valueMin/valueMax.
-  fromTimestamp: z.preprocess(
-    (v) => (v === "" ? undefined : v),
-    z.coerce.date().optional(),
-  ),
-  toTimestamp: z.preprocess(
-    (v) => (v === "" ? undefined : v),
-    z.coerce.date().optional(),
-  ),
-  // Deferred params (always → 400 — require trace JOIN not present in v3).
-  // Treat the empty string as absent so a stray `?userId=` from a templating
-  // system doesn't trigger the "use v2" 400 spuriously.
-  userId: z
-    .string()
-    .optional()
-    .transform((v) => (v === "" ? undefined : v)),
-  traceTags: z
-    .string()
-    .optional()
-    .transform((v) => (v === "" ? undefined : v)),
-});
+// GET /v3/scores — all filter params optional; unknown query params return 400 via .strict();
+// cross-field superRefine validation lives in the handler.
+export const GetScoresQueryV3 = z
+  .object({
+    limit: z.coerce.number().int().positive().max(100).default(50),
+    fields: fieldsParam,
+    // Identifier filters (multi-value, comma-separated)
+    id: csvStringParam,
+    name: csvStringParam,
+    source: csvEnumParam(ScoreSourceArray, "source"),
+    dataType: csvEnumParam(ScoreDataTypeArray, "dataType"),
+    environment: csvStringParam,
+    configId: csvStringParam,
+    queueId: csvStringParam,
+    authorUserId: csvStringParam,
+    // Value filters
+    value: csvStringParam,
+    // Treat empty string as absent so `?valueMin=` doesn't silently coerce to 0
+    // and narrow results to `value >= 0`. Zod 4 rejects ±Infinity / NaN out of
+    // the box, so `.finite()` is not needed.
+    valueMin: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z.coerce.number().optional(),
+    ),
+    valueMax: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z.coerce.number().optional(),
+    ),
+    // Entity-bounded filters
+    traceId: csvStringParam,
+    sessionId: csvStringParam,
+    observationId: csvStringParam,
+    experimentId: csvStringParam,
+    // Timestamp filters — preprocess empty string to undefined so ?fromTimestamp=
+    // from a templating system is treated as absent, consistent with valueMin/valueMax.
+    fromTimestamp: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z.coerce.date().optional(),
+    ),
+    toTimestamp: z.preprocess(
+      (v) => (v === "" ? undefined : v),
+      z.coerce.date().optional(),
+    ),
+    // Deferred params (always → 400 — require trace JOIN not present in v3).
+    // Treat the empty string as absent so a stray `?userId=` from a templating
+    // system doesn't trigger the "use v2" 400 spuriously.
+    userId: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+    traceTags: z
+      .string()
+      .optional()
+      .transform((v) => (v === "" ? undefined : v)),
+  })
+  .strict();
 
 export const GetScoresResponseV3 = z.object({
   data: z.array(APIScoreSchemaV3),
