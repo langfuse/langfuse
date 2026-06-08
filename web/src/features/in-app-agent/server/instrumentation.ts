@@ -20,6 +20,11 @@ export type InAppAgentInstrumentationParams = {
   tracing?: InAppAgentTracingConfig;
 };
 
+type InAppAgentPromptMetadata = {
+  name: string;
+  version: number;
+};
+
 const IN_APP_AGENT_TRACE_NAME = "in-app-agent";
 const IN_APP_AGENT_SPAN_NAME = "agent-run";
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
@@ -81,7 +86,7 @@ export class InAppAgentInstrumentation {
       output?: unknown;
     }
   >();
-  private readonly metadata: Record<string, unknown>;
+  private metadata: Record<string, unknown>;
   private output = "";
   private reasoning = "";
   private ended = false;
@@ -120,6 +125,26 @@ export class InAppAgentInstrumentation {
       input: getLastUserMessageText(params.input),
       metadata: params.metadata,
     });
+  }
+
+  setPrompt(prompt: InAppAgentPromptMetadata) {
+    if (this.ended) {
+      return;
+    }
+
+    this.metadata = {
+      ...this.metadata,
+      prompt_name: prompt.name,
+      prompt_version: prompt.version,
+    };
+    const promptFields = {
+      promptName: prompt.name,
+      promptVersion: prompt.version,
+      metadata: this.metadata,
+    };
+
+    this.span.update(promptFields);
+    this.trace.update({ metadata: this.metadata });
   }
 
   recordEvents(events: AgUiEvent[]) {

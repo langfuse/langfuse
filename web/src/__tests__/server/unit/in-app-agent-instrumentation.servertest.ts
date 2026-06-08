@@ -190,6 +190,32 @@ describe("InAppAgentInstrumentation", () => {
     );
   });
 
+  it("sets prompt metadata on the agent span", () => {
+    const instrumentation = createInstrumentation();
+
+    instrumentation.setPrompt({
+      name: "in-app-agent-system-prompt",
+      version: 3,
+    });
+
+    expect(mocks.agentSpan.update).toHaveBeenCalledWith({
+      promptName: "in-app-agent-system-prompt",
+      promptVersion: 3,
+      metadata: {
+        langfuse_project_id: "project-1",
+        prompt_name: "in-app-agent-system-prompt",
+        prompt_version: 3,
+      },
+    });
+    expect(mocks.trace.update).toHaveBeenCalledWith({
+      metadata: {
+        langfuse_project_id: "project-1",
+        prompt_name: "in-app-agent-system-prompt",
+        prompt_version: 3,
+      },
+    });
+  });
+
   it("does not write trace input and output", () => {
     const instrumentation = createInstrumentation();
 
