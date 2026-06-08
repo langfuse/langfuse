@@ -29,6 +29,8 @@ const csvStringParam = z
   )
   .optional();
 
+// Accepts case-insensitive input for uppercase enum allowedValues (e.g. "api"
+// or "API" both parse to "API"). Downstream code only sees the canonical form.
 const csvEnumParam = <T extends readonly string[]>(
   allowedValues: T,
   label: string,
@@ -39,7 +41,8 @@ const csvEnumParam = <T extends readonly string[]>(
       val
         .split(",")
         .map((v) => v.trim())
-        .filter((v) => v.length > 0),
+        .filter((v) => v.length > 0)
+        .map((v) => v.toUpperCase()),
     )
     .pipe(
       z.array(z.string()).superRefine((values, ctx) => {
