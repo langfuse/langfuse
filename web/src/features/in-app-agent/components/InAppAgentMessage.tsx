@@ -41,7 +41,7 @@ export function InAppAgentMessage({
     return (
       <div
         className={cn(
-          "bg-card text-card-foreground border-border rounded-2xl border py-2 shadow-xs",
+          "bg-card dark:bg-header text-card-foreground border-border rounded-2xl border py-2 shadow-xs",
           isCompact
             ? "rounded-xl py-1 text-[0.775rem]"
             : "rounded-2xl py-1.5 text-sm",
@@ -222,10 +222,10 @@ function MessageText({
   return (
     <div
       className={cn(
-        "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground max-w-none",
+        "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-table:m-0! prose-headings:text-inherit dark:prose-pre:bg-card prose-pre:leading-tight prose-table:border prose-td:p-2 prose-th:p-2 prose-table:bg-muted dark:prose-table:bg-card prose-table:overflow-hidden prose-table:rounded prose-tr:border-b prose-tr:border-border dark:prose-tr:border-muted prose-headings:text-base max-w-none",
         isCompact
-          ? "prose-headings:my-2 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-ol:my-1 prose-blockquote:my-2 prose-pre:my-2 prose-table:my-2 text-[0.775rem] leading-4"
-          : "prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-blockquote:my-2.5 prose-pre:my-2.5 prose-table:my-2.5 leading-4.5",
+          ? "prose-headings:my-2 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-ol:my-1 prose-blockquote:my-2 prose-pre:my-2 prose-table:my-2 prose-th:text-xs text-[0.775rem] leading-4"
+          : "prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-blockquote:my-2.5 prose-pre:my-2.5 prose-table:my-2.5 prose-th:text-sm leading-4.5",
       )}
     >
       <Streamdown
@@ -237,6 +237,7 @@ function MessageText({
           h4: ({ children }) => <h4>{children}</h4>,
           h5: ({ children }) => <h5>{children}</h5>,
           h6: ({ children }) => <h6>{children}</h6>,
+
           p: ({ children }) => <p>{children}</p>,
           a: ({ children, href }) => (
             <a href={href} target="_blank" rel="noopener noreferrer">
@@ -252,6 +253,12 @@ function MessageText({
           em: ({ children }) => <em>{children}</em>,
           code: ({ children }) => <code>{children}</code>,
           pre: ({ children }) => <pre>{children}</pre>,
+          thead: ({ children }) => <thead>{children}</thead>,
+          tbody: ({ children }) => <tbody>{children}</tbody>,
+          tr: ({ children }) => <tr>{children}</tr>,
+          th: ({ children }) => <th>{children}</th>,
+          td: ({ children }) => <td>{children}</td>,
+          table: ({ children }) => <table>{children}</table>,
         }}
       >
         {text}

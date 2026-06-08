@@ -21,7 +21,12 @@ export const AssistantMarkdown = meta.story({
     content: {
       type: "text",
       text: [
-        "## Debugging checklist",
+        "# Heading 1",
+        "## Heading 2",
+        "### Heading 3",
+        "#### Heading 4",
+        "##### Heading 5",
+        "###### Heading 6",
         "",
         "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, and metadata across releases.",
         "",
