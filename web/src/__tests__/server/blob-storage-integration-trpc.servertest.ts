@@ -420,7 +420,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const result = await caller.blobStorageIntegration.get({
         projectId: project.id,
       });
-      expect(result?.exportFieldGroups).toStrictEqual(["core", "io"]);
+      expect(result?.config?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
     it("defaults to all groups when exportFieldGroups is omitted", async () => {
@@ -523,7 +523,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const result = await caller.blobStorageIntegration.get({
         projectId: project.id,
       });
-      expect(result?.exportFieldGroups).toStrictEqual([
+      expect(result?.config?.exportFieldGroups).toStrictEqual([
         "core",
         "io",
         "metrics",
@@ -618,6 +618,47 @@ describe("Blob Storage Integration tRPC Router", () => {
       } finally {
         (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
       }
+    });
+  });
+
+  describe("get: isEnrichedExportAvailable flag", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+    });
+
+    it("returns true for Cloud deployments regardless of V4 flag", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.isEnrichedExportAvailable).toBe(true);
+    });
+
+    it("returns false for self-hosted without V4 preview opt-in", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.isEnrichedExportAvailable).toBe(false);
+    });
+
+    it("returns true for self-hosted with V4 preview opt-in enabled", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.isEnrichedExportAvailable).toBe(true);
     });
   });
 });

@@ -28,6 +28,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import {
   BlobStorageIntegrationType,
   InvalidRequestError,
+  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 
 const getAuditLogErrorType = (error: unknown) =>
@@ -50,6 +51,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
       try {
+        const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+        const isEnrichedExportAvailable = isEnrichedBlobExportAvailable(
+          isCloud,
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+        );
+
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
@@ -59,11 +66,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
 
-        if (!config) {
-          return null;
-        }
-
-        return config;
+        return { config: config ?? null, isEnrichedExportAvailable };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
         throw new TRPCError({
