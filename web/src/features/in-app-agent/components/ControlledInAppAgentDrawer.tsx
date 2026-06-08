@@ -6,8 +6,12 @@ import {
   InAppAgentDrawer,
   type InAppAgentDrawerMessage,
 } from "./InAppAgentDrawer";
+import type { InAppAgentToolCallContent } from "./InAppAgentMessage";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
-import { AgUiMessageSchema } from "@/src/features/in-app-agent/schema";
+import {
+  AgUiMessageSchema,
+  type AgUiMessage,
+} from "@/src/features/in-app-agent/schema";
 
 type ControlledInAppAgentDrawerProps =
   | {
@@ -41,87 +45,160 @@ export function ControlledInAppAgentDrawer(
 
   const drawerMessages = useMemo(() => {
     const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
+    const toolResults = getToolResultsByToolCallId(parsedMessages);
 
-    const mappedMessages = parsedMessages.flatMap(
-      (message, index): InAppAgentDrawerMessage[] => {
-        if (
-          message.role === "system" ||
-          message.role === "developer" ||
-          message.role === "tool" ||
-          message.role === "activity"
-        ) {
-          return [];
+    const mappedMessages: InAppAgentDrawerMessage[] = [];
+    let pendingTools: InAppAgentToolCallContent[] = [];
+    let pendingToolGroupId: string | null = null;
+    const flushPendingTools = () => {
+      if (pendingTools.length === 0) {
+        return;
+      }
+
+      mappedMessages.push({
+        id: pendingToolGroupId ?? "tools-pending",
+        role: "assistant",
+        content: { type: "toolGroup", tools: pendingTools },
+      });
+      pendingTools = [];
+      pendingToolGroupId = null;
+    };
+
+    parsedMessages.forEach((message, index) => {
+      if (
+        message.role === "system" ||
+        message.role === "developer" ||
+        message.role === "tool" ||
+        message.role === "activity"
+      ) {
+        return;
+      }
+
+      const role = message.role === "user" ? "user" : "assistant";
+      const isLoading = message.role === "reasoning";
+
+      if (isLoading) {
+        flushPendingTools();
+
+        const hasLaterAssistantMessage = parsedMessages.some(
+          (message, messageIndex) =>
+            messageIndex > index && message.role === "assistant",
+        );
+
+        if (!isRunning || hasLaterAssistantMessage) {
+          return;
         }
 
-        const role = message.role === "user" ? "user" : "assistant";
-        const isLoading = message.role === "reasoning";
+        mappedMessages.push({
+          id: message.id,
+          role,
+          content: { type: "loading" },
+        });
+        return;
+      }
 
-        if (isLoading) {
-          const hasLaterAssistantMessage = parsedMessages.some(
-            (message, messageIndex) =>
-              messageIndex > index && message.role === "assistant",
-          );
-
-          if (!isRunning || hasLaterAssistantMessage) {
-            return [];
-          }
-
-          return [
-            {
-              id: message.id,
-              role,
-              content: [{ type: "loading" }],
-            },
-          ];
-        }
-
-        const text =
-          typeof message.content === "string"
+      const text =
+        typeof message.content === "string"
+          ? message.content
+          : Array.isArray(message.content)
             ? message.content
-            : Array.isArray(message.content)
-              ? message.content
-                  .flatMap((part) => (part.type === "text" ? [part.text] : []))
-                  .join("")
-              : "";
+                .flatMap((part) => (part.type === "text" ? [part.text] : []))
+                .join("")
+            : "";
 
-        if (role === "assistant" && !text.trim()) {
-          return [];
-        }
+      const toolContent =
+        message.role === "assistant"
+          ? (message.toolCalls?.map((toolCall): InAppAgentToolCallContent => {
+              const result = toolResults.get(toolCall.id);
 
-        return [
-          {
-            id: message.id,
-            role,
-            content: [
-              {
-                type: "text",
-                text,
-              },
-            ],
+              return {
+                type: "tool",
+                name: toolCall.function.name,
+                args: toolCall.function.arguments,
+                ...(result?.content !== undefined
+                  ? { result: result.content }
+                  : {}),
+                ...(result?.error !== undefined ? { error: result.error } : {}),
+              };
+            }) ?? [])
+          : [];
+
+      if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
+        pendingToolGroupId ??= `tools-${message.id}`;
+        pendingTools.push(...toolContent);
+        return;
+      }
+
+      flushPendingTools();
+
+      if (role === "assistant" && !text.trim() && toolContent.length === 0) {
+        return;
+      }
+
+      if (text.trim() || role === "user") {
+        mappedMessages.push({
+          id: message.id,
+          role,
+          content: {
+            type: "text",
+            text,
           },
-        ];
-      },
-    );
+        });
+      }
 
-    const lastMessage = mappedMessages.at(-1);
-    const hasAssistantAnswer = mappedMessages.some(
-      (message) =>
-        message.role === "assistant" &&
-        message.content.some((content) => content.type === "text"),
+      if (toolContent.length > 0) {
+        mappedMessages.push({
+          id: `${message.id}-tools`,
+          role,
+          content: { type: "toolGroup", tools: toolContent },
+        });
+      }
+    });
+
+    flushPendingTools();
+
+    const latestUserMessageIndex = mappedMessages.findLastIndex(
+      (message) => message.role === "user",
     );
+    const latestAssistantMessageIndex = mappedMessages.findLastIndex(
+      (message, index) =>
+        index > latestUserMessageIndex && message.role === "assistant",
+    );
+    const latestAssistantMessage = mappedMessages[latestAssistantMessageIndex];
 
     // Insert an optimistic loading message
-    if (isRunning && !error && lastMessage?.role === "user") {
+    if (
+      isRunning &&
+      !error &&
+      latestUserMessageIndex >= 0 &&
+      latestAssistantMessage?.content.type !== "text" &&
+      latestAssistantMessage?.content.type !== "loading"
+    ) {
+      if (latestAssistantMessage?.content.type === "toolGroup") {
+        // Set the tool group message to loading state
+        return mappedMessages.map((message, index) =>
+          index === latestAssistantMessageIndex
+            ? {
+                ...message,
+                content: { ...latestAssistantMessage.content, isLoading: true },
+              }
+            : message,
+        );
+      }
+
+      const hasAssistantAnswer = mappedMessages.some(
+        (message) =>
+          message.role === "assistant" && message.content.type === "text",
+      );
+
       return [
         ...mappedMessages,
         {
           id: hasAssistantAnswer ? "loading" : "connecting",
           role: "assistant",
-          content: [
-            hasAssistantAnswer
-              ? { type: "loading" }
-              : { type: "loading", label: "Connecting..." },
-          ],
+          content: hasAssistantAnswer
+            ? { type: "loading" }
+            : { type: "loading", label: "Connecting..." },
         } satisfies InAppAgentDrawerMessage,
       ];
     }
@@ -150,4 +227,16 @@ export function ControlledInAppAgentDrawer(
       {...closeButtonProps}
     />
   );
+}
+
+function getToolResultsByToolCallId(messages: readonly AgUiMessage[]) {
+  const results = new Map<string, Extract<AgUiMessage, { role: "tool" }>>();
+
+  for (const message of messages) {
+    if (message.role === "tool") {
+      results.set(message.toolCallId, message);
+    }
+  }
+
+  return results;
 }
