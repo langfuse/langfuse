@@ -302,10 +302,25 @@ export const createAuthedProjectAPIRoute = <
         routeConfig.allowInAppAgentKey === true,
       );
     } catch (error: any) {
-      const statusCode = isPrismaException(error) ? 503 : (error.status ?? 401);
-      const message = isPrismaException(error)
-        ? "Service Unavailable"
-        : (error.message ?? "Authentication failed");
+      if (isPrismaException(error)) {
+        traceException(error);
+
+        if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
+          return sendUnstablePublicApiErrorResponse(
+            res,
+            createUnstablePublicApiAuthError({
+              statusCode: 503,
+              message: "Service Unavailable",
+            }),
+          );
+        }
+
+        res.status(503).json({ message: "Service Unavailable" });
+        return;
+      }
+
+      const statusCode = error.status ?? 401;
+      const message = error.message ?? "Authentication failed";
 
       if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
         return sendUnstablePublicApiErrorResponse(

@@ -6,10 +6,16 @@ const {
   mockVerifyAuthHeaderAndReturnScope,
   mockIsPrismaException,
   mockRateLimitRequest,
+  mockTraceException,
+  mockCreateUnstablePublicApiAuthError,
+  mockSendUnstablePublicApiErrorResponse,
 } = vi.hoisted(() => ({
   mockVerifyAuthHeaderAndReturnScope: vi.fn(),
   mockIsPrismaException: vi.fn(),
   mockRateLimitRequest: vi.fn(),
+  mockTraceException: vi.fn(),
+  mockCreateUnstablePublicApiAuthError: vi.fn((value) => value),
+  mockSendUnstablePublicApiErrorResponse: vi.fn(),
 }));
 
 vi.mock("@/src/features/public-api/server/apiAuth", () => ({
@@ -30,7 +36,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
     warn: vi.fn(),
     error: vi.fn(),
   },
-  traceException: vi.fn(),
+  traceException: mockTraceException,
   contextWithLangfuseProps: vi.fn(() => ({})),
   ClickHouseClientManager: {
     getInstance: () => ({
@@ -55,9 +61,9 @@ vi.mock(
   "@/src/features/public-api/server/unstable-public-api-error-contract",
   () => ({
     unstablePublicEvalsErrorContract: "unstable-public-evals",
-    createUnstablePublicApiAuthError: vi.fn(),
+    createUnstablePublicApiAuthError: mockCreateUnstablePublicApiAuthError,
     createUnstablePublicApiRequestValidationError: vi.fn(),
-    sendUnstablePublicApiErrorResponse: vi.fn(),
+    sendUnstablePublicApiErrorResponse: mockSendUnstablePublicApiErrorResponse,
   }),
 );
 
@@ -88,11 +94,14 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
   });
 
-  async function callRoute() {
+  async function callRoute(options?: { useUnstableErrorContract?: boolean }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
       querySchema: z.object({}),
       responseSchema: z.object({ ok: z.literal(true) }),
+      errorContract: options?.useUnstableErrorContract
+        ? "unstable-public-evals"
+        : undefined,
       fn: async () => ({ ok: true as const }),
     });
 
@@ -136,5 +145,21 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res._getJSONData()).toEqual({
       message: "Service Unavailable",
     });
+    expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
+  });
+
+  it("returns unstable auth errors and traces prisma auth failures", async () => {
+    const prismaLikeError = new Error("Can't reach database server");
+    mockVerifyAuthHeaderAndReturnScope.mockRejectedValueOnce(prismaLikeError);
+    mockIsPrismaException.mockReturnValue(true);
+
+    await callRoute({ useUnstableErrorContract: true });
+
+    expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
+    expect(mockCreateUnstablePublicApiAuthError).toHaveBeenCalledWith({
+      statusCode: 503,
+      message: "Service Unavailable",
+    });
+    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 });
