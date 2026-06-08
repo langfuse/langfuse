@@ -387,8 +387,9 @@ packages/shared/src/features/<domain>/interfaces/api/
 
 ### Fern API Definitions
 
-When modifying public API types in `web/src/features/public-api/types/`, update
-the matching Fern API definitions in `fern/apis/server/definition/`.
+When modifying public API types in `web/src/features/public-api/types/` or under
+`packages/shared/src/features/<domain>/interfaces/api/`, update the matching
+Fern API definitions in `fern/apis/server/definition/`.
 
 **Zod to Fern Type Mapping:**
 
