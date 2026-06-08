@@ -113,22 +113,18 @@ function domainToV3(
     updatedAt: score.updatedAt,
     ...(fields.includes("details")
       ? {
-          details: {
-            comment: score.comment,
-            configId: score.configId,
-            metadata: score.metadata,
-          },
+          comment: score.comment,
+          configId: score.configId,
+          metadata: score.metadata,
+        }
+      : {}),
+    ...(fields.includes("annotation")
+      ? {
+          authorUserId: score.authorUserId,
+          queueId: score.queueId,
         }
       : {}),
     ...(fields.includes("subject") ? { subject: deriveSubject(score) } : {}),
-    ...(fields.includes("annotation")
-      ? {
-          annotation: {
-            authorUserId: score.authorUserId,
-            queueId: score.queueId,
-          },
-        }
-      : {}),
   } as APIScoreV3;
 }
 
