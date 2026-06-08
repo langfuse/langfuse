@@ -2,6 +2,7 @@ import { v4 } from "uuid";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { InvalidRequestError } from "@langfuse/shared";
 import {
   MonitorProcessor,
   type MonitorPublisher,
@@ -54,6 +55,7 @@ type TriggerSeed = {
 
 type ExpectedRow = {
   id: string;
+  status?: MonitorStatus;
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
   alertedAt: Date | null;
@@ -73,7 +75,11 @@ type ProcessCase = {
   monitors: MonitorSeed[];
   triggers?: TriggerSeed[];
   ch?: Record<string, unknown>[];
-  injectError?: { stage: InjectErrorStage; message: string };
+  injectError?: {
+    stage: InjectErrorStage;
+    message: string;
+    errorClass?: "invalid-request";
+  };
   preempt?: { newClaimedAt: Date };
   preemptPause?: { at: Date };
   rescue?: { newPublishedAt: Date };
@@ -613,6 +619,36 @@ const cases: ProcessCase[] = [
     },
   },
   {
+    name: "InvalidRequestError on executeQuery: flips ERROR_BAD_QUERY, PAUSED, no throw, no emit",
+    monitors: [
+      {
+        id: monitorAId,
+        severity: "OK",
+        severityChangedAt: tenMinutesAgo,
+        lastPublishedAt: runAt,
+      },
+    ],
+    injectError: {
+      stage: "executeQuery",
+      errorClass: "invalid-request",
+      message: "Invalid filter column",
+    },
+    expect: {
+      publishCallCount: 0,
+      rows: [
+        {
+          id: monitorAId,
+          status: "ERROR_BAD_QUERY",
+          severity: "PAUSED",
+          severityChangedAt: justAfterRunAt,
+          alertedAt: null,
+          lastClaimedAt: justAfterRunAt,
+          lastCompletedAt: null,
+        },
+      ],
+    },
+  },
+  {
     name: "error on getTriggers: claim, no complete, no sev change, no emit",
     monitors: [
       {
@@ -1096,6 +1132,9 @@ describe("MonitorProcessor.process (integration)", () => {
 
     const executeQuery: QueryExecutor = async () => {
       if (c.injectError?.stage === "executeQuery") {
+        if (c.injectError.errorClass === "invalid-request") {
+          throw new InvalidRequestError(c.injectError.message);
+        }
         throw new Error(c.injectError.message);
       }
       return c.ch ?? [{ count_count: 0 }];
@@ -1190,6 +1229,7 @@ describe("MonitorProcessor.process (integration)", () => {
       const row = await prisma.monitor.findUniqueOrThrow({
         where: { id: exp.id },
       });
+      if (exp.status) expect(row.status).toBe(exp.status);
       expect(row.severity).toBe(exp.severity);
       expect(row.severityChangedAt?.toISOString() ?? null).toBe(
         exp.severityChangedAt?.toISOString() ?? null,

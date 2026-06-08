@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
 import { env } from "../../../env";
+import { InvalidRequestError } from "../../../errors";
 import { TriggerEventSource } from "../../../domain/automations";
 import { matchesTriggerFilter } from "../../../server/automations";
 import {
@@ -48,42 +49,52 @@ export class MonitorProcessor {
       span.setAttribute("monitors", monitors.length);
       if (monitors.length === 0) return;
 
-      const [metrics, triggers] = await Promise.all([
-        instrumentAsync({ name: "queryMetrics" }, () =>
-          this.queryMetrics(event),
-        ),
-        instrumentAsync({ name: "getTriggerConfigurations" }, () =>
-          this.getTriggerConfigurations({
-            projectId: event.projectId,
-            eventSource: TriggerEventSource.Monitor,
-            status: JobConfigState.ACTIVE,
-          }),
-        ),
-      ]);
-      span.setAttribute("metrics", Object.keys(metrics).length);
-      span.setAttribute("triggers", triggers.length);
+      try {
+        const [metrics, triggers] = await Promise.all([
+          instrumentAsync({ name: "queryMetrics" }, () =>
+            this.queryMetrics(event),
+          ),
+          instrumentAsync({ name: "getTriggerConfigurations" }, () =>
+            this.getTriggerConfigurations({
+              projectId: event.projectId,
+              eventSource: TriggerEventSource.Monitor,
+              status: JobConfigState.ACTIVE,
+            }),
+          ),
+        ]);
+        span.setAttribute("metrics", Object.keys(metrics).length);
+        span.setAttribute("triggers", triggers.length);
 
-      const [completions, monitorWebhookInputs] = instrumentSync(
-        { name: "processMonitors" },
-        () =>
-          processMonitors({
-            monitors,
-            metrics,
-            triggers,
-            now,
-            runAt: event.runAt,
-            publishedAt: event.publishedAt,
-          }),
-      );
-      span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
+        const [completions, monitorWebhookInputs] = instrumentSync(
+          { name: "processMonitors" },
+          () =>
+            processMonitors({
+              monitors,
+              metrics,
+              triggers,
+              now,
+              runAt: event.runAt,
+              publishedAt: event.publishedAt,
+            }),
+        );
+        span.setAttribute("monitorWebhookInputs", monitorWebhookInputs.length);
 
-      await instrumentAsync({ name: "publishWebhookInputs" }, () =>
-        this.publishWebhookInputs(monitorWebhookInputs),
-      );
+        await instrumentAsync({ name: "publishWebhookInputs" }, () =>
+          this.publishWebhookInputs(monitorWebhookInputs),
+        );
 
-      await instrumentAsync({ name: "complete" }, () =>
-        this.complete({ projectId: event.projectId, completions }),
-      );
+        await instrumentAsync({ name: "complete" }, () =>
+          this.complete({ projectId: event.projectId, completions }),
+        );
+      } catch (error) {
+        if (error instanceof InvalidRequestError) {
+          await instrumentAsync({ name: "markErrorBadQuery" }, () =>
+            this.markErrorBadQuery({ event, monitors, now }),
+          );
+          return; // permanent query shape; do not retry
+        }
+        throw error; // transient; let BullMQ fail + scheduler TTL rescue retry
+      }
     });
   }
 
@@ -158,6 +169,24 @@ export class MonitorProcessor {
       buildCompleteQuery({
         projectId: args.projectId,
         completions: args.completions,
+      }),
+    );
+  }
+
+  /** markErrorBadQuery flips the claimed monitors to ERROR_BAD_QUERY when their query shape is permanently invalid. */
+  private async markErrorBadQuery(args: {
+    event: MonitorQueueEvent;
+    monitors: Monitor[];
+    now: Date;
+  }): Promise<void> {
+    if (args.monitors.length === 0) return;
+    await this.db.$executeRaw(
+      buildErrorBadQueryQuery({
+        projectId: args.event.projectId,
+        publishedAt: args.event.publishedAt,
+        claimedAt: args.now,
+        severityChangedAt: args.now,
+        monitorIds: args.monitors.map((m) => m.id),
       }),
     );
   }
@@ -389,6 +418,28 @@ function buildCompleteQuery(args: {
       AND m.last_claimed_at = data.last_claimed_at -- no-op if another worker re-claimed since
       AND m.status = 'ACTIVE' -- no-op if the user paused since claim
       AND m.last_published_at = data.published_at -- no-op if the scheduler rescued/republished since claim
+  `;
+}
+
+/** buildErrorBadQueryQuery builds the CAS-guarded UPDATE that pauses every claimed monitor under ERROR_BAD_QUERY. */
+function buildErrorBadQueryQuery(args: {
+  projectId: string;
+  publishedAt: Date;
+  claimedAt: Date;
+  severityChangedAt: Date;
+  monitorIds: string[];
+}): Prisma.Sql {
+  return Prisma.sql`
+    UPDATE monitors AS m
+    SET
+      status = 'ERROR_BAD_QUERY'::"MonitorStatus",
+      severity = 'PAUSED'::"MonitorSeverity",
+      severity_changed_at = ${args.severityChangedAt}::timestamptz
+    WHERE m.id IN (${Prisma.join(args.monitorIds)})
+      AND m.project_id = ${args.projectId}
+      AND m.last_claimed_at = ${args.claimedAt}::timestamptz -- no-op if another worker re-claimed since
+      AND m.status = 'ACTIVE' -- no-op if the user paused since claim
+      AND m.last_published_at = ${args.publishedAt}::timestamptz -- no-op if the scheduler rescued/republished since claim
   `;
 }
 
