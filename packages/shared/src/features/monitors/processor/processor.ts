@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";
 import { env } from "../../../env";
-import { InvalidRequestError } from "../../../errors";
+import { InternalServerError } from "../../../errors";
 import { TriggerEventSource } from "../../../domain/automations";
 import { matchesTriggerFilter } from "../../../server/automations";
 import {
@@ -31,7 +31,11 @@ import { renderAlertMessage } from "./renderAlertMessage";
 export const monitorEvaluationOffsetMs = 30 * 1000;
 
 /** badMonitorQuery sentinels a query whose shape is permanently invalid (QueryBuilder rejected it). */
-const badMonitorQuery = Symbol("badMonitorQuery");
+class ErrorBadMonitorQuery extends InternalServerError {
+  constructor(error: Error) {
+    super(`query could not be executed ${error}`);
+  }
+}
 
 /** MonitorProcessor evaluates queued monitor events and emits MonitorAlerts. */
 export class MonitorProcessor {
@@ -53,16 +57,10 @@ export class MonitorProcessor {
       if (monitors.length === 0) return;
 
       const [metrics, triggers] = await Promise.all([
-        instrumentAsync<Record<string, number | null> | typeof badMonitorQuery>(
-          { name: "queryMetrics" },
-          () =>
-            this.queryMetrics(event).catch((error) => {
-              // Only a build-time query-shape failure is a permanent bad query.
-              // CH timeout/resource/infra errors are transient — rethrow so the
-              // job fails and the scheduler TTL rescue retries.
-              if (error instanceof InvalidRequestError) return badMonitorQuery;
-              throw error;
-            }),
+        instrumentAsync({ name: "queryMetrics" }, () =>
+          this.queryMetrics(event).catch((error) => {
+            return new ErrorBadMonitorQuery(error);
+          }),
         ),
         instrumentAsync({ name: "getTriggerConfigurations" }, () =>
           this.getTriggerConfigurations({
@@ -73,11 +71,12 @@ export class MonitorProcessor {
         ),
       ]);
 
-      if (metrics === badMonitorQuery) {
-        await instrumentAsync({ name: "markErrorBadQuery" }, () =>
-          this.markErrorBadQuery({ event, monitors, now }),
+      if (metrics instanceof ErrorBadMonitorQuery) {
+        await instrumentAsync({ name: "errorBadQuery" }, () =>
+          this.errorBadQuery({ event, monitors, now }),
         );
-        return; // permanent query shape; do not retry
+        span.setAttribute("executeQuery Error", metrics.toString());
+        return;
       }
 
       span.setAttribute("metrics", Object.keys(metrics).length);
@@ -117,7 +116,7 @@ export class MonitorProcessor {
       where: {
         id: { in: event.monitors.map((m) => m.monitorId) },
         projectId: event.projectId,
-        status: "ACTIVE", // reject the claim while paused so a stale PAUSED snapshot is never returned
+        status: "ACTIVE", // active monitors for the
         lastPublishedAt: { lte: event.publishedAt }, // newest event
         AND: [
           // not already claimed
@@ -127,7 +126,7 @@ export class MonitorProcessor {
               { lastClaimedAt: { lte: event.publishedAt } },
             ],
           },
-          // not yet completed
+          // and not yet completed
           {
             OR: [
               { lastCompletedAt: null },
@@ -182,8 +181,8 @@ export class MonitorProcessor {
     );
   }
 
-  /** markErrorBadQuery flips the claimed monitors to ERROR_BAD_QUERY when their query shape is permanently invalid. */
-  private async markErrorBadQuery(args: {
+  /** errorBadQuery flips the claimed monitors to ERROR_BAD_QUERY when their query shape is permanently invalid. */
+  private async errorBadQuery(args: {
     event: MonitorQueueEvent;
     monitors: Monitor[];
     now: Date;
