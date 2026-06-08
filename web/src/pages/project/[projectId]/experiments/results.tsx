@@ -52,7 +52,13 @@ export default function ExperimentResults() {
     setLastResultsUrl(window.location.pathname + window.location.search);
   }, [setLastResultsUrl]);
 
-  const { isExperimentsBetaActive } = useExperimentAccess();
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
+
+  useEffect(() => {
+    if (isInitializing || isExperimentsBetaActive || !projectId) return;
+
+    router.replace(`/project/${projectId}/datasets`);
+  }, [isExperimentsBetaActive, isInitializing, projectId, router]);
 
   // Fetch experiment to get dataset ID and other details
   const { data: experiment } = api.experiments.byId.useQuery(
@@ -65,7 +71,7 @@ export default function ExperimentResults() {
     },
   );
 
-  // Show spinner while redirecting when beta is off
+  // Show spinner while session loads or while redirecting when beta is off
   if (!isExperimentsBetaActive) {
     return (
       <Page headerProps={{ title: "Experiments" }}>

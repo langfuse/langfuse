@@ -8,12 +8,13 @@ import {
 } from "@/src/features/navigation/utils/experiment-run-tabs";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useEffect } from "react";
 
 export default function ExperimentAnalytics() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const { isExperimentsBetaActive } = useExperimentAccess();
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
 
   const [lastResultsUrl] = useSessionStorage<string | null>(
     "experiment-results-url",
@@ -24,6 +25,12 @@ export default function ExperimentAnalytics() {
     const fallbackUrl = `/project/${projectId}/experiments/results`;
     router.push(lastResultsUrl ?? fallbackUrl);
   };
+
+  useEffect(() => {
+    if (isInitializing || isExperimentsBetaActive || !projectId) return;
+
+    router.replace(`/project/${projectId}/datasets`);
+  }, [isExperimentsBetaActive, isInitializing, projectId, router]);
 
   if (!isExperimentsBetaActive) {
     return (

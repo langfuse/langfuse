@@ -12,8 +12,9 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { FlaskConical } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function Experiments() {
   const router = useRouter();
@@ -28,7 +29,7 @@ export default function Experiments() {
     scope: "promptExperiments:CUD",
   });
 
-  const { canAccessExperiments } = useExperimentAccess();
+  const { canAccessExperiments, isInitializing } = useExperimentAccess();
 
   const handleExperimentSuccess = async () => {
     setIsCreateExperimentDialogOpen(false);
@@ -38,8 +39,20 @@ export default function Experiments() {
     ]);
   };
 
+  useEffect(() => {
+    if (isInitializing || canAccessExperiments || !projectId) return;
+
+    router.replace(`/project/${projectId}/datasets`);
+  }, [canAccessExperiments, isInitializing, projectId, router]);
+
   if (!canAccessExperiments) {
-    return null;
+    return (
+      <Page headerProps={{ title: "Experiments" }}>
+        <div className="flex h-full items-center justify-center">
+          <Spinner size="xl" variant="muted" />
+        </div>
+      </Page>
+    );
   }
 
   return (
