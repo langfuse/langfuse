@@ -593,7 +593,7 @@ const cases: ProcessCase[] = [
     },
   },
   {
-    name: "error on executeQuery: claim, no complete, no sev change, no emit",
+    name: "error on executeQuery: flips ERROR_BAD_QUERY, PAUSED, no throw, no emit",
     monitors: [
       {
         id: monitorAId,
@@ -604,13 +604,13 @@ const cases: ProcessCase[] = [
     ],
     injectError: { stage: "executeQuery", message: "CH timeout" },
     expect: {
-      throws: "CH timeout",
       publishCallCount: 0,
       rows: [
         {
           id: monitorAId,
-          severity: "OK",
-          severityChangedAt: tenMinutesAgo,
+          status: "ERROR_BAD_QUERY",
+          severity: "PAUSED",
+          severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
           lastCompletedAt: null,
