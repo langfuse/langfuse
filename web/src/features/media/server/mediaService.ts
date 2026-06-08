@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 
 import { env } from "@/src/env.mjs";
 import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
@@ -17,7 +17,17 @@ import {
   logger,
   recordHistogram,
   recordIncrement,
+  redis,
 } from "@langfuse/shared/src/server";
+
+type MediaLinkTarget = "trace" | "observation";
+type MediaLinkParams = {
+  projectId: string;
+  traceId: string;
+  observationId?: string | null;
+  mediaId: string;
+  field: string;
+};
 
 export async function createMediaUploadUrl(params: {
   projectId: string;
@@ -261,29 +271,97 @@ async function upsertMediaRecord(params: {
   }
 }
 
-async function linkMediaToTraceOrObservation(params: {
-  projectId: string;
-  traceId: string;
-  observationId?: string | null;
-  mediaId: string;
-  field: string;
-}) {
+async function linkMediaToTraceOrObservation(params: MediaLinkParams) {
   const { projectId, traceId, observationId, mediaId, field } = params;
+  const target: MediaLinkTarget = observationId ? "observation" : "trace";
+  const cacheKey = await getMediaLinkCacheKeyIfWriteAllowed(params, target);
 
-  if (observationId) {
+  // Return early if DB write is not allowed by cache
+  if (cacheKey === null) return;
+
+  try {
+    if (observationId) {
+      await prisma.$queryRaw`
+        INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
+        VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
+        ON CONFLICT DO NOTHING;
+      `;
+
+      return;
+    }
+
     await prisma.$queryRaw`
-      INSERT INTO "observation_media" ("id", "project_id", "trace_id", "observation_id", "media_id", "field")
-      VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${observationId}, ${mediaId}, ${field})
+      INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
+      VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
       ON CONFLICT DO NOTHING;
     `;
-    return;
+  } catch (error) {
+    await clearMediaLinkCacheKey(cacheKey);
+
+    throw error;
+  }
+}
+
+async function getMediaLinkCacheKeyIfWriteAllowed(
+  params: MediaLinkParams,
+  target: MediaLinkTarget,
+): Promise<string | null | undefined> {
+  const ttlSeconds = env.LANGFUSE_MEDIA_LINK_REQUEST_DEDUP_TTL_SECONDS;
+
+  if (!redis || ttlSeconds === 0) {
+    return undefined;
   }
 
-  await prisma.$queryRaw`
-    INSERT INTO "trace_media" ("id", "project_id", "trace_id", "media_id", "field")
-    VALUES (${randomUUID()}, ${projectId}, ${traceId}, ${mediaId}, ${field})
-    ON CONFLICT DO NOTHING;
-  `;
+  const cacheKey = getMediaLinkCacheKey(params, target);
+
+  try {
+    const result = await redis.set(cacheKey, "1", "EX", ttlSeconds, "NX");
+
+    if (result !== "OK") {
+      recordIncrement("langfuse.media.link.dedup_cache_hit", 1, { target });
+
+      return null;
+    }
+
+    recordIncrement("langfuse.media.link.dedup_cache_miss", 1, { target });
+
+    return cacheKey;
+  } catch (error) {
+    recordIncrement("langfuse.media.link.dedup_cache_error", 1, { target });
+    logger.warn(
+      "Failed to check media link deduplication cache. Continuing with database write.",
+      error,
+    );
+
+    return undefined;
+  }
+}
+
+async function clearMediaLinkCacheKey(cacheKey: string | undefined) {
+  if (!cacheKey || !redis) return;
+
+  try {
+    await redis.del(cacheKey);
+  } catch (error) {
+    logger.warn("Failed to clear media link deduplication cache key.", error);
+  }
+}
+
+function getMediaLinkCacheKey(
+  params: MediaLinkParams,
+  target: MediaLinkTarget,
+) {
+  const { projectId, traceId, observationId, mediaId, field } = params;
+  const cachePayload =
+    target === "observation"
+      ? [target, projectId, traceId, observationId, mediaId, field]
+      : [target, projectId, traceId, mediaId, field];
+
+  const hash = createHash("sha256")
+    .update(JSON.stringify(cachePayload))
+    .digest("base64url");
+
+  return `langfuse:media-link:${target}:${hash}`;
 }
 
 function getBucketPath(params: {

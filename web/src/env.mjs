@@ -332,6 +332,11 @@ export const env = createEnv({
       .number()
       .nonnegative()
       .default(3600),
+    LANGFUSE_MEDIA_LINK_REQUEST_DEDUP_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .nonnegative()
+      .default(30),
     LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
 
@@ -731,6 +736,8 @@ export const env = createEnv({
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE,
     LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS:
       process.env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS,
+    LANGFUSE_MEDIA_LINK_REQUEST_DEDUP_TTL_SECONDS:
+      process.env.LANGFUSE_MEDIA_LINK_REQUEST_DEDUP_TTL_SECONDS,
     LANGFUSE_S3_MEDIA_UPLOAD_SSE: process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
     LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
