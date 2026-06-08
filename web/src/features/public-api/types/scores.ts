@@ -25,7 +25,7 @@ export const EncodedScoresCursorV3 = z
 export const encodeCursorV3 = (cursor: ScoresCursorV3Type): string =>
   Buffer.from(
     JSON.stringify({
-      v: 1,
+      v: cursor.v,
       lastTimestamp: cursor.lastTimestamp.toISOString(),
       lastId: cursor.lastId,
     }),
