@@ -32,6 +32,7 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
+import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
 import { seedMediaTraces } from "./seed-media";
 
@@ -92,6 +93,7 @@ async function main() {
     create: {
       id: seedOrgId,
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
@@ -162,7 +164,7 @@ async function main() {
     },
   });
 
-  await prisma.prompt.upsert({
+  const summaryPrompt = await prisma.prompt.upsert({
     where: {
       projectId_name_version: {
         projectId: seedProjectId,
@@ -179,6 +181,13 @@ async function main() {
       createdBy: "user-1",
     },
     update: {},
+  });
+
+  await seedInAppAgentDemoConversation({
+    prisma,
+    projectId: project1.id,
+    userId: user.id,
+    summaryPrompt,
   });
 
   const seedApiKey = {

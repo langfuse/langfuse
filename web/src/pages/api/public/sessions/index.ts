@@ -11,6 +11,7 @@ export default withMiddlewares({
     name: "Get Sessions",
     querySchema: GetSessionsV1Query,
     responseSchema: GetSessionsV1Response,
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const { fromTimestamp, toTimestamp, limit, page, environment } = query;
 

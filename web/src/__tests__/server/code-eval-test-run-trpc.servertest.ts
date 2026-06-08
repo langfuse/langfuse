@@ -1,5 +1,24 @@
 import { randomUUID } from "node:crypto";
 import { describe, expect, it, afterAll, vi } from "vitest";
+import type * as SharedEnvModule from "@langfuse/shared/src/env";
+
+vi.hoisted(() => {
+  process.env.LANGFUSE_CODE_EVAL_DISPATCHER = "insecure-local";
+});
+
+vi.mock("@langfuse/shared/src/env", async (importOriginal) => {
+  const actual = await importOriginal<typeof SharedEnvModule>();
+
+  return {
+    ...actual,
+    env: {
+      ...actual.env,
+      LANGFUSE_CODE_EVAL_DISPATCHER: "insecure-local",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    },
+  };
+});
+
 import type { Session } from "next-auth";
 import {
   EvalTemplateSourceCodeLanguage,
@@ -21,14 +40,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { EvalTargetObject } from "@langfuse/shared";
 
-vi.hoisted(() => {
-  process.env.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED = "true";
-});
-
 const orgIds: string[] = [];
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -50,6 +65,7 @@ async function prepare() {
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: true,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: project.id,
@@ -70,6 +86,8 @@ async function prepare() {
         v4BetaToggleVisible: false,
         observationEvals: false,
         experimentsV4Enabled: false,
+        monitors: false,
+        inAppAgent: false,
       },
       admin: true,
     },
@@ -104,7 +122,7 @@ maybe("evals.testRunCodeEval", () => {
     const savedSource = `
       function evaluate(ctx) {
         const matched =
-          ctx.observation.input === ${JSON.stringify(JSON.stringify({ question: "2+2" }))} &&
+          ctx.observation.input.question === "2+2" &&
           ctx.observation.output === "4" &&
           ctx.observation.metadata.rubric === "math";
 
@@ -209,7 +227,7 @@ maybe("evals.testRunCodeEval", () => {
     expect(Number(scoreCount[0]?.count ?? 0)).toBe(0);
   });
 
-  it("runs against legacy observations when events table observations are disabled", async () => {
+  it("runs against legacy observations when events table evals are disabled", async () => {
     const { project, caller } = await prepare();
     const observationId = randomUUID();
     const traceId = randomUUID();
@@ -248,13 +266,13 @@ maybe("evals.testRunCodeEval", () => {
     ]);
 
     const mutableEnv = env as unknown as {
-      LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: "true" | "false";
+      LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" | "false";
     };
-    const originalEventsTableObservationFlag =
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
+    const originalEventsTableFlagsFlag =
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
 
     try {
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS = "false";
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
 
       const response = await caller.evals.testRunCodeEval({
         projectId: project.id,
@@ -298,8 +316,8 @@ maybe("evals.testRunCodeEval", () => {
         executionTraceFromTimestamp: expect.any(Date),
       });
     } finally {
-      mutableEnv.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS =
-        originalEventsTableObservationFlag;
+      mutableEnv.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalEventsTableFlagsFlag;
     }
   });
 
@@ -341,6 +359,53 @@ maybe("evals.testRunCodeEval", () => {
       error: {
         code: "USER_CODE_ERROR",
         message: "User code raised ValueError",
+      },
+      executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      executionTraceFromTimestamp: expect.any(Date),
+    });
+  });
+
+  it("returns invalid evaluator results for test-run debugging", async () => {
+    const { project, caller } = await prepare();
+    const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
+    const template = await createCodeTemplate(
+      project.id,
+      `function evaluate() {
+        return { score: 1 };
+      }`,
+    );
+
+    await createEventsCh([
+      createEvent({
+        project_id: project.id,
+        trace_id: traceId,
+        span_id: observationId,
+        id: observationId,
+        start_time: startTime.getTime() * 1000,
+      }),
+    ]);
+
+    const response = await caller.evals.testRunCodeEval({
+      projectId: project.id,
+      evalTemplateId: template.id,
+      target: EvalTargetObject.EVENT,
+      scoreName: "unsaved-score",
+      observationId,
+      traceId,
+      startTime,
+      mapping: [],
+    });
+
+    expect(response).toEqual({
+      success: false,
+      error: {
+        code: "INVALID_RESULT",
+        message: expect.stringContaining(
+          "The evaluator returned an invalid result.",
+        ),
+        returnedResult: { score: 1 },
       },
       executionTraceId: expect.stringMatching(/^[0-9a-f]{32}$/),
       executionTraceFromTimestamp: expect.any(Date),
@@ -555,9 +620,51 @@ maybe("evals.testRunCodeEval", () => {
       }),
     ).rejects.toThrow(/Evaluator template not found/);
   });
+
+  it("rejects Python templates for the insecure-local dispatcher", async () => {
+    const { project, caller } = await prepare();
+    const observationId = randomUUID();
+    const traceId = randomUUID();
+    const startTime = new Date();
+
+    const template = await createCodeTemplate(
+      project.id,
+      'def evaluate(ctx):\n    return { "scores": [{ "name": "python-score", "value": 1 }] }',
+      EvalTemplateSourceCodeLanguage.PYTHON,
+    );
+
+    await createEventsCh([
+      createEvent({
+        project_id: project.id,
+        trace_id: traceId,
+        span_id: observationId,
+        id: observationId,
+        start_time: startTime.getTime() * 1000,
+      }),
+    ]);
+
+    await expect(
+      caller.evals.testRunCodeEval({
+        projectId: project.id,
+        evalTemplateId: template.id,
+        target: EvalTargetObject.EVENT,
+        scoreName: "unsaved-score",
+        observationId,
+        traceId,
+        startTime,
+        mapping: [],
+      }),
+    ).rejects.toThrow(
+      "This code evaluator language is not supported by the configured dispatcher.",
+    );
+  });
 });
 
-async function createCodeTemplate(projectId: string, sourceCode?: string) {
+async function createCodeTemplate(
+  projectId: string,
+  sourceCode?: string,
+  sourceCodeLanguage: EvalTemplateSourceCodeLanguage = EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+) {
   return prisma.evalTemplate.create({
     data: {
       projectId,
@@ -569,7 +676,7 @@ async function createCodeTemplate(projectId: string, sourceCode?: string) {
       sourceCode:
         sourceCode ??
         'function evaluate() { return { scores: [{ name: "test-score", value: 1 }] }; }',
-      sourceCodeLanguage: EvalTemplateSourceCodeLanguage.TYPESCRIPT,
+      sourceCodeLanguage,
     },
   });
 }

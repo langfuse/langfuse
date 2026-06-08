@@ -39,7 +39,7 @@ export default function ConfigureRetention() {
   });
   const setRetention = api.projects.setRetention.useMutation({
     onSuccess: (_) => {
-      void updateSession();
+      updateSession();
     },
     onError: (error) => form.setError("retention", { message: error.message }),
   });

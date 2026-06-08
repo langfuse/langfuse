@@ -39,7 +39,7 @@ jobs:
       - name: Authenticate with AWS
         # GitHub/AWS recommend to use OIDC here: https://github.com/aws-actions/configure-aws-credentials?tab=readme-ov-file#oidc
         # Probably more painful to configure, but would remove all long-lived credentials.
-        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
+        uses: aws-actions/configure-aws-credentials@acca2b1b2070338fb9fd1ca27ecee81d687e58e5 # v6.1.2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -62,7 +62,6 @@ jobs:
           VARS_NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.NEXT_PUBLIC_POSTHOG_KEY }}
           VARS_NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.NEXT_PUBLIC_POSTHOG_HOST }}
           VARS_NEXT_PUBLIC_PLAIN_APP_ID: ${{ vars.NEXT_PUBLIC_PLAIN_APP_ID }}
-          VARS_NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED: ${{ vars.NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED }}
           VARS_SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           VARS_SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
           VARS_NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE: ${{ vars.NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE }}
@@ -81,7 +80,6 @@ jobs:
             --build-arg NEXT_PUBLIC_POSTHOG_KEY=${VARS_NEXT_PUBLIC_POSTHOG_KEY} \
             --build-arg NEXT_PUBLIC_POSTHOG_HOST=${VARS_NEXT_PUBLIC_POSTHOG_HOST} \
             --build-arg NEXT_PUBLIC_PLAIN_APP_ID=${VARS_NEXT_PUBLIC_PLAIN_APP_ID} \
-            --build-arg NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED=${VARS_NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED} \
             --build-arg SENTRY_AUTH_TOKEN=${SECRETS_SENTRY_AUTH_TOKEN} \
             --build-arg SENTRY_ORG=${VARS_SENTRY_ORG} \
             --build-arg SENTRY_PROJECT=${VARS_SENTRY_PROJECT} \

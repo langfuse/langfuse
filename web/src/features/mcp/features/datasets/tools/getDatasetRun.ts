@@ -1,10 +1,5 @@
-import { ApiError, LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { generateDatasetRunItemsForPublicApi } from "@/src/features/public-api/server/dataset-run-items";
-import {
-  GetDatasetRunV1Response,
-  transformDbDatasetRunToAPIDatasetRun,
-} from "@/src/features/public-api/types/datasets";
+import { GetDatasetRunV1Response } from "@/src/features/public-api/types/datasets";
+import { getDatasetRunByIdForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { GetDatasetRunMcpInput } from "../schema";
@@ -12,7 +7,7 @@ import { GetDatasetRunMcpInput } from "../schema";
 export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
   name: "getDatasetRun",
   description:
-    "Get a dataset run, one experiment or evaluation execution over a dataset, and its run items by dataset and run name.",
+    "Get a dataset run, one experiment or evaluation execution over a dataset, and its run items by dataset ID and run ID.",
   baseSchema: GetDatasetRunMcpInput,
   inputSchema: GetDatasetRunMcpInput,
   handler: async (input, context) =>
@@ -20,45 +15,17 @@ export const [getDatasetRunTool, handleGetDatasetRun] = defineTool({
       spanName: "mcp.dataset_runs.get",
       context,
       attributes: {
-        "mcp.dataset_name": input.name,
-        "mcp.dataset_run_name": input.runName,
+        "mcp.dataset_id": input.datasetId,
+        "mcp.dataset_run_id": input.datasetRunId,
       },
       fn: async () => {
-        const datasetRuns = await prisma.datasetRuns.findMany({
-          where: {
-            projectId: context.projectId,
-            name: input.runName,
-            dataset: {
-              name: input.name,
-              projectId: context.projectId,
-            },
-          },
-          include: { dataset: { select: { name: true } } },
+        const result = await getDatasetRunByIdForApi({
+          projectId: context.projectId,
+          datasetId: input.datasetId,
+          datasetRunId: input.datasetRunId,
         });
 
-        if (datasetRuns.length > 1) {
-          throw new ApiError("Found more than one dataset run with this name");
-        }
-        if (!datasetRuns[0]) {
-          throw new LangfuseNotFoundError("Dataset run not found");
-        }
-
-        const { dataset, ...run } = datasetRuns[0];
-        const datasetRunItems = await generateDatasetRunItemsForPublicApi({
-          props: {
-            datasetId: run.datasetId,
-            runId: run.id,
-            projectId: context.projectId,
-          },
-        });
-
-        return GetDatasetRunV1Response.parse({
-          ...transformDbDatasetRunToAPIDatasetRun({
-            ...run,
-            datasetName: dataset.name,
-          }),
-          datasetRunItems,
-        });
+        return GetDatasetRunV1Response.parse(result);
       },
     }),
   readOnlyHint: true,

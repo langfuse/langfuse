@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { type z } from "zod";
 import {
@@ -17,7 +18,6 @@ import { type templateFormSchema } from "@/src/features/evals/utils/template-for
 import {
   type CodeEvalSourceCodeLanguage,
   getDefaultCodeEvalSource,
-  isDefaultCodeEvalSource,
 } from "@/src/features/evals/utils/code-eval-template-validation";
 
 type EvalTemplateFormInput = z.input<typeof templateFormSchema>;
@@ -27,27 +27,34 @@ type EvalTemplateFormReturn = UseFormReturn<
   unknown,
   EvalTemplateFormOutput
 >;
+type CodeEvalSourceDrafts = Partial<Record<CodeEvalSourceCodeLanguage, string>>;
+type CodeEvalCapabilities = {
+  enabled: boolean;
+  supportedSourceCodeLanguages: EvalTemplateSourceCodeLanguage[];
+};
 
 export type EvalTemplateTypeSelectorMode = "all" | "code-only" | "hidden";
 
 export function EvalTemplateTypeSelector({
   form,
-  enabled,
+  codeEvalCapabilities,
   mode,
   hasExistingTemplate,
   onChange,
 }: {
   form: EvalTemplateFormReturn;
-  enabled: boolean;
+  codeEvalCapabilities: CodeEvalCapabilities;
   mode: EvalTemplateTypeSelectorMode;
   hasExistingTemplate: boolean;
   onChange?: () => void;
 }) {
+  const sourceCodeDraftsRef = useRef<CodeEvalSourceDrafts>({});
   const evalTemplateType = form.watch("type");
   const sourceCodeLanguage =
     form.watch("sourceCodeLanguage") ??
     EvalTemplateSourceCodeLanguage.TYPESCRIPT;
-  const shouldShow = enabled && !hasExistingTemplate && mode !== "hidden";
+  const shouldShow =
+    codeEvalCapabilities.enabled && !hasExistingTemplate && mode !== "hidden";
 
   if (!shouldShow) return null;
 
@@ -61,23 +68,29 @@ export function EvalTemplateTypeSelector({
       | typeof EvalTemplateType.LLM_AS_JUDGE
       | CodeEvalSourceCodeLanguage,
   ) => {
+    const currentSourceCode = form.getValues("sourceCode") ?? "";
+    const currentSourceCodeLanguage =
+      form.getValues("sourceCodeLanguage") ??
+      EvalTemplateSourceCodeLanguage.TYPESCRIPT;
+
+    if (evalTemplateType === EvalTemplateType.CODE) {
+      sourceCodeDraftsRef.current[currentSourceCodeLanguage] =
+        currentSourceCode;
+    }
+
     if (nextValue === EvalTemplateType.LLM_AS_JUDGE) {
       form.setValue("type", EvalTemplateType.LLM_AS_JUDGE);
       onChange?.();
       return;
     }
 
-    const currentSourceCode = form.getValues("sourceCode") ?? "";
-    const shouldReplaceSourceCode =
-      currentSourceCode.trim().length === 0 ||
-      isDefaultCodeEvalSource(currentSourceCode);
-
     form.setValue("type", EvalTemplateType.CODE);
     form.setValue("sourceCodeLanguage", nextValue);
-
-    if (shouldReplaceSourceCode) {
-      form.setValue("sourceCode", getDefaultCodeEvalSource(nextValue));
-    }
+    form.setValue(
+      "sourceCode",
+      sourceCodeDraftsRef.current[nextValue] ??
+        getDefaultCodeEvalSource(nextValue),
+    );
 
     onChange?.();
   };
@@ -115,12 +128,16 @@ export function EvalTemplateTypeSelector({
                 >
                   TypeScript
                 </TabsTrigger>
-                <TabsTrigger
-                  value={EvalTemplateSourceCodeLanguage.PYTHON}
-                  className="min-w-[100px]"
-                >
-                  Python
-                </TabsTrigger>
+                {codeEvalCapabilities.supportedSourceCodeLanguages.includes(
+                  EvalTemplateSourceCodeLanguage.PYTHON,
+                ) ? (
+                  <TabsTrigger
+                    value={EvalTemplateSourceCodeLanguage.PYTHON}
+                    className="min-w-[100px]"
+                  >
+                    Python
+                  </TabsTrigger>
+                ) : null}
               </TabsList>
             </Tabs>
           </FormControl>

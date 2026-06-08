@@ -167,6 +167,16 @@ export const query = z
         granularity: granularities,
       })
       .nullable(),
+    // Entity dimension for bucketing by a categorical field (e.g., experimentName).
+    // IMPORTANT: Unlike timeDimension which has implicit bucket limits (24 hours/day),
+    // entityDimension has NO cardinality guarantee. Callers MUST filter the same
+    // entity field in WHERE before GROUP BY runs (max ~50 values).
+    // Without this pre-filtering, GROUP BY on high-cardinality columns will be slow/OOM.
+    entityDimension: z
+      .object({
+        field: z.string(), // e.g., "experimentName"
+      })
+      .nullish(),
     fromTimestamp: stringDateTime,
     toTimestamp: stringDateTime,
     orderBy: z
@@ -190,6 +200,13 @@ export const query = z
     (query) =>
       // Ensure fromTimestamp is before toTimestamp
       new Date(query.fromTimestamp) < new Date(query.toTimestamp),
+    { message: "fromTimestamp must be before toTimestamp" },
+  )
+  .refine(
+    (query) =>
+      // timeDimension and entityDimension are mutually exclusive
+      !(query.timeDimension && query.entityDimension),
+    { message: "timeDimension and entityDimension are mutually exclusive" },
   );
 
 export const useEventsTableSchema = z

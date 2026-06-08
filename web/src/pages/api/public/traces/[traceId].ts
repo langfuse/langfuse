@@ -34,6 +34,7 @@ export default withMiddlewares(
       name: "Get Single Trace",
       querySchema: GetTraceV1Query,
       responseSchema: GetTraceV1Response,
+      rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         const { traceId } = query;
 
@@ -55,6 +56,7 @@ export default withMiddlewares(
         const includeScores = requestedFields.includes("scores");
         const includeMetrics = requestedFields.includes("metrics");
 
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const trace = await getTraceById({
           traceId,
           projectId: auth.scope.projectId,

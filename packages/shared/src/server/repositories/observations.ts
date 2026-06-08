@@ -328,7 +328,15 @@ export const getObservationForTraceIdByName = async ({
   return records.map((record) => convertObservation(record));
 };
 
-export const getObservationById = async ({
+/**
+ * Retrieves an observation by its ID from the legacy `observations` table.
+ *
+ * Prefer the routing wrapper `getObservationById` (in repositories/events.ts)
+ * for application reads: it dispatches between this legacy reader and the events
+ * table based on the V4 migration flags. Call this directly only when you
+ * specifically need the legacy table (e.g. backfills, migration tooling).
+ */
+export const getObservationByIdFromObservationsTable = async ({
   id,
   projectId,
   fetchWithInputOutput = false,
@@ -1843,10 +1851,12 @@ export const getObservationsForBlobStorageExport = function (
       tool_call_names,
       tool_definitions,
       usage_pricing_tier_name
-    FROM observations FINAL
+    FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
     AND start_time <= {maxTimestamp: DateTime64(3)}
+    ORDER BY event_ts DESC
+    LIMIT 1 BY id, project_id, type
   `;
 
   const records = queryClickhouseStream<Record<string, unknown>>({

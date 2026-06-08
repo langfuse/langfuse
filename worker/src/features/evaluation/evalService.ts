@@ -84,6 +84,7 @@ import {
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
 import { type ExtractedVariable } from "@langfuse/shared/src/server";
+import { buildEvalExecutionSpanAttributes } from "./evalSpanAttributes";
 
 /**
  * Determines which eval jobs to create for a given event (traces or dataset run items).
@@ -258,6 +259,7 @@ export const createEvalJobs = async ({
     try {
       // Fetch trace data and store it. If observation data is required, we'll make a separate lookup.
       // Those fields are used rarely, though.
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       cachedTrace = await getTraceById({
         traceId: event.traceId,
         projectId: event.projectId,
@@ -811,7 +813,7 @@ export async function runLLMAsJudgeEvaluation({
         parsedOutputDefinition.data,
       );
 
-      span.setAttribute("eval.job_configuration.id", config.id);
+      span.setAttributes(buildEvalExecutionSpanAttributes({ config }));
       span.setAttribute("eval.template.version", template.version);
       span.setAttribute("eval.score.name", config.scoreName);
       span.setAttribute(
@@ -1258,6 +1260,7 @@ export async function extractVariablesFromTracingData({
       const traceCacheKey = `${projectId}:${traceId}`;
       let trace = traceCache.get(traceCacheKey);
       if (!traceCache.has(traceCacheKey)) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         trace = await getTraceById({
           traceId,
           projectId,

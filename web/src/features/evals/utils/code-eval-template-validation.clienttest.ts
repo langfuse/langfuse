@@ -107,17 +107,107 @@ describe("code eval template validation", () => {
     expect(result.hasErrors).toBe(false);
   });
 
-  it("rejects async TypeScript evaluate functions", async () => {
+  it("accepts async TypeScript evaluate functions with timers", async () => {
     const result = await validateCodeEvalSourceWithLanguage({
       source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+type TimerHandle = unknown;
+type URLSearchParamsInit = string;
+
 async function evaluate(ctx: EvaluationContext): Promise<EvaluationResult> {
-  return { scores: [] };
+  const timer: TimerHandle = setTimeout(() => {}, 1);
+  clearTimeout(timer);
+  const interval: TimerHandle = setInterval(() => {}, 1);
+  clearInterval(interval);
+  const paramsInit: URLSearchParamsInit = "source=eval";
+  const params = new URLSearchParams(paramsInit);
+  await new Promise((resolve) => setTimeout(resolve, params.has("source") ? 1 : 2));
+  const allValues = await Promise.all([Promise.resolve(1), Promise.resolve(2)]);
+  const settled = await Promise.allSettled([Promise.resolve("ok"), Promise.reject("no")]);
+  const raced = await Promise.race([Promise.resolve(3)]);
+  const anyValue = await Promise.any([Promise.reject("no"), Promise.resolve(4)]);
+  const slicedValues = allValues.slice(0, 2);
+  const firstLargeValue = slicedValues.find((value) => value > 1) ?? 0;
+  let iteratedTotal = 0;
+  slicedValues.forEach((value) => {
+    iteratedTotal = iteratedTotal + value;
+  });
+  const arrayScore =
+    slicedValues.reduce((total, value) => total + value, 0) +
+    (slicedValues.every((value) => value > 0) ? 1 : 0) +
+    (slicedValues.some((value) => value > 1) ? 1 : 0) +
+    (Array.isArray(slicedValues) ? 1 : 0) +
+    firstLargeValue +
+    iteratedTotal;
+
+  return {
+    scores: [{
+      name: "async helpers",
+      value: arrayScore + settled.length + raced + anyValue,
+      dataType: "NUMERIC",
+    }],
+  };
 }
 `,
       sourceCodeLanguage: "TYPESCRIPT",
     });
 
-    expect(result.hasErrors).toBe(true);
+    expect(result.hasErrors).toBe(false);
+  });
+
+  it("accepts simple Node runtime globals and keeps process unavailable", async () => {
+    const result = await validateCodeEvalSourceWithLanguage({
+      source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+function evaluate(ctx: EvaluationContext): EvaluationResult {
+  const url = new URL("https://user:pass@langfuse.com:443/docs?source=eval#section");
+  const urlScore =
+    url.origin.length +
+    url.protocol.length +
+    url.host.length +
+    url.port.length +
+    url.username.length +
+    url.password.length +
+    url.hash.length;
+  const params = new URLSearchParams([["source", "eval"]]);
+  const paramsCopy = new URLSearchParams(params);
+  paramsCopy.append("next", "true");
+  paramsCopy.set("source", "code");
+  paramsCopy.delete("missing");
+  let paramsScore = paramsCopy.has("source") ? (paramsCopy.get("source") ?? "").length : 0;
+  paramsCopy.forEach((value, key) => {
+    paramsScore = paramsScore + value.length + key.length;
+  });
+  const encoded = new TextEncoder().encode(url.hostname);
+  const sliced = encoded.slice(0, 4).subarray(0, 2);
+  let byteTotal = 0;
+  sliced.forEach((value) => {
+    byteTotal = byteTotal + value;
+  });
+  const copy = structuredClone({ length: encoded.length });
+  queueMicrotask(() => {});
+
+  return { scores: [{ name: "encoded", value: copy.length + byteTotal + paramsScore + urlScore, dataType: "NUMERIC" }] };
+}
+`,
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+
+    expect(result.hasErrors).toBe(false);
+
+    const processResult = await validateCodeEvalSourceWithLanguage({
+      source: `${TYPESCRIPT_CODE_EVAL_CONTRACT}
+function evaluate(ctx: EvaluationContext): EvaluationResult {
+  return { scores: [{ name: "env", value: process.env.NODE_ENV ?? "", dataType: "TEXT" }] };
+}
+`,
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+
+    expect(processResult.hasErrors).toBe(true);
+    expect(
+      processResult.diagnostics.some((diagnostic) =>
+        diagnostic.message.includes("Cannot find name 'process'"),
+      ),
+    ).toBe(true);
   });
 
   it("rejects exported TypeScript evaluate functions", async () => {

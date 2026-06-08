@@ -1,9 +1,17 @@
 "use client";
 
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { PanelRightClose, SendHorizontal } from "lucide-react";
+import { PanelRightClose, Plus, SendHorizontal } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/src/components/ui/select";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
@@ -11,11 +19,19 @@ import {
 } from "./InAppAgentMessage";
 
 const AUTO_SCROLL_THRESHOLD_PX = 200;
+const NEW_CONVERSATION_VALUE = "__new__";
+const LOAD_MORE_CONVERSATIONS_VALUE = "__load_more__";
 
 export type InAppAgentDrawerMessage = {
   id: string;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent[];
+};
+
+export type InAppAgentDrawerConversation = {
+  id: string;
+  title: string | null;
+  updatedAt: Date;
 };
 
 type InAppAgentDrawerCloseButtonProps =
@@ -30,13 +46,32 @@ type InAppAgentDrawerCloseButtonProps =
 
 export type InAppAgentDrawerProps = {
   error: string | null;
-  isRunning: boolean;
+  isInputDisabled: boolean;
   messages: InAppAgentDrawerMessage[];
-  onSubmit: (input: string) => void;
+  conversations: InAppAgentDrawerConversation[];
+  hasMoreConversations: boolean;
+  isLoadingMoreConversations: boolean;
+  selectedConversationId: string | undefined;
+  onLoadMoreConversations: () => void;
+  onSelectConversation: (conversationId: string) => void;
+  onNewConversation: () => void;
+  onSubmit: (input: string) => Promise<boolean>;
 } & InAppAgentDrawerCloseButtonProps;
 
 export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
-  const { error, isRunning, messages, onSubmit } = props;
+  const {
+    conversations,
+    error,
+    hasMoreConversations,
+    isInputDisabled,
+    isLoadingMoreConversations,
+    messages,
+    onLoadMoreConversations,
+    onNewConversation,
+    onSelectConversation,
+    onSubmit,
+    selectedConversationId,
+  } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<{
     scrollHeight: number;
@@ -85,10 +120,67 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
   return (
     <section className="bg-background flex h-full min-w-0 flex-col">
       <header className="bg-background flex h-11.25 shrink-0 items-center justify-between border-b px-3">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">AI Assistant</p>
           </div>
+          <Select
+            value={selectedConversationId ?? NEW_CONVERSATION_VALUE}
+            onValueChange={(value) => {
+              if (value === NEW_CONVERSATION_VALUE) {
+                onNewConversation();
+                return;
+              }
+
+              if (value === LOAD_MORE_CONVERSATIONS_VALUE) {
+                onLoadMoreConversations();
+                return;
+              }
+
+              onSelectConversation(value);
+            }}
+            disabled={isInputDisabled}
+          >
+            <SelectTrigger
+              aria-label="Select agent conversation"
+              className="h-8 max-w-52 min-w-0 flex-1"
+            >
+              <SelectValue placeholder="New conversation" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NEW_CONVERSATION_VALUE}>
+                New conversation
+              </SelectItem>
+              {conversations.map((conversation) => (
+                <SelectItem key={conversation.id} value={conversation.id}>
+                  {conversation.title?.trim() || "Untitled conversation"}
+                </SelectItem>
+              ))}
+              {hasMoreConversations ? (
+                <>
+                  <SelectSeparator />
+                  <SelectItem
+                    value={LOAD_MORE_CONVERSATIONS_VALUE}
+                    className="h-8"
+                    disabled={isLoadingMoreConversations}
+                  >
+                    {isLoadingMoreConversations ? "Loading..." : "Load more"}
+                  </SelectItem>
+                </>
+              ) : null}
+            </SelectContent>
+          </Select>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={onNewConversation}
+            disabled={isInputDisabled}
+            aria-label="Start new AI agent conversation"
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
         </div>
         {props.showCloseButton !== false && (
           <Button
@@ -163,12 +255,21 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
 
               const content = input.trim();
 
-              if (!content || isRunning) {
+              if (!content || isInputDisabled) {
                 return;
               }
 
-              onSubmit(content);
-              setInput("");
+              onSubmit(content)
+                .then((accepted) => {
+                  if (!accepted) {
+                    return;
+                  }
+
+                  setInput((currentInput) =>
+                    currentInput.trim() === content ? "" : currentInput,
+                  );
+                })
+                .catch(() => undefined);
             }}
           >
             <textarea
@@ -185,7 +286,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
                   event.currentTarget.form?.requestSubmit();
                 }
               }}
-              disabled={isRunning}
+              disabled={isInputDisabled}
               aria-label="Ask about Langfuse"
               placeholder="Ask about Langfuse..."
               rows={1}
@@ -196,7 +297,7 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
               size="icon"
               className="h-10 w-10 rounded-md"
               aria-label="Send message"
-              disabled={isRunning || !input.trim()}
+              disabled={isInputDisabled || !input.trim()}
             >
               <SendHorizontal className="h-4 w-4" />
             </Button>

@@ -9,7 +9,7 @@ import {
   processEventBatch,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
-  type CodeEvalUserVisibleErrorCode,
+  type CodeEvalUserVisibleError,
   type DispatchResult,
   type InternalTraceWriteInput,
 } from "@langfuse/shared/src/server";
@@ -32,6 +32,9 @@ import {
   isEventTarget,
   isExperimentTarget,
 } from "@/src/features/evals/utils/typeHelpers";
+import { isCodeEvalSourceCodeLanguageSupported } from "@/src/features/evals/server/isCodeEvalEnabled";
+
+type CodeEvalTestRunError = Omit<CodeEvalUserVisibleError, "retryable">;
 
 export type CodeEvalTestRunResult =
   | {
@@ -42,10 +45,7 @@ export type CodeEvalTestRunResult =
     }
   | {
       success: false;
-      error: {
-        code: CodeEvalUserVisibleErrorCode;
-        message: string;
-      };
+      error: CodeEvalTestRunError;
       executionTraceId: string;
       executionTraceFromTimestamp: Date;
     };
@@ -86,12 +86,16 @@ export async function runCodeEvalTestForJobConfig(params: {
   mapping: ObservationVariableMapping[];
   scoreName: string;
   filter: FilterCondition[] | null;
-}): Promise<CodeEvalTestRunResult> {
+}): Promise<CodeEvalTestRunResult | null> {
   const observation = await getObservationForEvalByFilter({
     projectId: params.projectId,
     target: params.target,
     filter: params.filter,
   });
+
+  if (!observation) {
+    return null;
+  }
 
   return runCodeEvalTestForObservation({
     ...params,
@@ -132,6 +136,14 @@ async function runCodeEvalTestForObservation(params: {
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Evaluator template not found",
+    });
+  }
+
+  if (!isCodeEvalSourceCodeLanguageSupported(codeTemplate.sourceCodeLanguage)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "This code evaluator language is not supported by the configured dispatcher.",
     });
   }
 
@@ -177,20 +189,24 @@ async function runCodeEvalTestForObservation(params: {
 
   return {
     success: false,
-    error: {
-      code: dispatchOutcome.error.code,
-      message: dispatchOutcome.error.message,
-    },
+    error: toCodeEvalTestRunError(dispatchOutcome.error),
     executionTraceId: dispatchOutcome.executionTraceId,
     executionTraceFromTimestamp: dispatchOutcome.executionTraceFromTimestamp,
   };
+}
+
+function toCodeEvalTestRunError({
+  retryable: _retryable,
+  ...error
+}: CodeEvalUserVisibleError): CodeEvalTestRunError {
+  return error;
 }
 
 async function getObservationForEvalByFilter(params: {
   projectId: string;
   target: EvalTargetObject;
   filter: FilterCondition[] | null;
-}): Promise<ObservationForEval> {
+}): Promise<ObservationForEval | null> {
   if (!isEventTarget(params.target) && !isExperimentTarget(params.target)) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -212,11 +228,7 @@ async function getObservationForEvalByFilter(params: {
     return observationForEvalSchema.parse(row);
   }
 
-  throw new TRPCError({
-    code: "PRECONDITION_FAILED",
-    message:
-      "No matching observation found to test this code evaluator. Adjust the filters and try again.",
-  });
+  return null;
 }
 
 async function getObservationForEvalById(params: {
@@ -227,7 +239,7 @@ async function getObservationForEvalById(params: {
   shouldReadFromObservationsTable?: boolean;
 }): Promise<ObservationForEval> {
   if (
-    env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS !== "true" ||
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true" ||
     params.shouldReadFromObservationsTable
   ) {
     return getObservationForEvalByIdFromLegacyObservations(params);
@@ -279,6 +291,7 @@ async function getObservationForEvalByIdFromLegacyObservations(params: {
   traceId: string;
   startTime: Date;
 }): Promise<ObservationForEval> {
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const observation = await getObservationById({
     projectId: params.projectId,
     id: params.id,

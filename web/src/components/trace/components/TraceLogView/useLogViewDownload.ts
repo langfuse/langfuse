@@ -67,7 +67,7 @@ export function useLogViewDownload({
       setTimeout(() => {
         try {
           const data = buildDataFromCache();
-          void copyTextToClipboard(JSON.stringify(data, null, 2));
+          copyTextToClipboard(JSON.stringify(data, null, 2));
           toast.success("Copied to clipboard (cache only)");
         } finally {
           setIsActionLoading(false);
@@ -76,7 +76,7 @@ export function useLogViewDownload({
     } else {
       // Load all mode: fetch all data if needed
       if (allObservationsData) {
-        void copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
+        copyTextToClipboard(JSON.stringify(allObservationsData, null, 2));
         // Show warning if some observations failed to load
         if (failedObservationIds.length > 0) {
           toast.warning(
@@ -89,7 +89,7 @@ export function useLogViewDownload({
         setIsActionLoading(true);
         try {
           const data = await loadAllData();
-          void copyTextToClipboard(JSON.stringify(data, null, 2));
+          copyTextToClipboard(JSON.stringify(data, null, 2));
           // Check for failures after loading
           if (failedObservationIds.length > 0) {
             toast.warning(

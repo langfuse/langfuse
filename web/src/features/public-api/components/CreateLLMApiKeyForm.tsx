@@ -5,6 +5,7 @@ import {
   type BedrockApiKey,
   type BedrockAccessKeys,
   type BedrockConfig,
+  type OpenAIConfig,
   type VertexAIConfig,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
@@ -106,6 +107,7 @@ const createFormSchema = (params: {
       authMethod: BedrockAuthMethodSchema,
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
+      openAIUseResponsesApi: z.boolean(),
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -325,6 +327,11 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
                 ? ((existingKey.config as VertexAIConfig).location ?? "")
                 : "",
+            openAIUseResponsesApi:
+              existingKey.adapter === LLMAdapter.OpenAI &&
+              existingKey.config != null
+                ? Boolean((existingKey.config as OpenAIConfig).useResponsesApi)
+                : false,
             awsRegion:
               existingKey.adapter === LLMAdapter.Bedrock && existingKey.config
                 ? ((existingKey.config as BedrockConfig).region ?? "")
@@ -346,6 +353,7 @@ export function CreateLLMApiKeyForm({
             customModels: [],
             extraHeaders: [],
             vertexAILocation: "global",
+            openAIUseResponsesApi: false,
             awsRegion: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
@@ -525,7 +533,7 @@ export function CreateLLMApiKeyForm({
     }
 
     let secretKey = values.secretKey;
-    let config: BedrockConfig | VertexAIConfig | undefined;
+    let config: BedrockConfig | OpenAIConfig | VertexAIConfig | undefined;
 
     if (currentAdapter === LLMAdapter.Bedrock) {
       const shouldPreserveExistingBedrockCredentials =
@@ -573,14 +581,18 @@ export function CreateLLMApiKeyForm({
       // In create mode, secretKey is already set from values.secretKey
 
       // Build config with location only (projectId removed for security - ADC auto-detects)
-      config = {};
+      const vertexAIConfig: VertexAIConfig = {};
       if (values.vertexAILocation?.trim()) {
-        config.location = values.vertexAILocation.trim();
+        vertexAIConfig.location = values.vertexAILocation.trim();
       }
       // If config is empty, set to undefined
-      if (Object.keys(config).length === 0) {
-        config = undefined;
-      }
+      config =
+        Object.keys(vertexAIConfig).length > 0 ? vertexAIConfig : undefined;
+    } else if (currentAdapter === LLMAdapter.OpenAI) {
+      config =
+        values.openAIUseResponsesApi || mode === "update"
+          ? { useResponsesApi: values.openAIUseResponsesApi }
+          : undefined;
     }
 
     const extraHeaders =
@@ -1219,6 +1231,36 @@ export function CreateLLMApiKeyForm({
                       <FormControl>
                         <Input {...field} placeholder="global" />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
+
+              {/* OpenAI Responses API */}
+              {currentAdapter === LLMAdapter.OpenAI && (
+                <FormField
+                  control={form.control}
+                  name="openAIUseResponsesApi"
+                  render={({ field }) => (
+                    <FormItem>
+                      <span className="row flex">
+                        <span className="flex-1">
+                          <FormLabel>Use Responses API</FormLabel>
+                          <FormDescription>
+                            Route OpenAI requests through the Responses API
+                            instead of Chat Completions.
+                          </FormDescription>
+                        </span>
+
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </span>
+
                       <FormMessage />
                     </FormItem>
                   )}

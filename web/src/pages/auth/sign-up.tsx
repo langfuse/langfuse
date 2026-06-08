@@ -162,7 +162,7 @@ function StandardSignupFlow({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        void signIn(providerId);
+        signIn(providerId);
         return; // stop further execution – page redirect expected
       }
 
@@ -231,7 +231,7 @@ function StandardSignupFlow({
               ? form.handleSubmit(onSubmit)
               : (e) => {
                   e.preventDefault();
-                  void handleContinue();
+                  handleContinue();
                 }
           }
         >
