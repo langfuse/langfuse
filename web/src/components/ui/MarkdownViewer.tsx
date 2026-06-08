@@ -459,7 +459,7 @@ export function MarkdownView({
   });
 
   const handleOnCopy = () => {
-    void copyTextToClipboard(markdownContent);
+    copyTextToClipboard(markdownContent);
   };
 
   const handleOnValueChange = () => {

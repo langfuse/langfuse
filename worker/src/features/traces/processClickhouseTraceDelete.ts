@@ -8,7 +8,7 @@ import {
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
   traceException,
 } from "@langfuse/shared/src/server";
-import { env } from "../../env";
+import { env, v4WritesToEventsTable } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { chunk } from "lodash";
 
@@ -139,7 +139,7 @@ export const processClickhouseTraceDelete = async (
       deleteTraces(projectId, traceIds),
       deleteObservationsByTraceIds(projectId, traceIds),
       deleteScoresByTraceIds(projectId, traceIds),
-      env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+      v4WritesToEventsTable(env)
         ? deleteEventsByTraceIds(projectId, traceIds)
         : Promise.resolve(),
     ]);

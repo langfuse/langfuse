@@ -42,6 +42,9 @@ const EnvSchema = z.object({
   REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
   REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK: z
+    .enum(["true", "false"])
+    .default("false"),
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
@@ -81,6 +84,7 @@ const EnvSchema = z.object({
   CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
   CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
+  CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
@@ -260,6 +264,14 @@ const EnvSchema = z.object({
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+
+  // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
+  // public API routes that rely on the legacy traces/observations tables.
+  // The worker owns the writes; the web only needs to know whether legacy
+  // tables are still being populated to decide whether to serve reads.
+  LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+    .enum(["legacy", "dual", "events_only"])
+    .default("legacy"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z

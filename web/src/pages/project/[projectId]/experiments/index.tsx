@@ -51,13 +51,13 @@ export default function Experiments() {
     setExperimentsBetaEnabled(checked);
 
     if (!checked) {
-      void router.push(`/project/${projectId}/datasets`);
+      router.push(`/project/${projectId}/datasets`);
     }
   };
 
   useEffect(() => {
     if (!canAccessExperiments && projectId) {
-      void router.replace(`/project/${projectId}/datasets`);
+      router.replace(`/project/${projectId}/datasets`);
     }
   }, [canAccessExperiments, projectId, router]);
 

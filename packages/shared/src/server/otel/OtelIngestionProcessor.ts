@@ -1287,6 +1287,15 @@ export class OtelIngestionProcessor {
       return value.stringValue;
     }
     if (value.doubleValue !== undefined) {
+      // OTLP/JSON encodes regular doubles as JSON numbers, but the special
+      // values "NaN", "Infinity" and "-Infinity" are encoded as strings.
+      // Coerce numeric strings; keep non-finite values as their string form so
+      // we never emit NaN/Infinity into metadata (which is not valid JSON and
+      // fails ingestion validation).
+      if (typeof value.doubleValue === "string") {
+        const parsed = Number(value.doubleValue);
+        return Number.isFinite(parsed) ? parsed : value.doubleValue;
+      }
       return value.doubleValue;
     }
     if (value.boolValue !== undefined) {
@@ -1297,23 +1306,50 @@ export class OtelIngestionProcessor {
         this.convertValueToPlainJavascript(v),
       );
     }
-    if (value.intValue && value.intValue.high === 0) {
-      return value.intValue.low;
-    }
-    if (value.intValue && typeof value.intValue === "number") {
-      return value.intValue;
-    }
-    if (
-      value.intValue &&
-      value.intValue.high === -1 &&
-      value.intValue.low === -1
-    ) {
-      return -1;
-    }
-    if (value.intValue && value.intValue.high !== 0) {
-      return value.intValue.high * Math.pow(2, 32) + value.intValue.low;
+    if (value.intValue !== undefined) {
+      const parsedInt = this.convertOtelIntValue(value.intValue);
+      if (parsedInt !== undefined) {
+        return parsedInt;
+      }
     }
     return JSON.stringify(value);
+  }
+
+  /**
+   * Converts an OTLP int64 attribute value into a plain number.
+   *
+   * The same logical value reaches us in different shapes depending on the
+   * transport:
+   *  - protobuf (`application/x-protobuf`) is decoded into a Long-like object
+   *    `{ low, high, unsigned }`.
+   *  - OTLP/JSON (`application/json`) encodes int64 fields as decimal strings
+   *    (e.g. `"7"`) per the spec, since JSON numbers cannot safely represent
+   *    the full int64 range.
+   *  - some encoders send a plain JavaScript number.
+   *
+   * Returns `undefined` for values we cannot parse so the caller can fall back
+   * to a safe representation instead of emitting `NaN`.
+   */
+  private convertOtelIntValue(intValue: any): number | undefined {
+    if (typeof intValue === "number") {
+      return intValue;
+    }
+    if (typeof intValue === "string") {
+      const parsed = Number(intValue);
+      return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    if (intValue && typeof intValue === "object") {
+      if (intValue.high === 0) {
+        return intValue.low;
+      }
+      if (intValue.high === -1 && intValue.low === -1) {
+        return -1;
+      }
+      if (typeof intValue.high === "number") {
+        return intValue.high * Math.pow(2, 32) + intValue.low;
+      }
+    }
+    return undefined;
   }
 
   private convertKeyPathToNestedObject(

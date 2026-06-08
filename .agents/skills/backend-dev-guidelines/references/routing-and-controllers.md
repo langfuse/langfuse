@@ -7,6 +7,7 @@ Complete guide to routing and separation of concerns in Langfuse's Next.js + tRP
 - [Architecture Overview](#architecture-overview)
 - [tRPC Routers](#trpc-routers)
 - [Public REST API Routes](#public-rest-api-routes)
+- [Fern API Definitions](#fern-api-definitions)
 - [Service Layer](#service-layer)
 - [Repository Layer](#repository-layer)
 - [Separation of Concerns](#separation-of-concerns)
@@ -48,6 +49,7 @@ Langfuse uses a **layered architecture** with clear separation of concerns:
 ### Key Principles
 
 **Entry Points (Routes/Procedures):**
+
 - ✅ Define routing and procedure signatures
 - ✅ Handle authentication/authorization (via middleware)
 - ✅ Validate input (Zod schemas)
@@ -55,12 +57,14 @@ Langfuse uses a **layered architecture** with clear separation of concerns:
 - ✅ Return responses
 
 **Entry Points should NEVER:**
+
 - ❌ Contain business logic
 - ❌ Access database directly
 - ❌ Perform complex data transformations
 - ❌ Make direct repository calls (use services)
 
 **Services:**
+
 - ✅ Contain business logic
 - ✅ Orchestrate multiple operations
 - ✅ Call repositories or Prisma/ClickHouse
@@ -68,6 +72,7 @@ Langfuse uses a **layered architecture** with clear separation of concerns:
 - ❌ Should NOT know about HTTP, tRPC, or request/response objects
 
 **Repositories:**
+
 - ✅ Complex database queries
 - ✅ Data transformation (DB → domain models)
 - ✅ ClickHouse query builders
@@ -88,7 +93,10 @@ tRPC routers define type-safe procedures for the internal UI. Each router groups
 
 ```typescript
 import { z } from "zod/v4";
-import { createTRPCRouter, protectedProjectProcedure } from "@/src/server/api/trpc";
+import {
+  createTRPCRouter,
+  protectedProjectProcedure,
+} from "@/src/server/api/trpc";
 import { paginationZod, singleFilter, orderBy } from "@langfuse/shared";
 import {
   getScoresUiTable,
@@ -187,6 +195,7 @@ export const scoresRouter = createTRPCRouter({
 ```
 
 **Key Points:**
+
 - Use appropriate procedure type (`protectedProjectProcedure`, `authenticatedProcedure`, etc.)
 - Define input schema with Zod (`.input()`)
 - Use `.query()` for reads, `.mutation()` for writes
@@ -255,6 +264,7 @@ web/src/pages/api/public/
 ```
 
 **Dynamic routes:**
+
 - `[param].ts` → Single dynamic segment (e.g., `/api/public/scores/[scoreId].ts`)
 - `[...param].ts` → Catch-all route (e.g., `/api/public/[...path].ts`)
 
@@ -345,11 +355,38 @@ export default withMiddlewares({
 ```
 
 **Key Points:**
+
 - Use `withMiddlewares` for all public API routes (provides CORS, error handling, OpenTelemetry)
 - Use `createAuthedProjectAPIRoute` for authenticated endpoints (handles auth, rate limiting, validation)
 - Define separate handlers for each HTTP method
 - Input/output validated with Zod schemas
 - Delegate to services for business logic
+
+### Fern API Definitions
+
+When modifying public API types in `web/src/features/public-api/types/`, update
+the matching Fern API definitions in `fern/apis/server/definition/`.
+
+**Zod to Fern Type Mapping:**
+
+| Zod Type       | Fern Type               | Example                                                   |
+| -------------- | ----------------------- | --------------------------------------------------------- |
+| `.nullish()`   | `optional<nullable<T>>` | `z.string().nullish()` -> `optional<nullable<string>>`    |
+| `.nullable()`  | `nullable<T>`           | `z.string().nullable()` -> `nullable<string>`             |
+| `.optional()`  | `optional<T>`           | `z.string().optional()` -> `optional<string>`             |
+| Always present | `T`                     | `z.string()` -> `string`                                  |
+
+Add a source comment at the top of each Fern type that references the
+TypeScript source:
+
+```yaml
+# Source: web/src/features/public-api/types/traces.ts - APITrace
+Trace:
+  properties:
+    id: string
+    name:
+      type: nullable<string>
+```
 
 ### Simple Public Routes
 
@@ -433,6 +470,7 @@ export class ScoresApiService {
 ```
 
 **Key Points:**
+
 - Services contain business logic, not routing logic
 - Services should NOT import tRPC or Next.js types
 - Services can call repositories, Prisma, ClickHouse directly
@@ -442,6 +480,7 @@ export class ScoresApiService {
 ### Where to Put Services
 
 **Feature-specific services:**
+
 ```
 web/src/features/
 ├── datasets/
@@ -456,6 +495,7 @@ web/src/features/
 ```
 
 **Shared services:**
+
 ```
 packages/shared/src/server/services/
 ├── SlackService.ts
@@ -497,7 +537,7 @@ import { convertClickhouseToDomain } from "./traces_converters";
  */
 export const getTracesByIds = async (
   projectId: string,
-  traceIds: string[]
+  traceIds: string[],
 ): Promise<TraceRecordReadType[]> => {
   const rows = await queryClickhouse<TraceRecordReadType>({
     query: `
@@ -519,7 +559,7 @@ export const getTracesByIds = async (
  * Upsert trace to ClickHouse
  */
 export const upsertTrace = async (
-  trace: TraceRecordInsertType
+  trace: TraceRecordInsertType,
 ): Promise<void> => {
   await upsertClickhouse({
     table: "traces",
@@ -536,6 +576,7 @@ export const upsertTrace = async (
 ```
 
 **Key Points:**
+
 - Use `queryClickhouse` for SELECT queries
 - Use `upsertClickhouse` for INSERT/UPDATE
 - Use `commandClickhouse` for DDL (ALTER TABLE, etc.)
@@ -546,12 +587,14 @@ export const upsertTrace = async (
 ### When to Use Repositories
 
 ✅ **Use repositories for:**
+
 - Complex ClickHouse queries with CTEs, joins, aggregations
 - Queries used in multiple places (DRY principle)
 - Data transformation from DB types to domain models
 - Streaming large result sets
 
 ❌ **Use direct Prisma/ClickHouse for:**
+
 - Simple CRUD operations
 - One-off queries
 - Prototyping (can refactor to repository later)
@@ -645,9 +688,7 @@ export async function createScoreWithValidation({
 
 ```typescript
 // packages/shared/src/server/repositories/scores.ts
-export const upsertScore = async (
-  score: ScoreInsertType
-): Promise<void> => {
+export const upsertScore = async (score: ScoreInsertType): Promise<void> => {
   // ✅ Pure data access - no business logic
   await upsertClickhouse({
     table: "scores",
@@ -719,6 +760,7 @@ export const scoresRouter = createTRPCRouter({
 ```
 
 **Why it's bad:**
+
 - Business logic tied to tRPC (can't reuse in public API)
 - Hard to test (need to mock tRPC context)
 - No separation of concerns
@@ -817,9 +859,7 @@ export const upsertScore = async (
 
 ```typescript
 // ✅ GOOD: Pure data access, no business logic
-export const upsertScore = async (
-  score: ScoreInsertType
-): Promise<void> => {
+export const upsertScore = async (score: ScoreInsertType): Promise<void> => {
   await upsertClickhouse({
     table: "scores",
     records: [score],
@@ -838,7 +878,7 @@ export const upsertScore = async (
 
 **Related Files:**
 
-- [../AGENTS.md](../AGENTS.md) - Main backend development guidelines
+- [../SKILL.md](../SKILL.md) - Main backend development guidelines
 - [architecture-overview.md](architecture-overview.md) - System architecture
 - [middleware-guide.md](middleware-guide.md) - Middleware patterns
 - [database-patterns.md](database-patterns.md) - Database access patterns

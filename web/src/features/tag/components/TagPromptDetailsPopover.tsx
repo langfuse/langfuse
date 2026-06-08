@@ -66,14 +66,14 @@ export function TagPromptDetailsPopover({
     },
     onSettled: () => {
       setIsLoading(false);
-      void utils.prompts.all.invalidate();
-      void utils.prompts.allVersions.invalidate();
-      void utils.prompts.filterOptions.invalidate();
+      utils.prompts.all.invalidate();
+      utils.prompts.allVersions.invalidate();
+      utils.prompts.filterOptions.invalidate();
     },
   });
 
   function mutateTags(newTags: string[]) {
-    void mutTags.mutateAsync({
+    mutTags.mutateAsync({
       projectId,
       name: promptName,
       tags: newTags,

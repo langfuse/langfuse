@@ -59,6 +59,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 9. `rules/schema-partition-lifecycle.md` - Partitioning purpose
 
 **Check for:**
+
 - [ ] PRIMARY KEY / ORDER BY column order (low-to-high cardinality)
 - [ ] Data types match actual data ranges
 - [ ] LowCardinality applied to appropriate string columns
@@ -77,6 +78,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 5. `rules/schema-pk-filter-on-orderby.md` - Filter alignment with ORDER BY
 
 **Check for:**
+
 - [ ] Filters use ORDER BY prefix columns
 - [ ] JOINs filter tables before joining (not after)
 - [ ] Correct JOIN algorithm for table sizes
@@ -93,6 +95,7 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
 5. `rules/insert-optimize-avoid-final.md` - OPTIMIZE TABLE risks
 
 **Check for:**
+
 - [ ] Batch size 10K-100K rows per INSERT
 - [ ] No ALTER TABLE UPDATE for frequent changes
 - [ ] ReplacingMergeTree or CollapsingMergeTree for update patterns
@@ -129,19 +132,19 @@ Structure your response as follows:
 
 ## Rule Categories by Priority
 
-| Priority | Category | Impact | Prefix | Rule Count |
-|----------|----------|--------|--------|------------|
-| 1 | Primary Key Selection | CRITICAL | `schema-pk-` | 4 |
-| 2 | Data Type Selection | CRITICAL | `schema-types-` | 5 |
-| 3 | JOIN Optimization | CRITICAL | `query-join-` | 5 |
-| 4 | Insert Batching | CRITICAL | `insert-batch-` | 1 |
-| 5 | Mutation Avoidance | CRITICAL | `insert-mutation-` | 2 |
-| 6 | Partitioning Strategy | HIGH | `schema-partition-` | 4 |
-| 7 | Skipping Indices | HIGH | `query-index-` | 1 |
-| 8 | Materialized Views | HIGH | `query-mv-` | 2 |
-| 9 | Async Inserts | HIGH | `insert-async-` | 2 |
-| 10 | OPTIMIZE Avoidance | HIGH | `insert-optimize-` | 1 |
-| 11 | JSON Usage | MEDIUM | `schema-json-` | 1 |
+| Priority | Category              | Impact   | Prefix              | Rule Count |
+| -------- | --------------------- | -------- | ------------------- | ---------- |
+| 1        | Primary Key Selection | CRITICAL | `schema-pk-`        | 4          |
+| 2        | Data Type Selection   | CRITICAL | `schema-types-`     | 5          |
+| 3        | JOIN Optimization     | CRITICAL | `query-join-`       | 5          |
+| 4        | Insert Batching       | CRITICAL | `insert-batch-`     | 1          |
+| 5        | Mutation Avoidance    | CRITICAL | `insert-mutation-`  | 2          |
+| 6        | Partitioning Strategy | HIGH     | `schema-partition-` | 4          |
+| 7        | Skipping Indices      | HIGH     | `query-index-`      | 1          |
+| 8        | Materialized Views    | HIGH     | `query-mv-`         | 2          |
+| 9        | Async Inserts         | HIGH     | `insert-async-`     | 2          |
+| 10       | OPTIMIZE Avoidance    | HIGH     | `insert-optimize-`  | 1          |
+| 11       | JSON Usage            | MEDIUM   | `schema-json-`      | 1          |
 
 ---
 
@@ -236,11 +239,3 @@ Each rule file in `rules/` contains:
 - **Incorrect example**: Anti-pattern with explanation
 - **Correct example**: Best practice with explanation
 - **Additional context**: Trade-offs, when to apply, references
-
----
-
-## Compatibility Entrypoint
-
-`AGENTS.md` is a short compatibility index for agents that open that file
-directly. The authoritative workflow lives in this `SKILL.md`, and detailed rule
-bodies live in `rules/`.

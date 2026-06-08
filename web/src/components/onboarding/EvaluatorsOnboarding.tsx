@@ -5,13 +5,18 @@ import {
 } from "@/src/components/ui/splash-screen";
 import { Bot, Gauge, Zap, BarChart4, Code2 } from "lucide-react";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 
 interface EvaluatorsOnboardingProps {
   projectId: string;
 }
 
 export function EvaluatorsOnboarding({ projectId }: EvaluatorsOnboardingProps) {
-  const { enabled } = useIsCodeEvalEnabled();
+  const { enabled, supportedSourceCodeLanguages } = useIsCodeEvalEnabled();
+  const codeEvaluatorLanguageDescription =
+    supportedSourceCodeLanguages.includes(EvalTemplateSourceCodeLanguage.PYTHON)
+      ? "TypeScript or Python"
+      : "TypeScript";
 
   const llmAsJudgeValuePropositions: ValueProposition[] = [
     {
@@ -50,8 +55,7 @@ export function EvaluatorsOnboarding({ projectId }: EvaluatorsOnboardingProps) {
       },
       {
         title: "Code evaluators",
-        description:
-          "Write TypeScript or Python logic for deterministic, custom scoring.",
+        description: `Write ${codeEvaluatorLanguageDescription} logic for deterministic, custom scoring.`,
         icon: <Code2 className="h-4 w-4" />,
       },
     ];

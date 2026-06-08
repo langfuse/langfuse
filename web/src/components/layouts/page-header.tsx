@@ -132,16 +132,6 @@ const PageHeader = ({
                               data-testid="page-header-title"
                             >
                               {title}
-                              {help && (
-                                <span className="whitespace-nowrap">
-                                  &nbsp;
-                                  <DocPopup
-                                    description={help.description}
-                                    href={help.href}
-                                    className={help.className}
-                                  />
-                                </span>
-                              )}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent side="bottom" className="max-w-xs">
@@ -156,16 +146,16 @@ const PageHeader = ({
                         data-testid="page-header-title"
                       >
                         {title}
-                        {help && (
-                          <span className="whitespace-nowrap">
-                            &nbsp;
-                            <DocPopup
-                              description={help.description}
-                              href={help.href}
-                              className={help.className}
-                            />
-                          </span>
-                        )}
+                      </span>
+                    )}
+                    {help && (
+                      <span className="whitespace-nowrap">
+                        &nbsp;
+                        <DocPopup
+                          description={help.description}
+                          href={help.href}
+                          className={help.className}
+                        />
                       </span>
                     )}
                   </h2>

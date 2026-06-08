@@ -2,10 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "noUpdateNotifier": true,
   "globalDependencies": [".env"],
-  "globalEnv": [
-    "NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF",
-    "NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED"
-  ],
+  "globalEnv": ["NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF"],
   "envMode": "loose",
   "tasks": {
     "build": {
@@ -72,7 +69,7 @@
       "outputLogs": "errors-only"
     },
     "lint": {
-      "dependsOn": ["@repo/eslint-plugin#build"],
+      "dependsOn": ["@repo/eslint-plugin#build", "^build"],
       "cache": true,
       "outputLogs": "errors-only",
       "outputs": []

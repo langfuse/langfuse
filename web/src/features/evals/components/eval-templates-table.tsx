@@ -29,7 +29,10 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type RouterInput } from "@/src/utils/types";
-import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
+import {
+  type TemplateValidationInput,
+  useSingleTemplateValidation,
+} from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -58,11 +61,7 @@ export type EvalsTemplateRow = {
   id?: string;
   usageCount?: number;
   actions?: string;
-  provider?: string;
-  model?: string;
-  type?: EvalTemplateType;
-  sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"];
-};
+} & TemplateValidationInput;
 
 const getMaintainerLabel = (maintainer: string) =>
   maintainer.replace(/ maintained$/, "");
@@ -119,7 +118,9 @@ export default function EvalsTemplateTable({
   projectId: string;
 }) {
   const router = useRouter();
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled, supportedSourceCodeLanguages } =
+    codeEvalCapabilities;
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -194,7 +195,7 @@ export default function EvalsTemplateTable({
 
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
     onSuccess: () => {
-      void utils.evals.templateNames.invalidate();
+      utils.evals.templateNames.invalidate();
       setCloneTemplateId(null);
       setPendingCloneSubmission(null);
       setShowReferenceUpdateDialog(false);
@@ -216,13 +217,21 @@ export default function EvalsTemplateTable({
         "eval-templates",
         templateList
           .filter((template) =>
-            shouldShowEvalTemplate(template, isCodeEvalEnabled),
+            shouldShowEvalTemplate(template, {
+              enabled: isCodeEvalEnabled,
+              supportedSourceCodeLanguages,
+            }),
           )
           .map((template) => ({ id: template.latestId })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templates.isSuccess, templates.data, isCodeEvalEnabled]);
+  }, [
+    templates.isSuccess,
+    templates.data,
+    isCodeEvalEnabled,
+    supportedSourceCodeLanguages,
+    setDetailPageList,
+  ]);
 
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
@@ -318,11 +327,8 @@ export default function EvalsTemplateTable({
       size: 100,
       cell: ({ row }) => {
         const id = row.original.id;
-        const provider = row.original.provider ?? null;
-        const model = row.original.model ?? null;
-        const type = row.original.type;
-        const isInvalid = isTemplateInvalid({ provider, model, type });
-        const isCodeTemplate = type === EvalTemplateType.CODE;
+        const isInvalid = isTemplateInvalid(row.original);
+        const isCodeTemplate = row.original.type === EvalTemplateType.CODE;
         const isUserMaintained = row.original.maintainer.includes("User");
 
         return (
@@ -343,7 +349,7 @@ export default function EvalsTemplateTable({
               onClick={(e) => {
                 e.stopPropagation();
                 if (id) {
-                  void router.push(
+                  router.push(
                     `/project/${projectId}/evals/new?evaluator=${id}`,
                   );
                 }
@@ -427,8 +433,8 @@ export default function EvalsTemplateTable({
       latestVersion: template.version,
       id: template.latestId,
       usageCount: template.usageCount,
-      provider: template.provider,
-      model: template.model,
+      provider: template.provider ?? null,
+      model: template.model ?? null,
       type: template.type,
       sourceCodeLanguage: template.sourceCodeLanguage,
     };
@@ -471,7 +477,10 @@ export default function EvalsTemplateTable({
                       isError: false,
                       data: safeExtract(templates.data, "templates", [])
                         .filter((template) =>
-                          shouldShowEvalTemplate(template, isCodeEvalEnabled),
+                          shouldShowEvalTemplate(
+                            template,
+                            codeEvalCapabilities,
+                          ),
                         )
                         .map((t) => convertToTableRow(t)),
                     }
@@ -515,7 +524,7 @@ export default function EvalsTemplateTable({
             existingEvalTemplate={template.data ?? undefined}
             onFormSuccess={() => {
               setEditTemplateId(null);
-              void utils.evals.templateNames.invalidate();
+              utils.evals.templateNames.invalidate();
               showSuccessToast({
                 title: "Evaluator updated successfully",
                 description: "You can now use this evaluator.",
@@ -586,7 +595,7 @@ export default function EvalsTemplateTable({
             onFormSuccess={() => {
               setCloneTemplateId(null);
               setPendingCloneSubmission(null);
-              void utils.evals.templateNames.invalidate();
+              utils.evals.templateNames.invalidate();
               showSuccessToast({
                 title: "Evaluator cloned successfully",
                 description:
