@@ -191,6 +191,16 @@ export function SupportFormSection({
   const createSupportThread = api.supportRouter.createSupportThread.useMutation(
     {
       onSuccess: (data) => {
+        // Pylon is the only destination, so a failed issue means no ticket
+        // exists anywhere. Keep the form state (message, topic, severity,
+        // attachments) intact so the user can retry instead of wiping it.
+        if (data.pylonIssueFailed) {
+          showErrorToast(
+            "Support request was not sent",
+            "Please contact support@langfuse.com",
+          );
+          return;
+        }
         form.reset({
           messageType: "Question",
           severity: "Question or feature request",
@@ -199,14 +209,7 @@ export function SupportFormSection({
         });
         setWarnedShortOnce(false);
         setFiles(undefined);
-        if (data.pylonIssueFailed) {
-          showErrorToast(
-            "Support request was not sent",
-            "Please contact support@langfuse.com",
-          );
-        } else {
-          onSuccess();
-        }
+        onSuccess();
       },
       onSettled: () => setIsSubmittingLocal(false),
     },
