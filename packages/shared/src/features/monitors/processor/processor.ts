@@ -8,6 +8,7 @@ import {
   instrumentAsync,
   instrumentSync,
 } from "../../../server/instrumentation";
+import { logger } from "../../../server/logger";
 import {
   getTriggerConfigurations as defaultGetTriggerConfigurations,
   type TriggerDomainWithActions,
@@ -152,7 +153,16 @@ export class MonitorProcessor {
         metricMap[key] = parseNumericValue(row[key]);
       }
       metricMap["count_count"] = parseNumericValue(row["count_count"]);
-    } catch {
+    } catch (error) {
+      logger.error(
+        "queryMetrics failed; flipping affected monitors to ERROR_BAD_QUERY",
+        {
+          projectId: event.projectId,
+          schedulerBatchId: event.schedulerBatchId.toString(),
+          monitorIds: event.monitors.map((m) => m.monitorId),
+          error,
+        },
+      );
       for (const metric of validation.accepted) {
         metricMap[metricKey(metric)] = ErrorBadQuery;
       }

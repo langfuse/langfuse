@@ -1,7 +1,7 @@
 import { v4 } from "uuid";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createOrgProjectAndApiKey, logger } from "@langfuse/shared/src/server";
 import { InvalidRequestError } from "@langfuse/shared";
 import {
   MonitorProcessor,
@@ -1570,5 +1570,56 @@ describe("MonitorProcessor.process count metric", () => {
         (m) => m.measure === "count" && m.aggregation === "count",
       ),
     ).toHaveLength(1);
+  });
+});
+
+describe("MonitorProcessor.process executeQuery failure logging", () => {
+  let projectId: string;
+
+  beforeAll(async () => {
+    const org = await createOrgProjectAndApiKey();
+    projectId = org.projectId;
+  });
+
+  afterEach(async () => {
+    await prisma.monitor.deleteMany({ where: { projectId } });
+  });
+
+  it("logs the batch context when executeQuery rejects", async () => {
+    const errSpy = vi.spyOn(logger, "error").mockImplementation(() => logger);
+    try {
+      await seedMonitor(projectId, {
+        id: monitorAId,
+        severity: "UNKNOWN",
+        lastPublishedAt: runAt,
+      });
+
+      const publish = vi.fn<MonitorPublisher>(async () => {});
+      const executeQuery: QueryExecutor = async () => {
+        throw new Error("CH timeout");
+      };
+      const getTriggers: GetTriggerConfigurations = async () =>
+        [] as unknown as Awaited<ReturnType<GetTriggerConfigurations>>;
+
+      const processor = new MonitorProcessor(
+        prisma,
+        publish,
+        executeQuery,
+        getTriggers,
+      );
+
+      await processor.process(
+        makeEvent(projectId, [monitorAId]),
+        justAfterRunAt,
+      );
+
+      expect(errSpy).toHaveBeenCalled();
+      const meta = errSpy.mock.calls[0][1] as Record<string, unknown>;
+      expect(meta.projectId).toBe(projectId);
+      expect(meta.monitorIds).toEqual([monitorAId]);
+      expect(typeof meta.schedulerBatchId).toBe("string");
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 });
