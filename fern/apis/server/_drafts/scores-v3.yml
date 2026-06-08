@@ -127,7 +127,7 @@ types:
         docs: The dataset run ID (experiment ID).
 
   ScoreSubjectV3:
-    docs: Returned when fields includes "subject".
+    docs: A reference to the entity this score is attached to. Discriminated by "kind" — one of trace, observation, session, or experiment.
     discriminant: kind
     union:
       trace:
@@ -157,22 +157,22 @@ types:
       updatedAt: datetime
       comment:
         type: optional<nullable<string>>
-        docs: Optional comment attached to the score.
+        docs: Optional comment attached to the score. Present when "details" is included in the fields parameter.
       configId:
         type: optional<nullable<string>>
-        docs: The score config ID, if this score was created from a config.
+        docs: The score config ID, if this score was created from a config. Present when "details" is included in the fields parameter.
       metadata:
         type: optional<map<string, unknown>>
-        docs: Arbitrary metadata attached to the score.
+        docs: Arbitrary metadata attached to the score. Present when "details" is included in the fields parameter.
       authorUserId:
         type: optional<nullable<string>>
-        docs: The user who created this score, if available.
+        docs: The user who created this score, if available. Present when "annotation" is included in the fields parameter.
       queueId:
         type: optional<nullable<string>>
-        docs: The annotation queue this score belongs to, if any.
+        docs: The annotation queue this score belongs to, if any. Present when "annotation" is included in the fields parameter.
       subject:
         type: optional<ScoreSubjectV3>
-        docs: Present when "subject" is included in the fields parameter.
+        docs: The entity this score is attached to (trace, observation, session, or experiment). Present when "subject" is included in the fields parameter.
 
   NumericScoreV3:
     extends: BaseScoreV3
