@@ -25,7 +25,7 @@ const LOAD_MORE_CONVERSATIONS_VALUE = "__load_more__";
 export type InAppAgentDrawerMessage = {
   id: string;
   role: InAppAgentMessageRole;
-  content: InAppAgentMessageContent[];
+  content: InAppAgentMessageContent;
 };
 
 export type InAppAgentDrawerConversation = {
@@ -215,26 +215,26 @@ export function InAppAgentDrawer(props: InAppAgentDrawerProps) {
               </div>
             ) : null}
 
-            <ol className="flex w-full flex-col gap-4">
-              {messages.map((message) => (
-                <li
-                  key={message.id}
-                  className={cn(
-                    "w-fit max-w-[92%]",
-                    message.role === "user" && "ml-auto",
-                  )}
-                >
-                  <div className="flex w-full">
-                    {message.content.map((content, index) => (
-                      <InAppAgentMessage
-                        key={`${message.id}-${index}`}
-                        role={message.role}
-                        content={content}
-                      />
-                    ))}
-                  </div>
-                </li>
-              ))}
+            <ol className="flex w-full flex-col gap-3">
+              {messages.map((message) => {
+                const hasToolContent = message.content.type === "toolGroup";
+
+                return (
+                  <li
+                    key={message.id}
+                    className={cn(
+                      "max-w-[92%]",
+                      hasToolContent ? "w-full" : "w-fit",
+                      message.role === "user" && "ml-auto",
+                    )}
+                  >
+                    <InAppAgentMessage
+                      role={message.role}
+                      content={message.content}
+                    />
+                  </li>
+                );
+              })}
             </ol>
 
             {error ? (
