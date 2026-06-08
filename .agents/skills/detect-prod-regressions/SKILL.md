@@ -7,18 +7,16 @@ description: |
   prod-eu, prod-hipaa, and prod-jp. Use when asked to sweep production for new
   bugs, catch regressions early, catch low-occurrence coding bugs or edge
   cases, find slow degradation that may not alert, compare recent changes to
-  Datadog measurements, or hand measured production evidence to the
-  linear-bug-triage skill for Linear action.
+  Datadog measurements, or compile source-linked production findings for human
+  review.
 ---
 
 # Detect Prod Regressions
 
-Run this skill as an evidence-first production sweep. The deliverable is a set
-of measured candidate bugs handed to
-[`linear-bug-triage`](../linear-bug-triage/SKILL.md) for Linear action, plus a
-short summary of what was checked. Always produce a markdown findings table in
-the chat response, even when the table is empty or all candidates end in
-`none`.
+Run this skill as an evidence-first production sweep. The deliverable is a
+source-linked findings table plus a short summary of what was checked. Always
+produce a markdown findings table in the chat response, even when the table is
+empty or all candidates end in `none`.
 
 ## Required Scope
 
@@ -132,8 +130,8 @@ Use the user's stated window when provided. Otherwise:
 3. If release or deployment markers, service versions, git SHAs, or change
    timestamps are visible, compare post-change versus pre-change windows.
 
-Include the recent window and baseline window in each handoff to
-`linear-bug-triage`.
+Include the recent window and baseline window in the evidence artifact and final
+findings table.
 
 ## Datadog Sweep
 
@@ -253,8 +251,6 @@ For Linear:
   text search only as enrichment, not as the only source.
 - Mark each finding as `existing issue`, `existing follow-up`, `recently fixed`,
   `duplicate/no action`, or `new candidate`.
-- Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) for deduplication,
-  evidence comments, or issue creation only after the human approves writes.
 
 ## Compiled Findings List
 
@@ -275,25 +271,25 @@ Every finding must have a canonical link. Prefer links in this order:
 
 Do not leave findings orphaned. If a finding is real but not represented in
 Linear or incident.io, use the Datadog metric/alert link as the canonical link
-and set the proposed action to `none`, `monitor`, or `create Linear candidate`
-based on the evidence.
+and set the proposed action to `none`, `monitor`, or `needs owner review` based
+on the evidence.
 
 ## Findings Table
 
-Before any Linear handoff, render the measured candidates in a markdown table
-in the main response. This table is required output for every run so the human
-can quickly review what was checked.
+Render the measured candidates in a markdown table in the main response. This
+table is required output for every run so the human can quickly review what was
+checked.
 
 Use this structure unless the sweep needs one extra evidence column:
 
 | ID | Finding | Canonical Link | Link Type | Envs | Service / Resource | Recent Window | Baseline Window | Delta / Regression Summary | Key Datadog Evidence | incident.io / Linear Status | Proposed Action |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| F1 | Concise bug or regression label | Linear issue, incident/follow-up, or Datadog metric/alert link | `Linear`, `incident.io`, or `Datadog` | `prod-hipaa` | `web-iso` / `clickhouse - query` | Counts, rates, or latency for the recent window | Matching baseline measurement or `No measurements found` | One-line comparison grounded in the measurements | Logs / spans / trace / dashboard links | Existing incident/follow-up/issue or `none found` | `create new`, `comment existing`, `link to incident`, `monitor`, or `none` |
+| F1 | Concise bug or regression label | Linear issue, incident/follow-up, or Datadog metric/alert link | `Linear`, `incident.io`, or `Datadog` | `prod-hipaa` | `web-iso` / `clickhouse - query` | Counts, rates, or latency for the recent window | Matching baseline measurement or `No measurements found` | One-line comparison grounded in the measurements | Logs / spans / trace / dashboard links | Existing incident/follow-up/issue or `none found` | `monitor`, `needs owner review`, `link to existing issue`, `link to incident`, or `none` |
 
 Rules:
 
 - Include one row per issue-worthy candidate and one row for notable
-  non-actionable signals when they explain why no Linear action is proposed.
+  non-actionable signals when they explain why no follow-up is proposed.
 - Fill `Canonical Link` for every row. It must point to a Linear issue,
   incident.io incident/follow-up, or Datadog monitor/alert/metric graph.
 - Use exact absolute windows with timezone somewhere immediately above or below
@@ -306,26 +302,6 @@ Rules:
 - If no issue-worthy regressions are measured, still render the table with a
   single row whose proposed action is `none`.
 
-## Linear Handoff
-
-For every confirmed candidate bug that is not already sufficiently tracked, use
-[`linear-bug-triage`](../linear-bug-triage/SKILL.md) for Linear search and
-deduplication first. Create issues, add evidence comments, or change labels only
-after the human explicitly approves Linear writes. Treat that skill as the
-source of truth for Linear behavior.
-
-Hand off:
-
-- Recent window and baseline window.
-- Measured deltas or `No measurements found` for unavailable signals.
-- Affected environments, services, routes/resources, status codes, and top error
-  messages.
-- Datadog links for every query, trace, dashboard, metric graph, or flamegraph
-  used as evidence.
-- incident.io incidents, alerts, escalations, and follow-ups that are already
-  related or were checked and found unrelated.
-- Existing Linear issues checked, including duplicate or recently fixed tickets.
-
 ## Final Response
 
 Summarize:
@@ -336,8 +312,6 @@ Summarize:
 - The windows compared and all prod environments checked.
 - The incident.io and Linear records checked for each finding, including
   `none found` where applicable.
-- New Linear issues created, with links.
-- Existing Linear issues commented on, with links.
 - Candidate signals skipped with "No measurements found".
 - A compact "no new bugs found" statement when no issue-worthy regressions were
   measured.

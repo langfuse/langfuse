@@ -80,7 +80,8 @@ Use for:
 - finding quiet API or queue-consumer degradation that may not trigger alerts
 - running the phased flow: retrieve the full candidate data set, investigate
   each finding in depth, then cross-reference incident.io and Linear
-- handing measured regressions to `linear-bug-triage` for Linear issues or comments
+- compiling source-linked findings for human review after Datadog,
+  incident.io, and Linear enrichment
 
 Open: [detect-prod-regressions/SKILL.md](detect-prod-regressions/SKILL.md)
 
