@@ -374,20 +374,35 @@ const assertCodeEvalJobConfigCanRunForTRPC = async ({
     });
   } catch (error) {
     if (error instanceof CodeEvalJobConfigError) {
-      // An invalid target is a malformed request; every other preflight
-      // failure surfaces as a precondition the caller must resolve first.
-      throw new TRPCError({
-        code:
-          error.code === "invalid_target"
-            ? "BAD_REQUEST"
-            : "PRECONDITION_FAILED",
-        message: error.message,
-      });
+      throw toCodeEvalJobConfigTRPCError(error);
     }
 
     throw error;
   }
 };
+
+function toCodeEvalJobConfigTRPCError(error: CodeEvalJobConfigError) {
+  switch (error.code) {
+    case "invalid_target":
+    case "invalid_request":
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
+    case "resource_not_found":
+      return new TRPCError({
+        code: "NOT_FOUND",
+        message: error.message,
+      });
+    case "preflight_failed":
+      return new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: error.message,
+      });
+    default:
+      return assertUnreachable(error.code);
+  }
+}
 
 function toCodeEvalTRPCError(error: CodeEvalTestRunSetupError) {
   switch (error.code) {

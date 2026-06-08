@@ -176,6 +176,7 @@ describe("unstable public eval queries", () => {
       evaluator: {
         name: "Answer correctness",
         scope: "project",
+        type: "llm_as_judge",
       },
     });
     expect(mockEvalTemplateFindFirst).toHaveBeenCalledWith({
@@ -204,6 +205,7 @@ describe("unstable public eval queries", () => {
       evaluator: {
         name: "Answer correctness",
         scope: "managed",
+        type: "llm_as_judge",
       },
     });
 

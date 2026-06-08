@@ -610,6 +610,7 @@ describe("unstable public eval adapters", () => {
       projectId: null,
       name: "answer-correctness",
       version: 7,
+      type: EvalTemplateType.LLM_AS_JUDGE,
       prompt: "Judge {{input}} against {{output}}",
       partner: "ragas",
       provider: "openai",
@@ -617,6 +618,8 @@ describe("unstable public eval adapters", () => {
       modelParams: { temperature: 0 },
       vars: ["input", "output"],
       outputDefinition: numericOutputDefinition,
+      sourceCode: null,
+      sourceCodeLanguage: null,
       createdAt: new Date("2026-03-30T08:00:00.000Z"),
       updatedAt: new Date("2026-03-30T09:00:00.000Z"),
     };
@@ -690,6 +693,7 @@ describe("unstable public eval adapters", () => {
       projectId: "project_123",
       name: "answer-correctness",
       version: 1,
+      type: EvalTemplateType.LLM_AS_JUDGE,
       prompt: "Judge {{input}} against {{output}}",
       partner: null,
       provider: null,
@@ -700,6 +704,8 @@ describe("unstable public eval adapters", () => {
         reasoning: "Explain why the answer is correct or incorrect.",
         score: "Return a score between 0 and 1.",
       },
+      sourceCode: null,
+      sourceCodeLanguage: null,
       createdAt: new Date("2026-03-30T08:00:00.000Z"),
       updatedAt: new Date("2026-03-30T09:00:00.000Z"),
     };
@@ -708,14 +714,16 @@ describe("unstable public eval adapters", () => {
       toApiEvaluator({
         template,
         evaluationRuleCount: 0,
-      }).outputDefinition,
-    ).toEqual({
-      dataType: "NUMERIC",
-      reasoning: {
-        description: "Explain why the answer is correct or incorrect.",
-      },
-      score: {
-        description: "Return a score between 0 and 1.",
+      }),
+    ).toMatchObject({
+      outputDefinition: {
+        dataType: "NUMERIC",
+        reasoning: {
+          description: "Explain why the answer is correct or incorrect.",
+        },
+        score: {
+          description: "Return a score between 0 and 1.",
+        },
       },
     });
   });
@@ -746,8 +754,7 @@ describe("unstable public eval adapters", () => {
         id: "tmpl_exact",
         projectId: "project_123",
         name: "Answer correctness",
-        vars: ["input"],
-        prompt: "Judge {{input}}",
+        type: EvalTemplateType.LLM_AS_JUDGE,
       },
     };
 
