@@ -114,7 +114,7 @@ export function useStableVirtualRowMeasurement({
         scheduleHeightCommit(nodeRef.current.getBoundingClientRect().height);
       }
 
-      return cancelScheduledWork;
+      return;
     }
 
     if (isScrolling || !measurementState.hasPendingHeight()) {

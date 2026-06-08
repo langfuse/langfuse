@@ -97,6 +97,27 @@ describe("createStableVirtualRowMeasurementState", () => {
     });
   });
 
+  it("keeps sustained oscillation clamped across the rolling window", () => {
+    const measurement = createStableVirtualRowMeasurementState();
+
+    expect(measurement.commitHeight(100, 0)).toBe(100);
+    expect(measurement.commitHeight(200, 16)).toBe(200);
+    expect(measurement.commitHeight(100, 32)).toBe(100);
+    expect(measurement.commitHeight(200, 48)).toBe(200);
+    expect(measurement.commitHeight(100, 64)).toBeNull();
+
+    for (let now = 80; now <= 2_000; now += 16) {
+      const height = now % 32 === 0 ? 100 : 200;
+
+      expect(measurement.commitHeight(height, now)).toBeNull();
+    }
+
+    expect(measurement.getSnapshot()).toMatchObject({
+      committedHeight: 200,
+      frozenMinHeight: 200,
+    });
+  });
+
   it("releases a frozen shrink after the oscillation window expires", () => {
     const measurement = createStableVirtualRowMeasurementState();
 
@@ -106,7 +127,7 @@ describe("createStableVirtualRowMeasurementState", () => {
     measurement.commitHeight(200, 300);
     measurement.commitHeight(100, 400);
 
-    expect(measurement.commitHeight(100, 1_200)).toBe(100);
+    expect(measurement.commitHeight(100, 1_500)).toBe(100);
     expect(measurement.getSnapshot()).toMatchObject({
       committedHeight: 100,
       frozenMinHeight: null,
@@ -125,7 +146,7 @@ describe("createStableVirtualRowMeasurementState", () => {
     measurement.commitHeight(200, 300);
     measurement.commitHeight(100, 400);
 
-    expect(measurement.commitHeight(200, 1_200)).toBeNull();
+    expect(measurement.commitHeight(200, 1_500)).toBeNull();
     expect(measurement.getSnapshot()).toMatchObject({
       committedHeight: 200,
       frozenMinHeight: null,
@@ -144,7 +165,7 @@ describe("createStableVirtualRowMeasurementState", () => {
     measurement.commitHeight(200, 300);
     measurement.commitHeight(100, 400);
 
-    expect(measurement.commitHeight(260, 1_200)).toBe(260);
+    expect(measurement.commitHeight(260, 1_500)).toBe(260);
     expect(measurement.getSnapshot()).toMatchObject({
       committedHeight: 260,
       frozenMinHeight: null,

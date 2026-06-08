@@ -80,6 +80,7 @@ export function createStableVirtualRowMeasurementState(
         state.oscillationPair = nextPair;
         state.oscillationCount = 1;
       } else {
+        state.oscillationWindowStartedAt = now;
         state.oscillationCount += 1;
       }
     }
