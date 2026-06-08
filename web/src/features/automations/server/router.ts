@@ -1,6 +1,6 @@
 import { createTRPCRouter } from "@/src/server/api/trpc";
 import { protectedProjectProcedure } from "@/src/server/api/trpc";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   ActionCreateSchema,
   ActionType,
@@ -11,6 +11,7 @@ import {
   convertToSafeWebhookConfig,
   isGitHubDispatchAction,
   convertToSafeGitHubDispatchConfig,
+  TriggerEventSourceSchema,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
@@ -139,7 +140,13 @@ export const automationsRouter = createTRPCRouter({
     }),
 
   getAutomations: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        eventSource: TriggerEventSourceSchema.optional(),
+        matches: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
     .query(async ({ ctx, input }) => {
       // Check if user has at least read access to automations
       throwIfNoProjectAccess({
@@ -150,6 +157,8 @@ export const automationsRouter = createTRPCRouter({
 
       return await getAutomations({
         projectId: input.projectId,
+        eventSource: input.eventSource,
+        matches: input.matches,
       });
     }),
 

@@ -1,14 +1,10 @@
-import { env } from "@/src/env.mjs";
 import {
   createTRPCRouter,
   protectedGetTraceProcedure,
 } from "@/src/server/api/trpc";
 import { LangfuseNotFoundError, parseIO } from "@langfuse/shared";
-import {
-  getObservationById,
-  getObservationByIdFromEventsTable,
-} from "@langfuse/shared/src/server";
-import { z } from "zod/v4";
+import { getObservationById } from "@langfuse/shared/src/server";
+import { z } from "zod";
 import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 export const observationsRouter = createTRPCRouter({
@@ -34,10 +30,8 @@ export const observationsRouter = createTRPCRouter({
           shouldJsonParse: false,
         },
       };
-      const obs =
-        env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
-          ? await getObservationByIdFromEventsTable(queryOpts)
-          : await getObservationById(queryOpts);
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      const obs = await getObservationById(queryOpts);
       if (!obs) {
         throw new LangfuseNotFoundError(
           "Observation not found within authorized project",

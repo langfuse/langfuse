@@ -1,7 +1,7 @@
 import { Card } from "@/src/components/ui/card";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import type * as z from "zod/v4";
+import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -39,7 +39,7 @@ export default function ConfigureRetention() {
   });
   const setRetention = api.projects.setRetention.useMutation({
     onSuccess: (_) => {
-      void updateSession();
+      updateSession();
     },
     onError: (error) => form.setError("retention", { message: error.message }),
   });

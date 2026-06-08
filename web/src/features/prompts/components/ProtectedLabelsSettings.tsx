@@ -14,7 +14,7 @@ import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { XIcon, Check, ChevronsUpDown } from "lucide-react";
 import { ActionButton } from "@/src/components/ActionButton";
 import { cn } from "@/src/utils/tailwind";

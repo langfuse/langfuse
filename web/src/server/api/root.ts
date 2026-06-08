@@ -26,6 +26,8 @@ import { llmSchemaRouter } from "@/src/features/llm-schemas/server/router";
 import { llmToolRouter } from "@/src/features/llm-tools/server/router";
 import { organizationsRouter } from "@/src/features/organizations/server/organizationRouter";
 import { organizationApiKeysRouter } from "@/src/features/public-api/server/organizationApiKeyRouter";
+import { verifiedDomainRouter } from "@/src/ee/features/verified-domains/server/verifiedDomainRouter";
+import { ssoConfigRouter } from "@/src/ee/features/multi-tenant-sso/server/ssoConfigRouter";
 import { scoreConfigsRouter } from "@/src/server/api/routers/scoreConfigs";
 import { publicRouter } from "@/src/server/api/routers/public";
 import { credentialsRouter } from "@/src/features/auth-credentials/server/credentialsRouter";
@@ -46,6 +48,7 @@ import { cloudStatusRouter } from "@/src/features/cloud-status-notification/serv
 import { dashboardWidgetRouter } from "./routers/dashboardWidgets";
 import { TableViewPresetsRouter } from "@/src/server/api/routers/tableViewPresets";
 import { automationsRouter } from "@/src/features/automations/server/router";
+import { monitorsRouter } from "@/src/server/api/routers/monitors";
 import { defaultEvalModelRouter } from "@/src/features/evals/server/defaultEvalModelRouter";
 import { slackRouter } from "@/src/features/slack/server/router";
 import { plainRouter } from "@/src/features/support-chat/trpc/plainRouter";
@@ -53,6 +56,7 @@ import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/a
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
+import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 
 /**
  * This is the primary router for your server.
@@ -74,6 +78,8 @@ export const appRouter = createTRPCRouter({
   dashboard: dashboardRouter,
   organizations: organizationsRouter,
   organizationApiKeys: organizationApiKeysRouter,
+  verifiedDomain: verifiedDomainRouter,
+  ssoConfig: ssoConfigRouter,
   projects: projectsRouter,
   users: userRouter,
   userAccount: userAccountRouter,
@@ -109,11 +115,13 @@ export const appRouter = createTRPCRouter({
   dashboardWidgets: dashboardWidgetRouter,
   TableViewPresets: TableViewPresetsRouter,
   automations: automationsRouter,
+  monitors: monitorsRouter,
   slack: slackRouter,
   plainRouter: plainRouter,
   surveys: surveysRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
   notificationPreferences: notificationPreferencesRouter,
+  inAppAgent: inAppAgentRouter,
 });
 
 // export type definition of API

@@ -1,5 +1,6 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
+  EvalTargetObjectSchema,
   singleFilter,
   type langfuseObjects,
   TimeScopeSchema,
@@ -14,7 +15,7 @@ export const isLegacyEvalTarget = (target: string): boolean =>
 
 export const evalConfigFormSchema = z.object({
   scoreName: z.string(),
-  target: z.string(),
+  target: EvalTargetObjectSchema,
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   mapping: z.array(wipVariableMapping),
   sampling: z.coerce.number().gt(0).lte(1),
@@ -47,8 +48,10 @@ export const fieldHasJsonSelectorOption = (
   selectedColumnId === "metadata" ||
   selectedColumnId === "expected_output" ||
   selectedColumnId === "experiment_item_expected_output" ||
+  selectedColumnId === "experiment_item_metadata" ||
   selectedColumnId === "expectedOutput" ||
-  selectedColumnId === "experimentItemExpectedOutput";
+  selectedColumnId === "experimentItemExpectedOutput" ||
+  selectedColumnId === "experimentItemMetadata";
 
 export const getTargetDisplayName = (target: string): string => {
   switch (target) {

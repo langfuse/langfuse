@@ -52,6 +52,10 @@ import { NonEmptyString } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
+  formatSessionPositionInTraceFilterValue,
+  getSessionPositionInTraceFilterMode,
+} from "@/src/components/session/session-position-in-trace";
+import {
   InputCommand,
   InputCommandEmpty,
   InputCommandGroup,
@@ -61,6 +65,7 @@ import {
 } from "@/src/components/ui/input-command";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
  * Extended ColumnDefinition with optional alert for UI display.
@@ -282,18 +287,7 @@ export function InlineFilterState({
           : ""}{" "}
         {filter.operator}{" "}
         {filter.type === "positionInTrace"
-          ? (() => {
-              const mode = filter.key ?? "last";
-              const label =
-                mode === "root"
-                  ? "root"
-                  : mode === "last"
-                    ? "last"
-                    : mode === "nthFromStart"
-                      ? `nth from start ${filter.value ?? ""}`.trim()
-                      : `nth from end ${filter.value ?? ""}`.trim();
-              return label;
-            })()
+          ? formatSessionPositionInTraceFilterValue(filter)
           : filter.type === "datetime"
             ? new Date(filter.value).toLocaleString()
             : filter.type === "stringOptions" || filter.type === "arrayOptions"
@@ -337,18 +331,24 @@ export function InlineFilterBuilder({
   const [wipFilterState, _setWipFilterState] =
     useState<WipFilterState>(filterState);
 
-  // sync filter state, e.g. when we exclude default LF filters on score creation to reflect in UI
-  // Only sync if we don't have any WIP (invalid) filters, to avoid overwriting user's work-in-progress
+  // Sync wipFilterState when filterState prop changes externally
+  // (e.g., when a view changes resets filters or default filters are excluded)
+  // We use a ref to track previous filterState to avoid re-running when wipFilterState changes
+  const prevFilterStateRef = useRef(filterState);
   useEffect(() => {
-    const hasWipFilters = wipFilterState.some(
-      (f) => !singleFilter.safeParse(f).success,
-    );
+    // Only sync if filterState actually changed (reference comparison is fine here
+    // since filterState comes from parent state which creates new arrays on change)
+    if (prevFilterStateRef.current === filterState) return;
+    prevFilterStateRef.current = filterState;
 
-    // Don't sync if we have WIP filters - user is actively editing
-    if (!hasWipFilters) {
-      _setWipFilterState(filterState);
-    }
-  }, [filterState, wipFilterState]);
+    _setWipFilterState((currentWip) => {
+      const hasWipFilters = currentWip.some(
+        (f) => !singleFilter.safeParse(f).success,
+      );
+      // Don't sync if user is actively editing (has invalid WIP filters)
+      return hasWipFilters ? currentWip : filterState;
+    });
+  }, [filterState]);
 
   const setWipFilterState = (
     state: ((prev: WipFilterState) => WipFilterState) | WipFilterState,
@@ -503,10 +503,7 @@ function FilterBuilderForm({
           <Button
             onClick={() => {
               if (!organization?.aiFeaturesEnabled && organization?.id) {
-                window.open(
-                  `/organization/${organization.id}/settings`,
-                  "_blank",
-                );
+                openAIFeaturesSettings(organization.id);
               } else {
                 setShowAiFilter(!showAiFilter);
               }
@@ -514,7 +511,6 @@ function FilterBuilderForm({
             type="button"
             variant="outline"
             size="default"
-            disabled={false}
             title={
               !organization?.aiFeaturesEnabled
                 ? "AI features are disabled for your organization. Click to enable them in organization settings."
@@ -596,8 +592,19 @@ function FilterBuilderForm({
             <tbody>
               {filterState.map((filter, i) => {
                 const column = columns.find(
-                  (c) => c.id === filter.column || c.name === filter.column,
+                  (c) =>
+                    c.id === filter.column ||
+                    c.name === filter.column ||
+                    (filter.column !== undefined &&
+                      c.aliases?.includes(filter.column)),
                 );
+                const keyOptions =
+                  column?.type === "numberObject" ||
+                  column?.type === "stringObject"
+                    ? column.keyOptions?.filter(
+                        (o) => NonEmptyString.safeParse(o).success,
+                      )
+                    : undefined;
                 return (
                   <tr key={i}>
                     <td className="p-1 text-sm">{i === 0 ? "Where" : "And"}</td>
@@ -717,7 +724,7 @@ function FilterBuilderForm({
                         filter.type === "stringObject") &&
                       (column?.type === "numberObject" ||
                         column?.type === "stringObject") ? (
-                        column.keyOptions ? (
+                        keyOptions?.length ? (
                           // Case 1: object with keyOptions - selector of the key of the object
                           <Select
                             disabled={!filter.column}
@@ -730,15 +737,11 @@ function FilterBuilderForm({
                               <SelectValue placeholder="" />
                             </SelectTrigger>
                             <SelectContent>
-                              {column.keyOptions
-                                .filter(
-                                  (o) => NonEmptyString.safeParse(o).success,
-                                )
-                                .map((option) => (
-                                  <SelectItem key={option} value={option}>
-                                    {option}
-                                  </SelectItem>
-                                ))}
+                              {keyOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         ) : (
@@ -798,13 +801,13 @@ function FilterBuilderForm({
                               i,
                             );
                           }}
-                          value={filter.key ?? "last"}
+                          value={getSessionPositionInTraceFilterMode(filter)}
                         >
                           <SelectTrigger className="min-w-[140px]">
                             <SelectValue placeholder="" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="root">1st</SelectItem>
+                            <SelectItem value="first">1st</SelectItem>
                             <SelectItem value="last">last</SelectItem>
                             <SelectItem value="nthFromStart">
                               nth from start
@@ -871,7 +874,13 @@ function FilterBuilderForm({
                           value={filter.value ?? undefined}
                           disabled={disabled}
                           type="number"
-                          step="0.01"
+                          step={
+                            (column?.type === "number" && column.step) || 0.01
+                          }
+                          min={
+                            column?.type === "number" ? column.min : undefined
+                          }
+                          placeholder="number"
                           lang="en-US"
                           onChange={(e) =>
                             handleFilterChange(

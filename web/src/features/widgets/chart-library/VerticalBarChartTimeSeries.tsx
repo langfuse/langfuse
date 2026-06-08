@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import {
+  ChartActiveReferenceLine,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -7,10 +8,11 @@ import {
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
+  formatMetric,
   getUniqueDimensions,
   groupDataByTimeDimension,
+  toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
-import { compactNumberFormatter } from "@/src/utils/numbers";
 
 /**
  * VerticalBarChartTimeSeries component
@@ -29,11 +31,13 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
     },
   },
   accessibilityLayer = true,
-  valueFormatter = compactNumberFormatter,
+  metricFormatter = (value, options) => formatMetric(value, options),
   subtleFill = false,
 }) => {
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const formatValue = (value: number) =>
+    toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   return (
     <ChartContainer
@@ -56,6 +60,8 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
           fontSize={12}
           tickLine={false}
           axisLine={false}
+          niceTicks="auto"
+          tickFormatter={(value) => formatValue(Number(value))}
         />
         {dimensions.map((dimension, index) => (
           <Bar
@@ -67,6 +73,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             stackId={dimensions.length > 1 ? "stack" : undefined}
           />
         ))}
+        <ChartActiveReferenceLine />
         <ChartTooltip
           cursor={false}
           contentStyle={{ backgroundColor: "hsl(var(--background))" }}
@@ -75,7 +82,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
               active={active}
               payload={payload}
               label={label}
-              valueFormatter={valueFormatter}
+              valueFormatter={formatValue}
               sortPayloadByValue="desc"
             />
           )}

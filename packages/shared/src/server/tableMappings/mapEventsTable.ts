@@ -2,6 +2,10 @@
 // The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
 import { UiColumnMappings } from "../../tableDefinitions";
+import {
+  eventsTableHasParentObservationSql,
+  eventsTableIsRootObservationSql,
+} from "../../eventsTable";
 
 export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {
@@ -159,7 +163,8 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Metadata",
     uiTableId: "metadata",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: 'e."metadata"',
+    clickhouseSelect: "metadata",
+    queryPrefix: "e",
   },
   {
     uiTableName: "Version",
@@ -231,7 +236,13 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Has Parent Observation",
     uiTableId: "hasParentObservation",
     clickhouseTableName: "events_proto",
-    clickhouseSelect: "e.parent_span_id != ''",
+    clickhouseSelect: eventsTableHasParentObservationSql,
+  },
+  {
+    uiTableName: "Is Root Observation",
+    uiTableId: "isRootObservation",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableIsRootObservationSql,
   },
   {
     uiTableName: "Parent Observation ID",
@@ -257,6 +268,12 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "experimentName",
     clickhouseTableName: "events_proto",
     clickhouseSelect: 'e."experiment_name"',
+  },
+  {
+    uiTableName: "Is Experiment Item Root Span",
+    uiTableId: "isExperimentItemRootSpan",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "e.experiment_item_root_span_id = e.span_id",
   },
   {
     uiTableName: "Available Tools",

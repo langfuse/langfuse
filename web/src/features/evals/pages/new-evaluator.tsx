@@ -2,7 +2,7 @@ import Page from "@/src/components/layouts/page";
 import { BreadcrumbSeparator } from "@/src/components/ui/breadcrumb";
 import { BreadcrumbPage } from "@/src/components/ui/breadcrumb";
 import { BreadcrumbItem } from "@/src/components/ui/breadcrumb";
-import { Check } from "lucide-react";
+import { Check, Info } from "lucide-react";
 import { cn } from "@/src/utils/tailwind";
 import { BreadcrumbList } from "@/src/components/ui/breadcrumb";
 import { Breadcrumb } from "@/src/components/ui/breadcrumb";
@@ -13,8 +13,11 @@ import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
-import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
+import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Button } from "@/src/components/ui/button";
 
 // Multi-step setup process
 // 0. Set up default model (optional, only if no default model exists): /project/:projectId/evals/new
@@ -24,6 +27,8 @@ export default function NewEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluator as string | undefined;
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled } = codeEvalCapabilities;
 
   const hasDefaultModelReadAccess = useHasProjectAccess({
     projectId,
@@ -36,9 +41,6 @@ export default function NewEvaluatorPage() {
   );
 
   const hasDefaultModel = !!defaultModel;
-
-  // Calculate step number: if no default model, start at 0, otherwise start at 1
-  const stepInt = !hasDefaultModel ? 0 : !evaluatorId ? 1 : 2;
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -56,9 +58,53 @@ export default function NewEvaluatorPage() {
     },
   );
 
-  const currentTemplate = evalTemplates.data?.templates.find(
-    (t) => t.id === evaluatorId,
+  const currentTemplate = evalTemplates.data?.templates
+    .filter((template) =>
+      shouldShowEvalTemplate(template, codeEvalCapabilities),
+    )
+    .find((t) => t.id === evaluatorId);
+
+  const templatesForCurrentName = api.evals.allTemplatesForName.useQuery(
+    {
+      projectId,
+      name: currentTemplate?.name ?? "",
+      isUserManaged: Boolean(currentTemplate?.projectId),
+    },
+    {
+      enabled: !!projectId && !!currentTemplate?.name,
+      refetchOnMount: "always",
+    },
   );
+
+  const latestTemplate = templatesForCurrentName.data?.templates[0];
+  const hasNewerTemplate =
+    !!currentTemplate &&
+    !!latestTemplate &&
+    latestTemplate.id !== currentTemplate.id &&
+    latestTemplate.version > currentTemplate.version;
+
+  const handleUseUpdatedEvaluator = () => {
+    if (!latestTemplate) return;
+
+    router.replace(
+      {
+        pathname: router.pathname,
+        query: {
+          ...router.query,
+          evaluator: latestTemplate.id,
+        },
+      },
+      undefined,
+      { shallow: true },
+    );
+  };
+
+  // Determine starting step:
+  // - Step 2: Configure evaluator (when template already selected via evaluatorId)
+  // - Step 1: Select template (when default model exists or code evals enabled)
+  // - Step 0: Set up default model first
+  const canSkipDefaultModel = isCodeEvalEnabled || hasDefaultModel;
+  const stepInt = evaluatorId ? 2 : canSkipDefaultModel ? 1 : 0;
 
   if (!hasAccess) {
     return <div>You do not have access to this page.</div>;
@@ -67,6 +113,7 @@ export default function NewEvaluatorPage() {
   return (
     <Page
       withPadding
+      scrollable
       headerProps={{
         title: "Set up evaluator",
         breadcrumb: [
@@ -75,7 +122,6 @@ export default function NewEvaluatorPage() {
             href: `/project/${projectId}/evals`,
           },
         ],
-        actionButtonsRight: <ManageDefaultEvalModel projectId={projectId} />,
       }}
     >
       <Breadcrumb className="mb-3">
@@ -155,11 +201,34 @@ export default function NewEvaluatorPage() {
       {
         // 2. Run Evaluator
         stepInt === 2 && evaluatorId && projectId && (
-          <RunEvaluatorForm
-            projectId={projectId}
-            evaluatorId={evaluatorId}
-            evalTemplates={evalTemplates.data?.templates ?? []}
-          />
+          <div className="flex flex-col gap-4">
+            {hasNewerTemplate && latestTemplate && currentTemplate ? (
+              <Alert variant="info">
+                <Info className="h-4 w-4" />
+                <AlertTitle>Selected Evaluator has been updated</AlertTitle>
+                <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    Click to use the latest version of your evaluator{" "}
+                    {latestTemplate.name}.
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit"
+                    onClick={handleUseUpdatedEvaluator}
+                  >
+                    Use updated evaluator
+                  </Button>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <RunEvaluatorForm
+              projectId={projectId}
+              evaluatorId={evaluatorId}
+              evalTemplates={evalTemplates.data?.templates ?? []}
+            />
+          </div>
         )
       }
     </Page>

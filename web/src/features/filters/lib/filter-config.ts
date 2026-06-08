@@ -1,5 +1,5 @@
 import type React from "react";
-import type { ColumnDefinition } from "@langfuse/shared";
+import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
 interface BaseFacet {
   column: string;
@@ -7,9 +7,6 @@ interface BaseFacet {
   tooltip?: string;
   isDisabled?: boolean;
   disabledReason?: string;
-  // Mutually exclusive with these facet columns. If both are active,
-  // the last added filter wins and the other facet is disabled.
-  mutuallyExclusiveWith?: string[];
 }
 
 interface CategoricalFacet extends BaseFacet {
@@ -22,7 +19,7 @@ interface BooleanFacet extends BaseFacet {
   type: "boolean";
   trueLabel?: string;
   falseLabel?: string;
-  invertValue?: boolean; // When true, "True" label maps to filter value=false, used for parent_observation_id filter for is Root?
+  invertValue?: boolean; // When true, "True" maps to filter value=false.
 }
 
 interface NumericFacet extends BaseFacet {
@@ -52,10 +49,6 @@ interface StringKeyValueFacet extends BaseFacet {
   keyOptions?: string[];
 }
 
-interface PositionInTraceFacet extends BaseFacet {
-  type: "positionInTrace";
-}
-
 export type Facet =
   | CategoricalFacet
   | BooleanFacet
@@ -63,8 +56,9 @@ export type Facet =
   | StringFacet
   | KeyValueFacet
   | NumericKeyValueFacet
-  | StringKeyValueFacet
-  | PositionInTraceFacet;
+  | StringKeyValueFacet;
+
+export type FilterStateMigration = (filters: FilterState) => FilterState;
 
 export interface FilterConfig {
   tableName: string;
@@ -72,4 +66,27 @@ export interface FilterConfig {
   defaultExpanded?: string[];
   defaultSidebarCollapsed?: boolean;
   facets: Facet[];
+  /** Runs after display-name normalization and before filter validation. */
+  migrateFilterState?: FilterStateMigration;
+}
+
+export function omitFilterFacets(
+  config: FilterConfig,
+  omittedColumns: string[],
+): FilterConfig {
+  if (omittedColumns.length === 0) {
+    return config;
+  }
+
+  const omittedColumnSet = new Set(omittedColumns);
+
+  return {
+    ...config,
+    defaultExpanded: config.defaultExpanded?.filter(
+      (column) => !omittedColumnSet.has(column),
+    ),
+    facets: config.facets.filter(
+      (facet) => !omittedColumnSet.has(facet.column),
+    ),
+  };
 }

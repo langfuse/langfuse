@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -187,7 +187,7 @@ export const scoresRouter = createTRPCRouter({
       return toDomainWithStringifiedMetadata(score);
     }),
   countAll: protectedProjectProcedure
-    .input(ScoreAllOptions)
+    .input(ScoreFilterOptions)
     .query(async ({ input }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
@@ -274,7 +274,7 @@ export const scoresRouter = createTRPCRouter({
    * v4: Count scores without traces JOIN.
    */
   countAllFromEvents: protectedProjectProcedure
-    .input(ScoreAllOptions)
+    .input(ScoreFilterOptions)
     .query(async ({ input }) => {
       const normalizedOrderBy = normalizeOrderByForTable({
         orderBy: input.orderBy,
@@ -507,6 +507,7 @@ export const scoresRouter = createTRPCRouter({
           };
 
       if (inflatedParams.traceId) {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: inflatedParams.traceId,
           projectId: input.projectId,
@@ -523,6 +524,7 @@ export const scoresRouter = createTRPCRouter({
         }
       } else if (inflatedParams.sessionId) {
         // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const traceIdentifiers = await getTracesIdentifierForSession(
           input.projectId,
           inflatedParams.sessionId,
@@ -675,6 +677,7 @@ export const scoresRouter = createTRPCRouter({
             };
 
         if (inflatedParams.traceId) {
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           const clickhouseTrace = await getTraceById({
             traceId: inflatedParams.traceId,
             projectId: input.projectId,
@@ -691,6 +694,7 @@ export const scoresRouter = createTRPCRouter({
           }
         } else if (inflatedParams.sessionId) {
           // We consider no longer writing all sessions into postgres, hence we should search for traces with the session id
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           const traceIdentifiers = await getTracesIdentifierForSession(
             input.projectId,
             inflatedParams.sessionId,
@@ -932,6 +936,7 @@ export const scoresRouter = createTRPCRouter({
         scope: "scores:CUD",
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       const clickhouseTrace = await getTraceById({
         traceId: input.traceId,
         projectId: input.projectId,

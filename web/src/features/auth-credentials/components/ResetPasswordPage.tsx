@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod/v4";
+import * as z from "zod";
 import Head from "next/head";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -26,10 +26,11 @@ import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const resetPasswordSchema = z
   .object({
-    email: z.string().email(),
+    email: z.email(),
     password: passwordSchema,
     confirmPassword: passwordSchema,
   })
@@ -45,12 +46,16 @@ export function ResetPasswordPage({
 }) {
   const session = useSession();
   const router = useRouter();
+  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
   const [formError, setFormError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
   const [showResetPasswordEmailButton, setShowResetPasswordEmailButton] =
     useState(false);
 
   const capture = usePostHogClientCapture();
+
+  // Detect set mode: user exists but has no password (signup email verification flow)
+  const isSetMode = session.data?.user?.hasPassword === false;
 
   const mutResetPassword = api.credentials.resetPassword.useMutation();
   const emailVerified = isEmailVerifiedWithinCutoff(
@@ -70,13 +75,21 @@ export function ResetPasswordPage({
     setFormError(null);
     setShowResetPasswordEmailButton(false);
     setIsSuccess(false);
-    capture("auth:update_password_form_submit");
+    capture(
+      isSetMode
+        ? "auth:set_password_form_submit"
+        : "auth:update_password_form_submit",
+    );
     await mutResetPassword
       .mutateAsync({ password: values.password })
       .then(() => {
         setIsSuccess(true);
         setTimeout(() => {
-          router.push("/");
+          const target =
+            isSetMode && isLangfuseCloud && region !== "DEV"
+              ? "/onboarding"
+              : "/";
+          router.push(target);
           setIsSuccess(false);
         }, 2000);
       })
@@ -106,10 +119,17 @@ export function ResetPasswordPage({
       />
     );
 
+  const title = isSetMode ? "Set your password" : "Reset your password";
+  const pageTitle = isSetMode ? "Set Password" : "Reset Password";
+  const submitLabel = isSetMode ? "Set password" : "Update Password";
+  const successMessage = isSetMode
+    ? "Password set successfully. Redirecting ..."
+    : "Password successfully updated. Redirecting ...";
+
   return (
     <>
       <Head>
-        <title>Reset Password | Langfuse</title>
+        <title>{pageTitle} | Langfuse</title>
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -117,9 +137,9 @@ export function ResetPasswordPage({
             <LangfuseIcon className="mx-auto" />
           </Link>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
-            Reset your password
+            {title}
           </h2>
-          {session.status !== "authenticated" && (
+          {!isSetMode && session.status !== "authenticated" && (
             <div className="mt-2 flex justify-center">
               <Button asChild variant="ghost">
                 <Link href="/auth/sign-in">
@@ -171,7 +191,9 @@ export function ResetPasswordPage({
                       name="password"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>New Password</FormLabel>
+                          <FormLabel>
+                            {isSetMode ? "Password" : "New Password"}
+                          </FormLabel>
                           <FormControl>
                             <PasswordInput
                               autoComplete="new-password"
@@ -187,7 +209,11 @@ export function ResetPasswordPage({
                       name="confirmPassword"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Confirm New Password</FormLabel>
+                          <FormLabel>
+                            {isSetMode
+                              ? "Confirm Password"
+                              : "Confirm New Password"}
+                          </FormLabel>
                           <FormControl>
                             <PasswordInput
                               autoComplete="new-password"
@@ -211,12 +237,15 @@ export function ResetPasswordPage({
                         showResetPasswordEmailButton ? "secondary" : "default"
                       }
                     >
-                      Update Password
+                      {submitLabel}
                     </Button>
                   ) : (
                     <RequestResetPasswordEmailButton
                       email={form.watch("email")}
                       className="w-full"
+                      callbackUrl={
+                        isSetMode ? "/auth/setup-password" : undefined
+                      }
                     />
                   )}
                 </div>
@@ -229,18 +258,19 @@ export function ResetPasswordPage({
             ) : null}
             {isSuccess && (
               <div className="text-center text-sm font-medium">
-                Password successfully updated. Redirecting ...
+                {successMessage}
               </div>
             )}
             {showResetPasswordEmailButton && (
               <RequestResetPasswordEmailButton
                 email={form.getValues("email")}
                 className="w-full"
+                callbackUrl={isSetMode ? "/auth/setup-password" : undefined}
               />
             )}
           </div>
         </div>
-        {session.status !== "authenticated" && (
+        {!isSetMode && session.status !== "authenticated" && (
           <div className="text-muted-foreground mx-auto mt-10 max-w-lg text-center text-xs">
             You will only receive an email if an account with this email exists
             and you have signed up with email and password. If you used an

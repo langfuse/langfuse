@@ -25,8 +25,9 @@ import { type Entitlement } from "@/src/features/entitlements/constants/entitlem
 import { type User } from "next-auth";
 import { type OrganizationScope } from "@/src/features/rbac/constants/organizationAccessRights";
 import { SupportButton } from "@/src/components/nav/support-button";
+import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button";
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
-import { V4BetaSidebarToggle } from "@/src/features/events/components/V4BetaSidebarToggle";
+import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -60,6 +61,8 @@ export type Route = {
   productModule?: ProductModule; // Product module this route belongs to. Used to show/hide modules via ui customization.
   show?: (p: {
     organization: User["organizations"][number] | undefined;
+    projectId: string | undefined;
+    isLangfuseCloud: boolean;
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -147,7 +150,7 @@ export const ROUTES: Route[] = [
     icon: SquarePercent,
   },
   {
-    title: "LLM-as-a-Judge",
+    title: "Evaluators",
     icon: Lightbulb,
     productModule: "evaluation",
     projectRbacScopes: ["evalJob:read"],
@@ -208,7 +211,7 @@ export const ROUTES: Route[] = [
     pathname: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
-    menuNode: <V4BetaSidebarToggle />,
+    menuNode: <V4SidebarToggle />,
   },
   {
     title: "Settings",
@@ -227,6 +230,15 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     pathname: "",
     menuNode: <BookACallButton />,
+  },
+  {
+    title: "AI Assistant",
+    section: RouteSection.Secondary,
+    pathname: "",
+    featureFlag: "inAppAgent",
+    show: ({ organization, projectId, isLangfuseCloud }) =>
+      isLangfuseCloud && organization !== undefined && projectId !== undefined,
+    menuNode: <InAppAiAgentButton />,
   },
   {
     title: "Support",

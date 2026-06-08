@@ -37,7 +37,8 @@ export type LangfuseItemType =
   | "ANNOTATION_QUEUE"
   | "PROMPT"
   | "EVALUATOR"
-  | "RUNNING_EVALUATOR";
+  | "RUNNING_EVALUATOR"
+  | "EXPERIMENT";
 
 const iconMap = {
   TRACE: ListTree,
@@ -60,6 +61,7 @@ const iconMap = {
   PROMPT: FileText,
   RUNNING_EVALUATOR: Bot,
   EVALUATOR: WandSparkles,
+  EXPERIMENT: FlaskConical,
 } as const;
 
 const iconVariants = cva(cn("h-4 w-4"), {
@@ -85,6 +87,7 @@ const iconVariants = cva(cn("h-4 w-4"), {
       PROMPT: "text-primary-accent",
       EVALUATOR: "text-primary-accent", // usually text-indigo-600
       RUNNING_EVALUATOR: "text-primary-accent",
+      EXPERIMENT: "text-primary-accent",
     },
   },
 });
@@ -113,6 +116,7 @@ export function ItemBadge({
 
   // Modify this line to ensure the icon is properly sized
   const iconClass = cn(
+    "shrink-0",
     iconVariants({ type }),
     isSmall ? "h-3 w-3" : "h-4 w-4",
     className,

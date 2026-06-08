@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import {
   type FilterState,
   AnnotationQueueObjectType,
+  type TracingSearchType,
   type ScoreAggregate,
 } from "@langfuse/shared";
 import { type FullEventsObservations } from "@langfuse/shared/src/server";
@@ -27,7 +28,7 @@ type UseEventsTableDataParams = {
     order: "ASC" | "DESC";
   } | null;
   searchQuery?: string | null;
-  searchType?: ("id" | "content")[];
+  searchType?: TracingSearchType[];
   selectedRows: Record<string, boolean>;
   selectAll: boolean;
   setSelectedRows: (rows: Record<string, boolean>) => void;
@@ -51,8 +52,6 @@ export function useEventsTableData({
       filter: filterState,
       searchQuery: searchQuery ?? null,
       searchType: searchType ?? ["id", "content"],
-      page: 1,
-      limit: 1,
       orderBy: null,
     }),
     [projectId, filterState, searchQuery, searchType],
@@ -184,11 +183,14 @@ export function useEventsTableData({
     projectId: string;
     targetId: string;
   }) => {
+    const visibleObservationIds = new Set(
+      (observations.data?.observations ?? [])
+        .map((observation) => observation.id)
+        .filter((id): id is string => Boolean(id)),
+    );
+
     const selectedObservationIds = Object.keys(selectedRows).filter(
-      (observationId) =>
-        (observations.data?.observations ?? [])
-          .map((o) => o.id)
-          .includes(observationId),
+      (observationId) => visibleObservationIds.has(observationId),
     );
 
     await addToQueueMutation.mutateAsync({

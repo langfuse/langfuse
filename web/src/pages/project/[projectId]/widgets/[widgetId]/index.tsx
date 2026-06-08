@@ -4,9 +4,9 @@ import { api } from "@/src/utils/api";
 import { WidgetForm } from "@/src/features/widgets/components/WidgetForm";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import { type views, type metricAggregations } from "@/src/features/query";
-import { type z } from "zod/v4";
+import { type DashboardWidgetChartType } from "@langfuse/shared";
+import { type metricAggregations, type views } from "@langfuse/shared/query";
+import { type z } from "zod";
 import { type WidgetChartConfig } from "@/src/features/widgets/utils";
 
 export default function EditWidget() {
@@ -42,11 +42,11 @@ export default function EditWidget() {
       });
       // Navigate back to dashboard if provided else widgets list
       if (dashboardId) {
-        void router.push(
+        router.push(
           `/project/${projectId}/dashboards/${dashboardId}?addWidgetId=${widgetId}`,
         );
       } else {
-        void router.push(`/project/${projectId}/widgets`);
+        router.push(`/project/${projectId}/widgets`);
       }
     },
     onError: (error) => {

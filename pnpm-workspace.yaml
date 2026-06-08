@@ -4,3 +4,49 @@ packages:
   - "worker"
   - "packages/**"
   - "ee"
+# 5 day delay for new dep upgrades to reduce supply chain attack risk
+minimumReleaseAge: 7200
+# the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
+# this list is version-specific
+minimumReleaseAgeExclude:
+  - ai@5.0.195
+  - "@ai-sdk/gateway@2.0.96"
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  "@sentry/cli": true
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+  "@datadog/native-appsec": false
+  "@datadog/native-iast-taint-tracking": false
+  "@datadog/native-metrics": false
+  core-js: false
+  dd-trace: false
+  msgpackr-extract: false
+  msw: false
+  prisma: false
+  protobufjs: false
+  "@datadog/pprof": false
+  "@scarf/scarf": false
+overrides:
+  zod: 4.3.6
+  nanoid: ^3.3.8
+  katex: ^0.16.21
+  tar-fs: ^2.1.2
+  rollup@^4.0.0: ^4.22.4
+  "@types/node-fetch": ^2.6.13
+  "@types/react-dom": 19.2.3
+  fast-xml-builder: 1.1.7
+  glob: ^10.5.0
+  qs: 6.15.2
+  path-to-regexp@0.1.12: 0.1.13
+  ip-address@10.1.0: 10.2.0
+  "@ai-sdk/provider-utils@<=4.0.26": 4.0.27
+  "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.27"
+  "@copilotkit/runtime@0.0.0-mme-ag-ui-0-0-46-20260227141603>@ag-ui/langgraph": 0.0.29
+patchedDependencies:
+  next-auth@4.24.13: patches/next-auth@4.24.13.patch
+publicHoistPattern:
+  - "*prisma*"
+  - "@aws-sdk/client-s3"

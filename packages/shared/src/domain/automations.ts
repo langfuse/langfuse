@@ -1,16 +1,20 @@
 import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
+  Monitor = "monitor",
 }
 
 export const EventActionSchema = z.enum(["created", "updated", "deleted"]);
 
 export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 
-export const TriggerEventSourceSchema = z.enum([TriggerEventSource.Prompt]);
+export const TriggerEventSourceSchema = z.enum([
+  TriggerEventSource.Prompt,
+  TriggerEventSource.Monitor,
+]);
 
 export type TriggerDomain = Omit<
   Trigger,
@@ -106,7 +110,7 @@ export type SafeGitHubDispatchActionConfig = z.infer<
 
 export const GitHubDispatchActionCreateSchema = z.object({
   type: z.literal("GITHUB_DISPATCH"),
-  url: z.string().url().optional(), // Optional for updates, validated in helper
+  url: z.url().optional(), // Optional for updates, validated in helper
   eventType: z.string().min(1).max(100).optional(), // Optional for updates, validated in helper
   githubToken: z.string().optional(), // Optional for updates, validated in helper
 });

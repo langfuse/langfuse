@@ -68,7 +68,7 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                 <div
                   key={automation.id}
                   className={cn(
-                    "group hover:bg-background/50 relative rounded-lg border p-3 transition-colors",
+                    "hover:bg-background/50 group relative rounded-lg border p-3 transition-colors",
                     isSelected
                       ? "border-primary bg-primary/5"
                       : "border-border bg-background/20",

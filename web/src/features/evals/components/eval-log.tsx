@@ -1,6 +1,9 @@
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { DataTable } from "@/src/components/table/data-table";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  type CustomHeights,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import {
   DataTableControlsProvider,
@@ -23,17 +26,22 @@ import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 export type JobExecutionRow = {
   status: string;
   scoreName?: string;
-  scoreValue?: number;
+  scoreValue?: number | string;
   scoreComment?: string;
   scoreMetadata?: Prisma.JsonValue;
   startTime?: string;
   endTime?: string;
   traceId?: string;
-  sessionId?: string;
   executionTraceId?: string;
   templateId: string;
   evaluatorId: string;
   error?: string;
+};
+
+const evalLogRowHeights: CustomHeights = {
+  s: "h-8",
+  m: "h-24",
+  l: "h-64",
 };
 
 export default function EvalLogTable({
@@ -54,6 +62,7 @@ export default function EvalLogTable({
     {}, // No dynamic options needed - status options are in column definition
     {
       loading: false,
+      stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     },
   );
@@ -74,7 +83,12 @@ export default function EvalLogTable({
       id: "status",
       cell: (row) => {
         const status = row.getValue();
-        return <StatusBadge type={status.toLowerCase()} />;
+        return (
+          <StatusBadge
+            className="w-fit self-start"
+            type={status.toLowerCase()}
+          />
+        );
       },
     }),
     columnHelper.accessor("startTime", {
@@ -101,18 +115,34 @@ export default function EvalLogTable({
         if (value === undefined) {
           return undefined;
         }
-        return value % 1 === 0 ? value : value.toFixed(4);
+        if (typeof value === "number") {
+          return value % 1 === 0 ? value : value.toFixed(4);
+        }
+        return value;
       },
     }),
     columnHelper.accessor("scoreComment", {
       header: "Score Comment",
       id: "scoreComment",
       enableHiding: true,
+      cellPadding: "none",
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          padding="compact"
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: (row) => {
         const value = row.getValue();
         return (
           value !== undefined && (
-            <IOTableCell data={value} singleLine={rowHeight === "s"} />
+            <IOTableCell
+              data={value}
+              padding="compact"
+              singleLine={rowHeight === "s"}
+            />
           )
         );
       },
@@ -121,11 +151,24 @@ export default function EvalLogTable({
       id: "error",
       header: "Error",
       enableHiding: true,
+      cellPadding: "none",
+      loadingCell: () => (
+        <IOTableCell
+          isLoading
+          data={undefined}
+          padding="compact"
+          singleLine={rowHeight === "s"}
+        />
+      ),
       cell: (row) => {
         const value = row.getValue();
         return (
           value !== undefined && (
-            <IOTableCell data={value} singleLine={rowHeight === "s"} />
+            <IOTableCell
+              data={value}
+              padding="compact"
+              singleLine={rowHeight === "s"}
+            />
           )
         );
       },
@@ -139,20 +182,6 @@ export default function EvalLogTable({
           <TableLink
             path={`/project/${projectId}/traces/${encodeURIComponent(traceId)}`}
             value={traceId}
-          />
-        ) : undefined;
-      },
-    }),
-    columnHelper.accessor("sessionId", {
-      id: "sessionId",
-      header: "Session",
-      enableHiding: true,
-      cell: (row) => {
-        const sessionId = row.getValue();
-        return sessionId ? (
-          <TableLink
-            path={`/project/${projectId}/sessions/${encodeURIComponent(sessionId)}`}
-            value={sessionId}
           />
         ) : undefined;
       },
@@ -218,13 +247,13 @@ export default function EvalLogTable({
     return {
       status: jobConfig.status,
       scoreName: jobConfig.score?.name ?? undefined,
-      scoreValue: jobConfig.score?.value ?? undefined,
+      scoreValue:
+        jobConfig.score?.stringValue ?? jobConfig.score?.value ?? undefined,
       scoreComment: jobConfig.score?.comment ?? undefined,
       scoreMetadata: jobConfig.score?.metadata ?? undefined,
       startTime: jobConfig.startTime?.toLocaleString() ?? undefined,
       endTime: jobConfig.endTime?.toLocaleString() ?? undefined,
       traceId: jobConfig.jobInputTraceId ?? undefined,
-      sessionId: jobConfig.sessionId ?? undefined,
       executionTraceId: jobConfig.executionTraceId ?? undefined,
       templateId: jobConfig.jobTemplateId ?? "",
       evaluatorId: jobConfig.jobConfigurationId,
@@ -282,6 +311,8 @@ export default function EvalLogTable({
               onColumnVisibilityChange={setColumnVisibility}
               columnOrder={columnOrder}
               onColumnOrderChange={setColumnOrder}
+              customRowHeights={evalLogRowHeights}
+              rowHeight={rowHeight}
             />
           </div>
         </ResizableFilterLayout>

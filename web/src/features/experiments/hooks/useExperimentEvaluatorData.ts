@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import {
   type EvalTemplate,
+  EvalTemplateType,
   isJobConfigExecutable,
   JobConfigState,
 } from "@langfuse/shared";
@@ -104,8 +105,11 @@ export function useExperimentEvaluatorData({
           ...config,
           evalTemplate: {
             ...config.evalTemplate,
-            outputSchema: config.evalTemplate
-              .outputSchema as EvalTemplate["outputSchema"],
+            type: EvalTemplateType.LLM_AS_JUDGE,
+            sourceCode: null,
+            sourceCodeLanguage: null,
+            outputDefinition: config.evalTemplate
+              .outputDefinition as EvalTemplate["outputDefinition"],
           },
         } as PartialConfig & { evalTemplate: EvalTemplate };
 
@@ -156,7 +160,7 @@ export function useExperimentEvaluatorData({
   const handleEvaluatorSuccess = useCallback(() => {
     setShowEvaluatorForm(false);
     setSelectedEvaluatorData(null);
-    void refetchEvaluators();
+    refetchEvaluators();
   }, [refetchEvaluators]);
 
   // Handle when a user selects an evaluator from the template selector

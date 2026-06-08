@@ -1,5 +1,5 @@
 import { removeEmptyEnvVariables } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 const EnvSchema = z.object({
   BUILD_ID: z.string().optional(),
@@ -71,6 +71,13 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_OTEL_INGESTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_SECONDARY_OTEL_INGESTION_QUEUE_ENABLED_PROJECT_IDS: z
+    .string()
+    .optional(),
   LANGFUSE_INGESTION_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -95,7 +102,7 @@ const EnvSchema = z.object({
 
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
 
-  CLICKHOUSE_URL: z.string().url(),
+  CLICKHOUSE_URL: z.url(),
   CLICKHOUSE_USER: z.string(),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
@@ -121,6 +128,14 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_LLM_AS_JUDGE_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
+  LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(5),
   LANGFUSE_EVAL_EXECUTION_SECONDARY_QUEUE_PROCESSING_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -139,8 +154,7 @@ const EnvSchema = z.object({
   LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_PROJECT_IDS: z.string().default(""),
   // Set a date after which S3 was active. Projects created after this date do
   // perform a ClickHouse read as part of the ingestion pipeline.
-  LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE: z
-    .string()
+  LANGFUSE_SKIP_INGESTION_CLICKHOUSE_READ_MIN_PROJECT_CREATE_DATE: z.iso
     .date()
     .optional(),
 
@@ -196,6 +210,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_EVAL_EXECUTION_SECONDARY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_TRACE_UPSERT_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -232,6 +249,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_OTEL_INGESTION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
+  QUEUE_CONSUMER_OTEL_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_INGESTION_SECONDARY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -249,7 +269,7 @@ const EnvSchema = z.object({
     .default("true"),
   QUEUE_CONSUMER_EVENT_PROPAGATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
-    .default("false"),
+    .default("true"),
   QUEUE_CONSUMER_NOTIFICATION_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -261,11 +281,23 @@ const EnvSchema = z.object({
   LANGFUSE_DATASET_RUN_BACKFILL_CHUNK_SIZE: z.coerce
     .number()
     .positive()
-    .default(200),
+    .default(100),
   LANGFUSE_EXPERIMENT_BACKFILL_THROTTLE_MS: z.coerce
     .number()
     .positive()
     .default(5 * 60 * 1000), // 5 minutes
+
+  // Comma-separated list of project IDs to exclude from experiment backfill processing
+  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
+
+  // Comma-separated list of project IDs to exclude from event propagation dual-write
+  LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS: z
+    .string()
+    .optional()
+    .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
   // Core data S3 upload - Langfuse Cloud
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
@@ -373,6 +405,22 @@ const EnvSchema = z.object({
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
 
+  // ClickHouse deleted-mask cleaner configuration
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(3_600_000), // 1 hour between runs
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_SUBMIT_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(60_000), // Wait up to 1 minute for ALTER submission; mutation can run for hours
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
+
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce
     .number()
@@ -392,20 +440,17 @@ const EnvSchema = z.object({
     .positive()
     .default(7200), // 2 hours to handle worst-case deletions
 
-  LANGFUSE_EXPERIMENT_BACKFILL_EXCLUDE_ATTRIBUTES_KEY: z
+  // V4 migration flags. See LFE-9778.
+  LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+    .enum(["legacy", "dual", "events_only"])
+    .default("legacy"),
+  LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR: z
+    .enum(["dual_write", "direct"])
+    .default("dual_write"),
+  LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
     .enum(["true", "false"])
     .default("false"),
 
-  // Deprecated. Do not use!
-  LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB: z
-    .enum(["true", "false"])
-    .default("false"),
   LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES: z.coerce
     .number()
     .positive()
@@ -427,9 +472,66 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_QUEUE_METRICS_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.3), // Probability for recording sharded queue depth metrics
+  LANGFUSE_QUEUE_METRICS_INTERVAL_MS: z.coerce.number().min(100).default(1000),
+  LANGFUSE_QUEUE_METRICS_ENABLED: z.enum(["true", "false"]).default("true"),
 });
 
-export const env: z.infer<typeof EnvSchema> =
+type ParsedEnv = z.infer<typeof EnvSchema>;
+
+// V4 migration flag helpers.
+export const v4WritesToEventsTable = (envValue: ParsedEnv): boolean =>
+  envValue.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy";
+
+export const v4WritesToLegacyTables = (envValue: ParsedEnv): boolean =>
+  envValue.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only";
+
+export const v4ForceDirectOtelWrite = (envValue: ParsedEnv): boolean =>
+  envValue.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR === "direct";
+
+export const v4AllowPreviewOptIn = (envValue: ParsedEnv): boolean =>
+  envValue.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+
+const validateV4Flags = (parsed: ParsedEnv): void => {
+  const mode = parsed.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+  const otel = parsed.LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR;
+
+  // Hard errors: combinations that would silently lose data.
+  if (mode === "legacy" && otel === "direct") {
+    throw new Error(
+      "Invalid V4 config: LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=direct " +
+        "requires LANGFUSE_MIGRATION_V4_WRITE_MODE in {dual, events_only}. " +
+        "Direct OTel writes target events_full, which is not read in legacy mode.",
+    );
+  }
+  if (mode === "events_only" && otel === "dual_write") {
+    throw new Error(
+      "Invalid V4 config: LANGFUSE_MIGRATION_V4_NATIVE_OTEL_BEHAVIOUR=dual_write " +
+        "is incoherent with LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only " +
+        "(would dual-write to legacy tables the deployment otherwise skips).",
+    );
+  }
+  if (mode === "events_only" && !v4AllowPreviewOptIn(parsed)) {
+    throw new Error(
+      "Invalid V4 config: LANGFUSE_MIGRATION_V4_WRITE_MODE=events_only requires " +
+        "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true. Web reads are gated " +
+        "solely on the opt-in flag; without it they target the legacy " +
+        "traces/observations tables that events_only mode no longer writes to.",
+    );
+  }
+};
+
+const parseEnv = (): ParsedEnv => {
+  const parsed = EnvSchema.parse(removeEmptyEnvVariables(process.env));
+  validateV4Flags(parsed);
+  return parsed;
+};
+
+export const env: ParsedEnv =
   process.env.DOCKER_BUILD === "1" // eslint-disable-line turbo/no-undeclared-env-vars
     ? (process.env as any)
-    : EnvSchema.parse(removeEmptyEnvVariables(process.env));
+    : parseEnv();

@@ -1011,6 +1011,177 @@ describe("OTel Resource Span Mapping", () => {
       expect(embeddingEvent).toBeDefined();
       expect(embeddingEvent?.body.model).toBe("gemini-embedding-001");
     });
+
+    it("should convert a Genkit OTel span to Langfuse generation-create event", async () => {
+      const genkitInput = JSON.stringify({
+        config: {},
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                text: "Output should be in JSON format.",
+              },
+            ],
+          },
+        ],
+        output: {
+          contentType: "application/json",
+          format: "json",
+        },
+      });
+
+      const genkitOutput = JSON.stringify({
+        finishReason: "stop",
+        latencyMs: 6270.767958,
+        message: {
+          content: [
+            {
+              text: {
+                confidence_level: 0.95,
+              },
+            },
+          ],
+          role: "model",
+        },
+        request: {
+          config: {},
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  text: "Output should be in JSON format.",
+                },
+              ],
+            },
+          ],
+          output: {
+            contentType: "application/json",
+            format: "json",
+          },
+        },
+        usage: {
+          inputCharacters: 10667,
+          inputTokens: 1618,
+          outputCharacters: 25,
+          outputTokens: 337,
+          thoughtsTokens: 320,
+          totalTokens: 1955,
+        },
+      });
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "unknown_service" } },
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "go" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "telemetry.sdk.version",
+              value: { stringValue: "1.40.0" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "genkit-tracer", version: "v1" },
+            spans: [
+              {
+                traceId: {
+                  type: "Buffer",
+                  data: [
+                    11, 22, 33, 44, 55, 66, 77, 88, 99, 110, 121, 132, 143, 154,
+                    165, 176,
+                  ],
+                },
+                spanId: {
+                  type: "Buffer",
+                  data: [1, 2, 3, 4, 5, 6, 7, 8],
+                },
+                name: "genkit-action",
+                kind: 3,
+                startTimeUnixNano: {
+                  low: 153687506,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 1327836088,
+                  high: 404677085,
+                  unsigned: true,
+                },
+                attributes: [
+                  { key: "genkit:type", value: { stringValue: "action" } },
+                  {
+                    key: "genkit:name",
+                    value: { stringValue: "openai/gpt-5-mini" },
+                  },
+                  {
+                    key: "genkit:metadata:subtype",
+                    value: { stringValue: "model" },
+                  },
+                  { key: "genkit:input", value: { stringValue: genkitInput } },
+                  {
+                    key: "genkit:output",
+                    value: { stringValue: genkitOutput },
+                  },
+                ],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
+      expect(parsedEvents).toHaveLength(2);
+
+      const generationEvent = parsedEvents.find(
+        (event) => event.type === "generation-create",
+      );
+      expect(generationEvent).toBeDefined();
+      expect(generationEvent?.body.name).toBe("openai/gpt-5-mini");
+      expect(generationEvent?.body.model).toBe("openai/gpt-5-mini");
+      expect(generationEvent?.body.input).toEqual([
+        {
+          role: "user",
+          content: [
+            {
+              text: "Output should be in JSON format.",
+            },
+          ],
+        },
+      ]);
+      expect(generationEvent?.body.output).toEqual({
+        content: [
+          {
+            text: {
+              confidence_level: 0.95,
+            },
+          },
+        ],
+        role: "model",
+      });
+      expect(generationEvent?.body.usageDetails).toMatchObject({
+        input: 1618,
+        output_reasoning: 320,
+        output: 17,
+        total: 1955,
+      });
+    });
   });
 
   describe("Property Mapping", () => {
@@ -1038,6 +1209,172 @@ describe("OTel Resource Span Mapping", () => {
         unsigned: true,
       },
     };
+
+    it.each([
+      ["missing attribute", undefined, false],
+      ["boolean true", { boolValue: true }, true],
+      ["string true", { stringValue: "true" }, true],
+      ["boolean false", { boolValue: false }, false],
+      ["string false", { stringValue: "false" }, false],
+    ])(
+      "should extract isAppRoot from %s",
+      (
+        _name: string,
+        otelAttributeValue: Record<string, unknown> | undefined,
+        expectedIsAppRoot: boolean,
+      ) => {
+        const attributes = otelAttributeValue
+          ? [
+              {
+                key: "langfuse.internal.is_app_root",
+                value: otelAttributeValue,
+              },
+            ]
+          : [];
+        const resourceSpan = {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  ...defaultSpanProps,
+                  attributes,
+                },
+              ],
+            },
+          ],
+        };
+
+        const processor = new OtelIngestionProcessor({
+          projectId: "test-project",
+        });
+        const eventInputs = processor.processToEvent([resourceSpan]);
+
+        expect(eventInputs).toHaveLength(1);
+        expect(eventInputs[0].isAppRoot).toBe(expectedIsAppRoot);
+      },
+    );
+
+    const aiSdkWeatherToolInputSchema = {
+      type: "object",
+      properties: {
+        location: { type: "string" },
+        unit: { type: "string", enum: ["celsius", "fahrenheit"] },
+      },
+      required: ["location"],
+      additionalProperties: false,
+    };
+    const aiSdkWeatherTools = [
+      {
+        type: "function",
+        name: "get_weather",
+        description: "Get current weather for a location.",
+        inputSchema: aiSdkWeatherToolInputSchema,
+      },
+    ];
+
+    const buildAiSdkToolResourceSpan = ({
+      traceId,
+      spanId,
+      tools,
+    }: {
+      traceId: string;
+      spanId: string;
+      tools: unknown[];
+    }) => ({
+      resource: {
+        attributes: [
+          {
+            key: "service.name",
+            value: { stringValue: "otel-test-service" },
+          },
+        ],
+      },
+      scopeSpans: [
+        {
+          scope: {
+            name: "ai",
+            version: "6.0.0",
+          },
+          spans: [
+            {
+              traceId: Buffer.from(traceId, "hex"),
+              spanId: Buffer.from(spanId, "hex"),
+              name: "ai.generateText",
+              kind: 1,
+              startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+              endTimeUnixNano: {
+                low: 1000000,
+                high: 406528574,
+                unsigned: true,
+              },
+              attributes: [
+                {
+                  key: "ai.operationId",
+                  value: { stringValue: "ai.generateText.doGenerate" },
+                },
+                {
+                  key: "ai.model.id",
+                  value: { stringValue: "test-model" },
+                },
+                {
+                  key: "ai.prompt.messages",
+                  value: {
+                    stringValue: JSON.stringify([
+                      {
+                        role: "user",
+                        content: [
+                          {
+                            type: "text",
+                            text: "What is the weather in Berlin?",
+                          },
+                        ],
+                      },
+                    ]),
+                  },
+                },
+                {
+                  key: "ai.prompt.tools",
+                  value: { stringValue: JSON.stringify(tools) },
+                },
+                {
+                  key: "ai.telemetry.metadata.tools",
+                  value: { stringValue: JSON.stringify(tools) },
+                },
+                {
+                  key: "ai.telemetry.metadata.topic",
+                  value: { stringValue: "programming" },
+                },
+                {
+                  key: "ai.response.toolCalls",
+                  value: {
+                    stringValue: JSON.stringify([
+                      {
+                        type: "tool-call",
+                        toolCallId: "call_get_weather_1",
+                        toolName: "get_weather",
+                        input: {
+                          location: "Berlin",
+                          unit: "celsius",
+                        },
+                      },
+                    ]),
+                  },
+                },
+                {
+                  key: "custom.attribute",
+                  value: { stringValue: "keep-me" },
+                },
+                {
+                  key: "custom.unmapped",
+                  value: { stringValue: "still-metadata" },
+                },
+              ],
+              status: {},
+            },
+          ],
+        },
+      ],
+    });
 
     it("should interpret an empty buffer as an unset parentSpanId", async () => {
       // https://github.com/langchain4j/langchain4j/issues/2328#issuecomment-2686129552
@@ -1712,6 +2049,211 @@ describe("OTel Resource Span Mapping", () => {
         observationEvent?.body.metadata?.attributes ?? {};
       expect(metadataAttributes).not.toHaveProperty("final_result");
       expect(metadataAttributes).not.toHaveProperty("pydantic_ai.all_messages");
+    });
+
+    it("should normalize current Pydantic AI cache usage fields into Langfuse usage details", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+
+      const pydanticAiRootSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "telemetry.sdk.name",
+              value: { stringValue: "opentelemetry" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "pydantic-ai",
+              version: "1.66.0",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("80854cd6bd218bf6", "hex"),
+                name: "pydantic-cache-test",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 120, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 30, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.input_audio_tokens",
+                    value: { intValue: { low: 5, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.cache_audio_read_tokens",
+                    value: { intValue: { low: 2, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.details.output_audio_tokens",
+                    value: { intValue: { low: 7, high: 0, unsigned: false } },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        pydanticAiRootSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(80);
+      expect(observationEvent?.body.usageDetails.output).toBe(40);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(30);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      expect(observationEvent?.body.usageDetails.input_audio_tokens).toBe(5);
+      expect(observationEvent?.body.usageDetails.cache_audio_read_tokens).toBe(
+        2,
+      );
+      expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(7);
+    });
+
+    it("should extract OpenInference llm.token_count.prompt_details.cache_read/cache_write into input_cached_tokens / input_cache_creation", async () => {
+      // OpenInference semantic conventions (used by openinference-instrumentation-{openai,anthropic,agno,...})
+      // emit cache token counts under llm.token_count.prompt_details.cache_read and
+      // llm.token_count.prompt_details.cache_write. Langfuse must recognize these
+      // canonical names alongside the existing details.cache_read_* / cache_creation_* aliases.
+      const traceId = "abcdef0123456789abcdef0123456789";
+
+      const openinferenceCacheSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "telemetry.sdk.language",
+              value: { stringValue: "python" },
+            },
+            {
+              key: "service.name",
+              value: { stringValue: "test-agno" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.agno",
+              version: "0.1.27",
+              attributes: [],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("a1b2c3d4e5f60718", "hex"),
+                name: "openinference-cache-test",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "llm.token_count.prompt",
+                    value: {
+                      intValue: { low: 50000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.completion",
+                    value: {
+                      intValue: { low: 200, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.prompt_details.cache_read",
+                    value: {
+                      intValue: { low: 40000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "llm.token_count.prompt_details.cache_write",
+                    value: {
+                      intValue: { low: 5000, high: 0, unsigned: false },
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        openinferenceCacheSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find((e) => e.type === "span-create");
+
+      expect(observationEvent).toBeDefined();
+      // input must be the uncached remainder: prompt - cache_read - cache_write
+      // = 50000 - 40000 - 5000 = 5000
+      expect(observationEvent?.body.usageDetails.input).toBe(5000);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        40000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        5000,
+      );
+      // The raw OpenInference keys must NOT be passed through after normalization
+      // (otherwise they would double-count in the UI breakdown).
+      expect(
+        observationEvent?.body.usageDetails["prompt_details.cache_read"],
+      ).toBeUndefined();
+      expect(
+        observationEvent?.body.usageDetails["prompt_details.cache_write"],
+      ).toBeUndefined();
     });
 
     it("should prepend gen_ai.system_instructions to pydantic_ai.all_messages input when system message is absent", async () => {
@@ -3128,6 +3670,39 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
         },
       ],
+      [
+        // OTLP/JSON encodes int64 attribute values as decimal strings (e.g. "100")
+        // rather than the Long object produced by the protobuf decoder. See
+        // https://opentelemetry.io/docs/specs/otlp/#json-protobuf-encoding
+        "should convert OTLP/JSON string-encoded intValue (max_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.request.max_tokens",
+          otelAttributeValue: { intValue: "100" },
+          entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should convert OTLP/JSON string-encoded intValue (usage input)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.input_tokens",
+          otelAttributeValue: { intValue: "100" },
+          entityAttributeKey: "usageDetails.input",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should convert OTLP/JSON string-encoded doubleValue (cost)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.cost",
+          otelAttributeValue: { doubleValue: "0.000151" },
+          entityAttributeKey: "costDetails.total",
+          entityAttributeValue: 0.000151,
+        },
+      ],
     ])(
       "Attributes: %s",
       async (
@@ -3186,6 +3761,46 @@ describe("OTel Resource Span Mapping", () => {
         ).toEqual(spec.entityAttributeValue);
       },
     );
+
+    // Regression: OTLP/JSON exporters (e.g. the OpenTelemetry PHP SDK) send
+    // int64 resource attributes as decimal strings (intValue: "7") rather than
+    // the Long object produced by the protobuf decoder. Previously these were
+    // converted to NaN, which failed ingestion validation on body.metadata.
+    it("should convert OTLP/JSON string-encoded int resource attributes without producing NaN", async () => {
+      // Setup - resource attributes as emitted by an OTLP/JSON exporter
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "langfuse-demo" } },
+            { key: "process.pid", value: { intValue: "7" } },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "demo-tracer" },
+            spans: [defaultSpanProps],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      // Then - the int is parsed to a number, not NaN
+      const resourceAttributes =
+        langfuseEvents[1].body.metadata.resourceAttributes;
+      expect(resourceAttributes["process.pid"]).toBe(7);
+      expect(resourceAttributes["service.name"]).toBe("langfuse-demo");
+
+      // And - the events pass ingestion validation (previously rejected with an
+      // invalid_union error on body.metadata because of the NaN value)
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
+      expect(parsedEvents).toHaveLength(2);
+    });
 
     it.each([
       [
@@ -3743,6 +4358,245 @@ describe("OTel Resource Span Mapping", () => {
       // Verify custom attributes ARE in metadata.attributes
       expect(observation?.body.metadata?.attributes?.custom_attribute).toBe(
         "should_be_preserved",
+      );
+    });
+
+    it("should move gen_ai.tool.definitions from metadata to observation input", async () => {
+      const traceId = "abcdef1234567890abcdef1234567892";
+      const rootSpanId = "1234567890abcdeb";
+      const tool = {
+        type: "function",
+        name: "calculator",
+        description: "Do math",
+        parameters: {
+          type: "object",
+          properties: {
+            expression: { type: "string" },
+          },
+        },
+      };
+
+      const span = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "otel-test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "otel-test-scope",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(rootSpanId, "hex"),
+                name: "otel-genai-event-span",
+                kind: 1,
+                startTimeUnixNano: { low: 0, high: 406528574, unsigned: true },
+                endTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.tool.definitions",
+                    value: { stringValue: JSON.stringify([tool]) },
+                  },
+                ],
+                events: [
+                  {
+                    name: "gen_ai.user.message",
+                    timeUnixNano: {
+                      low: 1000000,
+                      high: 406528574,
+                      unsigned: true,
+                    },
+                    attributes: [
+                      {
+                        key: "content",
+                        value: { stringValue: "What is 2 + 2?" },
+                      },
+                    ],
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeDefined();
+
+      const parsedInput =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+
+      expect(parsedInput).toEqual({
+        messages: [
+          {
+            role: "user",
+            content: "What is 2 + 2?",
+          },
+        ],
+        tools: [tool],
+      });
+      expect(
+        observation?.body.metadata?.attributes?.["gen_ai.tool.definitions"],
+      ).toBeUndefined();
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([span]);
+      expect(eventInputs).toHaveLength(1);
+
+      const parsedEventInput =
+        typeof eventInputs[0].input === "string"
+          ? JSON.parse(eventInputs[0].input)
+          : eventInputs[0].input;
+
+      expect(parsedEventInput).toEqual({
+        messages: [
+          {
+            role: "user",
+            content: "What is 2 + 2?",
+          },
+        ],
+        tools: [tool],
+      });
+      expect(Object.keys(eventInputs[0].toolDefinitions ?? {})).toEqual([
+        "calculator",
+      ]);
+      expect(
+        eventInputs[0].metadata.attributes?.["gen_ai.tool.definitions"],
+      ).toBeUndefined();
+    });
+
+    it("should move AI SDK available tools from metadata to observation input", async () => {
+      const traceId = "abcdef1234567890abcdef1234567891";
+      const rootSpanId = "1234567890abcdea";
+      const tools = aiSdkWeatherTools;
+
+      const span = buildAiSdkToolResourceSpan({
+        traceId,
+        spanId: rootSpanId,
+        tools,
+      });
+
+      const events = await convertOtelSpanToIngestionEvent(span, new Set());
+
+      const observation = events.find(
+        (e) => e.type.endsWith("-create") && e.type !== "trace-create",
+      );
+
+      expect(observation?.body.input).toBeDefined();
+
+      const parsedInput =
+        typeof observation?.body.input === "string"
+          ? JSON.parse(observation.body.input)
+          : observation?.body.input;
+
+      expect(parsedInput).toEqual({
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "What is the weather in Berlin?" }],
+          },
+        ],
+        tools,
+      });
+
+      expect(observation?.body.output).toBeDefined();
+      const parsedOutput =
+        typeof observation?.body.output === "string"
+          ? JSON.parse(observation.body.output)
+          : observation?.body.output;
+
+      expect(parsedOutput).toEqual([
+        {
+          type: "tool-call",
+          toolCallId: "call_get_weather_1",
+          toolName: "get_weather",
+          input: {
+            location: "Berlin",
+            unit: "celsius",
+          },
+        },
+      ]);
+
+      expect(observation?.body.metadata?.tools).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.["ai.prompt.tools"],
+      ).toBeUndefined();
+      expect(
+        observation?.body.metadata?.attributes?.["ai.response.toolCalls"],
+      ).toBeUndefined();
+      expect(observation?.body.metadata?.topic).toBe("programming");
+      expect(observation?.body.metadata?.attributes?.["custom.attribute"]).toBe(
+        "keep-me",
+      );
+      expect(observation?.body.metadata?.attributes?.["custom.unmapped"]).toBe(
+        "still-metadata",
+      );
+    });
+
+    it("should extract AI SDK available tools after metadata normalization in processToEvent", () => {
+      const tools = aiSdkWeatherTools;
+      const resourceSpan = buildAiSdkToolResourceSpan({
+        traceId: "abcdef1234567890abcdef1234567893",
+        spanId: "1234567890abcdec",
+        tools,
+      });
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+
+      expect(eventInputs).toHaveLength(1);
+      const eventInput = eventInputs[0];
+      expect(typeof eventInput.input).toBe("object");
+      const parsedInput =
+        typeof eventInput.input === "string"
+          ? JSON.parse(eventInput.input)
+          : eventInput.input;
+
+      expect(parsedInput).toEqual({
+        messages: [
+          {
+            role: "user",
+            content: [{ type: "text", text: "What is the weather in Berlin?" }],
+          },
+        ],
+        tools,
+      });
+      expect(Object.keys(eventInput.toolDefinitions ?? {})).toEqual([
+        "get_weather",
+      ]);
+      expect(JSON.parse(eventInput.toolDefinitions.get_weather)).toEqual({
+        description: "Get current weather for a location.",
+        parameters: JSON.stringify(aiSdkWeatherToolInputSchema),
+      });
+      expect(eventInput.toolCallNames).toEqual(["get_weather"]);
+      expect(eventInput.metadata.tools).toBeUndefined();
+      expect(eventInput.metadata.attributes["ai.prompt.tools"]).toBeUndefined();
+      expect(eventInput.metadata.topic).toBe("programming");
+      expect(eventInput.metadata.attributes["custom.attribute"]).toBe(
+        "keep-me",
       );
     });
 
@@ -5934,6 +6788,92 @@ describe("OTel Resource Span Mapping", () => {
     });
   });
 
+  describe("GenAI usage normalization", () => {
+    it("should normalize official gen_ai cache usage into Langfuse canonical keys", async () => {
+      const traceId = "abcdef1234567890abcdef1234567892";
+
+      const genAiSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "gen_ai",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde1", "hex"),
+                name: "normalized-genai-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: { intValue: { low: 100, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: { intValue: { low: 40, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.total_tokens",
+                    value: { intValue: { low: 140, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: { intValue: { low: 20, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_creation.input_tokens",
+                    value: { intValue: { low: 10, high: 0, unsigned: false } },
+                  },
+                  {
+                    key: "gen_ai.usage.output_audio_tokens",
+                    value: { intValue: { low: 5, high: 0, unsigned: false } },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        genAiSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+      expect(observationEvent?.body.usageDetails.input).toBe(70);
+      expect(observationEvent?.body.usageDetails.output).toBe(40);
+      expect(observationEvent?.body.usageDetails.total).toBe(140);
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(20);
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(10);
+      expect(observationEvent?.body.usageDetails.output_audio_tokens).toBe(5);
+    });
+  });
+
   describe("Vercel AI SDK Usage details", () => {
     it("should extract usage details from both provider metadata and 'ai.usage'", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
@@ -7009,6 +7949,75 @@ describe("OTel Resource Span Mapping", () => {
       expect(observation?.body.metadata?.attributes?.custom_field).toBe(
         "custom-value",
       );
+    });
+  });
+
+  describe("Prototype pollution protection", () => {
+    const publicKey = "pk-lf-1234567890";
+
+    it("should not pollute Object.prototype via __proto__ in gen_ai.prompt attributes", async () => {
+      const traceId = "abcdef1234567890abcdef1234567890";
+      const spanId = "abcdef1234567890";
+
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "langfuse-sdk",
+              version: "2.0.0",
+              attributes: [
+                {
+                  key: "public_key",
+                  value: { stringValue: publicKey },
+                },
+              ],
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex").toJSON(),
+                spanId: Buffer.from(spanId, "hex").toJSON(),
+                name: "pollution-test",
+                kind: 1,
+                startTimeUnixNano: { low: 1000000000, high: 0, unsigned: true },
+                endTimeUnixNano: { low: 2000000000, high: 0, unsigned: true },
+                attributes: [
+                  {
+                    key: "gen_ai.prompt.role",
+                    value: { stringValue: "user" },
+                  },
+                  {
+                    key: "gen_ai.prompt.content",
+                    value: { stringValue: "hello" },
+                  },
+                  {
+                    key: "gen_ai.prompt.__proto__.POLLUTED",
+                    value: { stringValue: "SUCCESS" },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set([traceId]),
+        publicKey,
+      );
+
+      // Verify Object.prototype was NOT polluted
+      expect(({} as any).POLLUTED).toBeUndefined();
+      expect(Object.prototype.hasOwnProperty("POLLUTED" as any)).toBe(false);
     });
   });
 });

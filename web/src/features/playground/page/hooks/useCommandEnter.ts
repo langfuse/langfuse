@@ -5,18 +5,20 @@ export default function useCommandEnter(
   callback: () => Promise<void>,
 ) {
   useEffect(() => {
+    const isMac = window.navigator.userAgent.includes("Mac");
+
     function handleKeyDown(event: KeyboardEvent) {
-      if (
-        isEnabled &&
-        (event.metaKey || event.ctrlKey) &&
-        event.code === "Enter"
-      ) {
+      const hasRunAllModifier = isMac ? event.metaKey : event.ctrlKey;
+
+      if (isEnabled && hasRunAllModifier && event.key === "Enter") {
+        event.preventDefault();
+        event.stopPropagation();
         callback().catch((err) => console.error(err));
       }
     }
 
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
 
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown, true);
   }, [isEnabled, callback]);
 }

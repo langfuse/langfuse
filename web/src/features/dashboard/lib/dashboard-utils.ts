@@ -1,11 +1,7 @@
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { type FilterState, type singleFilter } from "@langfuse/shared";
-import { usdFormatter } from "@/src/utils/numbers";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 // traces do not have a startTime or endTime column, so we need to map these to the timestamp column
 export const createTracesTimeFilter = (
@@ -22,14 +18,6 @@ export const createTracesTimeFilter = (
       return f;
     }
   });
-};
-
-export const totalCostDashboardFormatted = (totalCost?: number) => {
-  return totalCost
-    ? totalCost < 5
-      ? usdFormatter(totalCost, 2, 6)
-      : usdFormatter(totalCost, 2, 2)
-    : usdFormatter(0);
 };
 
 /** Filter to exclude events with empty trace_name (observations view only). */

@@ -4,7 +4,7 @@ import { Card } from "@/src/components/ui/card";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -32,7 +32,6 @@ import { StringNoHTML } from "@langfuse/shared";
 import Link from "next/link";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { env } from "@/src/env.mjs";
 
 const displayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -287,11 +286,7 @@ const getAccountSettingsPages = (userEmail: string): AccountSettingsPage[] => [
               process.
             </p>
             <Button asChild variant="secondary">
-              <Link
-                href={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/auth/reset-password`}
-              >
-                Change Password
-              </Link>
+              <Link href="/auth/reset-password">Change Password</Link>
             </Button>
           </Card>
         </div>

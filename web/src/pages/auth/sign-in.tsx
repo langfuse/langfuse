@@ -30,11 +30,12 @@ import Head from "next/head";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
 import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { isAnySsoConfigured } from "@/src/ee/features/multi-tenant-sso/utils";
+import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { Code, Key } from "lucide-react";
 import { useRouter } from "next/router";
 import { captureException } from "@sentry/nextjs";
@@ -46,7 +47,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 const credentialAuthForm = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8, {
     message: "Password must be at least 8 characters long",
   }),
@@ -90,6 +91,7 @@ export type PageProps = {
   };
   runningOnHuggingFaceSpaces: boolean;
   signUpDisabled: boolean;
+  emailVerificationRequired: boolean;
 };
 
 // Also used in src/pages/auth/sign-up.tsx
@@ -173,6 +175,7 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         sso,
       },
       signUpDisabled: env.AUTH_DISABLE_SIGNUP === "true",
+      emailVerificationRequired: isEmailVerificationRequired(),
       runningOnHuggingFaceSpaces: env.NEXTAUTH_URL?.replace(
         "/api/auth",
         "",
@@ -373,7 +376,7 @@ export function SSOButtons({
               onClick={() => {
                 capture("sign_in:button_click", { provider: "keycloak" });
                 onProviderSelect?.("keycloak");
-                void signIn("keycloak");
+                signIn("keycloak");
               }}
               loading={providerSigningIn === "keycloak"}
               showLastUsedBadge={
@@ -389,7 +392,7 @@ export function SSOButtons({
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
                   onProviderSelect?.("workos");
-                  void signIn("workos", undefined, {
+                  signIn("workos", undefined, {
                     connection: (
                       authProviders.workos as { connectionId: string }
                     ).connectionId,
@@ -409,7 +412,7 @@ export function SSOButtons({
                 onClick={() => {
                   capture("sign_in:button_click", { provider: "workos" });
                   onProviderSelect?.("workos");
-                  void signIn("workos", undefined, {
+                  signIn("workos", undefined, {
                     organization: (
                       authProviders.workos as { organizationId: string }
                     ).organizationId,
@@ -433,7 +436,7 @@ export function SSOButtons({
                   if (organization) {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
-                    void signIn("workos", undefined, {
+                    signIn("workos", undefined, {
                       organization,
                     });
                   }
@@ -453,7 +456,7 @@ export function SSOButtons({
                   if (connection) {
                     capture("sign_in:button_click", { provider: "workos" });
                     onProviderSelect?.("workos");
-                    void signIn("workos", undefined, {
+                    signIn("workos", undefined, {
                       connection,
                     });
                   }
@@ -515,7 +518,7 @@ export function useHuggingFaceRedirect(runningOnHuggingFaceSpaces: boolean) {
       typeof window !== "undefined" &&
       isInIframe()
     ) {
-      void router.push("/auth/hf-spaces");
+      router.push("/auth/hf-spaces");
     }
   }, [router, runningOnHuggingFaceSpaces]);
 }
@@ -657,7 +660,7 @@ export default function SignIn({
     credentialsForm.clearErrors();
 
     // Ensure email is valid before hitting the API
-    const emailSchema = z.string().email();
+    const emailSchema = z.email();
     const email = emailSchema.safeParse(credentialsForm.getValues("email"));
     if (!email.success) {
       credentialsForm.setError("email", {
@@ -688,7 +691,7 @@ export default function SignIn({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        void signIn(providerId);
+        signIn(providerId);
         return; // stop further execution – page redirect expected
       }
 
@@ -757,7 +760,7 @@ export default function SignIn({
                         ? credentialsForm.handleSubmit(onCredentialsSubmit)
                         : (e) => {
                             e.preventDefault();
-                            void handleContinue();
+                            handleContinue();
                           }
                     }
                   >

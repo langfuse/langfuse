@@ -1,12 +1,18 @@
 import { type EvalFormType } from "@/src/features/evals/utils/evaluator-form-utils";
 import { EvalTargetObject, type ObservationType } from "@langfuse/shared";
-import { type UseFormReturn } from "react-hook-form";
+import { type UseFormReturn, useWatch } from "react-hook-form";
 import { useRouter } from "next/router";
 import {
   type PreviewData,
   usePreviewData,
 } from "@/src/features/evals/hooks/usePreviewData";
 import { useEffect, useRef } from "react";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  type EvalPreviewPointer,
+  getEvalPreviewPointerFromUrlQuery,
+  useFirstEvalPreviewPointer,
+} from "@/src/features/evals/hooks/useEvalPreviewNavigation";
 
 type EvalConfigMappingData = {
   namesByObject: Map<string, Set<string>>;
@@ -18,39 +24,53 @@ export function useEvalConfigMappingData(
   projectId: string,
   form: UseFormReturn<EvalFormType>,
   disabled = false,
+  selectedPreviewPointer?: EvalPreviewPointer,
 ): EvalConfigMappingData {
   const router = useRouter();
+  const { isBetaEnabled } = useV4Beta();
 
-  // Get traceId and observationId from URL query parameters
-  const traceId =
-    typeof router.query.traceId === "string" ? router.query.traceId : undefined;
-  const observationId =
-    typeof router.query.observationId === "string"
-      ? router.query.observationId
-      : undefined;
-
-  const { previewData, isLoading } = usePreviewData(
-    projectId,
-    form,
-    !disabled,
-    traceId,
-    observationId,
+  const targetValue = useWatch({ control: form.control, name: "target" });
+  const firstPreviewPointer = useFirstEvalPreviewPointer({
+    target: targetValue,
+    useEventsTable: isBetaEnabled,
+  });
+  const urlPreviewPointer = getEvalPreviewPointerFromUrlQuery(
+    router.query,
+    targetValue,
   );
+  // Peek navigation wins over URL state; URL state wins over the table's first row.
+  const previewPointer =
+    selectedPreviewPointer ?? urlPreviewPointer ?? firstPreviewPointer;
 
-  const targetValue = form.watch("target");
+  const { previewData, isLoading } = usePreviewData({
+    projectId,
+    enabled: !disabled && Boolean(previewPointer),
+    target: targetValue,
+    traceId: previewPointer?.traceId,
+    observationId: previewPointer?.observationId,
+    timestamp: previewPointer?.timestamp,
+  });
+
   const prevTargetRef = useRef(targetValue);
+  const isLocallyManagedPreview = Boolean(selectedPreviewPointer);
 
   // drop the traceId and observation-related params from the URL query parameters when target changes
   useEffect(() => {
+    if (isLocallyManagedPreview) {
+      prevTargetRef.current = targetValue;
+      return;
+    }
+
     if (
       prevTargetRef.current !== targetValue &&
       prevTargetRef.current !== undefined
     ) {
       // Remove navigation-related params when target changes
-      const { traceId, observationId, ...restQuery } = router.query;
+      const { traceId, observationId, timestamp, startTime, ...restQuery } =
+        router.query;
 
       // Use replace to avoid adding to browser history
-      void router.replace(
+      router.replace(
         {
           pathname: router.pathname,
           query: restQuery,
@@ -60,7 +80,7 @@ export function useEvalConfigMappingData(
       );
     }
     prevTargetRef.current = targetValue;
-  }, [targetValue, router]);
+  }, [targetValue, router, isLocallyManagedPreview]);
 
   const observationTypeToNames = new Map<ObservationType, Set<string>>([
     ["SPAN", new Set()],
@@ -70,7 +90,7 @@ export function useEvalConfigMappingData(
 
   // Only populate observation names for trace evals (where observations are available)
   if (previewData?.type === EvalTargetObject.TRACE) {
-    previewData?.data?.observations.forEach((observation) => {
+    previewData.trace.observations.forEach((observation) => {
       if (observation.type && observation.name) {
         observationTypeToNames.get(observation.type)?.add(observation.name);
       }
@@ -78,7 +98,7 @@ export function useEvalConfigMappingData(
   }
 
   return {
-    namesByObject: new Map<string, Set<string>>(),
+    namesByObject: observationTypeToNames,
     isLoading,
     previewData,
   };

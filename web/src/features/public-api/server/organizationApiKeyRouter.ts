@@ -4,7 +4,7 @@ import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
-import * as z from "zod/v4";
+import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
@@ -27,6 +27,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         where: {
           orgId: input.orgId,
           scope: "ORGANIZATION",
+          isInAppAgentKey: false,
         },
         select: {
           id: true,
@@ -87,6 +88,14 @@ export const organizationApiKeysRouter = createTRPCRouter({
         scope: "organization:CRUD_apiKeys",
       });
 
+      await ctx.prisma.apiKey.findFirstOrThrow({
+        where: {
+          id: input.keyId,
+          orgId: input.orgId,
+          isInAppAgentKey: false,
+        },
+      });
+
       await auditLog({
         session: ctx.session,
         resourceType: "apiKey",
@@ -98,6 +107,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         where: {
           id: input.keyId,
           orgId: input.orgId,
+          isInAppAgentKey: false,
         },
         data: {
           note: input.note,
@@ -120,6 +130,16 @@ export const organizationApiKeysRouter = createTRPCRouter({
         organizationId: input.orgId,
         scope: "organization:CRUD_apiKeys",
       });
+      const apiKey = await ctx.prisma.apiKey.findFirstOrThrow({
+        where: {
+          id: input.id,
+          orgId: input.orgId,
+          scope: "ORGANIZATION",
+        },
+      });
+
+      if (apiKey.isInAppAgentKey) return false;
+
       await auditLog({
         session: ctx.session,
         resourceType: "apiKey",

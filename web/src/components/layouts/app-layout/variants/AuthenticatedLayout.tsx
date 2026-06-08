@@ -10,8 +10,14 @@ import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { Toaster } from "@/src/components/ui/sonner";
 import { TopBannerProvider } from "@/src/features/top-banner";
-import { ResizableContent } from "../components/ResizableContent";
+import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
+import {
+  getAvailableCloudRegionOptions,
+  getCloudRegionAuthUrl,
+} from "@/src/features/organizations/cloudRegions";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
@@ -37,25 +43,21 @@ const PaymentBanner = dynamic(
   },
 );
 
-const V4BetaEnabledBanner = dynamic(
+const V4EnabledBanner = dynamic(
   () =>
-    import("@/src/features/events/components/V4BetaEnabledBanner").then(
-      (mod) => ({
-        default: mod.V4BetaEnabledBanner,
-      }),
-    ),
+    import("@/src/features/events/components/V4EnabledBanner").then((mod) => ({
+      default: mod.V4EnabledBanner,
+    })),
   {
     ssr: false,
   },
 );
 
-const V4BetaPromoBanner = dynamic(
+const V4PromoBanner = dynamic(
   () =>
-    import("@/src/features/events/components/V4BetaPromoBanner").then(
-      (mod) => ({
-        default: mod.V4BetaPromoBanner,
-      }),
-    ),
+    import("@/src/features/events/components/V4PromoBanner").then((mod) => ({
+      default: mod.V4PromoBanner,
+    })),
   {
     ssr: false,
   },
@@ -81,6 +83,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
     favicon256Path: string;
     appleTouchIconPath: string;
   };
+  aiFeaturesEnabled: boolean;
   onSignOut: () => void;
 }>;
 
@@ -98,8 +101,13 @@ export function AuthenticatedLayout({
   session,
   navigation,
   metadata,
+  aiFeaturesEnabled,
   onSignOut,
 }: AuthenticatedLayoutProps) {
+  const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+  const assistantEnabled =
+    useIsFeatureEnabled("inAppAgent") && aiFeaturesEnabled;
+
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
   const user = session.user;
@@ -107,6 +115,21 @@ export function AuthenticatedLayout({
     // This should never happen due to guards in AppLayout, but TypeScript needs this
     return null;
   }
+
+  const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
+    (region) => ({
+      name: region.name,
+      content: `${region.flag} ${region.name}`,
+      onClick: () => {
+        if (!region.rootUrl) return;
+        window.open(
+          getCloudRegionAuthUrl(region.rootUrl, user.email),
+          "_blank",
+          "noopener,noreferrer",
+        );
+      },
+    }),
+  );
 
   // User navigation items for sidebar dropdown
   const userNavProps = {
@@ -118,6 +141,22 @@ export function AuthenticatedLayout({
     items: [
       { name: "Account Settings", href: "/account/settings" },
       { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
+      ...(isLangfuseCloud
+        ? [
+            {
+              name: "Regions",
+              subItems: regionMenuItems,
+              content: (
+                <>
+                  Regions
+                  <div className="ml-2 inline-flex rounded bg-black/5 p-1 text-xs dark:bg-white/10">
+                    Current: {currentRegion}
+                  </div>
+                </>
+              ),
+            },
+          ]
+        : []),
       { name: "Sign out", onClick: onSignOut },
     ],
   };
@@ -140,8 +179,8 @@ export function AuthenticatedLayout({
         <SidebarProvider>
           <div className="flex h-dvh w-full flex-col">
             <PaymentBanner />
-            <V4BetaEnabledBanner />
-            <V4BetaPromoBanner />
+            <V4EnabledBanner />
+            <V4PromoBanner />
             <div className="pt-banner-offset flex min-h-0 flex-1">
               <AppSidebar
                 navItems={navigation.mainNavigation}
@@ -149,7 +188,9 @@ export function AuthenticatedLayout({
                 userNavProps={userNavProps}
               />
               <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-                <ResizableContent>{children}</ResizableContent>
+                <AppContentWithRightDrawer aiAgentEnabled={assistantEnabled}>
+                  {children}
+                </AppContentWithRightDrawer>
                 <Toaster visibleToasts={1} />
                 <CommandMenu mainNavigation={navigation.navigation} />
               </SidebarInset>

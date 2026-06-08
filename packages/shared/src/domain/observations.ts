@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 import { jsonSchema } from "../utils/zod";
 import { MetadataDomain } from "./traces";
 
@@ -79,6 +79,7 @@ export const ObservationSchema = z.object({
   promptVersion: z.number().nullable(),
   latency: z.number().nullable(),
   timeToFirstToken: z.number().nullable(),
+  providedUsageDetails: z.record(z.string(), z.number()),
   usageDetails: z.record(z.string(), z.number()),
   costDetails: z.record(z.string(), z.number()),
   providedCostDetails: z.record(z.string(), z.number()),
@@ -116,6 +117,8 @@ export const EventsObservationSchema = ObservationSchema.extend({
   userId: z.string().nullable(),
   sessionId: z.string().nullable(),
   traceName: z.string().nullable(),
+  release: z.string().nullable().optional(),
+  tags: z.array(z.string()).nullable().optional(),
   bookmarked: z.boolean().optional(),
   public: z.boolean().optional(),
 });

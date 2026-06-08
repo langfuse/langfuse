@@ -2,8 +2,8 @@ import {
   type TimeRange,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
-import { api, type RouterInputs } from "@/src/utils/api";
-import { hashKey } from "@tanstack/react-query";
+import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
+import { hashKey, useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import {
   createContext,
   type ReactNode,
@@ -14,6 +14,10 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  useSSEDashboardQuery,
+  type QueryProgress,
+} from "@/src/hooks/useSSEDashboardQuery";
 
 type SchedulerItemStatus = "queued" | "running" | "done";
 
@@ -38,6 +42,8 @@ export type DashboardQuerySchedulerApi = {
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const SECOND_MS = 1000;
+const MINUTE_MS = 60 * SECOND_MS;
 
 export const getDashboardQuerySchedulerMaxConcurrent = (
   timeRange: TimeRange,
@@ -53,6 +59,15 @@ export const getDashboardQuerySchedulerMaxConcurrent = (
   if (durationMs >= 7 * DAY_MS) return 6;
   if (durationMs >= DAY_MS) return 6;
   return 9;
+};
+
+const parseIsoDateMs = (value: unknown): number | null => {
+  if (typeof value !== "string") return null;
+
+  const parsedMs = Date.parse(value);
+  if (Number.isNaN(parsedMs)) return null;
+
+  return parsedMs;
 };
 
 export const useDashboardQueryScheduler = ({
@@ -210,6 +225,7 @@ type DashboardQuerySchedulerContextValue = {
     DashboardQuerySchedulerApi,
     "register" | "unregister" | "canFetch" | "markDone"
   >;
+  shouldBucketQueriesByTimeRange: boolean;
 };
 
 const DashboardQuerySchedulerContext =
@@ -217,9 +233,11 @@ const DashboardQuerySchedulerContext =
 
 export const DashboardQuerySchedulerProvider = ({
   scheduler,
+  shouldBucketQueriesByTimeRange = false,
   children,
 }: {
   scheduler: DashboardQuerySchedulerContextValue["scheduler"];
+  shouldBucketQueriesByTimeRange?: boolean;
   children: ReactNode;
 }) => {
   const contextValue = useMemo(
@@ -230,12 +248,14 @@ export const DashboardQuerySchedulerProvider = ({
         canFetch: scheduler.canFetch,
         markDone: scheduler.markDone,
       },
+      shouldBucketQueriesByTimeRange,
     }),
     [
       scheduler.register,
       scheduler.unregister,
       scheduler.canFetch,
       scheduler.markDone,
+      shouldBucketQueriesByTimeRange,
     ],
   );
 
@@ -251,11 +271,18 @@ const useDashboardQuerySchedulerContext = () => {
 };
 
 type DashboardExecuteQueryInput = RouterInputs["dashboard"]["executeQuery"];
-type DashboardExecuteQueryOptions = NonNullable<
-  Parameters<
-    typeof api.dashboard.executeQuery.useQuery<Record<string, unknown>[]>
-  >[1]
->;
+type DashboardExecuteQueryOutput = RouterOutputs["dashboard"]["executeQuery"];
+type DashboardExecuteQueryOptions = Omit<
+  UseQueryOptions<DashboardExecuteQueryOutput, Error>,
+  "enabled" | "meta" | "queryFn" | "queryKey"
+> & {
+  meta?: Record<string, unknown>;
+  trpc?: {
+    context?: {
+      skipBatch?: boolean;
+    };
+  };
+};
 type ScheduledDashboardExecuteQueryOptions = Omit<
   DashboardExecuteQueryOptions,
   "enabled" | "meta"
@@ -264,11 +291,106 @@ type ScheduledDashboardExecuteQueryOptions = Omit<
   meta?: DashboardExecuteQueryOptions["meta"];
   priority?: number;
   queryId: string;
-  runKey?: string;
+  refreshKey?: unknown;
+  useSSE?: boolean;
 };
 
-const getDefaultRunKey = (input: DashboardExecuteQueryInput) =>
-  hashKey([input]);
+const getDashboardExecuteQueryDurationMs = (
+  input: DashboardExecuteQueryInput,
+): number | null => {
+  const fromMs = parseIsoDateMs(input.query?.fromTimestamp);
+  const toMs = parseIsoDateMs(input.query?.toTimestamp);
+
+  if (fromMs === null || toMs === null) return null;
+  return Math.max(0, toMs - fromMs);
+};
+
+const getDashboardExecuteQueryCachePolicy = (
+  input: DashboardExecuteQueryInput,
+): {
+  staleTime: number;
+  gcTime: number;
+} => {
+  const durationMs = getDashboardExecuteQueryDurationMs(input);
+
+  if (durationMs === null) {
+    return {
+      staleTime: 30 * SECOND_MS,
+      gcTime: 10 * MINUTE_MS,
+    };
+  }
+
+  if (durationMs <= 30 * MINUTE_MS) {
+    return {
+      staleTime: 15 * SECOND_MS,
+      gcTime: 5 * MINUTE_MS,
+    };
+  }
+
+  if (durationMs <= DAY_MS) {
+    return {
+      staleTime: 30 * SECOND_MS,
+      gcTime: 10 * MINUTE_MS,
+    };
+  }
+
+  if (durationMs <= 7 * DAY_MS) {
+    return {
+      staleTime: 2 * MINUTE_MS,
+      gcTime: 20 * MINUTE_MS,
+    };
+  }
+
+  if (durationMs <= 30 * DAY_MS) {
+    return {
+      staleTime: 5 * MINUTE_MS,
+      gcTime: 30 * MINUTE_MS,
+    };
+  }
+
+  return {
+    staleTime: 10 * MINUTE_MS,
+    gcTime: 60 * MINUTE_MS,
+  };
+};
+
+const normalizeIsoTimestampByBucket = (
+  value: unknown,
+  bucketMs: number,
+): unknown => {
+  if (typeof value !== "string") return value;
+  const parsedMs = Date.parse(value);
+  if (Number.isNaN(parsedMs)) return value;
+
+  const effectiveBucketMs = Math.max(1, Math.floor(bucketMs));
+  const normalizedMs =
+    Math.floor(parsedMs / effectiveBucketMs) * effectiveBucketMs;
+  return new Date(normalizedMs).toISOString();
+};
+
+const normalizeDashboardExecuteQueryInputForCache = (
+  input: DashboardExecuteQueryInput,
+  bucketMs: number,
+): DashboardExecuteQueryInput => {
+  if (!input.query) return input;
+
+  // Intentionally bucket from/to timestamps only for derived cache/restart keys.
+  // The backend payload still uses the original timestamps.
+  return {
+    ...input,
+    query: {
+      ...input.query,
+      fromTimestamp: normalizeIsoTimestampByBucket(
+        input.query.fromTimestamp,
+        bucketMs,
+      ) as string,
+      toTimestamp: normalizeIsoTimestampByBucket(
+        input.query.toTimestamp,
+        bucketMs,
+      ) as string,
+    },
+  };
+};
 
 export const useScheduledDashboardExecuteQuery = (
   input: DashboardExecuteQueryInput,
@@ -277,19 +399,51 @@ export const useScheduledDashboardExecuteQuery = (
     meta,
     priority = 1000,
     queryId,
-    runKey,
+    refreshKey,
+    useSSE = false,
     ...queryOptions
   }: ScheduledDashboardExecuteQueryOptions,
-) => {
+): {
+  data: Record<string, unknown>[] | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  isSuccess: boolean;
+  fetchStatus: string;
+  isPending: boolean;
+  progress: QueryProgress | null;
+  error: string | null;
+} => {
   const context = useDashboardQuerySchedulerContext();
+  const utils = api.useUtils();
   const scheduler = context?.scheduler;
   const register = scheduler?.register;
   const unregister = scheduler?.unregister;
   const markDone = scheduler?.markDone;
-  const effectiveRunKey = useMemo(
-    () => runKey ?? getDefaultRunKey(input),
-    [input, runKey],
+  const shouldBucketQueriesByTimeRange =
+    context?.shouldBucketQueriesByTimeRange ?? false;
+  const cachePolicy = useMemo(
+    () => getDashboardExecuteQueryCachePolicy(input),
+    [input],
   );
+  const cacheKeyInput = useMemo(
+    () =>
+      shouldBucketQueriesByTimeRange
+        ? normalizeDashboardExecuteQueryInputForCache(
+            input,
+            cachePolicy.staleTime,
+          )
+        : input,
+    [cachePolicy.staleTime, input, shouldBucketQueriesByTimeRange],
+  );
+  const queryCacheKey = useMemo(
+    () => ["dashboard.executeQuery", cacheKeyInput, refreshKey ?? null],
+    [cacheKeyInput, refreshKey],
+  );
+  const effectiveRunKey = useMemo(
+    () => hashKey(queryCacheKey),
+    [queryCacheKey],
+  );
+  const { trpc, ...reactQueryOptions } = queryOptions;
 
   useEffect(() => {
     if (!unregister) return;
@@ -305,19 +459,37 @@ export const useScheduledDashboardExecuteQuery = (
 
   const canFetch = scheduler ? scheduler.canFetch(queryId) : true;
 
-  const queryResult = api.dashboard.executeQuery.useQuery<
-    Record<string, unknown>[]
-  >(input, {
-    ...queryOptions,
-    enabled: enabled && canFetch,
+  // tRPC path (default)
+  const trpcResult = useQuery<DashboardExecuteQueryOutput, Error>({
+    ...reactQueryOptions,
+    queryKey: queryCacheKey,
+    queryFn: async () =>
+      utils.dashboard.executeQuery.fetch(input, {
+        trpc,
+      }),
+    staleTime: queryOptions.staleTime ?? cachePolicy.staleTime,
+    gcTime: queryOptions.gcTime ?? cachePolicy.gcTime,
+    refetchOnWindowFocus: queryOptions.refetchOnWindowFocus ?? false,
+    refetchOnReconnect: queryOptions.refetchOnReconnect ?? false,
+    refetchOnMount: queryOptions.refetchOnMount ?? false,
+    enabled: enabled && canFetch && !useSSE,
     meta,
   });
+
+  // SSE path (opt-in)
+  const sseResult = useSSEDashboardQuery(input, {
+    enabled: enabled && canFetch && useSSE,
+    inputKey: effectiveRunKey,
+    queryId,
+  });
+
+  const activeResult = useSSE ? sseResult : trpcResult;
 
   useEffect(() => {
     if (!markDone) return;
     if (!enabled || !canFetch) return;
-    if (queryResult.fetchStatus !== "idle") return;
-    if (queryResult.isPending) return;
+    if (activeResult.fetchStatus !== "idle") return;
+    if (activeResult.isPending) return;
 
     markDone(queryId);
   }, [
@@ -325,9 +497,18 @@ export const useScheduledDashboardExecuteQuery = (
     enabled,
     markDone,
     queryId,
-    queryResult.fetchStatus,
-    queryResult.isPending,
+    activeResult.fetchStatus,
+    activeResult.isPending,
   ]);
 
-  return queryResult;
+  return {
+    data: activeResult.data,
+    isLoading: activeResult.isLoading,
+    isError: activeResult.isError,
+    isSuccess: activeResult.isSuccess,
+    fetchStatus: activeResult.fetchStatus,
+    isPending: activeResult.isPending,
+    progress: useSSE ? sseResult.progress : null,
+    error: useSSE ? sseResult.error : null,
+  };
 };

@@ -16,6 +16,7 @@ describe("ClickHouse Resource Error Handling", () => {
             res = await queryClickhouse<any>({
               query: `SELECT throwIf(number >= 2, 'memory limit exceeded: would use 10.23 GiB') AS v FROM system.numbers LIMIT 2000`,
               clickhouseSettings: { max_block_size: `${blockSize}` },
+              tags: { test: "marker" },
             });
             fail(
               "Should have thrown an error, observed instead " +
@@ -24,6 +25,7 @@ describe("ClickHouse Resource Error Handling", () => {
           } catch (error: any) {
             expect(error).toBeInstanceOf(ClickHouseResourceError);
             expect(error.errorType).toBe("MEMORY_LIMIT");
+            expect(error.tags?.test).toBe("marker");
           }
         });
       });

@@ -1,5 +1,5 @@
 import { paginationZod, parseJsonPrioritised } from "@langfuse/shared";
-import { ZodError } from "zod/v4";
+import { ZodError } from "zod";
 
 // Create test cases
 describe("Pagination Zod Schema", () => {
@@ -22,6 +22,7 @@ describe("Pagination Zod Schema", () => {
   it("should handle invalid input", () => {
     expect(() => paginationZod.page.parse("abc")).toThrow(ZodError);
     expect(() => paginationZod.limit.parse("abc")).toThrow(ZodError);
+    expect(() => paginationZod.limit.parse("0")).toThrow(ZodError);
   });
 });
 

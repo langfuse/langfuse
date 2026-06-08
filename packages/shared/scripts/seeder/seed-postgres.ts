@@ -4,6 +4,8 @@ import { hash } from "bcryptjs";
 import { v4 } from "uuid";
 import { encrypt } from "../../src/encryption";
 import {
+  EvalTemplateSourceCodeLanguage,
+  EvalTemplateType,
   type JobConfiguration,
   JobExecutionStatus,
   PrismaClient,
@@ -30,6 +32,7 @@ import {
   generateEvalScoreId,
   generateEvalTraceId,
 } from "./utils/seed-helpers";
+import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
 import { seedMediaTraces } from "./seed-media";
 
@@ -90,6 +93,7 @@ async function main() {
     create: {
       id: seedOrgId,
       name: "Seed Org",
+      aiFeaturesEnabled: true,
       cloudConfig: {
         plan: "Team",
       },
@@ -160,7 +164,7 @@ async function main() {
     },
   });
 
-  await prisma.prompt.upsert({
+  const summaryPrompt = await prisma.prompt.upsert({
     where: {
       projectId_name_version: {
         projectId: seedProjectId,
@@ -177,6 +181,13 @@ async function main() {
       createdBy: "user-1",
     },
     update: {},
+  });
+
+  await seedInAppAgentDemoConversation({
+    prisma,
+    projectId: project1.id,
+    userId: user.id,
+    summaryPrompt,
   });
 
   const seedApiKey = {
@@ -297,6 +308,8 @@ async function main() {
 
     // add eval objects
     for (const evalTemplate of SEED_EVALUATOR_TEMPLATES) {
+      const evalTemplateType = evalTemplate.type as EvalTemplateType;
+
       await prisma.evalTemplate.upsert({
         where: {
           projectId_name_version: {
@@ -310,12 +323,18 @@ async function main() {
           projectId: project1.id,
           name: evalTemplate.name,
           version: evalTemplate.version,
-          prompt: evalTemplate.prompt,
-          model: evalTemplate.model,
+          type: evalTemplateType,
+          prompt: evalTemplate.prompt ?? null,
+          model: evalTemplate.model ?? null,
           vars: evalTemplate.vars,
-          provider: evalTemplate.provider,
-          outputSchema: evalTemplate.outputSchema,
-          modelParams: evalTemplate.modelParams,
+          provider: evalTemplate.provider ?? null,
+          outputDefinition: evalTemplate.outputDefinition ?? undefined,
+          modelParams: evalTemplate.modelParams ?? undefined,
+          sourceCode: evalTemplate.sourceCode ?? null,
+          sourceCodeLanguage:
+            (evalTemplate.sourceCodeLanguage as
+              | EvalTemplateSourceCodeLanguage
+              | undefined) ?? null,
         },
         update: {},
       });
@@ -961,6 +980,14 @@ async function generateConfigs(project: Project) {
       ],
       description:
         "Used to indicate if text was harmful or offensive in nature.",
+      isArchived: false,
+    },
+    {
+      id: `config-${v4()}`,
+      projectId: project.id,
+      name: "Feedback",
+      dataType: ScoreDataTypeEnum.TEXT,
+      description: "Free-form text feedback on the output quality.",
       isArchived: false,
     },
   ];

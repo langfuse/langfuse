@@ -1,9 +1,77 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
-import { prisma, type User, type Role } from "@langfuse/shared/src/db";
+import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
+
+// Mirrors the tRPC `deleteMembership` invariant. Wraps the owner-count check
+// and the membership delete in a single Serializable transaction so two
+// concurrent SCIM deprovision requests cannot both pass the guard and orphan
+// the org. Returns false (with the response already written) when the caller
+// must stop; returns true after the membership has been removed.
+async function deprovisionOrReject(
+  res: NextApiResponse,
+  userId: string,
+  orgId: string,
+): Promise<boolean> {
+  try {
+    const outcome = await prisma.$transaction(
+      async (tx) => {
+        const membership = await tx.organizationMembership.findUnique({
+          where: { orgId_userId: { orgId, userId } },
+          select: { role: true },
+        });
+        if (membership?.role === "OWNER") {
+          const ownerCount = await tx.organizationMembership.count({
+            where: { orgId, role: "OWNER" },
+          });
+          if (ownerCount <= 1) {
+            return "lastOwner" as const;
+          }
+        }
+        await tx.organizationMembership.deleteMany({
+          where: { userId, orgId },
+        });
+        return "deleted" as const;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    if (outcome === "lastOwner") {
+      logger.warn(
+        `[SCIM] Refused to remove last OWNER ${userId} from org ${orgId}`,
+      );
+      res.status(403).json({
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        detail:
+          "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
+        status: 403,
+      });
+      return false;
+    }
+    return true;
+  } catch (error) {
+    // Postgres maps a serialization failure to Prisma error code P2034 ("could
+    // not serialize access due to concurrent update"). Surface as 409 so the
+    // SCIM client retries; on retry the guard will see the updated owner count.
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2034"
+    ) {
+      logger.warn(
+        `[SCIM] Concurrent deprovision conflict for user ${userId} in org ${orgId}`,
+      );
+      res.status(409).json({
+        schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+        detail: "Concurrent deprovision conflict for this user. Please retry.",
+        status: 409,
+      });
+      return false;
+    }
+    throw error;
+  }
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -13,7 +81,7 @@ export default async function handler(
 
   if (!["GET", "DELETE", "PATCH", "PUT"].includes(req.method || "")) {
     logger.error(
-      `Method not allowed for ${req.method} on /api/public/scim/Users/[id]`,
+      `[SCIM] Method not allowed for ${req.method} on /api/public/scim/Users/[id]`,
     );
     return res.status(405).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
@@ -50,7 +118,7 @@ export default async function handler(
   }
 
   logger.info(
-    `Received request for /api/public/scim/Users/[id] with method ${req.method} for orgId ${authCheck.scope.orgId} and userId ${req.query.id}`,
+    `[SCIM] Received request for /api/public/scim/Users/[id] with method ${req.method} for orgId ${authCheck.scope.orgId} and userId ${req.query.id}`,
   );
 
   // First, check if the user exists in the system at all
@@ -89,7 +157,7 @@ export default async function handler(
     }
   } catch (error) {
     logger.error(
-      `Error handling SCIM user ${req.query.id} for ${req.method}`,
+      `[SCIM] Error handling user ${req.query.id} for ${req.method}`,
       error,
     );
     return res.status(500).json({
@@ -162,7 +230,7 @@ async function handlePatch(
     try {
       body = JSON.parse(body);
     } catch (error) {
-      logger.warn("Failed to parse JSON body", error);
+      logger.warn("[SCIM] Failed to parse JSON body", error);
       return res.status(400).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
         detail: "Invalid JSON body",
@@ -178,7 +246,7 @@ async function handlePatch(
     !body.schemas.includes("urn:ietf:params:scim:api:messages:2.0:PatchOp")
   ) {
     logger.warn(
-      "Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:api:messages:2.0:PatchOp'.",
+      "[SCIM] Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:api:messages:2.0:PatchOp'.",
       body,
     );
     return res.status(400).json({
@@ -192,7 +260,7 @@ async function handlePatch(
   // Check for operations
   if (!body.Operations || !Array.isArray(body.Operations)) {
     logger.warn(
-      "Invalid request body. Must include 'Operations' array with at least one operation.",
+      "[SCIM] Invalid request body. Must include 'Operations' array with at least one operation.",
       body,
     );
     return res.status(400).json({
@@ -226,18 +294,21 @@ async function handlePatch(
           },
           update: {},
         });
+        logger.info(
+          `[SCIM] Provisioned user ${user.id} in org ${orgId} via PATCH`,
+        );
       } else {
-        // Deprovision the user by removing them from the organization
-        await prisma.organizationMembership.deleteMany({
-          where: {
-            userId: user.id,
-            orgId: orgId,
-          },
-        });
+        // Deprovision atomically: check + delete in one Serializable txn.
+        if (!(await deprovisionOrReject(res, user.id, orgId))) {
+          return;
+        }
+        logger.info(
+          `[SCIM] Deprovisioned user ${user.id} from org ${orgId} via PATCH`,
+        );
       }
     } else {
       logger.error(
-        "Unsupported operation or invalid value in request body. Only 'replace' with 'active' field is supported.",
+        "[SCIM] Unsupported operation or invalid value in request body. Only 'replace' with 'active' field is supported.",
         op,
       );
       return res.status(400).json({
@@ -266,7 +337,7 @@ async function handlePut(
     try {
       body = JSON.parse(body);
     } catch (error) {
-      logger.warn("Failed to parse JSON body", error);
+      logger.warn("[SCIM] Failed to parse JSON body", error);
       return res.status(400).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
         detail: "Invalid JSON body",
@@ -282,7 +353,7 @@ async function handlePut(
     !body.schemas.includes("urn:ietf:params:scim:schemas:core:2.0:User")
   ) {
     logger.warn(
-      "Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:schemas:core:2.0:User'.",
+      "[SCIM] Invalid request body. Must include 'schemas' with 'urn:ietf:params:scim:schemas:core:2.0:User'.",
       body,
     );
     return res.status(400).json({
@@ -326,14 +397,17 @@ async function handlePut(
           role: role,
         },
       });
+      logger.info(
+        `[SCIM] Provisioned user ${user.id} in org ${orgId} with role ${role} via PUT`,
+      );
     } else {
-      // Deprovision the user by removing them from the organization
-      await prisma.organizationMembership.deleteMany({
-        where: {
-          userId: user.id,
-          orgId: orgId,
-        },
-      });
+      // Deprovision atomically: check + delete in one Serializable txn.
+      if (!(await deprovisionOrReject(res, user.id, orgId))) {
+        return;
+      }
+      logger.info(
+        `[SCIM] Deprovisioned user ${user.id} from org ${orgId} via PUT`,
+      );
     }
   }
 
@@ -362,13 +436,11 @@ async function handleDelete(
   user: User,
   orgId: string,
 ) {
-  // Delete just removes the user from the organization
-  await prisma.organizationMembership.deleteMany({
-    where: {
-      userId: user.id,
-      orgId: orgId,
-    },
-  });
+  // Deprovision atomically: check + delete in one Serializable txn.
+  if (!(await deprovisionOrReject(res, user.id, orgId))) {
+    return;
+  }
+  logger.info(`[SCIM] Removed user ${user.id} from org ${orgId} via DELETE`);
 
   // Return empty response with 204 No Content.
   // With NextJS 15, we can't return NextApiResponse objects anymore

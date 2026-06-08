@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -20,12 +20,14 @@ import {
   DashboardDefinitionSchema,
 } from "@langfuse/shared/src/server";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
+import { executeQuery } from "@langfuse/shared/query/server";
 import {
-  type QueryType,
   query as customQuery,
+  validateQuery,
   viewVersions,
-} from "@/src/features/query/types";
-import { mapLegacyUiTableFilterToView } from "@/src/features/query/dashboardUiTableToViewMapping";
+  type QueryType,
+} from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import {
   paginationZod,
   orderBy,
@@ -35,10 +37,6 @@ import {
   type FilterState,
 } from "@langfuse/shared";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import {
-  executeQuery,
-  validateQuery,
-} from "@/src/features/query/server/queryExecutor";
 
 // Define the dashboard list input schema
 const ListDashboardsInput = z.object({
@@ -265,32 +263,13 @@ async function getObservationsByTypeV2(params: {
 
   // Filter normalisation for the executeQuery (v2) path:
   //
-  // Filters arriving here originate from two different column-naming conventions:
-  //   A) uiTableName format ("Model", "Environment", …) — used by globalFilterState
-  //      filters that come from the standard dashboard filter bar. These are handled
-  //      canonically by mapLegacyUiTableFilterToView (see dashboardUiTableToViewMapping.ts).
-  //   B) uiTableId format ("model") — used by ModelSelectorPopover, which constructs
-  //      its filter using the lower-camel uiTableId rather than the display uiTableName.
-  //      mapLegacyUiTableFilterToView matches on uiTableName so it cannot cover this case.
-  //
-  // If additional uiTableId-format filters are introduced here in the future, add them
-  // to the CHART_FILTER_ID_TO_VIEW_FIELD map below (the canonical view field names live
-  // in dashboardUiTableToViewMapping.ts :: viewMappings["observations"]).
-  const CHART_FILTER_ID_TO_VIEW_FIELD: Record<string, string> = {
-    model: "providedModelName",
-  };
-
   const nonDatetimeFilters = filter.filter((f) => f.type !== "datetime");
-  // Apply standard uiTableName → view field mapping first.
-  const standardMapped = mapLegacyUiTableFilterToView(
+  // mapLegacyUiTableFilterToView normalizes legacy dashboard filters whether
+  // they arrive as display labels, uiTableIds, or explicit aliases.
+  const viewFilters = mapLegacyUiTableFilterToView(
     "observations",
     nonDatetimeFilters,
   );
-  // Then patch any remaining uiTableId-format columns.
-  const viewFilters = standardMapped.map((f) => {
-    const viewField = CHART_FILTER_ID_TO_VIEW_FIELD[f.column];
-    return viewField ? { ...f, column: viewField } : f;
-  });
 
   const q: QueryType = {
     view: "observations",

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
 import { ObservationLevel, ObservationType } from "../../domain";
@@ -54,6 +54,7 @@ export const observationForEvalSchema = z.object({
   tool_definitions: z.record(z.string(), z.unknown()).default({}),
   tool_calls: z.array(z.unknown()).default([]),
   tool_call_names: z.array(z.string()).default([]),
+  tool_call_count: z.number().default(0),
 
   // Experiment
   experiment_id: z.string().nullish(),
@@ -62,6 +63,7 @@ export const observationForEvalSchema = z.object({
   experiment_dataset_id: z.string().nullish(),
   experiment_item_id: z.string().nullish(),
   experiment_item_expected_output: z.string().nullish(),
+  experiment_item_metadata: z.record(z.string(), z.unknown()).nullish(),
   experiment_item_root_span_id: z.string().nullish(),
 
   // Data - accepts any type (string, array, object) from different OTEL SDKs
@@ -79,10 +81,24 @@ export function convertEventRecordToObservationForEval(
     record.metadata_names,
     record.metadata_values,
   );
+  const experimentItemMetadata =
+    record.experiment_item_metadata_names.length > 0
+      ? record.experiment_item_metadata_names.reduce<
+          Record<string, string | null | undefined>
+        >((acc, name, i) => {
+          if (!(name in acc)) {
+            acc[name] = record.experiment_item_metadata_values[i];
+          }
+          return acc;
+        }, {})
+      : undefined;
 
+  const toolCallNames = record.tool_call_names ?? [];
   return observationForEvalSchema.parse({
     ...record,
     metadata,
+    experiment_item_metadata: experimentItemMetadata,
+    tool_call_count: toolCallNames.length,
   });
 }
 
@@ -102,11 +118,17 @@ export type ObservationEvalFilterColumnInternal =
     | "experiment_dataset_id"
     | "metadata"
     | "parent_span_id"
+    | "tool_call_names"
+    | "tool_call_count"
   >;
 
 export type ObservationEvalMappingColumnInternal = keyof Pick<
   ObservationForEval,
-  "input" | "output" | "metadata" | "experiment_item_expected_output"
+  | "input"
+  | "output"
+  | "metadata"
+  | "experiment_item_expected_output"
+  | "experiment_item_metadata"
 >;
 
 export interface ObservationEvalVariableColumn {
@@ -121,14 +143,7 @@ export interface ObservationEvalVariableColumn {
   internal: ObservationEvalMappingColumnInternal;
 }
 
-/**
- * Columns available for variable extraction in observation-based evals.
- * These are the fields that can be mapped to template variables.
- *
- * When configuring an eval, users can map these columns to template
- * variables like {{input}}, {{output}}, {{expected_output}}, etc.
- */
-export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
+export const eventTargetEvalVariableColumns: ObservationEvalVariableColumn[] = [
   {
     id: "input",
     name: "Input",
@@ -148,18 +163,41 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
     type: "stringObject",
     internal: "metadata",
   },
-  {
-    id: "experimentItemExpectedOutput",
-    name: "Expected Output",
-    description: "Expected output from experiment item",
-    internal: "experiment_item_expected_output",
-  },
+];
+
+export const experimentTargetEvalVariableColumns: ObservationEvalVariableColumn[] =
+  [
+    ...eventTargetEvalVariableColumns,
+    {
+      id: "experimentItemExpectedOutput",
+      name: "Expected Output",
+      description: "Expected output from experiment item",
+      internal: "experiment_item_expected_output",
+    },
+    {
+      id: "experimentItemMetadata",
+      name: "Experiment Item Metadata",
+      description: "Metadata from experiment item",
+      type: "stringObject",
+      internal: "experiment_item_metadata",
+    },
+  ];
+
+/**
+ * Columns available for variable extraction in observation-based evals.
+ * These are the fields that can be mapped to template variables.
+ *
+ * When configuring an eval, users can map these columns to template
+ * variables like {{input}}, {{output}}, {{expected_output}}, etc.
+ */
+export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
+  ...experimentTargetEvalVariableColumns,
 ];
 
 export const availableObservationEvalVariableColumns = [
   ...observationEvalVariableColumns,
   {
-    id: "toolCalls",
+    id: "toolCalls", // Needs to match the `ID` from `mapObservationsTable.ts`
     name: "Tool Calls",
     description: "Tool calls",
     internal: "tool_calls",
@@ -290,6 +328,21 @@ export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
     internal: "parent_span_id",
     nullable: true,
   },
+  {
+    name: "Called Tool Names",
+    id: "calledToolNames",
+    type: "arrayOptions",
+    internal: "tool_call_names",
+    options: [], // to be filled at runtime
+  },
+  {
+    name: "Tool Call Count",
+    id: "toolCalls",
+    type: "number",
+    internal: "tool_call_count",
+    step: 1,
+    min: 0,
+  },
 ];
 
 export const experimentEvalFilterColumns: ObservationEvalColumnDef[] = [
@@ -313,6 +366,7 @@ export type ObservationEvalOptions = {
   tags?: Array<SingleValueOption>;
   traceName?: Array<SingleValueOption>;
   name?: Array<SingleValueOption>;
+  calledToolNames?: Array<SingleValueOption>;
 };
 
 export type ExperimentEvalOptions = {
@@ -335,6 +389,9 @@ export function observationEvalFilterColsWithOptions(
     }
     if (col.id === "name") {
       return formatColumnOptions(col, options?.name ?? []);
+    }
+    if (col.id === "calledToolNames") {
+      return formatColumnOptions(col, options?.calledToolNames ?? []);
     }
     return col;
   });
