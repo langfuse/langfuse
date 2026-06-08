@@ -241,7 +241,7 @@ describe("Media Upload API", () => {
 
   describeIfNotAzureBlobStorage("End-to-end tests", () => {
     it("should upload and retrieve a PNG media asset for trace input", async () => {
-      const traceId = "test";
+      const traceId = "media-e2e-png-trace-input";
       const field = "input";
 
       const result = await runMediaUploadEndToEndTest({
@@ -293,8 +293,8 @@ describe("Media Upload API", () => {
     }, 10_000);
 
     it("should upload and retrieve a PDF media asset for observation output", async () => {
-      const traceId = "test";
-      const observationId = "test";
+      const traceId = "media-e2e-pdf-observation-output";
+      const observationId = "media-e2e-pdf-observation";
       const field = "output";
 
       const result = await runMediaUploadEndToEndTest({
@@ -345,7 +345,7 @@ describe("Media Upload API", () => {
     }, 10_000);
 
     it("should allow retrying with correct content length", async () => {
-      const traceId = "test";
+      const traceId = "media-e2e-retry-content-length";
       const field = "input";
 
       const failedResult = await runMediaUploadEndToEndTest({
@@ -428,7 +428,7 @@ describe("Media Upload API", () => {
     }, 10_000);
 
     it("should allow retrying with correct content bytes", async () => {
-      const traceId = "test";
+      const traceId = "media-e2e-retry-content-bytes";
       const field = "input";
 
       const failedResult = await runMediaUploadEndToEndTest({
@@ -511,7 +511,7 @@ describe("Media Upload API", () => {
     }, 10_000);
 
     it("should allow retrying with correct content type", async () => {
-      const traceId = "test";
+      const traceId = "media-e2e-retry-content-type";
       const field = "input";
 
       const failedResult = await runMediaUploadEndToEndTest({
@@ -594,7 +594,7 @@ describe("Media Upload API", () => {
     }, 10_000);
 
     it("should allow reuploading with different content type", async () => {
-      const traceId = "test";
+      const traceId = "media-e2e-reupload-content-type";
       const field = "input";
 
       const firstResult = await runMediaUploadEndToEndTest({
@@ -694,7 +694,7 @@ describe("Media Upload API", () => {
     }, 10_000);
 
     it("should return mediaId without upload URL if media file is already uploaded", async () => {
-      const traceId = "test";
+      const traceId = "media-e2e-already-uploaded";
       const field = "input";
 
       const result = await runMediaUploadEndToEndTest({
@@ -820,7 +820,7 @@ describe("Media Upload API", () => {
 
   describeIfNotAzureBlobStorage("Upload Integrity", () => {
     it("should detect SHA-256 hash mismatch during upload", async () => {
-      const traceId = "test";
+      const traceId = "media-e2e-sha256-mismatch";
       const field = "input";
 
       // Create a modified copy of the PNG file bytes by changing a single byte
