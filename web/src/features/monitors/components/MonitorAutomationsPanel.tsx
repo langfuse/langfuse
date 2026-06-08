@@ -89,7 +89,11 @@ export const MonitorAutomationsPanel = ({
                 Set up Slack, Webhook, and Github Action Automations to Receive
                 Alerts
               </p>
-              <AddAutomationDropdown projectId={projectId} fullWidth />
+              <AddAutomationDropdown
+                projectId={projectId}
+                fullWidth
+                hasAccess={hasAccess}
+              />
             </>
           ) : (
             <>
@@ -127,7 +131,11 @@ export const MonitorAutomationsPanel = ({
                   );
                 })}
               </ul>
-              <AddAutomationDropdown projectId={projectId} fullWidth />
+              <AddAutomationDropdown
+                projectId={projectId}
+                fullWidth
+                hasAccess={hasAccess}
+              />
             </>
           )}
         </CardContent>
@@ -173,9 +181,11 @@ const ActionIcon = ({
 const AddAutomationDropdown = ({
   projectId,
   fullWidth,
+  hasAccess = true,
 }: {
   projectId: string;
   fullWidth?: boolean;
+  hasAccess?: boolean;
 }) => {
   const router = useRouter();
   return (
@@ -184,6 +194,7 @@ const AddAutomationDropdown = ({
         <Button
           variant="outline"
           size="lg"
+          disabled={!hasAccess}
           className={fullWidth ? "w-full" : undefined}
         >
           <Plus className="mr-2 h-4 w-4" />

@@ -53,4 +53,30 @@ describe("MonitorAutomationsPanel access gating", () => {
     fireEvent.click(screen.getByRole("button", { name: /ping webhook/i }));
     expect(onTriggerIdsChange).toHaveBeenCalledTimes(1);
   });
+
+  it("read-only access: the add-automation trigger is disabled", () => {
+    render(
+      <MonitorAutomationsPanel
+        projectId="p1"
+        hasAccess={false}
+        triggerIds={[]}
+        onTriggerIdsChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /automation/i })).toBeDisabled();
+  });
+
+  it("write access: the add-automation trigger is enabled", () => {
+    render(
+      <MonitorAutomationsPanel
+        projectId="p1"
+        hasAccess={true}
+        triggerIds={[]}
+        onTriggerIdsChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: /automation/i }),
+    ).not.toBeDisabled();
+  });
 });
