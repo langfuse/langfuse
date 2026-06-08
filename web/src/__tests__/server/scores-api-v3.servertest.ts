@@ -354,6 +354,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
     it("stale cursor (no matching rows) returns empty page with no cursor", async () => {
       const staleCursor = Buffer.from(
         JSON.stringify({
+          v: 1,
           lastTimestamp: new Date(0).toISOString(),
           lastId: "00000000-0000-0000-0000-000000000000",
         }),

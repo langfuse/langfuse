@@ -445,6 +445,7 @@ export async function listScoresV3ForPublicApi(
       if (hasMore && pageRecords.length > 0) {
         const last = pageRecords[pageRecords.length - 1];
         nextCursor = encodeCursorV3({
+          v: 1,
           lastTimestamp: parseClickhouseUTCDateTimeFormat(
             String(last.timestamp),
           ),
