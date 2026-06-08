@@ -44,10 +44,10 @@ service:
             docs: Comma-separated list of score names to filter by.
           source:
             type: optional<string>
-            docs: Comma-separated list of score sources to filter by (e.g. API, ANNOTATION, EVAL).
+            docs: Comma-separated list of score sources to filter by (e.g. API, ANNOTATION, EVAL). Case-insensitive — `api` and `API` are equivalent.
           dataType:
             type: optional<string>
-            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Must be a single value when used with value, valueMin, or valueMax; otherwise the request returns HTTP 400. Must be NUMERIC when used with valueMin or valueMax.
+            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Case-insensitive — `numeric` and `NUMERIC` are equivalent. Must be a single value when used with value, valueMin, or valueMax; otherwise the request returns HTTP 400. Must be NUMERIC when used with valueMin or valueMax.
           environment:
             type: optional<string>
             docs: Comma-separated list of environments to filter by.
