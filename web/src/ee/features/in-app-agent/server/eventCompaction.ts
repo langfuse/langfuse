@@ -1,6 +1,6 @@
 import { EventType } from "@ag-ui/core";
 
-import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
+import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
 
 export function compactTextMessageChunks(
   events: readonly AgUiEvent[],

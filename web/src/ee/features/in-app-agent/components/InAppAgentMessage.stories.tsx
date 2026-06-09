@@ -1,4 +1,4 @@
-import preview from "../../../../.storybook/preview";
+import preview from "../../../../../.storybook/preview";
 import { InAppAgentMessage } from "./InAppAgentMessage";
 
 const meta = preview.meta({

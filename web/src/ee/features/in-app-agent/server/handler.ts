@@ -5,15 +5,15 @@ import { env } from "@/src/env.mjs";
 import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
-} from "@/src/features/in-app-agent/ids";
+} from "@/src/ee/features/in-app-agent/ids";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
   type AgUiEvent,
   InAppAgentRuntimeStateSchema,
   type AgUiMessage,
-} from "@/src/features/in-app-agent/schema";
-import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
+} from "@/src/ee/features/in-app-agent/schema";
+import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
 import {
   createRun,
   ensureOwnedConversation,
@@ -22,7 +22,7 @@ import {
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/features/in-app-agent/server/persistence";
+} from "@/src/ee/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { assertUnreachable } from "@/src/utils/types";

@@ -13,8 +13,8 @@ import {
   AgUiMessageSchema,
   type AgUiEvent,
   type AgUiMessage,
-} from "@/src/features/in-app-agent/schema";
-import { compactTextMessageChunks } from "@/src/features/in-app-agent/server/eventCompaction";
+} from "@/src/ee/features/in-app-agent/schema";
+import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.

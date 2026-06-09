@@ -12,7 +12,7 @@ import {
   getConversationMessages,
   getOwnedConversationOrThrow,
   serializeConversation,
-} from "@/src/features/in-app-agent/server/persistence";
+} from "@/src/ee/features/in-app-agent/server/persistence";
 
 const CONVERSATION_LIST_LIMIT = 50;
 

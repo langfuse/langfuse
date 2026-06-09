@@ -18,12 +18,12 @@ import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
-} from "@/src/features/in-app-agent/ids";
+} from "@/src/ee/features/in-app-agent/ids";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
   type InAppAgentRuntimeState,
-} from "@/src/features/in-app-agent/schema";
+} from "@/src/ee/features/in-app-agent/schema";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 

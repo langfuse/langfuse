@@ -8,9 +8,9 @@ import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@/src/features/in-app-agent/ids";
-import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+} from "@/src/ee/features/in-app-agent/ids";
+import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 import {
   createRun,
   ensureOwnedConversation,
@@ -19,7 +19,7 @@ import {
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/features/in-app-agent/server/persistence";
+} from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 describe("in-app agent persistence", () => {

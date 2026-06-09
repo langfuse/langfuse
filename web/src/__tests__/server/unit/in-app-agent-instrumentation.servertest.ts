@@ -1,7 +1,7 @@
 import { EventType } from "@ag-ui/core";
 
-import type { AgUiRunAgentInput } from "@/src/features/in-app-agent/schema";
-import { InAppAgentInstrumentation } from "@/src/features/in-app-agent/server/instrumentation";
+import type { AgUiRunAgentInput } from "@/src/ee/features/in-app-agent/schema";
+import { InAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 
 const traceId = "0123456789abcdef0123456789abcdef";
 

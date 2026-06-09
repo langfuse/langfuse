@@ -18,8 +18,8 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
-import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
