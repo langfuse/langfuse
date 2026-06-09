@@ -148,9 +148,7 @@ model Project {
   commentReactions          CommentReaction[]
   annotationQueue           AnnotationQueue[]
   annotationQueueItem       AnnotationQueueItem[]
-  TraceMedia                TraceMedia[]
   Media                     Media[]
-  ObservationMedia          ObservationMedia[]
   LegacyTrace               LegacyPrismaTrace[]
   LegacyObservation         LegacyPrismaObservation[]
   LegacyScore               LegacyPrismaScore[]
@@ -1354,7 +1352,6 @@ model Media {
 model TraceMedia {
   id        String   @id @default(cuid())
   projectId String   @map("project_id")
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId   String   @map("media_id")
@@ -1370,7 +1367,6 @@ model TraceMedia {
 model ObservationMedia {
   id            String   @id @default(cuid())
   projectId     String   @map("project_id")
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId       String   @map("media_id")
