@@ -9,16 +9,38 @@ import type {
   AgUiEvent,
   AgUiRunAgentInput,
 } from "@/src/features/in-app-agent/schema";
+import type { InAppAgentTracingConfig } from "@/src/features/in-app-agent/server/instrumentation";
+import { createInAppAgentInstrumentation } from "@/src/features/in-app-agent/server/instrumentation";
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
-const ASSISTANT_SYSTEM_PROMPT = [
-  "You are the persistent in-app assistant for Langfuse.",
-  "Be concise, factual, and useful.",
-  "If you are not confident in the answer, say that directly instead of guessing.",
-  "Use markdown when it improves clarity.",
-].join(" ");
+const getAssistantSystemPrompt = () => `
+<identity>
+  You are an assistant called Langfuse Assistant.
+  Your role is to assist users with tasks in the Langfuse Cloud product.
+</identity>
+
+<behavioral_rules>
+If you are not confident in the answer, say that directly instead of guessing.
+Focus on answering the user's questions. Do not comment on your own behavior:
+- Do not comment on tools you are using or will use.
+- Do not comment on the process you are following.
+Always provide a complete answer to the user's question in your response, do not rely on users seeing tool input or output.
+If a tool call fails but you intend on re-trying it, do not mention the failure and just retry the tool call.
+If you cannot provide an answer to the user, spare the user the details of failed tool calls and instead summarize the issue.
+</behavioral_rules>
+
+<style_rules>
+Be concise, factual, and useful.
+Use markdown in your responses when appropriate, especially for tables and lists.
+</style_rules>
+
+<world_knowledge>
+The current time is ${new Date().toDateString()}.
+</world_knowledge>
+`;
 const MAX_AGENT_STEPS = 10;
+const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
@@ -36,6 +58,7 @@ type CreateAgUiStreamOptions = {
     publicKey: string;
     secretKey: string;
   };
+  langfuseTracing?: InAppAgentTracingConfig;
 };
 
 export function createAgUiStream(params: {
@@ -50,6 +73,10 @@ export function createAgUiStream(params: {
   const langfuseMcpAuthHeader = `Basic ${Buffer.from(
     `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
   ).toString("base64")}`;
+  const instrumentation = createInAppAgentInstrumentation({
+    input: params.input,
+    tracing: params.options.langfuseTracing,
+  });
 
   let subscription: { unsubscribe: () => void } | undefined;
   let ending = false;
@@ -127,6 +154,8 @@ export function createAgUiStream(params: {
           return;
         }
 
+        instrumentation?.endWithError(error);
+        instrumentation?.flush();
         ending = true;
         closed = true;
         shouldEnqueue = false;
@@ -216,6 +245,8 @@ export function createAgUiStream(params: {
           return;
         }
 
+        instrumentation?.end({ aborted: true });
+        instrumentation?.flush();
         ending = true;
         shouldEnqueue = false;
         removeAbortHandler();
@@ -291,10 +322,14 @@ export function createAgUiStream(params: {
                 return;
               }
 
-              for (const agUiEvent of normalizeAdapterEvent(
+              const agUiEvents = normalizeAdapterEvent(
                 event satisfies AgUiEvent,
                 params.input,
-              )) {
+              );
+
+              instrumentation?.recordEvents(agUiEvents);
+
+              for (const agUiEvent of agUiEvents) {
                 if (
                   agUiEvent.type === EventType.RUN_ERROR &&
                   streamedRunError === null
@@ -321,7 +356,10 @@ export function createAgUiStream(params: {
               }
 
               if (streamedRunError !== null) {
-                closeController(handleStreamedRunError);
+                closeController(() => {
+                  instrumentation?.flush();
+                  return handleStreamedRunError();
+                });
                 return;
               }
 
@@ -331,10 +369,12 @@ export function createAgUiStream(params: {
                 threadId: params.input.threadId,
               });
 
-              enqueueEvent(createRunErrorEvent(params.input, error), () =>
+              const runErrorEvent = createRunErrorEvent(params.input, error);
+              instrumentation?.recordEvents([runErrorEvent]);
+              enqueueEvent(runErrorEvent, () =>
                 params.options.onError?.(error),
               );
-              closeController();
+              closeController(() => instrumentation?.flush());
             },
             complete() {
               if (ending || closed) {
@@ -348,8 +388,15 @@ export function createAgUiStream(params: {
 
               closeController(
                 streamedRunError === null
-                  ? params.options.onComplete
-                  : handleStreamedRunError,
+                  ? () => {
+                      instrumentation?.end({});
+                      instrumentation?.flush();
+                      return params.options.onComplete?.();
+                    }
+                  : () => {
+                      instrumentation?.flush();
+                      return handleStreamedRunError();
+                    },
               );
             },
           });
@@ -370,10 +417,10 @@ export function createAgUiStream(params: {
             threadId: params.input.threadId,
           });
 
-          enqueueEvent(createRunErrorEvent(params.input, error), () =>
-            params.options.onError?.(error),
-          );
-          closeController();
+          const runErrorEvent = createRunErrorEvent(params.input, error);
+          instrumentation?.recordEvents([runErrorEvent]);
+          enqueueEvent(runErrorEvent, () => params.options.onError?.(error));
+          closeController(() => instrumentation?.flush());
         });
     },
     cancel() {
@@ -382,6 +429,8 @@ export function createAgUiStream(params: {
       }
 
       ending = true;
+      instrumentation?.end({ aborted: true });
+      instrumentation?.flush();
       shouldEnqueue = false;
       removeAbortHandler();
       interruptAdapter?.();
@@ -436,15 +485,36 @@ async function createMastraAdapter(params: {
           },
         },
       },
+      langfuseDocs: {
+        url: new URL(LANGFUSE_DOCS_MCP_URL),
+      },
     },
   });
 
   try {
-    const tools = await mcpClient.listTools();
+    const { toolsets, errors } = await mcpClient.listToolsetsWithErrors();
+
+    if (errors.langfuse) {
+      throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
+    }
+
+    if (errors.langfuseDocs) {
+      logger.warn("Failed to initialize Langfuse docs MCP", {
+        error: errors.langfuseDocs,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+
+    const tools = {
+      ...prefixToolsetTools("langfuse", toolsets.langfuse),
+      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+    };
+
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
-      instructions: ASSISTANT_SYSTEM_PROMPT,
+      instructions: getAssistantSystemPrompt(),
       model: bedrock(
         params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
       ),
@@ -473,6 +543,18 @@ async function createMastraAdapter(params: {
     });
     throw error;
   }
+}
+
+function prefixToolsetTools<TTool>(
+  serverName: string,
+  toolset: Record<string, TTool> | undefined,
+) {
+  return Object.fromEntries(
+    Object.entries(toolset ?? {}).map(([toolName, tool]) => [
+      `${serverName}_${toolName}`,
+      tool,
+    ]),
+  );
 }
 
 function normalizeAdapterEvent(

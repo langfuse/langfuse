@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.179.1",
+  "version": "3.180.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -21,8 +21,8 @@
     "build:check": "tsc",
     "typecheck": "dotenv -e ../.env -- tsgo --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- tsx watch --clear-screen=false --include '../packages/shared/dist/*'  src/index.ts",
-    "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0",
-    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix",
+    "lint": "eslint . --cache --cache-location dist/.eslintcache --concurrency auto --max-warnings 0",
+    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --concurrency auto --fix",
     "refill-ingestion-events": "dotenv -e ../.env -- tsx src/scripts/replayIngestionEvents/s3-ingestion-event-replay.ts",
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
     "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts"
@@ -62,6 +62,7 @@
     "p-limit": "^7.3.0",
     "pg": "^8.13.0",
     "posthog-node": "^5.32.0",
+    "slackify-markdown": "^5.0.0",
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^14.0.0",

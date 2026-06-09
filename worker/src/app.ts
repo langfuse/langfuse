@@ -22,6 +22,7 @@ import helmet from "helmet";
 import { cloudUsageMeteringQueueProcessor } from "./queues/cloudUsageMeteringQueue";
 import { cloudSpendAlertQueueProcessor } from "./queues/cloudSpendAlertQueue";
 import { cloudFreeTierUsageThresholdQueueProcessor } from "./queues/cloudFreeTierUsageThresholdQueue";
+import { monitorQueueProcessor } from "./queues/monitorQueue";
 import { WorkerManager } from "./queues/workerManager";
 import {
   CoreDataS3ExportQueue,
@@ -46,6 +47,7 @@ import {
   LLMAsJudgeExecutionQueue,
   CodeEvalExecutionQueue,
 } from "@langfuse/shared/src/server";
+import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { env, v4WritesToEventsTable } from "./env";
 import { ingestionQueueProcessorBuilder } from "./queues/ingestionQueue";
 import { BackgroundMigrationManager } from "./backgroundMigrations/backgroundMigrationManager";
@@ -94,6 +96,7 @@ import { BatchTraceDeletionCleaner } from "./features/batch-trace-deletion-clean
 import { BatchProjectMediaCleaner } from "./features/batch-project-media-cleaner";
 import { BatchProjectBlobCleaner } from "./features/batch-project-blob-cleaner";
 import { QueueMetricsRunner } from "./features/queue-metrics-runner";
+import { MonitorRunner } from "./features/monitor-runner";
 import { DeletedMaskCleaner } from "./features/deleted-mask-cleaner";
 
 const app = express();
@@ -409,6 +412,16 @@ if (
   );
 }
 
+if (env.QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED === "true") {
+  WorkerManager.register(QueueName.MonitorQueue, monitorQueueProcessor, {
+    concurrency: env.LANGFUSE_MONITOR_QUEUE_PROCESSING_CONCURRENCY,
+    // Scheduler is the only source of redelivery; disable BullMQ's stalled
+    // recovery so the unified TTL pacing is uncontested.
+    lockDuration: monitorProcessorTtl + 60_000,
+    maxStalledCount: 0,
+  });
+}
+
 // Cloud Spend Alert Queue: Only enable in cloud environment with Stripe
 if (
   env.QUEUE_CONSUMER_CLOUD_SPEND_ALERT_QUEUE_IS_ENABLED === "true" &&
@@ -722,6 +735,17 @@ export let queueMetricsRunner: QueueMetricsRunner | null = null;
 if (env.LANGFUSE_QUEUE_METRICS_ENABLED === "true") {
   queueMetricsRunner = new QueueMetricsRunner();
   queueMetricsRunner.start();
+}
+
+// Monitor runners — one per shard
+export const monitorRunners: MonitorRunner[] = [];
+
+if (env.LANGFUSE_MONITOR_SCHEDULER_ENABLED === "true") {
+  for (let i = 0; i < env.LANGFUSE_MONITOR_SCHEDULERS; i++) {
+    const runner = new MonitorRunner(i, env.LANGFUSE_MONITOR_SCHEDULERS);
+    monitorRunners.push(runner);
+    runner.start();
+  }
 }
 
 process.on("SIGINT", () => onShutdown("SIGINT"));

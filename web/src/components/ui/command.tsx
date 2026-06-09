@@ -13,6 +13,8 @@ import {
   DialogHeader,
 } from "@/src/components/ui/dialog";
 
+const commandDialogSurfaceClass = "bg-background dark:bg-[rgb(15_23_42)]";
+
 const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive>
@@ -38,8 +40,12 @@ const CommandDialog = ({
   return (
     <Dialog {...props}>
       <DialogContent
-        className="overflow-hidden p-0 shadow-lg"
+        className={cn(
+          commandDialogSurfaceClass,
+          "top-[calc(var(--banner-offset)+clamp(4rem,14dvh,8rem))] translate-y-0 overflow-hidden border p-0 shadow-2xl dark:border-slate-700/70 dark:shadow-[0_32px_96px_-28px_rgb(0_0_0/0.95),0_16px_40px_-24px_rgb(0_0_0/0.9),0_0_0_1px_rgb(148_163_184/0.1)]",
+        )}
         closeOnInteractionOutside
+        overlayMode="invisible"
       >
         <DialogHeader className="sr-only p-0">
           <DialogTitle>Search</DialogTitle>
@@ -47,7 +53,10 @@ const CommandDialog = ({
         <DialogBody className="p-0">
           <Command
             filter={filter}
-            className="**:[[cmdk-group-heading]]:text-muted-foreground pb-1 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-12"
+            className={cn(
+              commandDialogSurfaceClass,
+              "**:[[cmdk-group-heading]]:text-muted-foreground pb-1 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-12",
+            )}
           >
             {children}
           </Command>

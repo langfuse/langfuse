@@ -16,6 +16,7 @@ import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import { isPrismaException } from "@/src/utils/exceptions";
 import {
   createUnstablePublicApiAuthError,
   createUnstablePublicApiRequestValidationError,
@@ -324,8 +325,25 @@ export const createAuthedProjectAPIRoute = <
         routeConfig.allowInAppAgentKey === true,
       );
     } catch (error: any) {
-      const statusCode = error.status || 401;
-      const message = error.message || "Authentication failed";
+      if (isPrismaException(error)) {
+        traceException(error);
+
+        if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
+          return sendUnstablePublicApiErrorResponse(
+            res,
+            createUnstablePublicApiAuthError({
+              statusCode: 503,
+              message: "Service Unavailable",
+            }),
+          );
+        }
+
+        res.status(503).json({ message: "Service Unavailable" });
+        return;
+      }
+
+      const statusCode = error.status ?? 401;
+      const message = error.message ?? "Authentication failed";
 
       if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
         return sendUnstablePublicApiErrorResponse(
