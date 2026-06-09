@@ -15,6 +15,7 @@ import { useRouter } from "next/router";
 
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
+import { createInAppAgentScreenContext } from "@/src/features/in-app-agent/context";
 import {
   createInAppAgentConversationId,
   createInAppAgentMessageId,
@@ -370,7 +371,11 @@ function InAppAiAgentProviderInner({
     (agent: HttpAgent, conversationId: string) => {
       setIsRunning(true);
       agent
-        .runAgent()
+        .runAgent({
+          context: createInAppAgentScreenContext({
+            currentUrl: window.location.href,
+          }),
+        })
         .catch((error) => {
           if (intentionalAbortRef.current) {
             return;

@@ -212,6 +212,37 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.trace.update.mock.calls[0][0]).not.toHaveProperty("output");
   });
 
+  it("records AG-UI context in the agent span input", () => {
+    createInstrumentation({
+      context: [
+        {
+          description: "current_url",
+          value:
+            "https://cloud.langfuse.com/project/project-1/traces?filter=value",
+        },
+      ],
+    });
+
+    expect(mocks.trace.span).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-run",
+        input: {
+          message: "hello",
+          context: [
+            {
+              description: "current_url",
+              value:
+                "https://cloud.langfuse.com/project/project-1/traces?filter=value",
+            },
+          ],
+        },
+      }),
+    );
+    expect(mocks.handler.langfuse.trace.mock.calls[0][0]).not.toHaveProperty(
+      "input",
+    );
+  });
+
   it("compacts text message chunks before recording output", () => {
     const instrumentation = createInstrumentation();
 
@@ -284,9 +315,9 @@ describe("InAppAgentInstrumentation", () => {
   });
 });
 
-function createInstrumentation() {
+function createInstrumentation(overrides?: Partial<AgUiRunAgentInput>) {
   return new InAppAgentInstrumentation({
-    input,
+    input: { ...input, ...overrides },
     metadata: { langfuse_project_id: "project-1" },
     userId: "user-1",
     traceId,
