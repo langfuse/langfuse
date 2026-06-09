@@ -3,9 +3,9 @@
 import { useMemo } from "react";
 import { z } from "zod";
 import {
-  InAppAgentDrawer,
-  type InAppAgentDrawerMessage,
-} from "./InAppAgentDrawer";
+  InAppAgentWindow,
+  type InAppAgentWindowMessage,
+} from "./InAppAgentWindow";
 import type { InAppAgentToolCallContent } from "./InAppAgentMessage";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import {
@@ -13,18 +13,22 @@ import {
   type AgUiMessage,
 } from "@/src/features/in-app-agent/schema";
 
-type ControlledInAppAgentDrawerProps =
+type ControlledInAppAgentWindowProps =
   | {
+      isExpanded: boolean;
       showCloseButton: false;
+      onExpandedChange: (isExpanded: boolean) => void;
       onClose?: () => void;
     }
   | {
+      isExpanded: boolean;
       showCloseButton?: true;
+      onExpandedChange: (isExpanded: boolean) => void;
       onClose: () => void;
     };
 
-export function ControlledInAppAgentDrawer(
-  props: ControlledInAppAgentDrawerProps,
+export function ControlledInAppAgentWindow(
+  props: ControlledInAppAgentWindowProps,
 ) {
   const {
     conversations,
@@ -47,7 +51,7 @@ export function ControlledInAppAgentDrawer(
     const parsedMessages = z.array(AgUiMessageSchema).parse(messages);
     const toolResults = getToolResultsByToolCallId(parsedMessages);
 
-    const mappedMessages: InAppAgentDrawerMessage[] = [];
+    const mappedMessages: InAppAgentWindowMessage[] = [];
     let pendingTools: InAppAgentToolCallContent[] = [];
     let pendingToolGroupId: string | null = null;
     const flushPendingTools = () => {
@@ -199,7 +203,7 @@ export function ControlledInAppAgentDrawer(
           content: hasAssistantAnswer
             ? { type: "loading" }
             : { type: "loading", label: "Connecting..." },
-        } satisfies InAppAgentDrawerMessage,
+        } satisfies InAppAgentWindowMessage,
       ];
     }
 
@@ -212,8 +216,9 @@ export function ControlledInAppAgentDrawer(
       : ({ showCloseButton: true, onClose: props.onClose } as const);
 
   return (
-    <InAppAgentDrawer
+    <InAppAgentWindow
       error={error}
+      isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}
       conversations={conversations}
@@ -223,6 +228,7 @@ export function ControlledInAppAgentDrawer(
       onLoadMoreConversations={loadMoreConversations}
       onSelectConversation={selectConversation}
       onNewConversation={() => selectConversation(null)}
+      onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
       {...closeButtonProps}
     />
