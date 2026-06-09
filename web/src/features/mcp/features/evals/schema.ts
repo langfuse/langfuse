@@ -6,6 +6,7 @@ import {
   PublicEvaluatorOutputDefinition,
   PublicEvaluatorOutputFieldDefinition,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
+import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
 
 /**
  * Discovery-facing base schemas for the eval tools. The MCP layer rejects union
@@ -45,18 +46,10 @@ export const RuleMappingBaseSchema = ExperimentEvaluationRuleMapping.describe(
   "Maps an evaluator variable to a data source. `observation` rules use `input`, `output`, `metadata`; `experiment` rules also allow `expected_output` and `experiment_item_metadata`. Required for `llm_as_judge` evaluators; omit for `code` evaluators (Langfuse manages their mapping).",
 );
 
-// Loose stand-in for the contract's per-column filter union. `type` is required
-// and object columns (e.g. `metadata`) take a `key` — mirrors the scores/metrics
-// MCP filter shape, not the type-inferring listObservations one.
-export const RuleFilterBaseSchema = z
-  .object({
-    column: z.string(),
-    operator: z.string(),
-    value: z.any(),
-    type: z.string(),
-    key: z.string().optional(),
-  })
-  .describe(
-    'Filter condition, e.g. {"column":"version","operator":"=","value":"1.0.0","type":"string"}. ' +
-      "Use `key` for object columns such as `metadata`. `observation` rules filter on trace/observation columns; `experiment` rules filter on `datasetId`.",
-  );
+// Shared loose filter shape (the contract's per-column filter is a union the
+// JSON-schema guard rejects). Precise validation happens in each tool's
+// `inputSchema` against the per-target contract union.
+export const RuleFilterBaseSchema = McpAdvancedFilterBaseSchema.describe(
+  'Filter condition, e.g. {"column":"version","operator":"=","value":"1.0.0","type":"string"}. ' +
+    "Use `key` for object columns such as `metadata`. `observation` rules filter on trace/observation columns; `experiment` rules filter on `datasetId`.",
+);

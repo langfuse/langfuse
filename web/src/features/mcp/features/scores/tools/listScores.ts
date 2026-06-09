@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
+import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { paginationMeta } from "../../publicApi";
@@ -18,14 +19,6 @@ const ScoreFieldsSchema = z
   .describe(
     "Response field groups to include. 'score' is always required. Include 'trace' when filtering by userId or traceTags.",
   );
-
-const ScoreFilterBaseSchema = z.object({
-  column: z.string(),
-  operator: z.string(),
-  value: z.any(),
-  type: z.string(),
-  key: z.string().optional(),
-});
 
 const ListScoresSharedSchemaFields = {
   ...publicApiPaginationZod,
@@ -52,7 +45,7 @@ const ListScoresSharedSchemaFields = {
 const ListScoresBaseSchema = z.object({
   ...ListScoresSharedSchemaFields,
   filter: z
-    .array(ScoreFilterBaseSchema)
+    .array(McpAdvancedFilterBaseSchema)
     .optional()
     .describe(
       "Advanced score filters as JSON objects with column, operator, value, and type.",
