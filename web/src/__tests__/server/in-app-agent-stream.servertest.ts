@@ -17,6 +17,7 @@ const instrumentationMocks = vi.hoisted(() => {
     end: vi.fn(),
     endWithError: vi.fn(),
     flush: vi.fn(),
+    setPrompt: vi.fn(),
   };
 
   return {
@@ -26,6 +27,11 @@ const instrumentationMocks = vi.hoisted(() => {
     ),
   };
 });
+
+const promptMocks = vi.hoisted(() => ({
+  compile: vi.fn(() => "Prompt-managed assistant instructions"),
+  getPrompt: vi.fn(),
+}));
 
 vi.mock("@ag-ui/mastra", () => ({
   MastraAgent: vi.fn().mockImplementation(function () {
@@ -86,6 +92,11 @@ vi.mock("@/src/features/in-app-agent/server/instrumentation", () => ({
 describe("createAgUiStream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    promptMocks.getPrompt.mockResolvedValue({
+      name: "in-app-agent-system-prompt",
+      version: 2,
+      compile: promptMocks.compile,
+    });
   });
 
   it("serializes valid events including adapter message snapshots", async () => {
@@ -112,6 +123,9 @@ describe("createAgUiStream", () => {
     };
     const persistedEvents: AgUiEvent[] = [];
     const eventOrder: string[] = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
     adapterEvents.inputs = [];
 
     adapterEvents.items = [
@@ -166,6 +180,7 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
         },
+        langfuseClient,
         langfuseTracing: {
           environment: "langfuse-in-app-agent",
           metadata: { langfuse_project_id: "project-1" },
@@ -181,12 +196,32 @@ describe("createAgUiStream", () => {
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
     expect(adapterEvents.inputs).toEqual([input]);
+    const { Agent } = await import("@mastra/core/agent");
     expect(Agent).toHaveBeenCalledWith(
       expect.objectContaining({
         tools: {
           langfuse_search: { server: "langfuse" },
           langfuseDocs_search: { server: "langfuseDocs" },
         },
+      }),
+    );
+    expect(promptMocks.getPrompt).toHaveBeenCalledWith(
+      "in-app-agent-system-prompt",
+      undefined,
+      { type: "text" },
+    );
+    expect(promptMocks.compile).toHaveBeenCalledWith({
+      currentDate: expect.any(String),
+    });
+    expect(instrumentationMocks.instrumentation.setPrompt).toHaveBeenCalledWith(
+      {
+        name: "in-app-agent-system-prompt",
+        version: 2,
+      },
+    );
+    expect(Agent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: "Prompt-managed assistant instructions",
       }),
     );
     expect(persistedEvents.map((event) => event.type)).toEqual([
@@ -259,6 +294,9 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const runErrorMessage = "AWS credential provider failed: Token is expired.";
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
 
     adapterEvents.items = [
       {
@@ -284,6 +322,7 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
         },
+        langfuseClient,
       },
     });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(

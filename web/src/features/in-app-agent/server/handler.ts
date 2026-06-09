@@ -23,6 +23,7 @@ import {
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/features/in-app-agent/server/persistence";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import { getAuthOptions } from "@/src/server/auth";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { assertUnreachable } from "@/src/utils/types";
@@ -153,6 +154,9 @@ export default async function handler(request: Request) {
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const targetProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    const langfuseAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+    const langfuseAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
+    const langfuseAiFeaturesHost = env.LANGFUSE_AI_FEATURES_HOST;
 
     if (!bedrockModelId) {
       throw new BaseError(
@@ -162,6 +166,22 @@ export default async function handler(request: Request) {
         true,
       );
     }
+
+    if (!langfuseAiFeaturesPublicKey || !langfuseAiFeaturesSecretKey) {
+      throw new BaseError(
+        "PreconditionFailedError",
+        412,
+        "Missing credentials required to initialize langfuse client.",
+        true,
+      );
+    }
+
+    const langfuseClient = getLangfuseClient(
+      langfuseAiFeaturesPublicKey,
+      langfuseAiFeaturesSecretKey,
+      langfuseAiFeaturesHost,
+      false,
+    );
 
     const conversation = await ensureOwnedConversation({
       prisma,
@@ -283,6 +303,7 @@ export default async function handler(request: Request) {
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
               },
+              langfuseClient,
               langfuseTracing:
                 project.organization.aiTelemetryEnabled && targetProjectId
                   ? {

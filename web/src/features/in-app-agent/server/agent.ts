@@ -1,9 +1,13 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
+import type { Langfuse } from "langfuse";
 
 import type {
   AgUiEvent,
@@ -14,31 +18,11 @@ import { createInAppAgentInstrumentation } from "@/src/features/in-app-agent/ser
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
-const getAssistantSystemPrompt = () => `
-<identity>
-  You are an assistant called Langfuse Assistant.
-  Your role is to assist users with tasks in the Langfuse Cloud product.
-</identity>
-
-<behavioral_rules>
-If you are not confident in the answer, say that directly instead of guessing.
-Focus on answering the user's questions. Do not comment on your own behavior:
-- Do not comment on tools you are using or will use.
-- Do not comment on the process you are following.
-Always provide a complete answer to the user's question in your response, do not rely on users seeing tool input or output.
-If a tool call fails but you intend on re-trying it, do not mention the failure and just retry the tool call.
-If you cannot provide an answer to the user, spare the user the details of failed tool calls and instead summarize the issue.
-</behavioral_rules>
-
-<style_rules>
-Be concise, factual, and useful.
-Use markdown in your responses when appropriate, especially for tables and lists.
-</style_rules>
-
-<world_knowledge>
-The current time is ${new Date().toDateString()}.
-</world_knowledge>
-`;
+const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
+const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
+  process.cwd(),
+  "src/features/in-app-agent/prompts/",
+);
 const MAX_AGENT_STEPS = 10;
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
@@ -58,6 +42,7 @@ type CreateAgUiStreamOptions = {
     publicKey: string;
     secretKey: string;
   };
+  langfuseClient: Langfuse;
   langfuseTracing?: InAppAgentTracingConfig;
 };
 
@@ -293,6 +278,7 @@ export function createAgUiStream(params: {
         langfuseMcpAuthHeader,
         options: params.options,
         awsProfile,
+        instrumentation,
       })
         .then(({ adapter, cleanup, interrupt }) => {
           if (ending || closed || params.signal.aborted) {
@@ -464,6 +450,7 @@ async function createMastraAdapter(params: {
   langfuseMcpAuthHeader: string;
   options: CreateAgUiStreamOptions;
   awsProfile?: string;
+  instrumentation?: ReturnType<typeof createInAppAgentInstrumentation>;
 }) {
   const bedrock = createAmazonBedrock({
     ...(params.options.awsBedrock.region
@@ -511,10 +498,16 @@ async function createMastraAdapter(params: {
       ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
     };
 
+    const instructions = await getSystemPromptInstructions({
+      langfuseClient: params.options.langfuseClient,
+      instrumentation: params.instrumentation,
+      variables: { currentDate: new Date().toISOString() },
+    });
+
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
-      instructions: getAssistantSystemPrompt(),
+      instructions,
       model: bedrock(
         params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
       ),
@@ -555,6 +548,45 @@ function prefixToolsetTools<TTool>(
       tool,
     ]),
   );
+}
+
+async function getSystemPromptInstructions(params: {
+  langfuseClient: Langfuse;
+  instrumentation?: ReturnType<typeof createInAppAgentInstrumentation>;
+  variables: { currentDate: string };
+}) {
+  if (process.env.NODE_ENV === "development") {
+    const promptTemplate = await readFile(
+      path.join(
+        LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR,
+        `${IN_APP_AGENT_SYSTEM_PROMPT_NAME}.txt`,
+      ),
+      "utf8",
+    );
+
+    return compileLocalPrompt(promptTemplate, params.variables);
+  }
+
+  const prompt = await params.langfuseClient.getPrompt(
+    IN_APP_AGENT_SYSTEM_PROMPT_NAME,
+    undefined,
+    { type: "text" },
+  );
+  params.instrumentation?.setPrompt({
+    name: prompt.name,
+    version: prompt.version,
+  });
+
+  return prompt.compile(params.variables);
+}
+
+function compileLocalPrompt(
+  promptTemplate: string,
+  variables: Record<string, string>,
+) {
+  return promptTemplate.replace(/{{\s*(\w+)\s*}}/g, (match, variable) => {
+    return variables[variable] ?? match;
+  });
 }
 
 function normalizeAdapterEvent(
