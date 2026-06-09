@@ -661,4 +661,71 @@ describe("Blob Storage Integration tRPC Router", () => {
       expect(result.isEnrichedExportAvailable).toBe(true);
     });
   });
+
+  describe("update: enriched export source guard", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+    });
+
+    it("rejects EVENTS on self-hosted without V4 preview opt-in", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects TRACES_OBSERVATIONS_EVENTS on self-hosted without V4 preview opt-in", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("allows EVENTS on self-hosted with V4 preview opt-in", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("allows EVENTS on Cloud regardless of V4 flag", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+  });
 });

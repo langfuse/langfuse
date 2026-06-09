@@ -26,6 +26,7 @@ import {
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
+  AnalyticsIntegrationExportSource,
   BlobStorageIntegrationType,
   InvalidRequestError,
   isEnrichedBlobExportAvailable,
@@ -92,6 +93,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         });
 
         if (input.exportSource) {
+          const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
           const project = await ctx.prisma.project.findUniqueOrThrow({
             where: { id: input.projectId },
             select: { createdAt: true },
@@ -99,8 +101,26 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           assertLegacyBlobExportSourceAllowed({
             project,
             nextInternalExportSource: input.exportSource,
-            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+            isCloud,
           });
+          const enrichedSources = [
+            AnalyticsIntegrationExportSource.EVENTS,
+            AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+          ];
+          if (enrichedSources.includes(input.exportSource)) {
+            if (
+              !isEnrichedBlobExportAvailable(
+                isCloud,
+                env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+              )
+            ) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message:
+                  "Enriched blob export is not available on this deployment",
+              });
+            }
+          }
         }
 
         await auditLog({
