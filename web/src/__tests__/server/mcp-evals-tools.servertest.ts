@@ -18,6 +18,17 @@ import { handleCreateEvaluationRule } from "@/src/features/mcp/features/evals/to
 import { handleUpdateEvaluationRule } from "@/src/features/mcp/features/evals/tools/updateEvaluationRule";
 import { handleDeleteEvaluationRule } from "@/src/features/mcp/features/evals/tools/deleteEvaluationRule";
 
+// Code evaluators are gated behind deployment config; enable them for the
+// code-path coverage below without depending on a real dispatcher.
+vi.mock(
+  "@/src/features/evals/server/isCodeEvalEnabled",
+  async (importActual) => ({
+    ...(await importActual<object>()),
+    isCodeEvalEnabled: vi.fn(() => true),
+    isCodeEvalSourceCodeLanguageSupported: vi.fn(() => true),
+  }),
+);
+
 const provisionDefaultEvalModel = async (projectId: string) => {
   const provider = `openai-${projectId}`;
   const llmApiKey = await prisma.llmApiKeys.create({
@@ -242,6 +253,63 @@ describe("MCP evals tools", () => {
 
     await expect(
       handleGetEvaluator({ evaluatorId: evaluator.id }, targetContext),
+    ).rejects.toThrow();
+  });
+
+  it("covers code evaluators and rejects mapping on code rules", async () => {
+    const { context, projectId, apiKeyId } = await createMcpTestSetup();
+
+    const evaluatorName = `mcp-code-eval-${uuidv4().slice(0, 8)}`;
+    const evaluator = (await handleCreateEvaluator(
+      {
+        name: evaluatorName,
+        type: "code",
+        sourceCode: "export function evaluate() { return { score: 1 }; }",
+        sourceCodeLanguage: "TYPESCRIPT",
+      },
+      context,
+    )) as { id: string; type: string; sourceCodeLanguage: string };
+
+    expect(evaluator).toMatchObject({
+      type: "code",
+      sourceCodeLanguage: "TYPESCRIPT",
+    });
+    await expect(
+      verifyAuditLog({
+        projectId,
+        apiKeyId,
+        resourceType: "evalTemplate",
+        resourceId: evaluator.id,
+        action: "create",
+      }),
+    ).resolves.toMatchObject({ resourceId: evaluator.id, action: "create" });
+
+    // Code rules omit mapping — Langfuse injects a managed one.
+    const rule = (await handleCreateEvaluationRule(
+      {
+        name: `mcp-code-rule-${uuidv4().slice(0, 8)}`,
+        evaluator: { name: evaluatorName, scope: "project", type: "code" },
+        enabled: false,
+        target: "observation",
+        filter: [],
+      },
+      context,
+    )) as { id: string };
+    expect(rule.id).toBeDefined();
+
+    // Providing a mapping for a code-evaluator rule is rejected.
+    await expect(
+      handleCreateEvaluationRule(
+        {
+          name: `mcp-code-rule-${uuidv4().slice(0, 8)}`,
+          evaluator: { name: evaluatorName, scope: "project", type: "code" },
+          enabled: false,
+          target: "observation",
+          filter: [],
+          mapping: [{ variable: "input", source: "input" }],
+        },
+        context,
+      ),
     ).rejects.toThrow();
   });
 });
