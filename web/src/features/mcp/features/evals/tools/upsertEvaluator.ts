@@ -25,7 +25,7 @@ import {
 // per-type "required" guidance lives in the tool description. The real per-type
 // discriminated union is enforced at runtime by `inputSchema`
 // (PostUnstableEvaluatorBody).
-const CreateEvaluatorBaseSchema = z.object({
+const UpsertEvaluatorBaseSchema = z.object({
   ...EvaluatorCreateBase,
   type: PublicEvaluatorType.optional().describe(
     "Evaluator type. Defaults to `llm_as_judge` when omitted.",
@@ -38,18 +38,18 @@ const CreateEvaluatorBaseSchema = z.object({
   modelConfig: EvaluatorModelConfigBaseSchema.optional(),
 });
 
-export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
-  name: "createEvaluator",
+export const [upsertEvaluatorTool, handleUpsertEvaluator] = defineTool({
+  name: "upsertEvaluator",
   description: [
-    "Create an evaluator in the current project.",
+    "Create an evaluator, or add a new version to an existing one in the current project.",
     "Set type to `llm_as_judge` (default) and provide prompt + outputDefinition (modelConfig optional), or set type to `code` and provide sourceCode + sourceCodeLanguage.",
-    "Creating an evaluator with an existing name adds a new version and migrates evaluation rules that reference it.",
+    "Reusing an existing evaluator name adds a new version and migrates evaluation rules that reference it.",
   ].join(" "),
-  baseSchema: CreateEvaluatorBaseSchema,
+  baseSchema: UpsertEvaluatorBaseSchema,
   inputSchema: PostUnstableEvaluatorBody,
   handler: async (input, context) =>
     runMcpTool({
-      spanName: "mcp.evaluators.create",
+      spanName: "mcp.evaluators.upsert",
       context,
       attributes: {
         "mcp.evaluator_name": input.name,

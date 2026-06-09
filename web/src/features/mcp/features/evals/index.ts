@@ -5,9 +5,9 @@ import {
 } from "./tools/listEvaluators";
 import { getEvaluatorTool, handleGetEvaluator } from "./tools/getEvaluator";
 import {
-  createEvaluatorTool,
-  handleCreateEvaluator,
-} from "./tools/createEvaluator";
+  upsertEvaluatorTool,
+  handleUpsertEvaluator,
+} from "./tools/upsertEvaluator";
 import {
   listEvaluationRulesTool,
   handleListEvaluationRules,
@@ -44,7 +44,7 @@ export const evalsFeature: McpFeatureModule = {
       handler: handleGetEvaluator,
       allowInAppAgentKey: true,
     },
-    { definition: createEvaluatorTool, handler: handleCreateEvaluator },
+    { definition: upsertEvaluatorTool, handler: handleUpsertEvaluator },
     {
       definition: listEvaluationRulesTool,
       handler: handleListEvaluationRules,
