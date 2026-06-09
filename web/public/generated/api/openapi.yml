@@ -6845,6 +6845,16 @@ paths:
         evaluator family using `name` and `scope`.
 
 
+        Code evaluator validation:
+
+        - At creation, Langfuse only validates the request shape
+
+        - The `sourceCode` itself is not executed here. It is first run
+        (preflight-tested against a sample observation) when you link the
+        evaluator to an evaluation rule, so runtime errors in the code surface
+        at evaluation-rule creation, not at evaluator creation.
+
+
         Recovery guidance:
 
         - `422` with `code=evaluator_preflight_failed`: the evaluator cannot run

@@ -27,6 +27,10 @@ service:
         3. Read the returned `outputDefinition.dataType` so the client knows whether future scores will be numeric, boolean, or categorical.
         4. Create one or more evaluation rules that reference the returned evaluator family using `name` and `scope`.
 
+        Code evaluator validation:
+        - At creation, Langfuse only validates the request shape
+        - The `sourceCode` itself is not executed here. It is first run (preflight-tested against a sample observation) when you link the evaluator to an evaluation rule, so runtime errors in the code surface at evaluation-rule creation, not at evaluator creation.
+
         Recovery guidance:
         - `422` with `code=evaluator_preflight_failed`: the evaluator cannot run with the resolved model configuration. Add a valid explicit `modelConfig`, or configure the project's default evaluation model, then retry the same request.
         - `400` with `code=invalid_body`: the request shape is malformed. Use the structured `details.issues` array to fix the specific fields and retry.
