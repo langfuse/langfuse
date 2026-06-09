@@ -63,6 +63,16 @@ export interface ServerContext {
 
   /** In-app-agent-specific MCP authorization state. */
   inAppAgent?: InAppAgentContext;
+
+  /**
+   * How the request was authenticated.
+   * - "api-key" (default): HTTP Basic with project-scoped API key.
+   * - "oidc": Bearer JWT verified against a configured OIDC issuer. On the
+   *   OIDC path, `userId` carries the real principal and
+   *   `apiKeyId`/`publicKey` hold synthetic identifiers (`oidc:<userId>` and
+   *   `oidc`) so downstream audit-log and public-API consumers keep working.
+   */
+  authMethod?: "api-key" | "oidc";
 }
 
 /**

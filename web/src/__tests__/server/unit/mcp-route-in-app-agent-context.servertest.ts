@@ -3,7 +3,7 @@ import {
   createInAppAgentMcpRunOverride,
   InAppAgentMcpRunOverrideSchema,
 } from "@langfuse/shared/in-app-agent/server/human-in-the-loop";
-import { getInAppAgentContext } from "@/src/pages/api/public/mcp";
+import { getInAppAgentContext } from "@/src/features/mcp/server/auth";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 

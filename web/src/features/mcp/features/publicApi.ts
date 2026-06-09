@@ -19,7 +19,10 @@ export type McpPublicApiAuth = {
 };
 
 export const getMcpPublicApiAuth = async (
-  context: ServerContext,
+  // plan / rateLimitOverrides are the fields this function derives, so it must
+  // not require them on input — the OIDC auth path calls it to obtain exactly
+  // those before it can assemble a full ServerContext.
+  context: Omit<ServerContext, "plan" | "rateLimitOverrides">,
 ): Promise<McpPublicApiAuth> => {
   const org = await prisma.organization.findUnique({
     where: { id: context.orgId },
