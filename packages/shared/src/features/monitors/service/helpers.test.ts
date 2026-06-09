@@ -1,41 +1,27 @@
-import {
-  MonitorSeverity as PrismaMonitorSeverity,
-  MonitorStatus as PrismaMonitorStatus,
-  MonitorThresholdOperator as PrismaMonitorThresholdOperator,
-  MonitorView as PrismaMonitorView,
-  Prisma,
-} from "@prisma/client";
+import { MonitorView as PrismaMonitorView, Prisma } from "@prisma/client";
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
 
 import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
 import { singleFilter } from "../../../interfaces/filters";
-import {
-  MonitorSeveritySchema,
-  MonitorStatusSchema,
-  MonitorThresholdOperatorSchema,
-  MonitorViewSchema,
-  MonitorWindowSchema,
-} from "../types";
+import { MonitorViewSchema, MonitorWindowSchema } from "../types";
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
   calculateCadence,
-  calculateLastRunAt,
   calculateSchedulerBatchId,
   decimalToPrisma,
   errorFromPrisma,
   monitorFromPrisma,
-  severityFromPrisma,
   sortFiltersCanonically,
-  statusFromPrisma,
-  statusToPrisma,
-  thresholdOperatorFromPrisma,
-  thresholdOperatorToPrisma,
+  toPrismaWhere,
+  updateSchedulerProperties,
+  updateStatusAndSeverity,
   viewFromPrisma,
   viewToPrisma,
   windowFromMs,
   windowToMs,
 } from "./helpers";
+import { type ListMonitorFilter } from "./types";
 
 type Filter = z.infer<typeof singleFilter>;
 
@@ -134,6 +120,101 @@ describe("sortFiltersCanonically", () => {
     const once = sortFiltersCanonically(input);
     const twice = sortFiltersCanonically(once);
     expect(twice).toEqual(once);
+  });
+});
+
+describe("toPrismaWhere", () => {
+  it("scopes by projectId with no AND clauses for undefined or empty filter", () => {
+    expect(toPrismaWhere("proj_01", undefined)).toEqual({
+      projectId: "proj_01",
+      AND: [],
+    });
+    expect(toPrismaWhere("proj_01", [])).toEqual({
+      projectId: "proj_01",
+      AND: [],
+    });
+  });
+
+  it("translates severity `any of` into a Prisma `in` clause", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "any of",
+        value: ["ALERT", "WARNING"],
+      },
+    ];
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [{ severity: { in: ["ALERT", "WARNING"] } }],
+    });
+  });
+
+  it("translates severity `none of` into a negated `in` clause", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "stringOptions",
+        column: "severity",
+        operator: "none of",
+        value: ["PAUSED"],
+      },
+    ];
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [{ NOT: { severity: { in: ["PAUSED"] } } }],
+    });
+  });
+
+  it("translates tags operators to Prisma array predicates", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "any of",
+        value: ["prod"],
+      },
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "all of",
+        value: ["prod", "latency"],
+      },
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "none of",
+        value: ["legacy"],
+      },
+    ];
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [
+        { tags: { hasSome: ["prod"] } },
+        { tags: { hasEvery: ["prod", "latency"] } },
+        { NOT: { tags: { hasSome: ["legacy"] } } },
+      ],
+    });
+  });
+
+  it("skips empty tag-value rows", () => {
+    const filter: ListMonitorFilter = [
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "all of",
+        value: [],
+      },
+      {
+        type: "arrayOptions",
+        column: "tags",
+        operator: "none of",
+        value: [],
+      },
+    ];
+    expect(toPrismaWhere("proj_01", filter)).toEqual({
+      projectId: "proj_01",
+      AND: [],
+    });
   });
 });
 
@@ -318,94 +399,6 @@ describe("calculateSchedulerBatchId", () => {
   });
 });
 
-describe("calculateLastRunAt", () => {
-  const ONE_MINUTE = 60n * 1000n;
-  const THIRTY_MIN = 30n * ONE_MINUTE;
-  const FORTY_EIGHT_HOURS = 48n * 60n * ONE_MINUTE;
-
-  it("returns a Date strictly at or before now", () => {
-    const now = new Date("2026-05-19T12:34:56.789Z");
-    const result = calculateLastRunAt(now, ONE_MINUTE, 17n);
-    expect(result.getTime()).toBeLessThanOrEqual(now.getTime());
-  });
-
-  it("places the result on the (boundary + offset) slot", () => {
-    // schedulerBatchId % 60 = 17 → offset = 17_000ms
-    const now = new Date("2026-05-19T12:34:56.789Z");
-    const result = calculateLastRunAt(now, ONE_MINUTE, 17n);
-
-    // result is exactly (boundary + 17s); the seconds-component is 17
-    expect(result.getUTCSeconds()).toBe(17);
-    expect(result.getUTCMilliseconds()).toBe(0);
-  });
-
-  it("is deterministic per (schedulerBatchId, cadence) inside one cadence", () => {
-    const cadence = ONE_MINUTE;
-    const batchId = 42n;
-
-    // two `now`s within the same minute-after-offset window
-    const a = calculateLastRunAt(
-      new Date("2026-05-19T12:34:50.000Z"),
-      cadence,
-      batchId,
-    );
-    const b = calculateLastRunAt(
-      new Date("2026-05-19T12:34:55.123Z"),
-      cadence,
-      batchId,
-    );
-    expect(a.getTime()).toBe(b.getTime());
-  });
-
-  it("computes a deterministic slot for the 30-minute cadence", () => {
-    const result = calculateLastRunAt(
-      new Date("2026-05-19T12:45:00.000Z"),
-      THIRTY_MIN,
-      45n,
-    );
-    // most recent boundary <= 12:45:00 with offset=45s is 12:30:45
-    expect(result.toISOString()).toBe("2026-05-19T12:30:45.000Z");
-  });
-
-  it("computes a deterministic slot for the 48-hour cadence", () => {
-    // epoch 0 is a 48h boundary; 48h slots align at multiples of 172_800_000ms from epoch.
-    const now = new Date("2026-05-19T12:00:00.000Z");
-    const result = calculateLastRunAt(now, FORTY_EIGHT_HOURS, 7n);
-
-    const cadenceMs = Number(FORTY_EIGHT_HOURS);
-    const offsetMs = 7 * 1000;
-    const expected =
-      Math.floor((now.getTime() - offsetMs) / cadenceMs) * cadenceMs + offsetMs;
-    expect(result.getTime()).toBe(expected);
-    expect(result.getTime()).toBeLessThanOrEqual(now.getTime());
-  });
-
-  it("preserves the same in-cadence offset for the same batchId across different `now`s", () => {
-    // Two monitors with the same schedulerBatchId created at different `now`s
-    // produce different initial lastRunAt values (off by a cadence), but each
-    // is on the same `(boundary + offset)` slot — the scheduler converges them
-    // by advancing each by +cadence on every tick where due.
-    const cadence = ONE_MINUTE;
-    const batchId = 30n;
-
-    const a = calculateLastRunAt(
-      new Date("2026-05-19T12:00:10.000Z"),
-      cadence,
-      batchId,
-    );
-    const b = calculateLastRunAt(
-      new Date("2026-05-19T12:00:40.000Z"),
-      cadence,
-      batchId,
-    );
-
-    const cadenceMs = Number(cadence);
-    const offsetMs = Number(batchId % 60n) * 1000;
-    expect(a.getTime() % cadenceMs).toBe(offsetMs);
-    expect(b.getTime() % cadenceMs).toBe(offsetMs);
-  });
-});
-
 describe("windowToMs / windowFromMs", () => {
   it.each(MonitorWindowSchema.options)("round-trips %s", (window) => {
     expect(windowFromMs(windowToMs(window))).toBe(window);
@@ -424,46 +417,6 @@ describe("viewToPrisma / viewFromPrisma", () => {
   it.each(Object.values(PrismaMonitorView))("round-trips Prisma %s", (view) => {
     expect(viewToPrisma(viewFromPrisma(view))).toBe(view);
   });
-});
-
-describe("statusToPrisma / statusFromPrisma", () => {
-  it.each(MonitorStatusSchema.options)("round-trips %s", (status) => {
-    expect(statusFromPrisma(statusToPrisma(status))).toBe(status);
-  });
-
-  it.each(Object.values(PrismaMonitorStatus))(
-    "round-trips Prisma %s",
-    (status) => {
-      expect(statusToPrisma(statusFromPrisma(status))).toBe(status);
-    },
-  );
-});
-
-describe("severityFromPrisma", () => {
-  // No `severityToPrisma`: severity is owned by the scheduler/worker, never by
-  // a caller submitting an input. Only the reverse mapping is needed.
-  it.each(Object.values(PrismaMonitorSeverity))(
-    "maps Prisma %s to a valid MonitorSeverity",
-    (severity) => {
-      const mapped = severityFromPrisma(severity);
-      expect(MonitorSeveritySchema.options).toContain(mapped);
-    },
-  );
-});
-
-describe("thresholdOperatorToPrisma / thresholdOperatorFromPrisma", () => {
-  it.each(MonitorThresholdOperatorSchema.options)("round-trips %s", (op) => {
-    expect(thresholdOperatorFromPrisma(thresholdOperatorToPrisma(op))).toBe(op);
-  });
-
-  it.each(Object.values(PrismaMonitorThresholdOperator))(
-    "round-trips Prisma %s",
-    (op) => {
-      expect(thresholdOperatorToPrisma(thresholdOperatorFromPrisma(op))).toBe(
-        op,
-      );
-    },
-  );
 });
 
 describe("decimalToPrisma", () => {
@@ -520,28 +473,30 @@ describe("monitorFromPrisma", () => {
     windowMs: 5n * 60_000n,
     cadenceMs: 60_000n,
     schedulerBatchId: 42n,
-    thresholdOperator: PrismaMonitorThresholdOperator.GT,
+    thresholdOperator: "GT" as const,
     alertThreshold: new Prisma.Decimal(100),
     warningThreshold: null,
     noData: { mode: "SILENT" as const },
     renotify: { mode: "OFF" as const },
-    severity: PrismaMonitorSeverity.UNKNOWN,
+    severity: "UNKNOWN" as const,
     severityChangedAt: null,
     alertedAt: null,
-    status: PrismaMonitorStatus.ACTIVE,
+    status: "ACTIVE" as const,
     nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
-    lastPublishedRunAt: null,
-    lastCompletedRunAt: null,
+    lastPublishedAt: null,
+    lastClaimedAt: null,
+    lastCompletedAt: null,
     name: "High error rate",
     tags: [] as string[],
+    triggerIds: [] as string[],
   };
 
   it("translates a representative row to the domain shape", () => {
     const monitor = monitorFromPrisma(prismaRow);
     expect(monitor.view).toBe("observations");
-    expect(monitor.status).toBe("active");
-    expect(monitor.severity).toBe("unknown");
-    expect(monitor.thresholdOperator).toBe("gt");
+    expect(monitor.status).toBe("ACTIVE");
+    expect(monitor.severity).toBe("UNKNOWN");
+    expect(monitor.thresholdOperator).toBe("GT");
     expect(monitor.window).toBe("5m");
     expect(monitor.alertThreshold).toBe(100);
     expect(monitor.warningThreshold).toBeNull();
@@ -559,5 +514,78 @@ describe("monitorFromPrisma", () => {
     expect(() =>
       monitorFromPrisma({ ...prismaRow, windowMs: 7n * 60_000n }),
     ).toThrow(InvalidRequestError);
+  });
+});
+
+describe("updateStatusAndSeverity", () => {
+  it("emits PAUSED with a timestamp when status leaves ACTIVE", () => {
+    const result = updateStatusAndSeverity("ACTIVE", "PAUSED");
+    expect(result.status).toBe("PAUSED");
+    expect(result.severity).toBe("PAUSED");
+    expect(result.severityChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("emits UNKNOWN with a timestamp when status returns to ACTIVE", () => {
+    const result = updateStatusAndSeverity("PAUSED", "ACTIVE");
+    expect(result.status).toBe("ACTIVE");
+    expect(result.severity).toBe("UNKNOWN");
+    expect(result.severityChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("resets the publish lifecycle stamps when status returns to ACTIVE", () => {
+    const result = updateStatusAndSeverity("PAUSED", "ACTIVE");
+    expect(result.nextRunAt).toBeNull();
+    expect(result.lastPublishedAt).toBeNull();
+    expect(result.lastCompletedAt).toBeNull();
+    expect(result.lastClaimedAt).toBeNull();
+    expect(result.alertedAt).toBeNull();
+  });
+
+  it("emits UNKNOWN when recovering from ERROR_BAD_QUERY to ACTIVE", () => {
+    const result = updateStatusAndSeverity("ERROR_BAD_QUERY", "ACTIVE");
+    expect(result.status).toBe("ACTIVE");
+    expect(result.severity).toBe("UNKNOWN");
+    expect(result.severityChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("emits PAUSED when going from ACTIVE to ERROR_BAD_QUERY", () => {
+    const result = updateStatusAndSeverity("ACTIVE", "ERROR_BAD_QUERY");
+    expect(result.status).toBe("ERROR_BAD_QUERY");
+    expect(result.severity).toBe("PAUSED");
+    expect(result.severityChangedAt).toBeInstanceOf(Date);
+  });
+
+  it("writes only status when it does not change", () => {
+    expect(updateStatusAndSeverity("ACTIVE", "ACTIVE")).toEqual({
+      status: "ACTIVE",
+    });
+    expect(updateStatusAndSeverity("PAUSED", "PAUSED")).toEqual({
+      status: "PAUSED",
+    });
+  });
+
+  it("writes only status when transitioning between two non-ACTIVE states", () => {
+    expect(updateStatusAndSeverity("PAUSED", "ERROR_BAD_QUERY")).toEqual({
+      status: "ERROR_BAD_QUERY",
+    });
+    expect(updateStatusAndSeverity("ERROR_BAD_QUERY", "PAUSED")).toEqual({
+      status: "PAUSED",
+    });
+  });
+});
+
+describe("updateSchedulerProperties", () => {
+  it("resets the publish lifecycle stamps when the batch id changes", () => {
+    expect(updateSchedulerProperties(1n, 2n)).toEqual({
+      schedulerBatchId: 2n,
+      nextRunAt: null,
+      lastPublishedAt: null,
+      lastCompletedAt: null,
+      lastClaimedAt: null,
+    });
+  });
+
+  it("is a no-op when the batch id is unchanged", () => {
+    expect(updateSchedulerProperties(42n, 42n)).toEqual({});
   });
 });

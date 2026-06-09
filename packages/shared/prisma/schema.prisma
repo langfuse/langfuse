@@ -1678,6 +1678,7 @@ enum MonitorView {
 }
 
 enum MonitorSeverity {
+  PAUSED
   UNKNOWN
   NO_DATA
   OK
@@ -1724,15 +1725,17 @@ model Monitor {
   renotify Json
 
   // === Scheduling ===
-  status             MonitorStatus @default(ACTIVE)
-  schedulerBatchId   BigInt        @map("scheduler_batch_id")
-  nextRunAt          DateTime      @map("next_run_at")
-  lastPublishedRunAt DateTime?     @map("last_published_run_at")
-  lastCompletedRunAt DateTime?     @map("last_completed_run_at")
+  status           MonitorStatus @default(ACTIVE)
+  schedulerBatchId BigInt        @map("scheduler_batch_id")
+  nextRunAt        DateTime?     @map("next_run_at")
+  lastPublishedAt  DateTime?     @map("last_published_at")
+  lastClaimedAt    DateTime?     @map("last_claimed_at")
+  lastCompletedAt  DateTime?     @map("last_completed_at")
 
   // === Alerts ===
   name      String
-  tags      String[]  @default([])
+  tags       String[]  @default([])
+  triggerIds String[]  @default([]) @map("trigger_ids")
   alertedAt DateTime? @map("alerted_at")
 
   @@index([projectId])
