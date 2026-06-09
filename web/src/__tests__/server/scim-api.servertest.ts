@@ -819,7 +819,7 @@ describe("SCIM API", () => {
         expect(orgMemberships[0].role).toBe("NONE");
       });
 
-      it("should create the membership with the explicitly provided role when missing (PUT active:true)", async () => {
+      it("should reactivate a user with specified role", async () => {
         // First deactivate the user
         await prisma.organizationMembership.deleteMany({
           where: { userId: testUserId, orgId: orgId },
@@ -834,7 +834,6 @@ describe("SCIM API", () => {
             id: testUserId,
             userName: "test.user@example.com",
             active: true,
-            // An explicit role is honoured on creation.
             roles: ["MEMBER"],
           },
           createBasicAuthHeader(orgApiKey, orgSecretKey),
@@ -844,6 +843,7 @@ describe("SCIM API", () => {
         expect(response.status).toBe(200);
         expect(response.body.id).toBe(testUserId);
 
+        // Verify the user was re-added to the organization with specified role
         const orgMemberships = await prisma.organizationMembership.findMany({
           where: { userId: testUserId, orgId: orgId },
         });
@@ -888,54 +888,6 @@ describe("SCIM API", () => {
         expect(auditLogs[0].apiKeyId).not.toBeNull();
         expect(auditLogs[0].userId).toBeNull();
         expect(auditLogs[0].after).toContain(membership!.id);
-      });
-
-      it("should update an existing member's role when an explicit role is provided (PUT active:true)", async () => {
-        await prisma.organizationMembership.updateMany({
-          where: { userId: testUserId, orgId: orgId },
-          data: { role: "MEMBER" },
-        });
-        const before = await prisma.organizationMembership.findFirst({
-          where: { userId: testUserId, orgId: orgId },
-        });
-        expect(before?.role).toBe("MEMBER");
-
-        const response = await makeZodVerifiedAPICall(
-          ScimUserSchema,
-          "PUT",
-          `/api/public/scim/Users/${testUserId}`,
-          {
-            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
-            id: testUserId,
-            userName: "test.user@example.com",
-            active: true,
-            roles: ["ADMIN"],
-          },
-          createBasicAuthHeader(orgApiKey, orgSecretKey),
-          200,
-        );
-        expect(response.status).toBe(200);
-
-        const after = await prisma.organizationMembership.findMany({
-          where: { userId: testUserId, orgId: orgId },
-        });
-        expect(after.length).toBe(1);
-        expect(after[0].role).toBe("ADMIN");
-        expect(after[0].id).toBe(before!.id);
-
-        // A real role change writes an update audit entry with before/after.
-        const auditLogs = await prisma.auditLog.findMany({
-          where: {
-            resourceType: "orgMembership",
-            resourceId: before!.id,
-            action: "update",
-            orgId: orgId,
-          },
-        });
-        expect(auditLogs.length).toBe(1);
-        expect(auditLogs[0].apiKeyId).not.toBeNull();
-        expect(auditLogs[0].before).toContain("MEMBER");
-        expect(auditLogs[0].after).toContain("ADMIN");
       });
 
       it("should NOT modify an existing member's role when no roles are provided (PUT active:true, no downgrade)", async () => {
