@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
-  commons: ../definition/commons.yml
+  commons: ./commons.yml
 
 service:
   auth: true
@@ -10,6 +10,8 @@ service:
       docs: |
         Get a list of scores with a polymorphic `value` field (v3).
 
+        This endpoint requires Langfuse v4 or later.
+
         The `value` field type depends on `dataType`:
         - `NUMERIC` → number
         - `BOOLEAN` → boolean
@@ -17,12 +19,6 @@ service:
 
         Use the `fields` parameter to include optional field groups beyond the
         default `core`. Unknown group names return HTTP 400.
-
-        Unknown query parameters (e.g. `field` instead of `fields`) return HTTP
-        400 rather than being silently ignored.
-
-        Currently in preview for Langfuse Cloud v4 users; not yet available on
-        self-hosted Langfuse.
       method: GET
       path: /v3/scores
       request:
