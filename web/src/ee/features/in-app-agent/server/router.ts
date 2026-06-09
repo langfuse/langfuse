@@ -1,8 +1,10 @@
 import { z } from "zod";
+import type { Session } from "next-auth";
 
 import { BaseError, ForbiddenError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -110,10 +112,7 @@ async function assertInAppAgentAvailable({
 }: {
   ctx: {
     session: {
-      user: {
-        admin?: boolean;
-        featureFlags: { inAppAgent?: boolean };
-      };
+      user: NonNullable<Session["user"]>;
       environment: { enableExperimentalFeatures?: boolean };
     };
     prisma: PrismaClient;
@@ -137,6 +136,12 @@ async function assertInAppAgentAvailable({
   if (!isInAppAgentEnabled) {
     throw new ForbiddenError("Assistant is not enabled for this user");
   }
+
+  throwIfNoEntitlement({
+    entitlement: "in-app-agent",
+    sessionUser: ctx.session.user,
+    projectId,
+  });
 
   const project = await ctx.prisma.project.findUnique({
     where: { id: projectId },

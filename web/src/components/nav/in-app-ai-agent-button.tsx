@@ -20,6 +20,7 @@ import {
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
@@ -29,6 +30,7 @@ export const InAppAiAgentButton = () => {
   const { organization } = useQueryProjectOrOrganization();
   const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -99,7 +101,7 @@ export const InAppAiAgentButton = () => {
     };
   }, [isExpanded, open]);
 
-  if (!isAvailable) {
+  if (!isAvailable || !hasInAppAgentEntitlement) {
     return null;
   }
 
