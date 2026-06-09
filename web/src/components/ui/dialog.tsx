@@ -16,7 +16,7 @@ const DialogPortal = DialogPrimitive.Portal;
 const DialogClose = DialogPrimitive.Close;
 
 const DialogOverlay = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Overlay>,
+  React.ComponentRef<typeof DialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
@@ -48,9 +48,10 @@ const dialogContentVariants = cva(
 );
 
 const DialogContent = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Content>,
+  React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     closeOnInteractionOutside?: boolean;
+    confirmCloseOnEscape?: string;
     stopPropagationOnEnterSpace?: boolean;
   } & VariantProps<typeof dialogContentVariants>
 >(
@@ -59,7 +60,9 @@ const DialogContent = React.forwardRef<
       className,
       children,
       closeOnInteractionOutside = false,
+      confirmCloseOnEscape,
       stopPropagationOnEnterSpace = true,
+      onEscapeKeyDown,
       size,
       ...props
     },
@@ -72,6 +75,19 @@ const DialogContent = React.forwardRef<
         e.stopPropagation();
       }
     };
+    const handleEscapeKeyDown: React.ComponentPropsWithoutRef<
+      typeof DialogPrimitive.Content
+    >["onEscapeKeyDown"] = (e) => {
+      onEscapeKeyDown?.(e);
+
+      if (e.defaultPrevented || !confirmCloseOnEscape) {
+        return;
+      }
+
+      if (!window.confirm(confirmCloseOnEscape)) {
+        e.preventDefault();
+      }
+    };
 
     return (
       <DialogPortal>
@@ -81,6 +97,7 @@ const DialogContent = React.forwardRef<
           className={cn(dialogContentVariants({ size, className }))}
           aria-describedby={undefined}
           onKeyDown={handleKeyDown}
+          onEscapeKeyDown={handleEscapeKeyDown}
           onPointerDownOutside={(e) => {
             if (!closeOnInteractionOutside) {
               e.preventDefault();
@@ -160,7 +177,7 @@ const DialogFooter = ({
 DialogFooter.displayName = "DialogFooter";
 
 const DialogTitle = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Title>,
+  React.ComponentRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
@@ -175,7 +192,7 @@ const DialogTitle = React.forwardRef<
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
 const DialogDescription = React.forwardRef<
-  React.ElementRef<typeof DialogPrimitive.Description>,
+  React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description

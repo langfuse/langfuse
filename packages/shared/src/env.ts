@@ -3,11 +3,18 @@ import { removeEmptyEnvVariables } from "./utils/environment";
 
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
+  // Dev-only override: set to an ISO datetime string to shift the legacy blob
+  // export cutoff for local testing (e.g. "2020-01-01T00:00:00.000Z" makes
+  // every project post-cutoff; "2099-01-01T00:00:00.000Z" grandfathers all).
+  NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
-  NEXTAUTH_URL: z.string().url().optional(),
+  NEXTAUTH_URL: z.url().optional(),
   EMAIL_FROM_ADDRESS: z.string().optional(),
+  // Standard SMTP URL (`smtp://`, `smtps://`) or `ses://<region>` to send via
+  // AWS SES using the default AWS credential chain (IAM role, SSO, env vars).
+  // Example: `ses://us-east-1`.
   SMTP_CONNECTION_URL: z.string().optional(),
   CLOUD_CRM_EMAIL: z.string().optional(),
   REDIS_HOST: z.string().nullish(),
@@ -35,6 +42,9 @@ const EnvSchema = z.object({
   REDIS_TLS_HONOR_CIPHER_ORDER: z.enum(["true", "false"]).optional(),
   REDIS_TLS_KEY_PASSPHRASE: z.string().optional(),
   REDIS_ENABLE_AUTO_PIPELINING: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK: z
+    .enum(["true", "false"])
+    .default("false"),
   // Redis Cluster Configuration
   REDIS_CLUSTER_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_CLUSTER_NODES: z.string().optional(),
@@ -57,11 +67,24 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_CACHE_MODEL_MATCH_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_MODEL_MATCH_TTL_SECONDS: z.coerce.number().default(86400), // 24 hours
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_TTL_MS: z.coerce
+    .number()
+    .positive()
+    .default(10_000),
+  LANGFUSE_LOCAL_CACHE_MODEL_MATCH_MAX: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(20_000),
   LANGFUSE_CACHE_PROMPT_ENABLED: z.enum(["true", "false"]).default("true"),
   LANGFUSE_CACHE_PROMPT_TTL_SECONDS: z.coerce.number().default(3600), // 1h
-  CLICKHOUSE_URL: z.string().url(),
-  CLICKHOUSE_READ_ONLY_URL: z.string().url().optional(),
-  CLICKHOUSE_EVENTS_READ_ONLY_URL: z.string().url().optional(),
+  CLICKHOUSE_URL: z.url(),
+  CLICKHOUSE_READ_ONLY_URL: z.url().optional(),
+  CLICKHOUSE_EVENTS_READ_ONLY_URL: z.url().optional(),
+  CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
   CLICKHOUSE_CLUSTER_NAME: z.string().default("default"),
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_USER: z.string(),
@@ -83,7 +106,26 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
-
+  // Workaround for a 25.12 bug where lightweight updates/deletes interact
+  // incorrectly with lazy materialization. Remove after ClickHouse 26.4, or
+  // earlier if the fix is backported.
+  CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
+    .enum(["true", "false"])
+    .default("false"),
+  CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
+    .number()
+    .default(32_000_000_000), // ~32GB
+  CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(168), // 7 days
   LANGFUSE_INGESTION_QUEUE_DELAY_MS: z.coerce
     .number()
     .nonnegative()
@@ -97,6 +139,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_OTEL_INGESTION_SECONDARY_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_OTEL_MAX_SPAN_BYTES: z.coerce.number().positive().default(9_500_000), // 9.5MB — just under ClickHouse's 10MB min_chunk_bytes_for_parallel_parsing default
   LANGFUSE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
@@ -109,6 +156,25 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(1),
+  LANGFUSE_CODE_EVAL_EXECUTION_QUEUE_SHARD_COUNT: z.coerce
+    .number()
+    .positive()
+    .default(1),
+  LANGFUSE_CODE_EVAL_DISPATCHER: z
+    .enum(["insecure-local", "aws-lambda"])
+    .optional(),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: z.string().optional(),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_NODE_FUNCTION_NAME: z
+    .string()
+    .default("code-based-eval-executor-node"),
+  LANGFUSE_CODE_EVAL_AWS_LAMBDA_PYTHON_FUNCTION_NAME: z
+    .string()
+    .default("code-based-eval-executor-python"),
+  LANGFUSE_CODE_EVAL_LOCAL_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2_000),
   LANGFUSE_TRACE_UPSERT_QUEUE_SHARD_COUNT: z.coerce
     .number()
     .positive()
@@ -118,7 +184,7 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
-  LANGFUSE_TRACE_DELETE_SKIP_PROJECT_IDS: z
+  LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
@@ -178,11 +244,35 @@ const EnvSchema = z.object({
     .default("true"),
   LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
+  GOOGLE_CLOUD_UNIVERSE_DOMAIN: z.string().default("googleapis.com"),
+  LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OCI_AUTH_TYPE: z
+    .enum([
+      "workload_identity",
+      "instance_principal",
+      "resource_principal",
+      "oci_profile",
+      "session_token",
+    ])
+    .optional(),
+  LANGFUSE_OCI_CONFIG_FILE: z.string().optional(),
+  LANGFUSE_OCI_CONFIG_PROFILE: z.string().optional(),
+  NODE_EXTRA_CA_CERTS: z.string().optional(),
   STRIPE_SECRET_KEY: z.string().optional(),
 
   LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG: z
     .enum(["true", "false"])
     .default("true"),
+
+  // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
+  // public API routes that rely on the legacy traces/observations tables.
+  // The worker owns the writes; the web only needs to know whether legacy
+  // tables are still being populated to decide whether to serve reads.
+  LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+    .enum(["legacy", "dual", "events_only"])
+    .default("legacy"),
 
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
@@ -260,6 +350,42 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_LLM_CONNECTION_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
+    ),
   SLACK_CLIENT_ID: z.string().optional(),
   SLACK_CLIENT_SECRET: z.string().optional(),
   SLACK_STATE_SECRET: z.string().optional(),
@@ -271,6 +397,14 @@ const EnvSchema = z.object({
     .describe(
       "How many records should be fetched from Slack, before we give up",
     ),
+  SLACK_PAGE_SIZE: z.coerce
+    .number()
+    .positive()
+    .int()
+    .max(1000)
+    .optional()
+    .default(1000) // Use high default to minimize number of API calls and hence avoid rate limits
+    .describe("Number of channels to fetch per Slack API page"),
   HTTPS_PROXY: z.string().optional(),
 
   LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT: z.coerce
@@ -297,6 +431,7 @@ const EnvSchema = z.object({
     .default(120_000), // 2 minutes
 
   LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+  LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
 
   // API Performance Flags
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
@@ -328,7 +463,7 @@ const EnvSchema = z.object({
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
 
   // Ingestion Masking (EE feature)
-  LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.string().url().optional(),
+  LANGFUSE_INGESTION_MASKING_CALLBACK_URL: z.url().optional(),
   LANGFUSE_INGESTION_MASKING_CALLBACK_TIMEOUT_MS: z.coerce
     .number()
     .positive()

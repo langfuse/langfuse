@@ -1,4 +1,4 @@
-import { AGGREGATABLE_SCORE_TYPES } from "../../domain/scores";
+import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { queryClickhouse } from "./clickhouse";
 
 export type EnvironmentFilterProps = {
@@ -38,7 +38,7 @@ export const getEnvironmentsForProject = async (
     params: {
       projectId,
       fromTimestamp,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
+      dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
       feature: "tracing",
@@ -46,6 +46,7 @@ export const getEnvironmentsForProject = async (
       kind: "byId",
       projectId,
     },
+    preferredClickhouseService: "ReadOnly",
   });
   // Always add default environment to list
   results.push({ environment: "default" });

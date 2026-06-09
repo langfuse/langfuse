@@ -1,10 +1,10 @@
-import tseslint from "typescript-eslint";
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
 import turboConfig from "eslint-config-turbo/flat";
 import "eslint-plugin-only-warn";
+import langfusePlugin from "@repo/eslint-plugin";
 
-export default tseslint.config(
+export default [
   // Global ignores - include config files
   {
     name: "langfuse/ignores",
@@ -57,17 +57,15 @@ export default tseslint.config(
   // Prettier (last)
   eslintPluginPrettierRecommended,
 
-  // TypeScript config for TS files
-  // Note: The old config had a bug (duplicate extends) that prevented TS rules from applying
-  // Only adding parser + plugin + custom rules to match old behavior
+  // Layer repo-specific TS rules on top of Next's built-in flat TS config.
+  // Next already provides the parser and @typescript-eslint plugin here.
   {
     name: "langfuse/next/typescript",
     files: ["**/*.ts", "**/*.tsx"],
-    plugins: {
-      "@typescript-eslint": tseslint.plugin,
-    },
     languageOptions: {
-      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+      },
       globals: {
         React: "readonly",
         JSX: "readonly",
@@ -80,8 +78,13 @@ export default tseslint.config(
         },
       },
     },
+    plugins: {
+      "@repo": langfusePlugin,
+    },
     rules: {
+      "no-void": "warn",
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
+      "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
         "warn",
@@ -100,7 +103,20 @@ export default tseslint.config(
           ignoreRestSiblings: true,
         },
       ],
+      "@typescript-eslint/no-deprecated": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
+      "react/no-unused-prop-types": "warn",
     },
   },
-);
+
+  // Vitest in-source testing should only be used while developing, not in committed code.
+  {
+    name: "langfuse/no-in-source-vitest",
+    plugins: {
+      "@repo": langfusePlugin,
+    },
+    rules: {
+      "@repo/no-in-source-vitest": "warn",
+    },
+  },
+];

@@ -1,5 +1,7 @@
 import { type z } from "zod";
 import {
+  eventsTableFilterState,
+  eventsTableSingleFilter,
   filterExpression,
   filterGroup,
   filterGroupOperator,
@@ -12,6 +14,10 @@ import {
 export type TimeFilter = z.infer<typeof timeFilter>;
 export type FilterCondition = z.infer<typeof singleFilter>;
 export type FilterState = FilterCondition[];
+export type EventsTableFilterCondition = z.infer<
+  typeof eventsTableSingleFilter
+>;
+export type EventsTableFilterState = z.infer<typeof eventsTableFilterState>;
 export type FilterGroupOperator = z.infer<typeof filterGroupOperator>;
 export type FilterGroup = z.infer<typeof filterGroup>;
 export type FilterExpression = z.infer<typeof filterExpression>;
@@ -52,4 +58,5 @@ export type TableName =
   | "job_executions"
   | "dataset_runs"
   | "dataset_run_items_by_run"
-  | "experiments";
+  | "experiments"
+  | "experiment-items";

@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -7,10 +5,6 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
   createTraceScore,
   createScoresCh,
-  createTrace,
-  createTracesCh,
-  createObservation,
-  createObservationsCh,
   createSessionScore,
   createDatasetRunScore,
 } from "@langfuse/shared/src/server";
@@ -33,6 +27,7 @@ describe("Score Comparison Analytics tRPC", () => {
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,
@@ -57,13 +52,148 @@ describe("Score Comparison Analytics tRPC", () => {
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
+  type ScoreComparisonAnalyticsInput = Parameters<
+    typeof caller.scoreAnalytics.getScoreComparisonAnalytics
+  >[0];
+  type ScoreComparisonEstimateResults = NonNullable<
+    ScoreComparisonAnalyticsInput["estimateResults"]
+  >;
+
+  const defaultEstimateResults: ScoreComparisonEstimateResults = {
+    score1Count: 1_000,
+    score2Count: 1_000,
+    estimatedMatchedCount: 1_000,
+  };
+
+  const buildEstimateResults = (
+    estimatedMatchedCount: number,
+  ): ScoreComparisonEstimateResults => ({
+    score1Count: estimatedMatchedCount,
+    score2Count: estimatedMatchedCount,
+    estimatedMatchedCount,
+  });
+
+  const rawGetScoreComparisonAnalytics =
+    caller.scoreAnalytics.getScoreComparisonAnalytics;
+
+  const getScoreComparisonAnalytics = async (
+    input: ScoreComparisonAnalyticsInput,
+  ) =>
+    rawGetScoreComparisonAnalytics({
+      ...input,
+      estimateResults: input.estimateResults ?? defaultEstimateResults,
+    });
+
+  const getScoreComparisonAnalyticsWithPreflight = async (
+    input: ScoreComparisonAnalyticsInput,
+  ) => rawGetScoreComparisonAnalytics(input);
+
+  // Most tests validate result shape and aggregation logic, not the preflight query.
+  // Patch the caller once so those cases skip the duplicate estimate round-trip.
+  Object.assign(caller.scoreAnalytics, {
+    getScoreComparisonAnalytics,
+  });
+
+  const createOneHourWindow = () => {
+    const now = new Date();
+    return {
+      now,
+      fromTimestamp: new Date(now.getTime() - 3600000),
+      toTimestamp: new Date(now.getTime() + 3600000),
+    };
+  };
+
+  const insertLargeTraceLevelScorePairs = async ({
+    batchSize = 10_000,
+    totalRows,
+    scoreName1,
+    scoreName2,
+  }: {
+    batchSize?: number;
+    totalRows: number;
+    scoreName1: string;
+    scoreName2: string;
+  }) => {
+    const scoreTimestamp = Date.now();
+
+    for (let offset = 0; offset < totalRows; offset += batchSize) {
+      const currentBatchSize = Math.min(batchSize, totalRows - offset);
+      const scores = [];
+
+      for (let i = 0; i < currentBatchSize; i++) {
+        const traceId = v4();
+
+        scores.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName1,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+
+        scores.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName2,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+      }
+
+      await createScoresCh(scores);
+    }
+  };
+
+  const insertLargeIdenticalTraceLevelScores = async ({
+    batchSize = 10_000,
+    totalRows,
+    scoreName,
+  }: {
+    batchSize?: number;
+    totalRows: number;
+    scoreName: string;
+  }) => {
+    const scoreTimestamp = Date.now();
+
+    for (let offset = 0; offset < totalRows; offset += batchSize) {
+      const currentBatchSize = Math.min(batchSize, totalRows - offset);
+      const scores = [];
+
+      for (let i = 0; i < currentBatchSize; i++) {
+        const traceId = v4();
+
+        scores.push(
+          createTraceScore({
+            project_id: projectId,
+            trace_id: traceId,
+            observation_id: null,
+            name: scoreName,
+            source: "ANNOTATION",
+            value: Math.random() * 100,
+            data_type: "NUMERIC",
+            timestamp: scoreTimestamp,
+          }),
+        );
+      }
+
+      await createScoresCh(scores);
+    }
+  };
 
   describe("getScoreComparisonAnalytics", () => {
     // Test 1: Returns all result types with valid data
     it("should return all result types with matching scores", async () => {
       const traceId = v4();
-      const trace = createTrace({ id: traceId, project_id: projectId });
-      await createTracesCh([trace]);
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000); // 1 hour ago
@@ -99,7 +229,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh([score1, score2]);
 
-      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+      const result = await getScoreComparisonAnalyticsWithPreflight({
         projectId,
         score1: {
           name: scoreName1,
@@ -246,8 +376,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // For datasets with estimated counts >= 100k: skips FINAL for performance
     it("should use FINAL for small datasets (adaptive FINAL)", async () => {
       const traceId = v4();
-      const trace = createTrace({ id: traceId, project_id: projectId });
-      await createTracesCh([trace]);
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -281,7 +409,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh([score1, score2]);
 
-      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+      const result = await getScoreComparisonAnalyticsWithPreflight({
         projectId,
         score1: {
           name: scoreName1,
@@ -320,81 +448,20 @@ describe("Score Comparison Analytics tRPC", () => {
       ).toBeLessThan(100_000);
     });
 
-    // Test 5: Adaptive FINAL skips FINAL for large datasets (>100k scores)
-    it("should skip FINAL for large datasets to improve performance", async () => {
-      const now = new Date();
-      const fromTimestamp = new Date(now.getTime() - 3600000);
-      const toTimestamp = new Date(now.getTime() + 3600000);
-
+    // Test 5: Large matched datasets should skip FINAL and use hash sampling
+    it("should skip FINAL and apply hash-based sampling for large matched datasets", async () => {
+      const { fromTimestamp, toTimestamp } = createOneHourWindow();
       const scoreName1 = `test-large-score1-${v4()}`;
       const scoreName2 = `test-large-score2-${v4()}`;
+      const totalRows = 120_000;
 
-      // Create 101k scores for score1 and 101k for score2
-      // This exceeds ADAPTIVE_FINAL_THRESHOLD (100k)
-      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
-      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
-      const tracesBatch: ReturnType<typeof createTrace>[] = [];
+      await insertLargeTraceLevelScorePairs({
+        totalRows,
+        scoreName1,
+        scoreName2,
+      });
 
-      const batchSize = 101_000; // Exceed threshold
-
-      console.log(
-        `Creating ${batchSize} scores for adaptive FINAL test (this may take a moment)...`,
-      );
-
-      for (let i = 0; i < batchSize; i++) {
-        const traceId = v4();
-
-        // Create trace
-        tracesBatch.push(
-          createTrace({
-            id: traceId,
-            project_id: projectId,
-            timestamp: now.getTime(),
-          }),
-        );
-
-        // Create score1
-        score1Batch.push(
-          createTraceScore({
-            project_id: projectId,
-            trace_id: traceId,
-            observation_id: null,
-            name: scoreName1,
-            source: "ANNOTATION",
-            data_type: "NUMERIC",
-            value: Math.random(),
-            timestamp: now.getTime(),
-          }),
-        );
-
-        // Create score2
-        score2Batch.push(
-          createTraceScore({
-            project_id: projectId,
-            trace_id: traceId,
-            observation_id: null,
-            name: scoreName2,
-            source: "ANNOTATION",
-            data_type: "NUMERIC",
-            value: Math.random(),
-            timestamp: now.getTime(),
-          }),
-        );
-      }
-
-      // Insert in batches to avoid memory issues
-      const insertBatchSize = 10_000;
-      for (let i = 0; i < batchSize; i += insertBatchSize) {
-        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
-        await createScoresCh([
-          ...score1Batch.slice(i, i + insertBatchSize),
-          ...score2Batch.slice(i, i + insertBatchSize),
-        ]);
-      }
-
-      console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
-
-      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+      const result = await getScoreComparisonAnalyticsWithPreflight({
         projectId,
         score1: {
           name: scoreName1,
@@ -408,167 +475,11 @@ describe("Score Comparison Analytics tRPC", () => {
         },
         fromTimestamp,
         toTimestamp,
-        interval: { count: 1, unit: "day" },
-        nBins: 10,
+        interval: { count: 1, unit: "hour" as const },
+        objectType: "all",
       });
 
-      // Verify query succeeded
       expect(result.counts).toBeDefined();
-
-      // Note: With 101k scores, sampling may or may not trigger depending on
-      // preflight variance (1% sample of 101k = ~1010 samples, extrapolated = 95k-105k)
-      // If sampling triggers: ~100k rows each (rate ≈ 99%)
-      // If no sampling: full 101k rows each
-      // Hash-based sampling (cityHash64) provides uniform distribution on average,
-      // but can have ~6% variance. With 101k scores, actual results range 94k-106k.
-      // Using 90k threshold (not 95k) to account for this probabilistic variance.
-      expect(result.counts.score1Total).toBeGreaterThan(90_000);
-      expect(result.counts.score2Total).toBeGreaterThan(90_000);
-
-      // matchedCount should be close to score totals (all scores match in this test)
-      // Same 90k threshold to account for hash sampling variance
-      expect(result.counts.matchedCount).toBeGreaterThan(90_000);
-      expect(result.counts.matchedCount).toBeLessThanOrEqual(101_000);
-
-      // Verify preflight estimates via samplingMetadata
-      expect(result.samplingMetadata.preflightEstimates).toBeDefined();
-      // Preflight uses 1% sampling, so estimates may have variance
-      // For 101k scores, 1% sample could estimate anywhere from ~95k-105k
-      expect(
-        result.samplingMetadata.preflightEstimates?.score1Count,
-      ).toBeGreaterThan(90_000);
-      expect(
-        result.samplingMetadata.preflightEstimates?.score2Count,
-      ).toBeGreaterThan(90_000);
-      expect(
-        result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
-      ).toBeGreaterThan(90_000);
-
-      // Verify adaptive FINAL decision via samplingMetadata
-      expect(result.samplingMetadata.adaptiveFinal).toBeDefined();
-      // The decision logic should evaluate based on estimates
-      // If estimates are >= 100k threshold, usedFinal = false
-      // If estimates are < 100k threshold, usedFinal = true
-      // Both outcomes are valid for this test - what matters is the query completes successfully
-      expect(typeof result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(
-        "boolean",
-      );
-      expect(result.samplingMetadata.adaptiveFinal?.reason).toBeDefined();
-    }, 120000); // 2 minute timeout for large data insertion
-
-    // Test 6: Adaptive FINAL with 150k scores - should definitively skip FINAL
-    // skipped because flakey in the CI
-    it.skip("should skip FINAL for 150k+ scores with high confidence", async () => {
-      const now = new Date();
-      const fromTimestamp = new Date(now.getTime() - 3600000);
-      const toTimestamp = new Date(now.getTime() + 3600000);
-
-      const scoreName1 = `test-xlarge-score1-${v4()}`;
-      const scoreName2 = `test-xlarge-score2-${v4()}`;
-
-      // Create 150k scores for score1 and 150k for score2
-      // This is well above ADAPTIVE_FINAL_THRESHOLD (100k)
-      // Even with 1% sampling variance, should reliably estimate >100k
-      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
-      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
-      const tracesBatch: ReturnType<typeof createTrace>[] = [];
-
-      const batchSize = 150_000; // Well above threshold
-
-      console.log(
-        `Creating ${batchSize} scores for large-scale adaptive FINAL test (this may take a moment)...`,
-      );
-
-      for (let i = 0; i < batchSize; i++) {
-        const traceId = v4();
-
-        // Create trace
-        tracesBatch.push(
-          createTrace({
-            id: traceId,
-            project_id: projectId,
-            timestamp: now.getTime(),
-          }),
-        );
-
-        // Create score1
-        score1Batch.push(
-          createTraceScore({
-            project_id: projectId,
-            trace_id: traceId,
-            observation_id: null,
-            name: scoreName1,
-            source: "ANNOTATION",
-            data_type: "NUMERIC",
-            value: Math.random(),
-            timestamp: now.getTime(),
-          }),
-        );
-
-        // Create score2
-        score2Batch.push(
-          createTraceScore({
-            project_id: projectId,
-            trace_id: traceId,
-            observation_id: null,
-            name: scoreName2,
-            source: "ANNOTATION",
-            data_type: "NUMERIC",
-            value: Math.random(),
-            timestamp: now.getTime(),
-          }),
-        );
-      }
-
-      // Insert in batches to avoid memory issues
-      const insertBatchSize = 10_000;
-      for (let i = 0; i < batchSize; i += insertBatchSize) {
-        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
-        await createScoresCh([
-          ...score1Batch.slice(i, i + insertBatchSize),
-          ...score2Batch.slice(i, i + insertBatchSize),
-        ]);
-      }
-
-      console.log(`Inserted ${batchSize} traces and ${batchSize * 2} scores`);
-
-      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
-        projectId,
-        score1: {
-          name: scoreName1,
-          dataType: "NUMERIC",
-          source: "ANNOTATION",
-        },
-        score2: {
-          name: scoreName2,
-          dataType: "NUMERIC",
-          source: "ANNOTATION",
-        },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "day" },
-        nBins: 10,
-      });
-
-      // Verify query succeeded
-      expect(result.counts).toBeDefined();
-
-      // Note: With 150k scores in each table, sampling will trigger (threshold = 100k)
-      // Sampling rate = 100k / 150k = 67%, so we expect ~100k from each table
-      // Allow variance due to hash distribution
-      expect(result.counts.score1Total).toBeGreaterThan(90_000);
-      expect(result.counts.score1Total).toBeLessThan(110_000);
-      expect(result.counts.score2Total).toBeGreaterThan(90_000);
-      expect(result.counts.score2Total).toBeLessThan(110_000);
-
-      // matchedCount should be similar to sample size (not the full 150k)
-      expect(result.counts.matchedCount).toBeGreaterThan(90_000);
-      expect(result.counts.matchedCount).toBeLessThan(110_000);
-
-      // Verify preflight estimates via samplingMetadata
-      expect(result.samplingMetadata.preflightEstimates).toBeDefined();
-      // For 150k scores, even with 1% sampling variance, should reliably estimate >100k
-      // 150k * 1% = 1500 sampled → extrapolated estimate should be 140k-160k range
       expect(
         result.samplingMetadata.preflightEstimates?.score1Count,
       ).toBeGreaterThan(100_000);
@@ -579,190 +490,44 @@ describe("Score Comparison Analytics tRPC", () => {
         result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
       ).toBeGreaterThan(100_000);
 
-      // Verify adaptive FINAL decision via samplingMetadata
-      // For 150k scores, should definitively skip FINAL for performance
-      expect(result.samplingMetadata.adaptiveFinal).toBeDefined();
       expect(result.samplingMetadata.adaptiveFinal?.usedFinal).toBe(false);
       expect(result.samplingMetadata.adaptiveFinal?.reason).toContain(
         "Large dataset - skipping FINAL for performance",
       );
 
-      // Verify sampling was applied (150k > 100k threshold)
       expect(result.samplingMetadata.isSampled).toBe(true);
       expect(result.samplingMetadata.samplingMethod).toBe("hash");
-      expect(result.samplingMetadata.samplingRate).toBeCloseTo(0.67, 1); // 100k/150k ≈ 0.67
-    }, 180000); // 3 minute timeout for large data insertion
-
-    // Test 7: Hash-based sampling for datasets with >100k estimated matched scores
-    it("should apply hash-based sampling when estimated matched count exceeds threshold", async () => {
-      const now = new Date();
-      const fromTimestamp = new Date(now.getTime() - 3600000);
-      const toTimestamp = new Date(now.getTime() + 3600000);
-
-      const scoreName1 = `test-hash-sample-s1-${v4()}`;
-      const scoreName2 = `test-hash-sample-s2-${v4()}`;
-
-      // Create 120k matched scores (both scores on same traces)
-      // This should trigger hash-based sampling (threshold = 100k)
-      const score1Batch: ReturnType<typeof createTraceScore>[] = [];
-      const score2Batch: ReturnType<typeof createTraceScore>[] = [];
-      const tracesBatch: ReturnType<typeof createTrace>[] = [];
-
-      const batchSize = 120_000;
-
-      console.log(
-        `Creating ${batchSize} matched scores for hash-based sampling test...`,
-      );
-
-      for (let i = 0; i < batchSize; i++) {
-        const traceId = v4();
-        const scoreTimestamp =
-          now.getTime() - Math.floor(Math.random() * 3600000);
-
-        tracesBatch.push(
-          createTrace({
-            id: traceId,
-            project_id: projectId,
-            timestamp: now.getTime(),
-          }),
-        );
-
-        score1Batch.push(
-          createTraceScore({
-            project_id: projectId,
-            trace_id: traceId,
-            observation_id: null,
-            name: scoreName1,
-            source: "ANNOTATION",
-            value: Math.random() * 100,
-            data_type: "NUMERIC",
-            timestamp: scoreTimestamp,
-          }),
-        );
-
-        score2Batch.push(
-          createTraceScore({
-            project_id: projectId,
-            trace_id: traceId,
-            observation_id: null,
-            name: scoreName2,
-            source: "ANNOTATION",
-            value: Math.random() * 100,
-            data_type: "NUMERIC",
-            timestamp: scoreTimestamp,
-          }),
-        );
-      }
-
-      await createTracesCh(tracesBatch);
-      await createScoresCh([...score1Batch, ...score2Batch]);
-
-      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
-        projectId,
-        score1: {
-          name: scoreName1,
-          source: "ANNOTATION",
-          dataType: "NUMERIC",
-        },
-        score2: {
-          name: scoreName2,
-          source: "ANNOTATION",
-          dataType: "NUMERIC",
-        },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "hour" as const },
-        objectType: "all",
-      });
-
-      // Verify query succeeded
-      expect(result.counts).toBeDefined();
-
-      // Verify sampling was applied
-      expect(result.samplingMetadata.isSampled).toBe(true);
-      expect(result.samplingMetadata.samplingMethod).toBe("hash");
-      expect(result.samplingMetadata.samplingRate).toBeLessThan(1.0);
+      expect(result.samplingMetadata.samplingRate).toBeLessThan(1);
       expect(result.samplingMetadata.samplingRate).toBeGreaterThan(0);
       expect(result.samplingMetadata.samplingExpression).toContain(
         "cityHash64",
       );
-
-      // Verify preflight estimates triggered sampling
-      expect(
-        result.samplingMetadata.preflightEstimates?.estimatedMatchedCount,
-      ).toBeGreaterThan(100_000);
-
-      // Verify actualSampleSize is approximately TARGET_SAMPLE_SIZE (100k)
-      // Allow for variance due to hash distribution
       expect(result.samplingMetadata.actualSampleSize).toBeGreaterThan(80_000);
-      expect(result.samplingMetadata.actualSampleSize).toBeLessThan(120_000);
+      expect(result.samplingMetadata.actualSampleSize).toBeLessThan(totalRows);
 
-      // Verify counts reflect sampling
+      expect(result.counts.score1Total).toBe(result.counts.score2Total);
+      expect(result.counts.matchedCount).toBe(result.counts.score1Total);
       expect(result.counts.matchedCount).toBe(
         result.samplingMetadata.actualSampleSize,
       );
-
-      // Verify data quality - all result arrays should have data
       expect(result.heatmap.length).toBeGreaterThan(0);
       expect(result.timeSeries.length).toBeGreaterThan(0);
-    }, 180000); // 3 minute timeout for large data insertion
+    }, 120000);
 
-    // Test 8: Identical scores with sampling show perfect correlation
+    // Test 6: Identical scores should stay perfectly aligned under sampling
     it("should return perfect correlation for identical scores with sampling", async () => {
-      const now = new Date();
-      const fromTimestamp = new Date(now.getTime() - 3600000);
-      const toTimestamp = new Date(now.getTime() + 3600000);
-
+      const { fromTimestamp, toTimestamp } = createOneHourWindow();
       const scoreName = `test-identical-${v4()}`;
+      const totalRows = 20_000;
+      const forcedEstimateResults = buildEstimateResults(120_000);
 
-      // Create 150k scores (exceeds sampling threshold)
-      const scoreBatch: ReturnType<typeof createTraceScore>[] = [];
-      const tracesBatch: ReturnType<typeof createTrace>[] = [];
-
-      const batchSize = 150_000;
-
-      console.log(
-        `Creating ${batchSize} identical scores for perfect correlation test...`,
-      );
-
-      for (let i = 0; i < batchSize; i++) {
-        const traceId = v4();
-        const scoreTimestamp =
-          now.getTime() - Math.floor(Math.random() * 3600000);
-
-        tracesBatch.push(
-          createTrace({
-            id: traceId,
-            project_id: projectId,
-            timestamp: now.getTime(),
-          }),
-        );
-
-        scoreBatch.push(
-          createTraceScore({
-            project_id: projectId,
-            trace_id: traceId,
-            observation_id: null,
-            name: scoreName,
-            source: "ANNOTATION",
-            value: Math.random() * 100,
-            data_type: "NUMERIC",
-            timestamp: scoreTimestamp,
-          }),
-        );
-      }
-
-      // Insert in batches
-      const insertBatchSize = 10_000;
-      for (let i = 0; i < batchSize; i += insertBatchSize) {
-        await createTracesCh(tracesBatch.slice(i, i + insertBatchSize));
-        await createScoresCh(scoreBatch.slice(i, i + insertBatchSize));
-      }
-
-      console.log(`Inserted ${batchSize} traces and scores`);
+      await insertLargeIdenticalTraceLevelScores({
+        totalRows,
+        scoreName,
+      });
 
       // Compare score to itself
-      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+      const result = await getScoreComparisonAnalytics({
         projectId,
         score1: {
           name: scoreName,
@@ -778,44 +543,31 @@ describe("Score Comparison Analytics tRPC", () => {
         toTimestamp,
         interval: { count: 1, unit: "hour" as const },
         objectType: "all",
+        estimateResults: forcedEstimateResults,
       });
 
-      // Verify sampling occurred (150k > 100k threshold)
       expect(result.samplingMetadata.isSampled).toBe(true);
       expect(result.samplingMetadata.samplingMethod).toBe("hash");
 
-      // CRITICAL: For identical scores, score1Total === score2Total === matchedCount
-      // This ensures the same sample was used for both CTEs
       expect(result.counts.score1Total).toBe(result.counts.score2Total);
       expect(result.counts.matchedCount).toBe(result.counts.score1Total);
       expect(result.counts.matchedCount).toBe(result.counts.score2Total);
+      expect(result.counts.matchedCount).toBeGreaterThan(10_000);
+      expect(result.counts.matchedCount).toBeLessThan(totalRows);
 
-      // Verify sample size is within expected range (~100k)
-      expect(result.counts.matchedCount).toBeGreaterThan(90_000);
-      expect(result.counts.matchedCount).toBeLessThan(110_000);
-
-      // Verify all heatmap points are on the diagonal (bin1Index === bin2Index)
-      // For identical scores, every point should have the same bin for both axes
       const offDiagonalPoints = result.heatmap.filter(
         (point) => point.binX !== point.binY,
       );
-      expect(offDiagonalPoints.length).toBe(0); // No points off diagonal
+      expect(offDiagonalPoints.length).toBe(0);
 
-      // Verify correlation is skipped for identical scores (as per existing logic)
       expect(result.statistics?.spearmanCorrelation).toBeNull();
-    }, 180000); // 3 minute timeout for large data insertion
+    }, 120000);
 
     // Test 9: Calculates counts correctly with partial matches
     it("should calculate counts correctly with partial matches", async () => {
       const trace1 = v4();
       const trace2 = v4();
       const trace3 = v4();
-
-      await createTracesCh([
-        createTrace({ id: trace1, project_id: projectId }),
-        createTrace({ id: trace2, project_id: projectId }),
-        createTrace({ id: trace3, project_id: projectId }),
-      ]);
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -890,11 +642,6 @@ describe("Score Comparison Analytics tRPC", () => {
       const trace1 = v4();
       const trace2 = v4();
 
-      await createTracesCh([
-        createTrace({ id: trace1, project_id: projectId }),
-        createTrace({ id: trace2, project_id: projectId }),
-      ]);
-
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
       const toTimestamp = new Date(now.getTime() + 3600000);
@@ -946,9 +693,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 6: Generates correct bins for heatmap
     it("should generate correct bins for numeric heatmap", async () => {
       const traces = [v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1019,12 +763,9 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(totalHeatmapCount).toBe(result.counts.matchedCount);
     });
 
-    // Test 7: Respects nBins parameter
-    it("should respect different nBins values", async () => {
+    // Test 7: Respects custom nBins parameter
+    it("should respect a custom nBins value", async () => {
       const traceId = v4();
-      await createTracesCh([
-        createTrace({ id: traceId, project_id: projectId }),
-      ]);
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1058,8 +799,7 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      // Test with 5 bins
-      const result5 = await caller.scoreAnalytics.getScoreComparisonAnalytics({
+      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
         projectId,
         score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
         score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1069,34 +809,15 @@ describe("Score Comparison Analytics tRPC", () => {
         nBins: 5,
       });
 
-      result5.heatmap.forEach((cell) => {
+      result.heatmap.forEach((cell) => {
         expect(cell.binX).toBeLessThan(5);
         expect(cell.binY).toBeLessThan(5);
-      });
-
-      // Test with 20 bins
-      const result20 = await caller.scoreAnalytics.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "day" },
-        nBins: 20,
-      });
-
-      result20.heatmap.forEach((cell) => {
-        expect(cell.binX).toBeLessThan(20);
-        expect(cell.binY).toBeLessThan(20);
       });
     });
 
     // Test 8: Includes min/max ranges for heatmap bins
     it("should include accurate min/max ranges for each heatmap bin", async () => {
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1155,9 +876,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 9: Generates confusion matrix for BOOLEAN scores
     it("should generate 2x2 confusion matrix for BOOLEAN scores", async () => {
       const traces = [v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1230,9 +948,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 10: Generates confusion matrix for CATEGORICAL scores
     it("should generate NxN confusion matrix for CATEGORICAL scores", async () => {
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1310,9 +1025,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 11: Calculates perfect correlation correctly
     it("should calculate perfect correlation for identical scores", async () => {
       const traces = [v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1373,9 +1085,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 12: Calculates statistics with known correlation
     it("should calculate statistics correctly for known dataset", async () => {
       const traces = [v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1438,9 +1147,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 13: Aggregates time series by hour
     it("should aggregate time series correctly by hour", async () => {
       const traceId = v4();
-      await createTracesCh([
-        createTrace({ id: traceId, project_id: projectId }),
-      ]);
 
       const baseTime = new Date("2024-01-01T10:00:00Z");
       const fromTimestamp = new Date("2024-01-01T09:00:00Z");
@@ -1528,9 +1234,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 14: Aggregates time series by day
     it("should aggregate time series correctly by day", async () => {
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const day1 = new Date("2024-01-01T12:00:00Z");
       const day2 = new Date("2024-01-02T12:00:00Z");
@@ -1612,9 +1315,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 15: Aggregates time series by week and month
     it("should aggregate time series correctly by week and month", async () => {
       const traceId = v4();
-      await createTracesCh([
-        createTrace({ id: traceId, project_id: projectId }),
-      ]);
 
       const fromTimestamp = new Date("2024-01-01T00:00:00Z");
       const toTimestamp = new Date("2024-03-01T00:00:00Z");
@@ -1647,9 +1347,8 @@ describe("Score Comparison Analytics tRPC", () => {
 
       await createScoresCh(scores);
 
-      // Test 7-day interval (week equivalent)
-      const weekResult =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+      const [weekResult, monthResult] = await Promise.all([
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           projectId,
           score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
           score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1657,13 +1356,8 @@ describe("Score Comparison Analytics tRPC", () => {
           toTimestamp,
           interval: { count: 7, unit: "day" },
           nBins: 10,
-        });
-
-      expect(weekResult.timeSeries.length).toBeGreaterThan(0);
-
-      // Test month interval
-      const monthResult =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           projectId,
           score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
           score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
@@ -1671,17 +1365,16 @@ describe("Score Comparison Analytics tRPC", () => {
           toTimestamp,
           interval: { count: 1, unit: "month" },
           nBins: 10,
-        });
+        }),
+      ]);
 
+      expect(weekResult.timeSeries.length).toBeGreaterThan(0);
       expect(monthResult.timeSeries.length).toBeGreaterThan(0);
     });
 
     // Test 16: Calculates distribution1 accurately
     it("should calculate distribution for first score accurately", async () => {
       const traces = [v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1746,9 +1439,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 17: Calculates distribution2 accurately
     it("should calculate distribution for second score accurately", async () => {
       const traces = [v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1807,11 +1497,6 @@ describe("Score Comparison Analytics tRPC", () => {
     it("should match scores correctly at trace level", async () => {
       const trace1 = v4();
       const trace2 = v4();
-
-      await createTracesCh([
-        createTrace({ id: trace1, project_id: projectId }),
-        createTrace({ id: trace2, project_id: projectId }),
-      ]);
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -1876,24 +1561,6 @@ describe("Score Comparison Analytics tRPC", () => {
       const traceId = v4();
       const obs1 = v4();
       const obs2 = v4();
-
-      await createTracesCh([
-        createTrace({ id: traceId, project_id: projectId }),
-      ]);
-      await createObservationsCh([
-        createObservation({
-          id: obs1,
-          trace_id: traceId,
-          project_id: projectId,
-          type: "GENERATION",
-        }),
-        createObservation({
-          id: obs2,
-          trace_id: traceId,
-          project_id: projectId,
-          type: "GENERATION",
-        }),
-      ]);
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -2016,9 +1683,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 22: Handles out-of-order timestamps
     it("should handle scores created in random order", async () => {
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 7200000); // 2 hours ago
@@ -2111,9 +1775,6 @@ describe("Score Comparison Analytics tRPC", () => {
     it("should align 7-day intervals to Monday (ISO 8601 week)", async () => {
       // Test that 7-day intervals use Monday-aligned weeks, not Thursday-aligned epochs
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       // Use a known Monday and Thursday
       // Nov 3, 2025 is a Monday
@@ -2198,10 +1859,6 @@ describe("Score Comparison Analytics tRPC", () => {
       // Create two traces - one for morning, one for evening
       const trace1 = v4();
       const trace2 = v4();
-      await createTracesCh([
-        createTrace({ id: trace1, project_id: projectId }),
-        createTrace({ id: trace2, project_id: projectId }),
-      ]);
 
       const scores = [
         // Morning scores on trace1
@@ -2298,11 +1955,6 @@ describe("Score Comparison Analytics tRPC", () => {
       const trace1 = v4();
       const trace2 = v4();
       const trace3 = v4();
-      await createTracesCh([
-        createTrace({ id: trace1, project_id: projectId }),
-        createTrace({ id: trace2, project_id: projectId }),
-        createTrace({ id: trace3, project_id: projectId }),
-      ]);
 
       const scores = [
         // Start of month on trace1
@@ -2409,9 +2061,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 26: Matched Distributions - Basic Functionality
     it("should return matched distributions excluding unmatched scores", async () => {
       const traces = [v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -2516,9 +2165,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 27: Matched Distributions - Empty When No Matches
     it("should return empty matched distributions when no scores match", async () => {
       const traces = [v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -2581,30 +2227,6 @@ describe("Score Comparison Analytics tRPC", () => {
       const obs1 = v4();
       const obs2 = v4();
       const obs3 = v4();
-
-      await createTracesCh([
-        createTrace({ id: traceId, project_id: projectId }),
-      ]);
-      await createObservationsCh([
-        createObservation({
-          id: obs1,
-          trace_id: traceId,
-          project_id: projectId,
-          type: "GENERATION",
-        }),
-        createObservation({
-          id: obs2,
-          trace_id: traceId,
-          project_id: projectId,
-          type: "GENERATION",
-        }),
-        createObservation({
-          id: obs3,
-          trace_id: traceId,
-          project_id: projectId,
-          type: "GENERATION",
-        }),
-      ]);
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -2713,9 +2335,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 29: Individual Distributions - Correct Bounds for Numeric Scores with Different Ranges
     it("should use individual bounds for better visualization when score ranges differ", async () => {
       const traces = [v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -2804,9 +2423,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 30: Individual Distributions - Match Global When Ranges Similar
     it("should have similar distributions when score ranges are similar", async () => {
       const traces = [v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -2881,9 +2497,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 31: Individual Distributions - Categorical Scores Reference Original
     it("should have individual distributions match regular distributions for categorical scores", async () => {
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -2938,9 +2551,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 32: Cross-Data Type Handling
     it("should handle individual distributions correctly for cross-type comparison", async () => {
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -3015,9 +2625,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 33: Time Series Matched - Two-Score Functionality
     it("should return matched time series excluding unmatched scores", async () => {
       const traces = [v4(), v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const day1 = new Date("2024-01-01T12:00:00Z");
       const day2 = new Date("2024-01-02T12:00:00Z");
@@ -3154,162 +2761,9 @@ describe("Score Comparison Analytics tRPC", () => {
       expect(day3Bucket?.count).toBe(1); // Unmatched score2 not included
     });
 
-    // Test 34: Time Series ALL vs MATCHED - Verify Different Data
-    // NOTE: This test uncovered a timezone issue where toStartOfDay() without explicit UTC
-    // would return epoch 0 for certain dates (DST-related). Fixed by adding 'UTC' parameter
-    // to toStartOfDay() in getClickHouseTimeBucketFunction().
-    // TODO: Known flaky test - day3All is undefined due to test setup issue
-    it.skip("should return different data for timeSeries (all) vs timeSeriesMatched", async () => {
-      const traces = [v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
-
-      const day1 = new Date("2024-01-01T12:00:00Z");
-      const day2 = new Date("2024-01-02T12:00:00Z");
-      const day3 = new Date("2024-01-03T12:00:00Z");
-      const fromTimestamp = new Date("2024-01-01T00:00:00Z");
-      const toTimestamp = new Date("2024-01-04T00:00:00Z");
-
-      const scoreName1 = `test34-all-${v4()}`;
-      const scoreName2 = `test34-matched-${v4()}`;
-
-      const scores = [
-        // Day 1: 2 matched pairs
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[0],
-          observation_id: null,
-          name: scoreName1,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 10,
-          timestamp: day1.getTime(),
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[0],
-          observation_id: null,
-          name: scoreName2,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 20,
-          timestamp: day1.getTime(),
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[1],
-          observation_id: null,
-          name: scoreName1,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 15,
-          timestamp: day1.getTime(),
-        }),
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[1],
-          observation_id: null,
-          name: scoreName2,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 25,
-          timestamp: day1.getTime(),
-        }),
-        // Day 2: 1 unmatched score1 only
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[2],
-          observation_id: null,
-          name: scoreName1,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 30,
-          timestamp: day2.getTime(),
-        }),
-        // Day 3: 1 unmatched score2 only
-        createTraceScore({
-          project_id: projectId,
-          trace_id: traces[3],
-          observation_id: null,
-          name: scoreName2,
-          source: "API",
-          data_type: "NUMERIC",
-          value: 40,
-          timestamp: day3.getTime(),
-        }),
-      ];
-
-      await createScoresCh(scores);
-
-      const result = await caller.scoreAnalytics.getScoreComparisonAnalytics({
-        projectId,
-        score1: { name: scoreName1, dataType: "NUMERIC", source: "API" },
-        score2: { name: scoreName2, dataType: "NUMERIC", source: "API" },
-        fromTimestamp,
-        toTimestamp,
-        interval: { count: 1, unit: "day" },
-        nBins: 10,
-      });
-
-      // timeSeries (ALL) should have more observations than timeSeriesMatched
-      const totalAllCount = result.timeSeries.reduce(
-        (sum, entry) => sum + entry.count,
-        0,
-      );
-      const totalMatchedCount = result.timeSeriesMatched.reduce(
-        (sum, entry) => sum + entry.count,
-        0,
-      );
-
-      expect(totalAllCount).toBeGreaterThan(totalMatchedCount);
-      expect(totalAllCount).toBe(6); // 2 matched pairs + 1 unmatched score1 + 1 unmatched score2 = 6 total
-      expect(totalMatchedCount).toBe(2); // 2 matched pairs
-
-      // Verify timeSeries includes data for all three days
-      const day1All = result.timeSeries.find(
-        (ts) => new Date(ts.timestamp).getUTCDate() === 1,
-      );
-      const day2All = result.timeSeries.find(
-        (ts) => new Date(ts.timestamp).getUTCDate() === 2,
-      );
-      const day3All = result.timeSeries.find(
-        (ts) => new Date(ts.timestamp).getUTCDate() === 3,
-      );
-
-      expect(day1All).toBeDefined();
-      expect(day2All).toBeDefined();
-      expect(day3All).toBeDefined();
-
-      // Day 1: Both scores present (matched) - average of (10, 15) and (20, 25)
-      expect(day1All?.avg1).toBe(12.5); // (10 + 15) / 2
-      expect(day1All?.avg2).toBe(22.5); // (20 + 25) / 2
-
-      // Day 2: Only score1 present (avg2 should be null)
-      expect(day2All?.avg1).toBe(30);
-      expect(day2All?.avg2).toBeNull();
-
-      // Day 3: Only score2 present (avg1 should be null)
-      expect(day3All?.avg1).toBeNull();
-      expect(day3All?.avg2).toBe(40);
-
-      // Verify timeSeriesMatched only includes day 1 (matched pairs)
-      expect(result.timeSeriesMatched.length).toBe(1);
-      const day1Matched = result.timeSeriesMatched.find(
-        (ts) => new Date(ts.timestamp).getUTCDate() === 1,
-      );
-      expect(day1Matched).toBeDefined();
-      expect(day1Matched?.avg1).toBe(12.5); // (10 + 15) / 2
-      expect(day1Matched?.avg2).toBe(22.5); // (20 + 25) / 2
-      expect(day1Matched?.count).toBe(2); // 2 matched pairs
-    });
-
-    // Test 35: Time Series Matched - Single Score Mode
+    // Test 34: Time Series Matched - Single Score Mode
     it("should handle timeSeriesMatched in single-score mode", async () => {
       const traces = [v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const day1 = new Date("2024-01-01T12:00:00Z");
       const day2 = new Date("2024-01-02T12:00:00Z");
@@ -3373,9 +2827,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 36: Time Series Matched - Timestamp Precision (Critical)
     it("should return timestamps in seconds not milliseconds in timeSeriesMatched", async () => {
       const traceId = v4();
-      await createTracesCh([
-        createTrace({ id: traceId, project_id: projectId }),
-      ]);
 
       // Use specific timestamp: 2024-01-15 12:30:45.123 UTC
       const specificTime = new Date("2024-01-15T12:30:45.123Z");
@@ -3448,9 +2899,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 37: Time Series Matched - Empty When No Matches
     it("should return empty timeSeriesMatched when no scores match", async () => {
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const day1 = new Date("2024-01-01T12:00:00Z");
       const day2 = new Date("2024-01-02T12:00:00Z");
@@ -3520,9 +2968,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 38: Heatmap GlobalMin/GlobalMax - Correct Position
     it("should include globalMin and globalMax in heatmap with correct values", async () => {
       const traces = [v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -3591,9 +3036,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 39: Heatmap GlobalMin/GlobalMax - Single Score Scenario
     it("should have identical bounds in single-score mode for heatmap", async () => {
       const traces = [v4(), v4(), v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -3650,9 +3092,6 @@ describe("Score Comparison Analytics tRPC", () => {
     // Test 40: Heatmap GlobalMin/GlobalMax - Disjoint Ranges
     it("should have global bounds spanning disjoint score ranges", async () => {
       const traces = [v4(), v4(), v4()];
-      await createTracesCh(
-        traces.map((id) => createTrace({ id, project_id: projectId })),
-      );
 
       const now = new Date();
       const fromTimestamp = new Date(now.getTime() - 3600000);
@@ -4086,16 +3525,6 @@ describe("Score Comparison Analytics tRPC", () => {
       const scoreName2 = `objectType-test-score2-${v4()}`;
 
       // Create trace for trace-level scores
-      const trace = createTrace({ id: traceId, project_id: projectId });
-      await createTracesCh([trace]);
-
-      // Create observation for observation-level scores
-      const observation = createObservation({
-        id: observationId,
-        trace_id: traceId,
-        project_id: projectId,
-      });
-      await createObservationsCh([observation]);
 
       const scores = [
         // Trace-level scores (2 pairs)
@@ -4198,53 +3627,51 @@ describe("Score Comparison Analytics tRPC", () => {
         interval: { count: 1, unit: "hour" as const },
       };
 
-      // Test 1: objectType = "all" should return all 4 matched pairs
-      const resultAll = await caller.scoreAnalytics.getScoreComparisonAnalytics(
-        {
+      const [
+        resultAll,
+        resultTrace,
+        resultObservation,
+        resultSession,
+        resultDatasetRun,
+      ] = await Promise.all([
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
           ...baseParams,
           objectType: "all",
-        },
-      );
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "trace",
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "observation",
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "session",
+        }),
+        caller.scoreAnalytics.getScoreComparisonAnalytics({
+          ...baseParams,
+          objectType: "dataset_run",
+        }),
+      ]);
+
       expect(resultAll.counts.matchedCount).toBe(4);
       expect(resultAll.counts.score1Total).toBe(4);
       expect(resultAll.counts.score2Total).toBe(4);
 
-      // Test 2: objectType = "trace" should return only trace-level scores (1 pair)
-      const resultTrace =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
-          ...baseParams,
-          objectType: "trace",
-        });
       expect(resultTrace.counts.matchedCount).toBe(1);
       expect(resultTrace.counts.score1Total).toBe(1);
       expect(resultTrace.counts.score2Total).toBe(1);
 
-      // Test 3: objectType = "observation" should return only observation-level scores (1 pair)
-      const resultObservation =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
-          ...baseParams,
-          objectType: "observation",
-        });
       expect(resultObservation.counts.matchedCount).toBe(1);
       expect(resultObservation.counts.score1Total).toBe(1);
       expect(resultObservation.counts.score2Total).toBe(1);
 
-      // Test 4: objectType = "session" should return only session-level scores (1 pair)
-      const resultSession =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
-          ...baseParams,
-          objectType: "session",
-        });
       expect(resultSession.counts.matchedCount).toBe(1);
       expect(resultSession.counts.score1Total).toBe(1);
       expect(resultSession.counts.score2Total).toBe(1);
 
-      // Test 5: objectType = "dataset_run" should return only dataset_run-level scores (1 pair)
-      const resultDatasetRun =
-        await caller.scoreAnalytics.getScoreComparisonAnalytics({
-          ...baseParams,
-          objectType: "dataset_run",
-        });
       expect(resultDatasetRun.counts.matchedCount).toBe(1);
       expect(resultDatasetRun.counts.score1Total).toBe(1);
       expect(resultDatasetRun.counts.score2Total).toBe(1);

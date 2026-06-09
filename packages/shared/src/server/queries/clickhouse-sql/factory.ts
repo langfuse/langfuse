@@ -1,16 +1,22 @@
-import z from "zod";
 import {
+  FTS_MATCH_OPERATOR,
   normalizeFilterExpressionInput,
-  singleFilter,
 } from "../../../interfaces/filters";
-import { FilterCondition, FilterExpression, FilterInput } from "../../../types";
+import {
+  type EventsTableFilterCondition,
+  type EventsTableFilterState,
+  type FilterExpression,
+  type FilterInput,
+} from "../../../types";
 import { InvalidRequestError } from "../../../errors";
 import { isValidTableName } from "../../clickhouse/schemaUtils";
 import { logger } from "../../logger";
 import {
+  findUiColumnMapping,
   type ColumnDefinition,
   type UiColumnMappings,
 } from "../../../tableDefinitions";
+import { COMPATIBLE_FILTER_TYPES } from "./filterTypeCompatibility";
 import {
   StringFilter,
   DateTimeFilter,
@@ -26,6 +32,7 @@ import {
   FilterTree,
   type Filter,
 } from "./clickhouse-filter";
+import { assertValidFtsMatchFilter } from "./fts";
 
 export class QueryBuilderError extends Error {
   constructor(message: string) {
@@ -34,26 +41,11 @@ export class QueryBuilderError extends Error {
   }
 }
 
-// Maps each ColumnDefinition.type to the filter types that are structurally compatible
-// at the ClickHouse level. string/stringOptions both operate on String columns,
-// and stringOptions "any of" works on Array columns too.
-const COMPATIBLE_FILTER_TYPES: Record<string, string[]> = {
-  string: ["string", "stringOptions"],
-  stringOptions: ["string", "stringOptions"],
-  arrayOptions: ["arrayOptions", "stringOptions"],
-  datetime: ["datetime"],
-  number: ["number"],
-  boolean: ["boolean"],
-  stringObject: ["stringObject"],
-  numberObject: ["numberObject"],
-  categoryOptions: ["categoryOptions", "stringOptions"],
-};
-
 // This function ensures that the user only selects valid columns from the clickhouse schema.
 // The filter property in this column needs to be zod verified.
 // User input for values (e.g. project_id = <value>) are sent to Clickhouse as parameters to prevent SQL injection
 const createFilterFromCondition = (
-  frontEndFilter: FilterCondition,
+  frontEndFilter: EventsTableFilterCondition,
   columnMapping: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
 ): Filter => {
@@ -71,6 +63,8 @@ const createFilterFromCondition = (
       }
     }
   }
+
+  validateEventsTableMatchesFilter(frontEndFilter, column);
 
   switch (frontEndFilter.type) {
     case "string":
@@ -172,7 +166,7 @@ const createFilterFromCondition = (
 };
 
 export const createFilterFromFilterState = (
-  filter: FilterCondition[],
+  filter: EventsTableFilterState,
   columnMapping: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
 ) => {
@@ -232,15 +226,41 @@ export const createFilterTreeFromFilterInput = (
   );
 };
 
+const validateEventsTableMatchesFilter = (
+  filter: EventsTableFilterState[number],
+  column: UiColumnMappings[number],
+) => {
+  if (!("operator" in filter) || filter.operator !== FTS_MATCH_OPERATOR) {
+    return;
+  }
+
+  if (filter.type === "string") {
+    assertValidFtsMatchFilter({
+      filterType: "string",
+      clickhouseTable: column.clickhouseTableName,
+      field: column.clickhouseSelect,
+      value: filter.value,
+    });
+    return;
+  } else if (filter.type === "stringObject") {
+    assertValidFtsMatchFilter({
+      filterType: "stringObject",
+      clickhouseTable: column.clickhouseTableName,
+      field: column.clickhouseSelect,
+      value: filter.value,
+    });
+    return;
+  }
+
+  throw new QueryBuilderError(`Invalid filter type`);
+};
+
 const matchAndVerifyTracesUiColumn = (
-  filter: z.infer<typeof singleFilter>,
+  filter: EventsTableFilterState[number],
   uiTableDefinitions: UiColumnMappings,
 ) => {
   // tries to match the column name to the clickhouse table name
-  const uiTable = uiTableDefinitions.find(
-    (col) =>
-      col.uiTableName === filter.column || col.uiTableId === filter.column, // matches on the NAME of the column in the UI.
-  );
+  const uiTable = findUiColumnMapping(uiTableDefinitions, filter.column);
 
   if (!uiTable) {
     const errorMessage = `Column ${filter.column} does not match a UI / CH table mapping.`;

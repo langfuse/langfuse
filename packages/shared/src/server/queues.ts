@@ -10,6 +10,7 @@ import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
+import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -99,11 +100,12 @@ export const EvalExecutionEvent = z.object({
   delay: z.number().nullish(),
 });
 
-// LLM-as-a-Judge execution for observation-based evals
-export const LLMAsJudgeExecutionEventSchema = z.object({
+// Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
+export const ObservationEvalExecutionEventSchema = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),
   observationS3Path: z.string(),
+  executionMode: JobConfigExecutionMode.optional(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
@@ -284,8 +286,8 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
-export type LLMAsJudgeExecutionEventType = z.infer<
-  typeof LLMAsJudgeExecutionEventSchema
+export type ObservationEvalExecutionEventType = z.infer<
+  typeof ObservationEvalExecutionEventSchema
 >;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
@@ -325,10 +327,12 @@ export enum QueueName {
   ProjectDelete = "project-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   EvaluationExecutionSecondaryQueue = "secondary-evaluation-execution-queue", // Separates high-throughput eval projects from other projects.
-  LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based eval execution
+  LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based LLM-as-judge eval execution
+  CodeEvalExecution = "code-eval-execution-queue", // Observation-based code eval execution
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   OtelIngestionQueue = "otel-ingestion-queue",
+  OtelIngestionSecondaryQueue = "secondary-otel-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   IngestionQueue = "ingestion-queue", // Process single events with S3-merge
   IngestionSecondaryQueue = "secondary-ingestion-queue", // Separates high priority + high throughput projects from other projects.
   CloudUsageMeteringQueue = "cloud-usage-metering-queue",
@@ -363,13 +367,13 @@ export enum QueueJobs {
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
   LLMAsJudgeExecution = "llm-as-a-judge-execution-job",
+  CodeEvalExecution = "code-eval-execution-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",
   CloudFreeTierUsageThresholdJob = "cloud-free-tier-usage-threshold-job",
   OtelIngestionJob = "otel-ingestion-job",
   IngestionJob = "ingestion-job",
-  IngestionSecondaryJob = "secondary-ingestion-job",
   ExperimentCreateJob = "experiment-create-job",
   PostHogIntegrationJob = "posthog-integration-job",
   PostHogIntegrationProcessingJob = "posthog-integration-processing-job",
@@ -447,8 +451,15 @@ export type TQueueJobTypes = {
   [QueueName.LLMAsJudgeExecution]: {
     timestamp: Date;
     id: string;
-    payload: LLMAsJudgeExecutionEventType;
+    payload: ObservationEvalExecutionEventType;
     name: QueueJobs.LLMAsJudgeExecution;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.CodeEvalExecution]: {
+    timestamp: Date;
+    id: string;
+    payload: ObservationEvalExecutionEventType;
+    name: QueueJobs.CodeEvalExecution;
     retryBaggage?: RetryBaggage;
   };
   [QueueName.BatchExport]: {
@@ -458,6 +469,12 @@ export type TQueueJobTypes = {
     name: QueueJobs.BatchExportJob;
   };
   [QueueName.OtelIngestionQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: OtelIngestionEventQueueType;
+    name: QueueJobs.OtelIngestionJob;
+  };
+  [QueueName.OtelIngestionSecondaryQueue]: {
     timestamp: Date;
     id: string;
     payload: OtelIngestionEventQueueType;

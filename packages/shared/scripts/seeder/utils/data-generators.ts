@@ -72,6 +72,28 @@ export class DataGenerator {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   }
 
+  private buildNestedSeedMetadata(
+    source: string,
+    index: number,
+    overrides: Record<string, string> = {},
+  ): Record<string, string> {
+    const plans = ["free", "pro", "enterprise"];
+    const regions = ["eu-central-1", "us-east-1", "ap-south-1"];
+    const queues = ["support-chat", "sales-chat", "ops-chat"];
+    const priorities = ["low", "normal", "high"];
+
+    return {
+      source,
+      "customer.id": `customer_${index % 100}`,
+      "customer.plan": plans[index % plans.length],
+      "customer.region.code": regions[index % regions.length],
+      "routing.queue": queues[index % queues.length],
+      "routing.priority": priorities[index % priorities.length],
+      "flags.beta": index % 2 === 0 ? "true" : "false",
+      ...overrides,
+    };
+  }
+
   /**
    * Creates dataset run items for dataset runs.
    * Use for: Dataset experiment scenarios.
@@ -86,6 +108,9 @@ export class DataGenerator {
       projectId,
       input.runNumber || 0,
     );
+
+    // Add small random offset (1-10 seconds) for realistic variation
+    const itemCreatedAt = input.runCreatedAt + this.randomInt(1, 10) * 1000;
 
     return createDatasetRunItem({
       id: datasetRunItemId,
@@ -110,6 +135,9 @@ export class DataGenerator {
       ),
       dataset_item_input: input.item.input,
       dataset_item_expected_output: input.item.expectedOutput,
+      created_at: itemCreatedAt,
+      updated_at: itemCreatedAt,
+      event_ts: itemCreatedAt,
     });
   }
 
@@ -293,7 +321,9 @@ export class DataGenerator {
           ? `session_${this.randomInt(1, 100)}`
           : undefined,
         environment: "default",
-        metadata: { generated: "synthetic" },
+        metadata: this.buildNestedSeedMetadata("synthetic", i, {
+          generated: "synthetic",
+        }),
         tags: this.randomBoolean(0.3) ? ["production", "ai-agent"] : [],
         public: this.randomBoolean(0.8),
         bookmarked: this.randomBoolean(0.1),
@@ -543,6 +573,14 @@ export class DataGenerator {
                 ? "WARNING"
                 : "ERROR",
           environment: trace.environment,
+          metadata: this.buildNestedSeedMetadata(
+            "synthetic-observation",
+            traceIndex * observationsPerTrace + i,
+            {
+              "observation.type": obsType,
+              "workflow.step": String(i + 1),
+            },
+          ),
         });
 
         observations.push(observation);
@@ -1033,7 +1071,10 @@ export class DataGenerator {
       timestamp: now + index * 1000,
       name: "SupportChatSession",
       user_id: null,
-      metadata: { scenario: "support-chat" },
+      metadata: this.buildNestedSeedMetadata("support-chat", index, {
+        scenario: "support-chat",
+        "routing.queue": "membership-support",
+      }),
       release: null,
       version: null,
       project_id: projectId,

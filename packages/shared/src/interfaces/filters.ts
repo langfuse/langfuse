@@ -21,6 +21,9 @@ export const filterOperators = {
   positionInTrace: ["="],
 } as const;
 
+export const FTS_MATCH_OPERATOR = "matches" as const;
+export type FtsMatchOperator = typeof FTS_MATCH_OPERATOR;
+
 export const timeFilter = z.object({
   column: z.string(),
   operator: z.enum(filterOperators.datetime),
@@ -53,10 +56,16 @@ export const arrayOptionsFilter = z
     value: z.array(z.string()),
     type: z.literal("arrayOptions"),
   })
-  .refine((data) => data.operator === "all of" || data.value.length > 0, {
-    message:
-      "Value array must not be empty unless operator is 'all of' (which represents waiting for selection)",
-  });
+  .refine(
+    (data) =>
+      data.operator === "all of" ||
+      data.operator === "none of" ||
+      data.value.length > 0,
+    {
+      message:
+        "Value array must not be empty unless operator is 'all of' or 'none of' (which represent waiting for selection)",
+    },
+  );
 export const stringObjectFilter = z.object({
   type: z.literal("stringObject"),
   column: z.string(),
@@ -88,14 +97,14 @@ export const positionInTraceFilter = z
     type: z.literal("positionInTrace"),
     column: z.string(),
     operator: z.literal("="),
-    key: z.enum(["root", "last", "nthFromEnd", "nthFromStart"]),
+    key: z.enum(["root", "first", "last", "nthFromEnd", "nthFromStart"]),
     value: z.number().optional(),
   })
   .superRefine((data, ctx) => {
     const needsValue = data.key === "nthFromEnd" || data.key === "nthFromStart";
     if (needsValue && (!data.value || data.value < 1)) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message: "Position must be >= 1 for nth selection",
         path: ["value"],
       });
@@ -122,9 +131,43 @@ export const singleFilter = z.discriminatedUnion("type", [
   positionInTraceFilter,
 ]);
 
+const eventsTableStringOperator = z.union([
+  z.enum(filterOperators.string),
+  z.literal(FTS_MATCH_OPERATOR),
+]);
+
+const eventsTableStringObjectOperator = z.union([
+  z.enum(filterOperators.stringObject),
+  z.literal(FTS_MATCH_OPERATOR),
+]);
+
+export const eventsTableStringFilter = stringFilter.extend({
+  operator: eventsTableStringOperator,
+});
+
+export const eventsTableStringObjectFilter = stringObjectFilter.extend({
+  operator: eventsTableStringObjectOperator,
+});
+
+export const eventsTableSingleFilter = z.discriminatedUnion("type", [
+  timeFilter,
+  eventsTableStringFilter,
+  numberFilter,
+  stringOptionsFilter,
+  categoryOptionsFilter,
+  arrayOptionsFilter,
+  eventsTableStringObjectFilter,
+  numberObjectFilter,
+  booleanFilter,
+  nullFilter,
+  positionInTraceFilter,
+]);
+
+export const eventsTableFilterState = z.array(eventsTableSingleFilter);
+
 export const filterGroupOperator = z.enum(["AND", "OR"]);
 
-export type FilterConditionSchema = z.infer<typeof singleFilter>;
+export type FilterConditionSchema = z.infer<typeof eventsTableSingleFilter>;
 export type FilterGroupSchema = {
   type: "group";
   operator: z.infer<typeof filterGroupOperator>;
@@ -132,13 +175,13 @@ export type FilterGroupSchema = {
 };
 export type FilterExpressionSchema = FilterConditionSchema | FilterGroupSchema;
 export type FilterInputSchema =
-  | FilterConditionSchema[]
+  | z.infer<typeof eventsTableFilterState>
   | FilterExpressionSchema
   | null
   | undefined;
 
 export const filterExpression: z.ZodType<FilterExpressionSchema> = z.lazy(() =>
-  z.union([singleFilter, filterGroup]),
+  z.union([eventsTableSingleFilter, filterGroup]),
 );
 
 export const filterGroup: z.ZodType<FilterGroupSchema> = z.lazy(() =>
@@ -149,7 +192,7 @@ export const filterGroup: z.ZodType<FilterGroupSchema> = z.lazy(() =>
   }),
 );
 
-export const filterInput = z.union([z.array(singleFilter), filterExpression]);
+export const filterInput = z.union([eventsTableFilterState, filterExpression]);
 
 export function normalizeFilterExpressionInput(
   filterInputValue?: FilterInputSchema,

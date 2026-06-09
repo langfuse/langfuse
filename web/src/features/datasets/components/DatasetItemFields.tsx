@@ -5,6 +5,12 @@ import type { DatasetSchema } from "../utils/datasetItemUtils";
 import type { Control, FieldPath } from "react-hook-form";
 import { FormField } from "@/src/components/ui/form";
 
+export type DatasetItemFormValues = {
+  input: string;
+  expectedOutput: string;
+  metadata: string;
+};
+
 type DatasetItemFieldsProps = {
   inputValue: string;
   expectedOutputValue: string;
@@ -12,7 +18,7 @@ type DatasetItemFieldsProps = {
   dataset: DatasetSchema | null;
   editable: boolean;
   // For form integration (edit mode)
-  control?: Control<any>;
+  control?: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
   onInputChange?: (value: string) => void;
   onExpectedOutputChange?: (value: string) => void;
   onMetadataChange?: (value: string) => void;
@@ -67,7 +73,7 @@ export const DatasetItemFields = ({
         {isFormMode && control ? (
           <FormField
             control={control}
-            name={"input" as FieldPath<any>}
+            name={"input" as FieldPath<DatasetItemFormValues>}
             render={({ field }) => (
               <DatasetItemField
                 label="Input"
@@ -102,7 +108,7 @@ export const DatasetItemFields = ({
         {isFormMode && control ? (
           <FormField
             control={control}
-            name={"expectedOutput" as FieldPath<any>}
+            name={"expectedOutput" as FieldPath<DatasetItemFormValues>}
             render={({ field }) => (
               <DatasetItemField
                 label="Expected output"
@@ -138,7 +144,7 @@ export const DatasetItemFields = ({
       {isFormMode && control ? (
         <FormField
           control={control}
-          name={"metadata" as FieldPath<any>}
+          name={"metadata" as FieldPath<DatasetItemFormValues>}
           render={({ field }) => (
             <DatasetItemField
               label="Metadata"

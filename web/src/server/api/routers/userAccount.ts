@@ -7,6 +7,8 @@ import { TRPCError } from "@trpc/server";
 import { StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
+import { env } from "@/src/env.mjs";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -129,10 +131,116 @@ export const userAccountRouter = createTRPCRouter({
   setV4BetaEnabled: authenticatedProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
+      // Mirror the V4 preview gating in the auth.ts session callback so the
+      // write path agrees with what the session reports. Availability is
+      // driven by the write mode.
+      const v4WriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+      // In events_only mode the preview is mandatory and cannot be toggled off:
+      // the legacy tables it would fall back to are no longer written. Ignore
+      // the requested value so a stale client can't flip a user into broken
+      // reads, and keep the returned session shape consistent with auth.ts.
+      if (v4WriteMode === "events_only") {
+        return {
+          success: true,
+          v4BetaEnabled: true,
+          canToggleV4: false,
+        };
+      }
+
+      // In legacy mode the events tables are not written, so the preview has
+      // nothing correct to read — it stays off and cannot be toggled.
+      if (v4WriteMode === "legacy") {
+        return {
+          success: true,
+          v4BetaEnabled: false,
+          canToggleV4: false,
+        };
+      }
+
+      // dual mode. On Cloud the date-based rollout applies (handled below) —
+      // users auto-enabled by the rollout are locked on and cannot toggle off.
+      // Self-hosted deployments are opt-in, but only once they have also set
+      // ALLOW_PREVIEW_OPT_IN=true; otherwise feature paths still gated on that
+      // flag would fall back to legacy tables while the core UI reads events,
+      // so the toggle is not offered (mirrors the auth.ts session callback).
+      if (!isLangfuseCloud) {
+        if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
+          return {
+            success: true,
+            v4BetaEnabled: false,
+            canToggleV4: false,
+          };
+        }
+
+        await ctx.prisma.user.update({
+          where: { id: ctx.session.user.id },
+          data: { v4BetaEnabled: input.enabled },
+        });
+
+        return {
+          success: true,
+          v4BetaEnabled: input.enabled,
+          canToggleV4: true,
+        };
+      }
+
+      const userRolloutState = await ctx.prisma.user.findUnique({
+        where: { id: ctx.session.user.id },
+        select: {
+          createdAt: true,
+          v4BetaEnabled: true,
+          organizationMemberships: {
+            select: {
+              organization: {
+                select: {
+                  id: true,
+                  createdAt: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!userRolloutState) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      const userCanToggleV4 = canToggleV4({
+        userCreatedAt: userRolloutState.createdAt,
+        organizations: userRolloutState.organizationMemberships.map(
+          (membership) => ({
+            id: membership.organization.id,
+            createdAt: membership.organization.createdAt,
+          }),
+        ),
+        excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+          ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+          : [],
+      });
+
+      if (!userCanToggleV4) {
+        return {
+          success: true,
+          v4BetaEnabled: userRolloutState.v4BetaEnabled,
+          canToggleV4: false,
+        };
+      }
+
       await ctx.prisma.user.update({
         where: { id: ctx.session.user.id },
         data: { v4BetaEnabled: input.enabled },
       });
-      return { success: true, v4BetaEnabled: input.enabled };
+
+      return {
+        success: true,
+        v4BetaEnabled: input.enabled,
+        canToggleV4: true,
+      };
     }),
 });

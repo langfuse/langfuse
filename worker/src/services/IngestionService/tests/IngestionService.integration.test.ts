@@ -16,13 +16,12 @@ import {
   TraceRecordReadType,
   createOrgProjectAndApiKey,
   createIngestionEventSchema,
+  setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
-import { Cluster } from "ioredis";
-import { env } from "../../../env";
 
 let projectId = "";
 const environment = "default";
@@ -35,12 +34,7 @@ describe("Ingestion end-to-end tests", () => {
   beforeEach(async () => {
     if (!redis) throw new Error("Redis not initialized");
     ({ projectId } = await createOrgProjectAndApiKey());
-
-    if (redis instanceof Cluster) {
-      await Promise.all(redis.nodes("master").map((node) => node.flushall()));
-    } else {
-      await redis.flushall();
-    }
+    await setNoEvalConfigsCache(projectId, "traceBased");
 
     clickhouseWriter = ClickhouseWriter.getInstance();
 
@@ -624,6 +618,69 @@ describe("Ingestion end-to-end tests", () => {
     }, 10_000);
   });
 
+  it("should correctly ingest a TEXT score", async () => {
+    const traceId = randomUUID();
+    const scoreId = randomUUID();
+
+    const traceEventList: TraceEventType[] = [
+      {
+        type: "trace-create",
+        id: traceId,
+        timestamp: new Date().toISOString(),
+        body: {
+          name: "trace-for-text-score",
+          timestamp: new Date().toISOString(),
+          environment,
+        },
+      },
+    ];
+
+    const scoreEventList: ScoreEventType[] = [
+      {
+        id: randomUUID(),
+        type: "score-create",
+        timestamp: new Date().toISOString(),
+        body: {
+          id: scoreId,
+          dataType: "TEXT",
+          name: "text-score",
+          value: "Great explanation of the concept",
+          source: ScoreSourceEnum.API,
+          traceId: traceId,
+          environment,
+        },
+      },
+    ];
+
+    await Promise.all([
+      ingestionService.processTraceEventList({
+        projectId,
+        entityId: traceId,
+        createdAtTimestamp: new Date(),
+        traceEventList,
+      }),
+      ingestionService.processScoreEventList({
+        projectId,
+        entityId: scoreId,
+        createdAtTimestamp: new Date(),
+        scoreEventList,
+      }),
+    ]);
+
+    await clickhouseWriter.flushAll(true);
+
+    const score = await getClickhouseRecord(TableName.Scores, scoreId);
+
+    expect(score.id).toBe(scoreId);
+    expect(score.trace_id).toBe(traceId);
+    expect(score.name).toBe("text-score");
+    expect(score.data_type).toBe("TEXT");
+    expect(score.string_value).toBe("Great explanation of the concept");
+    expect(score.value).toBe(0);
+    expect(score.source).toBe(ScoreSourceEnum.API);
+    expect(score.project_id).toBe(projectId);
+  }, 10_000);
+
   [
     {
       observationExternalModel: "gpt-3.5",
@@ -929,7 +986,7 @@ describe("Ingestion end-to-end tests", () => {
           ? null
           : getModelId(testConfig.expectedInternalModelId);
       expect(generation.internal_model_id).toBe(expectedModelId);
-    });
+    }, 15_000);
   });
 
   it("should create and update all events", async () => {
@@ -1284,11 +1341,15 @@ describe("Ingestion end-to-end tests", () => {
 
     // Verify that invalid scores were silently rejected (not inserted)
     await expect(
-      getClickhouseRecord(TableName.Scores, invalidScoreId1),
+      getClickhouseRecord(TableName.Scores, invalidScoreId1, {
+        waitForRecord: false,
+      }),
     ).rejects.toThrow();
 
     await expect(
-      getClickhouseRecord(TableName.Scores, invalidScoreId2),
+      getClickhouseRecord(TableName.Scores, invalidScoreId2, {
+        waitForRecord: false,
+      }),
     ).rejects.toThrow();
   });
 
@@ -2851,44 +2912,29 @@ describe("Ingestion end-to-end tests", () => {
 async function getClickhouseRecord<T extends TableName>(
   tableName: T,
   entityId: string,
+  options: { waitForRecord?: boolean } = {},
 ): Promise<RecordReadType<T>> {
-  let query = await clickhouseClient().query({
-    query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
-    format: "JSONEachRow",
-  });
+  let result: unknown;
+  const waitForRecord = options.waitForRecord ?? true;
 
-  if (
-    tableName === "traces" &&
-    env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    query = await clickhouseClient().query({
-      query: `SELECT
-                id,
-                name as name,
-                user_id as user_id,
-                metadata as metadata,
-                release as release,
-                version as version,
-                project_id,
-                environment,
-                public as public,
-                bookmarked as bookmarked,
-                tags,
-                input as input,
-                output as output,
-                session_id as session_id,
-                0 as is_deleted,
-                start_time as timestamp,
-                created_at,
-                updated_at,
-                updated_at as event_ts
-        FROM traces_all_amt FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
+  const loadResult = async () => {
+    let query = await clickhouseClient().query({
+      query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
       format: "JSONEachRow",
     });
-  }
 
-  const result = (await query.json())[0];
+    result = (await query.json())[0];
+  };
+
+  if (waitForRecord) {
+    await waitForExpect(async () => {
+      await loadResult();
+      expect(result).toBeDefined();
+    }, 1_500);
+  } else {
+    await loadResult();
+    expect(result).toBeDefined();
+  }
 
   return (
     tableName === TableName.Traces

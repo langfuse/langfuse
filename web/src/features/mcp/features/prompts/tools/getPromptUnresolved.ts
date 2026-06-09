@@ -22,7 +22,7 @@ export const [getPromptUnresolvedTool, handleGetPromptUnresolved] =
       "Retrieval options:",
       "- label: Get prompt with specific label (e.g., 'production', 'staging')",
       "- version: Get specific version number (e.g., 1, 2, 3)",
-      "- neither: Returns 'production' version by default",
+      "- neither: Returns 'latest' version by default",
       "",
       "Note: label and version are mutually exclusive. To get resolved prompts, use the 'getPrompt' tool instead.",
     ].join("\n"),

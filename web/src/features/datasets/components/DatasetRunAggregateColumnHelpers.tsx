@@ -65,12 +65,12 @@ function BaselineToggle({ runId }: { runId: string }) {
   const handleClick = () => {
     if (isBaseline) {
       const { baseline, ...restQuery } = router.query;
-      void router.push({
+      router.push({
         pathname: router.pathname,
         query: restQuery,
       });
     } else {
-      void router.push({
+      router.push({
         pathname: router.pathname,
         query: { ...router.query, baseline: runId },
       });
@@ -231,7 +231,7 @@ export const constructDatasetRunAggregateColumns = ({
 
 export const getDatasetRunAggregateColumnProps = (isLoading: boolean) => ({
   accessorKey: "runs",
-  header: "Runs",
+  header: "Experiments",
   id: "runs",
   isFixedPosition: true,
   cell: () => {

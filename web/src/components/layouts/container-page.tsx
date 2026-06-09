@@ -21,7 +21,7 @@ const ContainerPage = ({ children, headerProps }: SettingsContainerProps) => {
       </header>
       <main
         className={cn(
-          "min-h-screen-with-banner relative flex flex-1 flex-col p-3",
+          "relative flex min-h-0 flex-1 flex-col p-3",
           containerLayoutClassName,
         )}
       >

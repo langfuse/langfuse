@@ -4,7 +4,7 @@ import { env } from "@/src/env.mjs";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const isEventsTableV2Enabled =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true" ? it : it.skip;
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
 let hasLegacyEventsTable = false;
 
 const maybeIt = (name: string, testFn: () => Promise<void>): void => {
@@ -16,7 +16,7 @@ const maybeIt = (name: string, testFn: () => Promise<void>): void => {
 
 describe("ClickHouse insert string edge cases", () => {
   it("should pass", () => {
-    // Apparently each jest file needs at least one executed test and cannot have everything skipped
+    // Apparently each test file needs at least one executed test and cannot have everything skipped
     expect(true).toBe(true);
   });
 

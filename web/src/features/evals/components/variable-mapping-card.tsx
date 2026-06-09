@@ -9,7 +9,8 @@ import {
   type availableDatasetEvalVariables,
   type availableTraceEvalVariables,
   type EvalTemplate,
-  observationEvalVariableColumns,
+  eventTargetEvalVariableColumns,
+  experimentTargetEvalVariableColumns,
 } from "@langfuse/shared";
 import { Card } from "@/src/components/ui/card";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
@@ -28,10 +29,10 @@ import {
 import { Skeleton } from "@/src/components/ui/skeleton";
 import {
   isEventTarget,
+  isExperimentTarget,
   isLegacyEvalTarget,
   isTraceTarget,
   isTraceOrDatasetObject,
-  isTraceOrEventTarget,
 } from "@/src/features/evals/utils/typeHelpers";
 import {
   FormControl,
@@ -47,8 +48,18 @@ import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNa
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Alert, AlertTitle, AlertDescription } from "@/src/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ExternalLink } from "lucide-react";
 import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMappingSync";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import {
+  type EvalPreviewPointer,
+  buildEvalPreviewNavigationPath,
+  getEvalPreviewDetailPageListKey,
+  getEvalPreviewPointerFromDetailPageEntry,
+} from "@/src/features/evals/hooks/useEvalPreviewNavigation";
 
 export const VariableMappingCard = ({
   projectId,
@@ -59,6 +70,8 @@ export const VariableMappingCard = ({
   disabled = false,
   shouldWrapVariables = false,
   hideAdvancedSettings = false,
+  isNewCompatible = true,
+  compatibilityCheckWasPerformed = false,
 }: {
   projectId: string;
   availableVariables:
@@ -70,8 +83,22 @@ export const VariableMappingCard = ({
   disabled?: boolean;
   shouldWrapVariables?: boolean;
   hideAdvancedSettings?: boolean;
+  isNewCompatible?: boolean;
+  compatibilityCheckWasPerformed?: boolean;
 }) => {
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedPreviewPointer, setSelectedPreviewPointer] =
+    useState<EvalPreviewPointer>();
+  const router = useRouter();
+  const { isBetaEnabled } = useV4Beta();
+  const peekId =
+    typeof router.query.peek === "string" ? router.query.peek : undefined;
+  const isPeekView = Boolean(peekId);
+  const target = form.watch("target");
+  const shouldShowPreviewForTarget =
+    isTraceTarget(target) ||
+    isEventTarget(target) ||
+    (isExperimentTarget(target) && isBetaEnabled);
 
   const { fields } = useFieldArray({
     control: form.control,
@@ -87,21 +114,54 @@ export const VariableMappingCard = ({
     projectId,
     form,
     disabled,
+    isPeekView ? selectedPreviewPointer : undefined,
   );
 
+  const nonOtelCompatible = compatibilityCheckWasPerformed && !isNewCompatible;
+  const shouldDisablePreviewForNonOtel =
+    nonOtelCompatible && (isEventTarget(target) || isExperimentTarget(target));
+
   useEffect(() => {
-    if (isTraceOrEventTarget(form.getValues("target")) && !disabled) {
+    if (
+      shouldShowPreviewForTarget &&
+      !disabled &&
+      !shouldDisablePreviewForNonOtel
+    ) {
       setShowPreview(true);
     } else {
-      // For dataset and experiment targets, disable preview
       setShowPreview(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.watch("target"), disabled]);
+
+    if (isPeekView) {
+      setSelectedPreviewPointer(undefined);
+    }
+  }, [
+    target,
+    disabled,
+    isPeekView,
+    shouldShowPreviewForTarget,
+    shouldDisablePreviewForNonOtel,
+  ]);
+
+  useEffect(() => {
+    if (isPeekView) {
+      setSelectedPreviewPointer(undefined);
+    }
+  }, [isPeekView, peekId]);
+
+  const shouldShowPreviewControls =
+    shouldShowPreviewForTarget && !disabled && !shouldDisablePreviewForNonOtel;
+  const previewNavigationListKey = getEvalPreviewDetailPageListKey(
+    target,
+    isBetaEnabled,
+  );
+  const evalPreviewBasePath = hideAdvancedSettings
+    ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
+    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
 
   const mappingControlButtons = (
     <div className="flex items-center gap-2">
-      {isTraceOrEventTarget(form.watch("target")) && !disabled && (
+      {shouldShowPreviewControls && (
         <>
           <span className="text-muted-foreground text-xs">Preview</span>
           <Switch
@@ -110,31 +170,33 @@ export const VariableMappingCard = ({
             disabled={disabled}
           />
           {showPreview &&
-            (previewData ? (
+            (previewData && previewNavigationListKey ? (
               <DetailPageNav
                 currentId={
                   previewData.type === EvalTargetObject.EVENT
                     ? previewData.observationId
                     : previewData.traceId
                 }
-                listKey={
-                  isEventTarget(form.watch("target"))
-                    ? "observations"
-                    : "traces"
+                listKey={previewNavigationListKey}
+                onNavigate={
+                  isPeekView
+                    ? (entry) => {
+                        setSelectedPreviewPointer(
+                          getEvalPreviewPointerFromDetailPageEntry(
+                            entry,
+                            target,
+                          ),
+                        );
+                      }
+                    : undefined
                 }
-                path={(entry) => {
-                  const isEvent = isEventTarget(form.watch("target"));
-                  const basePath = hideAdvancedSettings
-                    ? `/project/${projectId}/evals/remap?evaluator=${oldConfigId}`
-                    : `/project/${projectId}/evals/new?evaluator=${evalTemplate.id}`;
-                  if (isEvent) {
-                    // For observations/events: entry.id is observationId, entry.params.traceId is traceId
-                    return `${basePath}&traceId=${entry.params?.traceId}&observationId=${entry.id}`;
-                  } else {
-                    // For traces: entry.id is traceId
-                    return `${basePath}&traceId=${entry.id}`;
-                  }
-                }}
+                path={(entry) =>
+                  buildEvalPreviewNavigationPath({
+                    basePath: evalPreviewBasePath,
+                    entry,
+                    target,
+                  })
+                }
               />
             ) : (
               <div className="flex flex-row gap-1">
@@ -149,8 +211,32 @@ export const VariableMappingCard = ({
 
   return (
     <Card className="max-w-full min-w-0 p-4">
-      <div className="mb-2 flex items-center justify-between">
+      <div className="mb-2 flex items-center gap-2">
         <span className="text-lg font-medium">Variable mapping</span>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          {evalTemplate.projectId ? (
+            <Button asChild variant="outline" size="sm">
+              <Link
+                href={`/project/${projectId}/evals/templates/${evalTemplate.id}?mode=edit`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Edit prompt
+                <ExternalLink className="ml-1 h-4 w-4" />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled
+              title="Only user-managed templates can be edited"
+            >
+              Edit prompt
+              <ExternalLink className="ml-1 h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
       {isTraceTarget(form.watch("target")) && !disabled && (
         <FormDescription>
@@ -570,12 +656,8 @@ export const VariableMappingCard = ({
                               // For observations (event), exclude experiment-specific fields
                               const availableColumns =
                                 form.watch("target") === EvalTargetObject.EVENT
-                                  ? observationEvalVariableColumns.filter(
-                                      (col) =>
-                                        col.id !==
-                                        "experimentItemExpectedOutput",
-                                    )
-                                  : observationEvalVariableColumns;
+                                  ? eventTargetEvalVariableColumns
+                                  : experimentTargetEvalVariableColumns;
 
                               return (
                                 <div className="flex items-center gap-2">
@@ -616,14 +698,9 @@ export const VariableMappingCard = ({
                               );
                             }}
                           />
-                          {(form.watch(`mapping.${index}.selectedColumnId`) ===
-                            "metadata" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "input" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "output" ||
-                            form.watch(`mapping.${index}.selectedColumnId`) ===
-                              "experimentItemExpectedOutput") && (
+                          {fieldHasJsonSelectorOption(
+                            form.watch(`mapping.${index}.selectedColumnId`),
+                          ) && (
                             <FormField
                               control={form.control}
                               key={`${mappingField.id}-jsonSelector`}

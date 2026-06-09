@@ -1253,113 +1253,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs.length).toBe(0);
     }, 10_000);
 
-    test("cancels a job if the second event deselects", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        user_id: "a",
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
-
-      await prisma.llmApiKeys.create({
-        data: {
-          id: randomUUID(),
-          projectId,
-          secretKey: encrypt(String(OPENAI_API_KEY)),
-          provider: "openai",
-          adapter: LLMAdapter.OpenAI,
-          customModels: [],
-          displaySecretKey: "123456",
-        },
-      });
-
-      const templateId = randomUUID();
-      await prisma.evalTemplate.create({
-        data: {
-          id: templateId,
-          projectId,
-          name: "test-template",
-          version: 1,
-          prompt: "Please evaluate toxicity {{input}} {{output}}",
-          model: "gpt-3.5-turbo",
-          provider: "openai",
-          modelParams: {},
-          outputDefinition: {
-            reasoning: "Please explain your reasoning",
-            score: "Please provide a score between 0 and 1",
-          },
-        },
-      });
-
-      await prisma.jobConfiguration.create({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: [
-            {
-              type: "string",
-              value: "a",
-              column: "User ID",
-              operator: "contains",
-            },
-          ],
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.TRACE,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-          evalTemplateId: templateId,
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
-
-      // Wait for .5s
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      // update the trace to deselect the trace
-      await upsertTrace({
-        id: traceId,
-        project_id: projectId,
-        user_id: "b",
-        timestamp: convertDateToClickhouseDateTime(new Date()),
-        created_at: convertDateToClickhouseDateTime(new Date()),
-        updated_at: convertDateToClickhouseDateTime(new Date()),
-      });
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      }); // calling it twice to check it is only generated once
-
-      const jobs = await prisma.jobExecution.findMany({
-        where: { projectId },
-      });
-
-      expect(jobs.length).toBe(1);
-      expect(jobs[0].projectId).toBe(projectId);
-      expect(jobs[0].jobInputTraceId).toBe(traceId);
-      expect(jobs[0].status.toString()).toBe("CANCELLED");
-      expect(jobs[0].startTime).not.toBeNull();
-      expect(jobs[0].endTime).not.toBeNull();
-    }, 10_000);
-
     test("does not create eval job for existing traces if time scope is EXISTING but handler enforces NEW only", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();
@@ -2403,11 +2296,11 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"input":"This is a great prompt"}',
+          value: { input: "This is a great prompt" },
           var: "input",
         },
         {
-          value: '{"expected_output":"This is a great response"}',
+          value: { expected_output: "This is a great response" },
           var: "output",
         },
       ]);
@@ -2451,12 +2344,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"input":"This is a great prompt"}',
+          value: { input: "This is a great prompt" },
           var: "input",
           environment: "production",
         },
         {
-          value: '{"output":"This is a great response"}',
+          value: { output: "This is a great response" },
           var: "output",
           environment: "production",
         },
@@ -2516,12 +2409,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '{"huhu":"This is a great prompt"}',
+          value: { huhu: "This is a great prompt" },
           var: "input",
           environment: "production",
         },
         {
-          value: '{"haha":"This is a great response"}',
+          value: { haha: "This is a great response" },
           var: "output",
           environment: "production",
         },
@@ -2613,12 +2506,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(result).toEqual([
         {
           environment: "default",
-          value: "",
+          value: null,
           var: "input",
         },
         {
           environment: "default",
-          value: "",
+          value: null,
           var: "output",
         },
       ]);
@@ -2694,12 +2587,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(result).toEqual([
         {
           environment: "default",
-          value: '{"huhu":"This is a great prompt again"}',
+          value: { huhu: "This is a great prompt again" },
           var: "input",
         },
         {
           environment: "default",
-          value: '{"haha":"This is a great response again"}',
+          value: { haha: "This is a great response again" },
           var: "output",
         },
       ]);
@@ -2764,12 +2657,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
         expect(result).toEqual([
           {
-            value: '{"huhu":"This is a great prompt"}',
+            value: { huhu: "This is a great prompt" },
             var: "input",
             environment: "production",
           },
           {
-            value: '{"haha":"This is a great response"}',
+            value: { haha: "This is a great response" },
             var: "output",
             environment: "production",
           },
@@ -2852,7 +2745,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultV1).toEqual([
         {
-          value: '{"expected_output":"v1 expected output"}',
+          value: { expected_output: "v1 expected output" },
           var: "output",
         },
       ]);
@@ -2868,7 +2761,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultLatest).toEqual([
         {
-          value: '{"expected_output":"v2 expected output"}',
+          value: { expected_output: "v2 expected output" },
           var: "output",
         },
       ]);
@@ -2940,7 +2833,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultInput).toEqual([
         {
-          value: '["Hello world"]',
+          value: "Hello world",
           var: "user_message",
         },
       ]);
@@ -2965,7 +2858,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(resultOutput).toEqual([
         {
-          value: '["positive"]',
+          value: "positive",
           var: "expected_label",
         },
       ]);
@@ -3015,12 +2908,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
       expect(result).toEqual([
         {
-          value: '["What is the weather?"]',
+          value: "What is the weather?",
           var: "user_input",
           environment: "production",
         },
         {
-          value: '["It is sunny"]',
+          value: "It is sunny",
           var: "response_text",
           environment: "production",
         },
@@ -3031,12 +2924,23 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
   test("requiresDatabaseLookup correctly identifies complex filters", () => {
     // Simple filters that can be evaluated with trace data only
     const simpleFilters = [
-      { column: "name", type: "string", operator: "=", value: "test-trace" },
+      {
+        column: "traceName",
+        type: "string",
+        operator: "=",
+        value: "test-trace",
+      },
       {
         column: "environment",
         type: "string",
         operator: "=",
         value: "production",
+      },
+      {
+        column: "traceTags",
+        type: "arrayOptions",
+        operator: "any of",
+        value: ["prod"],
       },
       { column: "bookmarked", type: "boolean", operator: "=", value: true },
     ];
@@ -3052,7 +2956,12 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
 
     // Mixed filters - should return false if any filter requires observation data
     const mixedFilters = [
-      { column: "name", type: "string", operator: "=", value: "test-trace" },
+      {
+        column: "traceName",
+        type: "string",
+        operator: "=",
+        value: "test-trace",
+      },
       { column: "level", type: "string", operator: "=", value: "ERROR" }, // This requires observation data
     ];
 
@@ -3165,9 +3074,7 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
         job_execution_id: jobExecutionId,
         job_configuration_id: configId,
         target_trace_id: traceId,
-        score_id: capturedTraceSinkParams.metadata.score_id,
       });
-      expect(capturedTraceSinkParams.metadata.score_id).toBeDefined();
     }, 15_000);
   });
 

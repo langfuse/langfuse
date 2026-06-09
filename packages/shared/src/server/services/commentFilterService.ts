@@ -3,7 +3,11 @@ import {
   normalizeFilterExpressionInput,
   type singleFilter,
 } from "../../interfaces/filters";
-import { type FilterExpression, type FilterInput } from "../../types";
+import {
+  type FilterCondition,
+  type FilterExpression,
+  type FilterInput,
+} from "../../types";
 import {
   type CommentObjectType,
   type CommentCountOperator,
@@ -335,7 +339,28 @@ type CommentFilterRewriteResult = {
   matchingIds: string[] | null;
 };
 
-function isCommentFilter(filter: z.infer<typeof singleFilter>): boolean {
+function isLegacyFilterCondition(
+  filter: FilterExpression,
+): filter is FilterCondition {
+  if (filter.type === "group") {
+    return false;
+  }
+
+  if (
+    (filter.type === "string" || filter.type === "stringObject") &&
+    filter.operator === "matches"
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function isCommentFilter(filter: FilterExpression): filter is FilterCondition {
+  if (!isLegacyFilterCondition(filter)) {
+    return false;
+  }
+
   return (
     ((filter.type === "number" || filter.type === "datetime") &&
       filter.column === "commentCount") ||

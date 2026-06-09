@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import { v4 as uuidv4 } from "uuid";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { DashboardService } from "@langfuse/shared/src/server";
@@ -8,7 +6,11 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import type { Session } from "next-auth";
-import { requiresV2 } from "@/src/features/query/dataModel";
+import { requiresV2 } from "@langfuse/shared/query";
+import {
+  mapLegacyUiTableFilterToView,
+  mapWidgetUiTableFilterToView,
+} from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 describe("dashboard widget minVersion", () => {
   let projectId: string;
@@ -54,6 +56,7 @@ describe("dashboard widget minVersion", () => {
             cloudConfig: undefined,
             metadata: {},
             aiFeaturesEnabled: false,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: projectId,
@@ -97,25 +100,111 @@ describe("dashboard widget minVersion", () => {
   describe("requiresV2", () => {
     it.each([
       // v2-only dimensions
-      ["observations", [{ field: "costType" }], [], true],
-      ["observations", [{ field: "usageType" }], [], true],
+      ["observations", [{ field: "costType" }], [], [], true],
+      ["observations", [{ field: "usageType" }], [], [], true],
       // v2-only measures
-      ["observations", [], [{ measure: "costByType" }], true],
-      ["observations", [], [{ measure: "usageByType" }], true],
-      ["observations", [], [{ measure: "traceId" }], true],
+      ["observations", [], [{ measure: "costByType" }], [], true],
+      ["observations", [], [{ measure: "usageByType" }], [], true],
+      ["observations", [], [{ measure: "traceId" }], [], true],
+      // v2-only filters
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "release" }],
+        true,
+      ],
+      // v2-only experiment filters
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentId" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentName" }],
+        true,
+      ],
+      [
+        "observations",
+        [],
+        [{ measure: "count" }],
+        [{ column: "experimentDatasetId" }],
+        true,
+      ],
       // v1-compatible fields
-      ["observations", [{ field: "name" }], [{ measure: "count" }], false],
+      [
+        "observations",
+        [{ field: "name" }],
+        [{ measure: "count" }],
+        [{ column: "traceRelease" }],
+        false,
+      ],
       // views where v1 and v2 share all fields
-      ["traces", [{ field: "name" }], [{ measure: "count" }], false],
-      ["scores-numeric", [{ field: "name" }], [{ measure: "count" }], false],
+      ["traces", [{ field: "name" }], [{ measure: "count" }], [], false],
+      [
+        "scores-numeric",
+        [{ field: "name" }],
+        [{ measure: "count" }],
+        [],
+        false,
+      ],
       // unknown view
-      ["nonexistent", [{ field: "name" }], [{ measure: "count" }], false],
+      ["nonexistent", [{ field: "name" }], [{ measure: "count" }], [], false],
     ])(
-      "requiresV2(%s, dims=%j, measures=%j) → %s",
-      (view, dimensions, measures, expected) => {
-        expect(requiresV2({ view, dimensions, measures })).toBe(expected);
+      "requiresV2(%s, dims=%j, measures=%j, filters=%j) → %s",
+      (view, dimensions, measures, filters, expected) => {
+        expect(requiresV2({ view, dimensions, measures, filters })).toBe(
+          expected,
+        );
       },
     );
+  });
+
+  describe("observations release filter mapping", () => {
+    it("keeps legacy observations Release filters on traceRelease for v1 compatibility", () => {
+      expect(
+        mapLegacyUiTableFilterToView("observations", [
+          {
+            column: "Release",
+            operator: "=",
+            value: "2026.04",
+            type: "string",
+          },
+        ]),
+      ).toEqual([
+        {
+          column: "traceRelease",
+          operator: "=",
+          value: "2026.04",
+          type: "string",
+        },
+      ]);
+    });
+
+    it("maps Observation Release to the v2-only release field", () => {
+      expect(
+        mapWidgetUiTableFilterToView("observations", [
+          {
+            column: "Observation Release",
+            operator: "=",
+            value: "2026.04",
+            type: "string",
+          },
+        ]),
+      ).toEqual([
+        {
+          column: "release",
+          operator: "=",
+          value: "2026.04",
+          type: "string",
+        },
+      ]);
+    });
   });
 
   // ── Service layer tests ─────────────────────────────────────────────
@@ -248,6 +337,29 @@ describe("dashboard widget minVersion", () => {
   // validateMetricAggregations guard that lives in the tRPC router.
 
   describe("tRPC measure-aggregation validation", () => {
+    it("should return stored metrics from get without additional client-side parsing", async () => {
+      const caller = makeCaller();
+      const created = await caller.dashboardWidgets.create({
+        projectId,
+        name: "Get Widget",
+        description: "fetch metrics unchanged",
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", agg: "count" }],
+        filters: [],
+        chartType: "NUMBER",
+        chartConfig: { type: "NUMBER" },
+        minVersion: 2,
+      });
+
+      const fetched = await caller.dashboardWidgets.get({
+        projectId,
+        widgetId: created.widget.id,
+      });
+
+      expect(fetched.metrics).toEqual([{ measure: "count", agg: "count" }]);
+    });
+
     it("should reject invalid aggregation on a string measure", async () => {
       const caller = makeCaller();
       await expect(

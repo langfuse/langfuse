@@ -1,16 +1,15 @@
 import React from "react";
-import { act, render, screen } from "@testing-library/react";
-import "@testing-library/jest-dom";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { SLOW_QUERY_HINT_TEXT } from "@langfuse/shared";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 
 describe("ChartLoadingState", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   test("keeps legacy pending state spinner-only without loading copy or hint", () => {
@@ -27,7 +26,7 @@ describe("ChartLoadingState", () => {
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
     act(() => {
-      jest.advanceTimersByTime(hintDelayMs);
+      vi.advanceTimersByTime(hintDelayMs);
     });
 
     expect(container.querySelector("svg")).toBeInTheDocument();
@@ -42,7 +41,7 @@ describe("ChartLoadingState", () => {
     );
 
     act(() => {
-      jest.advanceTimersByTime(hintDelayMs);
+      vi.advanceTimersByTime(hintDelayMs);
     });
     expect(container.querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
@@ -55,7 +54,7 @@ describe("ChartLoadingState", () => {
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
     act(() => {
-      jest.advanceTimersByTime(hintDelayMs);
+      vi.advanceTimersByTime(hintDelayMs);
     });
     expect(container.querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
@@ -95,6 +94,23 @@ describe("ChartLoadingState", () => {
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
   });
 
+  test("renders a retry button for error states when a retry handler is provided", () => {
+    const onRetry = vi.fn();
+
+    render(
+      <ChartLoadingState
+        isLoading={true}
+        showHintImmediately={true}
+        showSpinner={false}
+        onRetry={onRetry}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
   test("shows only the spinner for the first second before swapping to the loading bar", () => {
     const { container } = render(
       <ChartLoadingState isLoading={true} progress={null} />,
@@ -104,14 +120,14 @@ describe("ChartLoadingState", () => {
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
 
     act(() => {
-      jest.advanceTimersByTime(999);
+      vi.advanceTimersByTime(999);
     });
 
     expect(container.querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
 
     act(() => {
-      jest.advanceTimersByTime(1);
+      vi.advanceTimersByTime(1);
     });
 
     expect(container.querySelector("svg")).not.toBeInTheDocument();
@@ -133,7 +149,7 @@ describe("ChartLoadingState", () => {
     );
 
     act(() => {
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
     });
 
     expect(container.querySelector("svg")).not.toBeInTheDocument();
@@ -148,7 +164,7 @@ describe("ChartLoadingState", () => {
     render(<ChartLoadingState isLoading={true} progress={progress} />);
 
     act(() => {
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
     });
 
     const progressbar = screen.getByRole("progressbar", {
@@ -168,14 +184,14 @@ describe("ChartLoadingState", () => {
     );
 
     act(() => {
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
     });
 
     const progressText = screen.getByText("Reading query progress...");
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();
 
     act(() => {
-      jest.advanceTimersByTime(500);
+      vi.advanceTimersByTime(500);
     });
 
     const hint = screen.getByText(SLOW_QUERY_HINT_TEXT);
@@ -196,14 +212,14 @@ describe("ChartLoadingState", () => {
     );
 
     act(() => {
-      jest.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(1000);
     });
 
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
     expect(screen.queryByText("Running query")).not.toBeInTheDocument();
 
     act(() => {
-      jest.advanceTimersByTime(500);
+      vi.advanceTimersByTime(500);
     });
 
     expect(screen.queryByText(SLOW_QUERY_HINT_TEXT)).not.toBeInTheDocument();

@@ -1,4 +1,20 @@
-import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
+import {
+  expect,
+  it,
+  describe,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+  vi,
+} from "vitest";
+
+const originalCloudRegion = vi.hoisted(() => {
+  const cloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  return cloudRegion;
+});
+
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -18,7 +34,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
-import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import {
+  handleBlobStorageIntegrationProjectJob,
+  BLOB_STORAGE_LAG_BUFFER_MS,
+} from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -31,7 +50,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 // and at least azurite doesn't handle them gracefully.
 const maybeIt = env.LANGFUSE_USE_AZURE_BLOB === "true" ? it.skip : it;
 const maybeDescribe =
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -66,6 +85,14 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       forcePathStyle: true,
       useAzureBlob: false,
     });
+  });
+
+  afterAll(() => {
+    if (originalCloudRegion) {
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    } else {
+      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    }
   });
 
   afterEach(async () => {
@@ -149,10 +176,41 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       });
 
       // Create test data within the export window (2 hours ago to 1 hour ago)
-      // With 30-min lag buffer, actual window is 2h ago to (1h ago or now-30min, whichever is earlier)
+      // With 20-min lag buffer, actual window is 2h ago to (1h ago or now-20min, whichever is earlier)
       const traceId = randomUUID();
       const observationId = randomUUID();
       const scoreId = randomUUID();
+      const modelId = randomUUID();
+
+      const dataTime = now.getTime() - 90 * 60 * 1000; // 90 minutes before now
+
+      // Create a Model + PricingTier + Prices in Postgres for model enrichment
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName: "gpt-4-test",
+          matchPattern: "gpt-4-test",
+          unit: "TOKENS",
+          pricingTiers: {
+            create: {
+              name: "Standard",
+              isDefault: true,
+              conditions: [],
+              priority: 0,
+              prices: {
+                createMany: {
+                  data: [
+                    { modelId, usageType: "input", price: "0.03" },
+                    { modelId, usageType: "output", price: "0.06" },
+                    { modelId, usageType: "total", price: "0.09" },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      });
 
       // Create event data for events table export
       const event = createEvent({
@@ -160,7 +218,11 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         trace_id: traceId,
         type: "GENERATION",
         name: "Test Event",
-        start_time: (now.getTime() - 90 * 60 * 1000) * 1000, // 90 minutes before now (microseconds)
+        start_time: dataTime * 1000, // microseconds
+        end_time: (dataTime + 5000) * 1000, // 5s later (microseconds)
+        bookmarked: true,
+        public: true,
+        model_id: modelId,
       });
 
       // Create trace, observation, score, and event in Clickhouse
@@ -170,7 +232,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
           createTrace({
             id: traceId,
             project_id: projectId,
-            timestamp: now.getTime() - 90 * 60 * 1000, // 90 min before now
+            timestamp: dataTime,
             name: "Test Trace",
           }),
         ]),
@@ -179,7 +241,12 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             id: observationId,
             trace_id: traceId,
             project_id: projectId,
-            start_time: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            start_time: dataTime,
+            end_time: dataTime + 5000, // 5s later
+            completion_start_time: dataTime + 1000, // 1s later
+            total_cost: 42.5,
+            usage_details: { input: 100, output: 200, total: 300 },
+            internal_model_id: modelId,
             name: "Test Observation",
           }),
         ]),
@@ -188,7 +255,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             id: scoreId,
             trace_id: traceId,
             project_id: projectId,
-            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            timestamp: dataTime,
             name: "Test Score",
             value: 0.95,
           }),
@@ -196,7 +263,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             id: sessionScoreId,
             session_id: sessionId,
             project_id: projectId,
-            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            timestamp: dataTime,
             name: "Test Session Score",
             value: 0.8,
           }),
@@ -204,7 +271,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             id: datasetRunScoreId,
             dataset_run_id: datasetRunId,
             project_id: projectId,
-            timestamp: now.getTime() - 90 * 60 * 1000, // 90 minutes before now
+            timestamp: dataTime,
             name: "Test Dataset Run Score",
             value: 0.7,
           }),
@@ -244,12 +311,33 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         const content = await s3StorageService.download(traceFile.file);
         expect(content).toContain(traceId);
         expect(content).toContain("Test Trace");
+        // Verify new fields: created_at, updated_at
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
       }
 
       if (observationFile) {
         const content = await s3StorageService.download(observationFile.file);
         expect(content).toContain(observationId);
         expect(content).toContain("Test Observation");
+        // Verify new fields: total_cost, latency, time_to_first_token
+        expect(content).toContain("total_cost");
+        expect(content).toContain("latency");
+        expect(content).toContain("time_to_first_token");
+        // Verify usage_details map contains actual token counts (CSV escapes " as "")
+        expect(content).toContain('""input"":100');
+        expect(content).toContain('""output"":200');
+        // Verify model pricing enrichment
+        expect(content).toContain("input_price");
+        expect(content).toContain("output_price");
+        expect(content).toContain("total_price");
+        expect(content).toContain("0.03");
+        expect(content).toContain("0.06");
+        // Verify newly added native fields
+        expect(content).toContain("prompt_id");
+        expect(content).toContain("tool_calls");
+        expect(content).toContain("tool_definitions");
+        expect(content).toContain("usage_pricing_tier_name");
       }
 
       if (scoreFile) {
@@ -267,12 +355,33 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(datasetRunId);
         expect(content).toContain("Test Dataset Run Score");
         expect(content).toContain("0.7");
+        // Verify new fields: created_at, updated_at
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
       }
 
       if (eventFile) {
         const content = await s3StorageService.download(eventFile.file);
         expect(content).toContain(event.span_id);
         expect(content).toContain("Test Event");
+        // Verify new fields: bookmarked, public, created_at, updated_at
+        expect(content).toContain("bookmarked");
+        expect(content).toContain("public");
+        expect(content).toContain("created_at");
+        expect(content).toContain("updated_at");
+        // Verify usage_details map contains actual token counts (CSV escapes " as "")
+        expect(content).toContain('""input"":1234');
+        expect(content).toContain('""output"":5678');
+        // Verify model pricing enrichment with actual values
+        expect(content).toContain("input_price");
+        expect(content).toContain("output_price");
+        expect(content).toContain("total_price");
+        expect(content).toContain("0.03");
+        expect(content).toContain("0.06");
+        // Verify newly added native fields
+        expect(content).toContain("tool_calls");
+        expect(content).toContain("tool_definitions");
+        expect(content).toContain("usage_pricing_tier_name");
       }
 
       // Check integration lastSyncAt and nextSyncAt are updated
@@ -291,6 +400,86 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         );
       } else {
         expect.fail("Integration should have lastSyncAt and nextSyncAt set");
+      }
+    });
+
+    it("should exclude columns for deselected exportFieldGroups", async () => {
+      // Regression test for two known ClickHouse/enrichment leaks:
+      // 1. ClickHouse always returns {} for unselected Map columns (metadata)
+      // 2. enrichObservationStream was writing latency:null even when metrics not selected
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+        },
+      });
+
+      const traceId = randomUUID();
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "Test Event",
+        start_time: dataTime * 1000,
+        end_time: (dataTime + 5000) * 1000,
+        metadata: { secret: "should-not-appear" },
+        metadata_names: ["secret"],
+        metadata_values: ["should-not-appear"],
+      });
+
+      await createEventsCh([event]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      const eventFile = files.find((f) => f.file.includes("/observations_v2/"));
+      expect(eventFile).toBeDefined();
+
+      if (eventFile) {
+        const content = await s3StorageService.download(eventFile.file);
+        const row = JSON.parse(content.trim().split("\n")[0]);
+
+        // core + io fields should be present
+        expect(row).toHaveProperty("id");
+        expect(row).toHaveProperty("trace_id");
+        expect(row).toHaveProperty("input");
+        expect(row).toHaveProperty("output");
+
+        // metadata group not selected → must not leak even as {}
+        expect(row).not.toHaveProperty("metadata");
+
+        // metrics group not selected → latency/time_to_first_token must not appear
+        expect(row).not.toHaveProperty("latency");
+        expect(row).not.toHaveProperty("time_to_first_token");
+
+        // non-selected groups must not appear
+        expect(row).not.toHaveProperty("name");
+        expect(row).not.toHaveProperty("level");
+        expect(row).not.toHaveProperty("usage_details");
       }
     });
 
@@ -342,9 +531,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         },
       );
 
-      // Should be set to 7 days in the future from maxTimestamp (now - 30min)
+      // Should be set to 7 days in the future from maxTimestamp (now - lag buffer)
       const expectedNextSync = new Date(
-        now.getTime() - 30 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000,
+        now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS + 7 * 24 * 60 * 60 * 1000,
       );
 
       if (updatedIntegration?.nextSyncAt) {

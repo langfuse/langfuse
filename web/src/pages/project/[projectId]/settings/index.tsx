@@ -27,10 +27,11 @@ import { ModelsSettings } from "@/src/features/models/components/ModelSettings";
 import ConfigureRetention from "@/src/features/projects/components/ConfigureRetention";
 import ContainerPage from "@/src/components/layouts/container-page";
 import ProtectedLabelsSettings from "@/src/features/prompts/components/ProtectedLabelsSettings";
-import { Slack } from "lucide-react";
+import { SiSlack } from "react-icons/si";
 import { ScoreConfigSettings } from "@/src/features/score-configs/components/ScoreConfigSettings";
 import { env } from "@/src/env.mjs";
 import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
+import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -135,6 +136,21 @@ export const getProjectSettingsPages = ({
         <ApiKeyList entityId={project.id} scope="project" />
       </div>
     ),
+  },
+  {
+    title: "MCP & CLI",
+    slug: "developer-tools",
+    cmdKKeywords: [
+      "mcp",
+      "cli",
+      "skill",
+      "agent",
+      "model context protocol",
+      "command line",
+      "claude code",
+      "cursor",
+    ],
+    content: <DeveloperToolsSettings />,
   },
   {
     title: "LLM Connections",
@@ -355,7 +371,7 @@ const Integrations = (props: { projectId: string }) => {
 
         <Card className="p-3">
           <div className="mb-4 flex items-center gap-2">
-            <Slack className="text-foreground h-5 w-5" />
+            <SiSlack className="text-foreground h-5 w-5" />
             <span className="font-semibold">Slack</span>
           </div>
           <p className="text-primary mb-4 text-sm">

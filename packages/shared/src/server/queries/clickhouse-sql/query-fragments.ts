@@ -10,6 +10,7 @@ import {
   ExperimentsAggregationQueryBuilder,
   type CTEWithSchema,
 } from "./event-query-builder";
+import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -31,6 +32,7 @@ interface EventsTracesAggregationParams {
   projectId: string;
   traceIds?: string[];
   startTimeFrom?: string | null;
+  orderByTimestamp?: boolean;
   /**
    * Whether to use truncated I/O (events_core) or full I/O (events_full).
    * Default is false (full) for better compatibility.
@@ -59,7 +61,9 @@ export const eventsTracesAggregation = (
     .withStartTimeFrom(params.startTimeFrom)
     .withTruncated(params.truncated ?? false);
 
-  builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  if (params.orderByTimestamp ?? true) {
+    builder.orderByColumns([{ column: "timestamp", direction: "DESC" }]);
+  }
 
   return builder;
 };
@@ -74,7 +78,7 @@ interface BaseScoresAggregationParams extends BaseScoresParams {
   hasScoreAggregationFilters?: boolean;
   /**
    * When true, adds an extra `score_categories_tuples` column with
-   * `tuple(name, string_value)` encoding alongside the default concat-encoded
+   * `tuple(name, string_value, data_type)` encoding alongside the default concat-encoded
    * `score_categories`. The tuple column is safe for programmatic parsing
    * (e.g. batch exports) when score names may contain colons.
    * The concat column is always present for hasAny filter compatibility.
@@ -120,7 +124,7 @@ export const buildScoresAggregationCTE = (
         ${primaryKey},
         ${additionalOuterCols.length > 0 ? additionalOuterCols.join(",\n        ") + "," : ""}
         groupArrayIf(tuple(name, avg_value, data_type, string_value), data_type IN ('NUMERIC', 'BOOLEAN')) AS scores_avg,
-        groupArrayIf(concat(name, ':', string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value), data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS score_categories_tuples` : ""}
+        groupArrayIf(concat(name, ':', string_value), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories${params.includeTupleEncoding ? `,\n        groupArrayIf(tuple(name, string_value, data_type), data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)) AS score_categories_tuples` : ""}
       FROM (
         SELECT
           ${primaryKey},
@@ -158,6 +162,9 @@ interface EventsScoresAggregationParams {
 /**
  * Scores CTE for events table queries.
  * Aggregates numeric and categorical scores for observations.
+ *
+ * When hasScoreAggregationFilters is true, uses nested subquery structure
+ * with pre-aggregation to enable proper array filtering on scores_avg/score_categories.
  *
  * Returns a query and params object that can be passed directly to withCTE.
  */
@@ -275,6 +282,27 @@ export const eventsExperimentsAggregation = (params: {
     .whereRaw("e.experiment_id != ''");
 };
 
+export const eventsExperimentsRootSpans = (params: {
+  projectId: string;
+  experimentIds?: string[];
+  experimentItemIds?: string[];
+}): EventsQueryBuilder =>
+  eventsExperiments({
+    projectId: params.projectId,
+    experimentIds: params.experimentIds,
+  })
+    .whereRaw("e.experiment_item_root_span_id = e.span_id")
+    .when(
+      Boolean(params.experimentItemIds && params.experimentItemIds.length > 0),
+      (b) =>
+        b.whereRaw(
+          "e.experiment_item_id IN ({experimentItemIds: Array(String)})",
+          {
+            experimentItemIds: params.experimentItemIds,
+          },
+        ),
+    );
+
 /**
  * Session-level scores aggregation CTE.
  * Groups scores by (project_id, session_id), computing numeric/boolean averages
@@ -295,7 +323,7 @@ export const eventsSessionScoresAggregation = (params: {
       ) AS scores_avg,
       groupArrayIf(
         concat(name, ':', string_value),
-        data_type = 'CATEGORICAL' AND notEmpty(string_value)
+        data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
       ) AS score_categories
     FROM (
       SELECT
@@ -342,6 +370,54 @@ export const eventsExperimentTraceIds = (
   eventsExperiments({ projectId })
     .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
     .limitBy("e.trace_id");
+
+export const buildScoreRowsCTE = (params: BaseScoresParams): CTEWithSchema => {
+  const queryParams: Record<string, any> = {
+    projectId: params.projectId,
+    dataTypes: AGGREGATABLE_SCORE_TYPES,
+  };
+
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const isTraceLevel = params.level === "trace";
+  const observationFilter = isTraceLevel
+    ? "AND observation_id IS NULL"
+    : "AND observation_id IS NOT NULL";
+
+  const query = `
+    SELECT
+      project_id,
+      trace_id,
+      observation_id,
+      name,
+      source,
+      data_type,
+      string_value
+    FROM scores s
+    WHERE
+      project_id = {projectId: String}
+      AND trace_id != ''
+      ${observationFilter}
+      AND data_type IN ({dataTypes: Array(String)})
+      ${params.startTimeFrom ? `AND timestamp >= {startTimeFrom: DateTime64(3)}` : ""}
+  `.trim();
+
+  return {
+    query,
+    params: queryParams,
+    schema: [
+      "project_id",
+      "trace_id",
+      "observation_id",
+      "name",
+      "source",
+      "data_type",
+      "string_value",
+    ],
+  };
+};
 
 export const buildScoresCTE = (params: BaseScoresParams): CTEWithSchema => {
   const queryParams: Record<string, any> = {

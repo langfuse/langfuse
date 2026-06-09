@@ -1,6 +1,5 @@
 import {
   FilterCondition,
-  ScoreDataTypeEnum,
   type ScoreDataTypeType,
   TracingSearchType,
   tracesTableCols,
@@ -111,7 +110,11 @@ export const getTraceStream = async (props: {
 
   const appliedScoresFilter = scoresFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    searchType,
+    tablePrefix: "t",
+  });
 
   const query = `
     WITH scores_agg AS (
@@ -126,12 +129,12 @@ export const getTraceStream = async (props: {
         -- concat encoding for hasAny filter compatibility
         groupArrayIf(
           concat(name, ':', string_value),
-          data_type = 'CATEGORICAL' AND notEmpty(string_value)
+          data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
         ) AS score_categories,
         -- tuple encoding for accurate output parsing (names may contain colons)
         groupArrayIf(
-          tuple(name, string_value),
-          data_type = 'CATEGORICAL' AND notEmpty(string_value)
+          tuple(name, string_value, data_type),
+          data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
         ) AS score_categories_tuples
       FROM (
         SELECT
@@ -206,7 +209,7 @@ export const getTraceStream = async (props: {
         }[]
       | undefined;
     score_categories: string[] | undefined;
-    score_categories_tuples: [string, string | null][] | undefined;
+    score_categories_tuples: [string, string | null, string][] | undefined;
   }>({
     query,
     params: {
@@ -238,12 +241,12 @@ export const getTraceStream = async (props: {
       stringValue: score[3],
     }));
 
-    // Process categorical scores (tuples from ClickHouse)
+    // Process categorical / text scores (tuples from ClickHouse)
     const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
-      (cat: [string, string | null]) => ({
+      (cat: [string, string | null, string]) => ({
         name: cat[0],
         value: null,
-        dataType: ScoreDataTypeEnum.CATEGORICAL,
+        dataType: cat[2],
         stringValue: cat[1],
       }),
     );

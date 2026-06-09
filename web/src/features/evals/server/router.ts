@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  authenticatedProcedure,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
@@ -7,8 +8,6 @@ import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAc
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   DEFAULT_TRACE_JOB_DELAY,
-  compilePersistedEvalOutputDefinition,
-  ZodModelConfig,
   deriveEvaluatorDisplayStateFromExecutionCounts,
   type OrderByState,
   singleFilter,
@@ -25,7 +24,11 @@ import {
   orderBy,
   jsonSchema,
   EvalTargetObject,
-  PersistedEvalOutputDefinitionSchema,
+  EvalTargetObjectSchema,
+  validateEvaluatorFiltersForTarget,
+  InvalidRequestError,
+  EvalTemplateType,
+  type EvalTemplateSourceCodeLanguage,
 } from "@langfuse/shared";
 import {
   getQueue,
@@ -38,15 +41,13 @@ import {
   QueueJobs,
   tableColumnsToSqlFilterAndPrefix,
   orderByToPrismaSql,
-  DefaultEvalModelService,
-  testModelCall,
   invalidateProjectEvalConfigCaches,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { EvaluatorStatus } from "../types";
 import { traceException } from "@langfuse/shared/src/server";
-import { isNotNullOrUndefined } from "@/src/utils/types";
+import { assertUnreachable, isNotNullOrUndefined } from "@/src/utils/types";
 import { v4 as uuidv4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { type JobExecution, type PrismaClient } from "@prisma/client";
@@ -60,13 +61,39 @@ import {
   selectDatasetEvaluatorsForStatusChange,
   shouldValidateBeforeActivation,
 } from "@/src/features/evals/server/evalConfigState";
+import {
+  EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+  JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+} from "@/src/features/evals/server/audit-log-resource-types";
+import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
+import {
+  runCodeEvalTest,
+  runCodeEvalTestForJobConfig,
+} from "@/src/features/evals/server/codeEvalTestRun";
+import {
+  CODE_EVAL_TEMPLATE_VARIABLES,
+  CreateEvalTemplateInputSchema,
+  validateEvalTemplateCreation,
+} from "@/src/features/evals/server/evalTemplateCreation";
+import {
+  getCodeEvalCapabilities,
+  isCodeEvalEnabled,
+  isCodeEvalSourceCodeLanguageSupported,
+} from "@/src/features/evals/server/isCodeEvalEnabled";
+export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
+
+// Filter columns that used to be backed by the Postgres `traces` and
+// `scores` JOINs.  Those tables now live in ClickHouse, so the eval logs
+// query can no longer resolve them.  Filters referencing these columns are
+// dropped server-side to keep bookmarked URLs from failing.
+const DEPRECATED_FILTER_COLUMNS = new Set(["scoreValue", "sessionId"]);
 
 const ConfigWithTemplateSchema = z.object({
   id: z.string(),
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string(),
-  targetObject: z.string(),
+  targetObject: EvalTargetObjectSchema,
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   variableMapping: z.union([
@@ -91,13 +118,14 @@ const ConfigWithTemplateSchema = z.object({
       createdAt: z.coerce.date(),
       updatedAt: z.coerce.date(),
       projectId: z.string().nullable(),
-      prompt: z.string(),
+      prompt: z.string().nullable(),
       provider: z.string().nullable(),
       model: z.string().nullable(),
       modelParams: jsonSchema.nullable(),
       vars: z.array(z.string()),
-      outputDefinition: jsonSchema,
+      outputDefinition: jsonSchema.nullable(),
       version: z.number(),
+      type: z.enum(EvalTemplateType),
     })
     .nullish(),
 });
@@ -125,27 +153,11 @@ const filterAndValidateDbEvaluatorList = (
     return acc;
   }, [] as EvalJobConfigWithTemplate[]);
 
-export const CreateEvalTemplateInputSchema = z.object({
-  name: z.string().min(1),
-  projectId: z.string(),
-  prompt: z.string(),
-  provider: z.string().nullish(),
-  model: z.string().nullish(),
-  modelParams: ZodModelConfig.nullish(),
-  vars: z.array(z.string()),
-  outputDefinition: PersistedEvalOutputDefinitionSchema,
-  cloneSourceId: z.string().optional(),
-  referencedEvaluators: z
-    .enum(EvalReferencedEvaluators)
-    .optional()
-    .default(EvalReferencedEvaluators.PERSIST),
-});
-
 const CreateEvalJobSchema = z.object({
   projectId: z.string(),
   evalTemplateId: z.string(),
   scoreName: z.string().min(1),
-  target: z.string(), // should be z.enum(["trace", "dataset-run-item"])
+  target: EvalTargetObjectSchema,
   filter: z.array(singleFilter).nullable(), // reusing the filter type from the tables
   // Accept either full variableMapping (trace/dataset) or simplified observationVariableMapping (event/experiment)
   mapping: z.union([
@@ -157,6 +169,92 @@ const CreateEvalJobSchema = z.object({
   timeScope: TimeScopeSchema,
   status: z.enum(EvaluatorStatus).optional().default(JobConfigState.ACTIVE),
 });
+
+const CodeEvalTestRunSchema = z.object({
+  projectId: z.string(),
+  evalTemplateId: z.string(),
+  target: z.union([
+    z.literal(EvalTargetObject.EVENT),
+    z.literal(EvalTargetObject.EXPERIMENT),
+  ]),
+  mapping: z.array(observationVariableMapping),
+  scoreName: z.string().min(1),
+  observationId: z.string(),
+  traceId: z.string(),
+  startTime: z.coerce.date(),
+  shouldReadFromObservationsTable: z.boolean().optional().default(false),
+});
+
+const getSupportedCodeEvalTemplateLanguages =
+  (): EvalTemplateSourceCodeLanguage[] => {
+    const capabilities = getCodeEvalCapabilities();
+
+    return capabilities.enabled
+      ? capabilities.supportedSourceCodeLanguages
+      : [];
+  };
+
+const getCodeEvalTemplateWhere = (): Prisma.EvalTemplateWhereInput => {
+  const supportedLanguages = getSupportedCodeEvalTemplateLanguages();
+
+  if (supportedLanguages.length === 0) {
+    return { type: { not: EvalTemplateType.CODE } };
+  }
+
+  return {
+    AND: [
+      {
+        OR: [
+          { type: { not: EvalTemplateType.CODE } },
+          {
+            sourceCodeLanguage: {
+              in: supportedLanguages,
+            },
+          },
+        ],
+      },
+    ],
+  };
+};
+
+const assertCodeEvalEnabled = () => {
+  if (!isCodeEvalEnabled()) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Code evals are not enabled",
+    });
+  }
+};
+
+const getCodeEvalTemplateRawSqlCondition = () => {
+  const supportedLanguages = getSupportedCodeEvalTemplateLanguages();
+
+  if (supportedLanguages.length === 0) {
+    return Prisma.sql`AND type != ${EvalTemplateType.CODE}::"EvalTemplateType"`;
+  }
+
+  const supportedLanguageSql = Prisma.join(
+    supportedLanguages.map(
+      (language) => Prisma.sql`${language}::"EvalTemplateSourceCodeLanguage"`,
+    ),
+  );
+
+  return Prisma.sql`AND (type != ${EvalTemplateType.CODE}::"EvalTemplateType" OR source_code_language IN (${supportedLanguageSql}))`;
+};
+
+const assertCodeEvalTemplateCanRun = (params: {
+  sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
+}) => {
+  assertCodeEvalEnabled();
+
+  if (!isCodeEvalSourceCodeLanguageSupported(params.sourceCodeLanguage)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "This code evaluator language is not supported by the configured dispatcher.",
+    });
+  }
+};
 
 const UpdateEvalJobSchema = z.object({
   scoreName: z.string().min(1).optional(),
@@ -170,6 +268,32 @@ const UpdateEvalJobSchema = z.object({
   status: z.enum(EvaluatorStatus).optional(),
   timeScope: z.array(JobTimeScopeZod).optional(),
 });
+
+const validateVariableMappingForTarget = ({
+  targetObject,
+  mapping,
+}: {
+  targetObject: string;
+  mapping: unknown;
+}) => {
+  const result =
+    targetObject === EvalTargetObject.EVENT ||
+    targetObject === EvalTargetObject.EXPERIMENT
+      ? z.array(observationVariableMapping).safeParse(mapping)
+      : targetObject === EvalTargetObject.TRACE ||
+          targetObject === EvalTargetObject.DATASET
+        ? z.array(variableMapping).safeParse(mapping)
+        : null;
+
+  if (!result?.success) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Variable mapping does not match evaluator target.",
+    });
+  }
+
+  return result.data;
+};
 
 const validateEvalTemplateCanRun = async ({
   prisma,
@@ -194,45 +318,100 @@ const validateEvalTemplateCanRun = async ({
     });
   }
 
-  const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
+  const error = await getEvaluatorDefinitionPreflightError({
     projectId,
-    template.provider ?? undefined,
-    template.model ?? undefined,
-    template.modelParams,
-  );
+    template: {
+      name: template.name,
+      type: template.type,
+      provider: template.provider,
+      model: template.model,
+      modelParams: template.modelParams,
+      outputDefinition: template.outputDefinition,
+    },
+  });
 
-  if (!modelConfig.valid) {
+  if (error) {
     throw new TRPCError({
       code: "PRECONDITION_FAILED",
-      message: `No valid LLM model found for evaluator "${template.name}". ${modelConfig.error}`,
-    });
-  }
-
-  try {
-    const parsedOutputDefinition = PersistedEvalOutputDefinitionSchema.parse(
-      template.outputDefinition,
-    );
-    const compiledOutputDefinition = compilePersistedEvalOutputDefinition(
-      parsedOutputDefinition,
-    );
-
-    await testModelCall({
-      provider: modelConfig.config.provider,
-      model: modelConfig.config.model,
-      apiKey: modelConfig.config.apiKey,
-      modelConfig: modelConfig.config.modelParams,
-      structuredOutputSchema: compiledOutputDefinition.outputResultSchema,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    throw new TRPCError({
-      code: "PRECONDITION_FAILED",
-      message: `Model configuration not valid for evaluator "${template.name}". ${message}`,
+      message: error,
     });
   }
 };
 
+const assertCodeEvalJobConfigTestSucceeds = async ({
+  prisma,
+  orgId,
+  projectId,
+  evalTemplateId,
+  target,
+  mapping,
+  scoreName,
+  filter,
+}: {
+  prisma: PrismaClient;
+  orgId: string;
+  projectId: string;
+  evalTemplateId: string;
+  target: EvalTargetObject;
+  mapping: unknown;
+  scoreName: string;
+  filter: z.infer<typeof singleFilter>[] | null;
+}) => {
+  if (
+    target !== EvalTargetObject.EVENT &&
+    target !== EvalTargetObject.EXPERIMENT
+  ) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Code evaluators can only run on observations or experiments.",
+    });
+  }
+
+  const parsedMapping = z.array(observationVariableMapping).parse(mapping);
+
+  if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true") {
+    const result = await runCodeEvalTestForJobConfig({
+      prisma,
+      orgId,
+      projectId,
+      evalTemplateId,
+      target,
+      mapping: parsedMapping,
+      scoreName,
+      filter,
+    });
+
+    if (!result) {
+      if (target !== EvalTargetObject.EXPERIMENT) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "No matching observation found to test this code evaluator. Adjust the filters and try again.",
+        });
+      }
+
+      return;
+    }
+
+    if (!result.success) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: result.error.message,
+      });
+    }
+  } else if (target === EvalTargetObject.EXPERIMENT) {
+    return;
+  } else {
+    // TODO: add self-hosting path for target events
+    return;
+  }
+};
+
 export const evalRouter = createTRPCRouter({
+  codeEvalCapabilities: authenticatedProcedure.query(() =>
+    getCodeEvalCapabilities(),
+  ),
+
   globalJobConfigs: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -460,6 +639,7 @@ export const evalRouter = createTRPCRouter({
           ...(input.isUserManaged
             ? { projectId: input.projectId }
             : { projectId: null }),
+          ...getCodeEvalTemplateWhere(),
         },
         orderBy: [{ version: "desc" }],
       });
@@ -489,6 +669,7 @@ export const evalRouter = createTRPCRouter({
         input.searchQuery && input.searchQuery.trim() !== ""
           ? Prisma.sql`AND name ILIKE ${`%${input.searchQuery}%`}`
           : Prisma.empty;
+      const typeCondition = getCodeEvalTemplateRawSqlCondition();
 
       const [templates, count] = await Promise.all([
         ctx.prisma.$queryRaw<
@@ -502,6 +683,8 @@ export const evalRouter = createTRPCRouter({
             partner?: string;
             provider?: string;
             model?: string;
+            type: EvalTemplateType;
+            sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
             outputDefinition: unknown;
           }>
         >`
@@ -512,6 +695,8 @@ export const evalRouter = createTRPCRouter({
             et.project_id,
             et.provider,
             et.model,
+            et.type,
+            et.source_code_language,
             et.partner,
             et.version,
             et.created_at,
@@ -523,16 +708,18 @@ export const evalRouter = createTRPCRouter({
                 SELECT id 
                 FROM eval_templates 
                 WHERE name = et.name AND 
+                      type = et.type AND
                       (project_id = et.project_id OR (project_id IS NULL AND et.project_id IS NULL))
               )
               AND jc.project_id = ${input.projectId}
             ) as usage_count
           FROM (
-            SELECT DISTINCT ON (project_id, name) *
+            SELECT DISTINCT ON (project_id, name, type) *
             FROM eval_templates
             WHERE (project_id = ${input.projectId} OR project_id IS NULL)
             ${searchCondition}
-            ORDER BY project_id, name, version DESC
+            ${typeCondition}
+            ORDER BY project_id, name, type, version DESC
           ) et
         )
         SELECT 
@@ -540,6 +727,8 @@ export const evalRouter = createTRPCRouter({
           name,
           provider,
           model,
+          type,
+          source_code_language as "sourceCodeLanguage",
           partner,
           project_id as "projectId",
           version,
@@ -548,17 +737,18 @@ export const evalRouter = createTRPCRouter({
           COALESCE(usage_count, 0)::int as "usageCount"
         FROM 
           latest_templates
-        ORDER BY project_id, partner, name
+        ORDER BY project_id, partner, name, type
         LIMIT ${input.limit}
         OFFSET ${input.page * input.limit}
         `,
         ctx.prisma.$queryRaw<Array<{ count: bigint }>>`
           SELECT COUNT(*) as count
           FROM (
-            SELECT DISTINCT project_id, name
+            SELECT DISTINCT project_id, name, type
             FROM eval_templates
             WHERE (project_id = ${input.projectId} OR project_id IS NULL)
             ${searchCondition}
+            ${typeCondition}
           ) t
         `,
       ]);
@@ -583,10 +773,11 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:read",
       });
 
-      const template = await ctx.prisma.evalTemplate.findUnique({
+      const template = await ctx.prisma.evalTemplate.findFirst({
         where: {
           id: input.id,
           OR: [{ projectId: input.projectId }, { projectId: null }],
+          ...getCodeEvalTemplateWhere(),
         },
       });
 
@@ -612,6 +803,7 @@ export const evalRouter = createTRPCRouter({
         where: {
           OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
+          ...getCodeEvalTemplateWhere(),
         },
         ...(input.limit && input.page
           ? { take: input.limit, skip: input.page * input.limit }
@@ -622,6 +814,7 @@ export const evalRouter = createTRPCRouter({
         where: {
           OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
+          ...getCodeEvalTemplateWhere(),
         },
       });
       return {
@@ -742,11 +935,45 @@ export const evalRouter = createTRPCRouter({
         );
         throw new Error("Template not found");
       }
+      if (evalTemplate.type === EvalTemplateType.CODE) {
+        assertCodeEvalTemplateCanRun({
+          sourceCodeLanguage: evalTemplate.sourceCodeLanguage,
+        });
+      }
+
+      const variableMappingForTarget = validateVariableMappingForTarget({
+        targetObject: input.target,
+        mapping: input.mapping,
+      });
+      const filterValidation = validateEvaluatorFiltersForTarget({
+        targetObject: input.target,
+        filter: input.filter ?? [],
+      });
+      if (!filterValidation.isValid) {
+        throw new InvalidRequestError(
+          filterValidation.issues[0]?.message ??
+            "Evaluator filters are invalid. Remove unsupported or incomplete filters and try again.",
+        );
+      }
+      const validatedFilter = filterValidation.validatedFilters;
+
+      if (evalTemplate.type === EvalTemplateType.CODE) {
+        await assertCodeEvalJobConfigTestSucceeds({
+          prisma: ctx.prisma,
+          orgId: ctx.session.orgId,
+          projectId: input.projectId,
+          evalTemplateId: input.evalTemplateId,
+          target: input.target,
+          mapping: variableMappingForTarget,
+          scoreName: input.scoreName,
+          filter: validatedFilter ?? [],
+        });
+      }
 
       const jobId = uuidv4();
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: jobId,
         action: "create",
       });
@@ -759,8 +986,8 @@ export const evalRouter = createTRPCRouter({
           evalTemplateId: input.evalTemplateId,
           scoreName: input.scoreName,
           targetObject: input.target,
-          filter: input.filter ?? [],
-          variableMapping: input.mapping,
+          filter: validatedFilter ?? [],
+          variableMapping: variableMappingForTarget,
           sampling: input.sampling,
           delay: input.delay,
           status: input.status,
@@ -801,7 +1028,7 @@ export const evalRouter = createTRPCRouter({
               cutoffCreatedAt: new Date(),
               targetObject: input.target,
               query: {
-                filter: input.filter ?? [],
+                filter: validatedFilter,
                 orderBy: {
                   column: "timestamp",
                   order: "DESC",
@@ -815,6 +1042,36 @@ export const evalRouter = createTRPCRouter({
 
       return { id: job.id };
     }),
+  testRunCodeEval: protectedProjectProcedure
+    .input(CodeEvalTestRunSchema)
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "evalJob:CUD",
+      });
+
+      assertCodeEvalEnabled();
+
+      validateVariableMappingForTarget({
+        targetObject: input.target,
+        mapping: input.mapping,
+      });
+
+      return runCodeEvalTest({
+        prisma: ctx.prisma,
+        orgId: ctx.session.orgId,
+        projectId: input.projectId,
+        evalTemplateId: input.evalTemplateId,
+        target: input.target,
+        mapping: input.mapping,
+        scoreName: input.scoreName,
+        observationId: input.observationId,
+        traceId: input.traceId,
+        startTime: input.startTime,
+        shouldReadFromObservationsTable: input.shouldReadFromObservationsTable,
+      });
+    }),
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplateInputSchema)
     .mutation(async ({ input, ctx }) => {
@@ -824,38 +1081,7 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:CUD",
       });
 
-      const modelConfig = await DefaultEvalModelService.fetchValidModelConfig(
-        input.projectId,
-        input.provider ?? undefined,
-        input.model ?? undefined,
-        input.modelParams,
-      );
-
-      if (!modelConfig.valid) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "No valid llm model found for this project",
-        });
-      }
-
-      try {
-        // Make a test structured output call to validate the LLM key
-        await testModelCall({
-          provider: modelConfig.config.provider,
-          model: modelConfig.config.model,
-          apiKey: modelConfig.config.apiKey,
-          modelConfig: input.modelParams,
-          structuredOutputSchema: compilePersistedEvalOutputDefinition(
-            input.outputDefinition,
-          ).outputResultSchema,
-        });
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `Model configuration not valid for evaluation. ${message}`,
-        });
-      }
+      await validateEvalTemplateCreation(input);
 
       /**
        * CREATION OF PROJECT-LEVEL TEMPLATE
@@ -876,11 +1102,13 @@ export const evalRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
             name: input.name,
+            type: input.type,
           },
           orderBy: [{ version: "desc" }],
           select: {
             id: true,
             version: true,
+            type: true,
           },
         });
 
@@ -888,23 +1116,51 @@ export const evalRouter = createTRPCRouter({
         const latestTemplate = Boolean(templates.length)
           ? templates[0]
           : undefined;
+        const baseTemplateData = {
+          version: (latestTemplate?.version ?? 0) + 1,
+          name: input.name,
+          projectId: input.projectId,
+        };
 
         // Create a new project-level template either by cloning a langfuse managed template or by creating a new project-level template
-        const evalTemplate = await tx.evalTemplate.create({
-          data: {
-            version: (latestTemplate?.version ?? 0) + 1,
-            name: input.name,
-            projectId: input.projectId,
-            prompt: input.prompt,
-            // if using default model, leave model, provider and modelParams empty
-            // otherwise we will not pull the most recent default evaluation model
-            provider: input.provider,
-            model: input.model,
-            modelParams: input.modelParams ?? undefined,
-            vars: input.vars,
-            outputDefinition: input.outputDefinition,
-          },
-        });
+        const evalTemplate = await (async () => {
+          switch (input.type) {
+            case EvalTemplateType.CODE:
+              return tx.evalTemplate.create({
+                data: {
+                  ...baseTemplateData,
+                  type: EvalTemplateType.CODE,
+                  prompt: null,
+                  provider: null,
+                  model: null,
+                  modelParams: undefined,
+                  vars: [...CODE_EVAL_TEMPLATE_VARIABLES],
+                  outputDefinition: undefined,
+                  sourceCode: input.sourceCode,
+                  sourceCodeLanguage: input.sourceCodeLanguage,
+                },
+              });
+            case EvalTemplateType.LLM_AS_JUDGE:
+              return tx.evalTemplate.create({
+                data: {
+                  ...baseTemplateData,
+                  type: EvalTemplateType.LLM_AS_JUDGE,
+                  prompt: input.prompt,
+                  // if using default model, leave model, provider and modelParams empty
+                  // otherwise we will not pull the most recent default evaluation model
+                  provider: input.provider,
+                  model: input.model,
+                  modelParams: input.modelParams ?? undefined,
+                  vars: input.vars,
+                  outputDefinition: input.outputDefinition,
+                  sourceCode: null,
+                  sourceCodeLanguage: null,
+                },
+              });
+            default:
+              return assertUnreachable(input);
+          }
+        })();
 
         /**
          * END OF CREATION OF PROJECT-LEVEL TEMPLATE
@@ -938,12 +1194,19 @@ export const evalRouter = createTRPCRouter({
                 message: "Langfuse managed template not found",
               });
             }
+            if (cloneSourceTemplate.type !== input.type) {
+              throw new TRPCError({
+                code: "BAD_REQUEST",
+                message: "Evaluator type cannot be changed.",
+              });
+            }
 
             // find all versions of the langfuse managed template
             const cloneSourceTemplateList = await tx.evalTemplate.findMany({
               where: {
                 projectId: null,
                 name: cloneSourceTemplate.name,
+                type: cloneSourceTemplate.type,
               },
             });
 
@@ -984,7 +1247,7 @@ export const evalRouter = createTRPCRouter({
 
         await auditLog({
           session: ctx.session,
-          resourceType: "evalTemplate",
+          resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
           resourceId: evalTemplate.id,
           action: "create",
         });
@@ -1101,6 +1364,9 @@ export const evalRouter = createTRPCRouter({
           id: evalConfigId,
           projectId: projectId,
         },
+        include: {
+          evalTemplate: true,
+        },
       });
 
       if (!existingJob) {
@@ -1150,9 +1416,50 @@ export const evalRouter = createTRPCRouter({
         });
       }
 
+      const validatedConfig = {
+        ...config,
+        ...(config.variableMapping !== undefined
+          ? {
+              variableMapping: validateVariableMappingForTarget({
+                targetObject: existingJob.targetObject,
+                mapping: config.variableMapping,
+              }),
+            }
+          : {}),
+      };
+      const filterValidation = validateEvaluatorFiltersForTarget({
+        targetObject: existingJob.targetObject as EvalTargetObject,
+        filter: config.filter ?? existingJob.filter ?? [],
+      });
+      if (!filterValidation.isValid) {
+        throw new InvalidRequestError(
+          filterValidation.issues[0]?.message ??
+            "Evaluator filters are invalid. Remove unsupported or incomplete filters and try again.",
+        );
+      }
+      const validatedFilter = filterValidation.validatedFilters;
+
+      if (existingJob.evalTemplate?.type === EvalTemplateType.CODE) {
+        assertCodeEvalTemplateCanRun({
+          sourceCodeLanguage: existingJob.evalTemplate.sourceCodeLanguage,
+        });
+
+        await assertCodeEvalJobConfigTestSucceeds({
+          prisma: ctx.prisma,
+          orgId: ctx.session.orgId,
+          projectId,
+          evalTemplateId: existingJob.evalTemplate.id,
+          target: existingJob.targetObject as EvalTargetObject,
+          mapping:
+            validatedConfig.variableMapping ?? existingJob.variableMapping,
+          scoreName: config.scoreName ?? existingJob.scoreName,
+          filter: validatedFilter ?? [],
+        });
+      }
+
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: evalConfigId,
         action: "update",
       });
@@ -1179,8 +1486,15 @@ export const evalRouter = createTRPCRouter({
       }
 
       const updatedConfig = {
-        ...config,
-        ...(config.status !== undefined ? resetEvalConfigBlockFields : {}),
+        ...validatedConfig,
+        ...(config.filter !== undefined
+          ? {
+              filter: validatedFilter ?? [],
+            }
+          : {}),
+        ...(validatedConfig.status !== undefined
+          ? resetEvalConfigBlockFields
+          : {}),
       };
 
       const updatedJob = await ctx.prisma.jobConfiguration.update({
@@ -1267,7 +1581,7 @@ export const evalRouter = createTRPCRouter({
 
       await auditLog({
         session: ctx.session,
-        resourceType: "job",
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: evalConfigId,
         action: "delete",
       });
@@ -1346,8 +1660,15 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJobExecution:read",
       });
 
+      // Strip deprecated filters — these columns were removed from the UI
+      // because they required traces/scores data that no longer lives in
+      // Postgres, but bookmarked URLs may still include them.
+      const filters = input.filter.filter(
+        (f) => !DEPRECATED_FILTER_COLUMNS.has(f.column),
+      );
+
       const filterCondition = tableColumnsToSqlFilterAndPrefix(
-        input.filter,
+        filters,
         evalExecutionsFilterCols,
         "job_executions",
       );
@@ -1366,7 +1687,7 @@ export const evalRouter = createTRPCRouter({
               | "jobConfigurationId"
               | "executionTraceId"
               | "error"
-            > & { sessionId: string | null }
+            >
           >
         >(
           generateExecutionsQuery(
@@ -1379,8 +1700,7 @@ export const evalRouter = createTRPCRouter({
             je.job_template_id as "jobTemplateId",
             je.job_configuration_id as "jobConfigurationId",
             je.execution_trace_id as "executionTraceId",
-            je.error,
-            t.session_id as "sessionId"
+            je.error
             `,
             input.projectId,
             filterCondition,
@@ -1603,8 +1923,6 @@ const generateExecutionsQuery = (
   SELECT
    ${select}
    FROM job_executions je
-   LEFT JOIN traces t ON je.job_input_trace_id = t.id AND je.project_id = t.project_id
-   LEFT JOIN scores s ON je.job_output_score_id = s.id AND je.project_id = s.project_id
    WHERE je.project_id = ${projectId}
    ${filterCondition}
    AND je.status != 'CANCELLED'

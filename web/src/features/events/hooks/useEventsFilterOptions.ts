@@ -1,55 +1,46 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 import {
+  getFilterExpressionLeafFilters,
   normalizeFilterExpressionInput,
   type FilterInput,
+  type TimeFilter,
 } from "@langfuse/shared";
 
 type UseEventsFilterOptionsParams = {
   projectId: string;
   oldFilterState: FilterInput;
   hasParentObservation?: boolean;
+  isRootObservation?: boolean;
 };
 
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
   hasParentObservation,
+  isRootObservation,
 }: UseEventsFilterOptionsParams) {
   const filter = useMemo(() => {
-    const normalizedFilter = normalizeFilterExpressionInput(oldFilterState);
+    return normalizeFilterExpressionInput(oldFilterState);
+  }, [oldFilterState]);
 
-    if (hasParentObservation === undefined) {
-      return normalizedFilter;
-    }
-
-    const hasParentObservationFilter = {
-      column: "hasParentObservation",
-      type: "boolean" as const,
-      operator: "=" as const,
-      value: hasParentObservation,
-    };
-
-    if (!normalizedFilter) {
-      return {
-        type: "group" as const,
-        operator: "AND" as const,
-        conditions: [hasParentObservationFilter],
-      };
-    }
-
-    return {
-      type: "group" as const,
-      operator: "AND" as const,
-      conditions: [normalizedFilter, hasParentObservationFilter],
-    };
-  }, [oldFilterState, hasParentObservation]);
+  const startTimeFilters = useMemo(() => {
+    return getFilterExpressionLeafFilters(filter).filter(
+      (f): f is TimeFilter =>
+        (f.column === "Start Time" || f.column === "startTime") &&
+        f.type === "datetime",
+    );
+  }, [filter]);
 
   // Fetch filter options
   const filterOptions = api.events.filterOptions.useQuery(
     {
       projectId,
       filter,
+      startTimeFilter:
+        startTimeFilters.length > 0 ? startTimeFilters : undefined,
+      isRootObservation,
+      hasParentObservation,
     },
     {
       trpc: {
@@ -106,8 +97,7 @@ export function useEventsFilterOptions({
       experimentDatasetId: filterOptions.data?.experimentDatasetId ?? undefined,
       experimentId: filterOptions.data?.experimentId ?? undefined,
       experimentName: filterOptions.data?.experimentName ?? undefined,
-      hasParentObservation:
-        filterOptions.data?.hasParentObservation ?? undefined,
+      isRootObservation: filterOptions.data?.isRootObservation ?? undefined,
       toolNames: filterOptions.data?.toolNames ?? undefined,
       calledToolNames: filterOptions.data?.calledToolNames ?? undefined,
       toolDefinitions: [],

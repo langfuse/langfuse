@@ -13,7 +13,11 @@ import {
   type RowHeight,
   getRowHeightTailwindClass,
 } from "@/src/components/table/data-table-row-height-switch";
-import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { TableTextLoadingCell } from "@/src/components/table/loading-cells";
+import {
+  type DataTableCellPadding,
+  type LangfuseColumnDef,
+} from "@/src/components/table/types";
 import { type ModelTableRow } from "@/src/components/table/use-cases/models";
 import {
   Table,
@@ -76,6 +80,9 @@ interface DataTableProps<TData, TValue> {
   hidePagination?: boolean;
   tableName: string;
   getRowClassName?: (row: TData) => string;
+  highlightAllRows?: boolean;
+  topAlignCells?: boolean;
+  cellPadding?: DataTableCellPadding;
 }
 
 export interface AsyncTableData<T> {
@@ -110,6 +117,15 @@ function isValidCssVariableName({
   return regex.test(name);
 }
 
+const INTERACTIVE_ROW_CLICK_SELECTOR =
+  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
+
+export const shouldIgnoreRowClickTarget = (target: EventTarget | null) => {
+  if (!(target instanceof Element)) return false;
+
+  return Boolean(target.closest(INTERACTIVE_ROW_CLICK_SELECTOR));
+};
+
 // These are the important styles to make sticky column pinning work!
 const getCommonPinningStyles = <TData,>(
   column: Column<TData>,
@@ -140,6 +156,17 @@ const getPinningClasses = <TData,>(column: Column<TData>): string => {
   );
 };
 
+const getCellPaddingClassName = (padding: DataTableCellPadding) => {
+  switch (padding) {
+    case "comfortable":
+      return "p-1";
+    case "none":
+      return "p-0 first:pl-0";
+    case "compact":
+      return "px-1";
+  }
+};
+
 export function DataTable<TData extends object, TValue>({
   columns,
   data,
@@ -163,6 +190,9 @@ export function DataTable<TData extends object, TValue>({
   hidePagination = false,
   tableName,
   getRowClassName,
+  highlightAllRows = false,
+  topAlignCells = false,
+  cellPadding = "compact",
 }: DataTableProps<TData, TValue>) {
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const rowheighttw = getRowHeightTailwindClass(rowHeight, customRowHeights);
@@ -224,7 +254,7 @@ export function DataTable<TData extends object, TValue>({
       columnOrder: columnOrder
         ? insertArrayAfterKey(columnOrder, flattedColumnsByGroup)
         : undefined,
-      rowSelection,
+      rowSelection: rowSelection ?? {},
       columnSizing,
       columnPinning,
     },
@@ -413,6 +443,9 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                highlightAllRows={highlightAllRows}
+                topAlignCells={topAlignCells}
+                cellPadding={cellPadding}
                 tableSnapshot={{
                   columnVisibility,
                   columnOrder,
@@ -430,6 +463,9 @@ export function DataTable<TData extends object, TValue>({
                 noResultsMessage={noResultsMessage}
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
+                highlightAllRows={highlightAllRows}
+                topAlignCells={topAlignCells}
+                cellPadding={cellPadding}
               />
             )}
           </Table>
@@ -475,6 +511,10 @@ interface TableBodyComponentProps<TData> {
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
+  highlightAllRows?: boolean;
+  topAlignCells?: boolean;
+  cellPadding?: DataTableCellPadding;
+  /** Used for React.memo comparison only */
   tableSnapshot?: {
     columnVisibility?: VisibilityState;
     columnOrder?: ColumnOrderState;
@@ -486,11 +526,13 @@ function TableRowComponent<TData>({
   row,
   onRowClick,
   getRowClassName,
+  highlightAllRows = false,
   children,
 }: {
   row: Row<TData>;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
+  highlightAllRows?: boolean;
   children: React.ReactNode;
 }) {
   const router = useRouter();
@@ -499,16 +541,24 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
-      onClick={(e) => onRowClick?.(row.original, e)}
+      onClick={(e) => {
+        if (shouldIgnoreRowClickTarget(e.target)) return;
+        onRowClick?.(row.original, e);
+      }}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
+          if (shouldIgnoreRowClickTarget(e.target)) return;
           onRowClick?.(row.original);
         }
       }}
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        selectedRowId && selectedRowId === row.id ? "bg-accent" : undefined,
+        (row.getIsSelected() || highlightAllRows) &&
+          "bg-muted/40 dark:bg-muted",
+        selectedRowId && selectedRowId === row.id
+          ? "bg-muted/40 dark:bg-muted"
+          : undefined,
         getRowClassName?.(row.original),
       )}
     >
@@ -527,18 +577,80 @@ function TableBodyComponent<TData>({
   noResultsMessage,
   onRowClick,
   getRowClassName,
+  highlightAllRows,
+  topAlignCells = false,
+  cellPadding = "compact",
+  tableSnapshot: _tableSnapshot,
 }: TableBodyComponentProps<TData>) {
+  const visibleColumns = table.getVisibleLeafColumns();
+  const skeletonRowCount = Math.max(
+    1,
+    Math.min(table.getState().pagination?.pageSize ?? 8, 8),
+  );
+
   return (
     <TableBody>
       {data.isLoading || !data.data ? (
-        <TableRow className="h-svh">
-          <TableCell
-            colSpan={columns.length}
-            className="content-start border-b text-center"
-          >
-            Loading...
-          </TableCell>
-        </TableRow>
+        Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
+          <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
+            {visibleColumns.map((column, columnIndex) => {
+              const columnDef = column.columnDef as LangfuseColumnDef<TData>;
+
+              return (
+                <TableCell
+                  key={`${column.id}-loading-cell-${rowIndex}`}
+                  className={cn(
+                    "overflow-hidden border-b text-xs first:pl-2",
+                    getCellPaddingClassName(
+                      columnDef.cellPadding ?? cellPadding,
+                    ),
+                    (rowHeight ?? "s") === "s" && "whitespace-nowrap",
+                    getPinningClasses(column),
+                  )}
+                  style={{
+                    width: `calc(var(--col-${column.id}-size) * 1px)`,
+                    ...getCommonPinningStyles(column),
+                  }}
+                >
+                  <div
+                    className={cn(
+                      "flex",
+                      (rowHeight ?? "s") === "s" && !topAlignCells
+                        ? "items-center"
+                        : "items-start",
+                      (rowHeight ?? "s") !== "s" && "py-1",
+                      rowheighttw,
+                    )}
+                  >
+                    {(() => {
+                      const loadingCell = columnDef.loadingCell;
+
+                      if (typeof loadingCell === "function") {
+                        return loadingCell();
+                      }
+
+                      if (loadingCell !== undefined) {
+                        return loadingCell;
+                      }
+
+                      return (
+                        <TableTextLoadingCell
+                          className={cn(
+                            "min-w-[3rem]",
+                            (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
+                            (rowIndex + columnIndex) % 4 === 1 && "w-1/2",
+                            (rowIndex + columnIndex) % 4 === 2 && "w-2/3",
+                            (rowIndex + columnIndex) % 4 === 3 && "w-5/6",
+                          )}
+                        />
+                      );
+                    })()}
+                  </div>
+                </TableCell>
+              );
+            })}
+          </TableRow>
+        ))
       ) : table.getRowModel().rows.length ? (
         table.getRowModel().rows.map((row) => (
           <TableRowComponent
@@ -546,17 +658,23 @@ function TableBodyComponent<TData>({
             row={row}
             onRowClick={onRowClick}
             getRowClassName={getRowClassName}
+            highlightAllRows={highlightAllRows}
           >
             {row.getVisibleCells().map((cell) => {
               const cellValue = cell.getValue();
               const isStringCell = typeof cellValue === "string";
               const isSmallRowHeight = (rowHeight ?? "s") === "s";
+              const columnDef = cell.column
+                .columnDef as LangfuseColumnDef<TData>;
 
               return (
                 <TableCell
                   key={cell.id}
                   className={cn(
-                    "overflow-hidden border-b px-1 text-xs first:pl-2",
+                    "overflow-hidden border-b text-xs first:pl-2",
+                    getCellPaddingClassName(
+                      columnDef.cellPadding ?? cellPadding,
+                    ),
                     isSmallRowHeight && "whitespace-nowrap",
                     getPinningClasses(cell.column),
                   )}
@@ -568,7 +686,9 @@ function TableBodyComponent<TData>({
                   <div
                     className={cn(
                       "flex",
-                      isSmallRowHeight ? "items-center" : "items-start",
+                      isSmallRowHeight && !topAlignCells
+                        ? "items-center"
+                        : "items-start",
                       !isSmallRowHeight && "py-1",
                       rowheighttw,
                     )}
@@ -646,6 +766,8 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.data.isLoading !== next.data.isLoading) return false;
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
+  if (prev.highlightAllRows !== next.highlightAllRows) return false;
+  if (prev.cellPadding !== next.cellPadding) return false;
 
   // Then do more expensive deep equality checks
   if (

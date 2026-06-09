@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { type Provider } from "next-auth/providers/index";
 import GoogleProvider from "next-auth/providers/google";
 import GitHubProvider from "next-auth/providers/github";
@@ -38,7 +39,7 @@ let cachedSsoConfigs: {
 async function getSsoConfigs(): Promise<SsoProviderSchema[]> {
   if (!multiTenantSsoAvailable) return [];
 
-  const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+  const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
   const FAILEDTOFETCH_RETRY_AFTER = 60 * 1000; // 1 minute
   const DB_MAX_WAIT = 2 * 1000; // 2 seconds
   const DB_TIMEOUT = 3 * 1000; // 3 seconds
@@ -150,21 +151,41 @@ type TokenEndpointAuthMethod =
   | "self_signed_tls_client_auth"
   | "none";
 
+type IdTokenSignedResponseAlg =
+  | "RS256"
+  | "RS384"
+  | "RS512"
+  | "ES256"
+  | "ES384"
+  | "ES512"
+  | "PS256"
+  | "PS384"
+  | "PS512"
+  | "HS256"
+  | "HS384"
+  | "HS512";
+
 /**
- * Returns the NextAuth `client` config for token endpoint auth method if configured.
+ * Returns the NextAuth `client` config for token endpoint auth method and/or
+ * id_token_signed_response_alg if configured.
  */
 const getClientConfig = (authConfig: {
   tokenEndpointAuthMethod?: TokenEndpointAuthMethod;
-}):
-  | { client: { token_endpoint_auth_method: TokenEndpointAuthMethod } }
-  | Record<string, never> =>
-  authConfig.tokenEndpointAuthMethod
-    ? {
-        client: {
-          token_endpoint_auth_method: authConfig.tokenEndpointAuthMethod,
-        },
-      }
-    : {};
+  idTokenSignedResponseAlg?: IdTokenSignedResponseAlg;
+}): { client: Record<string, string> } | Record<string, never> => {
+  const clientConfig: Record<string, string> = {};
+
+  if (authConfig.tokenEndpointAuthMethod) {
+    clientConfig["token_endpoint_auth_method"] =
+      authConfig.tokenEndpointAuthMethod;
+  }
+  if (authConfig.idTokenSignedResponseAlg) {
+    clientConfig["id_token_signed_response_alg"] =
+      authConfig.idTokenSignedResponseAlg;
+  }
+
+  return Object.keys(clientConfig).length > 0 ? { client: clientConfig } : {};
+};
 
 /**
  * Converts a SsoProviderConfig to a NextAuth Provider instance.
@@ -188,6 +209,7 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      issuer: "https://github.com/login/oauth",
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "gitlab")
@@ -225,14 +247,60 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "azure-ad")
-    return AzureADProvider({
+  else if (provider.authProvider === "azure-ad") {
+    const ssoDomain = provider.domain.toLowerCase();
+    const azureProvider = AzureADProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
       ...getClientConfig(provider.authConfig),
     });
-  else if (provider.authProvider === "cognito")
+
+    // Some Entra tenants emit an external/personal address in the `email`
+    // claim while the actual tenant UPN sits in `preferred_username` / `upn`.
+    // When the email's domain doesn't match the configured SSO domain, fall
+    // back to whichever of those is a valid email matching `ssoDomain` so the
+    // reverse-domain check in src/server/auth.ts doesn't reject the user.
+    // If nothing matches, leave `user.email` untouched and let the existing
+    // check throw — we don't want to log in a user with no claim tying them
+    // to the configured tenant domain.
+    const baseProfile = azureProvider.profile;
+    azureProvider.profile = async (rawProfile, tokens) => {
+      const user = await baseProfile(rawProfile, tokens);
+
+      const emailDomain = user.email?.toLowerCase().split("@")[1];
+      if (emailDomain === ssoDomain) {
+        return user;
+      }
+
+      const candidates = [
+        (rawProfile as Record<string, unknown>).preferred_username,
+        (rawProfile as Record<string, unknown>).upn,
+      ]
+        .filter((v): v is string => typeof v === "string")
+        .map((v) => v.toLowerCase())
+        .filter((v) => z.email().safeParse(v).success);
+
+      const fallback = candidates.find((c) => c.split("@")[1] === ssoDomain);
+
+      if (fallback) {
+        logger.info(
+          "Multi-tenant SSO (azure-ad): email claim domain did not match configured SSO domain; falling back to preferred_username/upn",
+          {
+            providerId: getAuthProviderIdForSsoConfig(provider),
+            ssoDomain,
+            originalEmailDomain: emailDomain ?? null,
+            // do NOT log raw email values — PII
+          },
+        );
+        user.email = fallback;
+      }
+
+      return user;
+    };
+
+    return azureProvider;
+  } else if (provider.authProvider === "cognito")
     return CognitoProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
@@ -264,6 +332,8 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       enterprise: {
         baseUrl: provider.authConfig.enterprise.baseUrl,
       },
+      issuer: new URL("/login/oauth", provider.authConfig.enterprise.baseUrl)
+        .href,
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "jumpcloud")

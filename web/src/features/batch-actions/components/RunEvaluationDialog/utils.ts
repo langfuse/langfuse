@@ -1,12 +1,13 @@
 import {
   combineFilterInputs,
-  extractValueFromObject,
+  extractValueFromObjectAsString,
   type BatchActionQuery,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
 import { type RouterOutputs } from "@/src/utils/api";
 
 type ObservationPreview = RouterOutputs["observations"]["byId"];
+type EventPreview = RouterOutputs["events"]["batchIO"][number];
 
 const PROMPT_PREVIEW_CHAR_LIMIT = 2000;
 
@@ -31,7 +32,7 @@ export function stringifyPreviewValue(value: unknown): string {
 export function renderPromptPreviewFromObservation(params: {
   prompt: string | null | undefined;
   variableMapping: ObservationVariableMapping[];
-  observation: ObservationPreview;
+  observation: ObservationPreview | EventPreview;
 }): string {
   const { prompt, variableMapping, observation } = params;
 
@@ -42,7 +43,7 @@ export function renderPromptPreviewFromObservation(params: {
   const variableValues = new Map<string, string>();
 
   for (const mapping of variableMapping) {
-    const { value } = extractValueFromObject(
+    const { value } = extractValueFromObjectAsString(
       observation,
       mapping.selectedColumnId,
       mapping.jsonSelector ?? undefined,

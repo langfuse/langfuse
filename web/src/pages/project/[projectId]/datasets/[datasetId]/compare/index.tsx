@@ -24,6 +24,7 @@ import {
 } from "@/src/features/datasets/contexts/ActiveCellContext";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 function DatasetCompareInternal() {
   const router = useRouter();
@@ -45,7 +46,6 @@ function DatasetCompareInternal() {
     runs,
     dataset,
     runsData,
-    localRuns,
     handleExperimentSettled: handleExperimentSettledBase,
     setRunState,
     setLocalRuns,
@@ -82,7 +82,11 @@ function DatasetCompareInternal() {
   };
 
   if (!runsData.data || runs.length === 0) {
-    return <span>Loading...</span>;
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner size="xl" variant="muted" />
+      </div>
+    );
   }
 
   return (
@@ -138,7 +142,7 @@ function DatasetCompareInternal() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
@@ -171,7 +175,7 @@ function DatasetCompareInternal() {
                       | undefined;
                     if (baselineRunId === changedValueId) {
                       const { baseline, ...restQuery } = router.query;
-                      void router.push({
+                      router.push({
                         pathname: router.pathname,
                         query: { ...restQuery, runs: newRunIds },
                       });
@@ -194,7 +198,6 @@ function DatasetCompareInternal() {
             projectId={projectId}
             datasetId={datasetId}
             runIds={runIds ?? []}
-            localExperiments={localRuns}
           />
         </div>
         <SidePanel

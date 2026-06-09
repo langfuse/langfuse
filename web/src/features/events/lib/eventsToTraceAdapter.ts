@@ -1,6 +1,10 @@
-import { type EventsObservation, type TraceDomain } from "@langfuse/shared";
+import { type MetadataDomain, type TraceDomain } from "@langfuse/shared";
+import { type FullEventsObservations } from "@langfuse/shared/src/server";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
-import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
+import {
+  stringifyMetadata,
+  type WithStringifiedMetadata,
+} from "@/src/utils/clientSideDomainTypes";
 
 export type SyntheticTrace = WithStringifiedMetadata<
   Omit<TraceDomain, "input" | "output">
@@ -17,6 +21,10 @@ export interface AdaptedTraceData {
   observations: ObservationReturnTypeWithMetadata[];
 }
 
+export type EventsTraceObservation = WithStringifiedMetadata<
+  FullEventsObservations[number]
+>;
+
 /**
  * Adapts events (observations from events table) to the trace format expected by the Trace component.
  *
@@ -24,9 +32,13 @@ export interface AdaptedTraceData {
  * The root observation (no parentObservationId) provides trace-level properties like name.
  */
 export function adaptEventsToTraceFormat(params: {
-  events: EventsObservation[];
+  events: EventsTraceObservation[];
   traceId: string;
-  rootIO?: { input: unknown; output: unknown; metadata?: unknown } | null;
+  rootIO?: {
+    input: string | null;
+    output: string | null;
+    metadata?: MetadataDomain | string | null;
+  } | null;
 }): AdaptedTraceData {
   const { events, traceId, rootIO } = params;
 
@@ -40,8 +52,27 @@ export function adaptEventsToTraceFormat(params: {
   );
   const earliest = sorted[0]!;
 
-  // TODO: think, how to determine root span?
+  // Prefer the explicit root observation when present; otherwise fall back to
+  // the earliest observation so the synthetic trace remains self-consistent.
   const root = events.find((e) => !e.parentObservationId);
+  const primaryObservation = root ?? earliest;
+
+  const latestTaggedEvent = events.reduce<EventsTraceObservation | null>(
+    (latest, event) => {
+      if (event.traceTags.length === 0) return latest;
+      if (!latest) return event;
+
+      if (event.updatedAt.getTime() > latest.updatedAt.getTime()) return event;
+      if (event.updatedAt.getTime() < latest.updatedAt.getTime()) return latest;
+
+      return event.createdAt.getTime() > latest.createdAt.getTime()
+        ? event
+        : latest;
+    },
+    null,
+  );
+
+  const traceTags = latestTaggedEvent?.traceTags;
 
   const endTimes = events
     .map((e) => e.endTime)
@@ -56,24 +87,27 @@ export function adaptEventsToTraceFormat(params: {
   const trace: SyntheticTrace = {
     id: traceId,
     projectId: earliest.projectId,
-    name: root?.name ?? earliest.name ?? null,
+    name: primaryObservation.name ?? null,
     timestamp: earliest.startTime,
-    input: rootIO?.input ? JSON.stringify(rootIO.input) : null,
-    output: rootIO?.output ? JSON.stringify(rootIO.output) : null,
-    metadata: JSON.stringify(rootIO?.metadata ?? root?.metadata ?? {}),
-    tags: [], // Events have tags on each observation, not trace-level
-    bookmarked: root?.bookmarked ?? false,
-    public: root?.public ?? false,
-    release: earliest.version ?? null,
-    version: earliest.version ?? null,
-    userId: earliest.userId ?? null,
-    sessionId: earliest.sessionId ?? null,
-    environment: earliest.environment,
+    input: rootIO?.input ?? null,
+    output: rootIO?.output ?? null,
+    metadata:
+      stringifyMetadata(
+        rootIO?.metadata ?? primaryObservation?.metadata ?? {},
+      ) ?? "{}",
+    tags: traceTags ?? [],
+    bookmarked: primaryObservation?.bookmarked ?? false,
+    public: primaryObservation?.public ?? false,
+    release: primaryObservation.release ?? null,
+    version: primaryObservation.version ?? null,
+    userId: primaryObservation.userId ?? null,
+    sessionId: primaryObservation.sessionId ?? null,
+    environment: primaryObservation.environment,
     latency: latencyMs !== undefined ? latencyMs / 1000 : undefined,
-    createdAt: earliest.createdAt,
-    updatedAt: earliest.updatedAt,
-    rootObservationType: root?.type,
-    rootObservationId: root?.id,
+    createdAt: primaryObservation.createdAt,
+    updatedAt: primaryObservation.updatedAt,
+    rootObservationType: primaryObservation.type,
+    rootObservationId: primaryObservation.id,
   };
 
   // Map events to ObservationReturnTypeWithMetadata
@@ -81,8 +115,7 @@ export function adaptEventsToTraceFormat(params: {
   const observations: ObservationReturnTypeWithMetadata[] = events.map((e) => ({
     ...e,
     traceId: traceId,
-    metadata:
-      typeof e.metadata === "string" ? e.metadata : JSON.stringify(e.metadata),
+    metadata: stringifyMetadata(e.metadata) ?? null,
     input: undefined,
     output: undefined,
   }));

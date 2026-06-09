@@ -6,6 +6,7 @@ import {
   ObservationLevel,
   PrismaClient,
   Prompt,
+  type JsonNested,
 } from "@langfuse/shared";
 import {
   ClickhouseClientType,
@@ -42,12 +43,11 @@ import {
   validateAndInflateScore,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
+  InternalTraceEventInput,
   traceException,
   flattenJsonToPathArrays,
   getDatasetItemById,
-  extractToolsFromObservation,
-  convertDefinitionsToMap,
-  convertCallsToArrays,
+  normalizeToolsForObservation,
   hasNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 
@@ -80,104 +80,7 @@ type InsertRecord =
   | ScoreRecordInsertType
   | ObservationRecordInsertType
   | DatasetRunItemRecordInsertType;
-
-/**
- * Flexible input type for writing events to the events table.
- * This is intentionally loose to allow for iteration as the events
- * table schema evolves. Only required fields are enforced.
- */
-export type EventInput = {
-  // Required identifiers
-  projectId: string;
-  traceId: string;
-  spanId: string;
-  startTimeISO: string;
-
-  // Optional identifiers
-  orgId?: string;
-  parentSpanId?: string;
-
-  // Core properties
-  name?: string;
-  type?: string;
-  environment?: string;
-  version?: string;
-  release?: string;
-  endTimeISO: string;
-  completionStartTime?: string;
-
-  traceName?: string;
-  tags?: string[];
-  bookmarked?: boolean;
-  public?: boolean;
-
-  // User/session
-  userId?: string;
-  sessionId?: string;
-  level?: string;
-  statusMessage?: string;
-
-  // Prompt
-  promptId?: string;
-  promptName?: string;
-  promptVersion?: string;
-
-  // Model
-  modelId?: string;
-  modelName?: string;
-  modelParameters?: string | Record<string, unknown>;
-
-  // Usage & Cost
-  providedUsageDetails?: Record<string, number>;
-  usageDetails?: Record<string, number>;
-  providedCostDetails?: Record<string, number>;
-  costDetails?: Record<string, number>;
-
-  // Tool Calls
-  toolDefinitions?: Record<string, string>;
-  toolCalls?: string[];
-  toolCallNames?: string[];
-
-  // I/O
-  input?: string;
-  output?: string;
-
-  // Metadata
-  // metadata can be a complex nested object with attributes, resourceAttributes, scopeAttributes, etc.
-  metadata: Record<string, unknown>;
-
-  // Source/instrumentation metadata
-  source: string;
-  serviceName?: string;
-  serviceVersion?: string;
-  scopeName?: string;
-  scopeVersion?: string;
-  telemetrySdkLanguage?: string;
-  telemetrySdkName?: string;
-  telemetrySdkVersion?: string;
-
-  // Storage
-  blobStorageFilePath?: string;
-  eventRaw?: string;
-  eventBytes?: number;
-
-  // Experiment fields
-  experimentId?: string;
-  experimentName?: string;
-  experimentMetadataNames?: string[];
-  experimentMetadataValues?: Array<string | null | undefined>;
-  experimentDescription?: string;
-  experimentDatasetId?: string;
-  experimentItemId?: string;
-  experimentItemVersion?: string;
-  experimentItemRootSpanId?: string;
-  experimentItemExpectedOutput?: string;
-  experimentItemMetadataNames?: string[];
-  experimentItemMetadataValues?: Array<string | null | undefined>;
-
-  // Catch-all for future fields
-  [key: string]: any;
-};
+export type EventInput = InternalTraceEventInput;
 
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
@@ -313,6 +216,12 @@ export class IngestionService {
       `Creating event record for project ${eventData.projectId} and span ${eventData.spanId}`,
     );
 
+    // processToEvent can keep normalized input/output as objects so tool data
+    // can be extracted before write time. EventRecordInsertType stores both
+    // fields as strings, so stringify at this schema boundary.
+    const input = this.stringify(eventData.input);
+    const output = this.stringify(eventData.output);
+
     // Perform lookups for prompt and model/usage enrichment
     const [prompt, generationUsage] = await Promise.all([
       // Lookup prompt by name and version
@@ -338,8 +247,8 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
-              input: eventData.input,
-              output: eventData.output,
+              input,
+              output,
             },
           })
         : null,
@@ -376,6 +285,7 @@ export class IngestionService {
       tags: eventData.tags ?? [],
       bookmarked: eventData.bookmarked ?? false,
       public: eventData.public ?? false,
+      is_app_root: eventData.isAppRoot ?? false,
 
       // Trace-level attributes: Name/User/session
       trace_name: eventData.traceName,
@@ -424,8 +334,8 @@ export class IngestionService {
       tool_call_names: eventData.toolCallNames ?? [],
 
       // I/O
-      input: eventData.input,
-      output: eventData.output,
+      input,
+      output,
 
       // Metadata
       metadata_names: metadataNames,
@@ -896,42 +806,38 @@ export class IngestionService {
     // Search for the first non-null input and output in the observation events and set them on the merged result.
     // Fallback to the ClickHouse input/output if none are found within the events list.
     const reversedRawRecords = timeSortedEvents.slice().reverse();
-    mergedObservationRecord.input = this.stringify(
+    const rawInput =
       reversedRawRecords.find((record) => record?.body?.input)?.body?.input ??
-        clickhouseObservationRecord?.input,
-    );
-    mergedObservationRecord.output = this.stringify(
+      clickhouseObservationRecord?.input;
+    const rawOutput =
       reversedRawRecords.find((record) => record?.body?.output)?.body?.output ??
-        clickhouseObservationRecord?.output,
+      clickhouseObservationRecord?.output;
+    const normalizedTools = normalizeToolsForObservation(
+      rawInput,
+      rawOutput,
+      mergedObservationRecord.metadata,
     );
 
-    // Extract tool definitions and calls from raw input/output
-    try {
-      const rawInput = reversedRawRecords.find((record) => record?.body?.input)
-        ?.body?.input;
-      const rawOutput = reversedRawRecords.find(
-        (record) => record?.body?.output,
-      )?.body?.output;
+    mergedObservationRecord.input = this.stringify(normalizedTools.input);
+    mergedObservationRecord.output = this.stringify(normalizedTools.output);
+    const normalizedMetadata = normalizedTools.metadata ?? {};
+    mergedObservationRecord.metadata =
+      normalizedMetadata &&
+      typeof normalizedMetadata === "object" &&
+      !Array.isArray(normalizedMetadata)
+        ? convertRecordValuesToString(
+            normalizedMetadata as Record<string, unknown>,
+          )
+        : convertJsonSchemaToRecord(normalizedMetadata as JsonNested);
 
-      const { toolDefinitions, toolArguments } = extractToolsFromObservation(
-        rawInput,
-        rawOutput,
-      );
+    if (Object.keys(normalizedTools.toolDefinitions).length > 0) {
+      mergedObservationRecord.tool_definitions =
+        normalizedTools.toolDefinitions;
+    }
 
-      if (toolDefinitions.length > 0) {
-        mergedObservationRecord.tool_definitions =
-          convertDefinitionsToMap(toolDefinitions);
-      }
-
-      if (toolArguments.length > 0) {
-        const { tool_calls, tool_call_names } =
-          convertCallsToArrays(toolArguments);
-        mergedObservationRecord.tool_calls = tool_calls;
-        mergedObservationRecord.tool_call_names = tool_call_names;
-      }
-    } catch (error) {
-      logger.error("Tool extraction failed", { error, projectId, entityId });
-      // Don't fail ingestion - just skip tool data
+    if (normalizedTools.toolCalls.length > 0) {
+      mergedObservationRecord.tool_calls = normalizedTools.toolCalls;
+      mergedObservationRecord.tool_call_names = normalizedTools.toolCallNames;
     }
 
     const generationUsage = await this.getGenerationUsage({

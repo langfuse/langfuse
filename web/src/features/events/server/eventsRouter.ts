@@ -7,12 +7,17 @@ import {
 import {
   getFilterExpressionLeafFilters,
   filterInput,
-  type Observation,
   type OrderByState,
   normalizeFilterExpressionInput,
   normalizeOrderByForTable,
   paginationZod,
+  timeFilter,
 } from "@langfuse/shared";
+import {
+  toDomainArrayWithStringifiedMetadata,
+  toDomainWithStringifiedMetadata,
+  type MetadataDomainClient,
+} from "@/src/utils/clientSideDomainTypes";
 import { EventsTableOptions } from "./types";
 import {
   getEventList,
@@ -28,6 +33,7 @@ import {
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
   applyCommentFiltersToFilterInput,
+  getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 
 import {
@@ -40,16 +46,22 @@ const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
 });
 
-export type EventBatchIOOutput = Pick<
-  Observation,
-  "id" | "input" | "output" | "metadata"
->;
+export type EventBatchIOOutput = {
+  id: string;
+  input: string | null;
+  output: string | null;
+  metadata: MetadataDomainClient;
+};
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
   filter: filterInput.optional(),
+  startTimeFilter: zodSchema.array(timeFilter).optional(),
+  isRootObservation: zodSchema.boolean().optional(),
+  hasParentObservation: zodSchema.boolean().optional(),
+  observationType: zodSchema.string().optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -115,7 +127,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   countAll: protectedProjectProcedure
-    .input(GetAllEventsInput)
+    .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } =
         await applyCommentFiltersToFilterInput({
@@ -173,6 +185,14 @@ export const eventsRouter = createTRPCRouter({
           return getEventFilterOptions({
             projectId: ctx.session.projectId,
             filter: input.filter,
+            startTimeFilter: input.startTimeFilter,
+            isRootObservation:
+              input.isRootObservation ??
+              (input.hasParentObservation !== undefined
+                ? !input.hasParentObservation
+                : undefined), // backward compat for legacy hasParentObservation filterOption
+            hasParentObservation: input.hasParentObservation,
+            observationType: input.observationType,
           });
         },
       );
@@ -186,13 +206,37 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", ctx.session.projectId);
           span.setAttribute("observation_count", input.observations.length);
 
-          return getEventBatchIO({
+          const batchIO = await getEventBatchIO({
             projectId: ctx.session.projectId,
             observations: input.observations,
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
           });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
+  experimentBatchIO: protectedProjectProcedure
+    .input(BatchIOInput)
+    .query(async ({ input, ctx }) => {
+      return instrumentAsync(
+        { name: "get-experiment-batch-io-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("observation_count", input.observations.length);
+
+          const batchIO = await getEventBatchIO({
+            projectId: ctx.session.projectId,
+            observations: input.observations,
+            minStartTime: input.minStartTime,
+            maxStartTime: input.maxStartTime,
+            truncated: input.truncated,
+            includeExperimentFields: true,
+          });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
     }),
@@ -251,7 +295,7 @@ export const eventsRouter = createTRPCRouter({
             });
 
           return {
-            observations,
+            observations: toDomainArrayWithStringifiedMetadata(observations),
             cutoffObservationsAfterMaxCount:
               totalCount > MAX_OBSERVATIONS_PER_TRACE,
           };
@@ -343,6 +387,23 @@ export const eventsRouter = createTRPCRouter({
         );
       },
     ),
+  /**
+   * Get SDK metadata for a project.
+   * Returns info about the SDK being used (name, version, language).
+   */
+  getSdkVersionInfo: protectedProjectProcedure
+    .input(zodSchema.object({ projectId: zodSchema.string() }))
+    .query(async ({ input }) => {
+      return instrumentAsync(
+        { name: "get-sdk-metadata-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          return getLatestSdkVersionInfoFromEvents({
+            projectId: input.projectId,
+          });
+        },
+      );
+    }),
 });
 
 export const addAttributesToSpan = ({

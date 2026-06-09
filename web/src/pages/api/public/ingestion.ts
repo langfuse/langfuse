@@ -7,6 +7,7 @@ import {
   logger,
   getCurrentSpan,
   contextWithLangfuseProps,
+  eventTypes,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -22,6 +23,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import * as opentelemetry from "@opentelemetry/api";
+import { env } from "@/src/env.mjs";
 
 export const config = {
   api: {
@@ -96,6 +98,7 @@ export default async function handler(
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       projectId: authCheck.scope.projectId,
+      apiKeyId: authCheck.scope.apiKeyId,
     });
     // Execute the rest of the handler within the context
     return opentelemetry.context.with(ctx, async () => {
@@ -131,10 +134,20 @@ export default async function handler(
       }
 
       await telemetry();
-      const result = await processEventBatch(
+
+      // V4 events_only mode: refuse trace/observation events because their
+      // writes would land in the legacy ClickHouse tables this deployment no
+      // longer reads. Scores and SDK logs are unaffected and pass through.
+      // Reject per-event so a mixed batch still processes its score events.
+      const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
         parsedSchema.data.batch,
-        authCheck,
+        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only",
       );
+
+      const result = await processEventBatch(batchForProcessing, authCheck);
+      if (rejectedErrors.length > 0) {
+        result.errors = [...result.errors, ...rejectedErrors];
+      }
       return res.status(207).json(result);
     });
   } catch (error: unknown) {
@@ -171,4 +184,62 @@ export default async function handler(
       errors: [errorMessage],
     });
   }
+}
+
+// Event types that may continue to ingest in V4 events_only mode. Scores keep
+// their own ClickHouse table (no legacy traces/observations write); SDK logs
+// are non-persisting.
+const EVENTS_ONLY_ALLOWED_TYPES = new Set<string>([
+  eventTypes.SCORE_CREATE,
+  eventTypes.SDK_LOG,
+  eventTypes.DATASET_RUN_ITEM_CREATE,
+]);
+
+function filterBatchForEventsOnly(
+  batch: unknown[],
+  isEventsOnlyMode: boolean,
+): {
+  batchForProcessing: unknown[];
+  rejectedErrors: {
+    id: string;
+    status: number;
+    message: string;
+    error: string;
+  }[];
+} {
+  if (!isEventsOnlyMode) {
+    return { batchForProcessing: batch, rejectedErrors: [] };
+  }
+
+  const batchForProcessing: unknown[] = [];
+  const rejectedErrors: {
+    id: string;
+    status: number;
+    message: string;
+    error: string;
+  }[] = [];
+
+  for (const event of batch) {
+    const eventObj =
+      typeof event === "object" && event !== null
+        ? (event as { id?: unknown; type?: unknown })
+        : null;
+    const type =
+      eventObj && typeof eventObj.type === "string" ? eventObj.type : null;
+    const id =
+      eventObj && typeof eventObj.id === "string" ? eventObj.id : "unknown";
+
+    if (type && EVENTS_ONLY_ALLOWED_TYPES.has(type)) {
+      batchForProcessing.push(event);
+    } else {
+      rejectedErrors.push({
+        id,
+        status: 400,
+        message: "Event type not accepted",
+        error: `Event type "${type ?? "unknown"}" is not accepted by /api/public/ingestion when LANGFUSE_MIGRATION_V4_WRITE_MODE is events_only. This endpoint only accepts score, log, and dataset-run-item events.`,
+      });
+    }
+  }
+
+  return { batchForProcessing, rejectedErrors };
 }

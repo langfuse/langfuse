@@ -30,7 +30,27 @@ export {
   createFilterTreeFromFilterExpression,
   createFilterTreeFromFilterInput,
 } from "./clickhouse-sql/factory";
-export { clickhouseSearchCondition } from "./clickhouse-sql/search";
+export {
+  clickhouseSearchCondition,
+  type ClickhouseSearchConditionOptions,
+} from "./clickhouse-sql/search";
+export {
+  FTS_EVENTS_TABLES,
+  FTS_MATCH_OPERATOR,
+  FTS_METADATA_FIELD,
+  FTS_TEXT_FIELDS,
+  FTS_TEXT_OPERATORS,
+  bareFtsField,
+  hasFtsSearchToken,
+  isFtsAcceleratedIoOperator,
+  isFtsEventsTable,
+  isFtsMatchOperator,
+  isFtsMetadataField,
+  isFtsMetadataTarget,
+  isFtsTextField,
+  isFtsTextTarget,
+} from "./clickhouse-sql/fts";
+export { postgresSearchCondition } from "./postgres-sql/search";
 export {
   convertApiProvidedFilterToClickhouseFilter,
   createPublicApiObservationsColumnMapping,
@@ -45,6 +65,7 @@ export {
   EventsSessionAggregationQueryBuilder,
   EventsQueryBuilder,
   ExperimentsAggregationQueryBuilder,
+  OBSERVATION_FIELD_GROUP_FIELD_NAMES,
   buildEventsFullTableSplitQuery,
   type CTESchema,
   type CTEWithSchema,

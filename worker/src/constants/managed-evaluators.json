@@ -96,6 +96,60 @@
     "prompt": "Evaluate the conciseness of the generation on a continuous scale from 0 to 1. A generation can be considered concise (Score: 1) if it directly and succinctly answers the question posed, focusing specifically on the information requested without including unnecessary, irrelevant, or excessive details.\n\nExample:\nQuery: Can eating carrots improve your vision?\nGeneration: Yes, eating carrots significantly improves your vision, especially at night. This is why people who eat lots of carrots never need glasses. Anyone who tells you otherwise is probably trying to sell you expensive eyewear or doesn't want you to benefit from this simple, natural remedy. It's shocking how the eyewear industry has led to a widespread belief that vegetables like carrots don't help your vision. People are so gullible to fall for these money-making schemes.\nScore: 0.3\nReasoning: The query could have been answered by simply stating that eating carrots can improve ones vision but the actual generation included a lot of unasked supplementary information which makes it not very concise. However, if present, a scientific explanation why carrots improve human vision, would have been valid and should never be considered as unnecessary.\n\nInput:\nQuery: {{query}}\nGeneration: {{generation}}\n\nThink step by step."
   },
   {
+    "id": "cmal6wart010lynrdtpv6olal",
+    "created_at": "2026-05-12T10:00:00.000Z",
+    "updated_at": "2026-05-12T10:00:00.000Z",
+    "name": "User Distress",
+    "version": 1,
+    "outputDefinition": {
+      "version": 2,
+      "dataType": "BOOLEAN",
+      "score": {
+        "description": "Return true if the last user message contains explicit profanity or strong frustration beyond mild annoyance; otherwise return false."
+      },
+      "reasoning": {
+        "description": "One concise explanation referencing the main distress signal or why it does not qualify."
+      }
+    },
+    "prompt": "You are a User Distress Judge evaluating an LLM-based customer support assistant.\nYou will be provided with a transcript of the conversation between the assistant and the user, along with the last user message separately.\nYour job is to decide whether the last user message contains profanity, explicit language, strong expletives, or clear intense frustration beyond mild annoyance.\n\n## Important Constraints\n- Judge the last user message only, not the assistant's responses.\n- Do not assume knowledge about the specific product or service being supported.\n- Score true for explicit profanity, strong expletives, or strong frustration that clearly goes beyond mild annoyance.\n- Mild expressions such as \"this is annoying\", \"ugh\", or \"seriously?\" do not count.\n- If there is no prior assistant message in conversation_history, still judge based solely on last_user_message.\n\n## Decision Rules\nScore true if the last user message includes at least one of the following:\n- Explicit profanity or strong expletives.\n- Profanity directed at the assistant, product, or situation.\n- Strong frustration without profanity that clearly goes beyond mild annoyance.\n\nScore false when the message only shows mild irritation, asks a blunt question, or requests escalation without profanity or intense frustration.\n\n## Examples (few-shot)\n\nExample 1 - Explicit profanity directed at the assistant\nLast user message: What the fuck, I've followed every step you gave me and it still doesn't work.\nscore: true\nreasoning: The user uses explicit profanity (\"what the fuck\") while expressing strong frustration with the failed guidance.\n\nExample 2 - Profanity directed at the product\nLast user message: This fucking feature has been broken for weeks, why is nobody fixing it?\nscore: true\nreasoning: The message includes explicit profanity (\"fucking\") and clear frustration about the product.\n\nExample 3 - Strong frustration without profanity\nLast user message: This is absolutely useless. I've been trying to sort this out for an hour and nothing works.\nscore: true\nreasoning: The user expresses intense frustration (\"absolutely useless\") that clearly goes beyond mild annoyance.\n\nExample 4 - Mild frustration only\nLast user message: Ugh, seriously? I already tried that three times.\nscore: false\nreasoning: The message shows mild frustration but does not include profanity or sufficiently strong distress.\n\nExample 5 - Neutral escalation request\nLast user message: OK that still didn't work. Can I speak to someone?\nscore: false\nreasoning: The user is frustrated but does not use profanity or strong expletive-level language.\n\nInput:\nConversation history: {{conversation_history}}\nLast user message: {{last_user_message}}\n\nThink step by step and return the structured result."
+  },
+  {
+    "id": "cmal6wart010lynrdtpv6olam",
+    "created_at": "2026-05-12T10:00:00.000Z",
+    "updated_at": "2026-05-12T10:00:00.000Z",
+    "name": "User Disagreement",
+    "version": 1,
+    "outputDefinition": {
+      "version": 2,
+      "dataType": "BOOLEAN",
+      "score": {
+        "description": "Return true if the last user message signals disagreement with or rejection of the immediately preceding assistant response; otherwise return false."
+      },
+      "reasoning": {
+        "description": "One concise explanation referencing the main disagreement signal or why it does not apply."
+      }
+    },
+    "prompt": "You are a User Disagreement Judge evaluating an LLM-based customer support assistant.\nYou will be provided with a transcript of the conversation between the assistant and the user, along with the last user message separately.\nYour job is to decide whether the last user message explicitly or implicitly signals disagreement with, rejection of, or dissatisfaction about the immediately preceding assistant response.\n\n## Important Constraints\n- Judge the user's stance toward the assistant's prior response, not whether the product or service itself is functioning correctly.\n- The assistant response to judge against is the final assistant turn in conversation_history.\n- Do not assume knowledge about the specific product or service being supported.\n- If there is no prior assistant message in conversation_history, score false.\n\n## Decision Rules\nScore true if at least one of the following is true:\n- The user directly says the assistant is wrong, misunderstood them, or did not answer the question.\n- The user says they cannot find the option, setting, or step the assistant referenced.\n- The user says they followed the instructions and the problem still persists.\n- The user repeats or rephrases the same request in a way that implies the previous answer missed the mark.\n\nScore false when the user asks a neutral follow-up, expands to a new related question, requests escalation without blaming the answer, or reports a general product issue without tying it to the assistant's guidance.\n\n## Examples (few-shot)\n\nExample 1 - Direct rejection\nConversation history: [... assistant: \"You can find that setting under Billing > Plans.\"]\nLast user message: That's not right. There is no Plans tab in Billing.\nscore: true\nreasoning: The user directly rejects the assistant's prior answer and says the referenced UI element does not exist.\n\nExample 2 - Followed steps but they failed\nConversation history: [... assistant: \"Clear your browser cache and try reconnecting the integration.\"]\nLast user message: I already did that and it still doesn't work.\nscore: true\nreasoning: The user reports that they followed the assistant's instructions and the problem persists.\n\nExample 3 - Neutral clarification\nConversation history: [... assistant: \"Exports are available on the Settings page.\"]\nLast user message: Does that work for team admins too?\nscore: false\nreasoning: The user asks a follow-up question without implying the prior answer was wrong or unhelpful.\n\nExample 4 - Product issue, not disagreement\nConversation history: [... assistant: \"Our status page is the best place to check outages.\"]\nLast user message: The app is still down for me.\nscore: false\nreasoning: The user reports a product issue but does not explicitly reject the assistant's prior guidance.\n\nInput:\nConversation history: {{conversation_history}}\nLast user message: {{last_user_message}}\n\nThink step by step and return the structured result."
+  },
+  {
+    "id": "cmal6wart010lynrdtpv6olan",
+    "created_at": "2026-05-12T10:00:00.000Z",
+    "updated_at": "2026-05-12T10:00:00.000Z",
+    "name": "Out-of-Scope Request",
+    "version": 1,
+    "outputDefinition": {
+      "version": 2,
+      "dataType": "BOOLEAN",
+      "score": {
+        "description": "Return true if the last user message clearly requests something outside the scope defined by the system prompt; otherwise return false."
+      },
+      "reasoning": {
+        "description": "One concise explanation identifying the request, the agent scope, and why it is or is not out of scope."
+      }
+    },
+    "prompt": "You are an Out-of-Scope Request Judge evaluating an LLM-based customer support assistant.\nYou will be provided with the agent's system prompt and the last user message.\nYour job is to decide whether the last user message contains a request that falls outside the defined scope of the assistant, as established by the system prompt.\n\n## Important Constraints\n- The agent's scope is defined exclusively by the system prompt. Do not use any other source to infer scope.\n- Judge the last user message against the system prompt, not whether a hypothetical assistant would handle it well.\n- If the system prompt is empty or too vague to determine scope confidently, score false.\n- Do not penalize ambiguous edge cases that could reasonably fall within a broad reading of the scope.\n- A request being difficult, unusual, or niche does not make it out of scope on its own.\n\n## Decision Rules\nScore true only if BOTH are true:\n1. The last user message asks for something with no plausible connection to the agent's defined scope.\n2. The mismatch is clear and unambiguous, not merely adjacent or debatable.\n\nScore false in all other cases, including adjacent requests, unusual but in-domain requests, vague system prompts, or product-related questions about limitations and gaps.\n\n## Examples (few-shot)\n\nExample 1 - Clearly unrelated request\nSystem prompt: You are a customer support assistant for an e-commerce platform. Help users with orders, returns, shipping, and account management.\nLast user message: Can you recommend a good diet plan to help me lose weight before summer?\nscore: true\nreasoning: The system prompt scopes the agent to e-commerce support, while dietary advice has no plausible connection to that scope.\n\nExample 2 - Clearly unrelated technical request\nSystem prompt: You are a support assistant for a project management SaaS product. Help users with product features, billing, and account settings.\nLast user message: Can you help me write a Python script to scrape competitor pricing data from the web?\nscore: true\nreasoning: The request is for custom coding work that is clearly outside the agent's product-support scope.\n\nExample 3 - Hard but in-scope question\nSystem prompt: You are a support assistant for a financial planning app. Help users understand their spending reports, budgets, and account settings.\nLast user message: Why does my budget report show different numbers than last month even though I spent the same amount?\nscore: false\nreasoning: The user is asking about their budget report, which is directly within the scope defined in the system prompt.\n\nExample 4 - Adjacent topic with ambiguous scope\nSystem prompt: You are a support assistant for an HR platform. Help employees with payslips, leave requests, and benefits.\nLast user message: Can you tell me what the company's remote work policy is?\nscore: false\nreasoning: Company policy is adjacent to HR support and could reasonably fall within a broad reading of the scope, so it is not clearly out of scope.\n\nExample 5 - Empty system prompt\nSystem prompt: (empty)\nLast user message: Can you book me a flight to Tokyo?\nscore: false\nreasoning: The system prompt is empty, so the agent's scope cannot be determined confidently.\n\nExample 6 - Product limitation question\nSystem prompt: You are a support assistant for a music streaming service. Help users with subscriptions, playlists, playback issues, and account settings.\nLast user message: Is there a way to download songs for offline listening?\nscore: false\nreasoning: The user is asking about a product feature, which remains within the assistant's support scope.\n\nInput:\nSystem prompt: {{system_prompt}}\nLast user message: {{last_user_message}}\n\nThink step by step and return the structured result."
+  },
+  {
     "id": "cmal6wart010lynrdtpv6olaa",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
@@ -174,6 +228,19 @@
     "prompt": "Given a question and an answer, analyze the complexity of each sentence in the answer. Break down each sentence into one or more fully understandable statements. Ensure that no pronouns are used in any statement.\nQuestion: {{question}}\nAnswer: {{answer}}"
   },
   {
+    "id": "cmal6wart010lynrdtpv6olfv2",
+    "created_at": "2026-04-17T10:00:00.000Z",
+    "updated_at": "2026-04-17T10:00:00.000Z",
+    "name": "Faithfulness",
+    "partner": "ragas",
+    "version": 2,
+    "outputDefinition": {
+      "score": "Based on the claim analysis provided, give a single score from 0 to 1 (where 1 is perfectly faithful and 0 is entirely unsupported) representing the overall proportion of the answer that is grounded in the context. Output only the number",
+      "reasoning": "One sentence reasoning for the score"
+    },
+    "prompt": "You are an expert evaluator. Your task is to determine the Faithfulness of a generated answer based on a provided context.\n\nFollow these steps exactly:\n1. Deconstruction: Break the \"Answer\" down into a list of atomic, self-contained statements. Do not use pronouns; replace them with the actual subjects.\n2. Verification: For each statement, check if it is supported by the \"Context.\"\n3. Verdict: Assign a 1 if the statement is directly supported by the context, or a 0 if it is not supported or contradicted. Provide a brief reason for each.\n4. Calculation: Calculate the final faithfulness score as: Total Verdicts of 1 divided by Total Number of Statements.\n\nInput Data:\nContext: {{context}}\nAnswer: {{answer}}"
+  },
+  {
     "id": "cmal6wart010lynrdtpv6olag",
     "created_at": "2025-05-20T18:16:12.000Z",
     "updated_at": "2025-05-20T18:16:12.000Z",
@@ -202,7 +269,7 @@
   {
     "id": "cmal6wart010lynrdtpv6olai",
     "created_at": "2025-05-20T18:16:12.000Z",
-    "updated_at": "2025-05-25T18:16:12.000Z",
+    "updated_at": "2026-04-13T18:16:12.000Z",
     "name": "SQL Semantic Equivalence",
     "partner": "ragas",
     "version": 1,

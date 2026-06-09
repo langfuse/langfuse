@@ -32,6 +32,8 @@ import {
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { type User } from "next-auth";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
 
 const OrganizationProjectTiles = ({
   org,
@@ -76,6 +78,8 @@ const OrganizationProjectTiles = ({
 };
 
 const DemoOrganizationTile = () => {
+  const capture = usePostHogClientCapture();
+
   return (
     <Card>
       <CardHeader>
@@ -87,7 +91,14 @@ const DemoOrganizationTile = () => {
       </CardContent>
       <CardFooter>
         <Button asChild variant="secondary">
-          <Link href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}>
+          <Link
+            href={`/project/${env.NEXT_PUBLIC_DEMO_PROJECT_ID}/traces`}
+            onClick={() =>
+              capture("organizations:demo_project_button_click", {
+                location: "project_overview_demo_tile",
+              })
+            }
+          >
             View Demo Project
           </Link>
         </Button>
@@ -212,7 +223,7 @@ const SingleOrganizationProjectOverviewTile = ({
   }
 
   return (
-    <div key={orgId} className="mb-10">
+    <div key={orgId}>
       <Header
         title={org.name}
         className="truncate"
@@ -299,27 +310,31 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
+      <AgentToolsBanner />
       {showOnboarding && <Onboarding />}
       {organizations
-        .sort((a, b) => {
-          // sort demo org to the bottom
-          const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
-          const isDemoB = env.NEXT_PUBLIC_DEMO_ORG_ID === b.id;
+        .map((org) => {
+          const isDemo = env.NEXT_PUBLIC_DEMO_ORG_ID === org.id;
+          return [org, isDemo] as const;
+        })
+        .sort(([, isDemoA], [, isDemoB]) => {
           if (isDemoA) return 1;
           if (isDemoB) return -1;
           return 0;
         })
-        .map((org) => (
-          <Fragment key={org.id}>
-            {!queryOrgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && (
-              <Separator />
-            )}
-            <SingleOrganizationProjectOverviewTile
-              orgId={org.id}
-              search={search ?? undefined}
-            />
-          </Fragment>
-        ))}
+        .map(([org, isDemo], index) => {
+          return (
+            <Fragment key={org.id}>
+              {!queryOrgId && isDemo && <Separator className="my-8" />}
+              <div key={org.id} className={index > 0 && !isDemo ? "mt-8" : ""}>
+                <SingleOrganizationProjectOverviewTile
+                  orgId={org.id}
+                  search={search ?? undefined}
+                />
+              </div>
+            </Fragment>
+          );
+        })}
     </ContainerPage>
   );
 };

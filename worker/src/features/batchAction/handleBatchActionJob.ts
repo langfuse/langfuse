@@ -13,8 +13,10 @@ import {
   BatchActionStatus,
   BatchTableNames,
   FilterCondition,
+  type EventsTableFilterCondition,
   type FilterInput,
   EvalTargetObject,
+  EvalTemplateType,
 } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import {
@@ -22,7 +24,7 @@ import {
   getTraceIdentifierStream,
 } from "../database-read-stream/getDatabaseReadStream";
 import { env } from "../../env";
-import { Job } from "bullmq";
+import { Job, Queue } from "bullmq";
 import {
   processAddObservationsToQueue,
   processAddSessionsToQueue,
@@ -35,6 +37,7 @@ import { getObservationStream } from "../database-read-stream/observation-stream
 import {
   getEventsStreamForEval,
   getEventsStreamForDataset,
+  getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
@@ -71,6 +74,19 @@ const convertDatesInFilterInputFromStrings = (
     : filter;
 };
 
+const isLegacyFilterCondition = (
+  filter: EventsTableFilterCondition,
+): filter is FilterCondition => {
+  if (
+    (filter.type === "string" || filter.type === "stringObject") &&
+    filter.operator === "matches"
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 const getFlatBatchFilterOrThrow = (
   filter: FilterInput | undefined,
   context: string,
@@ -80,14 +96,32 @@ const getFlatBatchFilterOrThrow = (
   }
 
   if (Array.isArray(filter)) {
-    return filter;
+    return filter.map((condition) => {
+      if (!isLegacyFilterCondition(condition)) {
+        throw new Error(
+          `${context} does not support full-text filter operators yet.`,
+        );
+      }
+
+      return condition;
+    });
   }
 
   if (filter.type === "group") {
     throw new Error(`${context} does not support nested filter groups yet.`);
   }
 
+  if (!isLegacyFilterCondition(filter)) {
+    throw new Error(
+      `${context} does not support full-text filter operators yet.`,
+    );
+  }
+
   return [filter];
+};
+
+type HandleBatchActionJobDeps = {
+  evalCreatorQueue?: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>;
 };
 
 /**
@@ -180,6 +214,7 @@ const assertIsDatasetRunItemTableRecord = (
 
 export const handleBatchActionJob = async (
   batchActionJob: Job<TQueueJobTypes[QueueName.BatchActionQueue]>["data"],
+  deps: HandleBatchActionJobDeps = {},
 ) => {
   const batchActionEvent: BatchActionProcessingEventType =
     batchActionJob.payload;
@@ -219,34 +254,36 @@ export const handleBatchActionJob = async (
       convertedFilter,
       `Batch action "${actionId}"`,
     );
+    const streamParams = {
+      projectId: projectId,
+      cutoffCreatedAt: new Date(cutoffCreatedAt),
+      searchQuery: query.searchQuery ?? undefined,
+      searchType: query.searchType ?? ["id" as const],
+    };
 
     const dbReadStream =
       actionId === "trace-delete"
         ? await getTraceIdentifierStream({
-            projectId: projectId,
-            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            ...streamParams,
             filter: legacyFlatFilter,
             orderBy: query.orderBy,
-            searchQuery: query.searchQuery ?? undefined,
-            searchType: query.searchType ?? ["id" as const],
           })
-        : tableName === BatchTableNames.Observations
-          ? await getObservationStream({
-              projectId: projectId,
-              cutoffCreatedAt: new Date(cutoffCreatedAt),
-              filter: legacyFlatFilter,
-              searchQuery: query.searchQuery ?? undefined,
-              searchType: query.searchType ?? ["id" as const],
+        : tableName === BatchTableNames.Events
+          ? await getEventsStreamForAnnotationQueue({
+              ...streamParams,
+              filter: convertedFilter ?? null,
             })
-          : await getDatabaseReadStreamPaginated({
-              projectId: projectId,
-              cutoffCreatedAt: new Date(cutoffCreatedAt),
-              filter: legacyFlatFilter,
-              orderBy: query.orderBy,
-              tableName: tableName as BatchTableNames,
-              searchQuery: query.searchQuery ?? undefined,
-              searchType: query.searchType ?? ["id" as const],
-            });
+          : tableName === BatchTableNames.Observations
+            ? await getObservationStream({
+                ...streamParams,
+                filter: legacyFlatFilter,
+              })
+            : await getDatabaseReadStreamPaginated({
+                ...streamParams,
+                filter: legacyFlatFilter,
+                orderBy: query.orderBy,
+                tableName: tableName as BatchTableNames,
+              });
 
     // Process stream in database-sized batches
     // 1. Read all records
@@ -279,12 +316,29 @@ export const handleBatchActionJob = async (
         id: configId,
         projectId: projectId,
       },
+      select: {
+        delay: true,
+        evalTemplate: {
+          select: {
+            type: true,
+          },
+        },
+      },
     });
 
     if (!config) {
       logger.error(
         `Eval config ${configId} not found for project ${projectId}`,
       );
+      return;
+    }
+
+    if (config.evalTemplate?.type !== EvalTemplateType.LLM_AS_JUDGE) {
+      logger.info(`Skipping legacy eval-create for non-LLM eval template`, {
+        projectId,
+        configId,
+        evalTemplateType: config.evalTemplate?.type ?? null,
+      });
       return;
     }
 
@@ -314,7 +368,8 @@ export const handleBatchActionJob = async (
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
           });
 
-    const evalCreatorQueue = CreateEvalQueue.getInstance();
+    const evalCreatorQueue =
+      deps.evalCreatorQueue ?? CreateEvalQueue.getInstance();
     if (!evalCreatorQueue) {
       logger.error("CreateEvalQueue is not initialized");
       return;
@@ -395,9 +450,9 @@ export const handleBatchActionJob = async (
         ? await getEventsStreamForDataset({
             projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
-            filter: convertDatesInFilterInputFromStrings(
-              query.filter ?? undefined,
-            ),
+            filter:
+              convertDatesInFilterInputFromStrings(query.filter ?? undefined) ??
+              null,
             searchQuery: query.searchQuery ?? undefined,
             searchType: query.searchType ?? ["id" as const],
           })
@@ -458,7 +513,7 @@ export const handleBatchActionJob = async (
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
-          targetObject: EvalTargetObject.EVENT,
+          evalTemplateId: { not: null },
           // Preserve the selected evaluators as-is. Executability is checked
           // later when each scheduling attempt runs.
         },
@@ -466,6 +521,11 @@ export const handleBatchActionJob = async (
           id: true,
           projectId: true,
           evalTemplateId: true,
+          evalTemplate: {
+            select: {
+              type: true,
+            },
+          },
           scoreName: true,
           targetObject: true,
           variableMapping: true,
@@ -479,6 +539,7 @@ export const handleBatchActionJob = async (
       // sampling=1 to ensure every streamed observation is evaluated.
       evaluators = rawEvaluators.map((e) => ({
         ...e,
+        evalTemplate: e.evalTemplate!,
         filter: [] as [],
         sampling: new Decimal(1),
       }));
@@ -494,7 +555,7 @@ export const handleBatchActionJob = async (
           log:
             error instanceof Error
               ? error.message
-              : "Selected evaluators are missing or not observation-scoped for historical event evaluation.",
+              : "Selected evaluators are missing or invalid for historical evaluation.",
         },
       });
 
@@ -504,7 +565,8 @@ export const handleBatchActionJob = async (
     const dbReadStream = await getEventsStreamForEval({
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFilterInputFromStrings(query.filter ?? undefined),
+      filter:
+        convertDatesInFilterInputFromStrings(query.filter ?? undefined) ?? null,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
       rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,

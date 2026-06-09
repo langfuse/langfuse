@@ -1335,7 +1335,30 @@ function serializeEventsLuceneFilterCondition(
   return undefined;
 }
 
-function isEventsLuceneSerializableFilterCondition(filter: FilterCondition) {
+function isLegacyFilterCondition(
+  filter: FilterExpression,
+): filter is FilterCondition {
+  if (filter.type === "group") {
+    return false;
+  }
+
+  if (
+    (filter.type === "string" || filter.type === "stringObject") &&
+    filter.operator === "matches"
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function isEventsLuceneSerializableFilterCondition(
+  filter: FilterExpression,
+): filter is FilterCondition {
+  if (!isLegacyFilterCondition(filter)) {
+    return false;
+  }
+
   return Boolean(serializeEventsLuceneFilterCondition(filter));
 }
 

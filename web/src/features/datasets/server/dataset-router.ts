@@ -65,6 +65,9 @@ import {
   getDatasetItemsCountGrouped,
   getDatasetVersionForRun,
   escapeSqlLikePattern,
+  fetchWithSecureRedirects,
+  whitelistFromEnv,
+  WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -76,6 +79,8 @@ import { v4 } from "uuid";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
+const REMOTE_EXPERIMENT_TIMEOUT_MS = 20_000;
+const REMOTE_EXPERIMENT_MAX_REDIRECTS = 10;
 
 /**
  * Adds a case-insensitive search condition to a query
@@ -185,7 +190,7 @@ const generateDatasetQuery = ({
         d.expected_output_schema,
         2 as sort_priority, -- Individual datasets second
         'dataset'::text as row_type  -- Mark as individual dataset
-      FROM filtered_datasets d 
+      FROM filtered_datasets d
       WHERE SUBSTRING(d.name, CHAR_LENGTH(${pathPrefix}) + 2) NOT LIKE '%/%'
         AND SUBSTRING(d.name, CHAR_LENGTH(${pathPrefix}) + 2) != ''  -- Exclude datasets that match prefix exactly
         AND d.name != ${pathPrefix}  -- Additional safety check
@@ -323,7 +328,12 @@ export const datasetRouter = createTRPCRouter({
         // datasets
         ctx.prisma.$queryRaw<
           Array<
-            Omit<Dataset, "remoteExperimentUrl" | "remoteExperimentPayload"> & {
+            Omit<
+              Dataset,
+              | "remoteExperimentUrl"
+              | "remoteExperimentPayload"
+              | "remoteExperimentEnabled"
+            > & {
               row_type: "folder" | "dataset";
             }
           >
@@ -438,6 +448,17 @@ export const datasetRouter = createTRPCRouter({
             id: input.datasetId,
             projectId: input.projectId,
           },
+        },
+        select: {
+          id: true,
+          projectId: true,
+          name: true,
+          description: true,
+          metadata: true,
+          inputSchema: true,
+          expectedOutputSchema: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
     }),
@@ -1636,6 +1657,7 @@ export const datasetRouter = createTRPCRouter({
         datasetId: z.string(),
         url: z.string(),
         defaultPayload: z.string(),
+        enabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -1661,11 +1683,21 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
+      try {
+        await validateWebhookURL(input.url);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Invalid remote run URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+        });
+      }
+
       const updatedDataset = await updateDataset({
         input: {
           id: input.datasetId,
           remoteExperimentUrl: input.url,
           remoteExperimentPayload: input.defaultPayload ?? {},
+          remoteExperimentEnabled: input.enabled,
         },
         projectId: input.projectId,
       });
@@ -1683,6 +1715,12 @@ export const datasetRouter = createTRPCRouter({
   getRemoteExperiment: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
       const dataset = await ctx.prisma.dataset.findUnique({
         where: {
           id_projectId: { id: input.datasetId, projectId: input.projectId },
@@ -1690,6 +1728,7 @@ export const datasetRouter = createTRPCRouter({
         select: {
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentEnabled: true,
         },
       });
 
@@ -1698,6 +1737,7 @@ export const datasetRouter = createTRPCRouter({
       return {
         url: dataset.remoteExperimentUrl,
         payload: dataset.remoteExperimentPayload,
+        enabled: dataset.remoteExperimentEnabled,
       };
     }),
   triggerRemoteExperiment: protectedProjectProcedure
@@ -1727,6 +1767,7 @@ export const datasetRouter = createTRPCRouter({
           name: true,
           remoteExperimentUrl: true,
           remoteExperimentPayload: true,
+          remoteExperimentEnabled: true,
         },
       });
 
@@ -1744,8 +1785,19 @@ export const datasetRouter = createTRPCRouter({
         });
       }
 
+      if (!dataset.remoteExperimentEnabled) {
+        // Trigger is configured but intentionally disabled — skip the remote call
+        // without surfacing an error toast to the user.
+        return {
+          success: true,
+          skipped: true,
+        };
+      }
+
+      const whitelist = whitelistFromEnv();
+
       try {
-        await validateWebhookURL(dataset.remoteExperimentUrl);
+        await validateWebhookURL(dataset.remoteExperimentUrl, whitelist);
       } catch (error) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -1754,19 +1806,42 @@ export const datasetRouter = createTRPCRouter({
       }
 
       try {
-        const response = await fetch(dataset.remoteExperimentUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            projectId: input.projectId,
+        const { response, redirectChain, finalUrl } =
+          await fetchWithSecureRedirects(
+            dataset.remoteExperimentUrl,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                projectId: input.projectId,
+                datasetId: input.datasetId,
+                datasetName: dataset.name,
+                payload: input.payload ?? dataset.remoteExperimentPayload,
+              }),
+              signal: AbortSignal.timeout(REMOTE_EXPERIMENT_TIMEOUT_MS),
+            },
+            {
+              maxRedirects: REMOTE_EXPERIMENT_MAX_REDIRECTS,
+              redirectValidation: {
+                validateUrl: validateWebhookURL,
+                whitelist,
+                logContext: WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
+              },
+            },
+          );
+
+        if (redirectChain.length > 0) {
+          logger.info("Remote experiment trigger followed redirects", {
             datasetId: input.datasetId,
-            datasetName: dataset.name,
-            payload: input.payload ?? dataset.remoteExperimentPayload,
-          }),
-          signal: AbortSignal.timeout(20000), // 20 second timeout
-        });
+            projectId: input.projectId,
+            initialUrl: dataset.remoteExperimentUrl,
+            finalUrl,
+            redirectCount: redirectChain.length,
+            redirectChain,
+          });
+        }
 
         if (!response.ok) {
           logger.info(`Remote server returned error (${response.status})`);
@@ -1825,6 +1900,8 @@ export const datasetRouter = createTRPCRouter({
           id: input.datasetId,
           remoteExperimentUrl: null,
           remoteExperimentPayload: Prisma.DbNull,
+          // Reset to true so a future upsert doesn't inherit a stale disabled state
+          remoteExperimentEnabled: true,
         },
         projectId: input.projectId,
       });
@@ -1944,7 +2021,6 @@ export const datasetRouter = createTRPCRouter({
         },
       });
 
-      // Audit log
       await auditLog({
         session: ctx.session,
         resourceType: "dataset",

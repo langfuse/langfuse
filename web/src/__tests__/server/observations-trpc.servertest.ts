@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import type { Session } from "next-auth";
 import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
@@ -32,6 +30,7 @@ describe("traces trpc", () => {
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,
@@ -122,6 +121,121 @@ describe("traces trpc", () => {
       });
 
       expect(generations.generations).toBeDefined();
+    });
+
+    it("should search generations by input only", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const trace = createTrace({
+        id: traceId,
+        project_id: projectId,
+        name: "input-search-trace",
+      });
+
+      await createTracesCh([trace]);
+
+      // Create generation with distinct input and output
+      const generation = createObservation({
+        id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "input-search-generation",
+        input: "unique_input_keyword for search testing",
+        output: "different output without the keyword",
+      });
+
+      await createObservationsCh([generation]);
+
+      // Search for keyword that only exists in input
+      const inputSearchResults = await caller.generations.all({
+        projectId,
+        searchQuery: "unique_input_keyword",
+        searchType: ["input"], // Search only in input
+        filter: [],
+        orderBy: null,
+        limit: 50,
+        page: 0,
+      });
+
+      expect(inputSearchResults.generations).toBeDefined();
+    });
+
+    it("should search generations by output only", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const trace = createTrace({
+        id: traceId,
+        project_id: projectId,
+        name: "output-search-trace",
+      });
+
+      await createTracesCh([trace]);
+
+      // Create generation with distinct input and output
+      const generation = createObservation({
+        id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "output-search-generation",
+        input: "simple input without special keywords",
+        output: "unique_output_keyword for search testing",
+      });
+
+      await createObservationsCh([generation]);
+
+      // Search for keyword that only exists in output
+      const outputSearchResults = await caller.generations.all({
+        projectId,
+        searchQuery: "unique_output_keyword",
+        searchType: ["output"], // Search only in output
+        filter: [],
+        orderBy: null,
+        limit: 50,
+        page: 0,
+      });
+
+      expect(outputSearchResults.generations).toBeDefined();
+    });
+  });
+
+  describe("generations.countAll", () => {
+    it("counts only matching full-text search results", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const searchKeyword = `generation-count-search-${randomUUID()}`;
+
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          name: "generation-count-search-trace",
+        }),
+      ]);
+
+      await createObservationsCh([
+        createObservation({
+          id: generationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "generation-count-search-observation",
+          input: searchKeyword,
+        }),
+      ]);
+
+      const count = await caller.generations.countAll({
+        projectId,
+        searchQuery: searchKeyword,
+        searchType: ["content"],
+        filter: [],
+        orderBy: null,
+      });
+
+      expect(count.totalCount).toBe(1);
     });
   });
 });

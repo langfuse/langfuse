@@ -63,13 +63,6 @@ export const handleEventPropagationJob = async (
     job.data.id,
   );
 
-  if (env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB === "true") {
-    logger.info(
-      "[DUAL WRITE] Early exit for event propagation job due to experiment flag",
-    );
-    return;
-  }
-
   try {
     // Step 1: Get the last processed partition from Redis and find the next one to process
     const lastProcessedPartition = await getLastProcessedPartition();
@@ -96,6 +89,7 @@ export const handleEventPropagationJob = async (
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
+          AND database = currentDatabase()
           AND active = 1
           AND toDateTime(partition) < now() - INTERVAL ${env.LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES} MINUTE
           ${lastProcessedPartition ? `AND partition > {lastProcessedPartition: String}` : ""}
@@ -131,16 +125,23 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
+    const excludeProjectIds =
+      env.LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS;
+    const excludeProjectIdsInClause =
+      excludeProjectIds.length > 0
+        ? `NOT IN (${excludeProjectIds.map((id) => `'${id}'`).join(",")})`
+        : "";
     await commandClickhouse({
       query: `
         with batch_stats as (
           select
             groupUniqArray(project_id) as project_ids,
             groupUniqArray(trace_id) as trace_ids,
-            min(start_time) as min_start_time,
+            minIf(start_time, start_time > now() - interval 1 day) as min_start_time,
             max(start_time) as max_start_time
           from observations_batch_staging
           where _partition_value = tuple('${partitionToProcess}')
+          ${excludeProjectIdsInClause ? `AND project_id ${excludeProjectIdsInClause}` : ""}
         ), experiment_traces_to_exclude as (
           select distinct
             project_id,
@@ -171,7 +172,7 @@ export const handleEventPropagationJob = async (
               t.timestamp >= greatest((select min(min_start_time) - interval 1 day from batch_stats), now() - interval 7 day)
             )
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
-          order by t.event_ts desc
+          order by t.project_id, t.id, t.event_ts desc
           limit 1 by t.project_id, t.id
         )
 
@@ -291,6 +292,7 @@ export const handleEventPropagationJob = async (
           excl.trace_id = obs.trace_id
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
+        ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
       tags: {
         feature: "ingestion",

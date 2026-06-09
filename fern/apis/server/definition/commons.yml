@@ -298,6 +298,9 @@ types:
       totalCost:
         type: optional<nullable<double>>
         docs: The total cost of the observation in USD
+      usagePricingTierName:
+        type: optional<nullable<string>>
+        docs: The name of the pricing tier applied to this observation's usage costs
 
       # Prompt fields (field group: prompt)
       promptId:
@@ -318,10 +321,30 @@ types:
         type: optional<nullable<double>>
         docs: The time to first token in seconds
 
-      # Enrichment fields (added by server-side enrichment)
+      # Enrichment fields (always present on v2 responses, null when `model` field group not requested)
       modelId:
+        type: nullable<string>
+        docs: The matched model ID. Null when the `model` field group is not requested.
+      inputPrice:
+        type: nullable<string>
+        docs: The input token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      outputPrice:
+        type: nullable<string>
+        docs: The output token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      totalPrice:
+        type: nullable<string>
+        docs: The total token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+
+      # Trace context fields (field group: trace_context)
+      traceName:
         type: optional<nullable<string>>
-        docs: The matched model ID
+        docs: The name of the parent trace
+      tags:
+        type: optional<nullable<list<string>>>
+        docs: Tags from the parent trace (denormalized onto the observation)
+      release:
+        type: optional<nullable<string>>
+        docs: The release version of the parent trace
 
   Usage:
     docs: (Deprecated. Use usageDetails and costDetails instead.) Standard interface for usage and cost
@@ -431,6 +454,12 @@ types:
       stringValue:
         type: string
         docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
+  TextScoreV1:
+    extends: BaseScoreV1
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   ScoreV1:
     discriminant: "dataType"
     union:
@@ -443,6 +472,9 @@ types:
       BOOLEAN:
         type: BooleanScoreV1
         docs: "Score with BOOLEAN data type"
+      TEXT:
+        type: TextScoreV1
+        docs: "Score with TEXT data type"
 
   # Source: packages/shared/src/features/scores/interfaces/api/v2/schemas.ts - APIScoreSchemaV2
   BaseScore:
@@ -516,6 +548,12 @@ types:
       stringValue:
         type: string
         docs: The string representation of the correction content
+  TextScore:
+    extends: BaseScore
+    properties:
+      stringValue:
+        type: string
+        docs: The text content of the score (1-500 characters)
   Score:
     discriminant: "dataType"
     union:
@@ -531,13 +569,16 @@ types:
       CORRECTION:
         type: CorrectionScore
         docs: "Score with CORRECTION data type"
+      TEXT:
+        type: TextScore
+        docs: "Score with TEXT data type"
 
   CreateScoreValue:
     discriminated: false
     union:
       - double
       - string
-    docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores
+    docs: The value of the score. Must be passed as string for categorical and text scores, and numeric for boolean and numeric scores
 
   # Source: web/src/features/public-api/types/comments.ts - APIComment
   Comment:
@@ -932,6 +973,7 @@ types:
       - NUMERIC
       - BOOLEAN
       - CATEGORICAL
+      - TEXT
 
   ScoreDataType:
     enum:
@@ -939,6 +981,7 @@ types:
       - BOOLEAN
       - CATEGORICAL
       - CORRECTION
+      - TEXT
 
 errors:
   Error:

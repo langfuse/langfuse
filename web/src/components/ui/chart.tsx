@@ -99,7 +99,8 @@ ${colorConfig
     const color =
       itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
       itemConfig.color;
-    return color ? `  --color-${key}: ${color};` : null;
+    const safeKey = key.replace(/[^\p{L}\p{N}_ .()-]/gu, "_");
+    return color ? `  --color-${safeKey}: ${color};` : null;
   })
   .join("\n")}
 }
@@ -282,7 +283,7 @@ const ChartTooltipContent = React.forwardRef<
                     )}
                     <div
                       className={cn(
-                        "flex flex-1 justify-between leading-none",
+                        "flex flex-1 justify-between gap-x-2 leading-none",
                         nestLabel ? "items-end" : "items-center",
                       )}
                     >

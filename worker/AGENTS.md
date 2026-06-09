@@ -1,6 +1,6 @@
 # Codex Guidelines for `worker`
 
-This file covers package-local guidance for this package.
+This file covers package-local guidance for the worker.
 Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## Purpose
@@ -20,12 +20,10 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 
 ## High-Signal Entry Points
 
-- Bootstrap: `src/index.ts`, `src/app.ts`
 - Worker registration/lifecycle: `src/queues/workerManager.ts`
 - Queue processors: `src/queues/*`
 - Feature processors: `src/features/*`
 - Service layer: `src/services/*`
-- Background migrations: `src/backgroundMigrations/*`
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 
 ## Shared Package Imports
@@ -50,16 +48,6 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
   (GitHub mirror:
   [architecture.mdx](https://github.com/langfuse/langfuse-docs/blob/4188c1ba453240c90a763a8067ef442d68839323/content/handbook/product-engineering/architecture.mdx#L4)).
 
-## Quick Commands
-
-- Dev: `pnpm --filter worker run dev`
-- Lint: `pnpm --filter worker run lint`
-- Lint fix: `pnpm --filter worker run lint:fix`
-- Typecheck: `pnpm --filter worker run typecheck`
-- Tests: `pnpm --filter worker run test -- <file-or-pattern>`
-- Coverage: `pnpm --filter worker run coverage`
-- Build: `pnpm --filter worker run build`
-
 ## Queue Playbook (Add/Change Queue Processor)
 
 1. Update queue schemas/contracts in `../packages/shared/src/server/queues.ts`
@@ -82,14 +70,15 @@ Use root [AGENTS.md](../AGENTS.md) for monorepo-level rules.
 - Prefer explicit env-flag gating in `src/app.ts` for new consumers.
 - Keep queue payload parsing/schema validation centralized in shared contracts.
 
-## Operational Scripts
-
-- Refill ingestion events: `pnpm --filter worker run refill-ingestion-events`
-- Refill billing event: `pnpm --filter worker run refill-billing-event`
-- Refill queue event: `pnpm --filter worker run refill-queue-event`
-
 ## Package-Specific Rules
 
 - Keep tests independent; no ordering assumptions.
 - Avoid editing `dist/*` directly.
 - Coordinate shared changes with `../packages/shared`.
+- Changes to `src/features/blobstorage/` (export pipeline, enrichment logic,
+  field additions, latency unit handling) should be reviewed against the
+  published blob storage docs for consistency — fetch the latest pages and
+  surface any discrepancies:
+  - https://langfuse.com/docs/api-and-data-platform/features/export-to-blob-storage
+  - https://langfuse.com/docs/api-and-data-platform/features/blob-storage-export-fields
+- be very mindful of adding additional `JSON.parse` calls in the ingestion processing pipeline. Those can cause performance issues, because JSONs might be very large. Ideally, parse each JSON subset only once.

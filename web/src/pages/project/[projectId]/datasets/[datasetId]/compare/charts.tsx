@@ -17,10 +17,11 @@ import {
   RESOURCE_METRICS,
   isEmptyChart,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import {
+  compareViewChartDataToDataPoints,
+  getCompareViewChartUnit,
+} from "@/src/features/dashboard/lib/chart-data-adapters";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
@@ -135,7 +136,7 @@ export default function DatasetCompare() {
             </Dialog>
             <MultiSelectKeyValues
               key="select-runs"
-              title="Runs"
+              title="Experiments"
               showSelectedValueStrings={false}
               placeholder="Select runs to compare"
               className="w-fit"
@@ -176,7 +177,6 @@ export default function DatasetCompare() {
           <div className="flex w-full justify-end">
             <DatasetAnalytics
               key="dataset-analytics"
-              projectId={projectId}
               scoreOptions={scoreAnalyticsOptions}
               selectedMetrics={selectedMetrics}
               setSelectedMetrics={setSelectedMetrics}
@@ -199,19 +199,6 @@ export default function DatasetCompare() {
                     : (RESOURCE_METRICS.find((metric) => metric.key === key)
                         ?.label ?? key);
 
-                  // TODO: remove when revamping the datasets api for it to directly return ms
-                  const valueFormatter =
-                    key === "latency"
-                      ? formatIntervalSeconds
-                      : key === "cost"
-                        ? usdFormatter
-                        : (v: number) =>
-                            compactNumberFormatter(
-                              v,
-                              RESOURCE_METRICS.find((m) => m.key === key)
-                                ?.maxFractionDigits,
-                            );
-
                   if (isEmptyChart({ data: chartData })) {
                     return (
                       <div
@@ -229,17 +216,12 @@ export default function DatasetCompare() {
                     );
                   }
 
-                  const dataPoints =
-                    chartLabels.length === 1
-                      ? chartData.map((d) => ({
-                          time_dimension: d.binLabel,
-                          dimension: chartLabels[0]!,
-                          metric: (d[chartLabels[0]!] as number) ?? 0,
-                        }))
-                      : compareViewChartDataToDataPoints(
-                          chartData,
-                          chartLabels,
-                        );
+                  const dataPoints = compareViewChartDataToDataPoints(
+                    chartData,
+                    chartLabels,
+                    key,
+                  );
+
                   const chartType =
                     chartLabels.length === 1
                       ? "LINE_TIME_SERIES"
@@ -258,8 +240,10 @@ export default function DatasetCompare() {
                           chartType={chartType}
                           data={dataPoints}
                           rowLimit={Math.max(dataPoints.length, 1)}
-                          chartConfig={{ type: chartType }}
-                          valueFormatter={valueFormatter}
+                          chartConfig={{
+                            type: chartType,
+                            unit: getCompareViewChartUnit(key),
+                          }}
                           legendPosition={
                             chartLabels.length > 1 ? "above" : "none"
                           }
