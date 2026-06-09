@@ -327,7 +327,7 @@ const BlobStorageIntegrationSettingsForm = ({
       compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, [state, isEnrichedExportAvailable, isPostCutoffCloud]);
 
   const watchedExportMode = blobStorageForm.watch("exportMode");
   const watchedExportSource = blobStorageForm.watch("exportSource");
