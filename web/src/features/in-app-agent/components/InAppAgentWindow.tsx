@@ -248,8 +248,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <div
             className={cn(
-              "flex h-full w-full flex-col gap-4 px-3 py-4",
-              isExpanded && "mx-auto max-w-3xl px-4 sm:px-6",
+              "flex h-full w-full flex-col gap-4 py-4",
+              isExpanded && "mx-auto max-w-3xl",
+              isExpanded ? "px-0" : "px-3",
             )}
           >
             {messages.length === 0 ? (
@@ -305,7 +306,9 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
           </div>
         </div>
-        <div className={cn("p-1.5", !isExpanded && "bg-header border-t")}>
+        <div
+          className={cn("p-1.5", isExpanded ? "pt-0" : "bg-header border-t")}
+        >
           <form
             className={cn(
               "relative flex w-full items-end gap-2 rounded-md",
