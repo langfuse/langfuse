@@ -52,7 +52,6 @@ import {
   JumpCloudProvider,
   traceException,
   sendResetPasswordVerificationRequest,
-  buildMailServerConfig,
   instrumentAsync,
   logger,
   resolveProjectRole,
@@ -164,7 +163,9 @@ const staticProviders: Provider[] = [
 if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
   staticProviders.push(
     EmailProvider({
-      server: buildMailServerConfig(env.SMTP_CONNECTION_URL),
+      // SMTP vs SES dispatch happens inside sendVerificationRequest via
+      // createMailTransport; NextAuth itself only forwards this string.
+      server: env.SMTP_CONNECTION_URL,
       from: env.EMAIL_FROM_ADDRESS,
       maxAge: 3 * 60, // 3 minutes
       async generateVerificationToken() {
