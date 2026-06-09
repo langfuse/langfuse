@@ -5,7 +5,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  getFilterExpressionLeafFilters,
+  filterInput,
   type OrderByState,
+  normalizeFilterExpressionInput,
   normalizeOrderByForTable,
   paginationZod,
   timeFilter,
@@ -29,7 +32,7 @@ import {
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
   MAX_OBSERVATIONS_PER_TRACE,
-  applyCommentFilters,
+  applyCommentFiltersToFilterInput,
   getLatestSdkVersionInfoFromEvents,
 } from "@langfuse/shared/src/server";
 
@@ -54,7 +57,11 @@ export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
 const GetEventFilterOptionsInput = zodSchema.object({
   projectId: zodSchema.string(),
+  filter: filterInput.optional(),
   startTimeFilter: zodSchema.array(timeFilter).optional(),
+  isRootObservation: zodSchema.boolean().optional(),
+  hasParentObservation: zodSchema.boolean().optional(),
+  observationType: zodSchema.string().optional(),
 });
 
 export type GetEventFilterOptionsInput = z.infer<
@@ -80,13 +87,13 @@ export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
     .query(async ({ input, ctx }) => {
-      const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
-        prisma: ctx.prisma,
-        projectId: ctx.session.projectId,
-        objectType: "OBSERVATION",
-      });
-
+      const { filterState, hasNoMatches } =
+        await applyCommentFiltersToFilterInput({
+          filterState: input.filter,
+          prisma: ctx.prisma,
+          projectId: ctx.session.projectId,
+          objectType: "OBSERVATION",
+        });
       if (hasNoMatches) {
         return { observations: [] };
       }
@@ -100,7 +107,12 @@ export const eventsRouter = createTRPCRouter({
             orderBy: input.orderBy,
             expectedTimeColumn: "startTime",
           });
-          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
+          addAttributesToSpan({
+            span,
+            input,
+            orderBy: normalizedOrderBy,
+            resolvedProjectId: ctx.session.projectId,
+          });
 
           return getEventList({
             projectId: ctx.session.projectId,
@@ -117,12 +129,13 @@ export const eventsRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
-      const { filterState, hasNoMatches } = await applyCommentFilters({
-        filterState: input.filter ?? [],
-        prisma: ctx.prisma,
-        projectId: ctx.session.projectId,
-        objectType: "OBSERVATION",
-      });
+      const { filterState, hasNoMatches } =
+        await applyCommentFiltersToFilterInput({
+          filterState: input.filter,
+          prisma: ctx.prisma,
+          projectId: ctx.session.projectId,
+          objectType: "OBSERVATION",
+        });
 
       if (hasNoMatches) {
         return { totalCount: 0 };
@@ -137,7 +150,13 @@ export const eventsRouter = createTRPCRouter({
             orderBy: input.orderBy,
             expectedTimeColumn: "startTime",
           });
-          addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
+          addAttributesToSpan({
+            span,
+            input,
+            orderBy: normalizedOrderBy,
+            resolvedProjectId: ctx.session.projectId,
+          });
+
           return getEventCount({
             projectId: ctx.session.projectId,
             filter: filterState,
@@ -149,30 +168,31 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   filterOptions: protectedProjectProcedure
-    .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        startTimeFilter: zodSchema.array(timeFilter).optional(),
-        isRootObservation: zodSchema.boolean().optional(),
-        hasParentObservation: zodSchema.boolean().optional(),
-      }),
-    )
-    .query(async ({ input }) => {
+    .input(GetEventFilterOptionsInput)
+    .query(async ({ input, ctx }) => {
       return instrumentAsync(
         {
           name: "get-event-filter-options-trpc",
         },
 
         async (span) => {
-          addAttributesToSpan({ span, input, orderBy: undefined });
+          addAttributesToSpan({
+            span,
+            input,
+            orderBy: undefined,
+            resolvedProjectId: ctx.session.projectId,
+          });
           return getEventFilterOptions({
-            projectId: input.projectId,
+            projectId: ctx.session.projectId,
+            filter: input.filter,
             startTimeFilter: input.startTimeFilter,
             isRootObservation:
               input.isRootObservation ??
               (input.hasParentObservation !== undefined
                 ? !input.hasParentObservation
                 : undefined), // backward compat for legacy hasParentObservation filterOption
+            hasParentObservation: input.hasParentObservation,
+            observationType: input.observationType,
           });
         },
       );
@@ -183,7 +203,7 @@ export const eventsRouter = createTRPCRouter({
       return instrumentAsync(
         { name: "get-event-batch-io-trpc" },
         async (span) => {
-          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("project_id", ctx.session.projectId);
           span.setAttribute("observation_count", input.observations.length);
 
           const batchIO = await getEventBatchIO({
@@ -236,7 +256,7 @@ export const eventsRouter = createTRPCRouter({
       return instrumentAsync(
         { name: "get-events-scores-for-trace-trpc" },
         async (span) => {
-          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("project_id", ctx.session.projectId);
           span.setAttribute("trace_id", input.traceId);
 
           return getScoresAndCorrectionsForTraces({
@@ -301,7 +321,7 @@ export const eventsRouter = createTRPCRouter({
         return instrumentAsync(
           { name: "get-events-agent-graph-data-trpc" },
           async (span) => {
-            span.setAttribute("project_id", input.projectId);
+            span.setAttribute("project_id", ctx.session.projectId);
             span.setAttribute("trace_id", input.traceId);
 
             const { traceId, minStartTime, maxStartTime } = input;
@@ -390,19 +410,24 @@ export const addAttributesToSpan = ({
   span,
   input,
   orderBy,
+  resolvedProjectId,
 }: {
   span: opentelemetry.Span;
   input: GetAllEventsInput | GetEventFilterOptionsInput;
   orderBy?: OrderByState;
+  resolvedProjectId: string;
 }) => {
-  span.setAttribute("project_id", input.projectId);
+  span.setAttribute("project_id", resolvedProjectId);
 
   // Only process filter if it exists (not present in GetEventFilterOptionsInput)
   if ("filter" in input && input.filter) {
-    const startTimeFilter = input.filter.find(
+    const filterLeaves = getFilterExpressionLeafFilters(
+      normalizeFilterExpressionInput(input.filter),
+    );
+    const startTimeFilter = filterLeaves.find(
       (f) => f.column === "startTime" && f.type === "datetime",
     );
-    const endTimeFilter = input.filter.find(
+    const endTimeFilter = filterLeaves.find(
       (f) => f.column === "endTime" && f.type === "datetime",
     );
 
@@ -415,7 +440,7 @@ export const addAttributesToSpan = ({
       span.setAttribute("duration_minutes", durationMs / 60000);
     }
 
-    input.filter.forEach((f) => {
+    filterLeaves.forEach((f) => {
       if (f.value !== undefined) {
         span.setAttribute(f.column, String(f.value));
       }

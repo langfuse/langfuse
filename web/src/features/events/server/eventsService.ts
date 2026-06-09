@@ -1,6 +1,9 @@
-import { type z } from "zod";
 import {
+  combineFilterInputs,
   type FilterCondition,
+  getMandatoryFilterExpressionLeafFilters,
+  normalizeFilterExpressionInput,
+  type FilterInput,
   LISTABLE_SCORE_TYPES,
   type NumericEventsTableColumnId,
   filterAndValidateDbScoreList,
@@ -36,11 +39,9 @@ import {
   getScoresForTraces,
   traceException,
 } from "@langfuse/shared/src/server";
-import { type timeFilter, type FilterState } from "@langfuse/shared";
+import { type FilterState, type TimeFilter } from "@langfuse/shared";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { assertUnreachable } from "@/src/utils/types";
-
-type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
   {
@@ -59,7 +60,7 @@ const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [
 
 interface GetObservationsListParams {
   projectId: string;
-  filter: any[];
+  filter?: FilterInput;
   searchQuery?: string;
   searchType: any[];
   orderBy: any;
@@ -69,7 +70,7 @@ interface GetObservationsListParams {
 
 interface GetObservationsCountParams {
   projectId: string;
-  filter: any[];
+  filter?: FilterInput;
   searchQuery?: string;
   searchType: any[];
   orderBy: any;
@@ -77,6 +78,7 @@ interface GetObservationsCountParams {
 
 interface GetObservationsFilterOptionsParams {
   projectId: string;
+  filter?: FilterInput;
   startTimeFilter?: TimeFilter[];
   isRootObservation?: boolean;
   hasParentObservation?: boolean;
@@ -252,6 +254,7 @@ const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
 ) => {
   const {
+    filter,
     startTimeFilter,
     isRootObservation,
     hasParentObservation,
@@ -259,7 +262,7 @@ const getEventFilterOptionsScope = (
   } = params;
 
   // Build filter with optional scoping for filter options.
-  const eventsFilter: FilterState = [
+  const scopeFilter: FilterState = [
     ...(startTimeFilter ?? []),
     ...(isRootObservation !== undefined
       ? [
@@ -292,26 +295,31 @@ const getEventFilterOptionsScope = (
         ]
       : []),
   ];
+  const eventsFilter = combineFilterInputs(filter, scopeFilter);
+  const normalizedFilter = normalizeFilterExpressionInput(eventsFilter);
 
-  // Map startTimeFilter to Timestamp column for trace queries
-  const traceTimestampFilters =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "Timestamp" as const,
-          operator: f.operator,
-          value: f.value,
-          type: "datetime" as const,
-        }))
-      : [];
+  const mandatoryStartTimeFilters = getMandatoryFilterExpressionLeafFilters(
+    normalizedFilter,
+  ).filter(
+    (filter): filter is TimeFilter =>
+      filter.type === "datetime" && filter.column === "startTime",
+  );
+
+  const traceTimestampFilters: FilterState = mandatoryStartTimeFilters.map(
+    (filter) => ({
+      column: "Timestamp" as const,
+      operator: filter.operator,
+      value: filter.value,
+      type: "datetime" as const,
+    }),
+  );
   const traceScoreTimestampFilters: FilterCondition[] =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "timestamp",
-          operator: f.operator,
-          value: f.value,
-          type: "datetime",
-        }))
-      : [];
+    mandatoryStartTimeFilters.map((filter) => ({
+      column: "timestamp",
+      operator: filter.operator,
+      value: filter.value,
+      type: "datetime",
+    }));
 
   return {
     eventsFilter,
@@ -347,7 +355,7 @@ export async function getEventFilterValuePage(
   const createResultFromGroupedQuery = async <T>(
     query: (
       projectId: string,
-      filter: FilterState,
+      filter: FilterInput | undefined,
       opts?: GroupedEventsFilterOptions,
     ) => Promise<Array<T & { count?: number }>>,
     valueGetter: (item: T) => string,

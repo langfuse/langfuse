@@ -1,4 +1,5 @@
 import {
+  combineFilterInputs,
   extractValueFromObjectAsString,
   type BatchActionQuery,
   type ObservationVariableMapping,
@@ -73,14 +74,12 @@ export function buildQueryWithSelectedIds(params: {
 
   return {
     ...query,
-    filter: [
-      ...(query.filter ?? []),
-      {
+    filter:
+      combineFilterInputs(query.filter, {
         column: "id",
-        operator: "any of" as const,
+        operator: "any of",
         value: selectedObservationIds,
-        type: "stringOptions" as const,
-      },
-    ],
+        type: "stringOptions",
+      }) ?? null,
   };
 }

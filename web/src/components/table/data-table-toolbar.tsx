@@ -1,5 +1,11 @@
 import { Button } from "@/src/components/ui/button";
-import React, { type Dispatch, type SetStateAction, useState } from "react";
+import React, {
+  type Dispatch,
+  type SetStateAction,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
@@ -78,9 +84,27 @@ interface SearchConfig {
   metadataSearchFields?: string[];
   updateQuery: (event: string) => void;
   currentQuery?: string;
+  errorMessage?: string;
+  placeholder?: string;
+  applyQueryOnChange?: boolean;
+  shouldApplyQueryOnChange?: (query: string) => boolean;
+  shouldSuppressValidationErrorOnChange?: (
+    query: string,
+    error: string,
+  ) => boolean;
   tableAllowsFullTextSearch?: boolean;
   setSearchType?: (newSearchType: TracingSearchType[]) => void;
   searchType?: TracingSearchType[];
+  validateQuery?: (query: string) => string | null;
+  helpDescription?: React.ReactNode;
+  renderInput?: (props: {
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: (valueOverride?: string) => void;
+    error: string | null;
+    placeholder: string;
+    helpDescription?: React.ReactNode;
+  }) => React.ReactNode;
   customDropdownLabels?: {
     metadata: string;
     fullText: string;
@@ -211,6 +235,12 @@ export function DataTableToolbar<TData, TValue>({
   const [searchString, setSearchString] = useState(
     searchConfig?.currentQuery ?? "",
   );
+  const [searchError, setSearchError] = useState<string | null>(
+    searchConfig?.errorMessage ?? null,
+  );
+  const applyQueryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const capture = usePostHogClientCapture();
   const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
@@ -218,7 +248,88 @@ export function DataTableToolbar<TData, TValue>({
   const showSearchTypeSelector = Boolean(
     searchConfig?.setSearchType && searchConfig.tableAllowsFullTextSearch,
   );
-  const submitSearch = (query: string) => {
+
+  useEffect(() => {
+    if (applyQueryTimeoutRef.current) {
+      clearTimeout(applyQueryTimeoutRef.current);
+      applyQueryTimeoutRef.current = null;
+    }
+
+    setSearchString(searchConfig?.currentQuery ?? "");
+    setSearchError(searchConfig?.errorMessage ?? null);
+  }, [searchConfig?.currentQuery, searchConfig?.errorMessage]);
+
+  useEffect(() => {
+    return () => {
+      if (applyQueryTimeoutRef.current) {
+        clearTimeout(applyQueryTimeoutRef.current);
+        applyQueryTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const validateSearchQuery = (value: string) =>
+    searchConfig?.validateQuery?.(value) ?? null;
+
+  const handleSearchValueChange = (newValue: string) => {
+    setSearchString(newValue);
+
+    if (applyQueryTimeoutRef.current) {
+      clearTimeout(applyQueryTimeoutRef.current);
+      applyQueryTimeoutRef.current = null;
+    }
+
+    if (newValue === "") {
+      setSearchError(null);
+      searchConfig?.updateQuery("");
+      return;
+    }
+
+    const validationError = validateSearchQuery(newValue);
+    const shouldSuppressValidationError =
+      validationError &&
+      searchConfig?.shouldSuppressValidationErrorOnChange?.(
+        newValue,
+        validationError,
+      );
+
+    setSearchError(shouldSuppressValidationError ? null : validationError);
+
+    if (
+      !validationError &&
+      searchConfig?.applyQueryOnChange &&
+      (searchConfig.shouldApplyQueryOnChange?.(newValue) ?? true)
+    ) {
+      applyQueryTimeoutRef.current = setTimeout(() => {
+        searchConfig.updateQuery(newValue);
+        applyQueryTimeoutRef.current = null;
+      }, 250);
+    }
+  };
+
+  const searchPlaceholder =
+    searchConfig?.placeholder ??
+    (searchConfig?.tableAllowsFullTextSearch
+      ? "Search..."
+      : `Search (${searchConfig?.metadataSearchFields?.join(", ")})`);
+
+  const submitSearch = (valueOverride?: string) => {
+    const nextSearchString = valueOverride ?? searchString;
+
+    if (applyQueryTimeoutRef.current) {
+      clearTimeout(applyQueryTimeoutRef.current);
+      applyQueryTimeoutRef.current = null;
+    }
+
+    const validationError = validateSearchQuery(nextSearchString);
+
+    if (validationError) {
+      setSearchError(validationError);
+      return;
+    }
+
+    setSearchError(null);
+    capture("table:search_submit");
     if (
       searchConfig?.setSearchType &&
       !searchConfig.tableAllowsFullTextSearch &&
@@ -226,7 +337,7 @@ export function DataTableToolbar<TData, TValue>({
     ) {
       searchConfig.setSearchType(["id"]);
     }
-    searchConfig?.updateQuery(query);
+    searchConfig?.updateQuery(nextSearchString);
   };
 
   // Only show the toggle button when we're using the new sidebar
@@ -268,148 +379,155 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
         {searchConfig && (
-          <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
-            <div
-              className={cn(
-                "border-input bg-background flex h-8 flex-1 items-center border pl-2",
-                showSearchTypeSelector
-                  ? "rounded-l-md rounded-r-none border-r-0"
-                  : "rounded-l-md rounded-r-md",
-              )}
-            >
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mr-1"
-                onClick={() => {
-                  capture("table:search_submit");
-                  submitSearch(searchString);
-                }}
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-              <Input
-                autoFocus
-                placeholder={
-                  searchConfig.tableAllowsFullTextSearch
-                    ? "Search..."
-                    : `Search (${searchConfig.metadataSearchFields?.join(", ")})`
-                }
-                value={searchString}
-                onChange={(event) => {
-                  const newValue = event.currentTarget.value;
-                  setSearchString(newValue);
-                  // If user cleared the search, update URL immediately
-                  if (newValue === "") {
-                    submitSearch("");
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    capture("table:search_submit");
-                    submitSearch(searchString);
-                  }
-                }}
-                className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
-              />
-            </div>
-            {showSearchTypeSelector && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+          <div className="flex min-w-0 basis-full flex-col gap-1 md:min-w-[32rem] md:flex-[999_1_40rem] md:basis-[40rem]">
+            <div className="flex items-stretch">
+              {searchConfig.renderInput ? (
+                searchConfig.renderInput({
+                  value: searchString,
+                  onChange: handleSearchValueChange,
+                  onSubmit: submitSearch,
+                  error: searchError,
+                  placeholder: searchPlaceholder,
+                  helpDescription: searchConfig.helpDescription,
+                })
+              ) : (
+                <div
+                  className={cn(
+                    "border-input bg-background flex h-8 flex-1 items-center border pl-2",
+                    showSearchTypeSelector
+                      ? "rounded-l-md rounded-r-none border-r-0"
+                      : "rounded-l-md rounded-r-md",
+                    searchError && "border-destructive",
+                  )}
+                >
                   <Button
-                    variant="outline"
-                    size="default"
-                    className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
+                    variant="ghost"
+                    size="icon"
+                    className="mr-1"
+                    onClick={() => submitSearch()}
                   >
-                    <span className="flex items-center gap-1 truncate">
-                      {searchConfig.tableAllowsFullTextSearch &&
-                        getSearchButtonLabel(
+                    <Search className="h-4 w-4" />
+                  </Button>
+                  <Input
+                    autoFocus
+                    placeholder={searchPlaceholder}
+                    value={searchString}
+                    onChange={(event) =>
+                      handleSearchValueChange(event.currentTarget.value)
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        submitSearch(event.currentTarget.value);
+                      }
+                    }}
+                    className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
+                  />
+                  {searchConfig.helpDescription && (
+                    <div className="pr-2">
+                      <DocPopup description={searchConfig.helpDescription} />
+                    </div>
+                  )}
+                </div>
+              )}
+              {showSearchTypeSelector && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="default"
+                      className="flex w-30 items-center justify-between gap-1 rounded-l-none border-l-0"
+                    >
+                      <span className="flex items-center gap-1 truncate">
+                        {getSearchButtonLabel(
                           searchConfig.searchType,
                           searchConfig.customDropdownLabels?.metadata,
                         )}
-                      <DocPopup
-                        description={getSearchDescription(
-                          searchConfig.searchType,
-                          searchConfig.metadataSearchFields,
-                          searchConfig.hidePerformanceWarning,
-                          searchConfig.tableAllowsFullTextSearch,
-                        )}
-                      />
-                    </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuRadioGroup
-                    value={getSearchMode(
-                      searchConfig.searchType,
-                      searchConfig.tableAllowsFullTextSearch,
-                    )}
-                    onValueChange={(value) => {
-                      if (
-                        !searchConfig.tableAllowsFullTextSearch &&
-                        value.startsWith("metadata_fulltext")
-                      )
-                        return;
-                      searchConfig.setSearchType?.(searchModeToType(value));
-                    }}
-                  >
-                    <DropdownMenuRadioItem value="metadata">
-                      {searchConfig.customDropdownLabels?.metadata ??
-                        "IDs / Names"}
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuSub>
-                      <DropdownMenuSubTrigger
-                        disabled={!searchConfig.tableAllowsFullTextSearch}
-                      >
-                        <span className="flex items-center gap-2">
-                          {getSearchMode(
+                        <DocPopup
+                          description={getSearchDescription(
                             searchConfig.searchType,
-                            searchConfig.tableAllowsFullTextSearch,
-                          ).startsWith("metadata_fulltext") && (
-                            <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
-                          )}
-                          {searchConfig.customDropdownLabels?.fullText ??
-                            "Full Text"}
-                        </span>
-                      </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent>
-                        <DropdownMenuRadioGroup
-                          value={getSearchMode(
-                            searchConfig.searchType,
+                            searchConfig.metadataSearchFields,
+                            searchConfig.hidePerformanceWarning,
                             searchConfig.tableAllowsFullTextSearch,
                           )}
-                          onValueChange={(value) => {
-                            searchConfig.setSearchType?.(
-                              searchModeToType(value),
-                            );
-                          }}
+                        />
+                      </span>
+                      <ChevronDown className="h-4 w-4 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuRadioGroup
+                      value={getSearchMode(
+                        searchConfig.searchType,
+                        searchConfig.tableAllowsFullTextSearch,
+                      )}
+                      onValueChange={(value) => {
+                        if (
+                          !searchConfig.tableAllowsFullTextSearch &&
+                          value.startsWith("metadata_fulltext")
+                        )
+                          return;
+                        searchConfig.setSearchType?.(searchModeToType(value));
+                      }}
+                    >
+                      <DropdownMenuRadioItem value="metadata">
+                        {searchConfig.customDropdownLabels?.metadata ??
+                          "IDs / Names"}
+                      </DropdownMenuRadioItem>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger
+                          disabled={!searchConfig.tableAllowsFullTextSearch}
                         >
-                          {/* Only show options that are explicitly available */}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.content) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext">
-                              Input/Output
-                            </DropdownMenuRadioItem>
-                          )}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.input) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext_input">
-                              Input
-                            </DropdownMenuRadioItem>
-                          )}
-                          {(searchConfig.availableSearchTypes === undefined ||
-                            searchConfig.availableSearchTypes.output) && (
-                            <DropdownMenuRadioItem value="metadata_fulltext_output">
-                              Output
-                            </DropdownMenuRadioItem>
-                          )}
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuSub>
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                          <span className="flex items-center gap-2">
+                            {getSearchMode(
+                              searchConfig.searchType,
+                              searchConfig.tableAllowsFullTextSearch,
+                            ).startsWith("metadata_fulltext") && (
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-current" />
+                            )}
+                            {searchConfig.customDropdownLabels?.fullText ??
+                              "Full Text"}
+                          </span>
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuRadioGroup
+                            value={getSearchMode(
+                              searchConfig.searchType,
+                              searchConfig.tableAllowsFullTextSearch,
+                            )}
+                            onValueChange={(value) => {
+                              searchConfig.setSearchType?.(
+                                searchModeToType(value),
+                              );
+                            }}
+                          >
+                            {(searchConfig.availableSearchTypes === undefined ||
+                              searchConfig.availableSearchTypes.content) && (
+                              <DropdownMenuRadioItem value="metadata_fulltext">
+                                Input/Output
+                              </DropdownMenuRadioItem>
+                            )}
+                            {(searchConfig.availableSearchTypes === undefined ||
+                              searchConfig.availableSearchTypes.input) && (
+                              <DropdownMenuRadioItem value="metadata_fulltext_input">
+                                Input
+                              </DropdownMenuRadioItem>
+                            )}
+                            {(searchConfig.availableSearchTypes === undefined ||
+                              searchConfig.availableSearchTypes.output) && (
+                              <DropdownMenuRadioItem value="metadata_fulltext_output">
+                                Output
+                              </DropdownMenuRadioItem>
+                            )}
+                          </DropdownMenuRadioGroup>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+            {searchError && (
+              <p className="text-destructive px-1 text-xs">{searchError}</p>
             )}
           </div>
         )}

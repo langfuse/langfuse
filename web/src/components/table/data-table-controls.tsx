@@ -32,6 +32,7 @@ import type {
   NumericKeyValueFilterEntry,
   StringKeyValueFilterEntry,
   TextFilterEntry,
+  TextFilterOperator,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
 import { KeyValueFilterBuilder } from "@/src/components/table/key-value-filter-builder";
 import {
@@ -103,17 +104,31 @@ export interface QueryFilter {
 interface DataTableControlsProps {
   queryFilter: QueryFilter;
   filterWithAI?: boolean;
+  disabledReason?: string;
 }
 
 export function DataTableControls({
   queryFilter,
   filterWithAI,
+  disabledReason,
 }: DataTableControlsProps) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const [aiPopoverOpen, setAiPopoverOpen] = useState(false);
+  const isDisabled = Boolean(disabledReason);
+  const filters = isDisabled
+    ? queryFilter.filters.map((filter) => ({
+        ...filter,
+        isDisabled: true,
+        disabledReason,
+      }))
+    : queryFilter.filters;
 
   const handleFiltersGenerated = useCallback(
     (filters: FilterState) => {
+      if (isDisabled) {
+        return;
+      }
+
       // Apply filters
       queryFilter.setFilterState(filters);
 
@@ -130,7 +145,7 @@ export function DataTableControls({
       // Close popover
       setAiPopoverOpen(false);
     },
-    [queryFilter],
+    [isDisabled, queryFilter],
   );
 
   return (
@@ -151,6 +166,7 @@ export function DataTableControls({
                   size="sm"
                   onClick={() => queryFilter.clearAll()}
                   className="h-7 px-2 text-xs"
+                  disabled={isDisabled}
                 >
                   Clear all
                 </Button>
@@ -158,7 +174,7 @@ export function DataTableControls({
               <TooltipContent>Clear all filters</TooltipContent>
             </Tooltip>
           )}
-          {filterWithAI && isLangfuseCloud && (
+          {filterWithAI && isLangfuseCloud && !isDisabled && (
             <Popover open={aiPopoverOpen} onOpenChange={setAiPopoverOpen}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -179,6 +195,14 @@ export function DataTableControls({
           )}
         </div>
       </div>
+      {disabledReason && (
+        <div className="bg-muted/40 text-muted-foreground border-b px-3 py-2 text-xs leading-relaxed">
+          <div className="flex items-start gap-2">
+            <InfoIcon className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <span>{disabledReason}</span>
+          </div>
+        </div>
+      )}
       <div className="pb-10">
         <Accordion
           type="multiple"
@@ -186,7 +210,7 @@ export function DataTableControls({
           value={queryFilter.expanded}
           onValueChange={queryFilter.onExpandedChange}
         >
-          {queryFilter.filters.map((filter) => {
+          {filters.map((filter) => {
             if (filter.type === "categorical") {
               return (
                 <CategoricalFacet
@@ -352,14 +376,8 @@ interface CategoricalFacetProps extends BaseFacetProps {
   operator?: "any of" | "all of" | "none of";
   onOperatorChange?: (operator: "any of" | "all of" | "none of") => void;
   textFilters?: TextFilterEntry[];
-  onTextFilterAdd?: (
-    operator: "contains" | "does not contain",
-    value: string,
-  ) => void;
-  onTextFilterRemove?: (
-    operator: "contains" | "does not contain",
-    value: string,
-  ) => void;
+  onTextFilterAdd?: (operator: TextFilterOperator, value: string) => void;
+  onTextFilterRemove?: (operator: TextFilterOperator, value: string) => void;
 }
 
 interface NumericFacetProps extends BaseFacetProps {
@@ -571,7 +589,9 @@ export function CategoricalFacet({
   const [showAll, setShowAll] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   // Track which filter mode is active (select checkboxes vs text filters)
-  const [filterMode, setFilterMode] = useState<"select" | "text">("select");
+  const [filterMode, setFilterMode] = useState<"select" | "text">(
+    textFilters && textFilters.length > 0 ? "text" : "select",
+  );
 
   // Reset showAll and searchQuery state when accordion is collapsed
   useEffect(() => {
@@ -580,6 +600,12 @@ export function CategoricalFacet({
       setSearchQuery("");
     }
   }, [expanded]);
+
+  useEffect(() => {
+    if (textFilters && textFilters.length > 0 && filterMode !== "text") {
+      setFilterMode("text");
+    }
+  }, [filterMode, textFilters]);
 
   // Handle mode change with auto-clear of filters from the other mode
   const handleModeChange = useCallback(
@@ -1275,13 +1301,12 @@ function TextFilterSection({
   onRemove,
 }: {
   allFilters: TextFilterEntry[];
-  onAdd?: (op: "contains" | "does not contain", val: string) => void;
-  onRemove?: (op: "contains" | "does not contain", val: string) => void;
+  onAdd?: (op: TextFilterOperator, val: string) => void;
+  onRemove?: (op: TextFilterOperator, val: string) => void;
 }) {
   const [inputValue, setInputValue] = useState("");
-  const [selectedOperator, setSelectedOperator] = useState<
-    "contains" | "does not contain"
-  >("contains");
+  const [selectedOperator, setSelectedOperator] =
+    useState<TextFilterOperator>("contains");
 
   const handleAdd = () => {
     // people have filtered for a single " ", e.g. does not contain " " on sessionID to get all traces with a session id
@@ -1295,7 +1320,7 @@ function TextFilterSection({
     <div className="space-y-2">
       {/* Operator toggle */}
       <div className="flex items-center gap-1 px-2">
-        <div className="border-input/50 bg-background inline-flex rounded border text-[10px]">
+        <div className="border-input/50 bg-background inline-flex flex-wrap rounded border text-[10px]">
           <button
             onClick={() => setSelectedOperator("contains")}
             className={cn(
@@ -1311,13 +1336,37 @@ function TextFilterSection({
           <button
             onClick={() => setSelectedOperator("does not contain")}
             className={cn(
-              "rounded-r px-2 py-0.5 transition-colors",
+              "px-2 py-0.5 transition-colors",
               selectedOperator === "does not contain"
                 ? "bg-accent text-accent-foreground font-medium"
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
             does not contain
+          </button>
+          <div className="bg-border/50 w-px" />
+          <button
+            onClick={() => setSelectedOperator("starts with")}
+            className={cn(
+              "px-2 py-0.5 transition-colors",
+              selectedOperator === "starts with"
+                ? "bg-accent text-accent-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            starts with
+          </button>
+          <div className="bg-border/50 w-px" />
+          <button
+            onClick={() => setSelectedOperator("ends with")}
+            className={cn(
+              "rounded-r px-2 py-0.5 transition-colors",
+              selectedOperator === "ends with"
+                ? "bg-accent text-accent-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            ends with
           </button>
         </div>
       </div>
@@ -1356,7 +1405,7 @@ function TextFilterSection({
               className="group/textfilter border-border/40 bg-muted/30 flex items-center gap-2 rounded border px-2 py-1 text-xs"
             >
               <span className="text-muted-foreground shrink-0 text-[10px] font-medium">
-                {f.operator === "contains" ? "contains" : "does not contain"}
+                {f.operator}
               </span>
               <span
                 className="min-w-0 flex-1 truncate font-medium"

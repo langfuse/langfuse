@@ -757,13 +757,18 @@ export default function ObservationsTable({
       },
       enableHiding: true,
       cell({ row }) {
-        const value: ObservationLevelType | undefined = row.getValue("level");
+        const value = row.getValue<string | undefined>("level");
+        const levelColors = value
+          ? (LevelColors[value as keyof typeof LevelColors] ??
+            LevelColors.DEFAULT)
+          : undefined;
+
         return value ? (
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              LevelColors[value].bg,
-              LevelColors[value].text,
+              levelColors?.bg,
+              levelColors?.text,
             )}
           >
             {value}
@@ -1437,7 +1442,7 @@ export default function ObservationsTable({
                   projectId,
                   filterState: backendFilterState,
                   orderByState,
-                  searchQuery,
+                  searchQuery: searchQuery ?? undefined,
                   searchType,
                 }}
                 tableName={BatchExportTableName.Observations}

@@ -1,5 +1,13 @@
 import type { PrismaClient } from "../../db";
-import { type singleFilter } from "../../interfaces/filters";
+import {
+  normalizeFilterExpressionInput,
+  type singleFilter,
+} from "../../interfaces/filters";
+import {
+  type FilterCondition,
+  type FilterExpression,
+  type FilterInput,
+} from "../../types";
 import {
   type CommentObjectType,
   type CommentCountOperator,
@@ -322,5 +330,210 @@ export async function applyCommentFilters({
     ],
     hasNoMatches: false,
     matchingIds: objectIdsFromComments,
+  };
+}
+
+type CommentFilterRewriteResult = {
+  expression?: FilterExpression;
+  hasNoMatches: boolean;
+  matchingIds: string[] | null;
+};
+
+function isLegacyFilterCondition(
+  filter: FilterExpression,
+): filter is FilterCondition {
+  if (filter.type === "group") {
+    return false;
+  }
+
+  if (
+    (filter.type === "string" || filter.type === "stringObject") &&
+    filter.operator === "matches"
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function isCommentFilter(filter: FilterExpression): filter is FilterCondition {
+  if (!isLegacyFilterCondition(filter)) {
+    return false;
+  }
+
+  return (
+    ((filter.type === "number" || filter.type === "datetime") &&
+      filter.column === "commentCount") ||
+    (filter.type === "string" && filter.column === "commentContent")
+  );
+}
+
+async function rewriteCommentFiltersInExpression({
+  filterExpression,
+  prisma,
+  projectId,
+  objectType,
+  idColumn,
+}: {
+  filterExpression?: FilterExpression;
+  prisma: PrismaClient;
+  projectId: string;
+  objectType: CommentObjectType;
+  idColumn: string;
+}): Promise<CommentFilterRewriteResult> {
+  if (!filterExpression) {
+    return {
+      expression: undefined,
+      hasNoMatches: false,
+      matchingIds: null,
+    };
+  }
+
+  if (filterExpression.type !== "group") {
+    if (!isCommentFilter(filterExpression)) {
+      return {
+        expression: filterExpression,
+        hasNoMatches: false,
+        matchingIds: null,
+      };
+    }
+
+    const result = await applyCommentFilters({
+      filterState: [filterExpression],
+      prisma,
+      projectId,
+      objectType,
+      idColumn,
+    });
+
+    return {
+      expression: normalizeFilterExpressionInput(result.filterState),
+      hasNoMatches: result.hasNoMatches,
+      matchingIds: result.matchingIds,
+    };
+  }
+
+  const rewrittenChildren = await Promise.all(
+    filterExpression.conditions.map((condition) =>
+      rewriteCommentFiltersInExpression({
+        filterExpression: condition,
+        prisma,
+        projectId,
+        objectType,
+        idColumn,
+      }),
+    ),
+  );
+
+  if (filterExpression.operator === "AND") {
+    if (rewrittenChildren.some((child) => child.hasNoMatches)) {
+      return {
+        expression: undefined,
+        hasNoMatches: true,
+        matchingIds: [],
+      };
+    }
+
+    const expressions = rewrittenChildren.flatMap((child) =>
+      child.expression ? [child.expression] : [],
+    );
+
+    if (expressions.length === 0) {
+      return {
+        expression: undefined,
+        hasNoMatches: false,
+        matchingIds: null,
+      };
+    }
+
+    if (expressions.length === 1) {
+      return {
+        expression: expressions[0],
+        hasNoMatches: false,
+        matchingIds: null,
+      };
+    }
+
+    return {
+      expression: {
+        type: "group",
+        operator: "AND",
+        conditions: expressions,
+      },
+      hasNoMatches: false,
+      matchingIds: null,
+    };
+  }
+
+  if (
+    rewrittenChildren.some((child) => !child.hasNoMatches && !child.expression)
+  ) {
+    return {
+      expression: undefined,
+      hasNoMatches: false,
+      matchingIds: null,
+    };
+  }
+
+  const expressions = rewrittenChildren.flatMap((child) =>
+    !child.hasNoMatches && child.expression ? [child.expression] : [],
+  );
+
+  if (expressions.length === 0) {
+    return {
+      expression: undefined,
+      hasNoMatches: true,
+      matchingIds: [],
+    };
+  }
+
+  if (expressions.length === 1) {
+    return {
+      expression: expressions[0],
+      hasNoMatches: false,
+      matchingIds: null,
+    };
+  }
+
+  return {
+    expression: {
+      type: "group",
+      operator: "OR",
+      conditions: expressions,
+    },
+    hasNoMatches: false,
+    matchingIds: null,
+  };
+}
+
+export async function applyCommentFiltersToFilterInput({
+  filterState,
+  prisma,
+  projectId,
+  objectType,
+  idColumn = "id",
+}: {
+  filterState: FilterInput | undefined;
+  prisma: PrismaClient;
+  projectId: string;
+  objectType: CommentObjectType;
+  idColumn?: string;
+}): Promise<{
+  filterState: FilterExpression | undefined;
+  hasNoMatches: boolean;
+  matchingIds: string[] | null;
+}> {
+  const result = await rewriteCommentFiltersInExpression({
+    filterExpression: normalizeFilterExpressionInput(filterState),
+    prisma,
+    projectId,
+    objectType,
+    idColumn,
+  });
+
+  return {
+    filterState: result.expression,
+    hasNoMatches: result.hasNoMatches,
+    matchingIds: result.matchingIds,
   };
 }

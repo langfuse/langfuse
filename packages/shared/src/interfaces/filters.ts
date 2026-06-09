@@ -164,3 +164,130 @@ export const eventsTableSingleFilter = z.discriminatedUnion("type", [
 ]);
 
 export const eventsTableFilterState = z.array(eventsTableSingleFilter);
+
+export const filterGroupOperator = z.enum(["AND", "OR"]);
+
+export type FilterConditionSchema = z.infer<typeof eventsTableSingleFilter>;
+export type FilterGroupSchema = {
+  type: "group";
+  operator: z.infer<typeof filterGroupOperator>;
+  conditions: FilterExpressionSchema[];
+};
+export type FilterExpressionSchema = FilterConditionSchema | FilterGroupSchema;
+export type FilterInputSchema =
+  | z.infer<typeof eventsTableFilterState>
+  | FilterExpressionSchema
+  | null
+  | undefined;
+
+export const filterExpression: z.ZodType<FilterExpressionSchema> = z.lazy(() =>
+  z.union([eventsTableSingleFilter, filterGroup]),
+);
+
+export const filterGroup: z.ZodType<FilterGroupSchema> = z.lazy(() =>
+  z.object({
+    type: z.literal("group"),
+    operator: filterGroupOperator,
+    conditions: z.array(filterExpression).min(1),
+  }),
+);
+
+export const filterInput = z.union([eventsTableFilterState, filterExpression]);
+
+export function normalizeFilterExpressionInput(
+  filterInputValue?: FilterInputSchema,
+): FilterExpressionSchema | undefined {
+  if (!filterInputValue) {
+    return undefined;
+  }
+
+  if (Array.isArray(filterInputValue)) {
+    if (filterInputValue.length === 0) {
+      return undefined;
+    }
+
+    return {
+      type: "group",
+      operator: "AND",
+      conditions: filterInputValue,
+    };
+  }
+
+  return filterInputValue;
+}
+
+export function isFilterGroup(
+  filterValue: FilterExpressionSchema,
+): filterValue is FilterGroupSchema {
+  return filterValue.type === "group";
+}
+
+export function getFilterExpressionLeafFilters(
+  filterValue?: FilterExpressionSchema,
+): FilterConditionSchema[] {
+  if (!filterValue) {
+    return [];
+  }
+
+  if (!isFilterGroup(filterValue)) {
+    return [filterValue];
+  }
+
+  return filterValue.conditions.flatMap((condition) =>
+    getFilterExpressionLeafFilters(condition),
+  );
+}
+
+export function getMandatoryFilterExpressionLeafFilters(
+  filterValue?: FilterExpressionSchema,
+): FilterConditionSchema[] {
+  if (!filterValue) {
+    return [];
+  }
+
+  if (!isFilterGroup(filterValue)) {
+    return [filterValue];
+  }
+
+  if (filterValue.operator === "OR") {
+    return [];
+  }
+
+  return filterValue.conditions.flatMap((condition) =>
+    getMandatoryFilterExpressionLeafFilters(condition),
+  );
+}
+
+export function combineFilterInputs(
+  ...filterValues: FilterInputSchema[]
+): FilterExpressionSchema | undefined {
+  const normalizedFilters = filterValues
+    .map((filterValue) => normalizeFilterExpressionInput(filterValue))
+    .filter((filterValue): filterValue is FilterExpressionSchema =>
+      Boolean(filterValue),
+    );
+
+  if (normalizedFilters.length === 0) {
+    return undefined;
+  }
+
+  if (normalizedFilters.length === 1) {
+    return normalizedFilters[0];
+  }
+
+  const conditions: FilterExpressionSchema[] = [];
+
+  for (const filterValue of normalizedFilters) {
+    if (isFilterGroup(filterValue) && filterValue.operator === "AND") {
+      conditions.push(...filterValue.conditions);
+    } else {
+      conditions.push(filterValue);
+    }
+  }
+
+  return {
+    type: "group",
+    operator: "AND",
+    conditions,
+  };
+}

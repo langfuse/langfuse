@@ -1,6 +1,7 @@
 import {
   createEvent,
   createEventsCh,
+  getEventsGroupedByName,
   getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
@@ -16,7 +17,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { type FilterCondition } from "@langfuse/shared";
+import { type FilterCondition, type FilterExpression } from "@langfuse/shared";
 import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -450,6 +451,198 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("Nested Filter Expression", () => {
+    it("supports nested AND/OR filters for list and count queries", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const matchingGenerationId = randomUUID();
+      const nonMatchingId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "alpha-span",
+          environment: "prod",
+        }),
+        createEvent({
+          id: matchingGenerationId,
+          span_id: matchingGenerationId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "beta-generation",
+          environment: "staging",
+        }),
+        createEvent({
+          id: nonMatchingId,
+          span_id: nonMatchingId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "beta-generation",
+          environment: "staging",
+        }),
+      ]);
+
+      const filter: FilterExpression = {
+        type: "group",
+        operator: "OR",
+        conditions: [
+          {
+            type: "group",
+            operator: "AND",
+            conditions: [
+              {
+                type: "string",
+                column: "type",
+                operator: "=",
+                value: "SPAN",
+              },
+              {
+                type: "string",
+                column: "environment",
+                operator: "=",
+                value: "prod",
+              },
+            ],
+          },
+          {
+            type: "group",
+            operator: "AND",
+            conditions: [
+              {
+                type: "string",
+                column: "type",
+                operator: "=",
+                value: "GENERATION",
+              },
+              {
+                type: "string",
+                column: "name",
+                operator: "=",
+                value: "beta-generation",
+              },
+            ],
+          },
+        ],
+      };
+
+      const [observations, count] = await Promise.all([
+        getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter,
+          limit: 100,
+          offset: 0,
+        }),
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter,
+        }),
+      ]);
+
+      expect(count).toBe(2);
+      expect(observations).toHaveLength(2);
+      expect(observations.map((observation) => observation.id).sort()).toEqual(
+        [matchingGenerationId, matchingSpanId].sort(),
+      );
+    });
+
+    it("applies nested filters to grouped filter-option queries", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "alpha-span",
+          environment: "prod",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "beta-generation",
+          environment: "staging",
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "beta-generation",
+          environment: "staging",
+        }),
+      ]);
+
+      const filter: FilterExpression = {
+        type: "group",
+        operator: "OR",
+        conditions: [
+          {
+            type: "group",
+            operator: "AND",
+            conditions: [
+              {
+                type: "string",
+                column: "type",
+                operator: "=",
+                value: "SPAN",
+              },
+              {
+                type: "string",
+                column: "environment",
+                operator: "=",
+                value: "prod",
+              },
+            ],
+          },
+          {
+            type: "group",
+            operator: "AND",
+            conditions: [
+              {
+                type: "string",
+                column: "type",
+                operator: "=",
+                value: "GENERATION",
+              },
+              {
+                type: "string",
+                column: "name",
+                operator: "=",
+                value: "beta-generation",
+              },
+            ],
+          },
+        ],
+      };
+
+      const groupedNames = await getEventsGroupedByName(
+        uniqueProjectId,
+        filter,
+      );
+      const countsByName = new Map(
+        groupedNames.map((row) => [row.name, row.count] as const),
+      );
+
+      expect(countsByName.get("alpha-span")).toBe(1);
+      expect(countsByName.get("beta-generation")).toBe(1);
+      expect(countsByName.size).toBe(2);
+    });
+  });
+
   maybe("Search Query Tests", () => {
     it("should not throw when searchQuery is combined with score filter", async () => {
       const uniqueProjectId = randomUUID();
@@ -510,6 +703,114 @@ describe("Clickhouse Events Repository Test", () => {
       });
 
       expect(count).toBeGreaterThanOrEqual(0);
+    });
+
+    it("applies Lucene search safely for list and count queries", async () => {
+      const uniqueProjectId = randomUUID();
+      const otherProjectId = randomUUID();
+      const matchingTraceId = randomUUID();
+      const matchingObservationId = randomUUID();
+      const debugObservationId = randomUUID();
+      const otherProjectObservationId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: matchingObservationId,
+          span_id: matchingObservationId,
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "GENERATION",
+          name: "weather-agent",
+          level: "ERROR",
+          input: "tool weather request",
+          metadata_names: ["environment", "team"],
+          metadata_values: ["prod", "platform"],
+          start_time: nowMicro,
+        }),
+        createEvent({
+          id: debugObservationId,
+          span_id: debugObservationId,
+          project_id: uniqueProjectId,
+          trace_id: matchingTraceId,
+          type: "GENERATION",
+          name: "weather-agent",
+          level: "DEBUG",
+          input: "tool weather request",
+          metadata_names: ["environment", "team"],
+          metadata_values: ["prod", "platform"],
+          start_time: nowMicro + 1000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "other-agent",
+          level: "ERROR",
+          input: "tool calendar request",
+          metadata_names: ["environment"],
+          metadata_values: ["staging"],
+          start_time: nowMicro + 2000,
+        }),
+        createEvent({
+          id: otherProjectObservationId,
+          span_id: otherProjectObservationId,
+          project_id: otherProjectId,
+          trace_id: matchingTraceId,
+          type: "GENERATION",
+          name: "weather-agent",
+          level: "ERROR",
+          input: "tool weather request",
+          metadata_names: ["environment", "team"],
+          metadata_values: ["prod", "platform"],
+          start_time: nowMicro + 3000,
+        }),
+      ]);
+
+      const searchQuery =
+        "metadata.environment:prod AND input:weather AND NOT level:DEBUG";
+
+      const [observations, count] = await Promise.all([
+        getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [],
+          limit: 100,
+          offset: 0,
+          searchQuery,
+        }),
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [],
+          searchQuery,
+        }),
+      ]);
+
+      expect(count).toBe(1);
+      expect(observations.map((observation) => observation.id)).toEqual([
+        matchingObservationId,
+      ]);
+      expect(observations.map((observation) => observation.id)).not.toContain(
+        debugObservationId,
+      );
+      expect(observations.map((observation) => observation.id)).not.toContain(
+        otherProjectObservationId,
+      );
+    });
+
+    it("rejects unsupported Lucene operators before querying ClickHouse", async () => {
+      const uniqueProjectId = randomUUID();
+
+      await expect(
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter: [],
+          searchQuery: 'name:"chat completion"~2',
+        }),
+      ).rejects.toThrow(
+        "Invalid Lucene query: Phrase proximity search is not supported in events search.",
+      );
     });
   });
 

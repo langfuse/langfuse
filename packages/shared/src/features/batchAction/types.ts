@@ -1,5 +1,5 @@
 import z from "zod";
-import { singleFilter } from "../../interfaces/filters";
+import { filterInput } from "../../interfaces/filters";
 import { orderBy } from "../../interfaces/orderBy";
 import { BatchTableNames } from "../../interfaces/tableNames";
 import { TracingSearchType } from "../../interfaces/search";
@@ -31,7 +31,7 @@ export enum ActionId {
 const ActionIdSchema = z.enum(ActionId);
 
 export const BatchActionQuerySchema = z.object({
-  filter: z.array(singleFilter).nullable(),
+  filter: filterInput.nullable(),
   orderBy,
   searchQuery: z.string().optional(),
   searchType: z.array(TracingSearchType).optional(),

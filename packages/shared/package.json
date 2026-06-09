@@ -95,6 +95,7 @@
     "@azure/storage-blob": "^12.26.0",
     "@clickhouse/client": "^1.18.5",
     "@google-cloud/storage": "^7.19.0",
+    "@hyperdx/lucene": "^3.1.1",
     "@langchain/anthropic": "^1.3.26",
     "@langchain/aws": "^1.3.4",
     "@langchain/core": "^1.1.48",

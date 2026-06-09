@@ -1,5 +1,18 @@
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
+import { EventsLuceneSearchInput } from "./EventsLuceneSearchInput";
+import {
+  normalizeEventsLuceneAutocompleteValues,
+  shouldApplyEventsLuceneDraftOnChange,
+  shouldSuppressEventsLuceneValidationErrorOnChange,
+} from "./events-lucene-search-utils";
+import {
+  getEffectiveEventsSearchQueryForSync,
+  getEventsSidebarDisabledReason,
+  getSyncableEventsLuceneFilterState,
+  planEventsSearchBarFilterSync,
+  planEventsSidebarSearchSync,
+} from "./events-lucene-search-sync";
 import {
   DataTableControlsProvider,
   DataTableControls,
@@ -12,12 +25,17 @@ import {
   type UseSidebarFilterStateOptions,
   useSidebarFilterState,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
 import {
   getEventsColumnName,
   getObservationEventsFilterConfig,
   type ObservationEventsOmittableFilterColumn,
 } from "../config/filter-config";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@/src/features/filters/constants/internal-environments";
+import {
+  buildEffectiveEnvironmentFilter,
+  buildManagedEnvironmentPolicyConfig,
+} from "@/src/features/filters/lib/managedEnvironmentPolicy";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import {
   TableBadgeLoadingCell,
@@ -27,12 +45,16 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
   type ObservationLevelType,
+  combineFilterInputs,
+  type FilterInput,
   type FilterState,
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
   BatchActionType,
   ActionId,
+  EVENTS_LUCENE_QUERY_EXAMPLES,
+  resolveEventsLuceneQueryForApi,
   RESOURCE_LIMIT_ERROR_MESSAGE,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
@@ -99,6 +121,7 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import isEqual from "lodash/isEqual";
 
 export type EventsTableRow = {
   // Identity fields
@@ -183,6 +206,22 @@ export type EventsTableProps = {
   sessionId?: string;
 };
 
+function dedupeEventsFilterState(filters: FilterState): FilterState {
+  const dedupedFilters: FilterState = [];
+
+  for (const filter of filters) {
+    if (
+      !dedupedFilters.some((candidateFilter) =>
+        isEqual(candidateFilter, filter),
+      )
+    ) {
+      dedupedFilters.push(filter);
+    }
+  }
+
+  return dedupedFilters;
+}
+
 export default function ObservationsEventsTable({
   projectId,
   userId,
@@ -203,9 +242,19 @@ export default function ObservationsEventsTable({
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
-  const { searchQuery, searchType, setSearchQuery, setSearchType } =
-    useFullTextSearch();
-
+  const { searchQuery, setSearchQuery } = useFullTextSearch();
+  const resolvedSearchQuery = useMemo(
+    () => resolveEventsLuceneQueryForApi(searchQuery),
+    [searchQuery],
+  );
+  const syncableSearchBarFilterState = useMemo(
+    () => getSyncableEventsLuceneFilterState(searchQuery),
+    [searchQuery],
+  );
+  const sidebarDisabledReason = useMemo(
+    () => getEventsSidebarDisabledReason(searchQuery),
+    [searchQuery],
+  );
   const { selectAll, setSelectAll } = useSelectAll(projectId, "observations");
   const [showRunEvaluationDialog, setShowRunEvaluationDialog] = useState(false);
   const [showAddToDatasetDialog, setShowAddToDatasetDialog] = useState(false);
@@ -340,39 +389,230 @@ export default function ObservationsEventsTable({
 
   const dateRange = externalDateRange ?? tableDateRange;
 
-  const dateRangeFilter: FilterState = dateRange
-    ? [
-        {
-          column: "startTime",
-          type: "datetime",
-          operator: ">=",
-          value: dateRange.from,
-        },
-        ...(dateRange.to
-          ? [
-              {
-                column: "startTime",
-                type: "datetime",
-                operator: "<=",
-                value: dateRange.to,
-              } as const,
-            ]
-          : []),
-      ]
-    : [];
+  const dateRangeFilter = useMemo<FilterState>(
+    () =>
+      dateRange
+        ? [
+            {
+              column: "startTime",
+              type: "datetime",
+              operator: ">=",
+              value: dateRange.from,
+            },
+            ...(dateRange.to
+              ? [
+                  {
+                    column: "startTime",
+                    type: "datetime",
+                    operator: "<=",
+                    value: dateRange.to,
+                  } as const,
+                ]
+              : []),
+          ]
+        : [],
+    [dateRange],
+  );
 
-  const oldFilterState = inputFilterState.concat(dateRangeFilter);
+  const normalizedInputFilterState = useMemo(
+    () =>
+      normalizeFilterColumnNames(
+        inputFilterState,
+        eventsFilterConfig.columnDefinitions,
+      ),
+    [eventsFilterConfig.columnDefinitions, inputFilterState],
+  );
+
+  const managedEnvironmentPolicyConfig = useMemo(
+    () =>
+      buildManagedEnvironmentPolicyConfig(
+        DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      ),
+    [],
+  );
+
+  const userIdFilter = useMemo<FilterState>(
+    () =>
+      userId
+        ? [
+            {
+              column: "userId",
+              type: "string",
+              operator: "=",
+              value: userId,
+            },
+          ]
+        : [],
+    [userId],
+  );
+
+  const sessionIdFilter = useMemo<FilterState>(
+    () =>
+      sessionId
+        ? [
+            {
+              column: "sessionId",
+              type: "string",
+              operator: "=",
+              value: sessionId,
+            },
+          ]
+        : [],
+    [sessionId],
+  );
+
+  const filterOptionsBaseFilterState = useMemo(() => {
+    const scopedExplicitFilters = dedupeEventsFilterState(
+      normalizedInputFilterState.concat(userIdFilter).concat(sessionIdFilter),
+    );
+
+    return dedupeEventsFilterState(
+      scopedExplicitFilters
+        .concat(
+          buildEffectiveEnvironmentFilter({
+            explicitFilters: scopedExplicitFilters,
+            config: managedEnvironmentPolicyConfig,
+          }),
+        )
+        .concat(dateRangeFilter),
+    );
+  }, [
+    dateRangeFilter,
+    managedEnvironmentPolicyConfig,
+    normalizedInputFilterState,
+    sessionIdFilter,
+    userIdFilter,
+  ]);
 
   // Fetch filter options
+  const filterOptionsFilterInput = useMemo(
+    () =>
+      resolvedSearchQuery.isValid && !syncableSearchBarFilterState
+        ? (combineFilterInputs(
+            filterOptionsBaseFilterState,
+            resolvedSearchQuery.filter,
+          ) ?? filterOptionsBaseFilterState)
+        : (combineFilterInputs(filterOptionsBaseFilterState) ??
+          filterOptionsBaseFilterState),
+    [
+      filterOptionsBaseFilterState,
+      resolvedSearchQuery,
+      syncableSearchBarFilterState,
+    ],
+  );
+
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
-    oldFilterState,
+    oldFilterState: filterOptionsFilterInput,
   });
+  const luceneFieldOptions = useMemo(
+    () => ({
+      environment: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.environment,
+      ),
+      name: normalizeEventsLuceneAutocompleteValues(filterOptions.name),
+      type: normalizeEventsLuceneAutocompleteValues(filterOptions.type),
+      level: normalizeEventsLuceneAutocompleteValues(filterOptions.level),
+      modelId: normalizeEventsLuceneAutocompleteValues(filterOptions.modelId),
+      providedModelName: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.providedModelName,
+      ),
+      promptName: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.promptName,
+      ),
+      traceName: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.traceName,
+      ),
+      userId: normalizeEventsLuceneAutocompleteValues(filterOptions.userId),
+      sessionId: normalizeEventsLuceneAutocompleteValues(
+        filterOptions.sessionId,
+      ),
+    }),
+    [filterOptions],
+  );
+
+  const latestSearchQueryRef = useRef(searchQuery);
+  const previousSyncableSearchBarFilterStateRef = useRef<
+    FilterState | undefined
+  >(syncableSearchBarFilterState);
+  const pendingExplicitSidebarFilterSyncRef = useRef<FilterState | undefined>(
+    undefined,
+  );
+  const pendingSearchQuerySyncRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    latestSearchQueryRef.current = searchQuery;
+  }, [searchQuery]);
+
+  const handleEventsSearchQueryUpdate = useCallback(
+    (nextSearchQuery: string) => {
+      const normalizedSearchQuery = nextSearchQuery.trim();
+      const currentExplicitFilters =
+        queryFilterRef.current?.explicitFilterState ?? [];
+      const { nextExplicitFilters, nextSyncedFilters } =
+        planEventsSearchBarFilterSync({
+          currentExplicitFilters,
+          previousSyncedFilters:
+            previousSyncableSearchBarFilterStateRef.current,
+          nextSearchQuery: normalizedSearchQuery,
+          hideControls,
+        });
+
+      latestSearchQueryRef.current = normalizedSearchQuery;
+
+      if (!isEqual(nextExplicitFilters, currentExplicitFilters)) {
+        pendingExplicitSidebarFilterSyncRef.current = nextExplicitFilters;
+        queryFilterRef.current?.setFilterState(nextExplicitFilters);
+      }
+
+      previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+      pendingSearchQuerySyncRef.current = normalizedSearchQuery;
+      setSearchQuery(normalizedSearchQuery || null);
+    },
+    [hideControls, setSearchQuery],
+  );
+
+  const handleExplicitSidebarFilterStateChange = useCallback(
+    (nextExplicitFilters: FilterState) => {
+      if (
+        pendingExplicitSidebarFilterSyncRef.current &&
+        isEqual(
+          nextExplicitFilters,
+          pendingExplicitSidebarFilterSyncRef.current,
+        )
+      ) {
+        pendingExplicitSidebarFilterSyncRef.current = undefined;
+        return;
+      }
+
+      const currentSearchQuery = latestSearchQueryRef.current?.trim() ?? "";
+      const { shouldUpdateSearchQuery, nextSearchQuery, nextSyncedFilters } =
+        planEventsSidebarSearchSync({
+          currentSearchQuery: latestSearchQueryRef.current,
+          nextExplicitFilters,
+          hideControls,
+        });
+
+      if (!shouldUpdateSearchQuery) {
+        return;
+      }
+
+      previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+
+      if (currentSearchQuery !== nextSearchQuery) {
+        pendingSearchQuerySyncRef.current = nextSearchQuery;
+        latestSearchQueryRef.current = nextSearchQuery;
+        setSearchQuery(nextSearchQuery || null);
+      }
+    },
+    [hideControls, setSearchQuery],
+  );
 
   const queryFilterOptions: UseSidebarFilterStateOptions = useMemo(() => {
     const baseOptions = {
       loading: isFilterOptionsPending,
       implicitDefaultConfig: DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG,
+      onExplicitFilterStateChange: handleExplicitSidebarFilterStateChange,
     };
 
     if (peekContext) {
@@ -395,13 +635,21 @@ export default function ObservationsEventsTable({
       stateLocation: "urlAndSessionStorage",
       sessionFilterContextId: projectId,
     };
-  }, [hideControls, isFilterOptionsPending, peekContext, projectId]);
+  }, [
+    handleExplicitSidebarFilterStateChange,
+    hideControls,
+    isFilterOptionsPending,
+    peekContext,
+    projectId,
+  ]);
 
   const queryFilter = useSidebarFilterState(
     eventsFilterConfig,
     filterOptions,
     queryFilterOptions,
   );
+  const explicitSidebarFilterState = queryFilter.explicitFilterState;
+  const setExplicitSidebarFilterState = queryFilter.setFilterState;
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
@@ -411,6 +659,80 @@ export default function ObservationsEventsTable({
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
   );
+
+  useEffect(() => {
+    const effectiveSearchQuery = getEffectiveEventsSearchQueryForSync({
+      latestSearchQuery: latestSearchQueryRef.current,
+      urlSearchQuery: searchQuery,
+    });
+
+    if (effectiveSearchQuery === pendingSearchQuerySyncRef.current) {
+      pendingSearchQuerySyncRef.current = null;
+      return;
+    }
+
+    const { nextExplicitFilters, nextSyncedFilters } =
+      planEventsSearchBarFilterSync({
+        currentExplicitFilters: explicitSidebarFilterState,
+        previousSyncedFilters: previousSyncableSearchBarFilterStateRef.current,
+        nextSearchQuery: effectiveSearchQuery,
+        hideControls,
+      });
+
+    if (!isEqual(nextExplicitFilters, explicitSidebarFilterState)) {
+      pendingExplicitSidebarFilterSyncRef.current = nextExplicitFilters;
+      setExplicitSidebarFilterState(nextExplicitFilters);
+    }
+
+    previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+  }, [
+    explicitSidebarFilterState,
+    hideControls,
+    searchQuery,
+    setExplicitSidebarFilterState,
+  ]);
+
+  useEffect(() => {
+    if (
+      pendingExplicitSidebarFilterSyncRef.current &&
+      isEqual(
+        explicitSidebarFilterState,
+        pendingExplicitSidebarFilterSyncRef.current,
+      )
+    ) {
+      pendingExplicitSidebarFilterSyncRef.current = undefined;
+      return;
+    }
+
+    const currentSearchQuery = latestSearchQueryRef.current?.trim() ?? "";
+    const { shouldUpdateSearchQuery, nextSearchQuery, nextSyncedFilters } =
+      planEventsSidebarSearchSync({
+        currentSearchQuery: latestSearchQueryRef.current,
+        nextExplicitFilters: explicitSidebarFilterState,
+        hideControls,
+      });
+
+    if (!shouldUpdateSearchQuery) {
+      return;
+    }
+
+    const normalizedNextSearchQuery = nextSearchQuery.trim();
+
+    if (
+      currentSearchQuery === normalizedNextSearchQuery &&
+      isEqual(
+        previousSyncableSearchBarFilterStateRef.current,
+        nextSyncedFilters,
+      )
+    ) {
+      return;
+    }
+
+    previousSyncableSearchBarFilterStateRef.current = nextSyncedFilters;
+    pendingSearchQuerySyncRef.current = normalizedNextSearchQuery;
+    latestSearchQueryRef.current = normalizedNextSearchQuery;
+    setSearchQuery(normalizedNextSearchQuery || null);
+  }, [explicitSidebarFilterState, hideControls, setSearchQuery]);
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -425,36 +747,30 @@ export default function ObservationsEventsTable({
   //       ]
   //     : [];
 
-  // Create user ID filter if userId is provided
-  const userIdFilter: FilterState = userId
-    ? [
-        {
-          column: "User ID",
-          type: "string",
-          operator: "=",
-          value: userId,
-        },
-      ]
-    : [];
-
-  const sessionIdFilter: FilterState = sessionId
-    ? [
-        {
-          column: "Session ID",
-          type: "string",
-          operator: "=",
-          value: sessionId,
-        },
-      ]
-    : [];
-
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
     .concat(sessionIdFilter);
 
   // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  const baseFilterInput: FilterInput =
+    externalFilterState || combinedFilterState;
+  const filterInput = useMemo(
+    () =>
+      resolvedSearchQuery.isValid && !syncableSearchBarFilterState
+        ? combineFilterInputs(baseFilterInput, resolvedSearchQuery.filter)
+        : combineFilterInputs(baseFilterInput),
+    [baseFilterInput, resolvedSearchQuery, syncableSearchBarFilterState],
+  );
+  const searchValidationError = resolvedSearchQuery.isValid
+    ? null
+    : resolvedSearchQuery.error;
+  const searchQueryForApi = resolvedSearchQuery.isValid
+    ? resolvedSearchQuery.searchQuery
+    : undefined;
+  const searchTypeForApi = resolvedSearchQuery.isValid
+    ? (resolvedSearchQuery.searchType ?? [])
+    : [];
 
   // Use the custom hook for observations data fetching
   const {
@@ -466,13 +782,14 @@ export default function ObservationsEventsTable({
     isSilencedError,
   } = useEventsTableData({
     projectId,
-    filterState,
+    filterState: filterInput,
     paginationState: limitRows
       ? { page: 1, limit: limitRows }
       : paginationState,
     orderByState,
-    searchQuery,
-    searchType,
+    searchQuery: searchQueryForApi,
+    searchType: searchTypeForApi,
+    searchValidationError,
     selectedRows,
     selectAll,
     setSelectedRows,
@@ -727,13 +1044,18 @@ export default function ObservationsEventsTable({
       },
       enableHiding: true,
       cell: ({ row }) => {
-        const value: ObservationLevelType | undefined = row.getValue("level");
+        const value = row.getValue<string | undefined>("level");
+        const levelColors = value
+          ? (LevelColors[value as keyof typeof LevelColors] ??
+            LevelColors.DEFAULT)
+          : undefined;
+
         return value ? (
           <span
             className={cn(
               "rounded-sm p-0.5 text-xs",
-              LevelColors[value].bg,
-              LevelColors[value].text,
+              levelColors?.bg,
+              levelColors?.text,
             )}
           >
             {value}
@@ -1236,7 +1558,7 @@ export default function ObservationsEventsTable({
       ),
       migrateFilterState: eventsFilterConfig.migrateFilterState,
     },
-    currentFilterState: queryFilter.explicitFilterState,
+    currentFilterState: explicitSidebarFilterState,
     currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
     allowBackendSystemPresets: true,
@@ -1352,14 +1674,70 @@ export default function ObservationsEventsTable({
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
-            filterState={queryFilter.explicitFilterState}
+            filterState={explicitSidebarFilterState}
             searchConfig={{
-              metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
-              updateQuery: setSearchQuery,
+              metadataSearchFields: [
+                "ID",
+                "Trace ID",
+                "Name",
+                "Trace Name",
+                "User ID",
+                "Session ID",
+                "Level",
+                "Model",
+              ],
+              updateQuery: handleEventsSearchQueryUpdate,
               currentQuery: searchQuery ?? undefined,
-              searchType,
-              setSearchType,
+              errorMessage: searchValidationError ?? undefined,
+              placeholder: "Search events or write Lucene filters...",
+              applyQueryOnChange: true,
+              shouldApplyQueryOnChange: shouldApplyEventsLuceneDraftOnChange,
+              shouldSuppressValidationErrorOnChange: (query) =>
+                shouldSuppressEventsLuceneValidationErrorOnChange(query),
+              validateQuery: (query) => {
+                const resolution = resolveEventsLuceneQueryForApi(query);
+                return resolution.isValid ? null : resolution.error;
+              },
               tableAllowsFullTextSearch: true,
+              helpDescription: (
+                <div className="space-y-2 text-xs">
+                  <p className="text-primary font-normal">
+                    Plain text searches everything. Lucene filters need fields
+                    like `name:` or `traceId:`.
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed">
+                    Use `AND`, `OR`, `NOT`, and parentheses.
+                  </p>
+                  <div className="space-y-1">
+                    {EVENTS_LUCENE_QUERY_EXAMPLES.map((example) => (
+                      <code
+                        key={example}
+                        className="bg-muted block rounded px-2 py-1"
+                      >
+                        {example}
+                      </code>
+                    ))}
+                  </div>
+                </div>
+              ),
+              renderInput: ({
+                value,
+                onChange,
+                onSubmit,
+                error,
+                placeholder,
+                helpDescription,
+              }) => (
+                <EventsLuceneSearchInput
+                  value={value}
+                  onChange={onChange}
+                  onSubmit={onSubmit}
+                  error={error}
+                  placeholder={placeholder}
+                  helpDescription={helpDescription}
+                  fieldOptions={luceneFieldOptions}
+                />
+              ),
             }}
             viewConfig={{
               tableName: TableViewPresetTableName.ObservationsEvents,
@@ -1398,10 +1776,10 @@ export default function ObservationsEventsTable({
               <BatchExportTableButton
                 {...{
                   projectId,
-                  filterState,
+                  filterState: filterInput ?? null,
                   orderByState,
-                  searchQuery,
-                  searchType,
+                  searchQuery: searchQueryForApi,
+                  searchType: searchTypeForApi,
                 }}
                 tableName={BatchExportTableName.Events}
                 key="batchExport"
@@ -1449,6 +1827,7 @@ export default function ObservationsEventsTable({
               key={viewControllers.selectedViewId ?? "no-view"}
               queryFilter={queryFilter}
               filterWithAI
+              disabledReason={sidebarDisabledReason}
             />
           )}
 
@@ -1564,10 +1943,10 @@ export default function ObservationsEventsTable({
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
-            filter: filterState,
+            filter: filterInput ?? null,
             orderBy: orderByState,
-            searchQuery: searchQuery ?? undefined,
-            searchType,
+            searchQuery: searchQueryForApi,
+            searchType: searchTypeForApi,
           }}
           selectAll={selectAll}
           totalCount={totalCount ?? 0}
@@ -1585,10 +1964,10 @@ export default function ObservationsEventsTable({
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
-            filter: filterState,
+            filter: filterInput ?? null,
             orderBy: orderByState,
-            searchQuery: searchQuery ?? undefined,
-            searchType,
+            searchQuery: searchQueryForApi,
+            searchType: searchTypeForApi,
           }}
           selectAll={selectAll}
           totalCount={totalCount ?? 0}

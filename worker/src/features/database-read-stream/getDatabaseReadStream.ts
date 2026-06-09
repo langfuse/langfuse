@@ -2,7 +2,6 @@ import {
   BatchTableNames,
   FilterCondition,
   TimeFilter,
-  BatchExportQueryType,
   OrderByState,
   TracingSearchType,
   isPresent,
@@ -108,10 +107,15 @@ export const getDatabaseReadStreamPaginated = async ({
 }: {
   projectId: string;
   cutoffCreatedAt: Date;
+  tableName: BatchTableNames;
+  filter: FilterCondition[] | null;
+  orderBy: OrderByState;
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
-} & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
+  limit?: number;
+  page?: number;
+}): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
     column: tableNameToTimeFilterColumn[tableName],

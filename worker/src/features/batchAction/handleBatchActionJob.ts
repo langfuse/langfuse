@@ -1,7 +1,6 @@
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
-  getEventsStreamForEval,
   getCurrentSpan,
   logger,
   QueueJobs,
@@ -14,6 +13,8 @@ import {
   BatchActionStatus,
   BatchTableNames,
   FilterCondition,
+  type EventsTableFilterCondition,
+  type FilterInput,
   EvalTargetObject,
   EvalTemplateType,
 } from "@langfuse/shared";
@@ -34,6 +35,7 @@ import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import {
+  getEventsStreamForEval,
   getEventsStreamForDataset,
   getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";
@@ -42,10 +44,80 @@ import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
 
 const CHUNK_SIZE = 1000;
-const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
-  return filters.map((f: FilterCondition) =>
-    f.type === "datetime" ? { ...f, value: new Date(f.value) } : f,
-  );
+const convertDatesInFilterInputFromStrings = (
+  filter: FilterInput | null | undefined,
+): FilterInput | undefined => {
+  if (!filter) {
+    return undefined;
+  }
+
+  if (Array.isArray(filter)) {
+    return filter.map((condition) =>
+      condition.type === "datetime"
+        ? { ...condition, value: new Date(condition.value) }
+        : condition,
+    );
+  }
+
+  if (filter.type === "group") {
+    return {
+      ...filter,
+      conditions: filter.conditions.map(
+        (condition) =>
+          convertDatesInFilterInputFromStrings(condition) as typeof condition,
+      ),
+    };
+  }
+
+  return filter.type === "datetime"
+    ? { ...filter, value: new Date(filter.value) }
+    : filter;
+};
+
+const isLegacyFilterCondition = (
+  filter: EventsTableFilterCondition,
+): filter is FilterCondition => {
+  if (
+    (filter.type === "string" || filter.type === "stringObject") &&
+    filter.operator === "matches"
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
+const getFlatBatchFilterOrThrow = (
+  filter: FilterInput | undefined,
+  context: string,
+): FilterCondition[] => {
+  if (!filter) {
+    return [];
+  }
+
+  if (Array.isArray(filter)) {
+    return filter.map((condition) => {
+      if (!isLegacyFilterCondition(condition)) {
+        throw new Error(
+          `${context} does not support full-text filter operators yet.`,
+        );
+      }
+
+      return condition;
+    });
+  }
+
+  if (filter.type === "group") {
+    throw new Error(`${context} does not support nested filter groups yet.`);
+  }
+
+  if (!isLegacyFilterCondition(filter)) {
+    throw new Error(
+      `${context} does not support full-text filter operators yet.`,
+    );
+  }
+
+  return [filter];
 };
 
 type HandleBatchActionJobDeps = {
@@ -175,10 +247,16 @@ export const handleBatchActionJob = async (
       throw new Error(`Target ID is required for create action`);
     }
 
+    const convertedFilter = convertDatesInFilterInputFromStrings(
+      query.filter ?? undefined,
+    );
+    const legacyFlatFilter = getFlatBatchFilterOrThrow(
+      convertedFilter,
+      `Batch action "${actionId}"`,
+    );
     const streamParams = {
       projectId: projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id" as const],
     };
@@ -187,14 +265,22 @@ export const handleBatchActionJob = async (
       actionId === "trace-delete"
         ? await getTraceIdentifierStream({
             ...streamParams,
+            filter: legacyFlatFilter,
             orderBy: query.orderBy,
           })
         : tableName === BatchTableNames.Events
-          ? await getEventsStreamForAnnotationQueue(streamParams)
+          ? await getEventsStreamForAnnotationQueue({
+              ...streamParams,
+              filter: convertedFilter ?? null,
+            })
           : tableName === BatchTableNames.Observations
-            ? await getObservationStream(streamParams)
+            ? await getObservationStream({
+                ...streamParams,
+                filter: legacyFlatFilter,
+              })
             : await getDatabaseReadStreamPaginated({
                 ...streamParams,
+                filter: legacyFlatFilter,
                 orderBy: query.orderBy,
                 tableName: tableName as BatchTableNames,
               });
@@ -261,7 +347,10 @@ export const handleBatchActionJob = async (
         ? await getTraceIdentifierStream({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
-            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            filter: getFlatBatchFilterOrThrow(
+              convertDatesInFilterInputFromStrings(query.filter ?? undefined),
+              `Batch action "${actionId}"`,
+            ),
             orderBy: query.orderBy,
             searchQuery: query.searchQuery ?? undefined,
             searchType: query.searchType,
@@ -270,7 +359,10 @@ export const handleBatchActionJob = async (
         : await getDatabaseReadStreamPaginated({
             projectId: projectId,
             cutoffCreatedAt: new Date(cutoffCreatedAt),
-            filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+            filter: getFlatBatchFilterOrThrow(
+              convertDatesInFilterInputFromStrings(query.filter ?? undefined),
+              `Batch action "${actionId}"`,
+            ),
             orderBy: query.orderBy,
             tableName: BatchTableNames.DatasetRunItems,
             rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,
@@ -353,17 +445,27 @@ export const handleBatchActionJob = async (
     const parsedConfig = ObservationAddToDatasetConfigSchema.parse(config);
 
     // Get observation stream — use events table when tableName indicates it
-    const streamParams = {
-      projectId,
-      cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
-      searchQuery: query.searchQuery ?? undefined,
-      searchType: query.searchType ?? ["id" as const],
-    };
     const dbReadStream =
       tableName === BatchTableNames.Events
-        ? await getEventsStreamForDataset(streamParams)
-        : await getObservationStream(streamParams);
+        ? await getEventsStreamForDataset({
+            projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter:
+              convertDatesInFilterInputFromStrings(query.filter ?? undefined) ??
+              null,
+            searchQuery: query.searchQuery ?? undefined,
+            searchType: query.searchType ?? ["id" as const],
+          })
+        : await getObservationStream({
+            projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            filter: getFlatBatchFilterOrThrow(
+              convertDatesInFilterInputFromStrings(query.filter ?? undefined),
+              `Batch action "${actionId}"`,
+            ),
+            searchQuery: query.searchQuery ?? undefined,
+            searchType: query.searchType ?? ["id" as const],
+          });
 
     // Collect all observations
     const observations: Array<{
@@ -463,7 +565,8 @@ export const handleBatchActionJob = async (
     const dbReadStream = await getEventsStreamForEval({
       projectId,
       cutoffCreatedAt: new Date(cutoffCreatedAt),
-      filter: convertDatesInFiltersFromStrings(query.filter ?? []),
+      filter:
+        convertDatesInFilterInputFromStrings(query.filter ?? undefined) ?? null,
       searchQuery: query.searchQuery ?? undefined,
       searchType: query.searchType ?? ["id", "content"],
       rowLimit: env.LANGFUSE_MAX_HISTORIC_EVAL_CREATION_LIMIT,

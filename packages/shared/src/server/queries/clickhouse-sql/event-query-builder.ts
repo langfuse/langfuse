@@ -3,7 +3,10 @@ import {
   ObservationFieldGroupPublicApi,
 } from "../../../domain/observation-field-groups";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
-import { FilterList, StringFilter } from "./clickhouse-filter";
+import {
+  type CompiledFilterCollection,
+  StringFilter,
+} from "./clickhouse-filter";
 
 /**
  * Extract the output column alias from a field expression (unquoted).
@@ -532,7 +535,7 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
-   * Add WHERE conditions from FilterList
+   * Add WHERE conditions from a compiled filter collection
    * Strips leading AND/OR and wraps in parentheses
    */
   where(condition: { query: string; params?: Record<string, any> }): this {
@@ -544,10 +547,10 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
-   * Apply filters from a FilterList.
+   * Apply filters from a compiled filter collection.
    * Subclasses can override to add optimizations (e.g., partition pruning).
    */
-  applyFilters(filterList: FilterList): this {
+  applyFilters(filterList: CompiledFilterCollection): this {
     this.where(filterList.apply());
     return this;
   }
@@ -818,8 +821,8 @@ abstract class BaseEventsQueryBuilder<
    * Apply filters with automatic query optimizations.
    * Adds xxHash32 optimization for trace_id equality filters.
    */
-  override applyFilters(filterList: FilterList): this {
-    const traceIdFilter = filterList.find(
+  override applyFilters(filterList: CompiledFilterCollection): this {
+    const traceIdFilter = filterList.findMandatory(
       (f) =>
         f.clickhouseTable.startsWith("events") &&
         f.field === 'e."trace_id"' &&

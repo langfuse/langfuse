@@ -2,6 +2,10 @@ import { type z } from "zod";
 import {
   eventsTableFilterState,
   eventsTableSingleFilter,
+  filterExpression,
+  filterGroup,
+  filterGroupOperator,
+  filterInput,
   singleFilter,
   timeFilter,
 } from "./interfaces/filters";
@@ -14,6 +18,10 @@ export type EventsTableFilterCondition = z.infer<
   typeof eventsTableSingleFilter
 >;
 export type EventsTableFilterState = z.infer<typeof eventsTableFilterState>;
+export type FilterGroupOperator = z.infer<typeof filterGroupOperator>;
+export type FilterGroup = z.infer<typeof filterGroup>;
+export type FilterExpression = z.infer<typeof filterExpression>;
+export type FilterInput = z.infer<typeof filterInput>;
 
 // to be used in the client during editing
 export type MakeOptional<T> = {

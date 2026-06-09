@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 import {
-  type FilterState,
+  type FilterInput,
   AnnotationQueueObjectType,
   type TracingSearchType,
   type ScoreAggregate,
@@ -18,7 +18,7 @@ type FullEventsObservation = FullEventsObservations[number] & {
 
 type UseEventsTableDataParams = {
   projectId: string;
-  filterState: FilterState;
+  filterState?: FilterInput;
   paginationState: {
     page: number;
     limit: number;
@@ -29,6 +29,7 @@ type UseEventsTableDataParams = {
   } | null;
   searchQuery?: string | null;
   searchType?: TracingSearchType[];
+  searchValidationError?: string | null;
   selectedRows: Record<string, boolean>;
   selectAll: boolean;
   setSelectedRows: (rows: Record<string, boolean>) => void;
@@ -41,6 +42,7 @@ export function useEventsTableData({
   orderByState,
   searchQuery,
   searchType,
+  searchValidationError,
   selectedRows,
   selectAll,
   setSelectedRows,
@@ -49,7 +51,7 @@ export function useEventsTableData({
   const getCountPayload = useMemo(
     () => ({
       projectId,
-      filter: filterState,
+      filter: filterState ?? [],
       searchQuery: searchQuery ?? null,
       searchType: searchType ?? ["id", "content"],
       orderBy: null,
@@ -72,9 +74,10 @@ export function useEventsTableData({
     ],
   );
 
-  const silentHttpCodes = [422];
+  const silentHttpCodes = [400, 422];
 
   const observations = api.events.all.useQuery(getAllPayload, {
+    enabled: !searchValidationError,
     refetchOnWindowFocus: true,
     meta: {
       silentHttpCodes, // Turns off red bubble
@@ -129,6 +132,10 @@ export function useEventsTableData({
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
+    if (searchValidationError) {
+      return { status: "success" as const, rows: [] };
+    }
+
     if (observations.isLoading) {
       return { status: "loading" as const, rows: undefined };
     }
@@ -152,14 +159,18 @@ export function useEventsTableData({
     observations.data?.observations,
     ioDataQuery.data,
     isSilencedError,
+    searchValidationError,
   ]);
 
   // Fetch total count
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
+    enabled: !searchValidationError,
     refetchOnWindowFocus: true,
   });
 
-  const totalCount = totalCountQuery.data?.totalCount ?? null;
+  const totalCount = searchValidationError
+    ? 0
+    : (totalCountQuery.data?.totalCount ?? null);
 
   // Add to queue mutation
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
@@ -200,8 +211,10 @@ export function useEventsTableData({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: filterState,
+        filter: filterState ?? null,
         orderBy: orderByState,
+        searchQuery: searchQuery ?? undefined,
+        searchType: searchType ?? undefined,
       },
     });
     setSelectedRows({});

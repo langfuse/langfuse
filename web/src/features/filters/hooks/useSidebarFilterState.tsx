@@ -129,14 +129,44 @@ export interface BaseUIFilter {
   onReset: () => void;
 }
 
+export type TextFilterOperator =
+  | "contains"
+  | "does not contain"
+  | "starts with"
+  | "ends with";
+
 /**
- * Represents one text filter entry (contains/does not contain)
- * Used for free-text filtering that's mutually exclusive with checkbox selection
+ * Represents one text filter entry for categorical fields.
+ * Used for free-text filtering that's mutually exclusive with checkbox selection.
  */
 export type TextFilterEntry = {
-  operator: "contains" | "does not contain";
+  operator: TextFilterOperator;
   value: string;
 };
+
+function isTextFilterOperator(
+  operator: string,
+): operator is TextFilterOperator {
+  return (
+    operator === "contains" ||
+    operator === "does not contain" ||
+    operator === "starts with" ||
+    operator === "ends with"
+  );
+}
+
+type CategoricalTextFilter = Extract<
+  FilterState[number],
+  { type: "string" }
+> & {
+  operator: TextFilterOperator;
+};
+
+function isCategoricalTextFilter(
+  filter: FilterState[number],
+): filter is CategoricalTextFilter {
+  return filter.type === "string" && isTextFilterOperator(filter.operator);
+}
 
 export interface CategoricalUIFilter extends BaseUIFilter {
   type: "categorical";
@@ -167,15 +197,9 @@ export interface CategoricalUIFilter extends BaseUIFilter {
    */
   textFilters?: TextFilterEntry[];
   // Add a new text filter. Automatically clears checkbox selections.
-  onTextFilterAdd?: (
-    operator: "contains" | "does not contain",
-    value: string,
-  ) => void;
+  onTextFilterAdd?: (operator: TextFilterOperator, value: string) => void;
   // Remove a text filter by operator and value
-  onTextFilterRemove?: (
-    operator: "contains" | "does not contain",
-    value: string,
-  ) => void;
+  onTextFilterRemove?: (operator: TextFilterOperator, value: string) => void;
   // True if any text filters are active for this column
   hasTextFilters?: boolean;
   // True if any checkboxes are selected (excluding "all selected" state)
@@ -342,6 +366,7 @@ type UpdateFilter = (
 type BaseUseSidebarFilterStateOptions = {
   loading?: boolean;
   implicitDefaultConfig?: ManagedEnvironmentPolicyInput;
+  onExplicitFilterStateChange?: (filters: FilterState) => void;
 };
 
 export type UseSidebarFilterStateOptions =
@@ -429,7 +454,8 @@ export function useSidebarFilterState(
   >,
   hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
 ) {
-  const { loading, implicitDefaultConfig } = hookOptions;
+  const { loading, implicitDefaultConfig, onExplicitFilterStateChange } =
+    hookOptions;
   const stateLocationType = hookOptions.stateLocation;
   const peekContext =
     stateLocationType === "peekContext" ? hookOptions.context : undefined;
@@ -596,11 +622,13 @@ export function useSidebarFilterState(
           ...current,
           filters: explicitFilters,
         }));
+        onExplicitFilterStateChange?.(explicitFilters);
         return;
       }
 
       if (stateLocationType === "memory") {
         setMemoryFilterState(explicitFilters);
+        onExplicitFilterStateChange?.(explicitFilters);
         return;
       }
 
@@ -610,6 +638,7 @@ export function useSidebarFilterState(
       if (stateLocationType === "urlAndSessionStorage") {
         setStoredFiltersQuery(encoded);
       }
+      onExplicitFilterStateChange?.(explicitFilters);
     },
     [
       stateLocationType,
@@ -618,6 +647,7 @@ export function useSidebarFilterState(
       setStoredFiltersQuery,
       managedEnvironmentPolicyConfig,
       availableEnvironmentValues,
+      onExplicitFilterStateChange,
     ],
   );
 
@@ -863,12 +893,7 @@ export function useSidebarFilterState(
     (column, values, operator?: "any of" | "none of" | "all of") => {
       // Remove text filters for this column (they're mutually exclusive with checkboxes)
       const withoutTextFilters = filterState.filter(
-        (f) =>
-          !(
-            f.column === column &&
-            f.type === "string" &&
-            (f.operator === "contains" || f.operator === "does not contain")
-          ),
+        (f) => !(f.column === column && isCategoricalTextFilter(f)),
       );
 
       const next = applySelection(withoutTextFilters, column, values, operator);
@@ -1026,11 +1051,7 @@ export function useSidebarFilterState(
   // Text filter management for categorical filters
   // Mutually exclusive with checkbox selections
   const addTextFilter = useCallback(
-    (
-      column: string,
-      operator: "contains" | "does not contain",
-      value: string,
-    ) => {
+    (column: string, operator: TextFilterOperator, value: string) => {
       if (!value.trim()) {
         return;
       }
@@ -1059,16 +1080,12 @@ export function useSidebarFilterState(
   );
 
   const removeTextFilter = useCallback(
-    (
-      column: string,
-      operator: "contains" | "does not contain",
-      value: string,
-    ) => {
+    (column: string, operator: TextFilterOperator, value: string) => {
       const newFilters = filterState.filter(
         (f) =>
           !(
             f.column === column &&
-            f.type === "string" &&
+            isCategoricalTextFilter(f) &&
             f.operator === operator &&
             f.value === value
           ),
@@ -1576,16 +1593,14 @@ export function useSidebarFilterState(
           currentOperator = undefined;
         }
 
-        // Extract text filters for this column (contains/does not contain)
+        // Extract text filters for this column (contains/does not contain/starts with/ends with)
         const textFilters: TextFilterEntry[] = filterState
           .filter(
-            (f): f is Extract<typeof f, { type: "string" }> =>
-              f.column === facet.column &&
-              f.type === "string" &&
-              (f.operator === "contains" || f.operator === "does not contain"),
+            (f): f is CategoricalTextFilter =>
+              f.column === facet.column && isCategoricalTextFilter(f),
           )
           .map((f) => ({
-            operator: f.operator as "contains" | "does not contain",
+            operator: f.operator,
             value: f.value,
           }));
 
@@ -1670,9 +1685,7 @@ export function useSidebarFilterState(
                   f.column === facet.column &&
                   (f.type === "stringOptions" ||
                     f.type === "arrayOptions" ||
-                    (f.type === "string" &&
-                      (f.operator === "contains" ||
-                        f.operator === "does not contain")))
+                    isCategoricalTextFilter(f))
                 ),
             );
             setFilterState(withoutAll);

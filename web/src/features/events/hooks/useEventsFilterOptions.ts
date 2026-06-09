@@ -1,34 +1,46 @@
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
-import { type FilterState, type TimeFilter } from "@langfuse/shared";
+import {
+  getFilterExpressionLeafFilters,
+  normalizeFilterExpressionInput,
+  type FilterInput,
+  type TimeFilter,
+} from "@langfuse/shared";
 
 type UseEventsFilterOptionsParams = {
   projectId: string;
-  oldFilterState: FilterState;
+  oldFilterState: FilterInput;
+  hasParentObservation?: boolean;
   isRootObservation?: boolean;
 };
 
 export function useEventsFilterOptions({
   projectId,
   oldFilterState,
+  hasParentObservation,
   isRootObservation,
 }: UseEventsFilterOptionsParams) {
-  // Extract start time filters for filter options query
+  const filter = useMemo(() => {
+    return normalizeFilterExpressionInput(oldFilterState);
+  }, [oldFilterState]);
+
   const startTimeFilters = useMemo(() => {
-    return oldFilterState.filter(
-      (f) =>
+    return getFilterExpressionLeafFilters(filter).filter(
+      (f): f is TimeFilter =>
         (f.column === "Start Time" || f.column === "startTime") &&
         f.type === "datetime",
-    ) as TimeFilter[];
-  }, [oldFilterState]);
+    );
+  }, [filter]);
 
   // Fetch filter options
   const filterOptions = api.events.filterOptions.useQuery(
     {
       projectId,
+      filter,
       startTimeFilter:
         startTimeFilters.length > 0 ? startTimeFilters : undefined,
       isRootObservation,
+      hasParentObservation,
     },
     {
       trpc: {
