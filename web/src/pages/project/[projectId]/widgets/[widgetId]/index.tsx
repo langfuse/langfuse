@@ -59,7 +59,7 @@ export default function EditWidget() {
     name: string;
     description: string;
     view: string;
-    dimensions: { field: string }[];
+    dimensions: { field: string; key?: string }[];
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
@@ -110,6 +110,7 @@ export default function EditWidget() {
             dimensions: widgetData.dimensions,
             // Keep single values for backward compatibility and fallbacks
             dimension: widgetData.dimensions.slice().shift()?.field ?? "none",
+            dimensionKey: widgetData.dimensions.slice().shift()?.key,
             measure: widgetData.metrics.slice().shift()?.measure ?? "count",
             aggregation:
               (widgetData.metrics.slice().shift()?.agg as z.infer<

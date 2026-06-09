@@ -103,6 +103,10 @@ export type ViewVersion = z.infer<typeof viewVersions>;
 
 export const dimension = z.object({
   field: z.string(),
+  key: z
+    .string()
+    .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
+    .optional(),
 });
 
 export const metricAggregations = z.enum([

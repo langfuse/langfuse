@@ -32,7 +32,11 @@ type AppliedDimensionType = {
   aggregationFunction?: string;
   explodeArray?: boolean;
   pairExpand?: { valuesSql: string; valueAlias: string };
+  type?: string;
+  key?: string;
 };
+
+const METADATA_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 type AppliedMetricType = {
   sql: string;
@@ -217,7 +221,7 @@ export class QueryBuilder {
   }
 
   private mapDimensions(
-    dimensions: Array<{ field: string }>,
+    dimensions: Array<{ field: string; key?: string }>,
     view: ViewDeclarationType,
   ): AppliedDimensionType[] {
     return dimensions.map((dimension) => {
@@ -227,11 +231,29 @@ export class QueryBuilder {
         );
       }
       const dim = view.dimensions[dimension.field];
+      if (dim.type === "stringObject") {
+        if (!dimension.key) {
+          throw new InvalidRequestError(
+            `Dimension '${dimension.field}' is a stringObject and requires a 'key' (e.g. {"field":"${dimension.field}","key":"agentName"}).`,
+          );
+        }
+        if (!METADATA_KEY_PATTERN.test(dimension.key)) {
+          throw new InvalidRequestError(
+            `Dimension '${dimension.field}' key '${dimension.key}' must match ${METADATA_KEY_PATTERN}.`,
+          );
+        }
+      } else if (dimension.key) {
+        throw new InvalidRequestError(
+          `Dimension '${dimension.field}' does not accept a 'key' (only stringObject dims do).`,
+        );
+      }
       return {
         ...dim,
         table: dim.relationTable || view.name,
         explodeArray: dim.explodeArray,
         pairExpand: dim.pairExpand,
+        type: dim.type,
+        key: dimension.key,
       };
     });
   }
@@ -934,6 +956,10 @@ export class QueryBuilder {
           if (dimension.explodeArray) {
             return `arrayJoin(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
           }
+          // stringObject dims (e.g. metadata): index the Map column by the user-supplied key
+          if (dimension.type === "stringObject" && dimension.key) {
+            return `any(${dimension.sql}['${dimension.key}']) as ${dimension.alias ?? dimension.sql}`;
+          }
           // Default: wrap in any()
           return `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
         })
@@ -1190,6 +1216,9 @@ export class QueryBuilder {
             }
             if (d.explodeArray) {
               return `arrayJoin(${d.sql}) as ${d.alias ?? d.sql}`;
+            }
+            if (d.type === "stringObject" && d.key) {
+              return `${d.sql}['${d.key}'] as ${d.alias ?? d.sql}`;
             }
             return `${d.sql} as ${d.alias ?? d.sql}`;
           })

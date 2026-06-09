@@ -566,6 +566,82 @@ describe("queryBuilder", () => {
         expect(Number(result.data[0].count_count)).toBe(1);
       });
 
+      it("should use metadata key as dimension (stringObject)", async () => {
+        const projectId = randomUUID();
+        const tracesData = [
+          { name: "trace-agent-a", metadata: { agentName: "Agent A" } },
+          { name: "trace-agent-a-2", metadata: { agentName: "Agent A" } },
+          { name: "trace-agent-b", metadata: { agentName: "Agent B" } },
+          { name: "trace-no-agent", metadata: { other: "thing" } },
+        ];
+
+        const traces = [];
+        for (const data of tracesData) {
+          traces.push(
+            createTrace({
+              project_id: projectId,
+              name: data.name,
+              metadata: data.metadata,
+              timestamp: new Date().getTime(),
+            }),
+          );
+        }
+        await createTracesCh(traces);
+
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "metadata", key: "agentName" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        const result = { data: [] as Array<any> };
+        result.data = await executeQuery(projectId, query);
+
+        const buckets = result.data.reduce<Record<string, number>>(
+          (acc, row) => {
+            acc[row.metadata] = Number(row.count_count);
+            return acc;
+          },
+          {},
+        );
+
+        expect(buckets["Agent A"]).toBe(2);
+        expect(buckets["Agent B"]).toBe(1);
+        // Trace without agentName lands in an empty-string bucket via Map[]
+        expect(buckets[""]).toBe(1);
+      });
+
+      it("should reject stringObject dimension without a key", async () => {
+        const projectId = randomUUID();
+        const query: QueryType = {
+          view: "traces",
+          dimensions: [{ field: "metadata" }],
+          metrics: [{ measure: "count", aggregation: "count" }],
+          filters: [],
+          timeDimension: null,
+          fromTimestamp: new Date(
+            new Date().setDate(new Date().getDate() - 1),
+          ).toISOString(),
+          toTimestamp: new Date(
+            new Date().setDate(new Date().getDate() + 1),
+          ).toISOString(),
+          orderBy: null,
+        };
+
+        await expect(executeQuery(projectId, query)).rejects.toThrow(
+          /requires a 'key'/,
+        );
+      });
+
       it("should filter traces by tags using 'any of' operator", async () => {
         // Setup
         const projectId = randomUUID();

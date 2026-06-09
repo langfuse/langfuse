@@ -64,6 +64,12 @@ export const traceView: ViewDeclarationType = {
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
+    metadata: {
+      sql: "traces.metadata",
+      alias: "metadata",
+      type: "stringObject",
+      description: "Custom metadata key from the trace (provide a key).",
+    },
     timestampMonth: {
       sql: "formatDateTime(traces.timestamp, '%Y-%m')",
       alias: "timestampMonth",
@@ -456,6 +462,19 @@ export const observationsView: ViewDeclarationType = {
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
       explodeArray: true,
+    },
+    metadata: {
+      sql: "observations.metadata",
+      alias: "metadata",
+      type: "stringObject",
+      description: "Custom metadata key from the observation (provide a key).",
+    },
+    traceMetadata: {
+      sql: "traces.metadata",
+      alias: "traceMetadata",
+      type: "stringObject",
+      relationTable: "traces",
+      description: "Custom metadata key from the parent trace (provide a key).",
     },
   },
   measures: {
