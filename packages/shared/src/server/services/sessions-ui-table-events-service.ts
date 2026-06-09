@@ -175,7 +175,7 @@ export const getSessionsWithMetricsFromEvents = async (props: {
       limit: props.limit,
       page: props.page,
       clickhouseConfigs: props.clickhouseConfigs,
-      tags: { kind: "metrics" },
+      tags: { kind: "analytic_events" },
     },
   );
 
