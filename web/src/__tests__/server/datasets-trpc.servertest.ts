@@ -36,6 +36,7 @@ async function prepare() {
             },
           ],
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
         },
       ],
       featureFlags: {

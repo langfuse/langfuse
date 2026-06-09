@@ -64,7 +64,7 @@ export function JSONView(props: {
       event.preventDefault();
     }
     const textToCopy = stringifyJsonNode(parsedJson);
-    void copyTextToClipboard(textToCopy);
+    copyTextToClipboard(textToCopy);
 
     // Keep focus on the copy button to prevent focus shifting
     if (event) {

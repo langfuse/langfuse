@@ -1,29 +1,64 @@
 import { EventType } from "@ag-ui/core";
-import { ClaudeAgentAdapter } from "@ag-ui/claude-agent-sdk";
-import { z } from "zod";
+import { MastraAgent } from "@ag-ui/mastra";
+import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
+import { Agent } from "@mastra/core/agent";
+import { MCPClient } from "@mastra/mcp";
 
 import type {
-  AgUiCustomEvent,
   AgUiEvent,
   AgUiRunAgentInput,
 } from "@/src/features/in-app-agent/schema";
+import type { InAppAgentTracingConfig } from "@/src/features/in-app-agent/server/instrumentation";
+import { createInAppAgentInstrumentation } from "@/src/features/in-app-agent/server/instrumentation";
+import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
-const ASSISTANT_SYSTEM_PROMPT = [
-  "You are the persistent in-app assistant for Langfuse.",
-  "Be concise, factual, and useful.",
-  "If you are not confident in the answer, say that directly instead of guessing.",
-  "Use markdown when it improves clarity.",
-].join(" ");
-const MAX_AGENT_BUDGET_USD = 5;
+const getAssistantSystemPrompt = () => `
+<identity>
+  You are an assistant called Langfuse Assistant.
+  Your role is to assist users with tasks in the Langfuse Cloud product.
+</identity>
+
+<behavioral_rules>
+If you are not confident in the answer, say that directly instead of guessing.
+Focus on answering the user's questions. Do not comment on your own behavior:
+- Do not comment on tools you are using or will use.
+- Do not comment on the process you are following.
+Always provide a complete answer to the user's question in your response, do not rely on users seeing tool input or output.
+If a tool call fails but you intend on re-trying it, do not mention the failure and just retry the tool call.
+If you cannot provide an answer to the user, spare the user the details of failed tool calls and instead summarize the issue.
+</behavioral_rules>
+
+<style_rules>
+Be concise, factual, and useful.
+Use markdown in your responses when appropriate, especially for tables and lists.
+</style_rules>
+
+<world_knowledge>
+The current time is ${new Date().toDateString()}.
+</world_knowledge>
+`;
+const MAX_AGENT_STEPS = 10;
+const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
 type CreateAgUiStreamOptions = {
-  resumeSessionId?: string;
-  createResumeStateForSessionId: (sessionId: string) => unknown;
+  onEvent?: (event: AgUiEvent) => void | Promise<void>;
+  onComplete?: () => void | Promise<void>;
+  onAbort?: () => void | Promise<void>;
+  onError?: (error: unknown) => void | Promise<void>;
+  onFinish?: () => void | Promise<void>;
   awsBedrock: {
     region?: string;
     profile?: string;
+    modelId: string;
   };
+  langfuseMcp: {
+    url: string;
+    publicKey: string;
+    secretKey: string;
+  };
+  langfuseTracing?: InAppAgentTracingConfig;
 };
 
 export function createAgUiStream(params: {
@@ -34,161 +69,530 @@ export function createAgUiStream(params: {
   const encoder = new TextEncoder();
   const awsProfile =
     process.env.AWS_PROFILE ?? params.options.awsBedrock.profile;
-  const awsSdkLoadConfig =
-    process.env.AWS_SDK_LOAD_CONFIG ?? (awsProfile ? "1" : undefined);
 
-  const adapter = new ClaudeAgentAdapter({
-    permissionMode: "dontAsk",
-    title: ASSISTANT_TITLE,
-    systemPrompt: ASSISTANT_SYSTEM_PROMPT,
-    allowedTools: [],
-    settingSources: [],
-    additionalDirectories: [],
-    maxBudgetUsd: MAX_AGENT_BUDGET_USD,
-    env: {
-      CLAUDE_CODE_USE_BEDROCK: "1",
-      CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS: "1",
-      ...(params.options.awsBedrock.region
-        ? {
-            AWS_DEFAULT_REGION: params.options.awsBedrock.region,
-            AWS_REGION: params.options.awsBedrock.region,
-          }
-        : {}),
-      ...(awsProfile ? { AWS_PROFILE: awsProfile } : {}),
-      ...(awsSdkLoadConfig ? { AWS_SDK_LOAD_CONFIG: awsSdkLoadConfig } : {}),
-    },
-    includePartialMessages: true,
-    model: "haiku",
+  const langfuseMcpAuthHeader = `Basic ${Buffer.from(
+    `${params.options.langfuseMcp.publicKey}:${params.options.langfuseMcp.secretKey}`,
+  ).toString("base64")}`;
+  const instrumentation = createInAppAgentInstrumentation({
+    input: params.input,
+    tracing: params.options.langfuseTracing,
   });
 
-  const adapterInput = params.options.resumeSessionId
-    ? {
-        ...params.input,
-        forwardedProps: {
-          ...(z
-            .record(z.string(), z.unknown())
-            .safeParse(params.input.forwardedProps).data ?? {}),
-          resume: params.options.resumeSessionId,
-        },
-      }
-    : params.input;
+  let subscription: { unsubscribe: () => void } | undefined;
+  let ending = false;
+  let closed = false;
+  let finished = false;
+  let shouldEnqueue = true;
+  let abortHandler: (() => void) | undefined;
+  let eventQueue = Promise.resolve();
+  let cleanupAdapter: (() => Promise<void>) | undefined;
+  let interruptAdapter: (() => void) | undefined;
+
+  const removeAbortHandler = () => {
+    if (!abortHandler) {
+      return;
+    }
+
+    params.signal.removeEventListener("abort", abortHandler);
+    abortHandler = undefined;
+  };
+
+  const finish = () => {
+    if (finished) {
+      return;
+    }
+
+    finished = true;
+    eventQueue
+      .then(async () => {
+        const results = await Promise.allSettled([
+          cleanupAdapter?.(),
+          params.options.onFinish?.(),
+        ]);
+
+        for (const result of results) {
+          if (result.status === "rejected") {
+            logger.error("Error in agent stream cleanup", {
+              error: result.reason,
+              runId: params.input.runId,
+              threadId: params.input.threadId,
+            });
+          }
+        }
+      })
+      .catch((error) => {
+        logger.error("Error in agent stream cleanup", {
+          error,
+          runId: params.input.runId,
+          threadId: params.input.threadId,
+        });
+      });
+  };
+
+  const runTerminalCallback = async (
+    callback: (() => void | Promise<void>) | undefined,
+    errorContext: string,
+  ) => {
+    try {
+      await callback?.();
+    } catch (error) {
+      logger.error(errorContext, {
+        error,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+  };
 
   return new ReadableStream<Uint8Array>({
     start(controller) {
-      let closed = false;
-      const closeController = () => {
+      let streamedRunError: string | null = null;
+      let streamedRunErrorHandled = false;
+
+      const failStream = (error: unknown, eventType?: string) => {
         if (closed) {
           return;
         }
 
+        instrumentation?.endWithError(error);
+        instrumentation?.flush();
+        ending = true;
         closed = true;
-        controller.close();
-      };
-
-      const abort = () => {
-        void adapter.interrupt().catch(() => undefined);
-        closeController();
-      };
-
-      let subscription: { unsubscribe: () => void } | undefined;
-
-      const handleAbort = () => {
+        shouldEnqueue = false;
+        removeAbortHandler();
+        interruptAdapter?.();
         subscription?.unsubscribe();
-        abort();
+
+        logger.error("Failed to persist in-app agent event", {
+          error,
+          runId: params.input.runId,
+          threadId: params.input.threadId,
+          eventType,
+        });
+
+        runTerminalCallback(
+          () => params.options.onError?.(error),
+          "Error while marking agent stream as failed",
+        ).finally(finish);
+
+        controller.error(error);
       };
 
-      if (params.signal.aborted) {
-        abort();
-        return;
-      }
+      const enqueueEvent = (
+        agUiEvent: AgUiEvent,
+        afterPersist?: () => void | Promise<void>,
+      ) => {
+        eventQueue = eventQueue
+          .then(async () => {
+            if (closed) {
+              return;
+            }
 
-      params.signal.addEventListener("abort", handleAbort, { once: true });
+            await params.options.onEvent?.(agUiEvent);
+            await afterPersist?.();
 
-      subscription = adapter.run(adapterInput).subscribe({
-        next(event) {
-          if (closed || params.signal.aborted) {
-            abort();
-            return;
-          }
+            if (closed || !shouldEnqueue) {
+              return;
+            }
 
-          for (const agUiEvent of normalizeAdapterEvent(
-            event,
-            params.options.createResumeStateForSessionId,
-          )) {
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify(agUiEvent)}\n\n`),
             );
-          }
-        },
-        error(error) {
-          if (closed || params.signal.aborted) {
-            closeController();
+          })
+          .catch((error) => failStream(error, String(agUiEvent.type)));
+      };
+
+      const handleStreamedRunError = () => {
+        if (streamedRunError === null || streamedRunErrorHandled) {
+          return;
+        }
+
+        streamedRunErrorHandled = true;
+        return params.options.onError?.(new Error(streamedRunError));
+      };
+
+      const closeController = (
+        terminalCallback?: () => void | Promise<void>,
+      ) => {
+        if (ending || closed) {
+          return;
+        }
+
+        ending = true;
+        removeAbortHandler();
+        subscription?.unsubscribe();
+        eventQueue
+          .then(async () => {
+            if (closed) {
+              return;
+            }
+
+            await terminalCallback?.();
+
+            if (closed) {
+              return;
+            }
+
+            closed = true;
+            controller.close();
+          })
+          .catch((error) => failStream(error))
+          .finally(finish);
+      };
+
+      const abortStream = () => {
+        if (ending || closed) {
+          return;
+        }
+
+        instrumentation?.end({ aborted: true });
+        instrumentation?.flush();
+        ending = true;
+        shouldEnqueue = false;
+        removeAbortHandler();
+        interruptAdapter?.();
+        subscription?.unsubscribe();
+        eventQueue
+          .then(() =>
+            runTerminalCallback(
+              () => params.options.onAbort?.(),
+              "Error while marking agent stream as aborted",
+            ),
+          )
+          .then(() => {
+            if (closed) {
+              return;
+            }
+
+            closed = true;
+            controller.close();
+          })
+          .catch((error) => {
+            closed = true;
+            logger.error("Error while aborting agent stream", {
+              error,
+              runId: params.input.runId,
+              threadId: params.input.threadId,
+            });
+          })
+          .finally(finish);
+      };
+
+      abortHandler = abortStream;
+
+      if (params.signal.aborted) {
+        abortStream();
+        return;
+      }
+
+      params.signal.addEventListener("abort", abortHandler, { once: true });
+
+      createMastraAdapter({
+        input: params.input,
+        signal: params.signal,
+        langfuseMcpAuthHeader,
+        options: params.options,
+        awsProfile,
+      })
+        .then(({ adapter, cleanup, interrupt }) => {
+          if (ending || closed || params.signal.aborted) {
+            interrupt();
+            cleanup().catch((error) => {
+              logger.error("Error in agent stream cleanup", {
+                error,
+                runId: params.input.runId,
+                threadId: params.input.threadId,
+              });
+            });
+            abortStream();
             return;
           }
 
-          console.error("Error in agent execution:", error);
+          cleanupAdapter = cleanup;
+          interruptAdapter = interrupt;
 
-          const message =
-            error instanceof Error ? error.message : "Unknown assistant error";
+          subscription = adapter.run(params.input).subscribe({
+            next(event) {
+              if (ending || closed) {
+                return;
+              }
 
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({
-                type: EventType.RUN_ERROR,
-                message,
-              } satisfies AgUiEvent)}\n\n`,
-            ),
-          );
-          closeController();
-        },
-        complete() {
-          closeController();
-        },
-      });
+              if (params.signal.aborted) {
+                abortStream();
+                return;
+              }
+
+              const agUiEvents = normalizeAdapterEvent(
+                event satisfies AgUiEvent,
+                params.input,
+              );
+
+              instrumentation?.recordEvents(agUiEvents);
+
+              for (const agUiEvent of agUiEvents) {
+                if (
+                  agUiEvent.type === EventType.RUN_ERROR &&
+                  streamedRunError === null
+                ) {
+                  streamedRunError = getRunErrorMessage(agUiEvent);
+                }
+
+                enqueueEvent(
+                  agUiEvent,
+                  agUiEvent.type === EventType.RUN_ERROR
+                    ? handleStreamedRunError
+                    : undefined,
+                );
+              }
+            },
+            error(error) {
+              if (ending || closed) {
+                return;
+              }
+
+              if (params.signal.aborted) {
+                abortStream();
+                return;
+              }
+
+              if (streamedRunError !== null) {
+                closeController(() => {
+                  instrumentation?.flush();
+                  return handleStreamedRunError();
+                });
+                return;
+              }
+
+              logger.error("Error in agent execution", {
+                error,
+                runId: params.input.runId,
+                threadId: params.input.threadId,
+              });
+
+              const runErrorEvent = createRunErrorEvent(params.input, error);
+              instrumentation?.recordEvents([runErrorEvent]);
+              enqueueEvent(runErrorEvent, () =>
+                params.options.onError?.(error),
+              );
+              closeController(() => instrumentation?.flush());
+            },
+            complete() {
+              if (ending || closed) {
+                return;
+              }
+
+              if (params.signal.aborted) {
+                abortStream();
+                return;
+              }
+
+              closeController(
+                streamedRunError === null
+                  ? () => {
+                      instrumentation?.end({});
+                      instrumentation?.flush();
+                      return params.options.onComplete?.();
+                    }
+                  : () => {
+                      instrumentation?.flush();
+                      return handleStreamedRunError();
+                    },
+              );
+            },
+          });
+        })
+        .catch((error) => {
+          if (ending || closed) {
+            return;
+          }
+
+          if (params.signal.aborted) {
+            abortStream();
+            return;
+          }
+
+          logger.error("Error initializing agent", {
+            error,
+            runId: params.input.runId,
+            threadId: params.input.threadId,
+          });
+
+          const runErrorEvent = createRunErrorEvent(params.input, error);
+          instrumentation?.recordEvents([runErrorEvent]);
+          enqueueEvent(runErrorEvent, () => params.options.onError?.(error));
+          closeController(() => instrumentation?.flush());
+        });
+    },
+    cancel() {
+      if (ending || closed) {
+        return;
+      }
+
+      ending = true;
+      instrumentation?.end({ aborted: true });
+      instrumentation?.flush();
+      shouldEnqueue = false;
+      removeAbortHandler();
+      interruptAdapter?.();
+      subscription?.unsubscribe();
+      eventQueue
+        .then(() =>
+          runTerminalCallback(
+            () => params.options.onAbort?.(),
+            "Error while marking agent stream as aborted",
+          ),
+        )
+        .then(() => {
+          closed = true;
+        })
+        .catch((error) => {
+          closed = true;
+          logger.error("Error while cancelling agent stream", {
+            error,
+            runId: params.input.runId,
+            threadId: params.input.threadId,
+          });
+        })
+        .finally(finish);
     },
   });
 }
 
-function normalizeAdapterEvent(
-  event: AgUiEvent,
-  createResumeStateForSessionId: (sessionId: string) => unknown,
-): AgUiEvent[] {
-  if (isSystemInitEvent(event)) {
-    let sessionId: string | undefined;
+async function createMastraAdapter(params: {
+  input: AgUiRunAgentInput;
+  signal: AbortSignal;
+  langfuseMcpAuthHeader: string;
+  options: CreateAgUiStreamOptions;
+  awsProfile?: string;
+}) {
+  const bedrock = createAmazonBedrock({
+    ...(params.options.awsBedrock.region
+      ? { region: params.options.awsBedrock.region }
+      : {}),
+    credentialProvider: fromNodeProviderChain(
+      params.awsProfile ? { profile: params.awsProfile } : {},
+    ),
+  });
 
-    if (event.value && typeof event.value === "object") {
-      if (
-        "session_id" in event.value &&
-        typeof event.value.session_id === "string"
-      ) {
-        sessionId = event.value.session_id;
-      } else if (
-        "sessionId" in event.value &&
-        typeof event.value.sessionId === "string"
-      ) {
-        sessionId = event.value.sessionId;
-      }
+  const mcpClient = new MCPClient({
+    id: `in-app-agent-${params.input.runId}`,
+    servers: {
+      langfuse: {
+        url: new URL(params.options.langfuseMcp.url),
+        requestInit: {
+          headers: {
+            Authorization: params.langfuseMcpAuthHeader,
+          },
+        },
+      },
+      langfuseDocs: {
+        url: new URL(LANGFUSE_DOCS_MCP_URL),
+      },
+    },
+  });
+
+  try {
+    const { toolsets, errors } = await mcpClient.listToolsetsWithErrors();
+
+    if (errors.langfuse) {
+      throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
     }
 
-    return sessionId
-      ? [
-          {
-            type: EventType.STATE_DELTA,
-            delta: [
-              {
-                op: "replace",
-                path: "",
-                value: createResumeStateForSessionId(sessionId),
-              },
-            ],
-          },
-        ]
-      : [];
+    if (errors.langfuseDocs) {
+      logger.warn("Failed to initialize Langfuse docs MCP", {
+        error: errors.langfuseDocs,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+
+    const tools = {
+      ...prefixToolsetTools("langfuse", toolsets.langfuse),
+      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+    };
+
+    const agent = new Agent({
+      id: "langfuse-in-app-assistant",
+      name: ASSISTANT_TITLE,
+      instructions: getAssistantSystemPrompt(),
+      model: bedrock(
+        params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
+      ),
+      tools,
+      defaultOptions: {
+        abortSignal: params.signal,
+        maxSteps: MAX_AGENT_STEPS,
+      },
+    });
+
+    return {
+      adapter: new MastraAgent({
+        agent,
+        resourceId: params.input.threadId,
+      }),
+      interrupt: () => agent.abortRunStream(params.input.runId),
+      cleanup: () => mcpClient.disconnect(),
+    };
+  } catch (error) {
+    await mcpClient.disconnect().catch((disconnectError) => {
+      logger.error("Error cleaning up failed agent initialization", {
+        error: disconnectError,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    });
+    throw error;
+  }
+}
+
+function prefixToolsetTools<TTool>(
+  serverName: string,
+  toolset: Record<string, TTool> | undefined,
+) {
+  return Object.fromEntries(
+    Object.entries(toolset ?? {}).map(([toolName, tool]) => [
+      `${serverName}_${toolName}`,
+      tool,
+    ]),
+  );
+}
+
+function normalizeAdapterEvent(
+  event: AgUiEvent,
+  input: AgUiRunAgentInput,
+): AgUiEvent[] {
+  if (event.type === EventType.RUN_STARTED) {
+    const publicEvent = { ...event };
+    delete publicEvent.input;
+
+    return [
+      {
+        ...publicEvent,
+        ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
+      },
+    ];
   }
 
   return [event];
 }
 
-function isSystemInitEvent(event: AgUiEvent): event is AgUiCustomEvent {
-  return event.type === EventType.CUSTOM && event.name === "system:init";
+function createRunErrorEvent(
+  input: AgUiRunAgentInput,
+  error: unknown,
+): AgUiEvent {
+  const message =
+    error instanceof Error ? error.message : "Unknown assistant error";
+
+  return {
+    type: EventType.RUN_ERROR,
+    threadId: input.threadId,
+    runId: input.runId,
+    message,
+  };
+}
+
+function getRunErrorMessage(event: AgUiEvent) {
+  return typeof event.message === "string" && event.message.trim()
+    ? event.message
+    : "Unknown assistant error";
 }

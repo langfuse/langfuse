@@ -111,7 +111,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.11.1.3
+- Pnpm v.11.4.0
 - Docker to run the database locally
 - Clickhouse client
 

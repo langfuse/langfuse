@@ -26,12 +26,12 @@ Complete guide to testing Langfuse backend services across web, worker, and shar
 
 ### By Test Type
 
-| Test Type | Key Principles |
-|-----------|----------------|
-| **Integration** | Test HTTP endpoints, validate status codes and response shapes |
-| **tRPC** | Use `createInnerTRPCContext` and `appRouter.createCaller`, test auth/permissions |
-| **Service** | Test individual functions with isolated data, always cleanup |
-| **Worker** | Use vitest, test streams with async iteration, test filtering logic |
+| Test Type       | Key Principles                                                                   |
+| --------------- | -------------------------------------------------------------------------------- |
+| **Integration** | Test HTTP endpoints, validate status codes and response shapes                   |
+| **tRPC**        | Use `createInnerTRPCContext` and `appRouter.createCaller`, test auth/permissions |
+| **Service**     | Test individual functions with isolated data, always cleanup                     |
+| **Worker**      | Use vitest, test streams with async iteration, test filtering logic              |
 
 ### Test Data Management
 
@@ -58,12 +58,12 @@ const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 Langfuse uses multiple testing strategies for different layers:
 
-| Test Type | Framework | Location | Purpose |
-|-----------|-----------|----------|---------|
-| Integration | Vitest | `web/src/__tests__/server/` | Full API endpoint testing |
-| tRPC | Vitest | `web/src/__tests__/server/` | tRPC procedure testing with auth |
-| Service | Vitest | `web/src/__tests__/server/repositories/` | Repository/service function testing |
-| Worker | Vitest | `worker/src/__tests__/` | Queue processors and streams |
+| Test Type   | Framework | Location                                 | Purpose                             |
+| ----------- | --------- | ---------------------------------------- | ----------------------------------- |
+| Integration | Vitest    | `web/src/__tests__/server/`              | Full API endpoint testing           |
+| tRPC        | Vitest    | `web/src/__tests__/server/`              | tRPC procedure testing with auth    |
+| Service     | Vitest    | `web/src/__tests__/server/repositories/` | Repository/service function testing |
+| Worker      | Vitest    | `worker/src/__tests__/`                  | Queue processors and streams        |
 
 ---
 
@@ -103,6 +103,7 @@ describe("Dataset API", () => {
 ```
 
 **Key Points:**
+
 - Uses `makeZodVerifiedAPICall` for type-safe API testing
 - Tests HTTP status codes and response validation
 - Tests both success and error cases
@@ -163,7 +164,9 @@ describe("Event Repository Tests", () => {
     // Test the service function
     const result = await getObservationsWithModelDataFromEventsTable({
       projectId,
-      filter: [{ type: "string", column: "id", operator: "=", value: generationId }],
+      filter: [
+        { type: "string", column: "id", operator: "=", value: generationId },
+      ],
       limit: 1000,
       offset: 0,
     });
@@ -203,18 +206,24 @@ describe("Event Repository Tests", () => {
     const result = await getObservationsWithModelDataFromEventsTable({
       projectId,
       filter: [
-        { type: "stringOptions", column: "type", operator: "any of", value: ["GENERATION"] }
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
       ],
       limit: 1000,
       offset: 0,
     });
 
-    expect(result.every(o => o.type === "GENERATION")).toBe(true);
+    expect(result.every((o) => o.type === "GENERATION")).toBe(true);
   });
 });
 ```
 
 **Key Points:**
+
 - Tests service/repository functions directly
 - Uses ClickHouse and Prisma test data
 - Always cleanup test data after tests
@@ -245,16 +254,20 @@ async function prepare() {
     user: {
       id: "user-1",
       name: "Demo User",
-      organizations: [{
-        id: org.id,
-        name: org.name,
-        role: "OWNER",
-        projects: [{
-          id: project.id,
-          role: "ADMIN",
-          name: project.name,
-        }],
-      }],
+      organizations: [
+        {
+          id: org.id,
+          name: org.name,
+          role: "OWNER",
+          projects: [
+            {
+              id: project.id,
+              role: "ADMIN",
+              name: project.name,
+            },
+          ],
+        },
+      ],
     },
   };
 
@@ -327,13 +340,17 @@ describe("automations trpc", () => {
       ...session,
       user: {
         ...session.user!,
-        organizations: [{
-          ...session.user!.organizations[0],
-          projects: [{
-            ...session.user!.organizations[0].projects[0],
-            role: "VIEWER", // VIEWER can't create automations
-          }],
-        }],
+        organizations: [
+          {
+            ...session.user!.organizations[0],
+            projects: [
+              {
+                ...session.user!.organizations[0].projects[0],
+                role: "VIEWER", // VIEWER can't create automations
+              },
+            ],
+          },
+        ],
       },
     };
 
@@ -365,6 +382,7 @@ describe("automations trpc", () => {
 ```
 
 **Key Points:**
+
 - Uses `prepare()` helper to set up test context
 - Creates authenticated caller with `appRouter.createCaller`
 - Tests both success and permission error cases
@@ -497,6 +515,7 @@ describe("batch export test suite", () => {
 ```
 
 **Key Points:**
+
 - Uses vitest (not Jest) for worker tests
 - Tests stream functions with async iteration
 - Creates isolated test data per test
@@ -510,6 +529,7 @@ Use the nearest package `AGENTS.md` as the source of truth for current test
 commands.
 
 Common targeted forms:
+
 - Web server tests: `pnpm --filter web run test <file-or-pattern>`
 - Web client tests: `pnpm --filter web run test-client <file-or-pattern>`
 - Worker tests: `pnpm --filter worker run test <file-or-pattern>`
@@ -517,6 +537,7 @@ Common targeted forms:
 ---
 
 **Related Files:**
-- [../AGENTS.md](../AGENTS.md) - Main backend guidelines
+
+- [../SKILL.md](../SKILL.md) - Main backend guidelines
 - [architecture-overview.md](architecture-overview.md) - Architecture patterns
 - [services-and-repositories.md](services-and-repositories.md) - Service and repository examples

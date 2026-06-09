@@ -33,6 +33,7 @@ export default withUnstablePublicEvalsMiddlewares({
     responseSchema: PostUnstableEvaluationRuleResponse,
     fn: async ({ body, auth }) => {
       const evaluationRule = await createPublicEvaluationRule({
+        orgId: auth.scope.orgId,
         projectId: auth.scope.projectId,
         input: body,
       });

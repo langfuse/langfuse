@@ -513,6 +513,7 @@ export const traceRouter = createTRPCRouter({
 
         let trace;
 
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
@@ -524,7 +525,7 @@ export const traceRouter = createTRPCRouter({
           const promises = [
             upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
           ];
-          if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+          if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
             promises.push(
               updateEvents(
                 input.projectId,
@@ -571,6 +572,7 @@ export const traceRouter = createTRPCRouter({
           after: input.public,
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
@@ -589,7 +591,7 @@ export const traceRouter = createTRPCRouter({
         const promises = [
           upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
         ];
-        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
           promises.push(
             updateEvents(
               input.projectId,

@@ -46,6 +46,20 @@ export const SeveritySchema = z.enum([
 ]);
 export type Severity = z.infer<typeof SeveritySchema>;
 
+/**
+ * Plans that may manually flag a support request as high priority (Sev-1).
+ * Mirrors the high-tier check in `mapToPylonCaseSeverity`.
+ */
+export const HIGH_TIER_SUPPORT_PLANS = [
+  "cloud:team",
+  "cloud:enterprise",
+  "self-hosted:enterprise",
+] as const;
+
+/** Whether the given plan may manually escalate a support request to Sev-1. */
+export const isHighTierSupportPlan = (plan?: string): boolean =>
+  !!plan && (HIGH_TIER_SUPPORT_PLANS as readonly string[]).includes(plan);
+
 export const IntegrationTypeSchema = z.enum([
   "Python SDK",
   "TypeScript SDK",
@@ -65,6 +79,11 @@ export type IntegrationType = z.infer<typeof IntegrationTypeSchema>;
 export const SupportFormSchema = z.object({
   messageType: MessageTypeSchema.default("Question"),
   severity: SeveritySchema,
+  /**
+   * Manual high-priority (Sev-1) escalation. Only honored server-side for
+   * high-tier plans (see {@link isHighTierSupportPlan}).
+   */
+  isHighPriority: z.boolean().default(false),
   integrationType: z.string().optional(),
   topic: z
     .union([TopicSchema, z.literal("")])
