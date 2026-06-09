@@ -103,11 +103,11 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             nextInternalExportSource: input.exportSource,
             isCloud,
           });
-          const enrichedSources = [
-            AnalyticsIntegrationExportSource.EVENTS,
-            AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
-          ];
-          if (enrichedSources.includes(input.exportSource)) {
+          if (
+            input.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
+            input.exportSource ===
+              AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS
+          ) {
             if (
               !isEnrichedBlobExportAvailable(
                 isCloud,
