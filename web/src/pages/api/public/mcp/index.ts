@@ -19,7 +19,10 @@
  * the transport layer needs direct response control for both JSON and SSE responses.
  * Error handling, header validation, and CORS are implemented in this route layer.
  *
- * Authentication: BasicAuth (Public Key:Secret Key) - LF-1927
+ * Authentication:
+ * - BasicAuth (Public Key:Secret Key) - LF-1927
+ * - Optional OIDC bearer JWT alongside BasicAuth - see
+ *   web/src/features/mcp/README.md and MCP_AUTH_OIDC_* env vars.
  * Resources: Added in LF-1928
  * Tools: Added in LF-1929
  */
@@ -32,12 +35,10 @@ import {
   validateMcpRequestSecurity,
 } from "@/src/features/mcp/server/security";
 import { formatErrorForUser } from "@/src/features/mcp/core/error-formatting";
-import { type ServerContext } from "@/src/features/mcp/types";
-import { logger, redis } from "@langfuse/shared/src/server";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { authenticateMcpRequest } from "@/src/features/mcp/server/auth";
+import { logger } from "@langfuse/shared/src/server";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { prisma } from "@langfuse/shared/src/db";
-import { BaseError, UnauthorizedError, ForbiddenError } from "@langfuse/shared";
+import { BaseError } from "@langfuse/shared";
 import { ZodError } from "zod";
 import { isUserInputError } from "@/src/features/mcp/core/errors";
 
@@ -76,39 +77,14 @@ export default async function handler(
       return;
     }
 
-    // Authenticate request using BasicAuth (Public Key:Secret Key)
-    const authCheck = await new ApiAuthService(
-      prisma,
-      redis,
-    ).verifyAuthHeaderAndReturnScope(req.headers.authorization, {
-      allowInAppAgentKey: true,
-    });
+    // Authenticate: dispatches to BasicAuth or OIDC bearer based on the
+    // Authorization header and MCP_AUTH_OIDC_ENABLED.
+    const { context, scope } = await authenticateMcpRequest(req);
 
-    if (!authCheck.validKey) {
-      throw new UnauthorizedError(authCheck.error);
-    }
-
-    // MCP requires project-scoped access (no Bearer auth, no org-level keys)
-    if (
-      authCheck.scope.accessLevel !== "project" ||
-      !authCheck.scope.projectId
-    ) {
-      throw new ForbiddenError(
-        "Access denied: MCP requires project-scoped API keys with BasicAuth",
-      );
-    }
-
-    // Check if ingestion is suspended due to usage limits
-    if (authCheck.scope.isIngestionSuspended) {
-      throw new ForbiddenError(
-        "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
-      );
-    }
-
-    // Rate limit MCP requests
+    // Rate limit MCP requests (applies to both auth paths)
     const rateLimitCheck =
       await RateLimitService.getInstance().rateLimitRequest(
-        authCheck.scope,
+        scope,
         "public-api",
       );
 
@@ -116,21 +92,11 @@ export default async function handler(
       return rateLimitCheck.sendRestResponseIfLimited(res);
     }
 
-    // Build ServerContext from authenticated scope
-    const context: ServerContext = {
-      projectId: authCheck.scope.projectId,
-      orgId: authCheck.scope.orgId,
-      userId: undefined, // API keys don't have associated users
-      apiKeyId: authCheck.scope.apiKeyId,
-      accessLevel: "project",
-      publicKey: authCheck.scope.publicKey,
-      isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
-    };
-
     logger.debug("MCP request authenticated", {
       method: req.method,
       projectId: context.projectId,
       orgId: context.orgId,
+      authMethod: context.authMethod ?? "api-key",
       userAgent: req.headers["user-agent"],
       contentType: req.headers["content-type"],
       accept: req.headers.accept,
