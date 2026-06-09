@@ -990,7 +990,7 @@ const NoDataField = ({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="SILENT">Silent (alert only on recovery)</SelectItem>
+        <SelectItem value="SILENT">Silent</SelectItem>
         <SelectItem value="NOTIFY">Notify after sustained no-data</SelectItem>
       </SelectContent>
     </Select>
