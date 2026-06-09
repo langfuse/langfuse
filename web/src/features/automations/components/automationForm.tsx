@@ -564,7 +564,10 @@ export const AutomationForm = ({
 
     if (value === "WEBHOOK") {
       const handler = ActionHandlerRegistry.getHandler("WEBHOOK");
-      const defaultValues = handler.getDefaultValues();
+      const defaultValues = handler.getDefaultValues(
+        undefined,
+        form.getValues("eventSource") as TriggerEventSource,
+      );
       form.setValue("webhook", defaultValues.webhook);
     } else if (value === "SLACK") {
       const handler = ActionHandlerRegistry.getHandler("SLACK");
