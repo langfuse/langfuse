@@ -2,15 +2,16 @@ import type { Session } from "next-auth";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
+import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@/src/features/in-app-agent/ids";
-import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+} from "@/src/ee/features/in-app-agent/ids";
+import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 import {
   createRun,
   ensureOwnedConversation,
@@ -19,7 +20,7 @@ import {
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/features/in-app-agent/server/persistence";
+} from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 describe("in-app agent persistence", () => {
@@ -33,7 +34,10 @@ describe("in-app agent persistence", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  const createCaller = async (userId = `user-${randomUUID()}`) => {
+  const createCaller = async (
+    userId = `user-${randomUUID()}`,
+    plan: Plan = "cloud:hobby",
+  ) => {
     const setup = await createOrgProjectAndApiKey();
 
     await prisma.organization.update({
@@ -58,7 +62,7 @@ describe("in-app agent persistence", () => {
           {
             id: setup.orgId,
             role: "OWNER",
-            plan: "cloud:hobby",
+            plan,
             cloudConfig: undefined,
             name: "Test Organization",
             metadata: {},
@@ -121,6 +125,20 @@ describe("in-app agent persistence", () => {
       model: "haiku",
       mcpApiKeyId: "api-key-id-1",
     });
+
+  it("rejects users without the in-app agent entitlement", async () => {
+    const { caller, projectId } = await createCaller(
+      `user-${randomUUID()}`,
+      "oss",
+    );
+
+    await expect(caller.listConversations({ projectId })).rejects.toMatchObject(
+      {
+        code: "FORBIDDEN",
+        message: expect.stringContaining("in-app-agent"),
+      },
+    );
+  });
 
   const startCompactRun = async (params: {
     projectId: string;

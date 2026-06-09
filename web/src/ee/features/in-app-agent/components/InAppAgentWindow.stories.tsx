@@ -1,4 +1,4 @@
-import preview from "../../../../.storybook/preview";
+import preview from "../../../../../.storybook/preview";
 import { useArgs } from "storybook/preview-api";
 import { fn } from "storybook/test";
 import {

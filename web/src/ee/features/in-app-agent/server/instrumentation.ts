@@ -4,8 +4,8 @@ import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
 import type {
   AgUiEvent,
   AgUiRunAgentInput,
-} from "@/src/features/in-app-agent/schema";
-import { compactTextMessageChunks } from "@/src/features/in-app-agent/server/eventCompaction";
+} from "@/src/ee/features/in-app-agent/schema";
+import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 
 export type InAppAgentTracingConfig = {
   environment: string;

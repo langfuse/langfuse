@@ -11,7 +11,7 @@ import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import {
   AgUiMessageSchema,
   type AgUiMessage,
-} from "@/src/features/in-app-agent/schema";
+} from "@/src/ee/features/in-app-agent/schema";
 
 type ControlledInAppAgentWindowProps =
   | {
