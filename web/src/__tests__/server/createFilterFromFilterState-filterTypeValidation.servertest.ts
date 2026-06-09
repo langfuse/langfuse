@@ -310,9 +310,14 @@ describe("createFilterFromFilterState filter type validation", () => {
     const { query, params } = result.apply();
     const paramName = Object.keys(params)[0];
 
-    expect(query).toBe(
-      `(position(lower(e.output), lower({${paramName}: String})) > 0 AND hasAllTokens(lower(e.output), lower({${paramName}: String})))`,
+    expect(query).toContain(
+      `position(lower(e.output), lower({${paramName}: String})) > 0`,
     );
+    expect(query).toContain("arraySlice");
+    expect(query).toContain(
+      `hasAllTokens(lower(e.output), arraySlice(arrayDistinct(tokens(lower({${paramName}: String}))), 1, 64))`,
+    );
+    expect(query).toContain(`tokens(lower({${paramName}: String}))`);
     expect(params).toEqual({ [paramName]: "needle" });
   });
 
@@ -333,7 +338,8 @@ describe("createFilterFromFilterState filter type validation", () => {
     const { query } = result.apply();
 
     expect(query).toContain("e.input =");
-    expect(query).toContain("hasAllTokens(lower(e.input), lower(");
+    expect(query).toContain("arraySlice");
+    expect(query).toContain("hasAllTokens(lower(e.input), arraySlice(");
   });
 
   it("generates case-sensitive FTS SQL for event metadata matches", () => {
