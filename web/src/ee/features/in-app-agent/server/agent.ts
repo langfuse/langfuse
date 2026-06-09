@@ -8,9 +8,9 @@ import { MCPClient } from "@mastra/mcp";
 import type {
   AgUiEvent,
   AgUiRunAgentInput,
-} from "@/src/features/in-app-agent/schema";
-import type { InAppAgentTracingConfig } from "@/src/features/in-app-agent/server/instrumentation";
-import { createInAppAgentInstrumentation } from "@/src/features/in-app-agent/server/instrumentation";
+} from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";

@@ -17,12 +17,14 @@ export const entitlements = [
   "scheduled-blob-exports",
   "prompt-protected-labels",
   "admin-api",
+  "in-app-agent",
 ] as const;
 export type Entitlement = (typeof entitlements)[number];
 
 const cloudAllPlansEntitlements: Entitlement[] = [
   "cloud-billing",
   "trace-deletion",
+  "in-app-agent",
 ];
 
 const selfHostedAllPlansEntitlements: Entitlement[] = [

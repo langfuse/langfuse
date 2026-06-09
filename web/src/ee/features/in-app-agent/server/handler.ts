@@ -5,15 +5,15 @@ import { env } from "@/src/env.mjs";
 import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
-} from "@/src/features/in-app-agent/ids";
+} from "@/src/ee/features/in-app-agent/ids";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
   type AgUiEvent,
   InAppAgentRuntimeStateSchema,
   type AgUiMessage,
-} from "@/src/features/in-app-agent/schema";
-import { createAgUiStream } from "@/src/features/in-app-agent/server/agent";
+} from "@/src/ee/features/in-app-agent/schema";
+import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
 import {
   createRun,
   ensureOwnedConversation,
@@ -22,8 +22,9 @@ import {
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/features/in-app-agent/server/persistence";
+} from "@/src/ee/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
+import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { assertUnreachable } from "@/src/utils/types";
 import {
@@ -129,6 +130,16 @@ export default async function handler(request: Request) {
 
     if (!isInAppAgentEnabled) {
       throw new ForbiddenError("Assistant is not enabled for this user");
+    }
+
+    if (
+      !hasEntitlement({
+        entitlement: "in-app-agent",
+        sessionUser: auth.user,
+        projectId,
+      })
+    ) {
+      throw new ForbiddenError("Assistant is not enabled for this plan");
     }
 
     const project = await prisma.project.findUnique({
