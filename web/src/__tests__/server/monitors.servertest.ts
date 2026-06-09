@@ -111,6 +111,7 @@ const validMonitorInput = (projectId: string) => ({
   status: "ACTIVE" as const,
   name: "High error rate",
   tags: [],
+  triggerIds: ["trig_01"],
 });
 
 const seedMonitors = async (
