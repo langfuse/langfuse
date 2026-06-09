@@ -10,6 +10,7 @@ import {
   TopicGroups,
   type MessageType,
   SupportFormSchema,
+  isHighTierSupportPlan,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -24,7 +25,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import { RadioGroup } from "@/src/components/ui/radio-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -41,7 +48,7 @@ import {
   DropzoneContent,
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
-import { Paperclip, Trash2 } from "lucide-react";
+import { Info, Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
@@ -162,6 +169,12 @@ export function SupportFormSection({
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
 
+  // Team / Enterprise customers may manually escalate a request to Sev-1.
+  const canRequestHighPriority = isHighTierSupportPlan(organization?.plan);
+
+  // Controlled so the high-priority info tooltip opens on hover and on click.
+  const [highPriorityInfoOpen, setHighPriorityInfoOpen] = useState(false);
+
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
 
@@ -180,6 +193,7 @@ export function SupportFormSection({
     defaultValues: {
       messageType: "Question" as MessageType,
       severity: "Question or feature request",
+      isHighPriority: false,
       topic: "",
       message: "",
       integrationType: "",
@@ -208,6 +222,7 @@ export function SupportFormSection({
         form.reset({
           messageType: "Question",
           severity: "Question or feature request",
+          isHighPriority: false,
           topic: "",
           message: "",
         });
@@ -282,6 +297,7 @@ export function SupportFormSection({
       await createSupportThread.mutateAsync({
         messageType: parsed.messageType,
         severity: parsed.severity,
+        isHighPriority: parsed.isHighPriority,
         topic: parsed.topic as any,
         integrationType: parsed.integrationType,
         message: parsed.message,
@@ -376,20 +392,64 @@ export function SupportFormSection({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Severity</FormLabel>
-                <FormControl>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select severity" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SEVERITIES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
+                <div className="flex items-center gap-3">
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select severity" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SEVERITIES.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+
+                  {/* High priority (Sev-1) — only for Team / Enterprise plans */}
+                  {canRequestHighPriority && (
+                    <FormField
+                      control={form.control}
+                      name="isHighPriority"
+                      render={({ field: priorityField }) => (
+                        <FormItem className="flex shrink-0 flex-row items-center gap-1.5 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={priorityField.value ?? false}
+                              onCheckedChange={priorityField.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="cursor-pointer text-sm font-normal whitespace-nowrap">
+                            Urgent (Sev-1)
+                          </FormLabel>
+                          <Tooltip
+                            open={highPriorityInfoOpen}
+                            onOpenChange={setHighPriorityInfoOpen}
+                          >
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setHighPriorityInfoOpen((open) => !open)
+                                }
+                                className="text-muted-foreground hover:text-foreground"
+                                aria-label="High priority info"
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              Mark as high priority only for time-critical
+                              issues such as production outages.
+                            </TooltipContent>
+                          </Tooltip>
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
                 <FormMessage />
               </FormItem>
             )}

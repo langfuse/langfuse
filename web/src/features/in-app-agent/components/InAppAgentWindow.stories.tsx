@@ -1,6 +1,24 @@
 import preview from "../../../../.storybook/preview";
+import { useArgs } from "storybook/preview-api";
 import { fn } from "storybook/test";
-import { InAppAgentDrawer } from "./InAppAgentDrawer";
+import {
+  InAppAgentWindow,
+  type InAppAgentWindowProps,
+} from "./InAppAgentWindow";
+
+function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
+  const [, updateArgs] = useArgs<InAppAgentWindowProps>();
+
+  return (
+    <InAppAgentWindow
+      {...args}
+      onExpandedChange={(isExpanded) => {
+        updateArgs({ isExpanded });
+        args.onExpandedChange(isExpanded);
+      }}
+    />
+  );
+}
 
 const conversations = [
   {
@@ -16,19 +34,20 @@ const conversations = [
 ];
 
 const meta = preview.meta({
-  component: InAppAgentDrawer,
+  component: InAppAgentWindow,
   parameters: {
     layout: "fullscreen",
   },
   decorators: [
     (Story) => (
-      <div className="h-screen w-full">
+      <div className="flex h-screen w-full items-center justify-center">
         <Story />
       </div>
     ),
   ],
   args: {
     error: null,
+    isExpanded: false,
     isInputDisabled: false,
     conversations,
     hasMoreConversations: false,
@@ -38,9 +57,11 @@ const meta = preview.meta({
     onNewConversation: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
+    onExpandedChange: fn(),
     onSubmit: fn(),
     showCloseButton: true,
   },
+  render: StatefulInAppAgentWindow,
 });
 
 export const Empty = meta.story({
@@ -111,6 +132,57 @@ export const Conversation = meta.story({
         content: {
           type: "text",
           text: "Yes. Add score filters or group the traces by score name to see whether latency correlates with lower quality.",
+        },
+      },
+      {
+        id: "assistant-3",
+        role: "assistant",
+        content: {
+          type: "text",
+          text: [
+            "# Heading 1",
+            "## Heading 2",
+            "### Heading 3",
+            "#### Heading 4",
+            "##### Heading 5",
+            "###### Heading 6",
+            "",
+            "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, and metadata across releases.",
+            "",
+            "- Inspect traces with nested observations",
+            "- Evaluate outputs with scores",
+            "- Monitor production quality over time",
+            "",
+            "1. Filter for `level = ERROR`.",
+            "2. Open the slowest trace.",
+            "3. Compare model settings and prompt versions.",
+            "",
+            "> Tip: add scores and metadata early so regressions are easier to segment later.",
+            "",
+            "| Signal | Where to look |",
+            "| --- | --- |",
+            "| Latency | Observation timings |",
+            "| Cost | Usage and model pricing |",
+            "| Quality | Scores and comments |",
+            "",
+            "```ts",
+            "const trace = {",
+            '  name: "checkout-agent",',
+            '  environment: "production",',
+            '  metadata: { region: "eu" },',
+            "};",
+            "```",
+            "",
+            "Streaming partial markdown:",
+            "",
+            "- The assistant can render a list item while it is still streaming",
+            "- It can also keep an unfinished **bold phrase",
+            "",
+            "```json",
+            "{",
+            '  "status": "streaming",',
+            '  "next": "content still arriving"',
+          ].join("\n"),
         },
       },
     ],
