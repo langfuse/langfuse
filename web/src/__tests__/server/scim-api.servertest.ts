@@ -1075,6 +1075,57 @@ describe("SCIM API", () => {
         expect(auditLogs[0].before).toContain(before!.id);
       });
 
+      it("should capture cascade-deleted project memberships in the delete audit before payload", async () => {
+        // Seeded project that belongs to seed-org-id.
+        const seededProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+        const orgMembership =
+          await prisma.organizationMembership.findFirstOrThrow({
+            where: { userId: testUserId, orgId: orgId },
+          });
+        // Give the user project-level access. This row is cascade-deleted when
+        // the org membership is removed, so the audit before payload is the
+        // only place it can be preserved.
+        await prisma.projectMembership.create({
+          data: {
+            orgMembershipId: orgMembership.id,
+            projectId: seededProjectId,
+            userId: testUserId,
+            role: "VIEWER",
+          },
+        });
+
+        try {
+          await makeAPICall(
+            "DELETE",
+            `/api/public/scim/Users/${testUserId}`,
+            undefined,
+            createBasicAuthHeader(orgApiKey, orgSecretKey),
+          );
+        } catch (_e) {
+          // ignore
+        }
+
+        // The cascaded project membership is gone from the DB...
+        const remainingProjectMemberships =
+          await prisma.projectMembership.findMany({
+            where: { userId: testUserId },
+          });
+        expect(remainingProjectMemberships.length).toBe(0);
+
+        // ...but recoverable from the delete audit before payload.
+        const auditLog = await prisma.auditLog.findFirst({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: orgMembership.id,
+            action: "delete",
+            orgId: orgId,
+          },
+        });
+        expect(auditLog).not.toBeNull();
+        expect(auditLog!.before).toContain("ProjectMemberships");
+        expect(auditLog!.before).toContain(seededProjectId);
+      });
+
       it("should return 404 when user does not exist", async () => {
         const nonExistentUserId = randomUUID();
         const result = await makeAPICall(

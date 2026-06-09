@@ -155,6 +155,12 @@ async function deprovisionOrReject(
       async (tx) => {
         const membership = await tx.organizationMembership.findUnique({
           where: { orgId_userId: { orgId, userId } },
+          // Capture the project memberships that Postgres cascade-deletes with
+          // this row (ProjectMembership.organizationMembership is onDelete:
+          // Cascade) so the audit `before` preserves which projects the user
+          // could access. They are unrecoverable once the delete commits, and
+          // this keeps parity with the tRPC deleteMembership audit entry.
+          include: { ProjectMemberships: true },
         });
         // Already absent: nothing to delete. Idempotent success, no audit.
         if (!membership) {
