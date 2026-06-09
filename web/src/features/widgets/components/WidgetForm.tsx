@@ -1092,6 +1092,7 @@ export function WidgetForm({
   }, [
     selectedView,
     selectedDimension,
+    selectedDimensionKey,
     selectedAggregation,
     selectedMeasure,
     selectedMetrics,

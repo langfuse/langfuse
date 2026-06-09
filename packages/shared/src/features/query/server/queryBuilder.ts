@@ -247,8 +247,21 @@ export class QueryBuilder {
           `Dimension '${dimension.field}' does not accept a 'key' (only stringObject dims do).`,
         );
       }
+      // stringObject dims declare their SQL with a `{key}` placeholder
+      // (matching the StringObjectFilter pattern). Substitute the
+      // regex-validated key here so downstream render paths see plain SQL.
+      const resolvedSql =
+        dim.type === "stringObject" && dimension.key
+          ? dim.sql.replaceAll("{key}", dimension.key)
+          : dim.sql;
+      const resolvedAggregationFunction =
+        dim.type === "stringObject" && dimension.key && dim.aggregationFunction
+          ? dim.aggregationFunction.replaceAll("{key}", dimension.key)
+          : dim.aggregationFunction;
       return {
         ...dim,
+        sql: resolvedSql,
+        aggregationFunction: resolvedAggregationFunction,
         table: dim.relationTable || view.name,
         explodeArray: dim.explodeArray,
         pairExpand: dim.pairExpand,
@@ -956,10 +969,6 @@ export class QueryBuilder {
           if (dimension.explodeArray) {
             return `arrayJoin(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
           }
-          // stringObject dims (e.g. metadata): index the Map column by the user-supplied key
-          if (dimension.type === "stringObject" && dimension.key) {
-            return `any(${dimension.sql}['${dimension.key}']) as ${dimension.alias ?? dimension.sql}`;
-          }
           // Default: wrap in any()
           return `any(${dimension.sql}) as ${dimension.alias ?? dimension.sql}`;
         })
@@ -1216,9 +1225,6 @@ export class QueryBuilder {
             }
             if (d.explodeArray) {
               return `arrayJoin(${d.sql}) as ${d.alias ?? d.sql}`;
-            }
-            if (d.type === "stringObject" && d.key) {
-              return `${d.sql}['${d.key}'] as ${d.alias ?? d.sql}`;
             }
             return `${d.sql} as ${d.alias ?? d.sql}`;
           })

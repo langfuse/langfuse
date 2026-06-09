@@ -64,12 +64,6 @@ export const traceView: ViewDeclarationType = {
       type: "string",
       description: "Deployment environment (e.g., production, staging).",
     },
-    metadata: {
-      sql: "traces.metadata",
-      alias: "metadata",
-      type: "stringObject",
-      description: "Custom metadata key from the trace (provide a key).",
-    },
     timestampMonth: {
       sql: "formatDateTime(traces.timestamp, '%Y-%m')",
       alias: "timestampMonth",
@@ -245,6 +239,15 @@ export const eventsTracesView: ViewDeclarationType = {
       description: "Month of the trace timestamp in YYYY-MM format.",
       aggregationFunction:
         "formatDateTime(min(events_traces.start_time), '%Y-%m')",
+    },
+    metadata: {
+      sql: "events_traces.metadata_values[indexOf(events_traces.metadata_names, '{key}')]",
+      alias: "metadata",
+      type: "stringObject",
+      description:
+        "Custom metadata key from the trace (provide a key, e.g. 'agentName').",
+      aggregationFunction:
+        "argMaxIf(events_traces.metadata_values[indexOf(events_traces.metadata_names, '{key}')], events_traces.event_ts, has(events_traces.metadata_names, '{key}'))",
     },
   },
   measures: {
@@ -462,19 +465,6 @@ export const observationsView: ViewDeclarationType = {
       type: "arrayString",
       description: "Names of tools that were called by the observation.",
       explodeArray: true,
-    },
-    metadata: {
-      sql: "observations.metadata",
-      alias: "metadata",
-      type: "stringObject",
-      description: "Custom metadata key from the observation (provide a key).",
-    },
-    traceMetadata: {
-      sql: "traces.metadata",
-      alias: "traceMetadata",
-      type: "stringObject",
-      relationTable: "traces",
-      description: "Custom metadata key from the parent trace (provide a key).",
     },
   },
   measures: {
@@ -1219,6 +1209,13 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "ID of the experiment this observation belongs to.",
       highCardinality: true,
       uiHidden: true, // Only available as filter, not as breakdown dimension
+    },
+    metadata: {
+      sql: "events_observations.metadata_values[indexOf(events_observations.metadata_names, '{key}')]",
+      alias: "metadata",
+      type: "stringObject",
+      description:
+        "Custom metadata key from the observation (provide a key, e.g. 'agentName').",
     },
   },
   measures: {
