@@ -351,6 +351,8 @@ export async function fetchLLMCompletion(
   let usesOpenAIResponsesApi = false;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     const shouldNormalizeAnthropicSamplingParams =
+      modelParams.model?.includes("claude-fable-5") ||
+      modelParams.model?.includes("claude-mythos-5") ||
       modelParams.model?.includes("claude-opus-4-8") ||
       modelParams.model?.includes("claude-opus-4-7") ||
       modelParams.model?.includes("claude-sonnet-4-6") ||
