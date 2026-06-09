@@ -1,6 +1,8 @@
 import type { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
+import type { SanitizedInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
+
 // @ag-ui/core@0.0.52 publishes Zod v3-shaped declarations, but this package
 // uses Zod v4, causing its exported z.infer-based types to resolve as unknown.
 // Duplicate the relevant schemas locally until
@@ -137,6 +139,10 @@ export const AgUiRunAgentInputSchema = z.object({
 });
 
 export type AgUiRunAgentInput = z.infer<typeof AgUiRunAgentInputSchema>;
+
+export type InAppAgentRunInput = Omit<AgUiRunAgentInput, "context"> & {
+  context: SanitizedInAppAgentScreenContext | null;
+};
 
 export type AgUiEvent = {
   type: EventType;

@@ -102,7 +102,7 @@ describe("createAgUiStream", () => {
         },
       ],
       tools: [],
-      context: [],
+      context: null,
       state: {
         type: "existingConversation",
         projectId: "project-1",
@@ -254,7 +254,7 @@ describe("createAgUiStream", () => {
         },
       ],
       tools: [],
-      context: [],
+      context: null,
       state: null,
       forwardedProps: {},
     };

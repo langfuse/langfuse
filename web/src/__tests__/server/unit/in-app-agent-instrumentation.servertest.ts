@@ -1,6 +1,6 @@
 import { EventType } from "@ag-ui/core";
 
-import type { AgUiRunAgentInput } from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentRunInput } from "@/src/ee/features/in-app-agent/schema";
 import { InAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 
 const traceId = "0123456789abcdef0123456789abcdef";
@@ -56,13 +56,13 @@ vi.mock("@langfuse/shared/src/server", () => ({
   },
 }));
 
-const input: AgUiRunAgentInput = {
+const input: InAppAgentRunInput = {
   threadId: "conversation-1",
   runId: "run-1",
   state: null,
   messages: [{ id: "message-1", role: "user", content: "hello" }],
   tools: [],
-  context: [],
+  context: null,
   forwardedProps: {},
 };
 
@@ -212,15 +212,15 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.trace.update.mock.calls[0][0]).not.toHaveProperty("output");
   });
 
-  it("records AG-UI context in the agent span input", () => {
+  it("records sanitized screen context in the agent span input", () => {
     createInstrumentation({
-      context: [
-        {
-          description: "current_url",
-          value:
-            "https://cloud.langfuse.com/project/project-1/traces?filter=value",
+      context: {
+        currentPage: {
+          path: "/project/project-1/traces",
+          projectId: "project-1",
+          resource: "traces",
         },
-      ],
+      },
     });
 
     expect(mocks.trace.span).toHaveBeenCalledWith(
@@ -228,13 +228,13 @@ describe("InAppAgentInstrumentation", () => {
         name: "agent-run",
         input: {
           message: "hello",
-          context: [
-            {
-              description: "current_url",
-              value:
-                "https://cloud.langfuse.com/project/project-1/traces?filter=value",
+          context: {
+            currentPage: {
+              path: "/project/project-1/traces",
+              projectId: "project-1",
+              resource: "traces",
             },
-          ],
+          },
         },
       }),
     );
@@ -315,7 +315,7 @@ describe("InAppAgentInstrumentation", () => {
   });
 });
 
-function createInstrumentation(overrides?: Partial<AgUiRunAgentInput>) {
+function createInstrumentation(overrides?: Partial<InAppAgentRunInput>) {
   return new InAppAgentInstrumentation({
     input: { ...input, ...overrides },
     metadata: { langfuse_project_id: "project-1" },

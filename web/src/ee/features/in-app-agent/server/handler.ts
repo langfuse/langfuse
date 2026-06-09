@@ -11,6 +11,7 @@ import {
   type AgUiRunAgentInput,
   type AgUiEvent,
   InAppAgentRuntimeStateSchema,
+  type InAppAgentRunInput,
   type AgUiMessage,
 } from "@/src/ee/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
@@ -39,6 +40,7 @@ import {
   createAndAddApiKeysToDb,
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
+import { sanitizeInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
 
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
@@ -423,7 +425,7 @@ async function cleanupInAppAgentMcpApiKey(params: {
   });
 }
 
-type SanitizedAgentInput = AgUiRunAgentInput & {
+type SanitizedAgentInput = InAppAgentRunInput & {
   messages: [SanitizedUserMessage];
 };
 
@@ -434,6 +436,8 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
     throw new InvalidRequestError("Input payload must include a user message");
   }
 
+  const context = sanitizeInAppAgentScreenContext(input.context);
+
   return {
     threadId: input.threadId,
     runId: createInAppAgentRunId(),
@@ -441,7 +445,7 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
     state: null,
     messages: [{ ...lastUserMessage, id: createInAppAgentMessageId() }],
     tools: [],
-    context: input.context,
+    context,
     forwardedProps: {},
   };
 }
@@ -449,7 +453,7 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
 function withConversationHistory(
   input: SanitizedAgentInput,
   conversationMessages: readonly AgUiMessage[],
-): AgUiRunAgentInput {
+): InAppAgentRunInput {
   return {
     ...input,
     messages: [...conversationMessages, ...input.messages],

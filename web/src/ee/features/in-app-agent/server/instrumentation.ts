@@ -3,7 +3,7 @@ import { getInternalTracingHandler, logger } from "@langfuse/shared/src/server";
 
 import type {
   AgUiEvent,
-  AgUiRunAgentInput,
+  InAppAgentRunInput,
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 
@@ -16,7 +16,7 @@ export type InAppAgentTracingConfig = {
 };
 
 export type InAppAgentInstrumentationParams = {
-  input: AgUiRunAgentInput;
+  input: InAppAgentRunInput;
   tracing?: InAppAgentTracingConfig;
 };
 
@@ -87,7 +87,7 @@ export class InAppAgentInstrumentation {
   private ended = false;
 
   constructor(params: {
-    input: AgUiRunAgentInput;
+    input: InAppAgentRunInput;
     metadata: Record<string, unknown>;
     userId: string;
     traceId: string;
@@ -370,10 +370,10 @@ export class InAppAgentInstrumentation {
   }
 }
 
-function getAgentSpanInput(input: AgUiRunAgentInput): unknown {
+function getAgentSpanInput(input: InAppAgentRunInput): unknown {
   const message = getLastUserMessageText(input);
 
-  if (input.context.length === 0) {
+  if (!input.context) {
     return message;
   }
 
@@ -383,7 +383,7 @@ function getAgentSpanInput(input: AgUiRunAgentInput): unknown {
   };
 }
 
-function getLastUserMessageText(input: AgUiRunAgentInput): string | undefined {
+function getLastUserMessageText(input: InAppAgentRunInput): string | undefined {
   const lastMessage = input.messages.at(-1);
 
   if (lastMessage?.role !== "user") {
