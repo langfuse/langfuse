@@ -498,21 +498,23 @@ describe("Slack Processor", () => {
 
       expect(mockSlackService.sendMessage).toHaveBeenCalledTimes(1);
       const sent = mockSlackService.sendMessage.mock.calls[0][0];
-      const blocks = sent.blocks;
 
-      // Full monitor message: header block carries the alert title.
-      expect(blocks[0].type).toBe("header");
-      expect(blocks[0].text.text).toBe("High error rate");
+      // Full monitor message: content nests in the colored attachment; the
+      // linked title section carries the alert title.
+      expect(sent.blocks).toEqual([]);
+      const inner = sent.attachments![0].blocks!;
+      expect(inner[0].type).toBe("section");
+      expect(inner[0].text.text).toContain("High error rate");
 
-      // Not the fallback: a single section block starting "*Langfuse Notification*".
+      // Not the fallback: fallback emits a single top-level section and no attachment.
       const isFallback =
-        blocks.length === 1 &&
-        blocks[0].type === "section" &&
-        blocks[0].text?.text?.startsWith("*Langfuse Notification*");
+        sent.attachments === undefined &&
+        sent.blocks.length === 1 &&
+        sent.blocks[0].text?.text?.startsWith("*Langfuse Notification*");
       expect(isFallback).toBe(false);
     });
 
-    it("monitor-alert: text fallback is the alert title, not the generic notification", async () => {
+    it("monitor-alert: attachment fallback is the alert title; no generic notification text", async () => {
       await prisma.action.update({
         where: { id: actionId },
         data: {
@@ -555,11 +557,16 @@ describe("Slack Processor", () => {
       await executeWebhook(wireInput, { skipValidation: true });
 
       expect(mockSlackService.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({ text: "[ALERT] High error rate" }),
+        expect.objectContaining({
+          text: undefined,
+          attachments: expect.arrayContaining([
+            expect.objectContaining({ fallback: "[ALERT] High error rate" }),
+          ]),
+        }),
       );
     });
 
-    it("monitor-alert: text fallback escapes Slack mention tokens in the monitor name", async () => {
+    it("monitor-alert: title escapes Slack mention tokens in the monitor name", async () => {
       await prisma.action.update({
         where: { id: actionId },
         data: {
@@ -604,11 +611,10 @@ describe("Slack Processor", () => {
 
       await executeWebhook(wireInput, { skipValidation: true });
 
-      expect(mockSlackService.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: "[ALERT] &lt;!channel&gt; investigate",
-        }),
-      );
+      const sent = mockSlackService.sendMessage.mock.calls[0][0];
+      const titleBlock = sent.attachments![0].blocks![0];
+      expect(titleBlock.text.text).toContain("&lt;!channel&gt;");
+      expect(titleBlock.text.text).not.toContain("<!channel>");
     });
 
     it("should handle SlackService errors gracefully", async () => {
