@@ -33,10 +33,10 @@ type PromptVersionPayload = Extract<
   { type: "prompt-version" }
 >;
 
-/** SlackMessage is the shape returned by buildMessage: blocks for Block Kit, optional attachments for the legacy color bar (used by monitor-alert). */
+/** SlackMessage is the Block Kit payload returned by buildMessage. */
 export interface SlackMessage {
   blocks: any[];
-  attachments?: { color: string }[];
+  attachments?: { color: string; fallback?: string; blocks?: any[] }[];
 }
 
 /**
@@ -157,23 +157,27 @@ export class SlackMessageBuilder {
   static buildMonitorMessage(envelope: MonitorWebhookQueueEvent): SlackMessage {
     const alert = envelope.payload;
     const { color } = severityVisual[alert.severity];
-    // Slack hard-limits header plain_text to 150 chars and rejects longer
-    // values with invalid_blocks; the [SEVERITY] prefix already conveys
-    // severity, so the header carries the title alone (no severity emoji).
-    const title = alert.message.title;
-    const headerText = title.length > 150 ? `${title.slice(0, 149)}…` : title;
+    const title = escapeSlackMrkdwn(alert.message.title);
+    const titleText = alert.permalink
+      ? `*<${alert.permalink}|${title}>*`
+      : `*${title}*`;
     const blocks: any[] = [
       {
-        type: "header",
-        text: {
-          type: "plain_text",
-          text: headerText,
-          emoji: true,
-        },
+        type: "section",
+        text: { type: "mrkdwn", text: titleText },
       },
       {
         type: "section",
         text: { type: "mrkdwn", text: slackifyMarkdown(alert.message.body) },
+      },
+      {
+        type: "context",
+        elements: [
+          {
+            type: "mrkdwn",
+            text: `⏱ ${alert.timestamp.toISOString()}`,
+          },
+        ],
       },
       ...(alert.permalink
         ? [
@@ -188,23 +192,17 @@ export class SlackMessageBuilder {
                     emoji: true,
                   },
                   url: alert.permalink,
-                  style: "primary",
                 },
               ],
             },
           ]
         : []),
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `⏱ ${alert.timestamp.toISOString()}`,
-          },
-        ],
-      },
     ];
-    return { blocks, attachments: [{ color }] };
+    // Color bar renders only on attachment-nested blocks; top-level text/blocks would duplicate above it.
+    return {
+      blocks: [],
+      attachments: [{ color, fallback: alert.message.title, blocks }],
+    };
   }
 
   /**

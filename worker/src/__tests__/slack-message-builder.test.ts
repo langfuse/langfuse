@@ -330,26 +330,33 @@ describe("SlackMessageBuilder", () => {
       },
     };
 
-    it("ALERT: header is title only (no severity emoji); body converted to Slack mrkdwn; red attachment", () => {
+    it("ALERT: red attachment; linked title; body mrkdwn; timestamp; neutral view button", () => {
       const { blocks, attachments } =
         SlackMessageBuilder.buildMonitorMessage(mockMonitorEnvelope);
-      expect(blocks[0]).toMatchObject({
-        type: "header",
-        text: { type: "plain_text", text: "High error rate" },
+      expect(blocks).toEqual([]);
+      expect(attachments).toHaveLength(1);
+      expect(attachments![0].color).toBe("#dc3545");
+      expect(attachments![0].fallback).toBe("High error rate");
+      const inner = attachments![0].blocks!;
+      expect(inner[0]).toMatchObject({
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: "*<https://cloud.langfuse.com/project/proj_01/monitors/mon_01|High error rate>*",
+        },
       });
-      // slackify-markdown converts **bold** → *bold* (Slack mrkdwn)
-      expect(blocks[1]).toMatchObject({
+      expect(inner[1]).toMatchObject({
         type: "section",
         text: { type: "mrkdwn" },
       });
-      expect(blocks[1].text.text).toContain("*count(observations.value)*");
-      expect(blocks[2]).toMatchObject({ type: "actions" });
-      expect(blocks[2].elements[0]).toMatchObject({
+      expect(inner[1].text.text).toContain("*count(observations.value)*");
+      expect(inner[2]).toMatchObject({ type: "context" });
+      expect(inner[3]).toMatchObject({ type: "actions" });
+      expect(inner[3].elements[0]).toMatchObject({
         type: "button",
         url: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
       });
-      expect(blocks[3]).toMatchObject({ type: "context" });
-      expect(attachments).toEqual([{ color: "#dc3545" }]);
+      expect(inner[3].elements[0].style).toBeUndefined();
     });
 
     it.each([
@@ -358,53 +365,40 @@ describe("SlackMessageBuilder", () => {
       ["NO_DATA", "#6c757d"],
       ["UNKNOWN", "#6c757d"],
       ["PAUSED", "#6c757d"],
-    ] as const)(
-      "%s: header is title only, attachment color %s",
-      (severity, color) => {
-        const { blocks, attachments } = SlackMessageBuilder.buildMonitorMessage(
-          {
-            ...mockMonitorEnvelope,
-            payload: { ...mockMonitorEnvelope.payload, severity },
-          },
-        );
-        expect(blocks[0].text.text).toBe("High error rate");
-        expect(attachments).toEqual([{ color }]);
-      },
-    );
-
-    it("header has no severity emoji prefix", () => {
-      const { blocks } =
-        SlackMessageBuilder.buildMonitorMessage(mockMonitorEnvelope);
-      expect(blocks[0].text.text).toBe("High error rate");
-    });
-
-    it("truncates a header longer than 150 chars to 150 with an ellipsis", () => {
-      const longTitle = "[ALERT] " + "x".repeat(160);
-      const { blocks } = SlackMessageBuilder.buildMonitorMessage({
+    ] as const)("%s: linked title, attachment color %s", (severity, color) => {
+      const { attachments } = SlackMessageBuilder.buildMonitorMessage({
         ...mockMonitorEnvelope,
-        payload: {
-          ...mockMonitorEnvelope.payload,
-          message: { ...mockMonitorEnvelope.payload.message, title: longTitle },
-        },
+        payload: { ...mockMonitorEnvelope.payload, severity },
       });
-      const headerText = blocks[0].text.text as string;
-      expect(headerText.length).toBeLessThanOrEqual(150);
-      expect(headerText.endsWith("…")).toBe(true);
+      expect(attachments![0].color).toBe(color);
+      expect(attachments![0].blocks![0].text.text).toContain("High error rate");
     });
 
-    it("omits the actions block when permalink is absent", () => {
-      const { blocks } = SlackMessageBuilder.buildMonitorMessage({
+    it("title links to the permalink", () => {
+      const { attachments } =
+        SlackMessageBuilder.buildMonitorMessage(mockMonitorEnvelope);
+      expect(attachments![0].blocks![0].text.text).toBe(
+        "*<https://cloud.langfuse.com/project/proj_01/monitors/mon_01|High error rate>*",
+      );
+    });
+
+    it("renders a plain bold title and omits the button when permalink is absent", () => {
+      const { attachments } = SlackMessageBuilder.buildMonitorMessage({
         ...mockMonitorEnvelope,
         payload: { ...mockMonitorEnvelope.payload, permalink: undefined },
       });
-      expect(blocks.every((b) => b.type !== "actions")).toBe(true);
-      expect(blocks.some((b) => b.type === "context")).toBe(true);
+      const inner = attachments![0].blocks!;
+      expect(inner[0].text.text).toBe("*High error rate*");
+      expect(inner.some((b: any) => b.type === "actions")).toBe(false);
+      expect(inner.some((b: any) => b.type === "context")).toBe(true);
     });
 
     it("buildMessage routes monitor-alert envelopes", () => {
       const result = SlackMessageBuilder.buildMessage(mockMonitorEnvelope);
-      expect(result.attachments).toEqual([{ color: "#dc3545" }]);
-      expect(result.blocks[0].text.text).toBe("High error rate");
+      expect(result.attachments![0].color).toBe("#dc3545");
+      expect(result.attachments![0].blocks![0].text.text).toContain(
+        "High error rate",
+      );
     });
   });
 });

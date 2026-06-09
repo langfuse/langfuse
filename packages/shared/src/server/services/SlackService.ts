@@ -465,7 +465,11 @@ export class SlackService {
         channel: params.channelId,
         blocks: params.blocks,
         attachments: params.attachments as any,
-        text: params.text || "Langfuse Notification",
+        text:
+          params.text ||
+          (params.blocks?.length || params.attachments?.length
+            ? undefined
+            : "Langfuse Notification"),
         unfurl_links: false,
         unfurl_media: false,
       });
