@@ -155,9 +155,20 @@ role assignments that govern the UI), so e.g. a project `VIEWER` can use
 read-only tools but not mutating ones.
 
 The user must already exist in Langfuse and be a member of the target
-project — this PR does not auto-provision users from JWT claims. BasicAuth
-remains the default; OIDC is only consulted when the Authorization header
-carries a Bearer token and `MCP_AUTH_OIDC_ENABLED=true`.
+project — this PR does not auto-provision users from JWT claims.
+
+**Both auth methods are served concurrently** by the same endpoint. The
+dispatch is per-request, based on the `Authorization` header scheme:
+
+| Authorization header | OIDC enabled? | Path taken            | Typical caller       |
+| -------------------- | ------------- | --------------------- | -------------------- |
+| `Bearer <JWT>`       | yes           | OIDC                  | Human user via IdP   |
+| `Bearer <JWT>`       | no            | rejected (Basic only) | —                    |
+| `Basic <base64>`     | either        | API key (existing)    | Service / agent / CI |
+
+So a single deployment can authenticate human users via SSO **and**
+automated processes via project API keys at the same time — there is no
+migration off API keys required to turn OIDC on.
 
 ---
 
