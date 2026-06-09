@@ -272,3 +272,15 @@ Then present sections in this order:
 2. Customer Incident Table.
 3. Linear Bug Table.
 4. Datadog Alert/Page Signals.
+
+## Output Format
+
+Return valid Markdown only.
+
+- Use valid Markdown syntax for headings, bullets, links, and tables.
+- Include a space after list markers such as `-`, `*`, and `1.`.
+- Close links and parentheses correctly.
+- Do not emit malformed tables, dangling backticks, or partially opened code
+  fences.
+- If a section would be fragile to format, prefer a plain paragraph over broken
+  Markdown.

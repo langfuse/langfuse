@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "3.178.0",
+  "version": "3.179.1",
   "private": true,
   "license": "MIT",
   "engines": {
@@ -12,8 +12,8 @@
     "typecheck": "dotenv -e ../.env -- tsgo -p tsconfig.build.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev",
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
-    "lint": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --max-warnings 0",
-    "lint:fix": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --fix",
+    "lint": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --concurrency auto --max-warnings 0",
+    "lint:fix": "dotenv -e ../.env -- eslint . --cache --cache-location .next/cache/eslint/ --concurrency auto --fix",
     "analyze": "dotenv -e ../.env -- next experimental-analyze",
     "clean": "rm -rf node_modules",
     "start": "dotenv -e ../.env -- sh -c 'NEXT_MANUAL_SIG_HANDLE=true next start'",
