@@ -329,11 +329,15 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 return;
               }
 
-              Promise.resolve(onSubmit(content)).then((submitted) => {
-                if (submitted) {
-                  setInput("");
-                }
-              });
+              Promise.resolve(onSubmit(content))
+                .then((submitted) => {
+                  if (submitted) {
+                    setInput((currentInput) =>
+                      currentInput.trim() === content ? "" : currentInput,
+                    );
+                  }
+                })
+                .catch(() => undefined);
             }}
           >
             <textarea
