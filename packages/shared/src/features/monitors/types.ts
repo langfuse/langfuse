@@ -20,6 +20,9 @@ export const ErrorNameRequired = "Name is a required field";
 export const ErrorAlertThresholdRequired =
   "Alert threshold is a required field";
 
+/** ErrorAtLeastOneTrigger is the message emitted when a Monitor has no automations. */
+export const ErrorAtLeastOneTrigger = "At least one automation is required";
+
 /**
  * MonitorFiltersSchema is the array of filters applied to a Monitor's
  * underlying query — a thin alias over `singleFilter[]` so all Monitor
@@ -128,6 +131,20 @@ export const validateThresholdOrder = (
       code: "custom",
       message: result.reason,
       path: ["threshold"],
+    });
+  }
+};
+
+/** validateAtLeastOneTrigger enforces that a Monitor has at least one automation on the input schemas. */
+export const validateAtLeastOneTrigger = (
+  input: { triggerIds: string[] },
+  ctx: z.RefinementCtx,
+): void => {
+  if (input.triggerIds.length < 1) {
+    ctx.addIssue({
+      code: "custom",
+      message: ErrorAtLeastOneTrigger,
+      path: ["triggerIds"],
     });
   }
 };

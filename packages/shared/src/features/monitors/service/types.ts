@@ -8,6 +8,7 @@ import {
   MonitorSchema,
   MonitorSeveritySchema,
   MonitorWriteStatusSchema,
+  validateAtLeastOneTrigger,
   validateMonitorQuery,
   validateThresholdOrder,
 } from "../types";
@@ -47,7 +48,8 @@ export const CreateMonitorSchema = MonitorSchema.omit({
 })
   .extend({ status: MonitorWriteStatusSchema.default("ACTIVE") })
   .superRefine(validateMonitorQuery)
-  .superRefine(validateThresholdOrder);
+  .superRefine(validateThresholdOrder)
+  .superRefine(validateAtLeastOneTrigger);
 export type CreateMonitor = z.infer<typeof CreateMonitorSchema>;
 
 /** UpdateMonitorSchema is the input for MonitorService.update. */
@@ -55,7 +57,8 @@ export const UpdateMonitorSchema = MonitorSchema.omit(omitOnWrite)
   // status has no default: a default would un-pause a monitor on a form save.
   .extend({ status: MonitorWriteStatusSchema.optional() })
   .superRefine(validateMonitorQuery)
-  .superRefine(validateThresholdOrder);
+  .superRefine(validateThresholdOrder)
+  .superRefine(validateAtLeastOneTrigger);
 export type UpdateMonitor = z.infer<typeof UpdateMonitorSchema>;
 
 /** GetMonitorByIdSchema is the input for MonitorService.getById. */

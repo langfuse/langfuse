@@ -7,7 +7,11 @@ import {
   ListMonitorsSchema,
   UpdateMonitorSchema,
 } from "./types";
-import { ErrorAlertThresholdRequired, ErrorNameRequired } from "../types";
+import {
+  ErrorAlertThresholdRequired,
+  ErrorAtLeastOneTrigger,
+  ErrorNameRequired,
+} from "../types";
 
 // Minimal valid `CreateMonitorSchema` payload. Tests override one field
 // at a time to exercise the refinements wired onto the input schema.
@@ -28,6 +32,7 @@ const validCreateInput = {
 
   name: "High error rate",
   tags: [],
+  triggerIds: ["trig_01"],
 };
 
 const validUpdateInput = {
@@ -129,11 +134,29 @@ describe("CreateMonitorSchema", () => {
   });
 
   describe("triggerIds", () => {
-    it("defaults to []", () => {
-      const result = CreateMonitorSchema.safeParse(validCreateInput);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.triggerIds).toEqual([]);
+    it("rejects an empty list with ErrorAtLeastOneTrigger on path triggerIds", () => {
+      const result = CreateMonitorSchema.safeParse({
+        ...validCreateInput,
+        triggerIds: [],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(
+          (i) => i.path.join(".") === "triggerIds",
+        );
+        expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
+      }
+    });
+
+    it("rejects an omitted list with ErrorAtLeastOneTrigger on path triggerIds", () => {
+      const { triggerIds: _t, ...rest } = validCreateInput;
+      const result = CreateMonitorSchema.safeParse(rest);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(
+          (i) => i.path.join(".") === "triggerIds",
+        );
+        expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
       }
     });
 
@@ -201,11 +224,29 @@ describe("UpdateMonitorSchema", () => {
   });
 
   describe("triggerIds", () => {
-    it("defaults to []", () => {
-      const result = UpdateMonitorSchema.safeParse(validUpdateInput);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.triggerIds).toEqual([]);
+    it("rejects an empty list with ErrorAtLeastOneTrigger on path triggerIds", () => {
+      const result = UpdateMonitorSchema.safeParse({
+        ...validUpdateInput,
+        triggerIds: [],
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(
+          (i) => i.path.join(".") === "triggerIds",
+        );
+        expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
+      }
+    });
+
+    it("rejects an omitted list with ErrorAtLeastOneTrigger on path triggerIds", () => {
+      const { triggerIds: _t, ...rest } = validUpdateInput;
+      const result = UpdateMonitorSchema.safeParse(rest);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const issue = result.error.issues.find(
+          (i) => i.path.join(".") === "triggerIds",
+        );
+        expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
       }
     });
 

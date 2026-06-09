@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { CreateMonitorSchema, type Monitor } from "@langfuse/shared/monitors";
+import {
+  CreateMonitorSchema,
+  ErrorAtLeastOneTrigger,
+  type Monitor,
+} from "@langfuse/shared/monitors";
 
 import { __test } from "./MonitorForm";
 
 const { createDefaults, monitorToDefaults, nameOrPlaceholder } = __test;
 
 describe("createDefaults", () => {
-  it("only forces the user to enter name + alertThreshold (no hidden missing fields)", () => {
+  it("only surfaces name + alertThreshold as missing base fields (no hidden missing fields)", () => {
     const defaults = createDefaults("project-1");
     const result = CreateMonitorSchema.safeParse(defaults);
     expect(result.success).toBe(false);
@@ -24,12 +28,28 @@ describe("createDefaults", () => {
     expect(paths).not.toContain("tags");
   });
 
-  it("becomes schema-valid once name + alertThreshold are filled in", () => {
+  it("requires at least one automation once the base fields parse", () => {
     const defaults = createDefaults("project-1");
     const result = CreateMonitorSchema.safeParse({
       ...defaults,
       name: "Test Monitor",
       alertThreshold: 5,
+    });
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    const issue = result.error.issues.find(
+      (i) => i.path.join(".") === "triggerIds",
+    );
+    expect(issue?.message).toBe(ErrorAtLeastOneTrigger);
+  });
+
+  it("becomes schema-valid once name + alertThreshold + an automation are filled in", () => {
+    const defaults = createDefaults("project-1");
+    const result = CreateMonitorSchema.safeParse({
+      ...defaults,
+      name: "Test Monitor",
+      alertThreshold: 5,
+      triggerIds: ["t1"],
     });
     if (!result.success) {
       throw new Error(

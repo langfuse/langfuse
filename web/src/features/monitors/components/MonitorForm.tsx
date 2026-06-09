@@ -24,6 +24,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -848,22 +849,27 @@ export const MonitorForm = ({
                     </FormItem>
                   )}
                 />
-                <div className="space-y-2">
-                  <Label>Automations</Label>
-                  <p className="text-muted-foreground text-xs">
-                    Send Alerts to Slack, Webhooks, and GitHub Actions.
-                  </p>
-                  <MonitorAutomationsPanel
-                    projectId={projectId}
-                    hasAccess={hasAccess}
-                    triggerIds={(watched.triggerIds ?? []) as string[]}
-                    onTriggerIdsChange={(next) =>
-                      form.setValue("triggerIds", next, {
-                        shouldDirty: true,
-                      })
-                    }
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="triggerIds"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Automations</FormLabel>
+                      <FormDescription>
+                        Send Alerts to Slack, Webhooks, and GitHub Actions.
+                      </FormDescription>
+                      <FormControl>
+                        <MonitorAutomationsPanel
+                          projectId={projectId}
+                          hasAccess={hasAccess}
+                          triggerIds={(field.value ?? []) as string[]}
+                          onTriggerIdsChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </Section>
             </CardContent>
             <CardFooter className="mt-auto">

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -67,6 +67,14 @@ export const MonitorAutomationsPanel = ({
     () => computeSelectedSet(triggerIds, liveTriggerIds),
     [triggerIds, liveTriggerIds],
   );
+
+  // Write the pruned selection back once the live set is known; gating on
+  // isSuccess avoids wiping a real selection while liveIds is still [].
+  useEffect(() => {
+    if (!automations.isSuccess) return;
+    const pruned = Array.from(selectedSet);
+    if (pruned.length !== triggerIds.length) onTriggerIdsChange(pruned);
+  }, [automations.isSuccess, selectedSet, triggerIds, onTriggerIdsChange]);
 
   /** handleToggle flips membership for a trigger ID and calls onTriggerIdsChange with the new array. */
   const handleToggle = (triggerId: string) => {
