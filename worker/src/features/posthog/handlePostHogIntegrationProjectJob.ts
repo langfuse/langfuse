@@ -277,15 +277,17 @@ export const handlePostHogIntegrationProjectJob = async (
     `[POSTHOG] Syncing project ${projectId} from ${minTimestamp.toISOString()} to ${maxTimestamp.toISOString()}`,
   );
 
+  let posthog: PostHog | undefined;
+  let sendError: Error | undefined;
+
   try {
-    const posthog = new PostHog(
+    posthog = new PostHog(
       decrypt(postHogIntegration.encryptedPosthogApiKey),
       {
         host: postHogIntegration.posthogHostName,
         ...postHogSettings,
       },
     );
-    let sendError: Error | undefined;
     posthog.on("error", (error) => {
       logger.error(
         `[POSTHOG] Error sending data to PostHog for project ${projectId}: ${error}`,
@@ -343,5 +345,9 @@ export const handlePostHogIntegrationProjectJob = async (
       error,
     );
     throw error;
+  } finally {
+    if (posthog) {
+      await posthog.shutdown();
+    }
   }
 };

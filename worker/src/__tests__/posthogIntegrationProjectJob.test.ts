@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => {
   const postHogConstructor = vi.fn();
   const postHogFlush = vi.fn();
   const postHogCapture = vi.fn();
+  const postHogShutdown = vi.fn();
   const env = {
     LANGFUSE_POSTHOG_FLUSH_DELAY_MS: 500,
   };
@@ -31,6 +32,7 @@ const mocks = vi.hoisted(() => {
     postHogConstructor,
     postHogFlush,
     postHogCapture,
+    postHogShutdown,
     env,
   };
 });
@@ -136,6 +138,7 @@ describe("handlePostHogIntegrationProjectJob", () => {
       capture: mocks.postHogCapture,
       flush: mocks.postHogFlush,
       on: vi.fn(),
+      shutdown: mocks.postHogShutdown,
     }));
   });
 
@@ -189,6 +192,7 @@ describe("handlePostHogIntegrationProjectJob", () => {
     await run;
 
     expect(mocks.postHogConstructor).toHaveBeenCalledTimes(1);
+    expect(mocks.postHogShutdown).toHaveBeenCalledTimes(1);
   });
 
   it("waits between PostHog flush batches when a stream has more data", async () => {
@@ -212,5 +216,6 @@ describe("handlePostHogIntegrationProjectJob", () => {
 
     expect(mocks.postHogFlush).toHaveBeenCalledTimes(2);
     expect(mocks.update).toHaveBeenCalledTimes(1);
+    expect(mocks.postHogShutdown).toHaveBeenCalledTimes(1);
   });
 });
