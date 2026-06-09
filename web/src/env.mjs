@@ -436,8 +436,6 @@ export const env = createEnv({
       .enum(["legacy", "dual", "events_only"])
       .default("legacy"),
 
-    LANGFUSE_ENABLE_SCORES_V3_API: z.enum(["true", "false"]).default("false"),
-
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
       .string()
@@ -845,7 +843,6 @@ export const env = createEnv({
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
-    LANGFUSE_ENABLE_SCORES_V3_API: process.env.LANGFUSE_ENABLE_SCORES_V3_API,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
