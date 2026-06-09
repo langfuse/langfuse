@@ -266,7 +266,10 @@ export const env = createEnv({
     MCP_AUTH_OIDC_ISSUER: z.url().optional(),
     MCP_AUTH_OIDC_AUDIENCE: z.string().optional(),
     MCP_AUTH_OIDC_JWKS_URI: z.url().optional(),
-    MCP_AUTH_OIDC_USER_CLAIM: z.string().optional().default("email"),
+    MCP_AUTH_OIDC_USER_CLAIM: z
+      .enum(["email", "sub"])
+      .optional()
+      .default("email"),
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),

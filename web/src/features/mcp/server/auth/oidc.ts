@@ -100,6 +100,13 @@ function extractPrincipalIdentifier(payload: JWTPayload): string {
   return value;
 }
 
+// Opaque message used for both "user does not exist" and "user is not a
+// member of the requested project". Distinct messages would let a JWT
+// holder enumerate Langfuse user existence by probing arbitrary project
+// IDs and comparing responses; keep the failure modes indistinguishable
+// to clients. Server-side logs do record which branch fired.
+const OIDC_ACCESS_DENIED = "OIDC authentication failed";
+
 export async function resolveOidcContextFromRequest(
   req: NextApiRequest,
   token: string,
@@ -107,6 +114,16 @@ export async function resolveOidcContextFromRequest(
   const payload = await verifyOidcToken(token);
   const principal = extractPrincipalIdentifier(payload);
   const claim = env.MCP_AUTH_OIDC_USER_CLAIM ?? "email";
+
+  const projectHeader = req.headers[PROJECT_ID_HEADER];
+  const projectId = Array.isArray(projectHeader)
+    ? projectHeader[0]
+    : projectHeader;
+  if (!projectId) {
+    throw new UnauthorizedError(
+      `OIDC authentication requires the '${PROJECT_ID_HEADER}' request header`,
+    );
+  }
 
   const user =
     claim === "sub"
@@ -120,32 +137,47 @@ export async function resolveOidcContextFromRequest(
         });
 
   if (!user) {
-    throw new ForbiddenError(
-      `No Langfuse user found for OIDC principal '${principal}'`,
-    );
-  }
-
-  const projectHeader = req.headers[PROJECT_ID_HEADER];
-  const projectId = Array.isArray(projectHeader)
-    ? projectHeader[0]
-    : projectHeader;
-  if (!projectId) {
-    throw new UnauthorizedError(
-      `OIDC authentication requires the '${PROJECT_ID_HEADER}' request header`,
-    );
+    logger.info("MCP OIDC auth: principal does not match a Langfuse user", {
+      claim,
+      principal,
+      projectId,
+    });
+    throw new ForbiddenError(OIDC_ACCESS_DENIED);
   }
 
   const membership = await prisma.projectMembership.findUnique({
     where: { projectId_userId: { projectId, userId: user.id } },
     select: {
       role: true,
-      organizationMembership: { select: { orgId: true } },
+      organizationMembership: {
+        select: {
+          orgId: true,
+          organization: {
+            select: { cloudFreeTierUsageThresholdState: true },
+          },
+        },
+      },
     },
   });
 
   if (!membership) {
+    logger.info(
+      "MCP OIDC auth: user has no membership for the requested project",
+      { userId: user.id, projectId },
+    );
+    throw new ForbiddenError(OIDC_ACCESS_DENIED);
+  }
+
+  // Mirror the BasicAuth path's usage-suspension enforcement so a suspended
+  // org cannot bypass the gate by switching MCP clients to OIDC bearer auth.
+  // BasicAuth derives this from the API key row's denormalized field; OIDC
+  // has no API key, so we read directly from the org's cloud-tier state.
+  if (
+    membership.organizationMembership.organization
+      .cloudFreeTierUsageThresholdState === "BLOCKED"
+  ) {
     throw new ForbiddenError(
-      `User '${principal}' is not a member of project '${projectId}'`,
+      "Access suspended: Usage threshold exceeded. Please upgrade your plan.",
     );
   }
 
