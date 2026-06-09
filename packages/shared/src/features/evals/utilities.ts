@@ -1,4 +1,5 @@
 import { JSONPath } from "jsonpath-plus";
+import { parseJsonPrioritised } from "../../utils/json";
 
 /**
  * Parses an unknown value to a string representation
@@ -37,19 +38,20 @@ function parseMultiEncodedJson(value: unknown): unknown {
     return value;
   }
 
-  try {
-    const parsed = JSON.parse(value);
+  const parsed = parseJsonPrioritised(value);
 
-    // If result is still a string, it might be double-encoded - recurse
-    if (typeof parsed === "string") {
-      return parseMultiEncodedJson(parsed);
-    }
-
-    return parsed;
-  } catch {
-    // If parsing fails, return original value
+  // If parsing fails, parseJsonPrioritised returns the original string.
+  // Stop here to avoid recursing forever on plain strings.
+  if (parsed === value || parsed === undefined) {
     return value;
   }
+
+  // If result is still a string, it might be double-encoded - recurse
+  if (typeof parsed === "string") {
+    return parseMultiEncodedJson(parsed);
+  }
+
+  return parsed;
 }
 
 function parseJsonDefault(selectedColumn: unknown, jsonSelector: string) {
