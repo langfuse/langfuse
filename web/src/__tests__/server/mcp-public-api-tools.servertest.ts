@@ -215,6 +215,8 @@ describe("MCP public API tools", () => {
     expect(destructiveToolNames).toEqual(
       [
         "createChatPrompt",
+        "createEvaluationRule",
+        "createEvaluator",
         "createScore",
         "createScoreConfig",
         "createTextPrompt",
@@ -222,9 +224,11 @@ describe("MCP public API tools", () => {
         "deleteAnnotationQueueItem",
         "deleteDatasetItem",
         "deleteDatasetRun",
+        "deleteEvaluationRule",
         "deleteModel",
         "deleteScoreConfig",
         "updateAnnotationQueueItem",
+        "updateEvaluationRule",
         "updatePromptLabels",
         "updateScoreConfig",
         "upsertDataset",
