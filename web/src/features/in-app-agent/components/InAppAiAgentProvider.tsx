@@ -44,6 +44,8 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   isAvailable: false,
   open: false,
   setOpen: () => undefined,
+  isExpanded: false,
+  setIsExpanded: () => undefined,
   isRunning: false,
   isSubmitting: false,
   isSelectedConversationHydrating: false,
@@ -70,6 +72,8 @@ type InAppAiAgentContextType = {
   isAvailable: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
+  isExpanded: boolean;
+  setIsExpanded: Dispatch<SetStateAction<boolean>>;
   isRunning: boolean;
   isSubmitting: boolean;
   isSelectedConversationHydrating: boolean;
@@ -153,6 +157,7 @@ function InAppAiAgentProviderInner({
   >(`${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`, null);
   const [messages, setMessages] = useState<InAppAiAgentMessage[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
@@ -485,11 +490,19 @@ function InAppAiAgentProviderInner({
     ],
   );
 
+  useEffect(() => {
+    if (!open) {
+      setIsExpanded(false);
+    }
+  }, [open]);
+
   const value = useMemo<InAppAiAgentContextType>(
     () => ({
       isAvailable: true,
       open,
       setOpen,
+      isExpanded,
+      setIsExpanded,
       isRunning,
       isSubmitting,
       isSelectedConversationHydrating,
@@ -504,6 +517,7 @@ function InAppAiAgentProviderInner({
       submit,
     }),
     [
+      isExpanded,
       conversations,
       error,
       hasMoreConversations,

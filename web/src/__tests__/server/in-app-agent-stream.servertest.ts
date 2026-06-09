@@ -1,5 +1,6 @@
 import { EventType } from "@ag-ui/core";
 import { HttpAgent } from "@ag-ui/client";
+import { Agent } from "@mastra/core/agent";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
@@ -65,6 +66,13 @@ vi.mock("@mastra/mcp", () => ({
   MCPClient: vi.fn().mockImplementation(function () {
     return {
       listTools: vi.fn().mockResolvedValue({}),
+      listToolsetsWithErrors: vi.fn().mockResolvedValue({
+        toolsets: {
+          langfuse: { search: { server: "langfuse" } },
+          langfuseDocs: { search: { server: "langfuseDocs" } },
+        },
+        errors: {},
+      }),
       disconnect: adapterEvents.cleanup,
     };
   }),
@@ -173,6 +181,14 @@ describe("createAgUiStream", () => {
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
     expect(adapterEvents.inputs).toEqual([input]);
+    expect(Agent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: {
+          langfuse_search: { server: "langfuse" },
+          langfuseDocs_search: { server: "langfuseDocs" },
+        },
+      }),
+    );
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,

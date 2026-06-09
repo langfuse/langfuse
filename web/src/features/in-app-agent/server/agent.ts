@@ -40,6 +40,7 @@ The current time is ${new Date().toDateString()}.
 </world_knowledge>
 `;
 const MAX_AGENT_STEPS = 10;
+const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
@@ -484,11 +485,32 @@ async function createMastraAdapter(params: {
           },
         },
       },
+      langfuseDocs: {
+        url: new URL(LANGFUSE_DOCS_MCP_URL),
+      },
     },
   });
 
   try {
-    const tools = await mcpClient.listTools();
+    const { toolsets, errors } = await mcpClient.listToolsetsWithErrors();
+
+    if (errors.langfuse) {
+      throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
+    }
+
+    if (errors.langfuseDocs) {
+      logger.warn("Failed to initialize Langfuse docs MCP", {
+        error: errors.langfuseDocs,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+
+    const tools = {
+      ...prefixToolsetTools("langfuse", toolsets.langfuse),
+      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+    };
+
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
@@ -521,6 +543,18 @@ async function createMastraAdapter(params: {
     });
     throw error;
   }
+}
+
+function prefixToolsetTools<TTool>(
+  serverName: string,
+  toolset: Record<string, TTool> | undefined,
+) {
+  return Object.fromEntries(
+    Object.entries(toolset ?? {}).map(([toolName, tool]) => [
+      `${serverName}_${toolName}`,
+      tool,
+    ]),
+  );
 }
 
 function normalizeAdapterEvent(
