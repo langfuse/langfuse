@@ -7,7 +7,10 @@ service:
   base-path: /api/public/v2
   endpoints:
     get-many:
-      docs: Get a list of scores (supports both trace and session scores)
+      docs: |
+        **Deprecated.** Use `GET /api/public/v3/scores` instead.
+
+        Get a list of scores (supports both trace and session scores)
       method: GET
       path: /scores
       request:
@@ -85,7 +88,10 @@ service:
               Supported operators for stringObject: =, contains, does not contain, starts with, ends with.
       response: GetScoresResponse
     get-by-id:
-      docs: Get a score (supports both trace and session scores)
+      docs: |
+        **Deprecated.** Use `GET /api/public/v3/scores` instead.
+
+        Get a score (supports both trace and session scores)
       method: GET
       path: /scores/{scoreId}
       path-parameters:
