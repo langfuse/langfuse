@@ -466,28 +466,11 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: |
-          if [[ "${{ matrix.deploy-mode }}" == "" ]]; then
-            npx dotenv -e ../.env.test -e ../.env -- vitest run --project client > /tmp/vitest-client.log 2>&1 &
-            CLIENT_PID=$!
-
-            set +e
-            npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-unit
-            SERVER_STATUS=$?
-
-            wait "$CLIENT_PID"
-            CLIENT_STATUS=$?
-            set -e
-
-            echo "Client test output:"
-            cat /tmp/vitest-client.log
-
-            if [[ "$SERVER_STATUS" -ne 0 || "$CLIENT_STATUS" -ne 0 ]]; then
-              exit 1
-            fi
-          else
-            npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-unit
-          fi
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-unit
+      - name: run test-client
+        if: matrix.deploy-mode == ''
+        working-directory: web
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
 
   tests-worker:
     timeout-minutes: 20
