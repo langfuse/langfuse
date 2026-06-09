@@ -5,12 +5,7 @@ import {
   PatchUnstableEvaluationRuleResponse,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 import { PublicEvaluationRuleTarget } from "@/src/features/public-api/types/unstable-public-evals-contract";
-import {
-  getPublicEvaluationRule,
-  updatePublicEvaluationRule,
-} from "@/src/features/evals/server/unstable-public-api";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
+import { updatePublicEvaluationRule } from "@/src/features/evals/server/unstable-public-api";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { RuleFilterBaseSchema, RuleMappingBaseSchema } from "../schema";
@@ -53,27 +48,12 @@ export const [updateEvaluationRuleTool, handleUpdateEvaluationRule] =
         fn: async () => {
           const { evaluationRuleId, ...patch } = input;
 
-          const before = await getPublicEvaluationRule({
-            projectId: context.projectId,
-            evaluationRuleId,
-          });
-
           const evaluationRule = await updatePublicEvaluationRule({
             orgId: context.orgId,
             projectId: context.projectId,
             evaluationRuleId,
             input: patch,
-          });
-
-          await auditLog({
-            action: "update",
-            resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-            resourceId: evaluationRule.id,
-            projectId: context.projectId,
-            orgId: context.orgId,
-            apiKeyId: context.apiKeyId,
-            before,
-            after: evaluationRule,
+            auditScope: context,
           });
 
           return PatchUnstableEvaluationRuleResponse.parse(evaluationRule);

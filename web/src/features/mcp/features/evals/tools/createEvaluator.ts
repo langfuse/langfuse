@@ -10,8 +10,6 @@ import {
   PublicLlmAsJudgeEvaluatorDefinitionInput,
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { createPublicEvaluator } from "@/src/features/evals/server/unstable-public-api";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
@@ -61,19 +59,10 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
         const evaluator = await createPublicEvaluator({
           projectId: context.projectId,
           input,
+          auditScope: context,
         });
 
         span.setAttribute("mcp.evaluator_id", evaluator.id);
-
-        await auditLog({
-          action: "create",
-          resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
-          resourceId: evaluator.id,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          after: evaluator,
-        });
 
         return PostUnstableEvaluatorResponse.parse(evaluator);
       },

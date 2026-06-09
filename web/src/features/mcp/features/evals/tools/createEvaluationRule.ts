@@ -6,8 +6,6 @@ import {
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 import { PublicEvaluationRuleTarget } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { createPublicEvaluationRule } from "@/src/features/evals/server/unstable-public-api";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { RuleFilterBaseSchema, RuleMappingBaseSchema } from "../schema";
@@ -55,19 +53,10 @@ export const [createEvaluationRuleTool, handleCreateEvaluationRule] =
             orgId: context.orgId,
             projectId: context.projectId,
             input,
+            auditScope: context,
           });
 
           span.setAttribute("mcp.evaluation_rule_id", evaluationRule.id);
-
-          await auditLog({
-            action: "create",
-            resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-            resourceId: evaluationRule.id,
-            projectId: context.projectId,
-            orgId: context.orgId,
-            apiKeyId: context.apiKeyId,
-            after: evaluationRule,
-          });
 
           return PostUnstableEvaluationRuleResponse.parse(evaluationRule);
         },
