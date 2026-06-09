@@ -406,32 +406,47 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
             ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-
-      - name: Run dev containers
+      - name: Build and setup test services
         run: |
+          pnpm run build &
+          BUILD_PID=$!
+
+          set +e
           docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
-          docker compose ps
+          COMPOSE_STATUS=$?
+          if [[ "$COMPOSE_STATUS" -eq 0 ]]; then
+            docker compose ps
+            pnpm run db:migrate
+            MIGRATE_STATUS=$?
+            pnpm --filter=shared ch:up
+            CH_UP_STATUS=$?
+          else
+            MIGRATE_STATUS=1
+            CH_UP_STATUS=1
+          fi
+
+          if [[ "$COMPOSE_STATUS" -eq 0 && "$MIGRATE_STATUS" -eq 0 && "$CH_UP_STATUS" -eq 0 && "${{ matrix.deploy-mode }}" == "" ]]; then
+            ARCH="amd64"
+            wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
+
+            # The binary is usually located in ./usr/bin/clickhouse in the archive
+            dpkg-deb -x clickhouse-client.deb ch_client_dir
+            sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
+            pnpm --filter=shared ch:dev-tables
+            DEV_TABLES_STATUS=$?
+          else
+            DEV_TABLES_STATUS=0
+          fi
+
+          wait "$BUILD_PID"
+          BUILD_STATUS=$?
+          set -e
+
+          if [[ "$COMPOSE_STATUS" -ne 0 || "$MIGRATE_STATUS" -ne 0 || "$CH_UP_STATUS" -ne 0 || "$DEV_TABLES_STATUS" -ne 0 || "$BUILD_STATUS" -ne 0 ]]; then
+            exit 1
+          fi
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
-      - name: Migrate DB
-        run: |
-          pnpm run db:migrate
-          pnpm --filter=shared ch:up
-      - name: Download and extract ClickHouse client for dev-tables setup
-        if: matrix.deploy-mode == ''
-        run: |
-          ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
-
-          # The binary is usually located in ./usr/bin/clickhouse in the archive
-          dpkg-deb -x clickhouse-client.deb ch_client_dir
-          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
-      - name: Setup Dev Tables
-        if: matrix.deploy-mode == ''
-        run: |
-          pnpm --filter=shared ch:dev-tables
-      - name: Build
-        run: pnpm run build
-        env:
           NODE_OPTIONS: --max_old_space_size=8192
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
