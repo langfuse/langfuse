@@ -1,35 +1,88 @@
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { Prisma, prisma, type User } from "@langfuse/shared/src/db";
+import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
+import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
-// SCIM `active: true` (PUT/PATCH) is an idempotent "ensure provisioned" signal,
-// not a role assignment. If the membership is missing we create it with the
-// default NONE role; if it already exists we leave its role untouched so a
-// roleless IdP sync cannot silently downgrade an existing member. Returns true
-// only when a membership was actually created, so callers audit real changes
-// and skip no-ops.
-async function provisionMembershipIfMissing({
+// Parse the first valid role from a SCIM `roles` array. Returns undefined when
+// the attribute is absent, empty, or unparseable, which the provisioning logic
+// treats as "no explicit role requested".
+function parseScimRole(roles: unknown): Role | undefined {
+  if (!Array.isArray(roles) || roles.length === 0) {
+    return undefined;
+  }
+  const parsed = z
+    .array(z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]))
+    .safeParse(roles);
+  return parsed.success ? parsed.data[0] : undefined;
+}
+
+type ProvisionOutcome =
+  | { kind: "created"; role: Role }
+  | { kind: "updated"; role: Role }
+  | { kind: "unchanged"; role: Role };
+
+// Provision a user into an organization in response to a SCIM `active: true`.
+//
+// Behaviour:
+// - role provided  → set the membership to that role (create if missing,
+//   update if it differs). An explicit role is always honoured.
+// - role omitted    → create the membership with the default NONE role when it
+//   is missing, but leave an existing membership untouched. This is what keeps
+//   a periodic IdP full-sync (which omits roles) from resetting a member's role
+//   back to NONE.
+//
+// Writes an audit log entry only when state actually changes (create/update),
+// never for a no-op.
+async function provisionMembership({
   userId,
   orgId,
   apiKeyId,
+  role,
 }: {
   userId: string;
   orgId: string;
   apiKeyId: string;
-}): Promise<boolean> {
+  role?: Role;
+}): Promise<ProvisionOutcome> {
+  const applyToExisting = async (existing: {
+    id: string;
+    role: Role;
+  }): Promise<ProvisionOutcome> => {
+    // No explicit role requested, or the role is unchanged → leave as-is.
+    if (role === undefined || role === existing.role) {
+      return { kind: "unchanged", role: existing.role };
+    }
+    const updated = await prisma.organizationMembership.update({
+      where: { orgId_userId: { orgId, userId } },
+      data: { role },
+    });
+    await auditLog({
+      resourceType: "orgMembership",
+      resourceId: updated.id,
+      action: "update",
+      before: existing,
+      after: updated,
+      apiKeyId,
+      orgId,
+    });
+    return { kind: "updated", role };
+  };
+
   const existing = await prisma.organizationMembership.findUnique({
     where: { orgId_userId: { orgId, userId } },
-    select: { id: true },
   });
   if (existing) {
-    return false;
+    return applyToExisting(existing);
   }
+
+  // Missing → create with the explicit role when provided, otherwise NONE.
+  const roleToCreate: Role = role ?? "NONE";
   try {
     const created = await prisma.organizationMembership.create({
-      data: { userId, orgId, role: "NONE" },
+      data: { userId, orgId, role: roleToCreate },
     });
     await auditLog({
       resourceType: "orgMembership",
@@ -39,18 +92,50 @@ async function provisionMembershipIfMissing({
       apiKeyId,
       orgId,
     });
-    return true;
+    return { kind: "created", role: roleToCreate };
   } catch (error) {
-    // A concurrent provisioning request created the row first. Treat the
-    // unique-constraint violation (P2002) as a successful no-op so the
-    // periodic IdP full-sync stays idempotent.
+    // A concurrent provisioning request created the row first. Re-read it and
+    // apply the requested role (if any), keeping the periodic sync idempotent.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return false;
+      const current = await prisma.organizationMembership.findUnique({
+        where: { orgId_userId: { orgId, userId } },
+      });
+      if (current) {
+        return applyToExisting(current);
+      }
+      return { kind: "unchanged", role: roleToCreate };
     }
     throw error;
+  }
+}
+
+// Single place for the SCIM provisioning log line so PUT and PATCH stay
+// consistent.
+function logScimProvision(
+  outcome: ProvisionOutcome,
+  userId: string,
+  orgId: string,
+  via: "PUT" | "PATCH",
+) {
+  switch (outcome.kind) {
+    case "created":
+      logger.info(
+        `[SCIM] Provisioned user ${userId} in org ${orgId} with role ${outcome.role} via ${via}`,
+      );
+      break;
+    case "updated":
+      logger.info(
+        `[SCIM] Updated role for user ${userId} in org ${orgId} to ${outcome.role} via ${via}`,
+      );
+      break;
+    case "unchanged":
+      logger.info(
+        `[SCIM] User ${userId} already a member of org ${orgId}; no changes via ${via}`,
+      );
+      break;
   }
 }
 
@@ -363,18 +448,14 @@ async function handlePatch(
       typeof op.value.active === "boolean"
     ) {
       if (op.value.active) {
-        // Ensure the membership exists with the default NONE role; never
-        // modify an existing membership's role.
-        const created = await provisionMembershipIfMissing({
+        // PATCH PatchOp values only carry `active` (no roles), so this always
+        // creates a NONE membership when missing and is a no-op otherwise.
+        const outcome = await provisionMembership({
           userId: user.id,
           orgId,
           apiKeyId,
         });
-        logger.info(
-          created
-            ? `[SCIM] Provisioned user ${user.id} in org ${orgId} with role NONE via PATCH`
-            : `[SCIM] User ${user.id} already a member of org ${orgId}; no changes via PATCH`,
-        );
+        logScimProvision(outcome, user.id, orgId, "PATCH");
       } else {
         // Deprovision atomically: check + delete in one Serializable txn.
         if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId))) {
@@ -445,24 +526,20 @@ async function handlePut(
 
   // Handle active status for provisioning/deprovisioning.
   //
-  // `active: true` is an idempotent "ensure provisioned" signal, not a role
-  // assignment: we create the membership with the default NONE role when it is
-  // missing and make no changes when it already exists. Any `roles` in the
-  // payload are intentionally ignored here so that a periodic IdP full-sync
-  // (which typically omits roles) cannot downgrade an existing member's role.
-  // Role changes go through the create (POST) flow or the in-app UI.
+  // `active: true` ensures the user is provisioned. An explicit `roles` value is
+  // honoured (the membership is created or updated to that role). When `roles`
+  // is omitted we create a default NONE membership if one is missing but leave
+  // an existing membership untouched — so a periodic IdP full-sync that omits
+  // roles cannot reset an existing member's role back to NONE.
   if (typeof body.active === "boolean") {
     if (body.active) {
-      const created = await provisionMembershipIfMissing({
+      const outcome = await provisionMembership({
         userId: user.id,
         orgId,
         apiKeyId,
+        role: parseScimRole(body.roles),
       });
-      logger.info(
-        created
-          ? `[SCIM] Provisioned user ${user.id} in org ${orgId} with role NONE via PUT`
-          : `[SCIM] User ${user.id} already a member of org ${orgId}; no changes via PUT`,
-      );
+      logScimProvision(outcome, user.id, orgId, "PUT");
     } else {
       // Deprovision atomically: check + delete in one Serializable txn.
       if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId))) {
