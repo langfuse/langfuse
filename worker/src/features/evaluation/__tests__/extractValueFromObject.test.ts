@@ -46,6 +46,20 @@ describe("extractValueFromObject", () => {
   });
 
   describe("JSONPath single element access (backward compat)", () => {
+    it("should preserve unsafe integers as strings when applying a selector", () => {
+      const obj = {
+        data: '{"id":107505301260286111,"safe":42}',
+      };
+
+      const unsafeResult = extractValueFromObject(obj, "data", "$.id");
+      expect(unsafeResult.value).toBe("107505301260286111");
+      expect(unsafeResult.error).toBeNull();
+
+      const safeResult = extractValueFromObject(obj, "data", "$.safe");
+      expect(safeResult.value).toBe(42);
+      expect(safeResult.error).toBeNull();
+    });
+
     it("should return unwrapped value for $[0]", () => {
       const obj = {
         data: JSON.stringify(["first", "second", "third"]),
@@ -154,6 +168,16 @@ describe("extractValueFromObject", () => {
 
       const result = extractValueFromObject(obj, "data", "$.name");
       expect(result.value).toBe("Alice");
+      expect(result.error).toBeNull();
+    });
+
+    it("should preserve unsafe integers in double-encoded JSON with selector", () => {
+      const obj = {
+        data: JSON.stringify('{"id":107505301260286111}'),
+      };
+
+      const result = extractValueFromObject(obj, "data", "$.id");
+      expect(result.value).toBe("107505301260286111");
       expect(result.error).toBeNull();
     });
   });

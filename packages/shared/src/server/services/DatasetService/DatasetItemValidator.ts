@@ -1,5 +1,6 @@
 import { Prisma } from "../../../db";
 import { FieldValidationError } from "../../../utils/jsonSchemaValidation";
+import { parseJsonPrioritised } from "../../../utils/json";
 import { logger } from "../../logger";
 import { PayloadError } from "../../repositories/dataset-items";
 import { DatasetSchemaValidator } from "./DatasetSchemaValidator";
@@ -124,13 +125,10 @@ export class DatasetItemValidator {
 
       if (typeof data === "string") {
         // Try to parse as JSON first (for tRPC which sends JSON strings like '{"key":"value"}')
-        try {
-          parsed = JSON.parse(data) as Prisma.InputJsonValue;
-        } catch {
-          // If parsing fails, it's a plain string
-          // Store the string as-is
-          parsed = data;
-        }
+        const parsedJson = parseJsonPrioritised(data);
+        parsed = (
+          parsedJson === undefined ? data : parsedJson
+        ) as Prisma.InputJsonValue;
       } else {
         // Public API sends already-parsed values - use directly
         parsed = data as Prisma.InputJsonValue;

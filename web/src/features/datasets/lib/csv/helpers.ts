@@ -1,5 +1,9 @@
 import { parse } from "csv-parse";
-import { type Prisma } from "@langfuse/shared";
+import {
+  isJsonNumberLiteral,
+  parseJsonPrioritised,
+  type Prisma,
+} from "@langfuse/shared";
 import type {
   ParseOptions,
   CsvPreviewResult,
@@ -150,30 +154,36 @@ function inferColumnType(samples: string[]): ColumnType {
 function inferTypeFromValue(value: string): ColumnType {
   if (!value || value.toLowerCase() === "null") return "null";
 
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) return "array";
-    if (typeof parsed === "object") return "json";
-    return typeof parsed as ColumnType;
-  } catch {
-    if (value.toLowerCase() === "true") return "boolean";
-    if (value.toLowerCase() === "false") return "boolean";
-    if (!isNaN(Number(value))) return "number";
-    return "string";
-  }
+  const parsed = parseValue(value);
+  if (Array.isArray(parsed)) return "array";
+  if (typeof parsed === "object" && parsed !== null) return "json";
+  return typeof parsed as ColumnType;
 }
 
 // Helper to parse a single value
 export function parseValue(value: string): Prisma.JsonValue {
-  try {
-    return JSON.parse(value);
-  } catch {
-    if (value === "" || value.toLowerCase() === "null") return null;
-    if (value.toLowerCase() === "true") return true;
-    if (value.toLowerCase() === "false") return false;
-    if (!isNaN(Number(value))) return Number(value);
-    return value;
+  if (value === "" || value.toLowerCase() === "null") return null;
+
+  const parsed = parseJsonPrioritised(value);
+  if (
+    parsed !== undefined &&
+    (parsed !== value || isJsonNumberLiteral(value))
+  ) {
+    return parsed as Prisma.JsonValue;
   }
+
+  if (value.toLowerCase() === "true") return true;
+  if (value.toLowerCase() === "false") return false;
+
+  const numericValue = Number(value);
+  if (
+    Number.isFinite(numericValue) &&
+    Math.abs(numericValue) <= Number.MAX_SAFE_INTEGER
+  ) {
+    return numericValue;
+  }
+
+  return value;
 }
 
 // Helper to parse multiple columns into a record
