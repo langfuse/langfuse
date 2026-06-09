@@ -127,7 +127,7 @@ export const InAppAiAgentButton = () => {
               ref={panelRef}
               data-ignore-outside-interaction
               className={cn(
-                "fixed z-50 origin-top-left",
+                "fixed z-51 origin-top-left",
                 isExpanded
                   ? "inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3"
                   : "bottom-2",
