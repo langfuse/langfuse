@@ -20,6 +20,7 @@ export interface CalloutProps {
   children: React.ReactNode;
   onDismiss?: () => void;
   actions?: () => React.ReactNode;
+  className?: string;
 }
 
 export function Callout({
@@ -30,6 +31,7 @@ export function Callout({
   children,
   onDismiss,
   actions,
+  className,
 }: CalloutProps) {
   const [dismissedCallouts, setDismissedCallouts] = useLocalStorage<Callout[]>(
     id + "-" + DEFAULT_STORAGE_KEY,
@@ -87,7 +89,9 @@ export function Callout({
       : "";
 
   return (
-    <Alert className={`${variantClass} ${alignmentOverrides}`}>
+    <Alert
+      className={`${variantClass} ${alignmentOverrides} ${className ?? ""}`}
+    >
       <AlertDescription
         className={`flex ${alignmentClass} ml-1 justify-between`}
       >

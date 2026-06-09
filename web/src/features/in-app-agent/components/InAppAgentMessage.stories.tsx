@@ -73,6 +73,87 @@ export const UserText = meta.story({
   },
 });
 
+export const ToolCallGroup = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify({ view: "observations" }),
+          result: JSON.stringify({ data: [{ count_count: 0 }] }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getTraces",
+          args: JSON.stringify({ limit: 10 }),
+          result: JSON.stringify({ data: [] }),
+        },
+      ],
+    },
+  },
+});
+
+export const SingleToolCallGroup = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify(
+            {
+              view: "observations",
+              dimensions: [],
+              metrics: [{ measure: "count", aggregation: "count" }],
+              filters: [],
+              fromTimestamp: "2025-06-30T00:00:00Z",
+              toTimestamp: "2025-07-06T23:59:59Z",
+            },
+            null,
+            2,
+          ),
+          result: JSON.stringify({
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ data: [{ count_count: 0 }] }, null, 2),
+              },
+            ],
+          }),
+        },
+      ],
+    },
+  },
+});
+
+export const LoadingToolCallGroup = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      isLoading: true,
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify({ view: "observations" }),
+          result: JSON.stringify({ data: [{ count_count: 0 }] }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getTraces",
+          args: JSON.stringify({ limit: 10 }),
+        },
+      ],
+    },
+  },
+});
+
 export const Loading = meta.story({
   args: {
     role: "assistant",

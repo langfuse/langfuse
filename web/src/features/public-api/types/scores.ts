@@ -1,10 +1,13 @@
 import { z } from "zod";
 import { InvalidRequestError } from "@langfuse/shared";
 
-export const ScoresCursorV3 = z.object({
-  lastTimestamp: z.coerce.date(),
-  lastId: z.string(),
-});
+export const ScoresCursorV3 = z.discriminatedUnion("v", [
+  z.object({
+    v: z.literal(1),
+    lastTimestamp: z.coerce.date(),
+    lastId: z.string(),
+  }),
+]);
 export type ScoresCursorV3Type = z.infer<typeof ScoresCursorV3>;
 
 export const EncodedScoresCursorV3 = z
@@ -22,6 +25,7 @@ export const EncodedScoresCursorV3 = z
 export const encodeCursorV3 = (cursor: ScoresCursorV3Type): string =>
   Buffer.from(
     JSON.stringify({
+      v: cursor.v,
       lastTimestamp: cursor.lastTimestamp.toISOString(),
       lastId: cursor.lastId,
     }),

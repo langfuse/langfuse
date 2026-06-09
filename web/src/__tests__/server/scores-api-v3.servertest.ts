@@ -354,6 +354,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
     it("stale cursor (no matching rows) returns empty page with no cursor", async () => {
       const staleCursor = Buffer.from(
         JSON.stringify({
+          v: 1,
           lastTimestamp: new Date(0).toISOString(),
           lastId: "00000000-0000-0000-0000-000000000000",
         }),
@@ -458,8 +459,8 @@ describe("/api/public/v3/scores API Endpoint", () => {
         for (const s of res.body.data) {
           expect(seenIds.has(s.id)).toBe(false);
           seenIds.add(s.id);
-          expect(s.details).toBeDefined();
-          expect(s.details!.comment).toMatch(/^c\d$/);
+          expect(s.comment).toBeDefined();
+          expect(s.comment!).toMatch(/^c\d$/);
         }
         cursor = res.body.meta.cursor;
       } while (cursor);
@@ -534,9 +535,12 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       const score = res.body.data.find((s) => s.id === scoreId);
       expect(score).toBeDefined();
-      expect(score).not.toHaveProperty("details");
+      expect(score!.comment).toBeUndefined();
+      expect(score!.configId).toBeUndefined();
+      expect(score!.metadata).toBeUndefined();
       expect(score).not.toHaveProperty("subject");
-      expect(score).not.toHaveProperty("annotation");
+      expect(score!.authorUserId).toBeUndefined();
+      expect(score!.queueId).toBeUndefined();
     });
 
     it("fields=core,details → details present", async () => {
@@ -561,12 +565,12 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       const score = res.body.data.find((s) => s.id === scoreId);
       expect(score).toBeDefined();
-      expect(score!.details).toBeDefined();
-      expect(score!.details!.comment).toBe("test comment");
-      expect(score!.details!.configId).toBe("cfg-abc");
-      expect(score!.details!.metadata).toEqual({ key: "val" });
+      expect(score!.comment).toBe("test comment");
+      expect(score!.configId).toBe("cfg-abc");
+      expect(score!.metadata).toEqual({ key: "val" });
       expect(score).not.toHaveProperty("subject");
-      expect(score).not.toHaveProperty("annotation");
+      expect(score!.authorUserId).toBeUndefined();
+      expect(score!.queueId).toBeUndefined();
     });
 
     it("fields=core,annotation → annotation present", async () => {
@@ -590,10 +594,11 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       const score = res.body.data.find((s) => s.id === scoreId);
       expect(score).toBeDefined();
-      expect(score!.annotation).toBeDefined();
-      expect(score!.annotation!.authorUserId).toBe("user-xyz");
-      expect(score!.annotation!.queueId).toBe("queue-abc");
-      expect(score).not.toHaveProperty("details");
+      expect(score!.authorUserId).toBe("user-xyz");
+      expect(score!.queueId).toBe("queue-abc");
+      expect(score!.comment).toBeUndefined();
+      expect(score!.configId).toBeUndefined();
+      expect(score!.metadata).toBeUndefined();
       expect(score).not.toHaveProperty("subject");
     });
 
@@ -616,9 +621,8 @@ describe("/api/public/v3/scores API Endpoint", () => {
 
       const score = res.body.data.find((s) => s.id === scoreId);
       expect(score).toBeDefined();
-      expect(score!.annotation).toBeDefined();
-      expect(score!.annotation!.authorUserId).toBeNull();
-      expect(score!.annotation!.queueId).toBeNull();
+      expect(score!.authorUserId).toBeNull();
+      expect(score!.queueId).toBeNull();
     });
 
     it("fields=core,subject → trace score has kind=trace", async () => {
@@ -763,9 +767,12 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       const score = res.body.data.find((s) => s.id === scoreId);
       expect(score).toBeDefined();
-      expect(score).not.toHaveProperty("details");
+      expect(score!.comment).toBeUndefined();
+      expect(score!.configId).toBeUndefined();
+      expect(score!.metadata).toBeUndefined();
       expect(score).not.toHaveProperty("subject");
-      expect(score).not.toHaveProperty("annotation");
+      expect(score!.authorUserId).toBeUndefined();
+      expect(score!.queueId).toBeUndefined();
     });
 
     it("fields=core,details,subject,annotation → all groups present simultaneously", async () => {
@@ -791,9 +798,12 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       const score = res.body.data.find((s) => s.id === scoreId);
       expect(score).toBeDefined();
-      expect(score).toHaveProperty("details");
+      expect(score).toHaveProperty("comment");
+      expect(score).toHaveProperty("configId");
+      expect(score).toHaveProperty("metadata");
       expect(score).toHaveProperty("subject");
-      expect(score).toHaveProperty("annotation");
+      expect(score).toHaveProperty("authorUserId");
+      expect(score).toHaveProperty("queueId");
       expect(score!.subject!.kind).toBe("trace");
       expect(score!.subject!.id).toBe(traceId);
     });
@@ -1555,7 +1565,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       expect(
         res.body.data.length > 0 &&
-          res.body.data.every((s) => s.details?.configId === configId),
+          res.body.data.every((s) => s.configId === configId),
       ).toBe(true);
       const ids = res.body.data.map((s) => s.id);
       expect(ids).toContain(scoreId);
@@ -1586,7 +1596,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       expect(
         res.body.data.length > 0 &&
-          res.body.data.every((s) => s.annotation?.queueId === queueId),
+          res.body.data.every((s) => s.queueId === queueId),
       ).toBe(true);
       const ids = res.body.data.map((s) => s.id);
       expect(ids).toContain(scoreId);
@@ -1617,7 +1627,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       expect(
         res.body.data.length > 0 &&
-          res.body.data.every((s) => s.annotation?.authorUserId === userId),
+          res.body.data.every((s) => s.authorUserId === userId),
       ).toBe(true);
       const ids = res.body.data.map((s) => s.id);
       expect(ids).toContain(scoreId);
@@ -1761,7 +1771,7 @@ describe("/api/public/v3/scores API Endpoint", () => {
       expect(res.status).toBe(200);
       expect(res.body.meta.limit).toBe(10);
       const score = res.body.data.find((s) => s.id === scoreId);
-      expect(score?.details?.comment).toBe("regression-check");
+      expect(score?.comment).toBe("regression-check");
     });
   });
 });
