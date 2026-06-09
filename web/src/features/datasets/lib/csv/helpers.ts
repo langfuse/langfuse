@@ -1,5 +1,9 @@
 import { parse } from "csv-parse";
-import { parseJsonPrioritised, type Prisma } from "@langfuse/shared";
+import {
+  isJsonNumberLiteral,
+  parseJsonPrioritised,
+  type Prisma,
+} from "@langfuse/shared";
 import type {
   ParseOptions,
   CsvPreviewResult,
@@ -161,7 +165,10 @@ export function parseValue(value: string): Prisma.JsonValue {
   if (value === "" || value.toLowerCase() === "null") return null;
 
   const parsed = parseJsonPrioritised(value);
-  if (parsed !== value && parsed !== undefined) {
+  if (
+    parsed !== undefined &&
+    (parsed !== value || isJsonNumberLiteral(value))
+  ) {
     return parsed as Prisma.JsonValue;
   }
 
