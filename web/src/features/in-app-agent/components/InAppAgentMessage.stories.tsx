@@ -21,7 +21,12 @@ export const AssistantMarkdown = meta.story({
     content: {
       type: "text",
       text: [
-        "## Debugging checklist",
+        "# Heading 1",
+        "## Heading 2",
+        "### Heading 3",
+        "#### Heading 4",
+        "##### Heading 5",
+        "###### Heading 6",
         "",
         "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, and metadata across releases.",
         "",
@@ -69,6 +74,87 @@ export const UserText = meta.story({
     content: {
       type: "text",
       text: "How do I find failed traces from the last 24 hours?",
+    },
+  },
+});
+
+export const ToolCallGroup = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify({ view: "observations" }),
+          result: JSON.stringify({ data: [{ count_count: 0 }] }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getTraces",
+          args: JSON.stringify({ limit: 10 }),
+          result: JSON.stringify({ data: [] }),
+        },
+      ],
+    },
+  },
+});
+
+export const SingleToolCallGroup = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify(
+            {
+              view: "observations",
+              dimensions: [],
+              metrics: [{ measure: "count", aggregation: "count" }],
+              filters: [],
+              fromTimestamp: "2025-06-30T00:00:00Z",
+              toTimestamp: "2025-07-06T23:59:59Z",
+            },
+            null,
+            2,
+          ),
+          result: JSON.stringify({
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({ data: [{ count_count: 0 }] }, null, 2),
+              },
+            ],
+          }),
+        },
+      ],
+    },
+  },
+});
+
+export const LoadingToolCallGroup = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "toolGroup",
+      isLoading: true,
+      tools: [
+        {
+          type: "tool",
+          name: "langfuse_queryMetrics",
+          args: JSON.stringify({ view: "observations" }),
+          result: JSON.stringify({ data: [{ count_count: 0 }] }),
+        },
+        {
+          type: "tool",
+          name: "langfuse_getTraces",
+          args: JSON.stringify({ limit: 10 }),
+        },
+      ],
     },
   },
 });

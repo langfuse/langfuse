@@ -14,13 +14,33 @@ import { createInAppAgentInstrumentation } from "@/src/features/in-app-agent/ser
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
-const ASSISTANT_SYSTEM_PROMPT = [
-  "You are the persistent in-app assistant for Langfuse.",
-  "Be concise, factual, and useful.",
-  "If you are not confident in the answer, say that directly instead of guessing.",
-  "Use markdown when it improves clarity.",
-].join(" ");
+const getAssistantSystemPrompt = () => `
+<identity>
+  You are an assistant called Langfuse Assistant.
+  Your role is to assist users with tasks in the Langfuse Cloud product.
+</identity>
+
+<behavioral_rules>
+If you are not confident in the answer, say that directly instead of guessing.
+Focus on answering the user's questions. Do not comment on your own behavior:
+- Do not comment on tools you are using or will use.
+- Do not comment on the process you are following.
+Always provide a complete answer to the user's question in your response, do not rely on users seeing tool input or output.
+If a tool call fails but you intend on re-trying it, do not mention the failure and just retry the tool call.
+If you cannot provide an answer to the user, spare the user the details of failed tool calls and instead summarize the issue.
+</behavioral_rules>
+
+<style_rules>
+Be concise, factual, and useful.
+Use markdown in your responses when appropriate, especially for tables and lists.
+</style_rules>
+
+<world_knowledge>
+The current time is ${new Date().toDateString()}.
+</world_knowledge>
+`;
 const MAX_AGENT_STEPS = 10;
+const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
@@ -465,15 +485,36 @@ async function createMastraAdapter(params: {
           },
         },
       },
+      langfuseDocs: {
+        url: new URL(LANGFUSE_DOCS_MCP_URL),
+      },
     },
   });
 
   try {
-    const tools = await mcpClient.listTools();
+    const { toolsets, errors } = await mcpClient.listToolsetsWithErrors();
+
+    if (errors.langfuse) {
+      throw new Error(`Failed to initialize Langfuse MCP: ${errors.langfuse}`);
+    }
+
+    if (errors.langfuseDocs) {
+      logger.warn("Failed to initialize Langfuse docs MCP", {
+        error: errors.langfuseDocs,
+        runId: params.input.runId,
+        threadId: params.input.threadId,
+      });
+    }
+
+    const tools = {
+      ...prefixToolsetTools("langfuse", toolsets.langfuse),
+      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+    };
+
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
-      instructions: ASSISTANT_SYSTEM_PROMPT,
+      instructions: getAssistantSystemPrompt(),
       model: bedrock(
         params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
       ),
@@ -502,6 +543,18 @@ async function createMastraAdapter(params: {
     });
     throw error;
   }
+}
+
+function prefixToolsetTools<TTool>(
+  serverName: string,
+  toolset: Record<string, TTool> | undefined,
+) {
+  return Object.fromEntries(
+    Object.entries(toolset ?? {}).map(([toolName, tool]) => [
+      `${serverName}_${toolName}`,
+      tool,
+    ]),
+  );
 }
 
 function normalizeAdapterEvent(

@@ -14,6 +14,7 @@ import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
 import { useRouter } from "next/router";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -108,6 +109,11 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
         onPointerDownOutside={(e) => {
           // Prevent the default behavior of closing when clicking outside when we set modal={false}
           e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (shouldIgnoreOutsideInteraction(e.target)) {
+            e.preventDefault();
+          }
         }}
         side="right"
         className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden p-0"
