@@ -1374,6 +1374,74 @@ describe("SCIM API", () => {
         expect(remaining[0].role).toBe("OWNER");
       });
 
+      it("PUT active:true with a lower role rejects demoting the only remaining OWNER", async () => {
+        const result = await makeAPICall(
+          "PUT",
+          `/api/public/scim/Users/${scopedOwnerUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: scopedOwnerUserId,
+            userName: "owner@example.com",
+            active: true,
+            roles: ["MEMBER"],
+          },
+          createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
+        );
+
+        expect(result.status).toBe(403);
+        expect(String(result.body.detail).toLowerCase()).toContain(
+          "last owner",
+        );
+
+        const remaining = await prisma.organizationMembership.findMany({
+          where: { userId: scopedOwnerUserId, orgId: scopedOrgId },
+        });
+        expect(remaining.length).toBe(1);
+        expect(remaining[0].role).toBe("OWNER");
+      });
+
+      it("PUT active:true with a lower role allows demoting an OWNER when another OWNER remains", async () => {
+        const secondOwner = await prisma.user.create({
+          data: {
+            email: `owner2.${randomUUID().substring(0, 8)}@example.com`,
+            name: "Second Owner",
+          },
+        });
+        await prisma.organizationMembership.create({
+          data: {
+            userId: secondOwner.id,
+            orgId: scopedOrgId,
+            role: "OWNER",
+          },
+        });
+
+        try {
+          const result = await makeAPICall(
+            "PUT",
+            `/api/public/scim/Users/${scopedOwnerUserId}`,
+            {
+              schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+              id: scopedOwnerUserId,
+              userName: "owner@example.com",
+              active: true,
+              roles: ["MEMBER"],
+            },
+            createBasicAuthHeader(scopedOrgPublicKey, scopedOrgSecretKey),
+          );
+          expect(result.status).toBe(200);
+
+          const demoted = await prisma.organizationMembership.findFirst({
+            where: { userId: scopedOwnerUserId, orgId: scopedOrgId },
+          });
+          expect(demoted?.role).toBe("MEMBER");
+        } finally {
+          await prisma.organizationMembership.deleteMany({
+            where: { userId: secondOwner.id, orgId: scopedOrgId },
+          });
+          await prisma.user.deleteMany({ where: { id: secondOwner.id } });
+        }
+      });
+
       it("DELETE allows removing an OWNER when another OWNER remains", async () => {
         const secondOwner = await prisma.user.create({
           data: {

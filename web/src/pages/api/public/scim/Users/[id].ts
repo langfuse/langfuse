@@ -36,39 +36,97 @@ type ProvisionOutcome =
 //
 // Writes an audit log entry only when state actually changes (create/update),
 // never for a no-op.
+// Returns the provisioning outcome, or null when the request was rejected and
+// the response has already been written (e.g. last-OWNER demotion → 403).
 async function provisionMembership({
+  res,
   userId,
   orgId,
   apiKeyId,
   role,
 }: {
+  res: NextApiResponse;
   userId: string;
   orgId: string;
   apiKeyId: string;
   role?: Role;
-}): Promise<ProvisionOutcome> {
+}): Promise<ProvisionOutcome | null> {
   const applyToExisting = async (existing: {
     id: string;
     role: Role;
-  }): Promise<ProvisionOutcome> => {
+  }): Promise<ProvisionOutcome | null> => {
     // No explicit role requested, or the role is unchanged → leave as-is.
     if (role === undefined || role === existing.role) {
       return { kind: "unchanged", role: existing.role };
     }
-    const updated = await prisma.organizationMembership.update({
-      where: { orgId_userId: { orgId, userId } },
-      data: { role },
-    });
-    await auditLog({
-      resourceType: "orgMembership",
-      resourceId: updated.id,
-      action: "update",
-      before: existing,
-      after: updated,
-      apiKeyId,
-      orgId,
-    });
-    return { kind: "updated", role };
+    const targetRole: Role = role;
+
+    try {
+      // Enforce the org-wide "at least one OWNER" invariant inside a
+      // Serializable transaction, mirroring deprovisionOrReject and the tRPC
+      // updateOrgMembership path, so demoting the last OWNER cannot orphan the
+      // org and two concurrent demotions cannot both pass the check.
+      const result = await prisma.$transaction(
+        async (tx) => {
+          if (existing.role === "OWNER" && targetRole !== "OWNER") {
+            const ownerCount = await tx.organizationMembership.count({
+              where: { orgId, role: "OWNER" },
+            });
+            if (ownerCount <= 1) {
+              return "lastOwner" as const;
+            }
+          }
+          const updated = await tx.organizationMembership.update({
+            where: { orgId_userId: { orgId, userId } },
+            data: { role: targetRole },
+          });
+          return { updated };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+
+      if (result === "lastOwner") {
+        logger.warn(
+          `[SCIM] Refused to demote last OWNER ${userId} in org ${orgId}`,
+        );
+        res.status(403).json({
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+          detail:
+            "Cannot remove the last owner of an organization. Assign new owner or delete organization.",
+          status: 403,
+        });
+        return null;
+      }
+
+      await auditLog({
+        resourceType: "orgMembership",
+        resourceId: result.updated.id,
+        action: "update",
+        before: existing,
+        after: result.updated,
+        apiKeyId,
+        orgId,
+      });
+      return { kind: "updated", role: targetRole };
+    } catch (error) {
+      // Serialization failure (P2034) from a concurrent membership change;
+      // surface as 409 so the SCIM client retries.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034"
+      ) {
+        logger.warn(
+          `[SCIM] Concurrent role update conflict for user ${userId} in org ${orgId}`,
+        );
+        res.status(409).json({
+          schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+          detail: "Concurrent update conflict for this user. Please retry.",
+          status: 409,
+        });
+        return null;
+      }
+      throw error;
+    }
   };
 
   const existing = await prisma.organizationMembership.findUnique({
@@ -79,6 +137,7 @@ async function provisionMembership({
   }
 
   // Missing → create with the explicit role when provided, otherwise NONE.
+  // Creating a membership never removes an existing OWNER, so no guard needed.
   const roleToCreate: Role = role ?? "NONE";
   try {
     const created = await prisma.organizationMembership.create({
@@ -457,10 +516,14 @@ async function handlePatch(
         // PATCH PatchOp values only carry `active` (no roles), so this always
         // creates a NONE membership when missing and is a no-op otherwise.
         const outcome = await provisionMembership({
+          res,
           userId: user.id,
           orgId,
           apiKeyId,
         });
+        if (!outcome) {
+          return;
+        }
         logScimProvision(outcome, user.id, orgId, "PATCH");
       } else {
         // Deprovision atomically: check + delete in one Serializable txn.
@@ -540,11 +603,16 @@ async function handlePut(
   if (typeof body.active === "boolean") {
     if (body.active) {
       const outcome = await provisionMembership({
+        res,
         userId: user.id,
         orgId,
         apiKeyId,
         role: parseScimRole(body.roles),
       });
+      // null → request rejected (e.g. last-OWNER demotion); response written.
+      if (!outcome) {
+        return;
+      }
       logScimProvision(outcome, user.id, orgId, "PUT");
     } else {
       // Deprovision atomically: check + delete in one Serializable txn.
