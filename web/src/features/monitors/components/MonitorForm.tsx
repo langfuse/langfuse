@@ -257,25 +257,36 @@ export const MonitorForm = ({
   });
 
   /** onSubmit normalizes filter columns into view-space and dispatches the create or update mutation. */
-  const onSubmit = form.handleSubmit((values) => {
-    const normalizedValues = {
-      ...values,
-      filters: mapWidgetUiTableFilterToView(
-        values.view as Parameters<typeof mapWidgetUiTableFilterToView>[0],
-        (values.filters ?? []) as FilterState,
-      ),
-    } as typeof values;
+  const onSubmit = form.handleSubmit(
+    /** onValid normalize filter values before updating or saving the monitor  */
+    (values) => {
+      const normalizedValues = {
+        ...values,
+        filters: mapWidgetUiTableFilterToView(
+          values.view as Parameters<typeof mapWidgetUiTableFilterToView>[0],
+          (values.filters ?? []) as FilterState,
+        ),
+      } as typeof values;
 
-    if (isEdit && monitor) {
-      // status omitted: the pause/resume toolbar owns it.
-      updateMutation.mutate({
-        ...(normalizedValues as UpdateMonitor),
-        id: monitor.id,
+      if (isEdit && monitor) {
+        // status omitted: the pause/resume toolbar owns it.
+        updateMutation.mutate({
+          ...(normalizedValues as UpdateMonitor),
+          id: monitor.id,
+        });
+      } else {
+        createMutation.mutate(normalizedValues as CreateMonitor);
+      }
+    },
+    /** onInvalid scroll to the first error message */
+    () => {
+      requestAnimationFrame(() => {
+        document
+          .querySelector('[id$="-form-item-message"]')
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
       });
-    } else {
-      createMutation.mutate(normalizedValues as CreateMonitor);
-    }
-  });
+    },
+  );
 
   /** watched is the live snapshot of form values used to derive preview state, dropdown contents, and placeholders. */
   const watched = useWatch({ control: form.control });
@@ -855,6 +866,7 @@ export const MonitorForm = ({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Automations</FormLabel>
+                      <FormMessage />
                       <FormDescription>
                         Send Alerts to Slack, Webhooks, and GitHub Actions.
                       </FormDescription>
@@ -866,7 +878,6 @@ export const MonitorForm = ({
                           onTriggerIdsChange={field.onChange}
                         />
                       </FormControl>
-                      <FormMessage />
                     </FormItem>
                   )}
                 />
