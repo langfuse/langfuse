@@ -1033,7 +1033,7 @@ describe("Playground Jump Full Pipeline", () => {
     });
   });
 
-  it("should pass OpenAI trace metadata attributes.tools into playground tools", () => {
+  it("should pass metadata attributes.tools into playground tools", () => {
     const input = [
       {
         role: "assistant",
