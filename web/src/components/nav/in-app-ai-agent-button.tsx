@@ -125,6 +125,7 @@ export const InAppAiAgentButton = () => {
         ? createPortal(
             <div
               ref={panelRef}
+              data-ignore-outside-interaction
               className={cn(
                 "fixed z-50 origin-top-left",
                 isExpanded
