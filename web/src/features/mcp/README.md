@@ -116,6 +116,49 @@ All write operations should audit-log entries with before/after snapshots.
 
 Tools that return trace, observation, score or experiment data declare `accessAudit` on `defineTool` and report the returned rows through the handler's `audit` argument (`audit.refs`, `audit.count`). Each successful call is then recorded as an access event (`surface = mcp`, the tool name as route) for orgs that record access events, before the result is returned.
 
+### OIDC Bearer Authentication (self-hosted)
+
+Self-hosted deployments can additionally accept OIDC bearer JWTs from a
+configured identity provider, so MCP clients authenticate as a real Langfuse
+user rather than via a shared static API key.
+
+**Enabling:**
+
+```bash
+MCP_AUTH_OIDC_ENABLED=true
+MCP_AUTH_OIDC_ISSUER=https://idp.example.com
+MCP_AUTH_OIDC_AUDIENCE=langfuse-mcp        # optional; if set, `aud` must match
+MCP_AUTH_OIDC_JWKS_URI=                    # optional; defaults to <issuer>/.well-known/jwks.json
+MCP_AUTH_OIDC_USER_CLAIM=email             # `email` (default) or `sub`
+```
+
+**Request flow:**
+
+```
+1. Client sends:
+     Authorization: Bearer <JWT>
+     X-Langfuse-Project-Id: <projectId>
+   ↓
+2. JWT verified against MCP_AUTH_OIDC_ISSUER via its JWKS
+   (issuer + optional audience checked)
+   ↓
+3. Resolve Langfuse user by MCP_AUTH_OIDC_USER_CLAIM (email or sub)
+   ↓
+4. Require ProjectMembership for the requested projectId
+   ↓
+5. Build ServerContext with the real userId; apiKeyId is
+   synthesized as `oidc:<userId>` for audit-log compatibility
+```
+
+Each tool then authorizes against the user's own Langfuse roles (the same
+role assignments that govern the UI), so e.g. a project `VIEWER` can use
+read-only tools but not mutating ones.
+
+The user must already exist in Langfuse and be a member of the target
+project — this PR does not auto-provision users from JWT claims. BasicAuth
+remains the default; OIDC is only consulted when the Authorization header
+carries a Bearer token and `MCP_AUTH_OIDC_ENABLED=true`.
+
 ---
 
 # Connecting Clients

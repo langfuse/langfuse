@@ -90,6 +90,33 @@ describe("shadowAuthorize", () => {
     ).toEqual({ success: true });
   });
 
+  it("scopes a user principal's project check to the org owning the project", () => {
+    const userContext = (projectIds: string[]): AuthorizationContext => ({
+      principal: {
+        kind: "user",
+        userId: "user_1",
+        organizations: [
+          {
+            orgId: ORG,
+            organizationCreatedAt: "2026-01-01T00:00:00.000Z",
+            plan: "oss",
+            rateLimitOverrides: [],
+            projectIds,
+            isIngestionSuspended: false,
+          },
+        ],
+      },
+      policies: [[allowPrompts]],
+    });
+
+    expect(shadowAuthorize(params("prompts:read", userContext([PRJ])))).toEqual(
+      { success: true },
+    );
+    expect(
+      shadowAuthorize(params("prompts:read", userContext(["prj_other"]))),
+    ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+  });
+
   it("passes an ungated item", () => {
     expect(
       shadowAuthorize(params(__dangerouslySkipAuthz, authContext([]))),
