@@ -1,5 +1,5 @@
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 
 type UseTagManagerProps = {
   initialTags: string[];
@@ -8,6 +8,7 @@ type UseTagManagerProps = {
 
 export function useTagManager({ initialTags, allTags }: UseTagManagerProps) {
   const [selectedTags, setSelectedTags] = useState(initialTags);
+  useEffect(() => setSelectedTags(initialTags), [initialTags]);
   const [inputValue, setInputValue] = useState("");
   const availableTags = useMemo(
     () => allTags.filter((value) => !selectedTags.includes(value)),

@@ -39,6 +39,7 @@ export const entitlementLimits = [
   "data-access-days",
   "model-based-evaluations-count-evaluators",
   "prompt-management-count-prompts",
+  "monitor-count",
 ] as const;
 export type EntitlementLimit = (typeof entitlementLimits)[number];
 
@@ -63,6 +64,7 @@ export const entitlementAccess: Record<
       "annotation-queue-count": 1,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
+      "monitor-count": 10,
     },
   },
   "cloud:core": {
@@ -73,6 +75,7 @@ export const entitlementAccess: Record<
       "annotation-queue-count": 3,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
+      "monitor-count": 10,
     },
   },
   "cloud:pro": {
@@ -87,6 +90,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
+      "monitor-count": 10,
     },
   },
   "cloud:team": {
@@ -107,6 +111,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
+      "monitor-count": 10,
     },
   },
   "cloud:enterprise": {
@@ -127,6 +132,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
+      "monitor-count": 10,
     },
   },
   oss: {
@@ -137,6 +143,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
+      "monitor-count": 10,
     },
   },
   "self-hosted:pro": {
@@ -147,6 +154,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
+      "monitor-count": 10,
     },
   },
   "self-hosted:enterprise": {
@@ -166,6 +174,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
+      "monitor-count": 10,
     },
   },
 };

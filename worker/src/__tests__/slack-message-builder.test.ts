@@ -266,11 +266,13 @@ describe("SlackMessageBuilder", () => {
 
   describe("buildMessage", () => {
     it("should route prompt-version events to prompt message builder", () => {
-      const blocks = SlackMessageBuilder.buildMessage(mockPromptPayload);
+      const { blocks, attachments } =
+        SlackMessageBuilder.buildMessage(mockPromptPayload);
 
       // Should be a full prompt message (5 blocks with commit message)
       expect(blocks).toHaveLength(5);
       expect(blocks[0].text.text).toContain("Prompt created");
+      expect(attachments).toBeUndefined();
     });
 
     it("should route unknown events to fallback message builder", () => {
@@ -279,7 +281,9 @@ describe("SlackMessageBuilder", () => {
         type: "trace-evaluation" as any,
       };
 
-      const blocks = SlackMessageBuilder.buildMessage(unknownPayload as any);
+      const { blocks } = SlackMessageBuilder.buildMessage(
+        unknownPayload as any,
+      );
 
       // Should be a fallback message (1 block)
       expect(blocks).toHaveLength(1);
@@ -294,11 +298,113 @@ describe("SlackMessageBuilder", () => {
         prompt: null, // This should cause an error
       } as any;
 
-      const blocks = SlackMessageBuilder.buildMessage(malformedPayload);
+      const { blocks } = SlackMessageBuilder.buildMessage(malformedPayload);
 
       // Should fallback to simple message
       expect(blocks).toHaveLength(1);
       expect(blocks[0].text.text).toContain("Langfuse Notification");
+    });
+  });
+
+  describe("buildMonitorMessage", () => {
+    const mockMonitorEnvelope = {
+      id: "exe_01",
+      timestamp: new Date("2026-05-18T12:01:00.000Z"),
+      type: "monitor-alert" as const,
+      apiVersion: "v1" as const,
+      payload: {
+        monitorId: "mon_01",
+        projectId: "proj_01",
+        permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+        message: {
+          title: "High error rate",
+          body: "**count(observations.value)** is **above** `100`",
+        },
+        severity: "ALERT" as const,
+        timestamp: new Date("2026-05-18T12:01:00.000Z"),
+        fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+        toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
+        view: "observations" as const,
+        filters: [],
+        window: "5m" as const,
+      },
+    };
+
+    it("ALERT: header is title only (no severity emoji); body converted to Slack mrkdwn; red attachment", () => {
+      const { blocks, attachments } =
+        SlackMessageBuilder.buildMonitorMessage(mockMonitorEnvelope);
+      expect(blocks[0]).toMatchObject({
+        type: "header",
+        text: { type: "plain_text", text: "High error rate" },
+      });
+      // slackify-markdown converts **bold** → *bold* (Slack mrkdwn)
+      expect(blocks[1]).toMatchObject({
+        type: "section",
+        text: { type: "mrkdwn" },
+      });
+      expect(blocks[1].text.text).toContain("*count(observations.value)*");
+      expect(blocks[2]).toMatchObject({ type: "actions" });
+      expect(blocks[2].elements[0]).toMatchObject({
+        type: "button",
+        url: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+      });
+      expect(blocks[3]).toMatchObject({ type: "context" });
+      expect(attachments).toEqual([{ color: "#dc3545" }]);
+    });
+
+    it.each([
+      ["WARNING", "#ffc107"],
+      ["OK", "#28a745"],
+      ["NO_DATA", "#6c757d"],
+      ["UNKNOWN", "#6c757d"],
+      ["PAUSED", "#6c757d"],
+    ] as const)(
+      "%s: header is title only, attachment color %s",
+      (severity, color) => {
+        const { blocks, attachments } = SlackMessageBuilder.buildMonitorMessage(
+          {
+            ...mockMonitorEnvelope,
+            payload: { ...mockMonitorEnvelope.payload, severity },
+          },
+        );
+        expect(blocks[0].text.text).toBe("High error rate");
+        expect(attachments).toEqual([{ color }]);
+      },
+    );
+
+    it("header has no severity emoji prefix", () => {
+      const { blocks } =
+        SlackMessageBuilder.buildMonitorMessage(mockMonitorEnvelope);
+      expect(blocks[0].text.text).toBe("High error rate");
+    });
+
+    it("truncates a header longer than 150 chars to 150 with an ellipsis", () => {
+      const longTitle = "[ALERT] " + "x".repeat(160);
+      const { blocks } = SlackMessageBuilder.buildMonitorMessage({
+        ...mockMonitorEnvelope,
+        payload: {
+          ...mockMonitorEnvelope.payload,
+          message: { ...mockMonitorEnvelope.payload.message, title: longTitle },
+        },
+      });
+      const headerText = blocks[0].text.text as string;
+      expect(headerText.length).toBeLessThanOrEqual(150);
+      expect(headerText.endsWith("…")).toBe(true);
+    });
+
+    it("omits the actions block when permalink is absent", () => {
+      const { blocks } = SlackMessageBuilder.buildMonitorMessage({
+        ...mockMonitorEnvelope,
+        payload: { ...mockMonitorEnvelope.payload, permalink: undefined },
+      });
+      expect(blocks.every((b) => b.type !== "actions")).toBe(true);
+      expect(blocks.some((b) => b.type === "context")).toBe(true);
+    });
+
+    it("buildMessage routes monitor-alert envelopes", () => {
+      const result = SlackMessageBuilder.buildMessage(mockMonitorEnvelope);
+      expect(result.attachments).toEqual([{ color: "#dc3545" }]);
+      expect(result.blocks[0].text.text).toBe("High error rate");
     });
   });
 });
