@@ -8,7 +8,8 @@ service:
   endpoints:
     get-many:
       docs: |
-        **Deprecated.** Use `GET /api/public/v3/scores` instead.
+        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
+        is no longer available on Langfuse v4 and later.
 
         Get a list of scores (supports both trace and session scores)
       method: GET
@@ -89,7 +90,8 @@ service:
       response: GetScoresResponse
     get-by-id:
       docs: |
-        **Deprecated.** Use `GET /api/public/v3/scores` instead.
+        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
+        instead. This endpoint is no longer available on Langfuse v4 and later.
 
         Get a score (supports both trace and session scores)
       method: GET
