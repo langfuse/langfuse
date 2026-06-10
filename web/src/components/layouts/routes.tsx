@@ -245,7 +245,7 @@ export const ROUTES: Route[] = [
     menuNode: <BookACallButton />,
   },
   {
-    title: "AI Assistant",
+    title: "Assistant",
     section: RouteSection.Secondary,
     pathname: "",
     featureFlag: "inAppAgent",

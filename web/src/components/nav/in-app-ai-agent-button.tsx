@@ -6,7 +6,7 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
-import { Bot } from "lucide-react";
+import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -122,8 +122,8 @@ export const InAppAiAgentButton = () => {
   return (
     <>
       <SidebarMenuButton ref={buttonRef} isActive={open} onClick={handleClick}>
-        <Bot className="h-4 w-4" />
-        AI Assistant
+        <BotMessageSquare className="h-4 w-4" />
+        Assistant
       </SidebarMenuButton>
       {open && portalContainer
         ? createPortal(
@@ -163,7 +163,7 @@ export const InAppAiAgentButton = () => {
           </DialogHeader>
           <DialogBody>
             <AIFeaturesDisabledNotice organizationId={organization?.id}>
-              The AI assistant requires AI features to be enabled for this
+              The assistant requires AI features to be enabled for this
               organization.
             </AIFeaturesDisabledNotice>
           </DialogBody>

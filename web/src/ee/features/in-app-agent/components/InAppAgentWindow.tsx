@@ -149,9 +149,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     >
       <header className="bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1">
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="shrink-0 truncate text-sm font-semibold">
-            AI Assistant
-          </p>
+          <p className="shrink-0 truncate text-sm font-semibold">Assistant</p>
           <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
             Beta
           </span>
@@ -164,7 +162,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             className="size-6 shrink-0"
             onClick={onNewConversation}
             disabled={isInputDisabled}
-            aria-label="Start new AI agent conversation"
+            aria-label="Start new conversation"
           >
             <Plus className="size-3" />
           </Button>
