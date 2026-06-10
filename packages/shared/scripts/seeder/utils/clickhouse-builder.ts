@@ -106,19 +106,26 @@ export class ClickHouseQueryBuilder {
     const idPrefix = opts.idPrefix
       ? `${this.escapeString(opts.idPrefix)}-`
       : "";
+    const escapedProjectId = this.escapeString(projectId);
+    const escapedEnvironment = this.escapeString(environment);
+    const idSuffix = this.escapeString(projectId.slice(-8));
+    const spreadSeconds = opts.numberOfDays * 86400;
 
+    // Timestamps derive from `number` and anchor to the current UTC day so
+    // same-day re-runs produce identical ORDER BY tuples (toDate(timestamp)
+    // is a sorting key) and ReplacingMergeTree dedups instead of duplicating.
     return `
       INSERT INTO traces
       SELECT
-        concat('${idPrefix}trace-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
-        toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
+        concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
+        toDateTime(toUnixTimestamp(today()) - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
         concat('trace-', toString(number % 10)) AS name,
         if(randUniform(0, 1) < 0.3, concat('user_', toString(rand() % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
         NULL AS release,
         NULL AS version,
-        '${projectId}' AS project_id,
-        '${environment}' AS environment,
+        '${escapedProjectId}' AS project_id,
+        '${escapedEnvironment}' AS environment,
         if(rand() < 0.8, true, false) AS public,
         if(rand() < 0.1, true, false) AS bookmarked,
         array() AS tags,
@@ -153,6 +160,10 @@ export class ClickHouseQueryBuilder {
     const idPrefix = opts.idPrefix
       ? `${this.escapeString(opts.idPrefix)}-`
       : "";
+    const escapedProjectId = this.escapeString(projectId);
+    const escapedEnvironment = this.escapeString(environment);
+    const idSuffix = this.escapeString(projectId.slice(-8));
+    const spreadSeconds = opts.numberOfDays * 86400;
 
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -168,13 +179,13 @@ export class ClickHouseQueryBuilder {
     return `
       INSERT INTO observations
       SELECT 
-        concat('${idPrefix}obs-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
-        concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${projectId.slice(-8)}') AS trace_id,
-        '${projectId}' AS project_id,
-        '${environment}' AS environment,
-        if(randUniform(0, 1) < 0.47, 'GENERATION', if(randUniform(0, 1) < 0.94, 'SPAN', 'EVENT')) AS type,
-        if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${projectId.slice(-8)}')) AS parent_observation_id,
-        toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS start_time,
+        concat('${idPrefix}obs-bulk-', toString(number), '-${idSuffix}') AS id,
+        concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
+        '${escapedProjectId}' AS project_id,
+        '${escapedEnvironment}' AS environment,
+        multiIf(number % 100 < 47, 'GENERATION', number % 100 < 94, 'SPAN', 'EVENT') AS type,
+        if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${idSuffix}')) AS parent_observation_id,
+        toDateTime(toUnixTimestamp(today()) - intDiv(number * ${spreadSeconds}, ${Math.max(totalObservations, 1)})) AS start_time,
         addMilliseconds(start_time, 
           case 
             when type = 'GENERATION' then floor(randUniform(5, 30))
@@ -248,20 +259,24 @@ export class ClickHouseQueryBuilder {
     const idPrefix = opts.idPrefix
       ? `${this.escapeString(opts.idPrefix)}-`
       : "";
+    const escapedProjectId = this.escapeString(projectId);
+    const escapedEnvironment = this.escapeString(environment);
+    const idSuffix = this.escapeString(projectId.slice(-8));
+    const spreadSeconds = opts.numberOfDays * 86400;
 
     return `
       INSERT INTO scores
       SELECT
-        concat('${idPrefix}score-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
-        toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
-        '${projectId}' AS project_id,
-        '${environment}' AS environment,
-        concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${projectId.slice(-8)}') AS trace_id,
+        concat('${idPrefix}score-bulk-', toString(number), '-${idSuffix}') AS id,
+        toDateTime(toUnixTimestamp(today()) - intDiv(number * ${spreadSeconds}, ${Math.max(totalScores, 1)})) AS timestamp,
+        '${escapedProjectId}' AS project_id,
+        '${escapedEnvironment}' AS environment,
+        concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
         if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 100)), NULL) AS session_id,
         NULL AS dataset_run_id,
         ${
           observationsPerTrace > 0
-            ? `if(randUniform(0, 1) < 0.1, concat('${idPrefix}obs-bulk-', toString((number % ${tracesCount}) + ${tracesCount} * (rand() % ${observationsPerTrace})), '-${projectId.slice(-8)}'), NULL)`
+            ? `if(randUniform(0, 1) < 0.1, concat('${idPrefix}obs-bulk-', toString((number % ${tracesCount}) + ${tracesCount} * (rand() % ${observationsPerTrace})), '-${idSuffix}'), NULL)`
             : "NULL"
         } AS observation_id,
         concat('metric_', toString((number % ${scoresPerTrace * 5}) + 1)) AS name,

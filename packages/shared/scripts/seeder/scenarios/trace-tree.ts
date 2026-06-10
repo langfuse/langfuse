@@ -12,7 +12,7 @@ import {
 import { ObservationType } from "../../../src/domain";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { buildPayload, PayloadStyle, PAYLOAD_STYLES } from "./payload";
-import { Rng } from "./rng";
+import { Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
   ScenarioContext,
@@ -127,7 +127,7 @@ const run = async (
 
   const rng = new Rng(ctx.seed);
   const traceId = `${ctx.idPrefix}-trace`;
-  const traceTimestamp = Date.now() - 10 * 60 * 1000;
+  const traceTimestamp = utcDayStartMs();
 
   const shape = buildTreeShape(
     observationCount,

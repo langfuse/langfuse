@@ -1,4 +1,15 @@
 /**
+ * Midnight UTC of the current day. Scenario timestamps anchor here (instead
+ * of Date.now()) so same-day re-runs produce identical ORDER BY tuples and
+ * ReplacingMergeTree overwrites instead of duplicating — events_full sorts
+ * on microsecond start_time, v3 tables on toDate(timestamp). Data still
+ * lands inside recent UI time windows; a re-run on a later day writes a
+ * fresh dated copy.
+ */
+export const utcDayStartMs = (): number =>
+  Math.floor(Date.now() / 86_400_000) * 86_400_000;
+
+/**
  * Deterministic PRNG (mulberry32) so scenarios produce identical data for
  * identical --seed values. Never use Math.random in scenario code.
  */

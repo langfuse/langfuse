@@ -15,7 +15,7 @@ import {
 } from "../../../src/server";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { buildPayload, PayloadStyle } from "./payload";
-import { Rng } from "./rng";
+import { Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
   ScenarioContext,
@@ -55,7 +55,7 @@ const run = async (
   }
 
   const rng = new Rng(ctx.seed);
-  const sessionStart = Date.now() - windowMinutes * 60 * 1000;
+  const sessionStart = utcDayStartMs() - windowMinutes * 60 * 1000;
   const stepMs = (windowMinutes * 60 * 1000) / Math.max(traceCount, 1);
   const users = Array.from(
     { length: 8 },

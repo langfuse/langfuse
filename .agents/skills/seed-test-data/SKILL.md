@@ -45,9 +45,10 @@ this.
   `verified` (ClickHouse readback), `links` (UI deep links). Use `--json` to
   suppress progress logs. Non-zero exit = data did not land; the error
   includes a `fix:` line.
-- Deterministic: same `--seed` (default 42) and flags → same ids. Re-running
-  overwrites instead of duplicating. Use `--id-prefix` to create independent
-  copies.
+- Deterministic: same `--seed` (default 42) and flags → same ids, with
+  timestamps anchored to the current UTC day. Re-running within the same day
+  overwrites instead of duplicating; a later day writes a fresh dated copy.
+  Use `--id-prefix` to create independent copies.
 - Default project is the seeded `7a88fb47-b4e2-43b8-a06c-a5ce950dc53a`
   (login `demo@langfuse.com` / `password`); override with `--project`.
 - Open the printed `links` in the browser to verify visually. The v4
