@@ -146,7 +146,7 @@ export class ClickHouseQueryBuilder {
         if(h3 % 10 >= 8, '${escapedNestedJson}',
           '${escapedChatMl}'
         ) AS output,
-        if(h1 % 100 < 30, concat('session_', toString(h2 % 100)), NULL) AS session_id,
+        if(h1 % 100 < 30, concat('${idPrefix}session_', toString(h2 % 100)), NULL) AS session_id,
         now() AS created_at,
         now() AS updated_at,
         now() AS event_ts,
@@ -315,17 +315,17 @@ export class ClickHouseQueryBuilder {
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
-        if(traceH1 % 100 < 30, concat('session_', toString(traceH2 % 100)), NULL) AS session_id,
+        if(traceH1 % 100 < 30, concat('${idPrefix}session_', toString(traceH2 % 100)), NULL) AS session_id,
         NULL AS dataset_run_id,
         ${
           observationsPerTrace > 0
             ? `if(h1 % 10 = 0, concat('${idPrefix}obs-bulk-', toString((number % ${tracesCount}) + ${tracesCount} * (h2 % ${observationsPerTrace})), '-${idSuffix}'), NULL)`
             : "NULL"
         } AS observation_id,
-        concat('metric_', toString((number % ${scoresPerTrace * 5}) + 1)) AS name,
+        concat('metric_', toString(nameKey + 1)) AS name,
         case 
-          when (number % 3) = 0 then toDecimal64((h3 % 10000) / 100, 8)
-          when (number % 3) = 1 then if(h3 % 2 = 0, 1, 0)
+          when (nameKey % 3) = 0 then toDecimal64((h3 % 10000) / 100, 8)
+          when (nameKey % 3) = 1 then if(h3 % 2 = 0, 1, 0)
           else NULL
         end AS value,
         'API' AS source,
@@ -334,13 +334,13 @@ export class ClickHouseQueryBuilder {
         NULL AS author_user_id,
         NULL AS config_id,
         case 
-          when (number % 3) = 0 then 'NUMERIC'
-          when (number % 3) = 1 then 'BOOLEAN'
+          when (nameKey % 3) = 0 then 'NUMERIC'
+          when (nameKey % 3) = 1 then 'BOOLEAN'
           else 'CATEGORICAL'
         end AS data_type,
         case 
-          when (number % 3) = 1 then if(value = 1, 'True', 'False')
-          when (number % 3) = 2 then concat('category_', toString((h1 % 5) + 1))
+          when (nameKey % 3) = 1 then if(value = 1, 'True', 'False')
+          when (nameKey % 3) = 2 then concat('category_', toString((h1 % 5) + 1))
           else NULL
         end AS string_value,
         NULL AS queue_id,
@@ -358,7 +358,8 @@ export class ClickHouseQueryBuilder {
           xxHash32(toUInt64(number * 4 + 1 + ${seedSalt})) AS h2,
           xxHash32(toUInt64(number * 4 + 2 + ${seedSalt})) AS h3,
           xxHash32(toUInt64((number % ${Math.max(tracesCount, 1)})) * 4 + ${seedSalt}) AS traceH1,
-          xxHash32(toUInt64((number % ${Math.max(tracesCount, 1)})) * 4 + 1 + ${seedSalt}) AS traceH2
+          xxHash32(toUInt64((number % ${Math.max(tracesCount, 1)})) * 4 + 1 + ${seedSalt}) AS traceH2,
+          (number % ${scoresPerTrace * 5}) + intDiv(number, ${Math.max(tracesCount, 1)}) * ${scoresPerTrace * 5} AS nameKey
         FROM numbers(${totalScores})
       );
     `;

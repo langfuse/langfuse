@@ -143,12 +143,12 @@ const run = async (
       ),
     );
   }
-  // The bulk SQL references session_0..session_99 on ~30% of traces; the
+  // The bulk SQL references {id-prefix}-session_0..99 on ~30% of traces; the
   // session detail page 404s without the Postgres trace_sessions rows
   // (same contract long-session handles for its own session).
   await prisma.traceSession.createMany({
     data: Array.from({ length: 100 }, (_, i) => ({
-      id: `session_${i}`,
+      id: `${ctx.idPrefix}-session_${i}`,
       projectId: ctx.projectId,
       environment: ctx.environment,
     })),
