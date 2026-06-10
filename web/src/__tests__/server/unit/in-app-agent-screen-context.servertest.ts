@@ -107,6 +107,67 @@ describe("sanitizeInAppAgentScreenContext", () => {
       },
     },
     {
+      name: "traces list URL with string and excluded option filters",
+      url: "https://cloud.langfuse.com/project/project-1/traces?filter=name%3Bstring%3B%3Bcontains%3Bcheckout%2Cenvironment%3BstringOptions%3B%3Bnone+of%3Bdev%257Cstaging",
+      currentPage: {
+        path: "/project/project-1/traces",
+        projectId: "project-1",
+        resource: "traces",
+        filters: [
+          {
+            field: "name",
+            type: "string",
+            operator: "contains",
+            value: "checkout",
+          },
+          {
+            field: "environment",
+            type: "stringOptions",
+            operator: "none of",
+            values: ["dev", "staging"],
+          },
+        ],
+      },
+    },
+    {
+      name: "traces list URL with keyed filters and datetime filter",
+      url: "https://cloud.langfuse.com/project/project-1/traces?filter=metadata%3BstringObject%3Bcustomer%3Bstarts+with%3Benterprise%2Cscores_avg%3BnumberObject%3Bquality%3B%253E%253D%3B0.8%2Cscore_categories%3BcategoryOptions%3Bquality%3Bany+of%3Bgood%257Cgreat%2Ctimestamp%3Bdatetime%3B%3B%253E%253D%3B2026-06-10T07%253A21%253A35.720Z",
+      currentPage: {
+        path: "/project/project-1/traces",
+        projectId: "project-1",
+        resource: "traces",
+        filters: [
+          {
+            field: "metadata",
+            type: "stringObject",
+            key: "customer",
+            operator: "starts with",
+            value: "enterprise",
+          },
+          {
+            field: "scores_avg",
+            type: "numberObject",
+            key: "quality",
+            operator: ">=",
+            value: 0.8,
+          },
+          {
+            field: "score_categories",
+            type: "categoryOptions",
+            key: "quality",
+            operator: "any of",
+            values: ["good", "great"],
+          },
+          {
+            field: "timestamp",
+            type: "datetime",
+            operator: ">=",
+            value: "2026-06-10T07:21:35.720Z",
+          },
+        ],
+      },
+    },
+    {
       name: "trace URL with broad non-whitespace ID values",
       url: "https://cloud.langfuse.com/project/project-1/traces?traceId=agent_123987129&observation=obs:abc.123&peek=7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
       currentPage: {

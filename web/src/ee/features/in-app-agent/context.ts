@@ -1,3 +1,5 @@
+import { filterOperators } from "@langfuse/shared";
+import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { z } from "zod";
 
 const AgUiContextSchema = z.object({
@@ -33,18 +35,20 @@ const FilterValueSchema = z
   .string()
   .regex(/^[\w@.+:-]{1,200}$/)
   .refine((value) => isSafeEmailLike(value) || !isInstructionLikeId(value));
-const FilterOperatorSchema = z.enum(["any of", "="]);
+const FilterFieldSchema = z.union([
+  FilterValueSchema,
+  z.literal("score_categories"),
+]);
+const FilterTypeSchema = z.string().regex(/^[A-Za-z0-9_:-]{1,64}$/);
+const FilterOperatorSchema = z.enum([
+  ...new Set(Object.values(filterOperators).flat()),
+] as [string, ...string[]]);
 const SafePathSegmentSchema = z
   .string()
   .min(1)
   .max(128)
   .regex(/^[A-Za-z0-9_:.@+-]+$/)
   .refine((segment) => !isInstructionLikeId(segment));
-const SafeFilterPartsSchema = z.object({
-  field: FilterValueSchema,
-  type: z.enum(["stringOptions", "boolean"]),
-  operator: FilterOperatorSchema,
-});
 const SafeTimestampSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
@@ -58,20 +62,14 @@ const optionalSanitizedSchema = <T>(schema: z.ZodType<T>) =>
     .catch(undefined)
     .transform((value) => value ?? undefined);
 
-const SanitizedScreenContextFilterSchema = z.union([
-  z.object({
-    field: FilterValueSchema,
-    type: z.literal("boolean"),
-    operator: FilterOperatorSchema,
-    value: z.boolean(),
-  }),
-  z.object({
-    field: FilterValueSchema,
-    type: z.literal("stringOptions"),
-    operator: FilterOperatorSchema,
-    values: z.array(FilterValueSchema).max(10),
-  }),
-]);
+const SanitizedScreenContextFilterSchema = z.object({
+  field: FilterFieldSchema,
+  type: FilterTypeSchema,
+  operator: FilterOperatorSchema,
+  key: FilterValueSchema.optional(),
+  value: z.union([FilterValueSchema, z.number(), z.boolean()]).optional(),
+  values: z.array(FilterValueSchema).max(10).optional(),
+});
 
 type SafeScreenContextFilter = z.infer<
   typeof SanitizedScreenContextFilterSchema
@@ -318,79 +316,78 @@ function parseSafeFilters(filter: string | null) {
     return [];
   }
 
+  return decodeFiltersGeneric(normalizeLegacyFilterKeySlots(filter))
+    .flatMap((decodedFilter) => sanitizeFilter(decodedFilter))
+    .slice(0, 10);
+}
+
+function normalizeLegacyFilterKeySlots(filter: string) {
   return filter
     .split(",")
-    .flatMap((rawFilter) => parseSafeFilter(rawFilter))
-    .slice(0, 10);
+    .map((rawFilter) => {
+      const parts = rawFilter.split(";");
+
+      return parts.length === 4
+        ? [parts[0], parts[1], "", parts[2], parts[3]].join(";")
+        : rawFilter;
+    })
+    .join(",");
 }
 
-function parseSafeFilter(rawFilter: string): SafeScreenContextFilter[] {
-  const [
-    field,
-    type,
-    maybeOperator,
-    maybeRawValue,
-    maybeRawValueWithEmptySlot,
-  ] = rawFilter.split(";");
-  const operator = maybeRawValueWithEmptySlot ? maybeRawValue : maybeOperator;
-  const rawValue = maybeRawValueWithEmptySlot ?? maybeRawValue;
+function sanitizeFilter(
+  filter: ReturnType<typeof decodeFiltersGeneric>[number],
+): SafeScreenContextFilter[] {
+  const sanitizedValue = sanitizeFilterValue(filter.value);
 
-  if (!field || !type || !operator || rawValue === undefined) {
+  if (
+    sanitizedValue === undefined &&
+    filter.type !== "null" &&
+    filter.type !== "positionInTrace"
+  ) {
     return [];
   }
 
-  const parsedFilterParts = SafeFilterPartsSchema.safeParse({
-    field,
-    type,
-    operator,
+  const sanitizedFilter = SanitizedScreenContextFilterSchema.safeParse({
+    field: filter.column,
+    type: filter.type,
+    operator: filter.operator,
+    ...("key" in filter ? { key: filter.key } : {}),
+    ...(sanitizedValue === undefined
+      ? {}
+      : Array.isArray(sanitizedValue)
+        ? { values: sanitizedValue }
+        : { value: sanitizedValue }),
   });
 
-  if (!parsedFilterParts.success) {
-    return [];
-  }
-
-  if (parsedFilterParts.data.type === "boolean") {
-    if (rawValue !== "true" && rawValue !== "false") {
-      return [];
-    }
-
-    return [
-      {
-        field: parsedFilterParts.data.field,
-        type: parsedFilterParts.data.type,
-        operator: parsedFilterParts.data.operator,
-        value: rawValue === "true",
-      },
-    ];
-  }
-
-  const values = rawValue
-    .split("|")
-    .flatMap((value) => {
-      const decodedValue = safelyDecodeUriComponent(value);
-
-      return decodedValue && FilterValueSchema.safeParse(decodedValue).success
-        ? [decodedValue]
-        : [];
-    })
-    .slice(0, 10);
-
-  return values.length > 0
-    ? [
-        {
-          field: parsedFilterParts.data.field,
-          type: parsedFilterParts.data.type,
-          operator: parsedFilterParts.data.operator,
-          values,
-        },
-      ]
-    : [];
+  return sanitizedFilter.success ? [sanitizedFilter.data] : [];
 }
 
-function safelyDecodeUriComponent(value: string) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return null;
+function sanitizeFilterValue(value: unknown) {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value.toISOString();
   }
+
+  if (typeof value === "string") {
+    return FilterValueSchema.safeParse(value).success ? value : undefined;
+  }
+
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : undefined;
+  }
+
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const values = value.flatMap((item) =>
+      typeof item === "string" && FilterValueSchema.safeParse(item).success
+        ? [item]
+        : [],
+    );
+
+    return values.length > 0 ? values.slice(0, 10) : undefined;
+  }
+
+  return undefined;
 }
