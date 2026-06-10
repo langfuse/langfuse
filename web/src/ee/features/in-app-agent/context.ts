@@ -2,11 +2,6 @@ import { filterOperators } from "@langfuse/shared";
 import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { z } from "zod";
 
-const AgUiContextSchema = z.object({
-  description: z.string(),
-  value: z.string(),
-});
-
 const InAppAgentScreenContextInputSchema = z.object({
   currentUrl: z.string().trim().pipe(z.url().max(4096)),
 });
@@ -107,11 +102,9 @@ type SanitizedFilterValue = string | number | boolean | string[] | undefined;
 // URL facts. Localhost URLs are accepted only in development. Do not pass raw
 // context values into prompts or tracing.
 const SanitizedInAppAgentScreenContextSchema = z
-  .array(AgUiContextSchema)
-  .transform((context, ctx) => {
-    const currentUrl = context.find(
-      (item) => item.description === "currentUrl",
-    )?.value;
+  .string()
+  .optional()
+  .transform((currentUrl, ctx) => {
     const parsedInput = InAppAgentScreenContextInputSchema.safeParse({
       currentUrl,
     });
@@ -206,11 +199,11 @@ export type SanitizedInAppAgentScreenContext = z.infer<
   typeof SanitizedInAppAgentScreenContextOutputSchema
 >;
 
-export function sanitizeInAppAgentScreenContext(
-  context: z.infer<typeof AgUiContextSchema>[],
+export function sanitizeInAppAgentScreenContextCurrentUrl(
+  currentUrl: string | undefined,
 ): [SanitizedInAppAgentScreenContext | null, boolean] {
   const parsedContext =
-    SanitizedInAppAgentScreenContextSchema.safeParse(context);
+    SanitizedInAppAgentScreenContextSchema.safeParse(currentUrl);
 
   if (!parsedContext.success) {
     return [null, false];

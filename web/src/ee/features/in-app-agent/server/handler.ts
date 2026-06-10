@@ -40,7 +40,7 @@ import {
   createAndAddApiKeysToDb,
   deleteApiKeyFromDb,
 } from "@langfuse/shared/src/server/auth/apiKeys";
-import { sanitizeInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
+import { sanitizeInAppAgentScreenContextCurrentUrl } from "@/src/ee/features/in-app-agent/context";
 
 const IN_APP_AGENT_API_KEY_NOTE = "In-app agent MCP session";
 const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
@@ -436,14 +436,16 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
     throw new InvalidRequestError("Input payload must include a user message");
   }
 
+  const currentUrl = input.context.find(
+    (item) => item.description === "currentUrl",
+  )?.value;
+
   const [context, didSanitizeScreenContextUrl] =
-    sanitizeInAppAgentScreenContext(input.context);
+    sanitizeInAppAgentScreenContextCurrentUrl(currentUrl);
 
   if (didSanitizeScreenContextUrl) {
     logger.warn("Sanitized in-app agent screen context URL", {
-      unsanitizedUrl: input.context.find(
-        (item) => item.description === "currentUrl",
-      )?.value,
+      unsanitizedUrl: currentUrl,
       sanitizedContext: context,
     });
   }

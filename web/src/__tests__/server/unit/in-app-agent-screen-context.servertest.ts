@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { sanitizeInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
+import { sanitizeInAppAgentScreenContextCurrentUrl } from "@/src/ee/features/in-app-agent/context";
 
-describe("sanitizeInAppAgentScreenContext", () => {
+describe("sanitizeInAppAgentScreenContextCurrentUrl", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
@@ -441,9 +441,8 @@ describe("sanitizeInAppAgentScreenContext", () => {
         ? testCase.expectedContext
         : { currentPage: testCase.currentPage };
 
-    const [sanitizedContext, wasSanitized] = sanitizeInAppAgentScreenContext([
-      { description: "currentUrl", value: testCase.url },
-    ]);
+    const [sanitizedContext, wasSanitized] =
+      sanitizeInAppAgentScreenContextCurrentUrl(testCase.url);
 
     expect(sanitizedContext).toEqual(expected);
     expect(wasSanitized).toBe(
@@ -455,12 +454,9 @@ describe("sanitizeInAppAgentScreenContext", () => {
     vi.stubEnv("NODE_ENV", "development");
 
     expect(
-      sanitizeInAppAgentScreenContext([
-        {
-          description: "currentUrl",
-          value: "https://localhost:3000/project/project-1/traces",
-        },
-      ])[0],
+      sanitizeInAppAgentScreenContextCurrentUrl(
+        "https://localhost:3000/project/project-1/traces",
+      )[0],
     ).toEqual({
       currentPage: {
         path: "/project/project-1/traces",
@@ -470,12 +466,9 @@ describe("sanitizeInAppAgentScreenContext", () => {
     });
 
     expect(
-      sanitizeInAppAgentScreenContext([
-        {
-          description: "currentUrl",
-          value: "http://localhost:3000/project/project-1/traces",
-        },
-      ])[0],
+      sanitizeInAppAgentScreenContextCurrentUrl(
+        "http://localhost:3000/project/project-1/traces",
+      )[0],
     ).toEqual({
       currentPage: {
         path: "/project/project-1/traces",
@@ -485,12 +478,9 @@ describe("sanitizeInAppAgentScreenContext", () => {
     });
 
     expect(
-      sanitizeInAppAgentScreenContext([
-        {
-          description: "currentUrl",
-          value: "http://127.0.0.1:3000/project/project-1/traces",
-        },
-      ])[0],
+      sanitizeInAppAgentScreenContextCurrentUrl(
+        "http://127.0.0.1:3000/project/project-1/traces",
+      )[0],
     ).toEqual({
       currentPage: {
         path: "/project/project-1/traces",
@@ -504,21 +494,15 @@ describe("sanitizeInAppAgentScreenContext", () => {
     vi.stubEnv("NODE_ENV", "production");
 
     expect(
-      sanitizeInAppAgentScreenContext([
-        {
-          description: "currentUrl",
-          value: "http://localhost:3000/project/project-1/traces",
-        },
-      ]),
+      sanitizeInAppAgentScreenContextCurrentUrl(
+        "http://localhost:3000/project/project-1/traces",
+      ),
     ).toEqual([null, false]);
 
     expect(
-      sanitizeInAppAgentScreenContext([
-        {
-          description: "currentUrl",
-          value: "http://127.0.0.1:3000/project/project-1/traces",
-        },
-      ]),
+      sanitizeInAppAgentScreenContextCurrentUrl(
+        "http://127.0.0.1:3000/project/project-1/traces",
+      ),
     ).toEqual([null, false]);
   });
 });
