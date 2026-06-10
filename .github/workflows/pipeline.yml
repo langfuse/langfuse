@@ -315,7 +315,7 @@ jobs:
             --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true"
       - name: Start compose services and wait for healthchecks
         run: |
-          timeout 200 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
+          timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
           cat /tmp/deps-up.log
           docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180
       - name: Check worker health
@@ -458,7 +458,8 @@ jobs:
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Wait for dev containers
         run: |
-          timeout 200 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' || true
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
           cat /tmp/compose-up.log
           docker compose ps
           exit "$(cat /tmp/compose-up.exit)"
@@ -782,7 +783,8 @@ jobs:
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Wait for dev containers
         run: |
-          timeout 200 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' || true
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
           cat /tmp/compose-up.log
           docker compose ps
           exit "$(cat /tmp/compose-up.exit)"
@@ -795,7 +797,8 @@ jobs:
           pnpm --filter=shared run db:seed
       - name: Wait for playwright install
         run: |
-          timeout 200 bash -c 'until [ -f /tmp/playwright-install.exit ]; do sleep 1; done' || true
+          timeout 600 bash -c 'until [ -f /tmp/playwright-install.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for playwright install"; cat /tmp/playwright-install.log; exit 1; }
           cat /tmp/playwright-install.log
           exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
@@ -867,7 +870,8 @@ jobs:
           NEXT_IGNORE_BUILD_ERRORS: "true"
       - name: Wait for dev containers
         run: |
-          timeout 200 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' || true
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
           cat /tmp/compose-up.log
           docker compose ps
           exit "$(cat /tmp/compose-up.exit)"
