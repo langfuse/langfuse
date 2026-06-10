@@ -403,8 +403,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 }
               }}
               disabled={isInputDisabled}
-              aria-label="Ask about Langfuse"
-              placeholder="Ask about Langfuse..."
+              aria-label="Ask the assistant a question"
+              placeholder="Ask the assistant a question..."
               rows={1}
               className={cn(
                 "bg-background placeholder:text-muted-foreground w-full flex-1 resize-none overflow-y-auto rounded-md text-sm leading-5 disabled:cursor-not-allowed disabled:opacity-60",
