@@ -4,6 +4,12 @@ import {
   MonitorService,
   type SessionContext,
 } from "@langfuse/shared/monitors/server";
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+} from "@langfuse/shared/monitors";
 import { prisma } from "@langfuse/shared/src/db";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -13,12 +19,12 @@ const baseMonitorInput = (projectId: string) => ({
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
   window: "5m" as const,
-  thresholdOperator: "GT" as const,
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: null,
-  noData: { mode: "SHOW_NO_DATA" as const },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" as const },
-  status: "ACTIVE" as const,
+  status: MonitorStatusSchema.enum.ACTIVE,
   name: "High error rate",
   tags: [],
 });
@@ -69,7 +75,7 @@ describe("MonitorService (integration)", () => {
       expect(row!.cadenceMs).toBe(60_000n);
       expect(row!.schedulerBatchId).toBeGreaterThan(0n);
       expect(row!.nextRunAt).toBeNull();
-      expect(row!.severity).toBe("UNKNOWN");
+      expect(row!.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
       expect(row!.createdBy).toBe(creator.userId);
       expect(row!.updatedBy).toBe(creator.userId);
     });
@@ -139,7 +145,7 @@ describe("MonitorService (integration)", () => {
       await prisma.monitor.update({
         where: { id: created.id },
         data: {
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: new Date(),
           alertedAt: new Date(),
           lastCompletedAt: new Date(),
@@ -153,7 +159,7 @@ describe("MonitorService (integration)", () => {
       });
 
       expect(updated.name).toBe("Renamed");
-      expect(updated.severity).toBe("ALERT");
+      expect(updated.severity).toBe(MonitorSeveritySchema.enum.ALERT);
       expect(updated.severityChangedAt).not.toBeNull();
       expect(updated.alertedAt).not.toBeNull();
       expect(updated.lastCompletedAt).not.toBeNull();
@@ -179,32 +185,32 @@ describe("MonitorService (integration)", () => {
         creator,
         baseMonitorInput(projectId),
       );
-      expect(created.severity).toBe("UNKNOWN");
+      expect(created.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
 
       const updated = await MonitorService.update(editor, {
         ...baseMonitorInput(projectId),
         id: created.id,
-        status: "PAUSED",
+        status: MonitorStatusSchema.enum.PAUSED,
       });
 
-      expect(updated.severity).toBe("PAUSED");
+      expect(updated.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
       expect(updated.severityChangedAt).not.toBeNull();
     });
 
     it("flips severity to UNKNOWN when status returns to ACTIVE", async () => {
       const created = await MonitorService.create(creator, {
         ...baseMonitorInput(projectId),
-        status: "PAUSED",
+        status: MonitorStatusSchema.enum.PAUSED,
       });
-      expect(created.severity).toBe("PAUSED");
+      expect(created.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
 
       const updated = await MonitorService.update(editor, {
         ...baseMonitorInput(projectId),
         id: created.id,
-        status: "ACTIVE",
+        status: MonitorStatusSchema.enum.ACTIVE,
       });
 
-      expect(updated.severity).toBe("UNKNOWN");
+      expect(updated.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
       expect(updated.severityChangedAt).not.toBeNull();
     });
 
@@ -215,7 +221,10 @@ describe("MonitorService (integration)", () => {
       );
       await prisma.monitor.update({
         where: { id: created.id },
-        data: { severity: "ALERT", severityChangedAt: new Date() },
+        data: {
+          severity: MonitorSeveritySchema.enum.ALERT,
+          severityChangedAt: new Date(),
+        },
       });
 
       const { status, ...withoutStatus } = baseMonitorInput(projectId);
@@ -226,16 +235,16 @@ describe("MonitorService (integration)", () => {
       });
 
       expect(updated.name).toBe("Renamed");
-      expect(updated.status).toBe("ACTIVE");
-      expect(updated.severity).toBe("ALERT");
+      expect(updated.status).toBe(MonitorStatusSchema.enum.ACTIVE);
+      expect(updated.severity).toBe(MonitorSeveritySchema.enum.ALERT);
     });
 
     it("does not resurrect a paused monitor when status is omitted", async () => {
       const created = await MonitorService.create(creator, {
         ...baseMonitorInput(projectId),
-        status: "PAUSED",
+        status: MonitorStatusSchema.enum.PAUSED,
       });
-      expect(created.severity).toBe("PAUSED");
+      expect(created.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
 
       const { status, ...withoutStatus } = baseMonitorInput(projectId);
       const updated = await MonitorService.update(editor, {
@@ -244,8 +253,8 @@ describe("MonitorService (integration)", () => {
         name: "Renamed",
       });
 
-      expect(updated.status).toBe("PAUSED");
-      expect(updated.severity).toBe("PAUSED");
+      expect(updated.status).toBe(MonitorStatusSchema.enum.PAUSED);
+      expect(updated.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
     });
 
     it("preserves worker-owned severity when status does not change", async () => {
@@ -255,7 +264,10 @@ describe("MonitorService (integration)", () => {
       );
       await prisma.monitor.update({
         where: { id: created.id },
-        data: { severity: "ALERT", severityChangedAt: new Date() },
+        data: {
+          severity: MonitorSeveritySchema.enum.ALERT,
+          severityChangedAt: new Date(),
+        },
       });
 
       const updated = await MonitorService.update(editor, {
@@ -264,7 +276,7 @@ describe("MonitorService (integration)", () => {
         name: "Renamed",
       });
 
-      expect(updated.severity).toBe("ALERT");
+      expect(updated.severity).toBe(MonitorSeveritySchema.enum.ALERT);
     });
 
     it("clears worker lifecycle stamps when update changes schedulerBatchId", async () => {

@@ -1,11 +1,15 @@
 import { describe, it, expect } from "vitest";
 
 import { applyStateMachine } from "./applyStateMachine";
-import type {
-  Monitor,
-  MonitorNoData,
-  MonitorRenotify,
-  MonitorSeverity,
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+  type Monitor,
+  type MonitorNoData,
+  type MonitorRenotify,
+  type MonitorSeverity,
 } from "../types";
 
 /** StateMachineCase is one applyStateMachine transition-table row. */
@@ -32,9 +36,11 @@ const t0 = new Date("2026-05-27T12:00:00.000Z");
 const tMinus2m = new Date("2026-05-27T11:58:00.000Z");
 const tMinus10m = new Date("2026-05-27T11:50:00.000Z");
 const tMinus12m = new Date("2026-05-27T11:48:00.000Z");
-const noDataShowNoData: MonitorNoData = { mode: "SHOW_NO_DATA" };
+const noDataShowNoData: MonitorNoData = {
+  mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA,
+};
 const noDataNotify5: MonitorNoData = {
-  mode: "NOTIFY_NO_DATA",
+  mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
   intervalMinutes: 5,
 };
 const renotifyOff: MonitorRenotify = { mode: "OFF" };
@@ -52,18 +58,18 @@ const baseMonitor: Monitor = {
   filters: [],
   metric: { measure: "count", aggregation: "count" },
   window: "5m",
-  thresholdOperator: "GT",
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: null,
-  noData: { mode: "SHOW_NO_DATA" },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" },
   name: "Test",
   tags: [],
   triggerIds: [],
-  severity: "UNKNOWN",
+  severity: MonitorSeveritySchema.enum.UNKNOWN,
   severityChangedAt: null,
   alertedAt: null,
-  status: "ACTIVE",
+  status: MonitorStatusSchema.enum.ACTIVE,
   nextRunAt: null,
   lastPublishedAt: null,
   lastClaimedAt: null,
@@ -76,8 +82,8 @@ const cases: StateMachineCase[] = [
   {
     name: "UNKNOWN -> OK: silent",
     input: {
-      prevSeverity: "UNKNOWN",
-      computedSeverity: "OK",
+      prevSeverity: MonitorSeveritySchema.enum.UNKNOWN,
+      computedSeverity: MonitorSeveritySchema.enum.OK,
       prevSeverityChangedAt: null,
       prevAlertedAt: null,
       now: t0,
@@ -86,7 +92,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "OK",
+      nextSeverity: MonitorSeveritySchema.enum.OK,
       nextSeverityChangedAt: t0,
       nextAlertedAt: null,
     },
@@ -94,8 +100,8 @@ const cases: StateMachineCase[] = [
   {
     name: "UNKNOWN -> WARNING: emit",
     input: {
-      prevSeverity: "UNKNOWN",
-      computedSeverity: "WARNING",
+      prevSeverity: MonitorSeveritySchema.enum.UNKNOWN,
+      computedSeverity: MonitorSeveritySchema.enum.WARNING,
       prevSeverityChangedAt: null,
       prevAlertedAt: null,
       now: t0,
@@ -104,7 +110,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "WARNING",
+      nextSeverity: MonitorSeveritySchema.enum.WARNING,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -112,8 +118,8 @@ const cases: StateMachineCase[] = [
   {
     name: "UNKNOWN -> ALERT: emit",
     input: {
-      prevSeverity: "UNKNOWN",
-      computedSeverity: "ALERT",
+      prevSeverity: MonitorSeveritySchema.enum.UNKNOWN,
+      computedSeverity: MonitorSeveritySchema.enum.ALERT,
       prevSeverityChangedAt: null,
       prevAlertedAt: null,
       now: t0,
@@ -122,7 +128,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "ALERT",
+      nextSeverity: MonitorSeveritySchema.enum.ALERT,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -130,8 +136,8 @@ const cases: StateMachineCase[] = [
   {
     name: "UNKNOWN -> NO_DATA: silent regardless of noData mode",
     input: {
-      prevSeverity: "UNKNOWN",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.UNKNOWN,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: null,
       prevAlertedAt: null,
       now: t0,
@@ -140,7 +146,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: t0,
       nextAlertedAt: null,
     },
@@ -150,8 +156,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> OK with noData SHOW_NO_DATA: silent",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "OK",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.OK,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
@@ -160,7 +166,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "OK",
+      nextSeverity: MonitorSeveritySchema.enum.OK,
       nextSeverityChangedAt: t0,
       nextAlertedAt: null,
     },
@@ -168,8 +174,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> OK with noData NOTIFY_NO_DATA: emit",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "OK",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.OK,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -178,7 +184,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "OK",
+      nextSeverity: MonitorSeveritySchema.enum.OK,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -188,8 +194,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> WARNING with noData SHOW_NO_DATA: emit",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "WARNING",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.WARNING,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
@@ -198,7 +204,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "WARNING",
+      nextSeverity: MonitorSeveritySchema.enum.WARNING,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -206,8 +212,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> ALERT: emit",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "ALERT",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.ALERT,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
@@ -216,7 +222,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "ALERT",
+      nextSeverity: MonitorSeveritySchema.enum.ALERT,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -226,8 +232,8 @@ const cases: StateMachineCase[] = [
   {
     name: "OK -> NO_DATA with noData SHOW_NO_DATA: silent",
     input: {
-      prevSeverity: "OK",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.OK,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -236,7 +242,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: t0,
       nextAlertedAt: tMinus10m,
     },
@@ -244,8 +250,8 @@ const cases: StateMachineCase[] = [
   {
     name: "OK -> NO_DATA with noData NOTIFY_NO_DATA and prevAlertedAt past interval: emit",
     input: {
-      prevSeverity: "OK",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.OK,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m, // interval 5m elapsed
       now: t0,
@@ -254,7 +260,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -262,8 +268,8 @@ const cases: StateMachineCase[] = [
   {
     name: "OK -> NO_DATA with noData NOTIFY_NO_DATA and prevAlertedAt within interval: silent (cooldown)",
     input: {
-      prevSeverity: "OK",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.OK,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus2m, // interval 5m not elapsed
       now: t0,
@@ -272,7 +278,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: t0,
       nextAlertedAt: tMinus2m,
     },
@@ -280,8 +286,8 @@ const cases: StateMachineCase[] = [
   {
     name: "OK -> NO_DATA with noData NOTIFY_NO_DATA and prevAlertedAt NULL: emit",
     input: {
-      prevSeverity: "OK",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.OK,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
@@ -290,7 +296,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -298,8 +304,8 @@ const cases: StateMachineCase[] = [
   {
     name: "WARNING -> NO_DATA with noData NOTIFY_NO_DATA past interval: emit",
     input: {
-      prevSeverity: "WARNING",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.WARNING,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -308,7 +314,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -316,8 +322,8 @@ const cases: StateMachineCase[] = [
   {
     name: "ALERT -> NO_DATA with noData SHOW_NO_DATA: silent",
     input: {
-      prevSeverity: "ALERT",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.ALERT,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -326,7 +332,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: t0,
       nextAlertedAt: tMinus10m,
     },
@@ -336,8 +342,8 @@ const cases: StateMachineCase[] = [
   {
     name: "OK -> WARNING: emit",
     input: {
-      prevSeverity: "OK",
-      computedSeverity: "WARNING",
+      prevSeverity: MonitorSeveritySchema.enum.OK,
+      computedSeverity: MonitorSeveritySchema.enum.WARNING,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
@@ -346,7 +352,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "WARNING",
+      nextSeverity: MonitorSeveritySchema.enum.WARNING,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -354,8 +360,8 @@ const cases: StateMachineCase[] = [
   {
     name: "OK -> ALERT: emit",
     input: {
-      prevSeverity: "OK",
-      computedSeverity: "ALERT",
+      prevSeverity: MonitorSeveritySchema.enum.OK,
+      computedSeverity: MonitorSeveritySchema.enum.ALERT,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
@@ -364,7 +370,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "ALERT",
+      nextSeverity: MonitorSeveritySchema.enum.ALERT,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -374,8 +380,8 @@ const cases: StateMachineCase[] = [
   {
     name: "WARNING -> ALERT: emit",
     input: {
-      prevSeverity: "WARNING",
-      computedSeverity: "ALERT",
+      prevSeverity: MonitorSeveritySchema.enum.WARNING,
+      computedSeverity: MonitorSeveritySchema.enum.ALERT,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -384,7 +390,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "ALERT",
+      nextSeverity: MonitorSeveritySchema.enum.ALERT,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -392,8 +398,8 @@ const cases: StateMachineCase[] = [
   {
     name: "ALERT -> WARNING: emit",
     input: {
-      prevSeverity: "ALERT",
-      computedSeverity: "WARNING",
+      prevSeverity: MonitorSeveritySchema.enum.ALERT,
+      computedSeverity: MonitorSeveritySchema.enum.WARNING,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -402,7 +408,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "WARNING",
+      nextSeverity: MonitorSeveritySchema.enum.WARNING,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -412,8 +418,8 @@ const cases: StateMachineCase[] = [
   {
     name: "WARNING -> OK: emit",
     input: {
-      prevSeverity: "WARNING",
-      computedSeverity: "OK",
+      prevSeverity: MonitorSeveritySchema.enum.WARNING,
+      computedSeverity: MonitorSeveritySchema.enum.OK,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -422,7 +428,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "OK",
+      nextSeverity: MonitorSeveritySchema.enum.OK,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -430,8 +436,8 @@ const cases: StateMachineCase[] = [
   {
     name: "ALERT -> OK: emit",
     input: {
-      prevSeverity: "ALERT",
-      computedSeverity: "OK",
+      prevSeverity: MonitorSeveritySchema.enum.ALERT,
+      computedSeverity: MonitorSeveritySchema.enum.OK,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -440,7 +446,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "OK",
+      nextSeverity: MonitorSeveritySchema.enum.OK,
       nextSeverityChangedAt: t0,
       nextAlertedAt: t0,
     },
@@ -450,8 +456,8 @@ const cases: StateMachineCase[] = [
   {
     name: "OK -> OK: silent",
     input: {
-      prevSeverity: "OK",
-      computedSeverity: "OK",
+      prevSeverity: MonitorSeveritySchema.enum.OK,
+      computedSeverity: MonitorSeveritySchema.enum.OK,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -460,7 +466,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "OK",
+      nextSeverity: MonitorSeveritySchema.enum.OK,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus10m,
     },
@@ -470,8 +476,8 @@ const cases: StateMachineCase[] = [
   {
     name: "WARNING -> WARNING with renotify OFF: silent",
     input: {
-      prevSeverity: "WARNING",
-      computedSeverity: "WARNING",
+      prevSeverity: MonitorSeveritySchema.enum.WARNING,
+      computedSeverity: MonitorSeveritySchema.enum.WARNING,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -480,7 +486,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "WARNING",
+      nextSeverity: MonitorSeveritySchema.enum.WARNING,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus10m,
     },
@@ -488,8 +494,8 @@ const cases: StateMachineCase[] = [
   {
     name: "WARNING -> WARNING with renotify EVERY past interval: emit",
     input: {
-      prevSeverity: "WARNING",
-      computedSeverity: "WARNING",
+      prevSeverity: MonitorSeveritySchema.enum.WARNING,
+      computedSeverity: MonitorSeveritySchema.enum.WARNING,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m, // interval 5m elapsed
       now: t0,
@@ -498,7 +504,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "WARNING",
+      nextSeverity: MonitorSeveritySchema.enum.WARNING,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: t0,
     },
@@ -506,8 +512,8 @@ const cases: StateMachineCase[] = [
   {
     name: "WARNING -> WARNING with renotify EVERY within interval: silent",
     input: {
-      prevSeverity: "WARNING",
-      computedSeverity: "WARNING",
+      prevSeverity: MonitorSeveritySchema.enum.WARNING,
+      computedSeverity: MonitorSeveritySchema.enum.WARNING,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus2m, // interval 5m not elapsed
       now: t0,
@@ -516,7 +522,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "WARNING",
+      nextSeverity: MonitorSeveritySchema.enum.WARNING,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus2m,
     },
@@ -524,8 +530,8 @@ const cases: StateMachineCase[] = [
   {
     name: "ALERT -> ALERT with renotify EVERY past interval: emit",
     input: {
-      prevSeverity: "ALERT",
-      computedSeverity: "ALERT",
+      prevSeverity: MonitorSeveritySchema.enum.ALERT,
+      computedSeverity: MonitorSeveritySchema.enum.ALERT,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -534,7 +540,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "ALERT",
+      nextSeverity: MonitorSeveritySchema.enum.ALERT,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: t0,
     },
@@ -542,8 +548,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> NO_DATA with renotify OFF: silent",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -552,7 +558,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus10m,
     },
@@ -560,8 +566,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> NO_DATA with noData SHOW_NO_DATA and renotify EVERY past interval: silent",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -570,7 +576,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus10m,
     },
@@ -578,8 +584,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> NO_DATA with noData NOTIFY_NO_DATA and renotify EVERY past interval: emit",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -588,7 +594,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: t0,
     },
@@ -596,8 +602,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> NO_DATA with noData NOTIFY_NO_DATA and renotify EVERY within interval: silent",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus2m,
       now: t0,
@@ -606,7 +612,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus2m,
     },
@@ -614,8 +620,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> NO_DATA with noData NOTIFY_NO_DATA and renotify OFF: silent",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -624,7 +630,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus10m,
     },
@@ -632,8 +638,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> NO_DATA, NOTIFY_NO_DATA, prior-stretch alert predates NO_DATA stretch, interval elapsed: emit",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus12m,
       now: t0,
@@ -642,7 +648,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: t0,
     },
@@ -650,8 +656,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> NO_DATA, NOTIFY_NO_DATA, no prior alert, interval elapsed: emit",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
@@ -660,7 +666,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: true,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: t0,
     },
@@ -668,8 +674,8 @@ const cases: StateMachineCase[] = [
   {
     name: "NO_DATA -> NO_DATA, NOTIFY_NO_DATA, no prior alert, interval not elapsed: silent",
     input: {
-      prevSeverity: "NO_DATA",
-      computedSeverity: "NO_DATA",
+      prevSeverity: MonitorSeveritySchema.enum.NO_DATA,
+      computedSeverity: MonitorSeveritySchema.enum.NO_DATA,
       prevSeverityChangedAt: tMinus2m,
       prevAlertedAt: null,
       now: t0,
@@ -678,7 +684,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "NO_DATA",
+      nextSeverity: MonitorSeveritySchema.enum.NO_DATA,
       nextSeverityChangedAt: tMinus2m,
       nextAlertedAt: null,
     },
@@ -686,8 +692,8 @@ const cases: StateMachineCase[] = [
   {
     name: "WARNING -> WARNING with renotify EVERY and prevAlertedAt NULL: silent",
     input: {
-      prevSeverity: "WARNING",
-      computedSeverity: "WARNING",
+      prevSeverity: MonitorSeveritySchema.enum.WARNING,
+      computedSeverity: MonitorSeveritySchema.enum.WARNING,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
@@ -696,7 +702,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "WARNING",
+      nextSeverity: MonitorSeveritySchema.enum.WARNING,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: null,
     },
@@ -705,8 +711,8 @@ const cases: StateMachineCase[] = [
   {
     name: "PAUSED -> anything: no-op, preserve PAUSED + prev stamps",
     input: {
-      prevSeverity: "PAUSED",
-      computedSeverity: "ALERT",
+      prevSeverity: MonitorSeveritySchema.enum.PAUSED,
+      computedSeverity: MonitorSeveritySchema.enum.ALERT,
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
@@ -715,7 +721,7 @@ const cases: StateMachineCase[] = [
     },
     expected: {
       emit: false,
-      nextSeverity: "PAUSED",
+      nextSeverity: MonitorSeveritySchema.enum.PAUSED,
       nextSeverityChangedAt: tMinus10m,
       nextAlertedAt: tMinus10m,
     },
@@ -756,14 +762,14 @@ describe("applyStateMachine", () => {
       ...baseMonitor,
       noData: noDataShowNoData,
       renotify: renotifyEvery5,
-      severity: "ALERT",
+      severity: MonitorSeveritySchema.enum.ALERT,
       severityChangedAt: tAlert,
       alertedAt: tAlert,
     };
 
     const recovery = applyStateMachine({
       prev: monitor,
-      next: { severity: "OK" },
+      next: { severity: MonitorSeveritySchema.enum.OK },
       now: tOk,
       publishedAt: tOk,
     });
@@ -772,7 +778,7 @@ describe("applyStateMachine", () => {
 
     const enterNoData = applyStateMachine({
       prev: { ...monitor, ...recovery.completion },
-      next: { severity: "NO_DATA" },
+      next: { severity: MonitorSeveritySchema.enum.NO_DATA },
       now: tNoData,
       publishedAt: tNoData,
     });
@@ -781,7 +787,7 @@ describe("applyStateMachine", () => {
 
     const selfLoop = applyStateMachine({
       prev: { ...monitor, ...enterNoData.completion },
-      next: { severity: "NO_DATA" },
+      next: { severity: MonitorSeveritySchema.enum.NO_DATA },
       now: tLoop,
       publishedAt: tLoop,
     });

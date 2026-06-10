@@ -5,6 +5,11 @@ import {
   MonitorScheduler,
   type MonitorQueueEventInput,
 } from "@langfuse/shared/monitors/server";
+import {
+  MonitorNoDataModeSchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+} from "@langfuse/shared/monitors";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma } from "@prisma/client";
 
@@ -86,12 +91,14 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       }) as unknown as Prisma.InputJsonValue,
       windowMs: seed.windowMs ?? 5n * oneMinuteMs,
       cadenceMs: seed.cadenceMs ?? oneMinuteMs,
-      thresholdOperator: "GT",
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
       alertThreshold: 100,
       warningThreshold: null,
-      noData: { mode: "SHOW_NO_DATA" } as unknown as Prisma.InputJsonValue,
+      noData: {
+        mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA,
+      } as unknown as Prisma.InputJsonValue,
       renotify: { mode: "OFF" } as unknown as Prisma.InputJsonValue,
-      status: seed.status ?? "ACTIVE",
+      status: seed.status ?? MonitorStatusSchema.enum.ACTIVE,
       schedulerBatchId: seed.schedulerBatchId ?? 0n,
       nextRunAt: seed.nextRunAt === undefined ? null : seed.nextRunAt,
       lastPublishedAt: seed.lastPublishedAt ?? null,
@@ -372,7 +379,7 @@ const cases: SchedulerCase[] = [
     monitors: [
       {
         id: "m_paused",
-        status: "PAUSED",
+        status: MonitorStatusSchema.enum.PAUSED,
         nextRunAt: prevCadence,
       },
     ],
@@ -394,7 +401,7 @@ const cases: SchedulerCase[] = [
     monitors: [
       {
         id: "m_error",
-        status: "ERROR_BAD_QUERY",
+        status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
         nextRunAt: prevCadence,
       },
     ],

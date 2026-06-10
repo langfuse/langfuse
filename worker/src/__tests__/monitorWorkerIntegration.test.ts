@@ -28,6 +28,12 @@ import {
   MonitorQueueEventSchema,
   MonitorScheduler,
 } from "@langfuse/shared/monitors/server";
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+} from "@langfuse/shared/monitors";
 import { prisma } from "@langfuse/shared/src/db";
 import { encrypt, generateWebhookSecret } from "@langfuse/shared/encryption";
 
@@ -63,7 +69,7 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
         {
           column: "severity",
           operator: "any of",
-          value: ["ALERT"],
+          value: [MonitorSeveritySchema.enum.ALERT],
           type: "stringOptions",
         },
       ],
@@ -128,7 +134,7 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
         apiVersion: "v1",
         payload: {
           monitorId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           fromTimestamp: expectedFrom,
           toTimestamp: expectedTo,
         },
@@ -144,7 +150,7 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
         {
           column: "severity",
           operator: "any of",
-          value: ["ALERT"],
+          value: [MonitorSeveritySchema.enum.ALERT],
           type: "stringOptions",
         },
       ],
@@ -214,7 +220,7 @@ describe("monitor-alert e2e (scheduler → processor → dispatcher → webhook 
         {
           column: "severity",
           operator: "any of",
-          value: ["ALERT"],
+          value: [MonitorSeveritySchema.enum.ALERT],
           type: "stringOptions",
         },
       ],
@@ -377,18 +383,18 @@ async function seedMonitor(args: {
       metric: { measure: "count", aggregation: "count" },
       windowMs: 5n * 60n * 1000n,
       cadenceMs: 60n * 1000n,
-      thresholdOperator: "GT",
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
       alertThreshold: args.alertThreshold,
       warningThreshold: null,
-      noData: { mode: "SHOW_NO_DATA" },
+      noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
       renotify: { mode: "OFF" },
-      status: "ACTIVE",
+      status: MonitorStatusSchema.enum.ACTIVE,
       schedulerBatchId: 0n,
       nextRunAt: new Date(Date.now() - 1000),
       lastPublishedAt: null,
       lastClaimedAt: null,
       lastCompletedAt: null,
-      severity: "UNKNOWN",
+      severity: MonitorSeveritySchema.enum.UNKNOWN,
       severityChangedAt: null,
       alertedAt: null,
       tags: [],

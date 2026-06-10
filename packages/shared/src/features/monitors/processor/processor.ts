@@ -23,7 +23,13 @@ import {
   type MonitorWebhookInput,
 } from "../scheduler/types";
 import { monitorFromPrisma, windowToMs } from "../service/helpers";
-import { type MonitorAlert, type MonitorWindow, type Monitor } from "../types";
+import {
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  type MonitorAlert,
+  type MonitorWindow,
+  type Monitor,
+} from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
 import { resolveNoDataSeverity } from "./resolveNoDataSeverity";
@@ -104,7 +110,7 @@ export class MonitorProcessor {
       where: {
         id: { in: event.monitors.map((m) => m.monitorId) },
         projectId: event.projectId,
-        status: "ACTIVE", // active monitors for the
+        status: MonitorStatusSchema.enum.ACTIVE, // active monitors for the
         lastPublishedAt: { lte: event.publishedAt }, // newest event
         AND: [
           // not already claimed
@@ -302,8 +308,8 @@ function processMonitor(args: {
         lastClaimedAt: now,
         lastCompletedAt: now,
         publishedAt,
-        status: "ERROR_BAD_QUERY",
-        severity: "PAUSED",
+        status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+        severity: MonitorSeveritySchema.enum.PAUSED,
         severityChangedAt: now,
         alertedAt: monitor.alertedAt,
       },

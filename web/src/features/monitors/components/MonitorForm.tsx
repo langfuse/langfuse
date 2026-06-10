@@ -62,8 +62,12 @@ import {
   getValidMonitorFilterColumns,
   type Monitor,
   type MonitorNoData,
+  MonitorNoDataModeSchema,
   type MonitorRenotify,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
   type MonitorThresholdOperator,
+  MonitorThresholdOperatorSchema,
   type MonitorView,
   MonitorViewSchema,
   type MonitorWindow,
@@ -104,16 +108,6 @@ const operatorLabels: Record<MonitorThresholdOperator, string> = {
   NEQ: "not equal to",
 };
 
-/** triggerOperatorOptions lists the MonitorThresholdOperators shown in the trigger-condition dropdown. */
-const triggerOperatorOptions: ReadonlyArray<MonitorThresholdOperator> = [
-  "GT",
-  "LT",
-  "GTE",
-  "LTE",
-  "EQ",
-  "NEQ",
-];
-
 /** operatorSymbol maps each MonitorThresholdOperator to a single math glyph. */
 const operatorSymbol: Record<MonitorThresholdOperator, string> = {
   GT: ">",
@@ -138,13 +132,13 @@ const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
   filters: [],
   metric: { measure: "count", aggregation: "count" },
   window: "5m",
-  thresholdOperator: "GT",
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   warningThreshold: null,
-  noData: { mode: "SUBSTITUTE_ZERO" },
+  noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
   renotify: { mode: "OFF" },
   tags: [],
   triggerIds: [],
-  status: "ACTIVE",
+  status: MonitorStatusSchema.enum.ACTIVE,
 });
 
 /** monitorToDefaults maps a persisted Monitor into the edit form's defaults. */
@@ -388,7 +382,8 @@ export const MonitorForm = ({
     const view = (watched.view ?? "observations") as MonitorView;
     const measure = watched.metric?.measure ?? "count";
     const aggregation = watched.metric?.aggregation ?? "count";
-    const op = (watched.thresholdOperator ?? "GT") as MonitorThresholdOperator;
+    const op = (watched.thresholdOperator ??
+      MonitorThresholdOperatorSchema.enum.GT) as MonitorThresholdOperator;
     const threshold = watched.alertThreshold;
     const aggLabel = startCase(aggregation);
     const viewLabel = viewLabels[view];
@@ -636,7 +631,9 @@ export const MonitorForm = ({
                           field.onChange(next);
                           // A warning band before a "not equal" alert has no
                           // meaningful ordering, so drop any stale value.
-                          if (next === "NEQ") {
+                          if (
+                            next === MonitorThresholdOperatorSchema.enum.NEQ
+                          ) {
                             form.setValue("warningThreshold", null, {
                               shouldValidate: true,
                             });
@@ -650,7 +647,7 @@ export const MonitorForm = ({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {triggerOperatorOptions.map((op) => (
+                          {MonitorThresholdOperatorSchema.options.map((op) => (
                             <SelectItem key={op} value={op}>
                               {operatorLabels[op]}
                             </SelectItem>
@@ -666,7 +663,9 @@ export const MonitorForm = ({
                   render={({ field }) => (
                     <FormItem>
                       <div className="flex items-center gap-2">
-                        <MonitorSeverityBadge severity="ALERT" />
+                        <MonitorSeverityBadge
+                          severity={MonitorSeveritySchema.enum.ALERT}
+                        />
                         <span className="text-sm whitespace-nowrap">
                           Threshold
                         </span>
@@ -674,7 +673,8 @@ export const MonitorForm = ({
                           {
                             operatorSymbol[
                               (watched.thresholdOperator ??
-                                "GT") as keyof typeof operatorSymbol
+                                MonitorThresholdOperatorSchema.enum
+                                  .GT) as keyof typeof operatorSymbol
                             ]
                           }
                         </span>
@@ -702,9 +702,16 @@ export const MonitorForm = ({
                   control={form.control}
                   name="warningThreshold"
                   render={({ field }) => (
-                    <FormItem hidden={watched.thresholdOperator === "NEQ"}>
+                    <FormItem
+                      hidden={
+                        watched.thresholdOperator ===
+                        MonitorThresholdOperatorSchema.enum.NEQ
+                      }
+                    >
                       <div className="flex items-center gap-2">
-                        <MonitorSeverityBadge severity="WARNING" />
+                        <MonitorSeverityBadge
+                          severity={MonitorSeveritySchema.enum.WARNING}
+                        />
                         <span className="text-sm whitespace-nowrap">
                           Threshold
                         </span>
@@ -712,7 +719,8 @@ export const MonitorForm = ({
                           {
                             operatorSymbol[
                               (watched.thresholdOperator ??
-                                "GT") as keyof typeof operatorSymbol
+                                MonitorThresholdOperatorSchema.enum
+                                  .GT) as keyof typeof operatorSymbol
                             ]
                           }
                         </span>
@@ -910,7 +918,8 @@ export const MonitorForm = ({
                 "count") as CreateMonitor["metric"]["aggregation"]
             }
             thresholdOperator={
-              (watched.thresholdOperator ?? "GT") as MonitorThresholdOperator
+              watched.thresholdOperator ??
+              MonitorThresholdOperatorSchema.enum.GT
             }
             alertThreshold={watched.alertThreshold}
             warningThreshold={watched.warningThreshold ?? null}
@@ -980,8 +989,11 @@ const NoDataField = ({
       value={value.mode}
       onValueChange={(mode) =>
         onChange(
-          mode === "NOTIFY_NO_DATA"
-            ? { mode: "NOTIFY_NO_DATA", intervalMinutes: 60 }
+          mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA
+            ? {
+                mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+                intervalMinutes: 60,
+              }
             : {
                 mode: mode as Exclude<MonitorNoData["mode"], "NOTIFY_NO_DATA">,
               },
@@ -993,13 +1005,13 @@ const NoDataField = ({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="SUBSTITUTE_ZERO">
+        <SelectItem value={MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO}>
           <span className="inline-flex items-center gap-1.5">
             Treat missing data as
             <code className="bg-secondary rounded border px-0.5">0</code>
           </span>
         </SelectItem>
-        <SelectItem value="LAST_SEVERITY">
+        <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
           <span className="inline-flex items-center gap-1.5">
             Keep the previous
             <Badge
@@ -1010,21 +1022,25 @@ const NoDataField = ({
             </Badge>
           </span>
         </SelectItem>
-        <SelectItem value="SHOW_NO_DATA">
+        <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>
           <span className="inline-flex items-center gap-1.5">
             Show severity
-            <MonitorSeverityBadge severity="NO_DATA" />
+            <MonitorSeverityBadge
+              severity={MonitorSeveritySchema.enum.NO_DATA}
+            />
           </span>
         </SelectItem>
-        <SelectItem value="NOTIFY_NO_DATA">
+        <SelectItem value={MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA}>
           <span className="inline-flex items-center gap-1.5">
             Notify after sustained
-            <MonitorSeverityBadge severity="NO_DATA" />
+            <MonitorSeverityBadge
+              severity={MonitorSeveritySchema.enum.NO_DATA}
+            />
           </span>
         </SelectItem>
       </SelectContent>
     </Select>
-    {value.mode === "NOTIFY_NO_DATA" && (
+    {value.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA && (
       <div className="flex items-center gap-2">
         <Label className="text-muted-foreground text-xs">Notify after</Label>
         <Input
@@ -1034,7 +1050,7 @@ const NoDataField = ({
           value={value.intervalMinutes}
           onChange={(e) =>
             onChange({
-              mode: "NOTIFY_NO_DATA",
+              mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
               intervalMinutes: Math.max(1, Number(e.target.value) || 1),
             })
           }

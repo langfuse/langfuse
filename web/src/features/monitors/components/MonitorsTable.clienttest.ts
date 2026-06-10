@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { type FilterState } from "@langfuse/shared";
-import { type Monitor } from "@langfuse/shared/monitors";
+import {
+  type Monitor,
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+} from "@langfuse/shared/monitors";
 
 import { __test } from "./MonitorsTable";
 
@@ -15,16 +21,16 @@ const monitorFixture = (status: Monitor["status"]): Monitor => ({
   filters: [],
   metric: { measure: "count", aggregation: "count" },
   window: "5m",
-  thresholdOperator: "GT",
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 10,
   warningThreshold: null,
-  noData: { mode: "SHOW_NO_DATA" },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" },
   name: "My Monitor",
   tags: ["prod"],
   triggerIds: ["t-a"],
   status,
-  severity: "OK",
+  severity: MonitorSeveritySchema.enum.OK,
   severityChangedAt: null,
   alertedAt: null,
   createdAt: new Date(),
@@ -44,7 +50,10 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["ALERT", "WARNING"],
+        value: [
+          MonitorSeveritySchema.enum.ALERT,
+          MonitorSeveritySchema.enum.WARNING,
+        ],
       },
     ];
     expect(filterStateToListMonitorFilter(state)).toEqual([
@@ -52,7 +61,10 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["ALERT", "WARNING"],
+        value: [
+          MonitorSeveritySchema.enum.ALERT,
+          MonitorSeveritySchema.enum.WARNING,
+        ],
       },
     ]);
   });
@@ -63,7 +75,7 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["NO_DATA"],
+        value: [MonitorSeveritySchema.enum.NO_DATA],
       },
     ];
     expect(filterStateToListMonitorFilter(state)).toEqual([
@@ -71,7 +83,10 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["NO_DATA", "UNKNOWN"],
+        value: [
+          MonitorSeveritySchema.enum.NO_DATA,
+          MonitorSeveritySchema.enum.UNKNOWN,
+        ],
       },
     ]);
   });
@@ -82,7 +97,7 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "none of",
-        value: ["NO_DATA"],
+        value: [MonitorSeveritySchema.enum.NO_DATA],
       },
     ];
     expect(filterStateToListMonitorFilter(state)).toEqual([
@@ -90,7 +105,10 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "none of",
-        value: ["NO_DATA", "UNKNOWN"],
+        value: [
+          MonitorSeveritySchema.enum.NO_DATA,
+          MonitorSeveritySchema.enum.UNKNOWN,
+        ],
       },
     ]);
   });
@@ -101,7 +119,11 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["NO_DATA", "UNKNOWN", "ALERT"],
+        value: [
+          MonitorSeveritySchema.enum.NO_DATA,
+          MonitorSeveritySchema.enum.UNKNOWN,
+          MonitorSeveritySchema.enum.ALERT,
+        ],
       },
     ];
     expect(filterStateToListMonitorFilter(state)).toEqual([
@@ -109,7 +131,11 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["NO_DATA", "UNKNOWN", "ALERT"],
+        value: [
+          MonitorSeveritySchema.enum.NO_DATA,
+          MonitorSeveritySchema.enum.UNKNOWN,
+          MonitorSeveritySchema.enum.ALERT,
+        ],
       },
     ]);
   });
@@ -150,13 +176,13 @@ describe("filterStateToListMonitorFilter", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["ALERT"],
+        value: [MonitorSeveritySchema.enum.ALERT],
       },
       {
         type: "stringOptions",
         column: "severity",
         operator: "none of",
-        value: ["PAUSED"],
+        value: [MonitorSeveritySchema.enum.PAUSED],
       },
     ];
     expect(filterStateToListMonitorFilter(state)).toEqual([]);
@@ -165,19 +191,21 @@ describe("filterStateToListMonitorFilter", () => {
 
 describe("buildStatusToggleUpdate", () => {
   it("ACTIVE monitor: flips status to PAUSED", () => {
-    expect(buildStatusToggleUpdate(monitorFixture("ACTIVE")).status).toBe(
-      "PAUSED",
-    );
+    expect(
+      buildStatusToggleUpdate(monitorFixture(MonitorStatusSchema.enum.ACTIVE))
+        .status,
+    ).toBe(MonitorStatusSchema.enum.PAUSED);
   });
 
   it("PAUSED monitor: flips status to ACTIVE", () => {
-    expect(buildStatusToggleUpdate(monitorFixture("PAUSED")).status).toBe(
-      "ACTIVE",
-    );
+    expect(
+      buildStatusToggleUpdate(monitorFixture(MonitorStatusSchema.enum.PAUSED))
+        .status,
+    ).toBe(MonitorStatusSchema.enum.ACTIVE);
   });
 
   it("carries the full config so only status changes", () => {
-    const monitor = monitorFixture("ACTIVE");
+    const monitor = monitorFixture(MonitorStatusSchema.enum.ACTIVE);
     expect(buildStatusToggleUpdate(monitor)).toEqual({
       id: monitor.id,
       projectId: monitor.projectId,
@@ -193,7 +221,7 @@ describe("buildStatusToggleUpdate", () => {
       name: monitor.name,
       tags: monitor.tags,
       triggerIds: monitor.triggerIds,
-      status: "PAUSED",
+      status: MonitorStatusSchema.enum.PAUSED,
     });
   });
 });

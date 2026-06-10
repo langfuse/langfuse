@@ -1,5 +1,6 @@
 import { computeSeverity } from "./computeSeverity";
 import {
+  MonitorNoDataModeSchema,
   MonitorSeveritySchema,
   type MonitorNoData,
   type MonitorSeverity,
@@ -15,17 +16,17 @@ export function resolveNoDataSeverity(args: {
   warningThreshold: number | null;
 }): MonitorSeverity {
   switch (args.noData.mode) {
-    case "SUBSTITUTE_ZERO":
+    case MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO:
       return computeSeverity({
         value: 0,
         operator: args.operator,
         alertThreshold: args.alertThreshold,
         warningThreshold: args.warningThreshold,
       });
-    case "LAST_SEVERITY":
+    case MonitorNoDataModeSchema.enum.LAST_SEVERITY:
       return args.prevSeverity;
-    case "SHOW_NO_DATA":
-    case "NOTIFY_NO_DATA":
+    case MonitorNoDataModeSchema.enum.SHOW_NO_DATA:
+    case MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA:
       return MonitorSeveritySchema.enum.NO_DATA;
   }
 }

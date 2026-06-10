@@ -2,9 +2,13 @@ import { describe, it, expect } from "vitest";
 
 import {
   MonitorAlertSchema,
+  MonitorNoDataModeSchema,
   MonitorNoDataSchema,
   MonitorRenotifySchema,
   MonitorSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
   MonitorWindowSchema,
 } from "./types";
 
@@ -22,17 +26,17 @@ const validMonitorBase = {
   metric: { measure: "count", aggregation: "count" as const },
 
   window: "5m" as const,
-  thresholdOperator: "GT" as const,
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: null,
 
-  severity: "UNKNOWN" as const,
+  severity: MonitorSeveritySchema.enum.UNKNOWN,
   severityChangedAt: null,
 
-  noData: { mode: "SHOW_NO_DATA" as const },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" as const },
 
-  status: "ACTIVE" as const,
+  status: MonitorStatusSchema.enum.ACTIVE,
   nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
   lastPublishedAt: null,
   lastClaimedAt: null,
@@ -101,16 +105,17 @@ describe("MonitorRenotifySchema", () => {
 });
 
 describe("MonitorNoDataSchema", () => {
-  it.each(["SUBSTITUTE_ZERO", "LAST_SEVERITY", "SHOW_NO_DATA"])(
-    "accepts the %s variant",
-    (mode) => {
-      expect(MonitorNoDataSchema.safeParse({ mode }).success).toBe(true);
-    },
-  );
+  it.each([
+    MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO,
+    MonitorNoDataModeSchema.enum.LAST_SEVERITY,
+    MonitorNoDataModeSchema.enum.SHOW_NO_DATA,
+  ])("accepts the %s variant", (mode) => {
+    expect(MonitorNoDataSchema.safeParse({ mode }).success).toBe(true);
+  });
 
   it("accepts the NOTIFY_NO_DATA variant with a valid interval", () => {
     const result = MonitorNoDataSchema.safeParse({
-      mode: "NOTIFY_NO_DATA",
+      mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
       intervalMinutes: 5,
     });
     expect(result.success).toBe(true);
@@ -118,7 +123,9 @@ describe("MonitorNoDataSchema", () => {
 
   it("rejects NOTIFY_NO_DATA without intervalMinutes", () => {
     expect(
-      MonitorNoDataSchema.safeParse({ mode: "NOTIFY_NO_DATA" }).success,
+      MonitorNoDataSchema.safeParse({
+        mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+      }).success,
     ).toBe(false);
   });
 
@@ -131,7 +138,7 @@ describe("MonitorNoDataSchema", () => {
   it("rejects intervalMinutes below 1", () => {
     expect(
       MonitorNoDataSchema.safeParse({
-        mode: "NOTIFY_NO_DATA",
+        mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
         intervalMinutes: 0,
       }).success,
     ).toBe(false);
@@ -140,7 +147,7 @@ describe("MonitorNoDataSchema", () => {
   it("rejects intervalMinutes above one day", () => {
     expect(
       MonitorNoDataSchema.safeParse({
-        mode: "NOTIFY_NO_DATA",
+        mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
         intervalMinutes: 60 * 24 + 1,
       }).success,
     ).toBe(false);
@@ -185,7 +192,7 @@ describe("MonitorAlertSchema", () => {
   const validAlert = {
     monitorId: "mon_01",
     projectId: "proj_01",
-    severity: "ALERT" as const,
+    severity: MonitorSeveritySchema.enum.ALERT,
     permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
     timestamp: new Date("2026-05-18T12:01:00.000Z"),
     fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),

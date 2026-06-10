@@ -1,9 +1,11 @@
-import type {
-  MonitorNoData,
-  MonitorRenotify,
-  MonitorSeverity,
-  MonitorStatus,
-  Monitor,
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  type MonitorNoData,
+  type MonitorRenotify,
+  type MonitorSeverity,
+  type MonitorStatus,
+  type Monitor,
 } from "../types";
 
 /** applyStateMachine maps a monitor's prior row and newly computed severity to its lifecycle writeback and whether to emit an alert. */
@@ -16,7 +18,7 @@ export function applyStateMachine(args: {
   const { prev, next, now, publishedAt } = args;
 
   // PAUSED is service-written; no-op so the worker doesn't overwrite user intent.
-  if (prev.severity === "PAUSED") {
+  if (prev.severity === MonitorSeveritySchema.enum.PAUSED) {
     return {
       emit: false,
       completion: {
@@ -25,7 +27,7 @@ export function applyStateMachine(args: {
         lastCompletedAt: now,
         publishedAt,
         status: prev.status,
-        severity: "PAUSED",
+        severity: MonitorSeveritySchema.enum.PAUSED,
         severityChangedAt: prev.severityChangedAt,
         alertedAt: prev.alertedAt,
       },
@@ -70,24 +72,36 @@ function shouldEmit(args: {
   renotify: MonitorRenotify;
 }): boolean {
   // Cold-start: UNKNOWN -> anything. Only unhealthy fires.
-  if (args.prev === "UNKNOWN") {
-    return args.next === "WARNING" || args.next === "ALERT";
+  if (args.prev === MonitorSeveritySchema.enum.UNKNOWN) {
+    return (
+      args.next === MonitorSeveritySchema.enum.WARNING ||
+      args.next === MonitorSeveritySchema.enum.ALERT
+    );
   }
 
   // Recovery from NO_DATA.
-  if (args.prev === "NO_DATA" && args.next === "OK") {
-    return args.noData.mode === "NOTIFY_NO_DATA";
+  if (
+    args.prev === MonitorSeveritySchema.enum.NO_DATA &&
+    args.next === MonitorSeveritySchema.enum.OK
+  ) {
+    return args.noData.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA;
   }
 
   // NO_DATA -> WARNING/ALERT always surfaces.
-  if (args.prev === "NO_DATA" && args.next !== "NO_DATA") {
+  if (
+    args.prev === MonitorSeveritySchema.enum.NO_DATA &&
+    args.next !== MonitorSeveritySchema.enum.NO_DATA
+  ) {
     return true;
   }
 
   // Escalation into NO_DATA: NOTIFY_NO_DATA mode with cooldown elapsed.
-  if (args.next === "NO_DATA" && args.prev !== "NO_DATA") {
+  if (
+    args.next === MonitorSeveritySchema.enum.NO_DATA &&
+    args.prev !== MonitorSeveritySchema.enum.NO_DATA
+  ) {
     return (
-      args.noData.mode === "NOTIFY_NO_DATA" &&
+      args.noData.mode === MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA &&
       passedDelay(args.prevAlertedAt, args.noData.intervalMinutes, args.now)
     );
   }
@@ -97,8 +111,12 @@ function shouldEmit(args: {
   // when no prior alert exists), then re-emitting on the renotify cadence. A
   // monitor frozen at NO_DATA under LAST_SEVERITY neither re-notifies nor emits
   // on silent recovery.
-  if (args.prev === "NO_DATA" && args.next === "NO_DATA") {
-    if (args.noData.mode !== "NOTIFY_NO_DATA") return false;
+  if (
+    args.prev === MonitorSeveritySchema.enum.NO_DATA &&
+    args.next === MonitorSeveritySchema.enum.NO_DATA
+  ) {
+    if (args.noData.mode !== MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA)
+      return false;
     // An alert from a prior severity stretch doesn't count toward the current
     // NO_DATA stretch; treat it as cold-start.
     const stretchAlertedAt =
@@ -122,7 +140,7 @@ function shouldEmit(args: {
 
   // Self-loops. OK -> OK is the only one that ignores renotify entirely.
   if (args.prev === args.next) {
-    if (args.next === "OK") return false;
+    if (args.next === MonitorSeveritySchema.enum.OK) return false;
     // Renotify is a *re*-emit, so a NULL prevAlertedAt is silent.
     if (args.prevAlertedAt === null) return false;
     return (
