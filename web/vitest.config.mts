@@ -28,7 +28,7 @@ const sharedExclude = [
 // (project "server-isolated"). Classification is content-based at config
 // load so new test files sort themselves into the right project.
 const GLOBAL_STATE_PATTERN =
-  /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|stubEnv|stubGlobal)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
+  /vi\.(mock|doMock|unmock|spyOn|useFakeTimers|setSystemTime|resetModules|stubEnv|stubGlobal|unstubAllEnvs|unstubAllGlobals)|process\.env\.[A-Z0-9_]+\s*=[^=]|process\.env\[[^\]]+\]\s*=[^=]|delete\s+process\.env|\.(disconnect|quit|shutdown)\(|disconnectQueues/;
 
 const serverTestFiles = globSync("src/**/server/**/*.servertest.{ts,tsx}", {
   cwd: import.meta.dirname,
