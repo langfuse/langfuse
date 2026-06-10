@@ -191,16 +191,19 @@ export class ClickHouseQueryBuilder {
       ? this.escapeString(JSON.stringify(fileContent.chatMlJson))
       : '{"messages": []}';
 
+    // start_time anchors to the OWN TRACE's timestamp formula (same divisor
+    // as buildBulkTracesInsert) plus a forward per-depth offset, so parents
+    // precede children and observations cluster at their trace's date.
     return `
       INSERT INTO observations
-      SELECT 
+      SELECT
         concat('${idPrefix}obs-bulk-', toString(number), '-${idSuffix}') AS id,
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
         multiIf(number % 100 < 47, 'GENERATION', number % 100 < 94, 'SPAN', 'EVENT') AS type,
         if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${idSuffix}')) AS parent_observation_id,
-        toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(totalObservations, 1)})) AS start_time,
+        toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 60) AS start_time,
         addMilliseconds(start_time, 
           case 
             when type = 'GENERATION' then floor(randUniform(5, 30))
@@ -286,7 +289,7 @@ export class ClickHouseQueryBuilder {
       INSERT INTO scores
       SELECT
         concat('${idPrefix}score-bulk-', toString(number), '-${idSuffix}') AS id,
-        toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(totalScores, 1)})) AS timestamp,
+        toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 90) AS timestamp,
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
@@ -314,7 +317,7 @@ export class ClickHouseQueryBuilder {
           else 'CATEGORICAL'
         end AS data_type,
         case 
-          when (number % 3) = 1 then if(value = 1, 'true', 'false')
+          when (number % 3) = 1 then if(value = 1, 'True', 'False')
           when (number % 3) = 2 then concat('category_', toString((rand() % 5) + 1))
           else NULL
         end AS string_value,
