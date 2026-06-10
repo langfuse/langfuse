@@ -1807,7 +1807,7 @@
   {
     "id": "cm34aq60d000207ml0j1h31ar",
     "modelName": "claude-3-5-haiku-20241022",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|us\\.anthropic\\.claude-3-5-haiku-20241022(-v1(:0)?)?|claude-3-5-haiku-V1@20241022)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-3-5-haiku-20241022|(us\\.)?anthropic\\.claude-3-5-haiku-20241022(-v1(:0)?)?|claude-3-5-haiku-V1@20241022)$",
     "createdAt": "2024-11-05T10:30:50.566Z",
     "updatedAt": "2026-04-13T00:00:00.000Z",
     "tokenizerId": "claude",
@@ -2573,7 +2573,7 @@
   {
     "id": "c5qmrqolku82tra3vgdixmys",
     "modelName": "claude-sonnet-4-5-20250929",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5(-20250929)?|(eu\\.|us\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-4-5(-20250929)?(-v1(:0)?)?|claude-sonnet-4-5-V1(@20250929)?|claude-sonnet-4-5(@20250929)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-sonnet-4-5(-20250929)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-sonnet-4-5(-20250929)?(-v1(:0)?)?|claude-sonnet-4-5-V1(@20250929)?|claude-sonnet-4-5(@20250929)?)$",
     "createdAt": "2025-09-29T00:00:00.000Z",
     "updatedAt": "2026-04-13T00:00:00.000Z",
     "tokenizerId": "claude",
@@ -2876,7 +2876,7 @@
   {
     "id": "cmdysde5w0000rkmzbc1g5au3",
     "modelName": "claude-opus-4-1-20250805",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1(-20250805)?|us\\.anthropic\\.claude-opus-4-1(-20250805)?(-v1(:0)?)?|claude-opus-4-1(@20250805)?)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-opus-4-1(-20250805)?|(us\\.)?anthropic\\.claude-opus-4-1(-20250805)?(-v1(:0)?)?|claude-opus-4-1(@20250805)?)$",
     "createdAt": "2025-08-05T15:00:00.000Z",
     "updatedAt": "2026-04-13T00:00:00.000Z",
     "tokenizerId": "claude",
@@ -3172,7 +3172,7 @@
   {
     "id": "cmgt5gnkv000104jx171tbq4e",
     "modelName": "claude-haiku-4-5-20251001",
-    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5(-20251001)?|(eu\\.|us\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001(-v1(:0)?)?|claude-4-5-haiku@20251001)$",
+    "matchPattern": "(?i)^(anthropic\/)?(claude-haiku-4-5(-20251001)?|(eu\\.|us\\.|apac\\.|au\\.|jp\\.|global\\.)?anthropic\\.claude-haiku-4-5-20251001(-v1(:0)?)?|claude-4-5-haiku@20251001)$",
     "createdAt": "2025-10-16T08:20:44.558Z",
     "updatedAt": "2026-04-20T00:00:00.000Z",
     "tokenizerId": "claude",
