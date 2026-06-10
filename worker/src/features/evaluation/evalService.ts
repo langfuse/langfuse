@@ -70,6 +70,9 @@ import { createW3CTraceId } from "../utils";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
+  buildEvalVariableDiagnostics,
+  buildEvalVariableDiagnosticsMetadata,
+  buildEvalVariableDiagnosticsSpanAttributes,
   compileEvalPrompt,
   buildEvalMessages,
   buildEvalExecutionMetadata,
@@ -779,6 +782,32 @@ export async function runLLMAsJudgeEvaluation({
         `Executing LLM-as-judge evaluation for job ${jobExecutionId} in project ${projectId}`,
       );
 
+      const variableDiagnostics = buildEvalVariableDiagnostics({
+        templateVariables: template.vars,
+        extractedVariables,
+      });
+      span.setAttributes(
+        buildEvalVariableDiagnosticsSpanAttributes(variableDiagnostics),
+      );
+
+      const evalExecutionMetadata = {
+        ...executionMetadata,
+        ...buildEvalVariableDiagnosticsMetadata(variableDiagnostics),
+      };
+
+      if (
+        variableDiagnostics.missingVariables.length > 0 ||
+        variableDiagnostics.emptyVariables.length > 0
+      ) {
+        logger.warn("Evaluation variables resolved with gaps", {
+          jobExecutionId,
+          jobConfigurationId: config.id,
+          missingVariables: variableDiagnostics.missingVariables,
+          emptyVariables: variableDiagnostics.emptyVariables,
+          coverageRatio: variableDiagnostics.coverageRatio,
+        });
+      }
+
       // Compile the prompt with extracted variables
       let prompt: string;
       try {
@@ -894,7 +923,7 @@ export async function runLLMAsJudgeEvaluation({
                 traceName: `Execute evaluator: ${template.name}`,
                 environment: LangfuseInternalTraceEnvironment.LLMJudge,
                 metadata: {
-                  ...executionMetadata,
+                  ...evalExecutionMetadata,
                 },
               },
             });
@@ -955,7 +984,7 @@ export async function runLLMAsJudgeEvaluation({
       return {
         scores,
         executionTraceId,
-        metadata: executionMetadata,
+        metadata: evalExecutionMetadata,
       };
     },
   );

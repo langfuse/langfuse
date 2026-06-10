@@ -459,6 +459,48 @@ describe("executeLLMAsJudgeEvaluation", () => {
       );
     });
 
+    it("should include evaluator variable diagnostics in the LLM trace metadata", async () => {
+      const callLLM = mockSuccessfulLLMCall(0.6, "Output was incomplete");
+      const deps = createSuccessfulDeps({ callLLM });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            prompt:
+              "Evaluate input {{input}}, output {{output}}, and context {{context}}",
+            vars: ["input", "output", "context"],
+          },
+          variables: [
+            { var: "input", value: "private user input" },
+            { var: "output", value: "" },
+          ],
+        }),
+      );
+
+      expect(callLLM).toHaveBeenCalledWith(
+        expect.objectContaining({
+          traceSinkParams: expect.objectContaining({
+            metadata: expect.objectContaining({
+              eval_variable_resolved_count: "1",
+              eval_variable_empty_count: "1",
+              eval_variable_missing_count: "1",
+              eval_variable_duplicate_count: "0",
+              eval_variable_coverage_ratio: "0.333",
+              eval_variable_empty_names: "output",
+              eval_variable_missing_names: "context",
+            }),
+          }),
+        }),
+      );
+      expect(callLLM.mock.calls[0][0].traceSinkParams.metadata).not.toEqual(
+        expect.objectContaining({
+          input: "private user input",
+        }),
+      );
+    });
+
     it("should pass structured output schema to LLM", async () => {
       const callLLM = mockSuccessfulLLMCall(0.8, "Good response");
       const deps = createSuccessfulDeps({ callLLM });

@@ -16,6 +16,9 @@ import { type ExtractedVariable } from "@langfuse/shared/src/server";
 import { parseDispatchResult } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { createDeterministicEvalScoreId } from "../../../../packages/shared/src/server/evals/evalScoreIds";
 import {
+  buildEvalVariableDiagnostics,
+  buildEvalVariableDiagnosticsMetadata,
+  buildEvalVariableDiagnosticsSpanAttributes,
   buildEvalExecutionMetadata,
   buildEvalMessages,
   compileEvalPrompt,
@@ -358,6 +361,88 @@ describe("evaluation helpers", () => {
       expect(Object.keys(result)).not.toContain("target_trace_id");
       expect(Object.keys(result)).not.toContain("target_observation_id");
       expect(Object.keys(result)).not.toContain("target_dataset_item_id");
+    });
+  });
+
+  describe("buildEvalVariableDiagnostics", () => {
+    it("summarizes resolved, empty, missing, and duplicate evaluator variables", () => {
+      const diagnostics = buildEvalVariableDiagnostics({
+        templateVariables: ["input", "output", "context", "metadata"],
+        extractedVariables: [
+          { var: "input", value: "What is Langfuse?" },
+          { var: "output", value: "" },
+          { var: "metadata", value: { source: "trace", tenant: "acme" } },
+          { var: "input", value: "duplicate value should not win" },
+        ] as ExtractedVariable[],
+      });
+
+      expect(diagnostics).toEqual({
+        variables: [
+          { variable: "input", status: "resolved", valueType: "string" },
+          { variable: "output", status: "empty", valueType: "string" },
+          { variable: "context", status: "missing" },
+          { variable: "metadata", status: "resolved", valueType: "object" },
+        ],
+        resolvedVariables: ["input", "metadata"],
+        emptyVariables: ["output"],
+        missingVariables: ["context"],
+        duplicateVariables: ["input"],
+        coverageRatio: 0.5,
+      });
+    });
+
+    it("treats object and array values as resolved while nulls remain empty", () => {
+      const diagnostics = buildEvalVariableDiagnostics({
+        templateVariables: ["messages", "labels", "score", "missingValue"],
+        extractedVariables: [
+          { var: "messages", value: [{ role: "user", content: "hello" }] },
+          { var: "labels", value: ["correct", "concise"] },
+          { var: "score", value: 0 },
+          { var: "missingValue", value: null },
+        ] as ExtractedVariable[],
+      });
+
+      expect(diagnostics.resolvedVariables).toEqual([
+        "messages",
+        "labels",
+        "score",
+      ]);
+      expect(diagnostics.emptyVariables).toEqual(["missingValue"]);
+      expect(diagnostics.variables).toEqual([
+        { variable: "messages", status: "resolved", valueType: "array" },
+        { variable: "labels", status: "resolved", valueType: "array" },
+        { variable: "score", status: "resolved", valueType: "number" },
+        { variable: "missingValue", status: "empty", valueType: "null" },
+      ]);
+    });
+
+    it("emits metadata and span attributes without leaking variable values", () => {
+      const diagnostics = buildEvalVariableDiagnostics({
+        templateVariables: ["input", "expected", "actual"],
+        extractedVariables: [
+          { var: "input", value: "private prompt text" },
+          { var: "actual", value: "   " },
+        ] as ExtractedVariable[],
+      });
+
+      expect(buildEvalVariableDiagnosticsMetadata(diagnostics)).toEqual({
+        eval_variable_resolved_count: "1",
+        eval_variable_empty_count: "1",
+        eval_variable_missing_count: "1",
+        eval_variable_duplicate_count: "0",
+        eval_variable_coverage_ratio: "0.333",
+        eval_variable_empty_names: "actual",
+        eval_variable_missing_names: "expected",
+      });
+      expect(buildEvalVariableDiagnosticsSpanAttributes(diagnostics)).toEqual({
+        "eval.variable.resolved_count": 1,
+        "eval.variable.empty_count": 1,
+        "eval.variable.missing_count": 1,
+        "eval.variable.duplicate_count": 0,
+        "eval.variable.coverage_ratio": 1 / 3,
+        "eval.variable.empty_names": ["actual"],
+        "eval.variable.missing_names": ["expected"],
+      });
     });
   });
 
