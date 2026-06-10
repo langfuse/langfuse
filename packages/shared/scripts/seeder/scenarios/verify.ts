@@ -20,6 +20,10 @@ export const countRows = async (
   return Number(rows[0]?.c ?? 0);
 };
 
+/** Escapes LIKE-special characters so id prefixes match literally. */
+export const escapeLike = (value: string): string =>
+  value.replace(/\\/g, "\\\\").replace(/[%_]/g, (match) => `\\${match}`);
+
 export const traceLink = (
   ctx: ScenarioContext,
   traceId: string,

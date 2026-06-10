@@ -30,6 +30,12 @@ export const observationToEvent = (
     parent_span_id: isRoot ? "" : observation.parent_observation_id,
     is_app_root: isRoot,
     name: observation.name ?? "",
+    // v4 list/metadata queries filter on trace_name <> '' — without it the
+    // mirrored trace is nameless in the events trace list (see the
+    // dev-tables.sh backfill for the canonical v3 -> v4 field mapping).
+    trace_name: trace.name ?? "",
+    public: trace.public ?? false,
+    bookmarked: (trace.bookmarked ?? false) && isRoot,
     type: observation.type,
     environment: observation.environment ?? "default",
     level: observation.level ?? "DEFAULT",
@@ -60,8 +66,14 @@ export const observationToEvent = (
     updated_at: toMicros(observation.updated_at) ?? Date.now() * 1000,
     event_ts: toMicros(observation.event_ts) ?? Date.now() * 1000,
     event_bytes:
-      (typeof observation.input === "string" ? observation.input.length : 0) +
-      (typeof observation.output === "string" ? observation.output.length : 0),
+      Buffer.byteLength(
+        typeof observation.input === "string" ? observation.input : "",
+        "utf8",
+      ) +
+      Buffer.byteLength(
+        typeof observation.output === "string" ? observation.output : "",
+        "utf8",
+      ),
     source: "API",
   });
 };

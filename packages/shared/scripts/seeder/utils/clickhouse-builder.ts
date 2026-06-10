@@ -21,7 +21,10 @@ import { InsertResult } from "@clickhouse/client";
  */
 export class ClickHouseQueryBuilder {
   private escapeString(str: string): string {
-    return str.replace(/'/g, "''");
+    // Backslashes first: ClickHouse treats them as escape sequences inside
+    // single-quoted literals, so unescaped ones corrupt the stored value or
+    // break the statement (e.g. a JSON fixture's \" or an --id-prefix 'a\').
+    return str.replace(/\\/g, "\\\\").replace(/'/g, "''");
   }
 
   private buildNestedMetadataMapSql(

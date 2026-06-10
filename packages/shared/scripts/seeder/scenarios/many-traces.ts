@@ -8,7 +8,7 @@ import {
   SeedError,
   SeedSummary,
 } from "./types";
-import { countRows, tracesListLink } from "./verify";
+import { countRows, escapeLike, tracesListLink } from "./verify";
 
 /**
  * Loads the bundled large fixtures, sliced exactly like SeederOrchestrator so
@@ -128,7 +128,7 @@ const run = async (
       `project_id = {projectId: String} AND id LIKE {prefix: String}`,
       {
         projectId: ctx.projectId,
-        prefix: `${ctx.idPrefix}-trace-bulk-%-${idSuffix}`,
+        prefix: `${escapeLike(ctx.idPrefix)}-trace-bulk-%-${idSuffix}`,
       },
       "uniqExact(id)",
     ),
@@ -137,7 +137,7 @@ const run = async (
       `project_id = {projectId: String} AND id LIKE {prefix: String}`,
       {
         projectId: ctx.projectId,
-        prefix: `${ctx.idPrefix}-obs-bulk-%-${idSuffix}`,
+        prefix: `${escapeLike(ctx.idPrefix)}-obs-bulk-%-${idSuffix}`,
       },
       "uniqExact(id)",
     ),
@@ -146,7 +146,7 @@ const run = async (
       `project_id = {projectId: String} AND id LIKE {prefix: String}`,
       {
         projectId: ctx.projectId,
-        prefix: `${ctx.idPrefix}-score-bulk-%-${idSuffix}`,
+        prefix: `${escapeLike(ctx.idPrefix)}-score-bulk-%-${idSuffix}`,
       },
       "uniqExact(id)",
     ),

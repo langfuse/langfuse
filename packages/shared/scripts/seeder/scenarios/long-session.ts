@@ -23,7 +23,7 @@ import {
   SeedError,
   SeedSummary,
 } from "./types";
-import { countRows, sessionLink, traceLink } from "./verify";
+import { countRows, escapeLike, sessionLink, traceLink } from "./verify";
 
 const TRACE_NAMES = [
   "answer-support-question",
@@ -324,7 +324,7 @@ const run = async (
     observations: await countRows(
       "observations",
       `project_id = {projectId: String} AND trace_id LIKE {prefix: String}`,
-      { projectId: ctx.projectId, prefix: `${ctx.idPrefix}-t%` },
+      { projectId: ctx.projectId, prefix: `${escapeLike(ctx.idPrefix)}-t%` },
       "uniqExact(id)",
     ),
   };
