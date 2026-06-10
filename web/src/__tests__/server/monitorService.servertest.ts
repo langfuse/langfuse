@@ -27,6 +27,7 @@ const baseMonitorInput = (projectId: string) => ({
   status: MonitorStatusSchema.enum.ACTIVE,
   name: "High error rate",
   tags: [],
+  triggerIds: [],
 });
 
 describe("MonitorService (integration)", () => {
