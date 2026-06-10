@@ -305,7 +305,7 @@ jobs:
         # Independent of the image build, so let the build overlap it. The
         # healthcheck step below surfaces its output and re-validates health.
         run: |
-          (docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
+          (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
       - name: Build images
         # Skip the Next.js type check inside the web image build: the lint job
         # runs `pnpm run typecheck` already. Release builds keep type-checking.
@@ -433,10 +433,12 @@ jobs:
           path: .turbo
           # Turbo hashes the whole .env (turbo.json globalDependencies) and
           # each deploy-mode writes a different .env, so keys must be
-          # mode-scoped for every matrix job to replay its own builds.
-          key: ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode }}-${{ github.sha }}
+          # mode-scoped for every matrix job to replay its own builds. The
+          # default mode gets an explicit "-default" segment so its restore
+          # prefix cannot match the other modes' keys.
+          key: ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode }}-
+            ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-
       # No Next.js build cache here on purpose: its ~30s/job restore+save cost
       # roughly cancels the build speedup, and the Turbo cache above already
       # replays unchanged builds.
@@ -444,7 +446,7 @@ jobs:
         # Independent of the build, so let the build overlap the ~15-20s
         # container startup. "Wait for dev containers" collects the result.
         run: |
-          (docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+          (set +e; docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
       - name: Build
@@ -767,10 +769,10 @@ jobs:
           ) > /tmp/migrate-install.log 2>&1 &
       - name: Start dev containers in background
         run: |
-          (docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+          (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Install playwright in background
         run: |
-          (pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
+          (set +e; pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
         run: pnpm run build
         env:
@@ -855,7 +857,7 @@ jobs:
           ) > /tmp/migrate-install.log 2>&1 &
       - name: Start dev containers in background
         run: |
-          (docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+          (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Build
         run: pnpm run build
         env:
