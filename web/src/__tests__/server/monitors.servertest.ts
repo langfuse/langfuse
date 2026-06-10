@@ -106,7 +106,7 @@ const validMonitorInput = (projectId: string) => ({
   thresholdOperator: "GT" as const,
   alertThreshold: 100,
   warningThreshold: null,
-  noData: { mode: "SILENT" as const },
+  noData: { mode: "SHOW_NO_DATA" as const },
   renotify: { mode: "OFF" as const },
   status: "ACTIVE" as const,
   name: "High error rate",

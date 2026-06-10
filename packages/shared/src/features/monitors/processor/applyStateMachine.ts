@@ -76,7 +76,7 @@ function shouldEmit(args: {
 
   // Recovery from NO_DATA.
   if (args.prev === "NO_DATA" && args.next === "OK") {
-    return args.noData.mode === "NOTIFY";
+    return args.noData.mode === "NOTIFY_NO_DATA";
   }
 
   // NO_DATA -> WARNING/ALERT always surfaces.
@@ -84,19 +84,21 @@ function shouldEmit(args: {
     return true;
   }
 
-  // Escalation into NO_DATA: NOTIFY mode with cooldown elapsed.
+  // Escalation into NO_DATA: NOTIFY_NO_DATA mode with cooldown elapsed.
   if (args.next === "NO_DATA" && args.prev !== "NO_DATA") {
     return (
-      args.noData.mode === "NOTIFY" &&
+      args.noData.mode === "NOTIFY_NO_DATA" &&
       passedDelay(args.prevAlertedAt, args.noData.intervalMinutes, args.now)
     );
   }
 
-  // NO_DATA persistence: SILENT never re-emits. NOTIFY fires the first alert
+  // NO_DATA persistence: only NOTIFY_NO_DATA re-emits, firing the first alert
   // after intervalMinutes of sustained NO_DATA (anchored on severityChangedAt
-  // when no prior alert exists), then re-emits on the renotify cadence.
+  // when no prior alert exists), then re-emitting on the renotify cadence. A
+  // monitor frozen at NO_DATA under LAST_SEVERITY/AUTOMATIC neither re-notifies
+  // nor emits on silent recovery.
   if (args.prev === "NO_DATA" && args.next === "NO_DATA") {
-    if (args.noData.mode !== "NOTIFY") return false;
+    if (args.noData.mode !== "NOTIFY_NO_DATA") return false;
     // An alert from a prior severity stretch doesn't count toward the current
     // NO_DATA stretch; treat it as cold-start.
     const stretchAlertedAt =

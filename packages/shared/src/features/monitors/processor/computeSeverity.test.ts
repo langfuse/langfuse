@@ -7,37 +7,16 @@ import type { MonitorThresholdOperator } from "../types";
 type ComputeSeverityCase = {
   name: string;
   input: {
-    value: number | null;
+    value: number;
     operator: MonitorThresholdOperator;
     alertThreshold: number;
     warningThreshold: number | null;
   };
-  expected: "NO_DATA" | "OK" | "WARNING" | "ALERT";
+  expected: "OK" | "WARNING" | "ALERT";
 };
 
-/** cases covers the NO_DATA branch plus each operator's alert/warning/OK bands. */
+/** cases covers each operator's alert/warning/OK bands. */
 const cases: ComputeSeverityCase[] = [
-  {
-    name: "null value -> NO_DATA (with warning)",
-    input: {
-      value: null,
-      operator: "GT",
-      alertThreshold: 100,
-      warningThreshold: 50,
-    },
-    expected: "NO_DATA",
-  },
-  {
-    name: "null value -> NO_DATA (no warning)",
-    input: {
-      value: null,
-      operator: "LT",
-      alertThreshold: 100,
-      warningThreshold: null,
-    },
-    expected: "NO_DATA",
-  },
-
   {
     name: "GT: value > alert -> ALERT",
     input: {

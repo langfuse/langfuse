@@ -97,22 +97,21 @@ export const MonitorRenotifySchema = z.discriminatedUnion("mode", [
 ]);
 export type MonitorRenotify = z.infer<typeof MonitorRenotifySchema>;
 
-/**
- * MonitorNoDataSchema describes behavior when a Monitor query returns no rows.
- * `SILENT` suppresses all NO_DATA notifications (entry, persistence, recovery);
- * `NOTIFY` alerts on entry after `intervalMinutes` of sustained NO_DATA,
- * re-fires per the renotify cadence, and alerts on recovery.
- */
+/** MonitorNoDataSchema describes how a null metric value resolves to a severity. */
 export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("SILENT") }),
+  z.object({ mode: z.literal("AUTOMATIC") }),
+  z.object({ mode: z.literal("SUBSTITUTE_ZERO") }),
+  z.object({ mode: z.literal("LAST_SEVERITY") }),
+  z.object({ mode: z.literal("SHOW_NO_DATA") }),
   z.object({
-    mode: z.literal("NOTIFY"),
+    mode: z.literal("NOTIFY_NO_DATA"),
     intervalMinutes: z
       .number()
       .int()
       .min(1)
       .max(60 * 24),
   }),
+  z.object({ mode: z.literal("RESOLVE") }),
 ]);
 export type MonitorNoData = z.infer<typeof MonitorNoDataSchema>;
 
@@ -197,7 +196,7 @@ export const MonitorSchema = z.object({
   thresholdOperator: MonitorThresholdOperatorSchema,
   alertThreshold: z.number({ message: ErrorAlertThresholdRequired }),
   warningThreshold: z.number().nullable(),
-  noData: MonitorNoDataSchema.default({ mode: "SILENT" }),
+  noData: MonitorNoDataSchema.default({ mode: "AUTOMATIC" }),
   renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
 
   // MonitorAlert Config

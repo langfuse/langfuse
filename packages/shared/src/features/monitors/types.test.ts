@@ -29,7 +29,7 @@ const validMonitorBase = {
   severity: "UNKNOWN" as const,
   severityChangedAt: null,
 
-  noData: { mode: "SILENT" as const },
+  noData: { mode: "SHOW_NO_DATA" as const },
   renotify: { mode: "OFF" as const },
 
   status: "ACTIVE" as const,
@@ -101,37 +101,49 @@ describe("MonitorRenotifySchema", () => {
 });
 
 describe("MonitorNoDataSchema", () => {
-  it("accepts the SILENT variant", () => {
-    expect(MonitorNoDataSchema.safeParse({ mode: "SILENT" }).success).toBe(
-      true,
-    );
+  it.each([
+    "AUTOMATIC",
+    "SUBSTITUTE_ZERO",
+    "LAST_SEVERITY",
+    "SHOW_NO_DATA",
+    "RESOLVE",
+  ])("accepts the %s variant", (mode) => {
+    expect(MonitorNoDataSchema.safeParse({ mode }).success).toBe(true);
   });
 
-  it("accepts the NOTIFY variant with a valid interval", () => {
+  it("accepts the NOTIFY_NO_DATA variant with a valid interval", () => {
     const result = MonitorNoDataSchema.safeParse({
-      mode: "NOTIFY",
+      mode: "NOTIFY_NO_DATA",
       intervalMinutes: 5,
     });
     expect(result.success).toBe(true);
   });
 
-  it("rejects NOTIFY without intervalMinutes", () => {
-    expect(MonitorNoDataSchema.safeParse({ mode: "NOTIFY" }).success).toBe(
+  it("rejects NOTIFY_NO_DATA without intervalMinutes", () => {
+    expect(
+      MonitorNoDataSchema.safeParse({ mode: "NOTIFY_NO_DATA" }).success,
+    ).toBe(false);
+  });
+
+  it("rejects the legacy SILENT variant", () => {
+    expect(MonitorNoDataSchema.safeParse({ mode: "SILENT" }).success).toBe(
       false,
     );
   });
 
   it("rejects intervalMinutes below 1", () => {
     expect(
-      MonitorNoDataSchema.safeParse({ mode: "NOTIFY", intervalMinutes: 0 })
-        .success,
+      MonitorNoDataSchema.safeParse({
+        mode: "NOTIFY_NO_DATA",
+        intervalMinutes: 0,
+      }).success,
     ).toBe(false);
   });
 
   it("rejects intervalMinutes above one day", () => {
     expect(
       MonitorNoDataSchema.safeParse({
-        mode: "NOTIFY",
+        mode: "NOTIFY_NO_DATA",
         intervalMinutes: 60 * 24 + 1,
       }).success,
     ).toBe(false);

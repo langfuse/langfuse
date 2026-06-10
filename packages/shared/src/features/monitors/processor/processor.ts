@@ -26,6 +26,7 @@ import { monitorFromPrisma, windowToMs } from "../service/helpers";
 import { type MonitorAlert, type MonitorWindow, type Monitor } from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
+import { resolveNoDataSeverity } from "./resolveNoDataSeverity";
 import { renderAlertMessage } from "./renderAlertMessage";
 
 /** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads data settled past the events-table write lag. */
@@ -310,12 +311,22 @@ function processMonitor(args: {
     ];
   }
 
-  const severity = computeSeverity({
-    value,
-    operator: monitor.thresholdOperator,
-    alertThreshold: monitor.alertThreshold,
-    warningThreshold: monitor.warningThreshold ?? null,
-  });
+  const severity =
+    value === null
+      ? resolveNoDataSeverity({
+          noData: monitor.noData,
+          aggregation: monitor.metric.aggregation,
+          prevSeverity: monitor.severity,
+          operator: monitor.thresholdOperator,
+          alertThreshold: monitor.alertThreshold,
+          warningThreshold: monitor.warningThreshold ?? null,
+        })
+      : computeSeverity({
+          value,
+          operator: monitor.thresholdOperator,
+          alertThreshold: monitor.alertThreshold,
+          warningThreshold: monitor.warningThreshold ?? null,
+        });
 
   const { completion, emit } = applyStateMachine({
     prev: monitor,

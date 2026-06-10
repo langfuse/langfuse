@@ -89,7 +89,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       thresholdOperator: "GT",
       alertThreshold: 100,
       warningThreshold: null,
-      noData: { mode: "SILENT" } as unknown as Prisma.InputJsonValue,
+      noData: { mode: "SHOW_NO_DATA" } as unknown as Prisma.InputJsonValue,
       renotify: { mode: "OFF" } as unknown as Prisma.InputJsonValue,
       status: seed.status ?? "ACTIVE",
       schedulerBatchId: seed.schedulerBatchId ?? 0n,

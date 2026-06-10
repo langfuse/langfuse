@@ -36,7 +36,9 @@ type SeedOverrides = Partial<{
   alertThreshold: number;
   warningThreshold: number | null;
   thresholdOperator: ThresholdOperator;
-  noData: { mode: "SILENT" } | { mode: "NOTIFY"; intervalMinutes: number };
+  noData:
+    | { mode: "SHOW_NO_DATA" }
+    | { mode: "NOTIFY_NO_DATA"; intervalMinutes: number };
   renotify: { mode: "OFF" } | { mode: "EVERY"; intervalMinutes: number };
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
@@ -136,7 +138,7 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       alertThreshold: seed.alertThreshold ?? 100,
       warningThreshold: seed.warningThreshold ?? null,
       noData: (seed.noData ?? {
-        mode: "SILENT",
+        mode: "SHOW_NO_DATA",
       }) as unknown as Prisma.InputJsonValue,
       renotify: (seed.renotify ?? {
         mode: "OFF",
@@ -482,7 +484,7 @@ const cases: ProcessCase[] = [
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
-        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+        noData: { mode: "NOTIFY_NO_DATA", intervalMinutes: 5 },
       },
     ],
     ch: [{ count_count: 0 }],
@@ -543,7 +545,7 @@ const cases: ProcessCase[] = [
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
-        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+        noData: { mode: "NOTIFY_NO_DATA", intervalMinutes: 5 },
       },
     ],
     ch: [{}],
@@ -570,7 +572,7 @@ const cases: ProcessCase[] = [
         severity: "OK",
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
-        noData: { mode: "SILENT" },
+        noData: { mode: "SHOW_NO_DATA" },
       },
     ],
     ch: [{}],
@@ -1217,7 +1219,7 @@ const cases: ProcessCase[] = [
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
         metric: { measure: "bogus_measure", aggregation: "count" },
-        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+        noData: { mode: "NOTIFY_NO_DATA", intervalMinutes: 5 },
       },
     ],
     ch: [{ count_count: 0 }],

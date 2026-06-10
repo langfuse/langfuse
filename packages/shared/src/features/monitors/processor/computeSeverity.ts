@@ -7,14 +7,11 @@ import {
 
 /** computeSeverity maps a metric value to a non-lifecycle severity by comparing it against the alert (and optional warning) thresholds. */
 export function computeSeverity(args: {
-  value: number | null;
+  value: number;
   operator: MonitorThresholdOperator;
   alertThreshold: number;
   warningThreshold: number | null;
 }): MonitorSeverity {
-  if (args.value === null) {
-    return MonitorSeveritySchema.enum.NO_DATA;
-  }
   if (matches(args.value, args.operator, args.alertThreshold)) {
     return MonitorSeveritySchema.enum.ALERT;
   }
@@ -47,4 +44,5 @@ function matches(
     case MonitorThresholdOperatorSchema.enum.NEQ:
       return value !== threshold;
   }
+  return false;
 }

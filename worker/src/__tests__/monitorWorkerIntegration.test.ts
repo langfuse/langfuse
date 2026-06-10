@@ -380,7 +380,7 @@ async function seedMonitor(args: {
       thresholdOperator: "GT",
       alertThreshold: args.alertThreshold,
       warningThreshold: null,
-      noData: { mode: "SILENT" },
+      noData: { mode: "SHOW_NO_DATA" },
       renotify: { mode: "OFF" },
       status: "ACTIVE",
       schedulerBatchId: 0n,

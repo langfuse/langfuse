@@ -18,7 +18,7 @@ const monitorFixture = (status: Monitor["status"]): Monitor => ({
   thresholdOperator: "GT",
   alertThreshold: 10,
   warningThreshold: null,
-  noData: { mode: "SILENT" },
+  noData: { mode: "SHOW_NO_DATA" },
   renotify: { mode: "OFF" },
   name: "My Monitor",
   tags: ["prod"],

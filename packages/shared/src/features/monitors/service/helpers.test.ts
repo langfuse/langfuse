@@ -476,7 +476,7 @@ describe("monitorFromPrisma", () => {
     thresholdOperator: "GT" as const,
     alertThreshold: new Prisma.Decimal(100),
     warningThreshold: null,
-    noData: { mode: "SILENT" as const },
+    noData: { mode: "SHOW_NO_DATA" as const },
     renotify: { mode: "OFF" as const },
     severity: "UNKNOWN" as const,
     severityChangedAt: null,

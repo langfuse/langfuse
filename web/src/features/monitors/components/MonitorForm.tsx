@@ -139,7 +139,7 @@ const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
   window: "5m",
   thresholdOperator: "GT",
   warningThreshold: null,
-  noData: { mode: "SILENT" },
+  noData: { mode: "AUTOMATIC" },
   renotify: { mode: "OFF" },
   tags: [],
   triggerIds: [],
@@ -979,9 +979,11 @@ const NoDataField = ({
       value={value.mode}
       onValueChange={(mode) =>
         onChange(
-          mode === "NOTIFY"
-            ? { mode: "NOTIFY", intervalMinutes: 60 }
-            : { mode: "SILENT" },
+          mode === "NOTIFY_NO_DATA"
+            ? { mode: "NOTIFY_NO_DATA", intervalMinutes: 60 }
+            : {
+                mode: mode as Exclude<MonitorNoData["mode"], "NOTIFY_NO_DATA">,
+              },
         )
       }
       disabled={disabled}
@@ -990,11 +992,17 @@ const NoDataField = ({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="SILENT">Silent</SelectItem>
-        <SelectItem value="NOTIFY">Notify after sustained no-data</SelectItem>
+        <SelectItem value="AUTOMATIC">Automatic</SelectItem>
+        <SelectItem value="SUBSTITUTE_ZERO">Substitute zero</SelectItem>
+        <SelectItem value="LAST_SEVERITY">Keep the last severity</SelectItem>
+        <SelectItem value="SHOW_NO_DATA">No Data</SelectItem>
+        <SelectItem value="NOTIFY_NO_DATA">
+          Notify after sustained No Data
+        </SelectItem>
+        <SelectItem value="RESOLVE">Resolve to OK</SelectItem>
       </SelectContent>
     </Select>
-    {value.mode === "NOTIFY" && (
+    {value.mode === "NOTIFY_NO_DATA" && (
       <div className="flex items-center gap-2">
         <Label className="text-muted-foreground text-xs">
           Notify every (minutes)
@@ -1006,7 +1014,7 @@ const NoDataField = ({
           value={value.intervalMinutes}
           onChange={(e) =>
             onChange({
-              mode: "NOTIFY",
+              mode: "NOTIFY_NO_DATA",
               intervalMinutes: Math.max(1, Number(e.target.value) || 1),
             })
           }

@@ -21,7 +21,7 @@ const baseMonitor: Monitor = {
   thresholdOperator: "GT",
   alertThreshold: 100,
   warningThreshold: 50,
-  noData: { mode: "SILENT" },
+  noData: { mode: "SHOW_NO_DATA" },
   renotify: { mode: "OFF" },
   name: "Latency monitor",
   tags: [],

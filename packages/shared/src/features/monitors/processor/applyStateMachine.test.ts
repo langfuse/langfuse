@@ -32,8 +32,11 @@ const t0 = new Date("2026-05-27T12:00:00.000Z");
 const tMinus2m = new Date("2026-05-27T11:58:00.000Z");
 const tMinus10m = new Date("2026-05-27T11:50:00.000Z");
 const tMinus12m = new Date("2026-05-27T11:48:00.000Z");
-const noDataSilent: MonitorNoData = { mode: "SILENT" };
-const noDataNotify5: MonitorNoData = { mode: "NOTIFY", intervalMinutes: 5 };
+const noDataShowNoData: MonitorNoData = { mode: "SHOW_NO_DATA" };
+const noDataNotify5: MonitorNoData = {
+  mode: "NOTIFY_NO_DATA",
+  intervalMinutes: 5,
+};
 const renotifyOff: MonitorRenotify = { mode: "OFF" };
 const renotifyEvery5: MonitorRenotify = { mode: "EVERY", intervalMinutes: 5 };
 
@@ -52,7 +55,7 @@ const baseMonitor: Monitor = {
   thresholdOperator: "GT",
   alertThreshold: 100,
   warningThreshold: null,
-  noData: { mode: "SILENT" },
+  noData: { mode: "SHOW_NO_DATA" },
   renotify: { mode: "OFF" },
   name: "Test",
   tags: [],
@@ -78,7 +81,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: null,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -96,7 +99,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: null,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -114,7 +117,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: null,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -145,14 +148,14 @@ const cases: StateMachineCase[] = [
 
   // === NO_DATA -> OK (recovery) ===
   {
-    name: "NO_DATA -> OK with noData SILENT: silent",
+    name: "NO_DATA -> OK with noData SHOW_NO_DATA: silent",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "OK",
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -163,7 +166,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> OK with noData NOTIFY: emit",
+    name: "NO_DATA -> OK with noData NOTIFY_NO_DATA: emit",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "OK",
@@ -183,14 +186,14 @@ const cases: StateMachineCase[] = [
 
   // === NO_DATA -> WARNING / ALERT ===
   {
-    name: "NO_DATA -> WARNING with noData SILENT: emit",
+    name: "NO_DATA -> WARNING with noData SHOW_NO_DATA: emit",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "WARNING",
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -208,7 +211,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -221,14 +224,14 @@ const cases: StateMachineCase[] = [
 
   // === OK / WARN / ALERT -> NO_DATA ===
   {
-    name: "OK -> NO_DATA with noData SILENT: silent",
+    name: "OK -> NO_DATA with noData SHOW_NO_DATA: silent",
     input: {
       prevSeverity: "OK",
       computedSeverity: "NO_DATA",
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -239,7 +242,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "OK -> NO_DATA with noData NOTIFY and prevAlertedAt past interval: emit",
+    name: "OK -> NO_DATA with noData NOTIFY_NO_DATA and prevAlertedAt past interval: emit",
     input: {
       prevSeverity: "OK",
       computedSeverity: "NO_DATA",
@@ -257,7 +260,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "OK -> NO_DATA with noData NOTIFY and prevAlertedAt within interval: silent (cooldown)",
+    name: "OK -> NO_DATA with noData NOTIFY_NO_DATA and prevAlertedAt within interval: silent (cooldown)",
     input: {
       prevSeverity: "OK",
       computedSeverity: "NO_DATA",
@@ -275,7 +278,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "OK -> NO_DATA with noData NOTIFY and prevAlertedAt NULL: emit",
+    name: "OK -> NO_DATA with noData NOTIFY_NO_DATA and prevAlertedAt NULL: emit",
     input: {
       prevSeverity: "OK",
       computedSeverity: "NO_DATA",
@@ -293,7 +296,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "WARNING -> NO_DATA with noData NOTIFY past interval: emit",
+    name: "WARNING -> NO_DATA with noData NOTIFY_NO_DATA past interval: emit",
     input: {
       prevSeverity: "WARNING",
       computedSeverity: "NO_DATA",
@@ -311,14 +314,14 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "ALERT -> NO_DATA with noData SILENT: silent",
+    name: "ALERT -> NO_DATA with noData SHOW_NO_DATA: silent",
     input: {
       prevSeverity: "ALERT",
       computedSeverity: "NO_DATA",
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -338,7 +341,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -356,7 +359,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -376,7 +379,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -394,7 +397,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -414,7 +417,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -432,7 +435,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -452,7 +455,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyEvery5,
     },
     expected: {
@@ -472,7 +475,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -490,7 +493,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m, // interval 5m elapsed
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyEvery5,
     },
     expected: {
@@ -508,7 +511,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus2m, // interval 5m not elapsed
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyEvery5,
     },
     expected: {
@@ -526,7 +529,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyEvery5,
     },
     expected: {
@@ -544,7 +547,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyOff,
     },
     expected: {
@@ -555,14 +558,14 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> NO_DATA with noData SILENT and renotify EVERY past interval: silent",
+    name: "NO_DATA -> NO_DATA with noData SHOW_NO_DATA and renotify EVERY past interval: silent",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "NO_DATA",
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: tMinus10m,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyEvery5,
     },
     expected: {
@@ -573,7 +576,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> NO_DATA with noData NOTIFY and renotify EVERY past interval: emit",
+    name: "NO_DATA -> NO_DATA with noData NOTIFY_NO_DATA and renotify EVERY past interval: emit",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "NO_DATA",
@@ -591,7 +594,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> NO_DATA with noData NOTIFY and renotify EVERY within interval: silent",
+    name: "NO_DATA -> NO_DATA with noData NOTIFY_NO_DATA and renotify EVERY within interval: silent",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "NO_DATA",
@@ -609,7 +612,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> NO_DATA with noData NOTIFY and renotify OFF: silent",
+    name: "NO_DATA -> NO_DATA with noData NOTIFY_NO_DATA and renotify OFF: silent",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "NO_DATA",
@@ -627,7 +630,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> NO_DATA, NOTIFY, prior-stretch alert predates NO_DATA stretch, interval elapsed: emit",
+    name: "NO_DATA -> NO_DATA, NOTIFY_NO_DATA, prior-stretch alert predates NO_DATA stretch, interval elapsed: emit",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "NO_DATA",
@@ -645,7 +648,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> NO_DATA, NOTIFY, no prior alert, interval elapsed: emit",
+    name: "NO_DATA -> NO_DATA, NOTIFY_NO_DATA, no prior alert, interval elapsed: emit",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "NO_DATA",
@@ -663,7 +666,7 @@ const cases: StateMachineCase[] = [
     },
   },
   {
-    name: "NO_DATA -> NO_DATA, NOTIFY, no prior alert, interval not elapsed: silent",
+    name: "NO_DATA -> NO_DATA, NOTIFY_NO_DATA, no prior alert, interval not elapsed: silent",
     input: {
       prevSeverity: "NO_DATA",
       computedSeverity: "NO_DATA",
@@ -688,7 +691,7 @@ const cases: StateMachineCase[] = [
       prevSeverityChangedAt: tMinus10m,
       prevAlertedAt: null,
       now: t0,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyEvery5,
     },
     expected: {
@@ -744,14 +747,14 @@ describe("applyStateMachine", () => {
     );
   });
 
-  it("ALERT -> OK -> NO_DATA -> NO_DATA with noData SILENT stays silent on the self-loop", () => {
+  it("ALERT -> OK -> NO_DATA -> NO_DATA with noData SHOW_NO_DATA stays silent on the self-loop", () => {
     const tAlert = new Date("2026-05-27T11:40:00.000Z");
     const tOk = new Date("2026-05-27T11:50:00.000Z");
     const tNoData = new Date("2026-05-27T11:55:00.000Z");
     const tLoop = new Date("2026-05-27T12:05:00.000Z");
     const monitor: Monitor = {
       ...baseMonitor,
-      noData: noDataSilent,
+      noData: noDataShowNoData,
       renotify: renotifyEvery5,
       severity: "ALERT",
       severityChangedAt: tAlert,
