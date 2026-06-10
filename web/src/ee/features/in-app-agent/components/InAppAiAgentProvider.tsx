@@ -27,6 +27,7 @@ import {
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
+import { createInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -370,7 +371,11 @@ function InAppAiAgentProviderInner({
     (agent: HttpAgent, conversationId: string) => {
       setIsRunning(true);
       agent
-        .runAgent()
+        .runAgent({
+          context: createInAppAgentScreenContext({
+            currentUrl: window.location.href,
+          }),
+        })
         .catch((error) => {
           if (intentionalAbortRef.current) {
             return;
