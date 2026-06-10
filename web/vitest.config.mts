@@ -94,6 +94,14 @@ export default defineConfig({
           include: sharedContextServerTestFiles,
           exclude: sharedExclude,
           isolate: false,
+          deps: {
+            optimizer: {
+              ssr: {
+                enabled: true,
+                include: ["@langfuse/shared", "@langfuse/ee"],
+              },
+            },
+          },
           // Workers are reused across files, so the per-file teardown must
           // not disconnect shared singletons (redis, ClickHouse) that later
           // files in the same worker still use. See after-teardown.ts.
