@@ -121,7 +121,7 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
             <DropdownMenuItem
               key={key}
               className="capitalize"
-              onClick={() => void handleExport(key as BatchExportFileFormat)}
+              onClick={() => handleExport(key as BatchExportFileFormat)}
             >
               as {options.label}
             </DropdownMenuItem>

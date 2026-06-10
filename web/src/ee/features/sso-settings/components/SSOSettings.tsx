@@ -334,7 +334,7 @@ function SsoConfigDialog({
 
   const saveMutation = api.ssoConfig.save.useMutation({
     onSuccess: () => {
-      void utils.ssoConfig.get.invalidate({ orgId });
+      utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
         title: existing ? "SSO updated" : "SSO configured",
         description: `Active for @${domain} within 1 hour.`,
@@ -684,7 +684,7 @@ function DeleteSsoConfigButton({
 
   const deleteMutation = api.ssoConfig.delete.useMutation({
     onSuccess: () => {
-      void utils.ssoConfig.get.invalidate({ orgId });
+      utils.ssoConfig.get.invalidate({ orgId });
       showSuccessToast({
         title: "SSO disabled",
         description: `SSO for @${domain} has been removed.`,

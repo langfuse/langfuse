@@ -41,6 +41,7 @@ import {
   createMcpTestSetup,
   createPromptInDb,
   mockServerContext,
+  verifyAuditLog,
   waitFor,
 } from "./mcp-helpers";
 import "@/src/features/mcp/server/bootstrap";
@@ -76,6 +77,7 @@ import {
   handleListDatasets,
   handleUpsertDataset,
   handleUpsertDatasetItem,
+  upsertDatasetTool,
 } from "@/src/features/mcp/features/datasets/tools";
 import { handleGetHealth } from "@/src/features/mcp/features/health/tools";
 import {
@@ -146,6 +148,12 @@ describe("MCP public API tools", () => {
         "listAnnotationQueues",
         "createAnnotationQueue",
         "createComment",
+        "listEvaluators",
+        "getEvaluator",
+        "upsertEvaluator",
+        "listEvaluationRules",
+        "getEvaluationRule",
+        "createEvaluationRule",
         "listDatasets",
         "getHealth",
         "listScores",
@@ -169,6 +177,10 @@ describe("MCP public API tools", () => {
         "listScores",
         "getScore",
         "listScoreConfigs",
+        "listEvaluators",
+        "getEvaluator",
+        "listEvaluationRules",
+        "getEvaluationRule",
         "listPrompts",
         "getPrompt",
         "getPromptUnresolved",
@@ -213,6 +225,8 @@ describe("MCP public API tools", () => {
     expect(destructiveToolNames).toEqual(
       [
         "createChatPrompt",
+        "createEvaluationRule",
+        "upsertEvaluator",
         "createScore",
         "createScoreConfig",
         "createTextPrompt",
@@ -220,9 +234,11 @@ describe("MCP public API tools", () => {
         "deleteAnnotationQueueItem",
         "deleteDatasetItem",
         "deleteDatasetRun",
+        "deleteEvaluationRule",
         "deleteModel",
         "deleteScoreConfig",
         "updateAnnotationQueueItem",
+        "updateEvaluationRule",
         "updatePromptLabels",
         "updateScoreConfig",
         "upsertDataset",
@@ -452,7 +468,7 @@ describe("MCP public API tools", () => {
   });
 
   it("covers dataset, dataset item, run item, and run public API routes", async () => {
-    const { context, projectId } = await createMcpTestSetup();
+    const { context, projectId, apiKeyId } = await createMcpTestSetup();
     const datasetName = `mcp-dataset-100% accuracy %20 ${uuidv4()}`;
     const traceId = uuidv4();
     const observationId = uuidv4();
@@ -477,15 +493,94 @@ describe("MCP public API tools", () => {
       }),
     ]);
 
-    const dataset = (await handleUpsertDataset(
+    const datasetInputSchema = {
+      type: "object",
+      properties: { question: { type: "string" } },
+      required: ["question"],
+      additionalProperties: false,
+    };
+    const datasetExpectedOutputSchema = {
+      type: "object",
+      properties: { answer: { type: "string" } },
+      required: ["answer"],
+      additionalProperties: false,
+    };
+    const upsertDataset = await toolRegistry.getEnabledTool(
+      upsertDatasetTool.name,
+      context,
+    );
+    expect(upsertDataset).toBeDefined();
+
+    const dataset = (await upsertDataset?.handler(
       {
         name: datasetName,
         description: "MCP dataset",
         metadata: { source: "mcp" },
+        inputSchema: datasetInputSchema,
+        expectedOutputSchema: datasetExpectedOutputSchema,
       },
       context,
-    )) as { id: string; name: string };
+    )) as {
+      id: string;
+      name: string;
+      inputSchema: unknown;
+      expectedOutputSchema: unknown;
+    };
     expect(dataset.name).toBe(datasetName);
+    expect(dataset.inputSchema).toEqual(datasetInputSchema);
+    expect(dataset.expectedOutputSchema).toEqual(datasetExpectedOutputSchema);
+
+    await expect(
+      upsertDataset?.handler(
+        {
+          name: datasetName,
+          inputSchema: JSON.stringify(datasetInputSchema),
+          expectedOutputSchema: JSON.stringify(datasetExpectedOutputSchema),
+        },
+        context,
+      ),
+    ).resolves.toMatchObject({
+      id: dataset.id,
+      inputSchema: datasetInputSchema,
+      expectedOutputSchema: datasetExpectedOutputSchema,
+    });
+
+    const renamedDatasetName = `mcp-dataset-renamed-${uuidv4()}`;
+    const renamedDataset = (await handleUpsertDataset(
+      {
+        id: dataset.id,
+        name: renamedDatasetName,
+        description: "Renamed MCP dataset",
+      },
+      context,
+    )) as { id: string; name: string; description: string };
+    expect(renamedDataset).toMatchObject({
+      id: dataset.id,
+      name: renamedDatasetName,
+      description: "Renamed MCP dataset",
+    });
+
+    await expect(
+      handleUpsertDataset(
+        {
+          id: "",
+          name: `mcp-dataset-empty-id-${uuidv4()}`,
+        },
+        context,
+      ),
+    ).rejects.toThrow("Validation failed");
+
+    const conflictingDatasetName = `mcp-dataset-conflict-${uuidv4()}`;
+    await handleUpsertDataset({ name: conflictingDatasetName }, context);
+    await expect(
+      handleUpsertDataset(
+        {
+          id: dataset.id,
+          name: conflictingDatasetName,
+        },
+        context,
+      ),
+    ).rejects.toThrow("Dataset name already in use");
 
     const datasets = (await handleListDatasets(
       { page: 1, limit: 10 },
@@ -494,28 +589,31 @@ describe("MCP public API tools", () => {
     expect(datasets.data.map((item) => item.id)).toContain(dataset.id);
 
     await expect(
-      handleGetDataset({ datasetName }, context),
-    ).resolves.toMatchObject({ id: dataset.id, name: datasetName });
+      handleGetDataset({ datasetId: dataset.id }, context),
+    ).resolves.toMatchObject({ id: dataset.id, name: renamedDatasetName });
 
     const datasetItem = (await handleUpsertDatasetItem(
       {
-        datasetName,
+        datasetId: dataset.id,
         input: { question: "ping" },
         expectedOutput: { answer: "pong" },
       },
       context,
     )) as { id: string; datasetName: string };
-    expect(datasetItem.datasetName).toBe(datasetName);
+    expect(datasetItem.datasetName).toBe(renamedDatasetName);
 
     const datasetItems = (await handleListDatasetItems(
-      { datasetName, page: 1, limit: 10 },
+      { datasetId: dataset.id, page: 1, limit: 10 },
       context,
     )) as { data: Array<{ id: string }> };
     expect(datasetItems.data.map((item) => item.id)).toContain(datasetItem.id);
 
     await expect(
       handleGetDatasetItem({ datasetItemId: datasetItem.id }, context),
-    ).resolves.toMatchObject({ id: datasetItem.id, datasetName });
+    ).resolves.toMatchObject({
+      id: datasetItem.id,
+      datasetName: renamedDatasetName,
+    });
 
     const runName = `mcp-run-50% accuracy %20 ${uuidv4()}`;
     const runItem = (await handleCreateDatasetRunItem(
@@ -530,6 +628,19 @@ describe("MCP public API tools", () => {
       context,
     )) as { id: string; datasetRunId: string; datasetItemId: string };
     expect(runItem.datasetItemId).toBe(datasetItem.id);
+    await expect(
+      verifyAuditLog({
+        projectId,
+        apiKeyId,
+        resourceType: "datasetRunItem",
+        resourceId: runItem.id,
+        action: "create",
+      }),
+    ).resolves.toMatchObject({
+      resourceType: "datasetRunItem",
+      resourceId: runItem.id,
+      action: "create",
+    });
 
     await createDatasetRunItemsCh([
       createDatasetRunItem({
@@ -546,7 +657,12 @@ describe("MCP public API tools", () => {
 
     await waitFor(async () => {
       const runItems = (await handleListDatasetRunItems(
-        { datasetId: dataset.id, runName, page: 1, limit: 10 },
+        {
+          datasetId: dataset.id,
+          datasetRunId: runItem.datasetRunId,
+          page: 1,
+          limit: 10,
+        },
         context,
       )) as { data: Array<{ id: string }> };
 
@@ -554,7 +670,7 @@ describe("MCP public API tools", () => {
     });
 
     const datasetRuns = (await handleListDatasetRuns(
-      { name: datasetName, page: 1, limit: 10 },
+      { datasetId: dataset.id, page: 1, limit: 10 },
       context,
     )) as { data: Array<{ id: string; name: string }> };
     expect(datasetRuns.data).toEqual(
@@ -564,7 +680,10 @@ describe("MCP public API tools", () => {
     );
 
     await expect(
-      handleGetDatasetRun({ name: datasetName, runName }, context),
+      handleGetDatasetRun(
+        { datasetId: dataset.id, datasetRunId: runItem.datasetRunId },
+        context,
+      ),
     ).resolves.toMatchObject({
       id: runItem.datasetRunId,
       name: runName,
@@ -574,7 +693,10 @@ describe("MCP public API tools", () => {
     });
 
     await expect(
-      handleDeleteDatasetRun({ name: datasetName, runName }, context),
+      handleDeleteDatasetRun(
+        { datasetId: dataset.id, datasetRunId: runItem.datasetRunId },
+        context,
+      ),
     ).resolves.toEqual({ message: "Dataset run successfully deleted" });
 
     await expect(
@@ -640,11 +762,17 @@ describe("MCP public API tools", () => {
     )) as { id: string };
 
     await expect(
-      handleGetDataset({ datasetName }, targetContext),
+      handleGetDataset({ datasetId: dataset.id }, targetContext),
+    ).rejects.toThrow("Dataset not found");
+    await expect(
+      handleListDatasetItems(
+        { datasetId: dataset.id, page: 1, limit: 10 },
+        targetContext,
+      ),
     ).rejects.toThrow("Dataset not found");
     await expect(
       handleListDatasetRunItems(
-        { datasetId: dataset.id, runName: "missing", page: 1, limit: 10 },
+        { datasetId: dataset.id, datasetRunId: uuidv4(), page: 1, limit: 10 },
         targetContext,
       ),
     ).rejects.toThrow("Dataset run not found");
@@ -702,8 +830,8 @@ describe("MCP public API tools", () => {
       {
         name: scoreConfigName,
         dataType: "NUMERIC",
-        minValue: 0,
-        maxValue: 1,
+        numericMinValue: 0,
+        numericMaxValue: 1,
       },
       context,
     )) as { id: string; name: string };

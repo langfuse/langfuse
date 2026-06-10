@@ -5,6 +5,12 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import { type Role } from "@langfuse/shared/src/db";
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+} from "@langfuse/shared/monitors";
 
 type RoleName = keyof typeof Role;
 
@@ -103,15 +109,29 @@ const validMonitorInput = (projectId: string) => ({
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: null,
-  noData: { mode: "SILENT" as const },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" as const },
-  status: "active" as const,
+  status: MonitorStatusSchema.enum.ACTIVE,
   name: "High error rate",
   tags: [],
+  triggerIds: ["trig_01"],
 });
+
+const seedMonitors = async (
+  caller: ReturnType<typeof appRouter.createCaller>,
+  projectId: string,
+  count: number,
+) => {
+  for (let i = 0; i < count; i++) {
+    await caller.monitors.create({
+      ...validMonitorInput(projectId),
+      name: `Seeded monitor ${i + 1}`,
+    });
+  }
+};
 
 describe("monitors trpc", () => {
   afterAll(async () => {
@@ -140,6 +160,8 @@ describe("monitors trpc", () => {
       const list = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
+        page: 1,
+        limit: 50,
       });
       expect(list.totalCount).toBe(1);
       expect(list.monitors.map((m) => m.id)).toContain(created.id);
@@ -156,14 +178,14 @@ describe("monitors trpc", () => {
       );
       await prisma.monitor.update({
         where: { id: created.id },
-        data: { status: "ERROR_BAD_QUERY" },
+        data: { status: MonitorStatusSchema.enum.ERROR_BAD_QUERY },
       });
 
       const fetched = await caller.monitors.get({
         projectId: project.id,
         id: created.id,
       });
-      expect(fetched.status).toBe("error-bad-query");
+      expect(fetched.status).toBe(MonitorStatusSchema.enum.ERROR_BAD_QUERY);
     });
   });
 
@@ -191,6 +213,8 @@ describe("monitors trpc", () => {
       const list = await caller.monitors.all({
         projectId: project.id,
         orderBy: null,
+        page: 1,
+        limit: 50,
       });
       expect(list.totalCount).toBe(0);
     });
@@ -203,7 +227,7 @@ describe("monitors trpc", () => {
       await expect(
         caller.monitors.create({
           ...validMonitorInput(project.id),
-          thresholdOperator: "gt",
+          thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
           alertThreshold: 100,
           warningThreshold: 100,
         }),
@@ -255,7 +279,12 @@ describe("monitors trpc", () => {
     it("rejects monitors.all when the flag is off", async () => {
       const { project, caller } = await prepare({ monitorsFlag: false });
       await expect(
-        caller.monitors.all({ projectId: project.id, orderBy: null }),
+        caller.monitors.all({
+          projectId: project.id,
+          orderBy: null,
+          page: 1,
+          limit: 50,
+        }),
       ).rejects.toThrow(/monitors/i);
     });
   });
@@ -293,6 +322,312 @@ describe("monitors trpc", () => {
       await expect(
         caller.monitors.get({ projectId: project.id, id: created.id }),
       ).rejects.toThrow(/not found/i);
+    });
+  });
+
+  describe("list filter sidebar", () => {
+    it("filters by severity (any of)", async () => {
+      const { project, caller } = await prepare();
+      const a = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "A",
+      });
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "B",
+      });
+      await prisma.monitor.update({
+        where: { id: a.id },
+        data: { severity: MonitorSeveritySchema.enum.ALERT },
+      });
+
+      const result = await caller.monitors.all({
+        projectId: project.id,
+        orderBy: null,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "severity",
+            operator: "any of",
+            value: [MonitorSeveritySchema.enum.ALERT],
+          },
+        ],
+      });
+      expect(result.totalCount).toBe(1);
+      expect(result.monitors.map((m) => m.name)).toEqual(["A"]);
+    });
+
+    it("filters by severity (none of PAUSED) hides paused monitors", async () => {
+      // Pausing via the service writes severity = PAUSED; a severity-filter
+      // with `none of [PAUSED]` then naturally excludes those rows.
+      const { project, caller } = await prepare();
+      const a = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "A",
+      });
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "B",
+      });
+      await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: a.id,
+        status: MonitorStatusSchema.enum.PAUSED,
+      });
+
+      const result = await caller.monitors.all({
+        projectId: project.id,
+        orderBy: null,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            type: "stringOptions",
+            column: "severity",
+            operator: "none of",
+            value: [MonitorSeveritySchema.enum.PAUSED],
+          },
+        ],
+      });
+      expect(result.totalCount).toBe(1);
+      expect(result.monitors.map((m) => m.name)).toEqual(["B"]);
+    });
+
+    it("flipping status ACTIVE → PAUSED via update writes severity = PAUSED", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.monitors.create(
+        validMonitorInput(project.id),
+      );
+      expect(created.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
+
+      const paused = await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: created.id,
+        status: MonitorStatusSchema.enum.PAUSED,
+      });
+      expect(paused.status).toBe(MonitorStatusSchema.enum.PAUSED);
+      expect(paused.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
+    });
+
+    it("flipping status PAUSED → ACTIVE via update resets severity to UNKNOWN", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        status: MonitorStatusSchema.enum.PAUSED,
+      });
+      expect(created.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
+
+      const resumed = await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: created.id,
+        status: MonitorStatusSchema.enum.ACTIVE,
+      });
+      expect(resumed.status).toBe(MonitorStatusSchema.enum.ACTIVE);
+      expect(resumed.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
+    });
+
+    it("filters by tags (any of)", async () => {
+      const { project, caller } = await prepare();
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "Tagged",
+        tags: ["prod", "latency"],
+      });
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "Untagged",
+      });
+
+      const result = await caller.monitors.all({
+        projectId: project.id,
+        orderBy: null,
+        page: 1,
+        limit: 50,
+        filter: [
+          {
+            type: "arrayOptions",
+            column: "tags",
+            operator: "any of",
+            value: ["prod"],
+          },
+        ],
+      });
+      expect(result.totalCount).toBe(1);
+      expect(result.monitors.map((m) => m.name)).toEqual(["Tagged"]);
+    });
+
+    it("filterOptions returns distinct tags for the project", async () => {
+      const { project, caller } = await prepare();
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "A",
+        tags: ["prod", "latency"],
+      });
+      await caller.monitors.create({
+        ...validMonitorInput(project.id),
+        name: "B",
+        tags: ["prod"],
+      });
+
+      const opts = await caller.monitors.getFilterOptions({
+        projectId: project.id,
+      });
+      expect(opts.tags.map((t) => t.value).sort()).toEqual(["latency", "prod"]);
+    });
+  });
+
+  describe("entitlement limit", () => {
+    it("rejects monitors.create when org is at the monitor-count limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      await expect(
+        caller.monitors.create({
+          ...validMonitorInput(project.id),
+          name: "Eleventh monitor",
+        }),
+      ).rejects.toThrow(/monitor-count/i);
+    });
+
+    it("counts monitors with non-ACTIVE status toward the limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      const seeded = await prisma.monitor.findMany({
+        where: { projectId: project.id },
+        take: 2,
+      });
+      await prisma.monitor.update({
+        where: { id: seeded[0].id },
+        data: { status: MonitorStatusSchema.enum.PAUSED },
+      });
+      await prisma.monitor.update({
+        where: { id: seeded[1].id },
+        data: { status: MonitorStatusSchema.enum.ERROR_BAD_QUERY },
+      });
+
+      await expect(
+        caller.monitors.create({
+          ...validMonitorInput(project.id),
+          name: "Eleventh monitor",
+        }),
+      ).rejects.toThrow(/monitor-count/i);
+    });
+
+    it("allows monitors.update when at the limit", async () => {
+      const { project, caller } = await prepare();
+      await seedMonitors(caller, project.id, 10);
+
+      const [first] = await prisma.monitor.findMany({
+        where: { projectId: project.id },
+        take: 1,
+      });
+
+      const updated = await caller.monitors.update({
+        ...validMonitorInput(project.id),
+        id: first.id,
+        name: "Renamed at limit",
+      });
+      expect(updated.name).toBe("Renamed at limit");
+    });
+
+    it("monitors.count is scoped to the caller's org", async () => {
+      // Two independent orgs prove the count is org-scoped, not global.
+      const orgA = await prepare();
+      const orgB = await prepare();
+
+      await seedMonitors(orgA.caller, orgA.project.id, 3);
+      await seedMonitors(orgB.caller, orgB.project.id, 2);
+
+      const resultA = await orgA.caller.monitors.count({
+        projectId: orgA.project.id,
+      });
+      const resultB = await orgB.caller.monitors.count({
+        projectId: orgB.project.id,
+      });
+
+      expect(resultA.count).toBe(3);
+      expect(resultB.count).toBe(2);
+    });
+  });
+
+  describe("hasAny", () => {
+    it("returns false on an empty project", async () => {
+      const { project, caller } = await prepare();
+      const result = await caller.monitors.hasAny({ projectId: project.id });
+      expect(result).toBe(false);
+    });
+
+    it("returns true once a monitor has been created", async () => {
+      const { project, caller } = await prepare();
+      await caller.monitors.create(validMonitorInput(project.id));
+      const result = await caller.monitors.hasAny({ projectId: project.id });
+      expect(result).toBe(true);
+    });
+
+    it("is project-scoped, not org-scoped", async () => {
+      // Two projects in the same org: a monitor in project A must not flip
+      // hasAny for project B, which is the read on which the empty-state
+      // splash is gated.
+      const {
+        org,
+        project: projectA,
+        session: sessionA,
+        caller: callerA,
+      } = await prepare();
+
+      const projectB = await prisma.project.create({
+        data: {
+          name: `sibling-${v4().substring(0, 8)}`,
+          orgId: org.id,
+        },
+      });
+
+      // Re-issue the session with projectB added so the caller has RBAC
+      // access to read it; the procedure itself enforces project-scoped
+      // RBAC, not org-scoped.
+      const sessionUser = sessionA.user!;
+      const orgA = sessionUser.organizations[0];
+      const sessionAB = {
+        ...sessionA,
+        user: {
+          ...sessionUser,
+          organizations: [
+            {
+              ...orgA,
+              projects: [
+                ...orgA.projects,
+                {
+                  id: projectB.id,
+                  role: "ADMIN",
+                  retentionDays: 30,
+                  deletedAt: null,
+                  name: projectB.name,
+                  metadata: {},
+                  hasTraces: false,
+                  createdAt: new Date().toISOString(),
+                },
+              ],
+            },
+          ],
+        },
+      } as Session;
+      const ctxAB = createInnerTRPCContext({ session: sessionAB, headers: {} });
+      const callerAB = appRouter.createCaller({ ...ctxAB, prisma });
+
+      await callerA.monitors.create(validMonitorInput(projectA.id));
+
+      const hasAnyA = await callerAB.monitors.hasAny({
+        projectId: projectA.id,
+      });
+      const hasAnyB = await callerAB.monitors.hasAny({
+        projectId: projectB.id,
+      });
+
+      expect(hasAnyA).toBe(true);
+      expect(hasAnyB).toBe(false);
     });
   });
 });

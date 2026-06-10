@@ -56,10 +56,102 @@ export const getPathnameWithoutBasePath = () => {
 let buildId: string | null = null;
 
 const CLIENT_STALE_CACHE_CODES = [404, 400];
+const REPORTED_FAILED_FETCH_MESSAGE = /^failed to fetch(?: \([^)]+\))?$/i;
 
 // Cache to store hashes of recently shown errors (client-side only)
 const recentErrorCache = new Set<string>();
 const ERROR_DEBOUNCE_MS = 20000;
+
+const hasResponseMeta = (error: TRPCClientError<any>): boolean =>
+  Boolean((error.meta as { response?: unknown } | undefined)?.response);
+
+const getCause = (error: unknown): unknown =>
+  error instanceof Error ? error.cause : undefined;
+
+const hasReportedFailedFetchMessage = (error: unknown): boolean => {
+  if (!(error instanceof Error)) return false;
+
+  return REPORTED_FAILED_FETCH_MESSAGE.test(error.message);
+};
+
+const isNetworkConnectivityError = (error: unknown): boolean => {
+  if (!(error instanceof TRPCClientError)) return false;
+
+  // tRPC server errors and infrastructure responses have response metadata.
+  if (error.data || hasResponseMeta(error)) return false;
+
+  const cause = getCause(error);
+
+  return (
+    (cause instanceof TypeError && hasReportedFailedFetchMessage(cause)) ||
+    hasReportedFailedFetchMessage(error)
+  );
+};
+
+/* eslint-disable @repo/no-in-source-vitest */
+const vitest = import.meta.vitest;
+
+if (vitest && typeof vitest === "object") {
+  const { describe, expect, it } = vitest;
+
+  describe("isNetworkConnectivityError", () => {
+    it("detects the reported failed fetch error without a response", () => {
+      const error = TRPCClientError.from(new TypeError("Failed to fetch"));
+
+      expect(isNetworkConnectivityError(error)).toBe(true);
+    });
+
+    it("detects the reported failed fetch error with a hostname suffix", () => {
+      const error = TRPCClientError.from(
+        new TypeError("Failed to fetch (cloud.langfuse.com)"),
+      );
+
+      expect(isNetworkConnectivityError(error)).toBe(true);
+    });
+
+    it("does not treat other network failures as connectivity errors", () => {
+      const error = TRPCClientError.from(new TypeError("Load failed"));
+
+      expect(isNetworkConnectivityError(error)).toBe(false);
+    });
+
+    it("does not treat tRPC server errors as connectivity errors", () => {
+      const error = TRPCClientError.from({
+        error: {
+          code: -32603,
+          message: "Internal server error",
+          data: {
+            code: "INTERNAL_SERVER_ERROR",
+            httpStatus: 500,
+            path: "events.all",
+          },
+        },
+      });
+
+      expect(isNetworkConnectivityError(error)).toBe(false);
+    });
+
+    it("does not treat response parsing errors as connectivity errors", () => {
+      const error = TRPCClientError.from(
+        new SyntaxError("Unexpected token <"),
+        {
+          meta: {
+            response: new Response("<html></html>", { status: 502 }),
+          },
+        },
+      );
+
+      expect(isNetworkConnectivityError(error)).toBe(false);
+    });
+
+    it("does not treat non-tRPC errors as connectivity errors", () => {
+      expect(isNetworkConnectivityError(new TypeError("Failed to fetch"))).toBe(
+        false,
+      );
+    });
+  });
+}
+/* eslint-enable @repo/no-in-source-vitest */
 
 /**
  * Creates a unique hash for an error to track it for debouncing; implementation hashes based on the tRPC path and http status
@@ -163,6 +255,10 @@ const shouldSilenceError = (
   meta: Record<string, unknown>,
   error: Error,
 ): boolean => {
+  if (isNetworkConnectivityError(error)) {
+    return true;
+  }
+
   if (Array.isArray(meta?.silentHttpCodes)) {
     return (
       error instanceof TRPCClientError &&

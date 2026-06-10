@@ -9,7 +9,7 @@ import {
 import {
   createDatasetRunItemForApi,
   listDatasetRunItemsForApi,
-} from "@/src/features/public-api/server/dataset-run-items-api-service";
+} from "@/src/features/datasets/server/publicDatasetService";
 
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({

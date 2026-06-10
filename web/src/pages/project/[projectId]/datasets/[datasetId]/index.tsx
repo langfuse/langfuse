@@ -37,7 +37,6 @@ import { TemplateSelector } from "@/src/features/evals/components/template-selec
 import { useEvaluatorDefaults } from "@/src/features/experiments/hooks/useEvaluatorDefaults";
 import { useExperimentEvaluatorData } from "@/src/features/experiments/hooks/useExperimentEvaluatorData";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
@@ -77,12 +76,7 @@ export default function Dataset() {
     projectId,
     scope: "promptExperiments:CUD",
   });
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-    isExperimentsBetaActive,
-  } = useExperimentAccess();
+  const { isExperimentsBetaActive } = useExperimentAccess();
 
   const handleExperimentSuccess = async (data?: {
     success: boolean;
@@ -94,11 +88,11 @@ export default function Dataset() {
     if (!data) return;
 
     if (isExperimentsBetaActive) {
-      void utils.experiments.all.invalidate();
-      void utils.experiments.countAll.invalidate();
+      utils.experiments.all.invalidate();
+      utils.experiments.countAll.invalidate();
     } else {
-      void utils.datasets.runsByDatasetId.invalidate();
-      void utils.datasets.baseRunDataByDatasetId.invalidate();
+      utils.datasets.runsByDatasetId.invalidate();
+      utils.datasets.baseRunDataByDatasetId.invalidate();
     }
 
     showSuccessToast({
@@ -157,12 +151,6 @@ export default function Dataset() {
   const preprocessFormValues = useCallback((values: any) => values, []);
 
   const breadcrumb = getDatasetBreadcrumb(projectId, dataset.data?.name);
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaEnabled}
-      onEnabledChange={setExperimentsBetaEnabled}
-    />
-  ) : null;
 
   if (isExperimentsBetaActive) {
     return (
@@ -175,7 +163,6 @@ export default function Dataset() {
             tabs: getDatasetTabs(projectId, datasetId),
             activeTab: DATASET_TABS.RUNS,
           },
-          actionButtonsLeft: betaSwitch,
           actionButtonsRight: (
             <>
               <Dialog
@@ -255,7 +242,6 @@ export default function Dataset() {
           tabs: getDatasetTabs(projectId, datasetId),
           activeTab: DATASET_TABS.RUNS,
         },
-        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
             <Dialog

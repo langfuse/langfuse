@@ -3399,11 +3399,11 @@ paths:
 
             ### Structured Data
 
-            - `input` (string) - Observation input. Supports accelerated token
-            search with the `matches` operator.
+            - `input` (string) - Observation input. Supports accelerated indexed
+            literal search with the `matches` operator.
 
-            - `output` (string) - Observation output. Supports accelerated token
-            search with the `matches` operator.
+            - `output` (string) - Observation output. Supports accelerated
+            indexed literal search with the `matches` operator.
 
             - `metadata` (stringObject/numberObject/categoryOptions) - Metadata
             key-value pairs. Use `key` parameter to filter on specific metadata
@@ -3411,14 +3411,16 @@ paths:
 
 
             The `matches` operator is only supported for `input`, `output`, and
-            stringObject `metadata` filters. It performs token-based full-text
-            search using the events table text indexes. Case sensitivity differs
-            by target: `input` and `output` matches are case-insensitive, while
-            metadata value matches are case-sensitive. Use `contains` for
-            substring semantics. Any v2 `input` or `output` filter must be
-            accompanied by at least one `=` or `matches` filter on `input` or
-            `output`; standalone `contains`, `starts with`, `ends with`, and
-            `does not contain` filters on these columns are rejected.
+            stringObject `metadata` filters. It performs indexed literal search
+            with token-boundary pruning using the events table text indexes.
+            Case sensitivity differs by target: `input` and `output` matches are
+            case-insensitive, while metadata value matches are case-sensitive.
+            Unlike SQL `LIKE`, `%` and `_` are treated as literal characters.
+            Use `contains` for legacy substring semantics where the API allows
+            it. Any v2 `input` or `output` filter must be accompanied by at
+            least one `=` or `matches` filter on `input` or `output`; standalone
+            `contains`, `starts with`, `ends with`, and `does not contain`
+            filters on these columns are rejected.
 
 
             ## Filter Examples
@@ -5293,9 +5295,258 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateScoreConfigRequest'
+  /api/public/v3/scores:
+    get:
+      description: |-
+        Get a list of scores with a polymorphic `value` field (v3).
+
+        The `value` field type depends on `dataType`:
+        - `NUMERIC` → number
+        - `BOOLEAN` → boolean
+        - `CATEGORICAL`, `TEXT`, `CORRECTION` → string
+
+        The response always includes the core fields: id, projectId, name,
+        value, dataType, source, timestamp, environment, createdAt, updatedAt.
+
+        Additional field groups can be requested via the `fields` parameter:
+        - `details` — adds comment, configId, metadata
+        - `subject` — adds the subject object describing the entity the score
+          is attached to: kind (trace, observation, session, or experiment),
+          id, and traceId for observation-level scores
+        - `annotation` — adds authorUserId, queueId
+
+        Unknown group names return HTTP 400.
+      operationId: scoresV3_getManyV3
+      tags:
+        - ScoresV3
+      parameters:
+        - name: limit
+          in: query
+          description: >-
+            Number of items per page. Maximum 100, default 50. Requests with a
+            limit greater than 100 return HTTP 400.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: >-
+            URL-safe base64 (base64url) cursor for pagination. Use the cursor
+            from the previous response to get the next page. Absent on the final
+            page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fields
+          in: query
+          description: >-
+            Comma-separated field groups to include in addition to the
+            always-returned core fields. Allowed: details, subject, annotation —
+            see the endpoint description for the fields each group adds. Unknown
+            names return HTTP 400.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: id
+          in: query
+          description: >-
+            Comma-separated list of score IDs to filter by (OR within, AND
+            across filters).
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: name
+          in: query
+          description: Comma-separated list of score names to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: source
+          in: query
+          description: >-
+            Comma-separated list of score sources to filter by (e.g. API,
+            ANNOTATION, EVAL). Case-insensitive — `api` and `API` are
+            equivalent.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: dataType
+          in: query
+          description: >-
+            Comma-separated list of data types to filter by (NUMERIC, BOOLEAN,
+            CATEGORICAL, TEXT, CORRECTION). Case-insensitive — `numeric` and
+            `NUMERIC` are equivalent. Must be a single value when used with
+            value, valueMin, or valueMax; otherwise the request returns HTTP
+            400. Must be NUMERIC when used with valueMin or valueMax.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: environment
+          in: query
+          description: Comma-separated list of environments to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: configId
+          in: query
+          description: Comma-separated list of score config IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: queueId
+          in: query
+          description: Comma-separated list of annotation queue IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: authorUserId
+          in: query
+          description: Comma-separated list of author user IDs to filter by.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: value
+          in: query
+          description: >-
+            Comma-separated list of exact values to filter by. Requires a single
+            dataType from NUMERIC, BOOLEAN, or CATEGORICAL; any other dataType,
+            multiple dataTypes, or omitting dataType returns HTTP 400. For
+            BOOLEAN, each value must be "true" or "false"; for NUMERIC, each
+            value must be a finite number. Otherwise the request returns HTTP
+            400.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: valueMin
+          in: query
+          description: >-
+            Inclusive lower bound on the numeric value. Requires
+            dataType=NUMERIC as a single value; otherwise the request returns
+            HTTP 400.
+          required: false
+          schema:
+            type: number
+            format: double
+            nullable: true
+        - name: valueMax
+          in: query
+          description: >-
+            Inclusive upper bound on the numeric value. Requires
+            dataType=NUMERIC as a single value; otherwise the request returns
+            HTTP 400.
+          required: false
+          schema:
+            type: number
+            format: double
+            nullable: true
+        - name: traceId
+          in: query
+          description: >-
+            Comma-separated list of trace IDs to filter by. Mutually exclusive
+            with sessionId, experimentId. May be combined with observationId to
+            scope the observation lookup to a specific trace.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: sessionId
+          in: query
+          description: >-
+            Comma-separated list of session IDs to filter by. Mutually exclusive
+            with traceId, observationId, experimentId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: observationId
+          in: query
+          description: >-
+            Comma-separated list of observation IDs to filter by. Requires
+            traceId to be specified, because observation IDs are scoped to a
+            trace. Mutually exclusive with sessionId, experimentId. Returns HTTP
+            400 when used without traceId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: experimentId
+          in: query
+          description: >-
+            Comma-separated list of dataset run IDs (experiment IDs) to filter
+            by. Mutually exclusive with traceId, sessionId, observationId.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: fromTimestamp
+          in: query
+          description: Inclusive lower bound on the score timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: Exclusive upper bound on the score timestamp.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetScoresV3Response'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security:
+        - BasicAuth: []
   /api/public/v2/scores:
     get:
-      description: Get a list of scores (supports both trace and session scores)
+      description: |-
+        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
+        is no longer available on Langfuse v4 and later.
+
+        Get a list of scores (supports both trace and session scores)
       operationId: scores_get-many
       tags:
         - Scores
@@ -5517,7 +5768,11 @@ paths:
         - BasicAuth: []
   /api/public/v2/scores/{scoreId}:
     get:
-      description: Get a score (supports both trace and session scores)
+      description: |-
+        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
+        instead. This endpoint is no longer available on Langfuse v4 and later.
+
+        Get a score (supports both trace and session scores)
       operationId: scores_get-by-id
       tags:
         - Scores
@@ -6210,10 +6465,14 @@ paths:
         - for `target=experiment`, use dataset `id` values from `GET
         /api/public/v2/datasets` when filtering by `datasetId`
 
-        - every evaluator prompt variable must be mapped exactly once
+        - for `llm_as_judge` evaluators, every evaluator prompt variable must be
+        mapped exactly once
 
-        - `expected_output` and `experiment_item_metadata` mappings are only
-        valid for `target=experiment`
+        - for `code` evaluators, Langfuse uses the fixed code runtime mapping;
+        omit `mapping` in create and update requests
+
+        - for user-provided `llm_as_judge` mappings, `expected_output` and
+        `experiment_item_metadata` are only valid for `target=experiment`
 
         - if `enabled=true`, Langfuse validates that the referenced evaluator
         can currently run
@@ -6253,14 +6512,15 @@ paths:
         /api/public/v2/datasets`, then retry with dataset `id` values from that
         response
 
-        - `400 missing_variable_mapping`: fetch the evaluator again and make
-        sure every variable in `variables` appears exactly once in `mapping`
+        - `400 missing_variable_mapping`: for `llm_as_judge` evaluators, fetch
+        the evaluator again and make sure every variable in `variables` appears
+        exactly once in `mapping`
 
         - `400 duplicate_variable_mapping`: remove repeated mappings for the
         same variable
 
-        - `400 invalid_variable_mapping`: switch to a valid `source` for the
-        selected `target`, or fix the variable name
+        - `400 invalid_variable_mapping`: for `llm_as_judge`, switch to a valid
+        `source` for the selected `target`, or fix the variable name
 
         - `400 invalid_json_path`: remove or correct the `jsonPath`
 
@@ -6287,6 +6547,7 @@ paths:
                       id: evaltmpl_123
                       name: answer-correctness
                       scope: project
+                      type: llm_as_judge
                     target: observation
                     enabled: true
                     status: active
@@ -6304,6 +6565,38 @@ paths:
                         source: output
                     createdAt: '2026-03-30T09:20:00.000Z'
                     updatedAt: '2026-03-30T09:20:00.000Z'
+                CreateCodeObservationEvaluationRule:
+                  value:
+                    id: erule_234
+                    name: toxicity-code-live
+                    evaluator:
+                      id: evaltmpl_234
+                      name: toxicity-detector
+                      scope: project
+                      type: code
+                    target: observation
+                    enabled: true
+                    status: active
+                    sampling: 1
+                    filter:
+                      - type: stringOptions
+                        column: type
+                        operator: any of
+                        value:
+                          - GENERATION
+                    mapping:
+                      - variable: input
+                        source: input
+                      - variable: output
+                        source: output
+                      - variable: metadata
+                        source: metadata
+                      - variable: experimentItemExpectedOutput
+                        source: expected_output
+                      - variable: experimentItemMetadata
+                        source: experiment_item_metadata
+                    createdAt: '2026-03-30T09:25:00.000Z'
+                    updatedAt: '2026-03-30T09:25:00.000Z'
                 CreateExperimentEvaluationRule:
                   value:
                     id: erule_456
@@ -6312,6 +6605,7 @@ paths:
                       id: evaltmpl_456
                       name: expected-output-match
                       scope: project
+                      type: llm_as_judge
                     target: experiment
                     enabled: true
                     status: active
@@ -6393,6 +6687,7 @@ paths:
                   evaluator:
                     name: answer-correctness
                     scope: project
+                    type: llm_as_judge
                   target: observation
                   enabled: true
                   sampling: 1
@@ -6407,12 +6702,29 @@ paths:
                       source: input
                     - variable: output
                       source: output
+              CreateCodeObservationEvaluationRule:
+                value:
+                  name: toxicity-code-live
+                  evaluator:
+                    name: toxicity-detector
+                    scope: project
+                    type: code
+                  target: observation
+                  enabled: true
+                  sampling: 1
+                  filter:
+                    - type: stringOptions
+                      column: type
+                      operator: any of
+                      value:
+                        - GENERATION
               CreateExperimentEvaluationRule:
                 value:
                   name: experiment-expected-output-match
                   evaluator:
                     name: expected-output-match
                     scope: project
+                    type: llm_as_judge
                   target: experiment
                   enabled: true
                   sampling: 0.5
@@ -6579,7 +6891,7 @@ paths:
 
         - change filters
 
-        - update variable mappings
+        - update LLM-as-judge variable mappings
 
 
         Important behavior:
@@ -6589,12 +6901,15 @@ paths:
         - if you provide `evaluator`, Langfuse resolves that evaluator family to
         its latest version before saving
 
-        - changing `target`, `filter`, or `mapping` must still produce a valid
-        target-specific configuration
+        - changing `target`, `filter`, or an LLM-as-judge `mapping` must still
+        produce a valid target-specific configuration
 
-        - if you change `target`, also send a compatible `filter` and `mapping`
-        in the same request unless the existing ones are still valid for the new
-        target
+        - if you change `target` for an LLM-as-judge rule, also send a
+        compatible `filter` and `mapping` in the same request unless the
+        existing ones are still valid for the new target
+
+        - for `code` evaluator rules, omit `mapping`; Langfuse stores the fixed
+        code runtime mapping automatically
 
         - if the resulting config is enabled, Langfuse re-validates that the
         selected evaluator can run
@@ -6606,7 +6921,7 @@ paths:
 
         Recovery guidance:
 
-        - if the update fails with `missing_variable_mapping` or
+        - if an LLM-as-judge update fails with `missing_variable_mapping` or
         `invalid_variable_mapping` after changing `evaluator` or `target`,
         resend the request with a complete new `mapping`
 
@@ -6749,8 +7064,12 @@ paths:
         Create an evaluator in the authenticated project.
 
 
-        Use evaluators to define **how** Langfuse should score data: the prompt,
-        the expected structured output, and the optional model configuration.
+        Use evaluators to define **how** Langfuse should score data.
+
+        LLM-as-a-judge evaluators define a prompt, expected structured output,
+        and optional model configuration.
+
+        Code evaluators define source code and a runtime language.
 
 
         Naming behavior:
@@ -6779,6 +7098,16 @@ paths:
         evaluator family using `name` and `scope`.
 
 
+        Code evaluator validation:
+
+        - At creation, Langfuse only validates the request shape
+
+        - The `sourceCode` itself is not executed here. It is first run
+        (preflight-tested against a sample observation) when you link the
+        evaluator to an evaluation rule, so runtime errors in the code surface
+        at evaluation-rule creation, not at evaluator creation.
+
+
         Recovery guidance:
 
         - `422` with `code=evaluator_preflight_failed`: the evaluator cannot run
@@ -6790,9 +7119,14 @@ paths:
         the structured `details.issues` array to fix the specific fields and
         retry.
 
-        - `400` with `code=invalid_body` on `outputDefinition`: send `dataType`,
-        `reasoning.description`, and `score.description`. Do not send `version`;
-        it is not part of the public request shape.
+        - `400` with `code=invalid_body` on `outputDefinition`: for
+        `type=llm_as_judge`, send `dataType`, `reasoning.description`, and
+        `score.description`. Do not send `version`; it is not part of the public
+        request shape.
+
+        - If `type` is omitted, Langfuse treats the request as
+        `type=llm_as_judge` for backwards compatibility. New clients should send
+        `type` explicitly.
 
 
         Unstable API note:
@@ -6843,6 +7177,80 @@ paths:
                     evaluationRuleCount: 0
                     createdAt: '2026-03-30T09:00:00.000Z'
                     updatedAt: '2026-03-30T09:00:00.000Z'
+                CreateTypeScriptCodeEvaluator:
+                  value:
+                    id: evaltmpl_ts_123
+                    name: exact-match
+                    version: 1
+                    scope: project
+                    type: code
+                    variables:
+                      - input
+                      - output
+                      - metadata
+                      - experimentItemExpectedOutput
+                      - experimentItemMetadata
+                    sourceCode: >
+                      function evaluate(ctx: EvaluationContext):
+                      EvaluationResult {
+                        const input = ctx.observation.input;
+                        const matchesOutput =
+                          input !== undefined && ctx.observation.output === input;
+
+                        return {
+                          scores: [
+                            {
+                              name: "Exact match",
+                              value: matchesOutput,
+                              dataType: "BOOLEAN",
+                              comment: matchesOutput
+                                ? "Output exactly matches the input."
+                                : "Output does not match the input.",
+                            },
+                          ],
+                        };
+                      }
+                    sourceCodeLanguage: TYPESCRIPT
+                    evaluationRuleCount: 0
+                    createdAt: '2026-03-30T09:10:00.000Z'
+                    updatedAt: '2026-03-30T09:10:00.000Z'
+                CreatePythonCodeEvaluator:
+                  value:
+                    id: evaltmpl_py_123
+                    name: exact-match
+                    version: 1
+                    scope: project
+                    type: code
+                    variables:
+                      - input
+                      - output
+                      - metadata
+                      - experimentItemExpectedOutput
+                      - experimentItemMetadata
+                    sourceCode: |
+                      def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+                          """Evaluates one observation and returns one or more Langfuse scores."""
+                          input = ctx.observation.input
+                          matches_output = input is not None and ctx.observation.output == input
+
+                          return EvaluationResult(
+                              scores=[
+                                  Score(
+                                      name="Exact match",
+                                      value=matches_output,
+                                      data_type="BOOLEAN",
+                                      comment=(
+                                          "Output exactly matches the input."
+                                          if matches_output
+                                          else "Output does not match the input."
+                                      ),
+                                  )
+                              ]
+                          )
+                    sourceCodeLanguage: PYTHON
+                    evaluationRuleCount: 0
+                    createdAt: '2026-03-30T09:15:00.000Z'
+                    updatedAt: '2026-03-30T09:15:00.000Z'
         '400':
           description: ''
           content:
@@ -6904,6 +7312,7 @@ paths:
               CreateEvaluatorVersion:
                 value:
                   name: answer-correctness
+                  type: llm_as_judge
                   prompt: |
                     You are grading an answer.
 
@@ -6923,6 +7332,56 @@ paths:
                   modelConfig:
                     provider: openai
                     model: gpt-4.1-mini
+              CreateTypeScriptCodeEvaluator:
+                value:
+                  name: exact-match
+                  type: code
+                  sourceCode: >
+                    function evaluate(ctx: EvaluationContext): EvaluationResult
+                    {
+                      const input = ctx.observation.input;
+                      const matchesOutput =
+                        input !== undefined && ctx.observation.output === input;
+
+                      return {
+                        scores: [
+                          {
+                            name: "Exact match",
+                            value: matchesOutput,
+                            dataType: "BOOLEAN",
+                            comment: matchesOutput
+                              ? "Output exactly matches the input."
+                              : "Output does not match the input.",
+                          },
+                        ],
+                      };
+                    }
+                  sourceCodeLanguage: TYPESCRIPT
+              CreatePythonCodeEvaluator:
+                value:
+                  name: exact-match
+                  type: code
+                  sourceCode: |
+                    def evaluate(ctx: EvaluationContext) -> EvaluationResult:
+                        """Evaluates one observation and returns one or more Langfuse scores."""
+                        input = ctx.observation.input
+                        matches_output = input is not None and ctx.observation.output == input
+
+                        return EvaluationResult(
+                            scores=[
+                                Score(
+                                    name="Exact match",
+                                    value=matches_output,
+                                    data_type="BOOLEAN",
+                                    comment=(
+                                        "Output exactly matches the input."
+                                        if matches_output
+                                        else "Output does not match the input."
+                                    ),
+                                )
+                            ]
+                        )
+                  sourceCodeLanguage: PYTHON
     get:
       description: >-
         List the evaluators available to the authenticated project.
@@ -10478,7 +10937,8 @@ components:
           nullable: true
           description: >-
             Adapter-specific configuration. Required for Bedrock
-            (`{"region":"us-east-1"}`), optional for VertexAI
+            (`{"region":"us-east-1"}`), optional for OpenAI
+            (`{"useResponsesApi":true}`), optional for VertexAI
             (`{"location":"us-central1"}`), not used by other adapters.
         createdAt:
           type: string
@@ -10552,10 +11012,12 @@ components:
           description: >-
             Adapter-specific configuration. Validation rules: - **Bedrock**:
             Required. Must be `{"region": "<aws-region>"}` (e.g.,
-            `{"region":"us-east-1"}`) - **VertexAI**: Optional. If provided,
-            must be `{"location": "<gcp-location>"}` (e.g.,
-            `{"location":"us-central1"}`) - **Other adapters**: Not supported.
-            Omit this field or set to null.
+            `{"region":"us-east-1"}`) - **OpenAI**: Optional. If provided, must
+            be `{"useResponsesApi": <boolean>}` to control whether Langfuse
+            routes calls through OpenAI's Responses API. - **VertexAI**:
+            Optional. If provided, must be `{"location": "<gcp-location>"}`
+            (e.g., `{"location":"us-central1"}`) - **Other adapters**: Not
+            supported. Omit this field or set to null.
       required:
         - provider
         - adapter
@@ -11974,6 +12436,308 @@ components:
             Description is shown across the Langfuse UI and can be used to e.g.
             explain the config categories in detail, why a numeric range was
             set, or provide additional context on config name or usage
+    ScoreSubjectTraceV3:
+      title: ScoreSubjectTraceV3
+      type: object
+      properties:
+        id:
+          type: string
+          description: The trace ID.
+      required:
+        - id
+    ScoreSubjectObservationV3:
+      title: ScoreSubjectObservationV3
+      type: object
+      properties:
+        id:
+          type: string
+          description: The observation ID.
+        traceId:
+          type: string
+          nullable: true
+          description: The parent trace ID, if available.
+      required:
+        - id
+    ScoreSubjectSessionV3:
+      title: ScoreSubjectSessionV3
+      type: object
+      properties:
+        id:
+          type: string
+          description: The session ID.
+      required:
+        - id
+    ScoreSubjectExperimentV3:
+      title: ScoreSubjectExperimentV3
+      type: object
+      properties:
+        id:
+          type: string
+          description: The dataset run ID (experiment ID).
+      required:
+        - id
+    ScoreSubjectV3:
+      title: ScoreSubjectV3
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - trace
+            - $ref: '#/components/schemas/ScoreSubjectTraceV3'
+          required:
+            - kind
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - observation
+            - $ref: '#/components/schemas/ScoreSubjectObservationV3'
+          required:
+            - kind
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - session
+            - $ref: '#/components/schemas/ScoreSubjectSessionV3'
+          required:
+            - kind
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - experiment
+            - $ref: '#/components/schemas/ScoreSubjectExperimentV3'
+          required:
+            - kind
+      description: >-
+        A reference to the entity this score is attached to. Discriminated by
+        "kind" — one of trace, observation, session, or experiment.
+    BaseScoreV3:
+      title: BaseScoreV3
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        name:
+          type: string
+        source:
+          $ref: '#/components/schemas/ScoreSource'
+        timestamp:
+          type: string
+          format: date-time
+        environment:
+          type: string
+          description: The environment from which this score originated.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        comment:
+          type: string
+          nullable: true
+          description: >-
+            Optional comment attached to the score. Present when "details" is
+            included in the fields parameter.
+        configId:
+          type: string
+          nullable: true
+          description: >-
+            The score config ID, if this score was created from a config.
+            Present when "details" is included in the fields parameter.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: >-
+            Arbitrary metadata attached to the score. Present when "details" is
+            included in the fields parameter.
+        authorUserId:
+          type: string
+          nullable: true
+          description: >-
+            The user who created this score, if available. Present when
+            "annotation" is included in the fields parameter.
+        queueId:
+          type: string
+          nullable: true
+          description: >-
+            The annotation queue this score belongs to, if any. Present when
+            "annotation" is included in the fields parameter.
+        subject:
+          $ref: '#/components/schemas/ScoreSubjectV3'
+          nullable: true
+          description: >-
+            The entity this score is attached to (trace, observation, session,
+            or experiment). Present when "subject" is included in the fields
+            parameter.
+      required:
+        - id
+        - projectId
+        - name
+        - source
+        - timestamp
+        - environment
+        - createdAt
+        - updatedAt
+    NumericScoreV3:
+      title: NumericScoreV3
+      type: object
+      properties:
+        value:
+          type: number
+          format: double
+          description: The numeric value of the score.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    BooleanScoreV3:
+      title: BooleanScoreV3
+      type: object
+      properties:
+        value:
+          type: boolean
+          description: The boolean value of the score.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    CategoricalScoreV3:
+      title: CategoricalScoreV3
+      type: object
+      properties:
+        value:
+          type: string
+          description: The string category value of the score.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    TextScoreV3:
+      title: TextScoreV3
+      type: object
+      properties:
+        value:
+          type: string
+          description: The text content of the score.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    CorrectionScoreV3:
+      title: CorrectionScoreV3
+      type: object
+      properties:
+        value:
+          type: string
+          description: The correction content of the score. Empty string if not set.
+      required:
+        - value
+      allOf:
+        - $ref: '#/components/schemas/BaseScoreV3'
+    ScoreV3:
+      title: ScoreV3
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - NUMERIC
+            - $ref: '#/components/schemas/NumericScoreV3'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - BOOLEAN
+            - $ref: '#/components/schemas/BooleanScoreV3'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CATEGORICAL
+            - $ref: '#/components/schemas/CategoricalScoreV3'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - TEXT
+            - $ref: '#/components/schemas/TextScoreV3'
+          required:
+            - dataType
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                dataType:
+                  type: string
+                  enum:
+                    - CORRECTION
+            - $ref: '#/components/schemas/CorrectionScoreV3'
+          required:
+            - dataType
+    GetScoresV3Meta:
+      title: GetScoresV3Meta
+      type: object
+      properties:
+        limit:
+          type: integer
+        cursor:
+          type: string
+          nullable: true
+          description: >-
+            URL-safe base64 (base64url) cursor for the next page. Absent when
+            there are no more results.
+      required:
+        - limit
+    GetScoresV3Response:
+      title: GetScoresV3Response
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScoreV3'
+        meta:
+          $ref: '#/components/schemas/GetScoresV3Meta'
+      required:
+        - data
+        - meta
     GetScoresResponseTraceData:
       title: GetScoresResponseTraceData
       type: object
@@ -12159,12 +12923,18 @@ components:
       type: string
       enum:
         - llm_as_judge
-      description: >-
+        - code
+      description: |-
         The evaluator engine type.
 
-
-        The unstable public API currently supports only LLM-as-a-judge
-        evaluators.
+        The unstable public API supports LLM-as-a-judge and code evaluators.
+    unstableCodeEvaluatorSourceCodeLanguage:
+      title: unstableCodeEvaluatorSourceCodeLanguage
+      type: string
+      enum:
+        - PYTHON
+        - TYPESCRIPT
+      description: Code evaluator runtime language.
     unstableEvaluatorScope:
       title: unstableEvaluatorScope
       type: string
@@ -12734,8 +13504,11 @@ components:
       title: unstableEvaluationRuleMapping
       type: object
       description: >-
-        Maps one evaluator prompt variable to one source field from the target
-        object.
+        Maps one evaluator variable to one source field from the target object.
+
+
+        Manual mappings are used for `llm_as_judge` evaluators. `code`
+        evaluators use a fixed runtime mapping managed by Langfuse.
 
 
         How to build a valid mapping list:
@@ -12762,8 +13535,8 @@ components:
         - `invalid_variable_mapping`: the variable name is unknown for this
         evaluator, or the selected `source` is not valid for the chosen `target`
 
-        - `missing_variable_mapping`: one or more evaluator variables are not
-        mapped yet
+        - `missing_variable_mapping`: one or more LLM-as-judge evaluator
+        variables are not mapped yet
 
         - `duplicate_variable_mapping`: the same evaluator variable appears more
         than once
@@ -13281,8 +14054,8 @@ components:
           items:
             $ref: '#/components/schemas/unstableEvaluationRuleMapping'
           description: >-
-            Variable mappings used to populate the evaluator prompt from the
-            live target object.
+            Variable mappings used to populate evaluator runtime variables from
+            the live target object.
         createdAt:
           type: string
           format: date-time
@@ -13323,7 +14096,9 @@ components:
         - meta
     unstableCreateEvaluationRuleRequest:
       title: unstableCreateEvaluationRuleRequest
-      type: object
+      oneOf:
+        - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluationRuleRequest'
+        - $ref: '#/components/schemas/unstableCreateCodeEvaluationRuleRequest'
       description: >-
         Request body for creating an evaluation rule.
 
@@ -13339,24 +14114,32 @@ components:
         /api/public/v2/datasets` first and use dataset `id` values in
         `filter[].value`
 
-        - fetch or inspect the evaluator first, then provide a complete variable
-        mapping for every evaluator variable listed in `variables`
+        - for `llm_as_judge`, fetch or inspect the evaluator first and provide a
+        complete variable mapping for every evaluator variable
+
+        - for `code`, do not send variables or mappings; Langfuse stores the
+        fixed code runtime mapping automatically
 
         - optionally narrow execution with `filter`
 
         - set `enabled=true` only when you want live execution immediately
+    unstableCreateLlmAsJudgeEvaluationRuleRequest:
+      title: unstableCreateLlmAsJudgeEvaluationRuleRequest
+      type: object
       properties:
         name:
           type: string
           description: Human-readable deployment name.
-          example: answer-correctness-live
         evaluator:
-          $ref: '#/components/schemas/unstableEvaluationRuleEvaluatorReference'
+          $ref: >-
+            #/components/schemas/unstableLlmAsJudgeEvaluationRuleEvaluatorReference
           description: >-
-            Evaluator family to use.
+            LLM-as-judge evaluator family to use.
 
 
-            Use `name` and `scope` from the evaluator endpoints.
+            Use `name`, `scope`, and `type` from the evaluator endpoints. If
+            `type` is omitted, Langfuse defaults it to `llm_as_judge` for
+            backwards compatibility.
 
             Langfuse resolves that family to its latest version before saving
             the rule.
@@ -13366,7 +14149,6 @@ components:
         enabled:
           type: boolean
           description: Whether the deployment should be active immediately after creation.
-          example: true
         sampling:
           type: number
           format: double
@@ -13394,7 +14176,7 @@ components:
           items:
             $ref: '#/components/schemas/unstableEvaluationRuleMapping'
           description: >-
-            Required variable mappings.
+            LLM-as-judge variable mappings.
 
 
             Every evaluator variable must appear exactly once.
@@ -13407,6 +14189,56 @@ components:
         - target
         - enabled
         - mapping
+    unstableCreateCodeEvaluationRuleRequest:
+      title: unstableCreateCodeEvaluationRuleRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Human-readable deployment name.
+        evaluator:
+          $ref: '#/components/schemas/unstableCodeEvaluationRuleEvaluatorReference'
+          description: >-
+            Code evaluator family to use.
+
+
+            Use `name`, `scope`, and `type` from the evaluator endpoints.
+
+            Langfuse resolves that family to its latest version before saving
+            the rule.
+        target:
+          $ref: '#/components/schemas/unstableEvaluationRuleTarget'
+          description: Target object type to evaluate.
+        enabled:
+          type: boolean
+          description: Whether the deployment should be active immediately after creation.
+        sampling:
+          type: number
+          format: double
+          nullable: true
+          description: Optional sampling fraction. Defaults to `1`.
+        filter:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableEvaluationRuleFilter'
+          nullable: true
+          description: >-
+            Optional filter list.
+
+
+            Omit or pass an empty list to evaluate all matching targets for the
+            selected `target`.
+
+            Each filter object must use a column that is valid for that
+            `target`.
+
+            For `target=experiment`, `column=datasetId` expects dataset `id`
+            values from `GET /api/public/v2/datasets`, not dataset names.
+      required:
+        - name
+        - evaluator
+        - target
+        - enabled
     unstableUpdateEvaluationRuleRequest:
       title: unstableUpdateEvaluationRuleRequest
       type: object
@@ -13424,11 +14256,15 @@ components:
         - If you only want to rename the rule or change sampling, send just
         those fields.
 
-        - If you change `evaluator`, send a fresh `mapping` unless you are
-        certain the existing mapping still matches the evaluator variables.
+        - If you change to an LLM-as-judge `evaluator`, send a fresh `mapping`
+        unless you are certain the existing mapping still matches the evaluator
+        variables.
 
-        - If you change `target`, usually send both `filter` and `mapping` in
-        the same request.
+        - If you change `target` for an LLM-as-judge rule, usually send both
+        `filter` and `mapping` in the same request.
+
+        - For code evaluator rules, omit `mapping`; Langfuse stores the fixed
+        code runtime mapping automatically.
 
         - If you change an experiment `datasetId` filter, call `GET
         /api/public/v2/datasets` and use dataset `id` values from that response.
@@ -13446,6 +14282,10 @@ components:
 
             Langfuse resolves the provided evaluator family to its latest
             version before saving the rule.
+
+            A rule's evaluator type cannot be changed: provide `name` and
+            `scope` for an evaluator family of the rule's current type. To use a
+            different evaluator type, create a new rule.
         target:
           $ref: '#/components/schemas/unstableEvaluationRuleTarget'
           nullable: true
@@ -13475,7 +14315,13 @@ components:
           items:
             $ref: '#/components/schemas/unstableEvaluationRuleMapping'
           nullable: true
-          description: Updated variable mappings.
+          description: >-
+            Updated LLM-as-judge variable mappings.
+
+
+            Do not send this field for code evaluator rules. Langfuse stores the
+            fixed code runtime mapping automatically and returns it in the
+            response.
     unstableDeleteEvaluationRuleResponse:
       title: unstableDeleteEvaluationRuleResponse
       type: object
@@ -13490,12 +14336,15 @@ components:
       title: unstableEvaluationRuleEvaluatorReference
       type: object
       description: >-
-        Evaluator family reference used when creating or updating an evaluation
-        rule.
+        Evaluator family reference used when updating an evaluation rule.
 
 
-        `name` and `scope` are enough to identify the evaluator family in the
-        authenticated project context.
+        `name` and `scope` identify the evaluator family in the authenticated
+        project context.
+
+        A rule's evaluator type cannot be changed, so this reference does not
+        accept a `type`; the family must match the rule's current evaluator
+        type.
       properties:
         name:
           type: string
@@ -13506,6 +14355,50 @@ components:
       required:
         - name
         - scope
+    unstableLlmAsJudgeEvaluationRuleEvaluatorReference:
+      title: unstableLlmAsJudgeEvaluationRuleEvaluatorReference
+      type: object
+      description: >-
+        LLM-as-judge evaluator family reference used when creating an evaluation
+        rule.
+      properties:
+        name:
+          type: string
+          description: Evaluator family name.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: Whether the evaluator family is project-owned or Langfuse-managed.
+        type:
+          $ref: '#/components/schemas/unstableLlmAsJudgeEvaluatorType'
+          nullable: true
+          description: Evaluator engine type. Defaults to `llm_as_judge` when omitted.
+      required:
+        - name
+        - scope
+    unstableCodeEvaluationRuleEvaluatorReference:
+      title: unstableCodeEvaluationRuleEvaluatorReference
+      type: object
+      description: Code evaluator family reference used when creating an evaluation rule.
+      properties:
+        name:
+          type: string
+          description: Evaluator family name.
+        scope:
+          $ref: '#/components/schemas/unstableEvaluatorScope'
+          description: Whether the evaluator family is project-owned or Langfuse-managed.
+        type:
+          type: string
+          const: code
+          description: Must be `code`.
+      required:
+        - name
+        - scope
+        - type
+    unstableLlmAsJudgeEvaluatorType:
+      title: unstableLlmAsJudgeEvaluatorType
+      type: string
+      enum:
+        - llm_as_judge
     unstableEvaluationRuleEvaluator:
       title: unstableEvaluationRuleEvaluator
       type: object
@@ -13513,7 +14406,7 @@ components:
         Resolved evaluator currently used by the evaluation rule.
 
         `id` is the exact active evaluator version.
-        `name` and `scope` identify the evaluator family conceptually.
+        `name`, `scope`, and `type` identify the evaluator family conceptually.
       properties:
         id:
           type: string
@@ -13526,26 +14419,44 @@ components:
         scope:
           $ref: '#/components/schemas/unstableEvaluatorScope'
           description: Whether the evaluator family is project-owned or Langfuse-managed.
+        type:
+          $ref: '#/components/schemas/unstableEvaluatorType'
+          description: Evaluator engine type.
       required:
         - id
         - name
         - scope
+        - type
     unstableEvaluator:
       title: unstableEvaluator
-      type: object
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - llm_as_judge
+            - $ref: '#/components/schemas/unstableLlmAsJudgeEvaluator'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - code
+            - $ref: '#/components/schemas/unstableCodeEvaluator'
+          required:
+            - type
       description: >-
         One evaluator that can be used for scoring.
 
 
-        An evaluator describes **how** to score data:
-
-        - prompt
-
-        - extracted prompt variables
-
-        - output schema
-
-        - optional explicit model configuration
+        An evaluator describes **how** to score data.
 
 
         It does not define **which** live objects are evaluated. That is the job
@@ -13554,14 +14465,12 @@ components:
 
         For agent clients, the most important fields are:
 
-        - `variables`: use these exact names when building the evaluation-rule
-        `mapping` array
+        - `type`: determines which evaluator fields are present
 
-        - `outputDefinition`: tells you the expected score type and the
-        evaluator's response instructions
-
-        - `modelConfig`: tells you whether the evaluator uses the project
-        default model (`null`) or an explicit provider/model
+        - `variables`: for LLM evaluators, use these exact names when building
+        the evaluation-rule `mapping` array. LLM evaluators require every
+        variable to be mapped. Code evaluators always expose the fixed runtime
+        payload fields and Langfuse maps them automatically.
 
 
         Versioning behavior:
@@ -13573,53 +14482,64 @@ components:
 
         - Evaluation rules always run against the latest version for the
         selected evaluator name within the same source (`project` or `managed`).
+    unstableEvaluatorBase:
+      title: unstableEvaluatorBase
+      type: object
       properties:
         id:
           type: string
           description: Identifier of this evaluator.
-          example: evaltmpl_123
         name:
           type: string
           description: Evaluator name.
-          example: answer-correctness
         version:
           type: integer
           description: Version number of this evaluator.
-          example: 2
         scope:
           $ref: '#/components/schemas/unstableEvaluatorScope'
           description: >-
             Where this evaluator comes from: your project or Langfuse-managed
             defaults.
-        type:
-          $ref: '#/components/schemas/unstableEvaluatorType'
-          description: Evaluator engine type. Currently always `llm_as_judge`.
-        prompt:
-          type: string
-          description: Prompt template used during evaluation.
-          example: |
-            You are grading an answer.
-
-            Input:
-            {{input}}
-
-            Output:
-            {{output}}
-
-            Return a score between 0 and 1.
         variables:
           type: array
           items:
             type: string
           description: >-
-            Variables extracted from the evaluator prompt.
+            Variables that can be mapped when creating an evaluation rule.
 
 
-            Every variable in this list must be mapped exactly once when
-            creating an evaluation rule.
-          example:
-            - input
-            - output
+            LLM evaluators require every variable to be mapped exactly once.
+            Code evaluators always expose the fixed runtime payload fields and
+            Langfuse maps them automatically.
+        evaluationRuleCount:
+          type: integer
+          description: >-
+            Number of evaluation rules in the project that currently use this
+            evaluator version.
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when this evaluator was created.
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when this evaluator was last updated.
+      required:
+        - id
+        - name
+        - version
+        - scope
+        - variables
+        - evaluationRuleCount
+        - createdAt
+        - updatedAt
+    unstableLlmAsJudgeEvaluator:
+      title: unstableLlmAsJudgeEvaluator
+      type: object
+      properties:
+        prompt:
+          type: string
+          description: Prompt template used during evaluation.
         outputDefinition:
           $ref: '#/components/schemas/unstablePublicEvaluatorOutputDefinition'
           description: >-
@@ -13636,34 +14556,26 @@ components:
           description: >-
             Explicit model configuration, or `null` when the project default
             evaluation model is used.
-        evaluationRuleCount:
-          type: integer
-          description: >-
-            Number of evaluation rules in the project that currently use this
-            evaluator version.
-          example: 0
-        createdAt:
-          type: string
-          format: date-time
-          description: Timestamp when this evaluator was created.
-          example: '2026-03-30T09:00:00.000Z'
-        updatedAt:
-          type: string
-          format: date-time
-          description: Timestamp when this evaluator was last updated.
-          example: '2026-03-30T09:00:00.000Z'
       required:
-        - id
-        - name
-        - version
-        - scope
-        - type
         - prompt
-        - variables
         - outputDefinition
-        - evaluationRuleCount
-        - createdAt
-        - updatedAt
+      allOf:
+        - $ref: '#/components/schemas/unstableEvaluatorBase'
+    unstableCodeEvaluator:
+      title: unstableCodeEvaluator
+      type: object
+      properties:
+        sourceCode:
+          type: string
+          description: Source code executed for each matched observation.
+        sourceCodeLanguage:
+          $ref: '#/components/schemas/unstableCodeEvaluatorSourceCodeLanguage'
+          description: Runtime language for `sourceCode`.
+      required:
+        - sourceCode
+        - sourceCodeLanguage
+      allOf:
+        - $ref: '#/components/schemas/unstableEvaluatorBase'
     unstableEvaluators:
       title: unstableEvaluators
       type: object
@@ -13679,7 +14591,29 @@ components:
         - meta
     unstableCreateEvaluatorRequest:
       title: unstableCreateEvaluatorRequest
-      type: object
+      oneOf:
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - llm_as_judge
+            - $ref: '#/components/schemas/unstableCreateLlmAsJudgeEvaluatorRequest'
+          required:
+            - type
+        - type: object
+          allOf:
+            - type: object
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - code
+            - $ref: '#/components/schemas/unstableCreateCodeEvaluatorRequest'
+          required:
+            - type
       description: >-
         Request body for creating an evaluator.
 
@@ -13689,24 +14623,19 @@ components:
 
         Existing evaluation rules in the same project are then moved to that new
         latest version automatically.
+
+        If `type` is omitted, Langfuse defaults it to `llm_as_judge` for
+        backwards compatibility.
+    unstableCreateLlmAsJudgeEvaluatorRequest:
+      title: unstableCreateLlmAsJudgeEvaluatorRequest
+      type: object
       properties:
         name:
           type: string
           description: Evaluator name within the authenticated project.
-          example: answer-correctness
         prompt:
           type: string
           description: Prompt template used by the evaluator.
-          example: |
-            You are grading an answer.
-
-            Input:
-            {{input}}
-
-            Output:
-            {{output}}
-
-            Return a score between 0 and 1.
         outputDefinition:
           $ref: '#/components/schemas/unstableEvaluatorOutputDefinition'
           description: >-
@@ -13727,6 +14656,23 @@ components:
         - name
         - prompt
         - outputDefinition
+    unstableCreateCodeEvaluatorRequest:
+      title: unstableCreateCodeEvaluatorRequest
+      type: object
+      properties:
+        name:
+          type: string
+          description: Evaluator name within the authenticated project.
+        sourceCode:
+          type: string
+          description: Code executed for each matched observation.
+        sourceCodeLanguage:
+          $ref: '#/components/schemas/unstableCodeEvaluatorSourceCodeLanguage'
+          description: Runtime language for `sourceCode`.
+      required:
+        - name
+        - sourceCode
+        - sourceCodeLanguage
     utilsMetaResponse:
       title: utilsMetaResponse
       type: object

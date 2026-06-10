@@ -11,7 +11,7 @@ RUN npm install turbo@2.9.14 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@11.1.3 --activate
+RUN corepack prepare pnpm@11.4.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
@@ -55,12 +55,16 @@ RUN pnpm install --frozen-lockfile
 ENV DOCKER_BUILD 1
 ENV NEXT_MANUAL_SIG_HANDLE true
 
+# Allows the CI docker build smoke test to skip the Next.js type check that
+# the lint job already runs (`pnpm run typecheck`). Release builds do not set
+# this and still fail on TypeScript errors.
+ARG NEXT_IGNORE_BUILD_ERRORS
+ENV NEXT_IGNORE_BUILD_ERRORS=$NEXT_IGNORE_BUILD_ERRORS
+
 # pass public variables in build step
 ARG NEXT_PUBLIC_PLAIN_APP_ID
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-ARG NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED
-ENV NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED=$NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED
 ARG NEXT_PUBLIC_DEMO_ORG_ID
 ENV NEXT_PUBLIC_DEMO_ORG_ID=$NEXT_PUBLIC_DEMO_ORG_ID
 ARG NEXT_PUBLIC_DEMO_PROJECT_ID
@@ -122,8 +126,6 @@ ARG NEXT_PUBLIC_BUILD_ID
 ENV BUILD_ID=$NEXT_PUBLIC_BUILD_ID
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 ENV NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
-ARG NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED
-ENV NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED=$NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED
 
 ENV NODE_ENV production
 # Uncomment the following line in case you want to disable telemetry during runtime.

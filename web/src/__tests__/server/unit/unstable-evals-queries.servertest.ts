@@ -155,7 +155,6 @@ describe("unstable public eval queries", () => {
         blockedAt: null,
         evalTemplate: {
           is: {
-            type: EvalTemplateType.LLM_AS_JUDGE,
             OR: [{ projectId: "project_123" }, { projectId: null }],
           },
         },
@@ -177,6 +176,7 @@ describe("unstable public eval queries", () => {
       evaluator: {
         name: "Answer correctness",
         scope: "project",
+        type: "llm_as_judge",
       },
     });
     expect(mockEvalTemplateFindFirst).toHaveBeenCalledWith({
@@ -205,6 +205,7 @@ describe("unstable public eval queries", () => {
       evaluator: {
         name: "Answer correctness",
         scope: "managed",
+        type: "llm_as_judge",
       },
     });
 

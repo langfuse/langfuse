@@ -1,3 +1,5 @@
+import { CommentObjectType, publicApiPaginationZod } from "@langfuse/shared";
+import { z } from "zod";
 import { listCommentsForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   GetCommentsV1Query,
@@ -6,11 +8,20 @@ import {
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
+const ListCommentsBaseSchema = z
+  .object({
+    objectType: z.enum(CommentObjectType).optional(),
+    objectId: z.string().optional(),
+    authorUserId: z.string().optional(),
+    ...publicApiPaginationZod,
+  })
+  .strict();
+
 export const [listCommentsTool, handleListComments] = defineTool({
   name: "listComments",
   description:
     "List comments in the current Langfuse project, optionally filtered by object or author.",
-  baseSchema: GetCommentsV1Query,
+  baseSchema: ListCommentsBaseSchema,
   inputSchema: GetCommentsV1Query,
   handler: async (input, context) =>
     runMcpTool({

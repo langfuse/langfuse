@@ -1,11 +1,7 @@
 import { Queue } from "bullmq";
 import { env } from "../../env";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class CloudFreeTierUsageThresholdQueue {
@@ -21,15 +17,12 @@ export class CloudFreeTierUsageThresholdQueue {
       return CloudFreeTierUsageThresholdQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    CloudFreeTierUsageThresholdQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.CloudFreeTierUsageThresholdQueue,
+    );
+    CloudFreeTierUsageThresholdQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.CloudFreeTierUsageThresholdQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.CloudFreeTierUsageThresholdQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,

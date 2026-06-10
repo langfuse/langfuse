@@ -35,7 +35,8 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   const [customEvaluatorType, setCustomEvaluatorType] = useState<
     typeof EvalTemplateType.LLM_AS_JUDGE | typeof EvalTemplateType.CODE | null
   >(null);
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled } = codeEvalCapabilities;
 
   const handleSelectEvaluator = (template: EvalTemplate) => {
     router.push(`/project/${projectId}/evals/new?evaluator=${template.id}`);
@@ -90,7 +91,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 <span className="flex flex-col gap-1">
                   <span className="font-medium">Code evaluator</span>
                   <span className="text-muted-foreground text-sm font-normal">
-                    Run TypeScript or Python logic to create Langfuse scores.
+                    Use code to create Langfuse scores.
                   </span>
                 </span>
               </Button>
@@ -200,7 +201,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
             onFormSuccess={(newTemplate) => {
               setIsCreateTemplateOpen(false);
               setCustomEvaluatorType(null);
-              void utils.evals.allTemplates.invalidate();
+              utils.evals.allTemplates.invalidate();
               if (newTemplate) {
                 setSelectedTemplate(newTemplate);
               }

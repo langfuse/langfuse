@@ -4,6 +4,7 @@ import {
   AvatarImage,
 } from "@/src/components/ui/avatar";
 import { Button } from "@/src/components/ui/button";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
   Form,
   FormControl,
@@ -297,7 +298,7 @@ export function CommentList({
 
   const utils = api.useUtils();
   const invalidateCommentQueries = async () => {
-    void (async () => {
+    (async () => {
       await onCommentChange?.();
     })().catch(() => undefined);
 
@@ -536,16 +537,15 @@ export function CommentList({
                   </Button>
                 )}
                 {!searchQuery && (
-                  <kbd className="bg-muted text-muted-foreground pointer-events-none absolute top-1/2 right-1 h-5 -translate-y-1/2 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-50 select-none sm:inline-flex">
-                    {typeof navigator !== "undefined" &&
-                    navigator.userAgent.includes("Macintosh") ? (
-                      <>
-                        <span className="text-xs">⌘</span>F
-                      </>
-                    ) : (
-                      <>Ctrl+F</>
-                    )}
-                  </kbd>
+                  <KeyboardShortcut
+                    className="absolute top-1/2 right-1 hidden -translate-y-1/2 opacity-50 sm:inline-flex"
+                    keys={
+                      typeof navigator !== "undefined" &&
+                      navigator.userAgent.includes("Macintosh")
+                        ? ["⌘", "F"]
+                        : ["Ctrl", "F"]
+                    }
+                  />
                 )}
               </div>
             </div>
@@ -803,9 +803,7 @@ export function CommentList({
                       >
                         <div className="flex items-center gap-2 text-sm">
                           <span>Send comment</span>
-                          <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none">
-                            <span className="text-xs">⌘</span>Enter
-                          </kbd>
+                          <KeyboardShortcut keys={["⌘", "Enter"]} />
                         </div>
                       </HoverCardContent>
                     </HoverCard>

@@ -2,6 +2,7 @@ import { type z } from "zod";
 import {
   type FilterCondition,
   LISTABLE_SCORE_TYPES,
+  type NumericEventsTableColumnId,
   filterAndValidateDbScoreList,
 } from "@langfuse/shared";
 import {
@@ -17,6 +18,7 @@ import {
   getEventsGroupedByType,
   getEventsGroupedByUserId,
   getEventsGroupedByVersion,
+  getEventsNumericStatsByFilterColumn,
   getEventsGroupedBySessionId,
   getEventsGroupedByLevel,
   getEventsGroupedByEnvironment,
@@ -462,6 +464,20 @@ export async function getEventFilterValuePage(
   }
 
   return assertUnreachable(column);
+}
+
+export async function getEventFilterNumericRange(
+  params: GetObservationsFilterOptionsParams & {
+    column: Exclude<
+      NumericEventsTableColumnId,
+      "inputTokens" | "outputTokens" | "inputCost" | "outputCost"
+    >;
+  },
+) {
+  const { projectId, column } = params;
+  const { eventsFilter } = getEventFilterOptionsScope(params);
+
+  return getEventsNumericStatsByFilterColumn(projectId, eventsFilter, column);
 }
 
 /**

@@ -12,7 +12,7 @@ Use this skill for interactive dependency bumps in Langfuse.
 
 ## Read Order
 
-- Start with [AGENTS.md](AGENTS.md) for the end-to-end workflow.
+- Use this `SKILL.md` for the end-to-end workflow.
 - Run the main helper once at the start of the upgrade:
   `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> [targetVersion]`
 
@@ -32,16 +32,18 @@ Use this skill for interactive dependency bumps in Langfuse.
   upgrade that parent dependency instead of adding the target package directly
   unless the user explicitly wants that.
 - If pnpm will not move an already-allowed transitive version, a scoped
-  `overrides` entry may be used as a temporary resolution tool. After the
-  lockfile moves, remove the temporary override, run `pnpm install`, then run
-  `pnpm dedupe` when permitted. If the lockfile stays at the target without the
-  override, do not keep the override.
+  `overrides` entry in `pnpm-workspace.yaml` may be used as a temporary
+  resolution tool. Before finishing, prove whether the override is still
+  required: remove it, run `pnpm install`, then run `pnpm dedupe`. Inspect the
+  diff after each generated change. If the target version remains without the
+  override, do not keep the override; keep or restore it only when pnpm reverts
+  or drifts from the requested version without it.
 - Never manually edit `pnpm-lock.yaml`; regenerate lockfile changes with
   `pnpm` commands only. If a lockfile-only refresh causes unrelated churn,
   adjust the pnpm command and rerun instead of patching the lockfile by hand.
-- After fixing or upgrading a package, run `pnpm dedupe` when it is needed to
-  verify temporary resolver cleanup or when the user permits it; otherwise
-  suggest it as optional cleanup. Always inspect the diff after dedupe.
+- After fixing or upgrading a package, run `pnpm dedupe`. Always inspect the
+  diff after dedupe and revert that generated attempt if it introduces
+  unrelated churn.
 - Resolve the registry latest version, but do not silently upgrade to latest
   unless the user asked for latest.
 - Compare the target version with the latest version installable under the
@@ -51,3 +53,22 @@ Use this skill for interactive dependency bumps in Langfuse.
   locally installed exact peer dependencies.
 - Finish with `pnpm why -r <package>` to confirm that only the intended version
   remains in the workspace.
+
+## Quick Commands
+
+- Analysis pass:
+  `node .agents/skills/pnpm-upgrade-package/scripts/check-release-age-window.mjs <package> <targetVersion>`
+- Transitive provenance / final graph verification:
+  `pnpm why -r <package>`
+- Inspect a current parent manifest on the registry:
+  `npm view <parent>@<installedVersion> dependencies peerDependencies optionalDependencies --json`
+- Optional lockfile cleanup:
+  `pnpm dedupe`
+- Bump in the root workspace:
+  `pnpm -w up <package>@<version>`
+- Bump in one workspace:
+  `pnpm --filter web up <package>@<version>`
+- Bump everywhere that should move together:
+  `pnpm -r up <package>@<version>`
+- Verify temporary override removal:
+  remove the override, then run `pnpm install` and `pnpm dedupe`
