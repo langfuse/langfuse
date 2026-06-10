@@ -11,6 +11,7 @@ import {
   type CTEWithSchema,
 } from "./event-query-builder";
 import { AGGREGATABLE_SCORE_TYPES } from "../../../domain/scores";
+import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
 
 /**
  * Lightweight trace metadata query: one row per trace with name, user_id, tags.
@@ -27,6 +28,30 @@ export const eventsTraceMetadata = (projectId: string): EventsQueryBuilder =>
     .whereRaw("e.trace_name <> ''")
     .whereRaw("e.is_deleted = 0")
     .limitBy("e.trace_id");
+
+export const eventsTraceMetadataArrays = (params: {
+  projectId: string;
+  startTimeFrom?: string | null;
+}): { query: string; params: Record<string, any> } => {
+  const queryParams: Record<string, any> = { projectId: params.projectId };
+  if (params.startTimeFrom) {
+    queryParams.startTimeFrom = params.startTimeFrom;
+  }
+
+  const query = `
+    SELECT
+      trace_id,
+      project_id,
+      argMaxIf(metadata_names, event_ts, parent_span_id = '') AS metadata_names,
+      argMaxIf(metadata_values, event_ts, parent_span_id = '') AS metadata_values
+    FROM events_core
+    WHERE project_id = {projectId: String}
+      ${params.startTimeFrom ? `AND start_time >= {startTimeFrom: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
+    GROUP BY trace_id, project_id
+  `.trim();
+
+  return { query, params: queryParams };
+};
 
 interface EventsTracesAggregationParams {
   projectId: string;

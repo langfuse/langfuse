@@ -16,6 +16,7 @@ export {
   BooleanFilter,
   NumberObjectFilter,
   StringObjectFilter,
+  EventsStringObjectFilterWithTraceFallback,
   NullFilter,
   type ClickhouseOperator,
 } from "./clickhouse-sql/clickhouse-filter";
@@ -72,6 +73,7 @@ export {
   eventsSessionsAggregation,
   eventsSessionScoresAggregation,
   eventsTraceMetadata,
+  eventsTraceMetadataArrays,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "./clickhouse-sql/query-fragments";
