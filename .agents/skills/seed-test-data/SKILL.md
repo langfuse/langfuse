@@ -35,7 +35,7 @@ this.
 | The same tree readable in the v4 events UI | add `--v4` (writes `events_full`; `events_core` fills via MV) |
 | A super tough session (v3 legacy session view) | `pnpm run seed -- long-session --traces 300 --observations-per-trace 8` |
 | Many traces for list/filter performance | `pnpm run seed -- many-traces --count 100000 --days 14` |
-| Huge/malformed/unicode payloads | `trace-tree --payload-bytes 1000000 --payload-style malformed` (styles: json, text, malformed, unicode) |
+| Huge/malformed/unicode payloads | `pnpm run seed -- trace-tree --payload-bytes 1000000 --payload-style malformed` (styles: json, text, malformed, unicode) |
 | See all scenarios and flags | `pnpm run seed -- list --json` |
 | Predict without writing | add `--dry-run` |
 

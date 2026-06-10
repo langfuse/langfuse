@@ -1,5 +1,6 @@
 import { readFileSync } from "fs";
 import path from "path";
+import { prisma } from "../../../src/db";
 import { clickhouseClient } from "../../../src/server";
 import { ClickHouseQueryBuilder } from "../utils/clickhouse-builder";
 import {
@@ -142,6 +143,18 @@ const run = async (
       ),
     );
   }
+  // The bulk SQL references session_0..session_99 on ~30% of traces; the
+  // session detail page 404s without the Postgres trace_sessions rows
+  // (same contract long-session handles for its own session).
+  await prisma.traceSession.createMany({
+    data: Array.from({ length: 100 }, (_, i) => ({
+      id: `session_${i}`,
+      projectId: ctx.projectId,
+      environment: ctx.environment,
+    })),
+    skipDuplicates: true,
+  });
+
   for (const query of queries) {
     await clickhouseClient().command({
       query,

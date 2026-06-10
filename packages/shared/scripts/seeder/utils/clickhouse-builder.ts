@@ -155,9 +155,9 @@ export class ClickHouseQueryBuilder {
       (
         SELECT
           number,
-          xxHash32(number * 4 + ${seedSalt}) AS h1,
-          xxHash32(number * 4 + 1 + ${seedSalt}) AS h2,
-          xxHash32(number * 4 + 2 + ${seedSalt}) AS h3
+          xxHash32(toUInt64(number * 4 + ${seedSalt})) AS h1,
+          xxHash32(toUInt64(number * 4 + 1 + ${seedSalt})) AS h2,
+          xxHash32(toUInt64(number * 4 + 2 + ${seedSalt})) AS h3
         FROM numbers(${count})
       );
     `;
@@ -269,9 +269,9 @@ export class ClickHouseQueryBuilder {
       (
         SELECT
           number,
-          xxHash32(number * 4 + ${seedSalt}) AS h1,
-          xxHash32(number * 4 + 1 + ${seedSalt}) AS h2,
-          xxHash32(number * 4 + 2 + ${seedSalt}) AS h3
+          xxHash32(toUInt64(number * 4 + ${seedSalt})) AS h1,
+          xxHash32(toUInt64(number * 4 + 1 + ${seedSalt})) AS h2,
+          xxHash32(toUInt64(number * 4 + 2 + ${seedSalt})) AS h3
         FROM numbers(${totalObservations})
       );
     `;
@@ -315,7 +315,7 @@ export class ClickHouseQueryBuilder {
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
-        if(h1 % 10 < 3, concat('session_', toString(h2 % 100)), NULL) AS session_id,
+        if(traceH1 % 100 < 30, concat('session_', toString(traceH2 % 100)), NULL) AS session_id,
         NULL AS dataset_run_id,
         ${
           observationsPerTrace > 0
@@ -354,9 +354,11 @@ export class ClickHouseQueryBuilder {
       (
         SELECT
           number,
-          xxHash32(number * 4 + ${seedSalt}) AS h1,
-          xxHash32(number * 4 + 1 + ${seedSalt}) AS h2,
-          xxHash32(number * 4 + 2 + ${seedSalt}) AS h3
+          xxHash32(toUInt64(number * 4 + ${seedSalt})) AS h1,
+          xxHash32(toUInt64(number * 4 + 1 + ${seedSalt})) AS h2,
+          xxHash32(toUInt64(number * 4 + 2 + ${seedSalt})) AS h3,
+          xxHash32(toUInt64((number % ${Math.max(tracesCount, 1)})) * 4 + ${seedSalt}) AS traceH1,
+          xxHash32(toUInt64((number % ${Math.max(tracesCount, 1)})) * 4 + 1 + ${seedSalt}) AS traceH2
         FROM numbers(${totalScores})
       );
     `;
