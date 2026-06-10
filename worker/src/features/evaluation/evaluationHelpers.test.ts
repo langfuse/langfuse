@@ -388,16 +388,26 @@ describe("evaluation helpers", () => {
         missingVariables: ["context"],
         duplicateVariables: ["input"],
         coverageRatio: 0.5,
+        extractedRatio: 0.75,
       });
     });
 
-    it("treats object and array values as resolved while nulls remain empty", () => {
+    it("treats populated containers as resolved and empty containers as empty", () => {
       const diagnostics = buildEvalVariableDiagnostics({
-        templateVariables: ["messages", "labels", "score", "missingValue"],
+        templateVariables: [
+          "messages",
+          "labels",
+          "score",
+          "emptyList",
+          "emptyObject",
+          "missingValue",
+        ],
         extractedVariables: [
           { var: "messages", value: [{ role: "user", content: "hello" }] },
           { var: "labels", value: ["correct", "concise"] },
           { var: "score", value: 0 },
+          { var: "emptyList", value: [] },
+          { var: "emptyObject", value: {} },
           { var: "missingValue", value: null },
         ] as ExtractedVariable[],
       });
@@ -407,13 +417,21 @@ describe("evaluation helpers", () => {
         "labels",
         "score",
       ]);
-      expect(diagnostics.emptyVariables).toEqual(["missingValue"]);
+      expect(diagnostics.emptyVariables).toEqual([
+        "emptyList",
+        "emptyObject",
+        "missingValue",
+      ]);
       expect(diagnostics.variables).toEqual([
         { variable: "messages", status: "resolved", valueType: "array" },
         { variable: "labels", status: "resolved", valueType: "array" },
         { variable: "score", status: "resolved", valueType: "number" },
+        { variable: "emptyList", status: "empty", valueType: "array" },
+        { variable: "emptyObject", status: "empty", valueType: "object" },
         { variable: "missingValue", status: "empty", valueType: "null" },
       ]);
+      expect(diagnostics.coverageRatio).toBe(0.5);
+      expect(diagnostics.extractedRatio).toBe(1);
     });
 
     it("emits metadata and span attributes without leaking variable values", () => {
@@ -431,6 +449,7 @@ describe("evaluation helpers", () => {
         eval_variable_missing_count: "1",
         eval_variable_duplicate_count: "0",
         eval_variable_coverage_ratio: "0.333",
+        eval_variable_extracted_ratio: "0.667",
         eval_variable_empty_names: "actual",
         eval_variable_missing_names: "expected",
       });
@@ -440,6 +459,7 @@ describe("evaluation helpers", () => {
         "eval.variable.missing_count": 1,
         "eval.variable.duplicate_count": 0,
         "eval.variable.coverage_ratio": 1 / 3,
+        "eval.variable.extracted_ratio": 2 / 3,
         "eval.variable.empty_names": ["actual"],
         "eval.variable.missing_names": ["expected"],
       });

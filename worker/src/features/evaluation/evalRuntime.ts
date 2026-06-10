@@ -26,6 +26,7 @@ export type EvalVariableDiagnostics = {
   missingVariables: string[];
   duplicateVariables: string[];
   coverageRatio: number;
+  extractedRatio: number;
 };
 
 export function compileEvalPrompt(params: CompileEvalPromptParams): string {
@@ -66,8 +67,7 @@ export function buildEvalVariableDiagnostics(params: {
       return { variable, status: "missing" as const };
     }
 
-    const stringifiedValue = parseUnknownToString(extractedVariable.value);
-    if (stringifiedValue.trim() === "") {
+    if (isEmptyVariableValue(extractedVariable.value)) {
       return {
         variable,
         status: "empty" as const,
@@ -102,6 +102,11 @@ export function buildEvalVariableDiagnostics(params: {
       params.templateVariables.length === 0
         ? 1
         : resolvedVariables.length / params.templateVariables.length,
+    extractedRatio:
+      params.templateVariables.length === 0
+        ? 1
+        : (resolvedVariables.length + emptyVariables.length) /
+          params.templateVariables.length,
   };
 }
 
@@ -116,6 +121,7 @@ export function buildEvalVariableDiagnosticsMetadata(
     eval_variable_duplicate_count:
       diagnostics.duplicateVariables.length.toString(),
     eval_variable_coverage_ratio: diagnostics.coverageRatio.toFixed(3),
+    eval_variable_extracted_ratio: diagnostics.extractedRatio.toFixed(3),
     ...(diagnostics.emptyVariables.length > 0
       ? { eval_variable_empty_names: diagnostics.emptyVariables.join(",") }
       : {}),
@@ -140,6 +146,7 @@ export function buildEvalVariableDiagnosticsSpanAttributes(
     "eval.variable.missing_count": diagnostics.missingVariables.length,
     "eval.variable.duplicate_count": diagnostics.duplicateVariables.length,
     "eval.variable.coverage_ratio": diagnostics.coverageRatio,
+    "eval.variable.extracted_ratio": diagnostics.extractedRatio,
     ...(diagnostics.emptyVariables.length > 0
       ? { "eval.variable.empty_names": diagnostics.emptyVariables }
       : {}),
@@ -156,6 +163,22 @@ function getVariableValueType(value: unknown): string {
   if (value === null) return "null";
   if (Array.isArray(value)) return "array";
   return typeof value;
+}
+
+function isEmptyVariableValue(value: unknown): boolean {
+  if (parseUnknownToString(value).trim() === "") {
+    return true;
+  }
+
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Object.keys(value).length === 0
+  );
 }
 
 export function buildEvalExecutionMetadata(params: {

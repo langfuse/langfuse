@@ -488,6 +488,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
               eval_variable_missing_count: "1",
               eval_variable_duplicate_count: "0",
               eval_variable_coverage_ratio: "0.333",
+              eval_variable_extracted_ratio: "0.667",
               eval_variable_empty_names: "output",
               eval_variable_missing_names: "context",
             }),
