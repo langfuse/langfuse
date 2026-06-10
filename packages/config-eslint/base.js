@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import turboConfig from "eslint-config-turbo/flat";
-import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import eslintConfigPrettier from "eslint-config-prettier";
 import langfusePlugin from "@repo/eslint-plugin";
 import "eslint-plugin-only-warn";
 
@@ -27,8 +27,8 @@ export default tseslint.config(
   // Turbo monorepo rules
   ...turboConfig,
 
-  // Prettier (last for rule precedence)
-  eslintPluginPrettierRecommended,
+  // Disable ESLint rules that conflict with Prettier formatting.
+  eslintConfigPrettier,
 
   // Global settings
   {
