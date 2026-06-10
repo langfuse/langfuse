@@ -1,11 +1,7 @@
 import type { ScoreDataTypeType } from "@langfuse/shared";
 import { InternalServerError, ScoreDataTypeEnum } from "@langfuse/shared";
 
-export {
-  listScoresV3ForPublicApi,
-  buildSelectColumns,
-  transformBooleanValueForFilter,
-} from "@langfuse/shared/src/server";
+export { listScoresV3ForPublicApi } from "@langfuse/shared/src/server";
 
 export function polymorphicValue(score: {
   dataType: ScoreDataTypeType;
