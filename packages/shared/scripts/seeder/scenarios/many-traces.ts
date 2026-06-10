@@ -53,6 +53,12 @@ const run = async (
       "pass a positive integer, e.g. --count 10000",
     );
   }
+  if (observationsPerTrace < 0 || scoresPerTrace < 0) {
+    throw new SeedError(
+      `--observations-per-trace and --scores-per-trace must be >= 0, got ${observationsPerTrace} / ${scoresPerTrace}`,
+      "pass 0 to seed traces without observations/scores, or a positive integer",
+    );
+  }
 
   const builder = new ClickHouseQueryBuilder();
   const fileContent = richPayloads ? loadFileContent() : undefined;
@@ -95,25 +101,33 @@ const run = async (
       fileContent,
       bulkOpts,
     ),
-    builder.buildBulkObservationsInsert(
-      ctx.projectId,
-      count,
-      observationsPerTrace,
-      ctx.environment,
-      fileContent,
-      bulkOpts,
-    ),
-    builder.buildBulkScoresInsert(
-      ctx.projectId,
-      count,
-      scoresPerTrace,
-      ctx.environment,
-      {
-        ...bulkOpts,
-        observationsPerTrace,
-      },
-    ),
   ];
+  if (observationsPerTrace > 0) {
+    queries.push(
+      builder.buildBulkObservationsInsert(
+        ctx.projectId,
+        count,
+        observationsPerTrace,
+        ctx.environment,
+        fileContent,
+        bulkOpts,
+      ),
+    );
+  }
+  if (scoresPerTrace > 0) {
+    queries.push(
+      builder.buildBulkScoresInsert(
+        ctx.projectId,
+        count,
+        scoresPerTrace,
+        ctx.environment,
+        {
+          ...bulkOpts,
+          observationsPerTrace,
+        },
+      ),
+    );
+  }
   for (const query of queries) {
     await clickhouseClient().command({
       query,

@@ -10,7 +10,7 @@ import {
   ScoreRecordInsertType,
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
-import { observationToEvent } from "./event-mirror";
+import { observationToEvent, traceToEvent } from "./event-mirror";
 import { buildPayload, PayloadStyle, PAYLOAD_STYLES } from "./payload";
 import { Rng } from "./rng";
 import {
@@ -354,7 +354,10 @@ const run = async (
   }
 
   const events = withV4
-    ? observations.map((obs) => observationToEvent(obs, trace))
+    ? [
+        traceToEvent(trace),
+        ...observations.map((obs) => observationToEvent(obs, trace)),
+      ]
     : [];
 
   const counts: Record<string, number> = {
@@ -408,6 +411,12 @@ const run = async (
       { projectId: ctx.projectId, traceId },
       "uniqExact(type)",
     ),
+    scores: await countRows(
+      "scores",
+      `project_id = {projectId: String} AND trace_id = {traceId: String}`,
+      { projectId: ctx.projectId, traceId },
+      "uniqExact(id)",
+    ),
   };
   if (withV4) {
     verified.events = await countRows(
@@ -421,6 +430,11 @@ const run = async (
   if (verified.observations < observations.length) {
     throw new SeedError(
       `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
+    );
+  }
+  if (verified.scores < scores.length) {
+    throw new SeedError(
+      `Readback mismatch: expected ${scores.length} scores, found ${verified.scores}`,
     );
   }
   if (withV4 && verified.events < events.length) {
