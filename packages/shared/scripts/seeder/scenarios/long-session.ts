@@ -139,7 +139,11 @@ const run = async (
     for (let o = 0; o < observationsPerTrace; o++) {
       const observationId = `${traceId}-o${o}`;
       const isRoot = o === 0;
-      const isGeneration = o === 1 || (o > 1 && rng.bool(0.3));
+      // jitter() not rng for isGeneration/type: observation `type` is the
+      // 2nd v3 observations ORDER BY column, and stream-position randomness
+      // (shifted by --payload-bytes) would re-key rows on re-run.
+      const isGeneration =
+        o === 1 || (o > 1 && jitter(ctx.seed, t * 311 + o, 9) < 3);
       const startTime =
         timestamp + o * 350 + jitter(ctx.seed, t * 131 + o, 100);
       const hasError = t % 13 === 6 && isGeneration;
@@ -156,7 +160,9 @@ const run = async (
             ? "AGENT"
             : isGeneration
               ? "GENERATION"
-              : rng.pick(["TOOL", "SPAN", "EVENT"]),
+              : (["TOOL", "SPAN", "EVENT"] as const)[
+                  jitter(ctx.seed, t * 977 + o, 2)
+                ],
           parent_observation_id: isRoot ? null : `${traceId}-o0`,
           name: isRoot
             ? "session-turn"

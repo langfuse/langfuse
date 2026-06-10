@@ -35,10 +35,14 @@ progress output. Full usage and the need→command table live in the
 - Scenario names, flag names, and JSON summary keys are a public contract for
   agents and scripts: evolve additively, never rename or remove.
 - Scenarios must be deterministic: take randomness from `Rng` (seeded via
-  `--seed`), derive ids from `--id-prefix`, anchor timestamps to
-  `utcDayStartMs()` (never raw `Date.now()` — wall-clock values land in
-  ClickHouse ORDER BY keys and break re-run dedup), and never call
-  `Math.random`.
+  `--seed`), derive ids from `--id-prefix`, and never call `Math.random`.
+- Any value that lands in a ClickHouse ORDER BY key (timestamps; observation
+  `type` on v3; `start_time` on events) must NOT come from the sequential
+  rng stream or wall clock: use `utcDayStartMs()` for time anchors and the
+  stateless `jitter(seed, index, max)` for per-row variation. Stream-position
+  randomness re-keys rows whenever an unrelated flag (e.g. payload size)
+  changes how much rng earlier code consumed, silently duplicating rows on
+  re-run; `uniqExact` readbacks cannot see it.
 - Every scenario verifies its writes with a ClickHouse readback and fails
   loudly on mismatch.
 - New scenarios: add `scenarios/<name>.ts`, register in `scenarios/index.ts`,
