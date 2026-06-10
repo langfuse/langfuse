@@ -1,12 +1,47 @@
 import {
+  MonitorNoDataModeSchema,
   MonitorThresholdOperatorSchema,
+  type MonitorNoData,
   type MonitorThresholdOperator,
   MonitorSeveritySchema,
   type MonitorSeverity,
 } from "../types";
 
-/** computeSeverity maps a metric value to a non-lifecycle severity by comparing it against the alert (and optional warning) thresholds. */
+/** computeSeverity maps a metric value to a severity, interpreting a null value per the monitor's noData mode and otherwise comparing it against the alert and optional warning thresholds. */
 export function computeSeverity(args: {
+  value: number | null;
+  noData: MonitorNoData;
+  prevSeverity: MonitorSeverity;
+  operator: MonitorThresholdOperator;
+  alertThreshold: number;
+  warningThreshold: number | null;
+}): MonitorSeverity {
+  if (args.value === null) {
+    switch (args.noData.mode) {
+      case MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO:
+        return computeNonNullSeverity({
+          value: 0,
+          operator: args.operator,
+          alertThreshold: args.alertThreshold,
+          warningThreshold: args.warningThreshold,
+        });
+      case MonitorNoDataModeSchema.enum.LAST_SEVERITY:
+        return args.prevSeverity;
+      case MonitorNoDataModeSchema.enum.SHOW_NO_DATA:
+      case MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA:
+        return MonitorSeveritySchema.enum.NO_DATA;
+    }
+  }
+  return computeNonNullSeverity({
+    value: args.value,
+    operator: args.operator,
+    alertThreshold: args.alertThreshold,
+    warningThreshold: args.warningThreshold,
+  });
+}
+
+/** computeNonNullSeverity maps a present metric value to a non-lifecycle severity by comparing it against the alert and optional warning thresholds. */
+function computeNonNullSeverity(args: {
   value: number;
   operator: MonitorThresholdOperator;
   alertThreshold: number;

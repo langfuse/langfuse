@@ -32,7 +32,6 @@ import {
 } from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
-import { resolveNoDataSeverity } from "./resolveNoDataSeverity";
 import { renderAlertMessage } from "./renderAlertMessage";
 
 /** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads data settled past the events-table write lag. */
@@ -317,21 +316,14 @@ function processMonitor(args: {
     ];
   }
 
-  const severity =
-    value === null
-      ? resolveNoDataSeverity({
-          noData: monitor.noData,
-          prevSeverity: monitor.severity,
-          operator: monitor.thresholdOperator,
-          alertThreshold: monitor.alertThreshold,
-          warningThreshold: monitor.warningThreshold ?? null,
-        })
-      : computeSeverity({
-          value,
-          operator: monitor.thresholdOperator,
-          alertThreshold: monitor.alertThreshold,
-          warningThreshold: monitor.warningThreshold ?? null,
-        });
+  const severity = computeSeverity({
+    value,
+    noData: monitor.noData,
+    prevSeverity: monitor.severity,
+    operator: monitor.thresholdOperator,
+    alertThreshold: monitor.alertThreshold,
+    warningThreshold: monitor.warningThreshold ?? null,
+  });
 
   const { completion, emit } = applyStateMachine({
     prev: monitor,

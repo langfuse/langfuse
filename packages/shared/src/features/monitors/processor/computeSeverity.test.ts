@@ -2,8 +2,11 @@ import { describe, it, expect } from "vitest";
 
 import { computeSeverity } from "./computeSeverity";
 import {
+  MonitorNoDataModeSchema,
   MonitorSeveritySchema,
   MonitorThresholdOperatorSchema,
+  type MonitorNoData,
+  type MonitorSeverity,
   type MonitorThresholdOperator,
 } from "../types";
 
@@ -17,6 +20,14 @@ type ComputeSeverityCase = {
     warningThreshold: number | null;
   };
   expected: "OK" | "WARNING" | "ALERT";
+};
+
+/** NoDataCase is one no-data computeSeverity table row: a null value resolved per noData mode. */
+type NoDataCase = {
+  name: string;
+  noData: MonitorNoData;
+  prevSeverity: MonitorSeverity;
+  expected: MonitorSeverity;
 };
 
 /** cases covers each operator's alert/warning/OK bands. */
@@ -268,8 +279,96 @@ const cases: ComputeSeverityCase[] = [
   },
 ];
 
+const noDataDefaults = {
+  noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
+  prevSeverity: MonitorSeveritySchema.enum.OK,
+};
+
+const noDataThresholds = {
+  operator: MonitorThresholdOperatorSchema.enum.GT,
+  alertThreshold: 100,
+  warningThreshold: 50,
+};
+
+const noDataCases: NoDataCase[] = [
+  {
+    name: "SUBSTITUTE_ZERO -> 0 through thresholds -> OK",
+    noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
+    prevSeverity: MonitorSeveritySchema.enum.ALERT,
+    expected: MonitorSeveritySchema.enum.OK,
+  },
+  {
+    name: "LAST_SEVERITY -> prev severity (ALERT)",
+    noData: { mode: MonitorNoDataModeSchema.enum.LAST_SEVERITY },
+    prevSeverity: MonitorSeveritySchema.enum.ALERT,
+    expected: MonitorSeveritySchema.enum.ALERT,
+  },
+  {
+    name: "LAST_SEVERITY -> prev severity (WARNING)",
+    noData: { mode: MonitorNoDataModeSchema.enum.LAST_SEVERITY },
+    prevSeverity: MonitorSeveritySchema.enum.WARNING,
+    expected: MonitorSeveritySchema.enum.WARNING,
+  },
+  {
+    name: "SHOW_NO_DATA -> NO_DATA",
+    noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
+    prevSeverity: MonitorSeveritySchema.enum.OK,
+    expected: MonitorSeveritySchema.enum.NO_DATA,
+  },
+  {
+    name: "NOTIFY_NO_DATA -> NO_DATA",
+    noData: {
+      mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+      intervalMinutes: 60,
+    },
+    prevSeverity: MonitorSeveritySchema.enum.OK,
+    expected: MonitorSeveritySchema.enum.NO_DATA,
+  },
+];
+
 describe("computeSeverity", () => {
   it.each(cases)("$name", ({ input, expected }) => {
-    expect(computeSeverity(input)).toBe(expected);
+    expect(computeSeverity({ ...input, ...noDataDefaults })).toBe(expected);
+  });
+
+  it("non-null value ignores noData mode", () => {
+    expect(
+      computeSeverity({
+        value: 120,
+        noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
+        prevSeverity: MonitorSeveritySchema.enum.OK,
+        operator: MonitorThresholdOperatorSchema.enum.GT,
+        alertThreshold: 100,
+        warningThreshold: 50,
+      }),
+    ).toBe(MonitorSeveritySchema.enum.ALERT);
+  });
+});
+
+describe("computeSeverity: no data", () => {
+  it.each(noDataCases)("$name", ({ noData, prevSeverity, expected }) => {
+    expect(
+      computeSeverity({
+        value: null,
+        noData,
+        prevSeverity,
+        operator: noDataThresholds.operator,
+        alertThreshold: noDataThresholds.alertThreshold,
+        warningThreshold: noDataThresholds.warningThreshold,
+      }),
+    ).toBe(expected);
+  });
+
+  it("SUBSTITUTE_ZERO + GTE alert at 0 -> ALERT", () => {
+    expect(
+      computeSeverity({
+        value: null,
+        noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
+        prevSeverity: MonitorSeveritySchema.enum.OK,
+        operator: MonitorThresholdOperatorSchema.enum.GTE,
+        alertThreshold: 0,
+        warningThreshold: null,
+      }),
+    ).toBe(MonitorSeveritySchema.enum.ALERT);
   });
 });
