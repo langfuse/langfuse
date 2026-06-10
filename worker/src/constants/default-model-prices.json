@@ -4332,8 +4332,6 @@
         "prices": {
           "input": 2e-06,
           "output": 8e-06,
-          "internal_reasoning": 3e-06,
-          "output_reasoning": 3e-06,
           "reasoning_tokens": 3e-06
         }
       }
@@ -4342,7 +4340,7 @@
   {
     "id": "a49b856e-0112-4f4f-a5ad-b3160bee74a4",
     "modelName": "sonar-pro-search",
-    "matchPattern": "(?i)^perplexity\\/sonar-pro-search$",
+    "matchPattern": "(?i)^(perplexity\\/)?sonar-pro-search$",
     "createdAt": "2026-06-10T00:00:00.000Z",
     "updatedAt": "2026-06-10T00:00:00.000Z",
     "pricingTiers": [
