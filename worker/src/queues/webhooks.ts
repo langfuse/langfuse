@@ -726,7 +726,7 @@ async function executeSlackAction({
 
   const slackConfig = actionConfig.config;
 
-  // TODO: unify automation execution log and failure handling across all message types (not scaleable yet)
+  // TODO: unify automation execution log and failure handling across all message types (not scalable yet)
   // TODO: implement a strategy/policy + registry pattern for different webhook providers.
   if (input.payload.type === "monitor-alert") {
     try {
