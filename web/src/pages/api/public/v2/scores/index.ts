@@ -7,7 +7,6 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
-import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
