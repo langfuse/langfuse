@@ -64,6 +64,7 @@ export type InAppAgentWindowProps = {
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
   selectedConversationId: string | undefined;
+  zIndex?: number;
 } & InAppAgentWindowCloseButtonProps;
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
@@ -81,6 +82,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSelectConversation,
     onSubmit,
     selectedConversationId,
+    zIndex,
   } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<{
@@ -170,7 +172,13 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 <History className="size-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent
+              align="end"
+              className="max-h-80 w-64 overflow-y-auto"
+              style={
+                typeof zIndex === "number" ? { zIndex: zIndex + 1 } : undefined
+              }
+            >
               <DropdownMenuLabel>Recent conversations</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {conversations.length === 0 ? (

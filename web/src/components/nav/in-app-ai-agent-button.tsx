@@ -26,6 +26,8 @@ import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { cn } from "@/src/utils/tailwind";
 
+const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
+
 export const InAppAiAgentButton = () => {
   const { organization } = useQueryProjectOrOrganization();
   const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
@@ -129,14 +131,19 @@ export const InAppAiAgentButton = () => {
               ref={panelRef}
               data-ignore-outside-interaction
               className={cn(
-                "fixed z-51 origin-top-left",
+                "fixed origin-top-left",
                 isExpanded
                   ? "inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3"
                   : "bottom-2",
               )}
-              style={isExpanded ? undefined : anchorStyle}
+              style={
+                isExpanded
+                  ? { zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
+                  : { ...anchorStyle, zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
+              }
             >
               <ControlledInAppAgentWindow
+                zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
                 isExpanded={isExpanded}
                 onExpandedChange={(nextIsExpanded) => {
                   previousPanelRectRef.current =

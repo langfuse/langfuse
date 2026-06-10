@@ -402,12 +402,16 @@ function InAppAiAgentProviderInner({
 
   const selectConversation = useCallback(
     (conversationId: string | null) => {
+      if (isRunning || conversationId === selectedConversationId) {
+        return;
+      }
+
       setError(null);
       resetAgent();
       setMessages([]);
       setSelectedConversationId(conversationId);
     },
-    [resetAgent, setSelectedConversationId],
+    [isRunning, resetAgent, selectedConversationId, setSelectedConversationId],
   );
 
   const submit = useCallback(
