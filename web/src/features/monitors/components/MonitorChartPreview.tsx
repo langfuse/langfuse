@@ -95,18 +95,10 @@ export const MonitorChartPreview = ({
   );
 
   /** data reshapes the query rows into chart points. */
-  const data: DataPoint[] = useMemo(() => {
-    const rows = (queryResult.data ?? []) as Array<Record<string, unknown>>;
-    const metricField = `${aggregation}_${measure}`;
-    return rows.map((row) => {
-      const value = row[metricField];
-      return {
-        time_dimension: row["time_dimension"] as string | undefined,
-        dimension: "metric",
-        metric: typeof value === "number" ? value : 0,
-      } satisfies DataPoint;
-    });
-  }, [queryResult.data, measure, aggregation]);
+  const data: DataPoint[] = useMemo(
+    () => toChartPoints(queryResult.data ?? [], measure, aggregation),
+    [queryResult.data, measure, aggregation],
+  );
 
   /** thresholds lists the warning and alert bands to draw on the chart. */
   const thresholds = useMemo(() => {
@@ -188,4 +180,21 @@ export const MonitorChartPreview = ({
       </CardContent>
     </Card>
   );
+};
+
+/** toChartPoints reshapes executeQuery rows into LINE_TIME_SERIES points, coercing string-typed metric values into numbers. */
+const toChartPoints = (
+  rows: Array<Record<string, unknown>>,
+  measure: string,
+  aggregation: z.infer<typeof metricAggregations>,
+): DataPoint[] => {
+  const metricField = `${aggregation}_${measure}`;
+  return rows.map((row) => {
+    const metric = row[metricField];
+    return {
+      time_dimension: row["time_dimension"] as string | undefined,
+      dimension: "metric",
+      metric: Array.isArray(metric) ? metric : Number(metric || 0),
+    } satisfies DataPoint;
+  });
 };
