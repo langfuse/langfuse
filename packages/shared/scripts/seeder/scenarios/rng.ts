@@ -10,6 +10,21 @@ export const utcDayStartMs = (): number =>
   Math.floor(Date.now() / 86_400_000) * 86_400_000;
 
 /**
+ * Stateless per-index jitter for values that land in ClickHouse ORDER BY
+ * keys (e.g. event start_time). Unlike Rng, the result depends only on
+ * (seed, index) — not on how much of the rng stream earlier code consumed —
+ * so changing unrelated flags (payload size, observation count) does not
+ * re-key existing rows on re-run.
+ */
+export const jitter = (seed: number, index: number, max: number): number => {
+  let x = (seed ^ Math.imul(index + 1, 0x9e3779b9)) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+  x = Math.imul(x ^ (x >>> 16), 0x45d9f3b) >>> 0;
+  x = (x ^ (x >>> 16)) >>> 0;
+  return x % (max + 1);
+};
+
+/**
  * Deterministic PRNG (mulberry32) so scenarios produce identical data for
  * identical --seed values. Never use Math.random in scenario code.
  */

@@ -15,7 +15,7 @@ import {
 } from "../../../src/server";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { buildPayload, PayloadStyle } from "./payload";
-import { Rng, utcDayStartMs } from "./rng";
+import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
   ScenarioContext,
@@ -23,7 +23,7 @@ import {
   SeedError,
   SeedSummary,
 } from "./types";
-import { countRows, escapeLike, sessionLink, traceLink } from "./verify";
+import { countRows, sessionLink, traceLink } from "./verify";
 
 const TRACE_NAMES = [
   "answer-support-question",
@@ -53,6 +53,24 @@ const run = async (
       "pass a positive integer, e.g. --traces 120",
     );
   }
+  if (observationsPerTrace < 0) {
+    throw new SeedError(
+      `--observations-per-trace must be >= 0, got ${observationsPerTrace}`,
+      "pass 0 for traces without observations, or a positive integer",
+    );
+  }
+  if (windowMinutes < 1) {
+    throw new SeedError(
+      `--minutes must be >= 1, got ${windowMinutes}`,
+      "negative windows would place traces in the future, hidden by UI time filters",
+    );
+  }
+  if (payloadBytes < 0 || payloadBytes > 50_000_000) {
+    throw new SeedError(
+      `--payload-bytes must be between 0 and 50000000 (50 MB), got ${payloadBytes}`,
+      "larger payloads exceed V8 string limits during generation",
+    );
+  }
 
   const rng = new Rng(ctx.seed);
   const sessionStart = utcDayStartMs() - windowMinutes * 60 * 1000;
@@ -69,7 +87,11 @@ const run = async (
 
   for (let t = 0; t < traceCount; t++) {
     const traceId = `${ctx.idPrefix}-t${t}`;
-    const timestamp = sessionStart + Math.floor(t * stepMs) + rng.int(0, 500);
+    // jitter() not rng: these timestamps land in ClickHouse ORDER BY keys
+    // (events_full start_time); stream-position randomness would re-key rows
+    // when unrelated flags change between re-runs with the same id prefix.
+    const timestamp =
+      sessionStart + Math.floor(t * stepMs) + jitter(ctx.seed, t, 500);
     const isHuge = t > 0 && t % 17 === 0;
     const style: PayloadStyle =
       t % 7 === 3 ? "unicode" : rng.bool(0.6) ? "json" : "text";
@@ -110,14 +132,15 @@ const run = async (
     });
     traces.push(trace);
 
-    const usageInput = rng.int(100, 4000);
-    const usageOutput = rng.int(50, 2000);
     for (let o = 0; o < observationsPerTrace; o++) {
       const observationId = `${traceId}-o${o}`;
       const isRoot = o === 0;
       const isGeneration = o === 1 || (o > 1 && rng.bool(0.3));
-      const startTime = timestamp + o * 350 + rng.int(0, 100);
+      const startTime =
+        timestamp + o * 350 + jitter(ctx.seed, t * 131 + o, 100);
       const hasError = t % 13 === 6 && isGeneration;
+      const usageInput = rng.int(100, 4000);
+      const usageOutput = rng.int(50, 2000);
 
       observations.push(
         createObservation({
@@ -326,16 +349,16 @@ const run = async (
     ),
     observations: await countRows(
       "observations",
-      `project_id = {projectId: String} AND trace_id LIKE {prefix: String}`,
-      { projectId: ctx.projectId, prefix: `${escapeLike(ctx.idPrefix)}-t%` },
+      `project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}`,
+      { projectId: ctx.projectId, traceIds: traces.map((tr) => tr.id) },
       "uniqExact(id)",
     ),
     scores: await countRows(
       "scores",
-      `project_id = {projectId: String} AND (trace_id LIKE {prefix: String} OR session_id = {sessionId: String})`,
+      `project_id = {projectId: String} AND (trace_id IN {traceIds: Array(String)} OR session_id = {sessionId: String})`,
       {
         projectId: ctx.projectId,
-        prefix: `${escapeLike(ctx.idPrefix)}-t%`,
+        traceIds: traces.map((tr) => tr.id),
         sessionId,
       },
       "uniqExact(id)",
@@ -415,7 +438,7 @@ export const longSessionScenario: ScenarioDefinition = {
       flag: "minutes",
       type: "number",
       default: 180,
-      description: "session time window ending now",
+      description: "session time window ending at UTC midnight of today",
     },
     {
       flag: "session-id",

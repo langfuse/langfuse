@@ -82,9 +82,13 @@ export const observationToEvent = (
   trace: TraceRecordInsertType,
 ): EventRecordInsertType => {
   const isRoot = !observation.parent_observation_id;
-  const { names, values } = sortedMetadata(
-    (observation.metadata ?? {}) as Record<string, string>,
-  );
+  // The backfill merges trace metadata into observation events
+  // (mapConcat(o.metadata, t.metadata)); mirror that with the observation
+  // taking precedence on key collisions.
+  const { names, values } = sortedMetadata({
+    ...((trace.metadata ?? {}) as Record<string, string>),
+    ...((observation.metadata ?? {}) as Record<string, string>),
+  });
 
   return createEvent({
     project_id: observation.project_id,
@@ -103,7 +107,9 @@ export const observationToEvent = (
     environment: observation.environment ?? "default",
     level: observation.level ?? "DEFAULT",
     status_message: observation.status_message ?? null,
-    version: observation.version ?? null,
+    // backfill: coalesce(o.version, t.version) — keeps the trace-level
+    // release !== version shape visible on observation events
+    version: observation.version ?? trace.version ?? null,
     release: trace.release ?? null,
     tags: trace.tags ?? [],
     user_id: trace.user_id ?? null,
@@ -111,7 +117,7 @@ export const observationToEvent = (
     input: typeof observation.input === "string" ? observation.input : "",
     output: typeof observation.output === "string" ? observation.output : "",
     provided_model_name: observation.provided_model_name ?? null,
-    model_id: null,
+    model_id: observation.internal_model_id ?? null,
     model_parameters: observation.model_parameters ?? "{}",
     provided_usage_details: observation.provided_usage_details ?? {},
     usage_details: observation.usage_details ?? {},

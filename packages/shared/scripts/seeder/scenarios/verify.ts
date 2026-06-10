@@ -8,7 +8,7 @@ import { ScenarioContext } from "./types";
 export const countRows = async (
   table: string,
   whereSql: string,
-  params: Record<string, string | number>,
+  params: Record<string, string | number | string[]>,
   countExpr = "count()",
 ): Promise<number> => {
   const result = await clickhouseClient().query({

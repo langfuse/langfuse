@@ -8,6 +8,7 @@ import {
   SeedError,
   SeedSummary,
 } from "./types";
+import { utcDayStartMs } from "./rng";
 import { countRows, escapeLike, tracesListLink } from "./verify";
 
 /**
@@ -59,6 +60,12 @@ const run = async (
       "pass 0 to seed traces without observations/scores, or a positive integer",
     );
   }
+  if (days < 0) {
+    throw new SeedError(
+      `--days must be >= 0, got ${days}`,
+      "negative windows would place traces in the future, hidden by UI time filters",
+    );
+  }
 
   const builder = new ClickHouseQueryBuilder();
   const fileContent = richPayloads ? loadFileContent() : undefined;
@@ -92,7 +99,13 @@ const run = async (
   ctx.log(
     `bulk-inserting ${count} traces, ${counts.observations} observations, ${counts.scores} scores over ${days} day(s)`,
   );
-  const bulkOpts = { numberOfDays: days, idPrefix: ctx.idPrefix };
+  // One shared anchor so the three INSERT statements cannot straddle a UTC
+  // midnight and anchor observations/scores to a different day than traces.
+  const bulkOpts = {
+    numberOfDays: days,
+    idPrefix: ctx.idPrefix,
+    anchorSeconds: Math.floor(utcDayStartMs() / 1000),
+  };
   const queries = [
     builder.buildBulkTracesInsert(
       ctx.projectId,
@@ -135,7 +148,7 @@ const run = async (
     });
   }
 
-  const idSuffix = ctx.projectId.slice(-8);
+  const idSuffix = escapeLike(ctx.projectId.slice(-8));
   const verified: Record<string, number> = {
     traces: await countRows(
       "traces",

@@ -40,9 +40,14 @@ const withTimeout = async <T>(promise: Promise<T>, ms: number): Promise<T> => {
 };
 
 const checkEnvFile = (): CheckResult => {
-  const missing = ["DATABASE_URL", "CLICKHOUSE_URL"].filter(
-    (name) => !process.env[name],
-  );
+  // Keep in sync with REQUIRED_ENV_VARS in ../cli.ts (the bootstrap checks
+  // them before importing src/server, whose env schema would otherwise throw).
+  const missing = [
+    "DATABASE_URL",
+    "CLICKHOUSE_URL",
+    "CLICKHOUSE_USER",
+    "CLICKHOUSE_PASSWORD",
+  ].filter((name) => !process.env[name]);
   return missing.length === 0
     ? { name: "env", status: "pass", detail: "required env vars present" }
     : {

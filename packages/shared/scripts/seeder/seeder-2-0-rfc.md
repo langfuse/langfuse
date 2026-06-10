@@ -98,11 +98,12 @@ pnpm run seed -- many-traces --count 100000 --days 14
 
 ### Subcommands
 
-- `doctor` — preflight the stack and print PASS/FAIL with the exact fix:
+- `doctor [--json] [--project <id>]` — preflight the stack and print
+  PASS/FAIL with the exact fix:
   - Postgres reachable and migrations applied → `pnpm run infra:dev:up`,
-    `pnpm --filter=shared run db:reset`
+    `pnpm --filter=shared run db:migrate`
   - ClickHouse reachable and `traces` table present →
-    `pnpm --filter=shared run ch:reset`
+    `pnpm --filter=shared run ch:up`
   - v4 dev tables (`events_full`, `events_core`) present (warn-only) →
     `pnpm --filter=shared run ch:dev-tables`
   - MinIO/S3 and Redis reachable (warn-only; needed for media and the API
@@ -127,8 +128,10 @@ Each scenario covers one recurring "agent, please fill in..." request:
 
 Common flags: `--project <id>` (defaults to the seeded example project),
 `--environment <name>`, `--seed <n>`, `--id-prefix <s>`, `--dry-run`
-(print planned counts, write nothing), `--json`. Count-like flags reject
-zero/negative values with a `SeedError`.
+(print planned counts, write nothing), `--json`. Primary count flags
+(`--observations`, `--traces`, `--count`) reject zero/negative values with a
+`SeedError`; per-trace knobs accept `0` (traces without observations/scores
+are real shapes); shape knobs (`--depth`, `--breadth`) clamp.
 
 Scenario functions live in `packages/shared/scripts/seeder/scenarios/` and
 are registered in one plain object map — no typed registry, no metadata
@@ -150,8 +153,14 @@ Human-readable progress on stderr; one final JSON summary line on stdout
   "environment": "default",
   "traceIds": ["trace-tree-s42-trace"],
   "sessionIds": [],
-  "counts": { "traces": 1, "observations": 1500, "scores": 4, "events": 1500 },
-  "verified": { "observations": 1500, "observationKinds": 10, "events": 1500 },
+  "counts": { "traces": 1, "observations": 1500, "scores": 4, "events": 1501 },
+  "verified": {
+    "traces": 1,
+    "observations": 1500,
+    "observationKinds": 10,
+    "scores": 4,
+    "events": 1501
+  },
   "links": [
     "http://localhost:3000/project/7a88.../traces/trace-tree-s42-trace?timestamp=..."
   ],
@@ -191,8 +200,11 @@ v3 observation into an `events_full` row via
 `scenarios/event-mirror.ts`, so the same logical tree renders on both read
 paths. Facts learned doing it:
 
-- `events_full` has no `id` column — `span_id` is the row identifier;
-  root events need `parent_span_id = ''` plus `is_app_root = true`.
+- `events_full` has no `id` column — `span_id` is the row identifier. The
+  `parent_span_id = ''` slot belongs to the synthetic trace span
+  (`span_id = 't-<traceId>'`); the read path treats
+  `parent_span_id = '' OR is_app_root` as root, and mirrored rows follow
+  the backfill convention of `is_app_root = false`.
 - `events_core` fills automatically from `events_full` via the
   `events_core_mv` materialized view; writing `events_full` is enough.
 - The v4 read path is selected by

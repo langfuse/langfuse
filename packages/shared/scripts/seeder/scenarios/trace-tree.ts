@@ -12,7 +12,7 @@ import {
 import { ObservationType } from "../../../src/domain";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { buildPayload, PayloadStyle, PAYLOAD_STYLES } from "./payload";
-import { Rng, utcDayStartMs } from "./rng";
+import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
   ScenarioContext,
@@ -124,6 +124,12 @@ const run = async (
       "pass a positive integer, e.g. --observations 200",
     );
   }
+  if (payloadBytes < 0 || payloadBytes > 50_000_000) {
+    throw new SeedError(
+      `--payload-bytes must be between 0 and 50000000 (50 MB), got ${payloadBytes}`,
+      "larger payloads exceed V8 string limits during generation",
+    );
+  }
 
   const rng = new Rng(ctx.seed);
   const traceId = `${ctx.idPrefix}-trace`;
@@ -173,8 +179,14 @@ const run = async (
   let retryNodeUsed = false;
   const observations: ObservationRecordInsertType[] = shape.map((node) => {
     const isGeneration = node.kind === "GENERATION";
+    // jitter() not rng: start_time lands in the events_full ORDER BY, and
+    // stream-position randomness would re-key rows when unrelated flags
+    // (payload size, count) change between re-runs with the same id prefix.
     const startTime =
-      traceTimestamp + node.depth * 150 + node.index * 4 + rng.int(0, 40);
+      traceTimestamp +
+      node.depth * 150 +
+      node.index * 4 +
+      jitter(ctx.seed, node.index, 40);
     const duration = isGeneration ? rng.int(600, 4000) : rng.int(5, 400);
     const missingEndTime = node.index > 0 && node.index % 19 === 0;
     const isError = node.index % 29 === 7;
@@ -236,7 +248,9 @@ const run = async (
             : "DEFAULT",
       status_message:
         isError || isFailedToolRetryPair
-          ? "Tool execution failed: upstream timeout after 30s"
+          ? node.kind === "TOOL"
+            ? "Tool execution failed: upstream timeout after 30s"
+            : "Execution failed: upstream timeout after 30s"
           : null,
       version: null,
       input: payloadForNode(),
@@ -399,6 +413,12 @@ const run = async (
   // uniqExact(id): count() would see pre-merge ReplacingMergeTree duplicates
   // after re-runs with the same id prefix.
   const verified: Record<string, number> = {
+    traces: await countRows(
+      "traces",
+      `project_id = {projectId: String} AND id = {traceId: String}`,
+      { projectId: ctx.projectId, traceId },
+      "uniqExact(id)",
+    ),
     observations: await countRows(
       "observations",
       `project_id = {projectId: String} AND trace_id = {traceId: String}`,
@@ -427,6 +447,11 @@ const run = async (
     );
   }
 
+  if (verified.traces < 1) {
+    throw new SeedError(
+      `Readback mismatch: trace ${traceId} not found after insert`,
+    );
+  }
   if (verified.observations < observations.length) {
     throw new SeedError(
       `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
@@ -487,7 +512,7 @@ export const traceTreeScenario: ScenarioDefinition = {
       flag: "payload-bytes",
       type: "number",
       default: 25_000,
-      description: "approx bytes for the root input payload",
+      description: "approx bytes for the root input payload (max 50 MB)",
     },
     {
       flag: "payload-style",

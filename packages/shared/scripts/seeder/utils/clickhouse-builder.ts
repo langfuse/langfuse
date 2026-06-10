@@ -91,7 +91,11 @@ export class ClickHouseQueryBuilder {
     count: number,
     environment: string = "default",
     fileContent?: { heavyMarkdown: string; nestedJson: any; chatMlJson: any },
-    opts: { numberOfDays: number; idPrefix?: string } = { numberOfDays: 1 },
+    opts: {
+      numberOfDays: number;
+      idPrefix?: string;
+      anchorSeconds?: number;
+    } = { numberOfDays: 1 },
   ): string {
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -110,15 +114,20 @@ export class ClickHouseQueryBuilder {
     const escapedEnvironment = this.escapeString(environment);
     const idSuffix = this.escapeString(projectId.slice(-8));
     const spreadSeconds = opts.numberOfDays * 86400;
+    const anchorSeconds =
+      opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
 
-    // Timestamps derive from `number` and anchor to the current UTC day so
-    // same-day re-runs produce identical ORDER BY tuples (toDate(timestamp)
-    // is a sorting key) and ReplacingMergeTree dedups instead of duplicating.
+    // Timestamps derive from `number` and anchor to midnight UTC (computed
+    // in TS, independent of the ClickHouse server timezone) so same-day
+    // re-runs produce identical ORDER BY tuples (toDate(timestamp) is a
+    // sorting key) and ReplacingMergeTree dedups instead of duplicating.
+    // NOTE: the INSERT relies on positional column order — keep the SELECT
+    // list in sync with the table schema when migrations add columns.
     return `
       INSERT INTO traces
       SELECT
         concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
-        toDateTime(toUnixTimestamp(today()) - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
+        toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
         concat('trace-', toString(number % 10)) AS name,
         if(randUniform(0, 1) < 0.3, concat('user_', toString(rand() % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
@@ -126,8 +135,8 @@ export class ClickHouseQueryBuilder {
         NULL AS version,
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
-        if(rand() < 0.8, true, false) AS public,
-        if(rand() < 0.1, true, false) AS bookmarked,
+        if(randUniform(0, 1) < 0.1, true, false) AS public,
+        if(randUniform(0, 1) < 0.05, true, false) AS bookmarked,
         array() AS tags,
         if(randUniform(0, 1) < 0.3, '${escapedHeavyMarkdown}',
           '${escapedChatMl}'
@@ -154,7 +163,11 @@ export class ClickHouseQueryBuilder {
     observationsPerTrace: number = 5,
     environment: string = "default",
     fileContent?: { heavyMarkdown: string; nestedJson: any; chatMlJson: any },
-    opts: { numberOfDays: number; idPrefix?: string } = { numberOfDays: 1 },
+    opts: {
+      numberOfDays: number;
+      idPrefix?: string;
+      anchorSeconds?: number;
+    } = { numberOfDays: 1 },
   ): string {
     const totalObservations = tracesCount * observationsPerTrace;
     const idPrefix = opts.idPrefix
@@ -164,6 +177,8 @@ export class ClickHouseQueryBuilder {
     const escapedEnvironment = this.escapeString(environment);
     const idSuffix = this.escapeString(projectId.slice(-8));
     const spreadSeconds = opts.numberOfDays * 86400;
+    const anchorSeconds =
+      opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
 
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -185,7 +200,7 @@ export class ClickHouseQueryBuilder {
         '${escapedEnvironment}' AS environment,
         multiIf(number % 100 < 47, 'GENERATION', number % 100 < 94, 'SPAN', 'EVENT') AS type,
         if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${idSuffix}')) AS parent_observation_id,
-        toDateTime(toUnixTimestamp(today()) - intDiv(number * ${spreadSeconds}, ${Math.max(totalObservations, 1)})) AS start_time,
+        toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(totalObservations, 1)})) AS start_time,
         addMilliseconds(start_time, 
           case 
             when type = 'GENERATION' then floor(randUniform(5, 30))
@@ -217,13 +232,13 @@ export class ClickHouseQueryBuilder {
         if(type = 'GENERATION', toDecimal64(randUniform(0.00002, 0.003), 8), NULL) AS total_cost,
         if(type = 'GENERATION', addMilliseconds(start_time, floor(randUniform(100, 500))), NULL) AS completion_start_time,
         if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => p.id).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
+        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => this.escapeString(p.id)).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
         NULL) AS prompt_id,
         if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => p.name).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
+        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => this.escapeString(p.name)).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
         NULL) AS prompt_name,
         if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => p.version).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
+        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => this.escapeString(String(p.version))).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
         NULL) AS prompt_version,
         start_time AS created_at,
         start_time AS updated_at,
@@ -252,6 +267,7 @@ export class ClickHouseQueryBuilder {
       numberOfDays: number;
       idPrefix?: string;
       observationsPerTrace?: number;
+      anchorSeconds?: number;
     } = { numberOfDays: 1 },
   ): string {
     const totalScores = tracesCount * scoresPerTrace;
@@ -263,12 +279,14 @@ export class ClickHouseQueryBuilder {
     const escapedEnvironment = this.escapeString(environment);
     const idSuffix = this.escapeString(projectId.slice(-8));
     const spreadSeconds = opts.numberOfDays * 86400;
+    const anchorSeconds =
+      opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
 
     return `
       INSERT INTO scores
       SELECT
         concat('${idPrefix}score-bulk-', toString(number), '-${idSuffix}') AS id,
-        toDateTime(toUnixTimestamp(today()) - intDiv(number * ${spreadSeconds}, ${Math.max(totalScores, 1)})) AS timestamp,
+        toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(totalScores, 1)})) AS timestamp,
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
