@@ -749,31 +749,26 @@ jobs:
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
-      - name: Install golang-migrate for Clickhouse migrations
+      # The next three downloads/startups have no dependency on the build, so
+      # they run in the background and the build overlaps them. Later steps
+      # wait on their marker files.
+      - name: Install golang-migrate for Clickhouse migrations in background
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
-          which migrate
-      - name: Run + migrate
+          (
+            set -e
+            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+              --output migrate.linux-amd64.tar.gz \
+              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+            tar xzf migrate.linux-amd64.tar.gz
+            sudo mv migrate /usr/bin/migrate
+            touch /tmp/migrate-installed
+          ) > /tmp/migrate-install.log 2>&1 &
+      - name: Start dev containers in background
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
-          docker compose ps
-      - name: Ensure Docker dependencies are healthy
+          (docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+      - name: Install playwright in background
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
-          fi
-      - name: Seed DB
-        run: |
-          pnpm run db:migrate
-          pnpm --filter=shared run ch:up
-          pnpm --filter=shared run db:seed
+          (pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
         run: pnpm run build
         env:
@@ -781,8 +776,24 @@ jobs:
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
-      - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
+      - name: Wait for dev containers
+        run: |
+          timeout 200 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' || true
+          cat /tmp/compose-up.log
+          docker compose ps
+          exit "$(cat /tmp/compose-up.exit)"
+      - name: Seed DB
+        run: |
+          timeout 120 bash -c 'until [ -f /tmp/migrate-installed ]; do sleep 1; done' \
+            || { cat /tmp/migrate-install.log; exit 1; }
+          pnpm run db:migrate
+          pnpm --filter=shared run ch:up
+          pnpm --filter=shared run db:seed
+      - name: Wait for playwright install
+        run: |
+          timeout 200 bash -c 'until [ -f /tmp/playwright-install.exit ]; do sleep 1; done' || true
+          cat /tmp/playwright-install.log
+          exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
@@ -823,34 +834,26 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: Install golang-migrate for Clickhouse migrations
-        run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
-          which migrate
       - name: Load default env
         run: |
           cp .env.dev.example .env
-      - name: Run + migrate
+      # The next two downloads/startups have no dependency on the build, so
+      # they run in the background and the build overlaps them. Later steps
+      # wait on their marker files.
+      - name: Install golang-migrate for Clickhouse migrations in background
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
-          docker compose ps
-      - name: Ensure Docker dependencies are healthy
+          (
+            set -e
+            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+              --output migrate.linux-amd64.tar.gz \
+              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+            tar xzf migrate.linux-amd64.tar.gz
+            sudo mv migrate /usr/bin/migrate
+            touch /tmp/migrate-installed
+          ) > /tmp/migrate-install.log 2>&1 &
+      - name: Start dev containers in background
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
-          fi
-      - name: Seed DB
-        run: |
-          pnpm run db:migrate
-          pnpm --filter=shared run ch:up
-          pnpm --filter=shared run db:seed:examples
+          (docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Build
         run: pnpm run build
         env:
@@ -858,6 +861,19 @@ jobs:
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Wait for dev containers
+        run: |
+          timeout 200 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' || true
+          cat /tmp/compose-up.log
+          docker compose ps
+          exit "$(cat /tmp/compose-up.exit)"
+      - name: Seed DB
+        run: |
+          timeout 120 bash -c 'until [ -f /tmp/migrate-installed ]; do sleep 1; done' \
+            || { cat /tmp/migrate-install.log; exit 1; }
+          pnpm run db:migrate
+          pnpm --filter=shared run ch:up
+          pnpm --filter=shared run db:seed:examples
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health
