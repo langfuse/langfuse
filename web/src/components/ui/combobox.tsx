@@ -50,6 +50,8 @@ export interface ComboboxProps<
   disabled?: boolean;
   className?: string;
   name?: string;
+  commandListClassName?: string;
+  popoverContentClassName?: string;
 }
 
 function isGroupedOptions<T extends string | number | boolean | { id: string }>(
@@ -90,6 +92,8 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
   disabled = false,
   className,
   name,
+  commandListClassName,
+  popoverContentClassName,
 }: ComboboxProps<T>) {
   const [open, setOpen] = React.useState(false);
 
@@ -104,8 +108,12 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
     return options.find((option) => isEqual(option.value, value));
   }, [options, value]);
 
+  const stopScrollPropagation = (e: React.WheelEvent | React.TouchEvent) => {
+    e.stopPropagation();
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal={false}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -127,15 +135,33 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0">
-        <Command>
+      <PopoverContent
+        className={cn(
+          "w-(--radix-popover-trigger-width) overflow-hidden p-0",
+          popoverContentClassName,
+        )}
+        onWheel={stopScrollPropagation}
+        onTouchMove={stopScrollPropagation}
+      >
+        <Command className="max-h-[min(20rem,50vh)]">
           <CommandInput placeholder={searchPlaceholder} className="text-xs" />
-          <CommandList>
+          <CommandList
+            className={cn(
+              "max-h-[min(16rem,45vh)] overflow-y-auto overscroll-contain",
+              commandListClassName,
+            )}
+            onWheel={stopScrollPropagation}
+            onTouchMove={stopScrollPropagation}
+          >
             <CommandEmpty>{emptyText}</CommandEmpty>
             {isGroupedOptions(options) ? (
               // Render with groups
               options.map((group, groupIndex) => (
-                <CommandGroup key={groupIndex} heading={group.heading}>
+                <CommandGroup
+                  key={groupIndex}
+                  heading={group.heading}
+                  className="overflow-visible"
+                >
                   {group.options.map((option) => (
                     <CommandItem
                       key={
@@ -171,7 +197,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
               ))
             ) : (
               // Flat rendering (backward compatible)
-              <CommandGroup>
+              <CommandGroup className="overflow-visible">
                 {options.map((option) => (
                   <CommandItem
                     key={

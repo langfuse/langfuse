@@ -837,6 +837,22 @@ export const InnerEvaluatorForm = (props: {
     isExperimentTarget(watchedTarget) &&
     !isBetaEnabled;
 
+  const scoreNameField = (
+    <FormField
+      control={form.control}
+      name="scoreName"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Generated Score Name</FormLabel>
+          <FormControl>
+            <Input {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
   const formBody = (
     <div
       className={cn(
@@ -845,23 +861,14 @@ export const InnerEvaluatorForm = (props: {
           "xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:items-start",
       )}
     >
-      <div className={cn(shouldShowCodeEvalTestPanel && "xl:col-span-2")}>
-        <FormField
-          control={form.control}
-          name="scoreName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Generated Score Name</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+      {!props.useDialog && (
+        <div className={cn(shouldShowCodeEvalTestPanel && "xl:col-span-2")}>
+          {scoreNameField}
+        </div>
+      )}
       {!props.hideTargetSection && (
-        <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
+        <Card className="flex max-w-full flex-col gap-4 overflow-y-auto p-4">
+          {props.useDialog ? scoreNameField : null}
           {hasInvalidTraceFilters && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />

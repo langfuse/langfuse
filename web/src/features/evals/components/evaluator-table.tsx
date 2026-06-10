@@ -45,6 +45,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import { EvaluatorTemplateCombobox } from "@/src/features/evals/components/evaluator-template-combobox";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
@@ -125,6 +126,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   );
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
   const [cloneConfigId, setCloneConfigId] = useState<string | null>(null);
+  const [cloneTemplateId, setCloneTemplateId] = useState<string | null>(null);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
 
@@ -179,8 +181,29 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
   );
 
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasTemplateReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
+  const cloneEvalTemplates = api.evals.allTemplates.useQuery(
+    {
+      projectId,
+      limit: 500,
+      page: 0,
+    },
+    {
+      enabled: !!cloneConfigId && hasTemplateReadAccess,
+    },
+  );
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
+
+  useEffect(() => {
+    if (cloneSourceEvaluator.data?.evalTemplateId) {
+      setCloneTemplateId(cloneSourceEvaluator.data.evalTemplateId);
+    }
+  }, [cloneSourceEvaluator.data?.evalTemplateId, cloneConfigId]);
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -611,14 +634,17 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       <Dialog
         open={!!cloneConfigId}
         onOpenChange={(open) => {
-          if (!open) setCloneConfigId(null);
+          if (!open) {
+            setCloneConfigId(null);
+            setCloneTemplateId(null);
+          }
         }}
       >
         <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Clone evaluator</DialogTitle>
           </DialogHeader>
-          {cloneSourceEvaluator.isLoading ? (
+          {cloneSourceEvaluator.isLoading || cloneEvalTemplates.isLoading ? (
             <div className="flex items-center justify-center p-4">
               <Spinner size="lg" />
             </div>
@@ -626,30 +652,49 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <p className="text-destructive text-sm">
               {cloneSourceEvaluator.error.message}
             </p>
-          ) : cloneSourceEvaluator.data?.evalTemplate ? (
-            <EvaluatorForm
-              projectId={projectId}
-              evalTemplates={[]}
-              existingEvaluator={{
-                ...buildClonedEvaluatorConfig(cloneSourceEvaluator.data),
-                evalTemplate: {
-                  ...cloneSourceEvaluator.data.evalTemplate,
-                },
-              }}
-              shouldWrapVariables={true}
-              useDialog={true}
-              mode="clone"
-              defaultRunOnLive={false}
-              onFormSuccess={() => {
-                setCloneConfigId(null);
-                void utils.evals.allConfigs.invalidate();
-                showSuccessToast({
-                  title: "Evaluator cloned successfully",
-                  description:
-                    "The cloned evaluator was created as inactive. Activate it when you are ready to run evaluations.",
-                });
-              }}
-            />
+          ) : cloneEvalTemplates.isError ? (
+            <p className="text-destructive text-sm">
+              {cloneEvalTemplates.error.message}
+            </p>
+          ) : cloneSourceEvaluator.data?.evalTemplate && cloneTemplateId ? (
+            <>
+              <div className="flex flex-col gap-2 px-4 pt-2">
+                <p className="text-sm font-medium">Referenced evaluator</p>
+                <p className="text-muted-foreground text-sm">
+                  Choose which evaluator template the clone should use. Other
+                  settings are copied from the source configuration.
+                </p>
+                <EvaluatorTemplateCombobox
+                  projectId={projectId}
+                  evalTemplates={cloneEvalTemplates.data?.templates ?? []}
+                  selectedTemplateId={cloneTemplateId}
+                  onTemplateSelect={setCloneTemplateId}
+                />
+              </div>
+              <EvaluatorForm
+                key={`${cloneConfigId}-${cloneTemplateId}`}
+                projectId={projectId}
+                evalTemplates={cloneEvalTemplates.data?.templates ?? []}
+                templateId={cloneTemplateId}
+                existingEvaluator={buildClonedEvaluatorConfig(
+                  cloneSourceEvaluator.data,
+                )}
+                shouldWrapVariables={true}
+                useDialog={true}
+                mode="clone"
+                defaultRunOnLive={false}
+                onFormSuccess={() => {
+                  setCloneConfigId(null);
+                  setCloneTemplateId(null);
+                  void utils.evals.allConfigs.invalidate();
+                  showSuccessToast({
+                    title: "Evaluator cloned successfully",
+                    description:
+                      "The cloned evaluator was created as inactive. Activate it when you are ready to run evaluations.",
+                  });
+                }}
+              />
+            </>
           ) : (
             <p className="text-muted-foreground text-sm">
               Evaluator not found.

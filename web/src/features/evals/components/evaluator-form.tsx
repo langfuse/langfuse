@@ -14,7 +14,7 @@ export const EvaluatorForm = (props: {
   evalTemplates: EvalTemplate[];
   useDialog: boolean;
   disabled?: boolean;
-  existingEvaluator?: PartialConfig & { evalTemplate: EvalTemplate };
+  existingEvaluator?: PartialConfig & { evalTemplate?: EvalTemplate };
   onFormSuccess?: () => void;
   mode?: "create" | "edit" | "clone";
   shouldWrapVariables?: boolean;
@@ -29,11 +29,18 @@ export const EvaluatorForm = (props: {
 }) => {
   const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
 
+  const visibleEvalTemplates = props.evalTemplates.filter((template) =>
+    shouldShowEvalTemplate(template, isCodeEvalEnabled),
+  );
+
+  const templateFromId = props.templateId
+    ? visibleEvalTemplates.find((t) => t.id === props.templateId)
+    : undefined;
+
   const currentTemplate =
-    props.existingEvaluator?.evalTemplate ??
-    props.evalTemplates
-      .filter((template) => shouldShowEvalTemplate(template, isCodeEvalEnabled))
-      .find((t) => t.id === props.templateId);
+    props.mode === "clone"
+      ? (templateFromId ?? props.existingEvaluator?.evalTemplate)
+      : (props.existingEvaluator?.evalTemplate ?? templateFromId);
 
   const evalCapabilities = useEvalCapabilities(props.projectId, {
     isCodeEvalTemplate:
@@ -56,9 +63,7 @@ export const EvaluatorForm = (props: {
           projectId={props.projectId}
           disabled={props.disabled}
           existingEvaluator={props.existingEvaluator}
-          evalTemplate={
-            props.existingEvaluator?.evalTemplate ?? currentTemplate
-          }
+          evalTemplate={currentTemplate}
           onFormSuccess={props.onFormSuccess}
           shouldWrapVariables={props.shouldWrapVariables}
           hideTargetSection={props.hideTargetSection}
