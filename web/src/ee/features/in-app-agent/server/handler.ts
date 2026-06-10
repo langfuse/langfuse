@@ -1,4 +1,5 @@
 import { EventType } from "@ag-ui/core";
+import { type Session } from "next-auth";
 import { getServerSession } from "next-auth";
 
 import { env } from "@/src/env.mjs";
@@ -25,16 +26,27 @@ import {
 } from "@/src/ee/features/in-app-agent/server/persistence";
 import { getAuthOptions } from "@/src/server/auth";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import {
+  createHttpHeaderFromRateLimit,
+  RateLimitService,
+} from "@/src/features/public-api/server/RateLimitService";
 import { isProjectMemberOrAdmin } from "@/src/server/utils/checkProjectMembershipOrAdmin";
 import { assertUnreachable } from "@/src/utils/types";
 import {
   BaseError,
   ForbiddenError,
   InvalidRequestError,
+  type RateLimitResult,
   UnauthorizedError,
+  CloudConfigSchema,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import {
+  logger,
+  redis,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import {
   createAndAddApiKeysToDb,
   deleteApiKeyFromDb,
@@ -147,6 +159,8 @@ export default async function handler(request: Request) {
       select: {
         organization: {
           select: {
+            id: true,
+            cloudConfig: true,
             aiFeaturesEnabled: true,
             aiTelemetryEnabled: true,
           },
@@ -172,6 +186,22 @@ export default async function handler(request: Request) {
         "Assistant Bedrock model is not configured.",
         true,
       );
+    }
+
+    // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
+    const rateLimitScope = getInAppAgentRateLimitScope(
+      auth.user,
+      projectId,
+      project.organization,
+    );
+
+    const rateLimitResponse = await rateLimitInAppAgentRequest(
+      rateLimitScope,
+      "in-app-agent-run",
+    );
+
+    if (rateLimitResponse) {
+      return rateLimitResponse;
     }
 
     const conversation = await ensureOwnedConversation({
@@ -353,6 +383,84 @@ export default async function handler(request: Request) {
 
     throw err;
   }
+}
+
+type SessionUser = NonNullable<Session["user"]>;
+
+function getInAppAgentRateLimitScope(
+  user: SessionUser,
+  projectId: string,
+  projectOrganization: {
+    id: string;
+    cloudConfig: unknown;
+  },
+): ApiAccessScope {
+  const organization = user.organizations.find((org) =>
+    org.projects.some((project) => project.id === projectId),
+  );
+
+  if (!organization) {
+    if (user.admin === true) {
+      const cloudConfig = projectOrganization.cloudConfig
+        ? CloudConfigSchema.parse(projectOrganization.cloudConfig)
+        : undefined;
+
+      return {
+        orgId: projectOrganization.id,
+        plan: getOrganizationPlanServerSide(cloudConfig),
+        projectId,
+        accessLevel: "project",
+        rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
+        apiKeyId: "in-app-agent-session",
+        publicKey: "in-app-agent-session",
+        isIngestionSuspended: false,
+      };
+    }
+
+    throw new ForbiddenError("User is not a member of this project");
+  }
+
+  return {
+    orgId: organization.id,
+    plan: organization.plan,
+    projectId,
+    accessLevel: "project",
+    rateLimitOverrides: organization.cloudConfig?.rateLimitOverrides ?? [],
+    apiKeyId: "in-app-agent-session",
+    publicKey: "in-app-agent-session",
+    isIngestionSuspended: false,
+  };
+}
+
+async function rateLimitInAppAgentRequest(
+  scope: ApiAccessScope,
+  resource: Parameters<RateLimitService["rateLimitRequest"]>[1],
+): Promise<Response | undefined> {
+  const rateLimit = await RateLimitService.getInstance().rateLimitRequest(
+    scope,
+    resource,
+  );
+
+  if (!rateLimit.isRateLimited() || !rateLimit.res) {
+    return undefined;
+  }
+
+  return createInAppAgentRateLimitResponse(rateLimit.res);
+}
+
+function createInAppAgentRateLimitResponse(rateLimitRes: RateLimitResult) {
+  const headers = new Headers();
+
+  for (const [header, value] of Object.entries(
+    createHttpHeaderFromRateLimit(rateLimitRes),
+  )) {
+    headers.set(header, String(value));
+  }
+
+  return Response.json(
+    { error: "Rate limit exceeded" },
+    { status: 429, headers },
+  );
 }
 
 function getLangfuseMcpUrl(): string {
