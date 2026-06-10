@@ -30,8 +30,6 @@ export const promptVersionHandler = withMiddlewares({
         newLabels,
       });
 
-      logger.info(`Prompt updated ${JSON.stringify(updatedPrompt)}`);
-
       return updatedPrompt;
     },
   }),
