@@ -7,7 +7,7 @@ import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 // Parse the first valid role from a SCIM `roles` array. Returns undefined when
-// the attribute is absent, empty, or unparseable, which the provisioning logic
+// the attribute is absent, empty, or unparsable, which the provisioning logic
 // treats as "no explicit role requested".
 function parseScimRole(roles: unknown): Role | undefined {
   if (!Array.isArray(roles) || roles.length === 0) {
