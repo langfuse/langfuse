@@ -6,7 +6,7 @@ service:
   auth: true
   base-path: /api/public
   endpoints:
-    getMany:
+    getManyV3:
       docs: |
         Get a list of scores with a polymorphic `value` field (v3).
 
@@ -29,7 +29,7 @@ service:
       method: GET
       path: /v3/scores
       request:
-        name: GetScoresRequest
+        name: GetScoresV3Request
         query-parameters:
           limit:
             type: optional<integer>
@@ -104,16 +104,16 @@ service:
           toTimestamp:
             type: optional<datetime>
             docs: Exclusive upper bound on the score timestamp.
-      response: GetScoresResponse
+      response: GetScoresV3Response
 
 types:
-  ScoreSubjectTrace:
+  ScoreSubjectTraceV3:
     properties:
       id:
         type: string
         docs: The trace ID.
 
-  ScoreSubjectObservation:
+  ScoreSubjectObservationV3:
     properties:
       id:
         type: string
@@ -122,33 +122,33 @@ types:
         type: optional<string>
         docs: The parent trace ID, if available.
 
-  ScoreSubjectSession:
+  ScoreSubjectSessionV3:
     properties:
       id:
         type: string
         docs: The session ID.
 
-  ScoreSubjectExperiment:
+  ScoreSubjectExperimentV3:
     properties:
       id:
         type: string
         docs: The dataset run ID (experiment ID).
 
-  ScoreSubject:
+  ScoreSubjectV3:
     docs: A reference to the entity this score is attached to. Discriminated by "kind" — one of trace, observation, session, or experiment.
     discriminant: kind
     union:
       trace:
-        type: ScoreSubjectTrace
+        type: ScoreSubjectTraceV3
         docs: Subject is a trace-level score.
       observation:
-        type: ScoreSubjectObservation
+        type: ScoreSubjectObservationV3
         docs: Subject is an observation-level score scoped to a trace.
       session:
-        type: ScoreSubjectSession
+        type: ScoreSubjectSessionV3
         docs: Subject is a session-level score.
       experiment:
-        type: ScoreSubjectExperiment
+        type: ScoreSubjectExperimentV3
         docs: Subject is a dataset run (experiment) score.
 
   # Score model types keep the V3 suffix because commons.yml already declares
@@ -182,7 +182,7 @@ types:
         type: optional<nullable<string>>
         docs: The annotation queue this score belongs to, if any. Present when "annotation" is included in the fields parameter.
       subject:
-        type: optional<ScoreSubject>
+        type: optional<ScoreSubjectV3>
         docs: The entity this score is attached to (trace, observation, session, or experiment). Present when "subject" is included in the fields parameter.
 
   NumericScoreV3:
@@ -239,14 +239,14 @@ types:
         type: CorrectionScoreV3
         docs: Score with CORRECTION data type. Value is the correction string.
 
-  GetScoresMeta:
+  GetScoresV3Meta:
     properties:
       limit: integer
       cursor:
         type: optional<string>
         docs: URL-safe base64 (base64url) cursor for the next page. Absent when there are no more results.
 
-  GetScoresResponse:
+  GetScoresV3Response:
     properties:
       data: list<ScoreV3>
-      meta: GetScoresMeta
+      meta: GetScoresV3Meta
