@@ -1,4 +1,15 @@
 import dd from "dd-trace";
+import {
+  context,
+  trace,
+  INVALID_SPAN_CONTEXT,
+  type Context,
+  type Span,
+  type SpanOptions,
+  type Tracer,
+  type TracerOptions,
+  type TracerProvider,
+} from "@opentelemetry/api";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { TraceIdRatioBasedSampler } from "@opentelemetry/sdk-trace-base";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
@@ -17,6 +28,75 @@ import {
 import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "@/src/env.mjs";
+
+/**
+ * Tracer that never records spans but keeps the caller's parent span context
+ * active, so descendant spans attach to the real parent. Dropping spans via a
+ * sampler instead would mint a new unsampled span id and orphan the subtree.
+ */
+class PassthroughTracer implements Tracer {
+  startSpan(
+    _name: string,
+    _options?: SpanOptions,
+    ctx: Context = context.active(),
+  ): Span {
+    return trace.wrapSpanContext(
+      trace.getSpanContext(ctx) ?? INVALID_SPAN_CONTEXT,
+    );
+  }
+
+  startActiveSpan<F extends (span: Span) => unknown>(
+    name: string,
+    fn: F,
+  ): ReturnType<F>;
+  startActiveSpan<F extends (span: Span) => unknown>(
+    name: string,
+    options: SpanOptions,
+    fn: F,
+  ): ReturnType<F>;
+  startActiveSpan<F extends (span: Span) => unknown>(
+    name: string,
+    options: SpanOptions,
+    ctx: Context,
+    fn: F,
+  ): ReturnType<F>;
+  startActiveSpan<F extends (span: Span) => unknown>(
+    name: string,
+    arg2: SpanOptions | F,
+    arg3?: Context | F,
+    arg4?: F,
+  ): ReturnType<F> {
+    let fn: F;
+    let ctx = context.active();
+    if (typeof arg2 === "function") {
+      fn = arg2;
+    } else if (typeof arg3 === "function") {
+      fn = arg3;
+    } else {
+      ctx = arg3 ?? ctx;
+      fn = arg4 as F;
+    }
+    const span = this.startSpan(name, undefined, ctx);
+    return context.with(trace.setSpan(ctx, span), () =>
+      fn(span),
+    ) as ReturnType<F>;
+  }
+}
+
+class ScopeFilteringTracerProvider implements TracerProvider {
+  private readonly passthroughTracer = new PassthroughTracer();
+
+  constructor(
+    private readonly delegate: TracerProvider,
+    private readonly mutedScopes: ReadonlySet<string>,
+  ) {}
+
+  getTracer(name: string, version?: string, options?: TracerOptions): Tracer {
+    return this.mutedScopes.has(name)
+      ? this.passthroughTracer
+      : this.delegate.getTracer(name, version, options);
+  }
+}
 
 dd.init({
   runtimeMetrics: true,
@@ -80,3 +160,22 @@ const sdk = new NodeSDK({
 });
 
 sdk.start();
+
+// Next.js emits wrapper spans (scope "next.js": next.js.server plus
+// "executing api route" internals) on every request whenever a global tracer
+// provider is registered; there is no Next.js setting to turn them off.
+// Muting the scope means those spans are never started: child spans attach
+// directly to the http.server span, and Next.js still stamps the resolved
+// route template onto http.server (BaseServer.handleRequest propagates
+// http.route to the parent span), so resource names keep route templates.
+// The swap must happen after sdk.start(): instrumentations registered by the
+// SDK keep the tracers they already resolved, while Next.js resolves its
+// tracer through the global provider on every call.
+const registeredTracerProvider = trace.getTracerProvider();
+trace.disable();
+trace.setGlobalTracerProvider(
+  new ScopeFilteringTracerProvider(
+    registeredTracerProvider,
+    new Set(["next.js"]),
+  ),
+);
