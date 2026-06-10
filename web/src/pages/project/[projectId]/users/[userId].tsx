@@ -1,4 +1,5 @@
 import { useRouter } from "next/router";
+import { withRouterReady } from "@/src/components/with-router-ready";
 import { api } from "@/src/utils/api";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import ScoresTable from "@/src/components/table/use-cases/scores";
@@ -16,7 +17,7 @@ import { ObservationsEventsTable } from "@/src/features/events/components";
 
 const tabs = ["Traces", "Sessions", "Scores"] as const;
 
-export default function UserPage() {
+function UserPage() {
   const router = useRouter();
   const userId = router.query.userId as string;
   const projectId = router.query.projectId as string;
@@ -219,3 +220,5 @@ function SessionsTab({ userId, projectId }: TabProps) {
     />
   );
 }
+
+export default withRouterReady(UserPage);

@@ -1,6 +1,7 @@
 import { DatasetRunsTable } from "@/src/features/datasets/components/DatasetRunsTable";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
+import { withRouterReady } from "@/src/components/with-router-ready";
 import Link from "next/link";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
@@ -42,7 +43,7 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 import { ExperimentsTable } from "@/src/features/experiments/components/table";
 
-export default function Dataset() {
+function Dataset() {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const projectId = router.query.projectId as string;
@@ -394,3 +395,5 @@ export default function Dataset() {
     </Page>
   );
 }
+
+export default withRouterReady(Dataset);

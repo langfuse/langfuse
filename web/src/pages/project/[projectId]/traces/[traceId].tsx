@@ -1,7 +1,8 @@
 import { TracePage } from "@/src/components/trace/TracePage";
+import { withRouterReady } from "@/src/components/with-router-ready";
 import { useRouter } from "next/router";
 
-export default function Trace() {
+function Trace() {
   const router = useRouter();
   const traceId = router.query.traceId as string;
 
@@ -12,3 +13,5 @@ export default function Trace() {
 
   return <TracePage traceId={traceId} timestamp={timestamp} />;
 }
+
+export default withRouterReady(Trace);
