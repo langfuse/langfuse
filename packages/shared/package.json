@@ -54,6 +54,14 @@
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
       "require": "./dist/src/features/query/server/index.js"
+    },
+    "./monitors": {
+      "import": "./dist/src/features/monitors/index.js",
+      "require": "./dist/src/features/monitors/index.js"
+    },
+    "./monitors/server": {
+      "import": "./dist/src/features/monitors/server.js",
+      "require": "./dist/src/features/monitors/server.js"
     }
   },
   "scripts": {
@@ -61,8 +69,8 @@
     "build:check": "tsc",
     "typecheck": "dotenv -e ../../.env -- tsc --noEmit --incremental --tsBuildInfoFile .tsbuildinfo",
     "dev": "tsc --watch",
-    "lint": "eslint . --cache --cache-location dist/.eslintcache --max-warnings 0",
-    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --fix",
+    "lint": "eslint . --cache --cache-location dist/.eslintcache --concurrency auto --max-warnings 0",
+    "lint:fix": "eslint . --cache --cache-location dist/.eslintcache --concurrency auto --fix",
     "test": "dotenv -e ../../.env -- vitest run",
     "db:migrate": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma migrate dev",
     "db:push": "DISABLE_ERD=false dotenv -e ../../.env -- npx prisma db push",
@@ -130,6 +138,7 @@
     "oci-common": "^2.125.0",
     "oci-objectstorage": "^2.125.0",
     "safe-regex2": "^5.0.0",
+    "slackify-markdown": "^5.0.0",
     "undici": "^7.24.6",
     "uuid": "^14.0.0",
     "winston": "^3.15.0",

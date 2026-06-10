@@ -1,150 +1,243 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
-  pagination: ./utils/pagination.yml
   commons: ./commons.yml
+
 service:
   auth: true
-  base-path: /api/public/v2
+  base-path: /api/public
   endpoints:
-    get-many:
-      docs: Get a list of scores (supports both trace and session scores)
+    getMany:
+      docs: |
+        Get a list of scores with a polymorphic `value` field (v3).
+
+        This endpoint requires Langfuse v4 or later.
+
+        The `value` field type depends on `dataType`:
+        - `NUMERIC` → number
+        - `BOOLEAN` → boolean
+        - `CATEGORICAL`, `TEXT`, `CORRECTION` → string
+
+        Use the `fields` parameter to include optional field groups beyond the
+        default `core`. Unknown group names return HTTP 400.
       method: GET
-      path: /scores
+      path: /v3/scores
       request:
         name: GetScoresRequest
         query-parameters:
-          page:
-            type: optional<integer>
-            docs: Page number, starts at 1.
           limit:
             type: optional<integer>
-            docs: Limit of items per page. Maximum 100. Defaults to 50. Requests with a limit greater than 100 return HTTP 400. If you encounter api issues due to too large page sizes, try to reduce the limit.
-          userId:
+            docs: Number of items per page. Maximum 100, default 50. Requests with a limit greater than 100 return HTTP 400.
+          cursor:
             type: optional<string>
-            docs: Retrieve only scores with this userId associated to the trace.
-          name:
-            type: optional<string>
-            docs: Retrieve only scores with this name.
-          fromTimestamp:
-            type: optional<datetime>
-            docs: Optional filter to only include scores created on or after a certain datetime (ISO 8601)
-          toTimestamp:
-            type: optional<datetime>
-            docs: Optional filter to only include scores created before a certain datetime (ISO 8601)
-          environment:
-            type: optional<string>
-            allow-multiple: true
-            docs: Optional filter for scores where the environment is one of the provided values.
-          source:
-            type: optional<commons.ScoreSource>
-            docs: Retrieve only scores from a specific source.
-          operator:
-            type: optional<string>
-            docs: Retrieve only scores with <operator> value.
-          value:
-            type: optional<double>
-            docs: Retrieve only scores with <operator> value.
-          scoreIds:
-            type: optional<string>
-            docs: Comma-separated list of score IDs to limit the results to.
-          configId:
-            type: optional<string>
-            docs: Retrieve only scores with a specific configId.
-          sessionId:
-            type: optional<string>
-            docs: Retrieve only scores with a specific sessionId.
-          datasetRunId:
-            type: optional<string>
-            docs: Retrieve only scores with a specific datasetRunId.
-          traceId:
-            type: optional<string>
-            docs: Retrieve only scores with a specific traceId.
-          observationId:
-            type: optional<string>
-            docs: Comma-separated list of observation IDs to filter scores by.
-          queueId:
-            type: optional<string>
-            docs: Retrieve only scores with a specific annotation queueId.
-          dataType:
-            type: optional<commons.ScoreDataType>
-            docs: Retrieve only scores with a specific dataType.
-          traceTags:
-            type: optional<string>
-            allow-multiple: true
-            docs: Only scores linked to traces that include all of these tags will be returned.
+            docs: URL-safe base64 (base64url) cursor for pagination. Use the cursor from the previous response to get the next page. Absent on the final page.
           fields:
             type: optional<string>
-            docs: "Comma-separated list of field groups to include in the response. Available field groups: 'score' (core score fields), 'trace' (trace properties: userId, tags, environment, sessionId). If not specified, both 'score' and 'trace' are returned by default. Example: 'score' to exclude trace data, 'score,trace' to include both. Note: When filtering by trace properties (using userId or traceTags parameters), the 'trace' field group must be included, otherwise a 400 error will be returned."
-          filter:
+            docs: >
+              Comma-separated field groups to include. Allowed: core, details,
+              subject, annotation. Defaults to "core". Unknown names return HTTP 400.
+          id:
+            type: optional<string>
+            docs: Comma-separated list of score IDs to filter by (OR within, AND across filters).
+          name:
+            type: optional<string>
+            docs: Comma-separated list of score names to filter by.
+          source:
+            type: optional<string>
+            docs: Comma-separated list of score sources to filter by (e.g. API, ANNOTATION, EVAL). Case-insensitive — `api` and `API` are equivalent.
+          dataType:
+            type: optional<string>
+            docs: Comma-separated list of data types to filter by (NUMERIC, BOOLEAN, CATEGORICAL, TEXT, CORRECTION). Case-insensitive — `numeric` and `NUMERIC` are equivalent. Must be a single value when used with value, valueMin, or valueMax; otherwise the request returns HTTP 400. Must be NUMERIC when used with valueMin or valueMax.
+          environment:
+            type: optional<string>
+            docs: Comma-separated list of environments to filter by.
+          configId:
+            type: optional<string>
+            docs: Comma-separated list of score config IDs to filter by.
+          queueId:
+            type: optional<string>
+            docs: Comma-separated list of annotation queue IDs to filter by.
+          authorUserId:
+            type: optional<string>
+            docs: Comma-separated list of author user IDs to filter by.
+          value:
             type: optional<string>
             docs: >
-              A JSON stringified array of filter objects. Each object requires type, column, operator, and value.
-              Supports filtering by score metadata using the stringObject type.
-              Example: [{"type":"stringObject","column":"metadata","key":"user_id","operator":"=","value":"abc123"}].
-              Supported types: stringObject (metadata key-value filtering), string, number, datetime, stringOptions, arrayOptions.
-              Supported operators for stringObject: =, contains, does not contain, starts with, ends with.
+              Comma-separated list of exact values to filter by. Requires a
+              single dataType from NUMERIC, BOOLEAN, or CATEGORICAL; any other
+              dataType, multiple dataTypes, or omitting dataType returns HTTP
+              400. For BOOLEAN, each value must be "true" or "false"; for
+              NUMERIC, each value must be a finite number. Otherwise the
+              request returns HTTP 400.
+          valueMin:
+            type: optional<double>
+            docs: Inclusive lower bound on the numeric value. Requires dataType=NUMERIC as a single value; otherwise the request returns HTTP 400.
+          valueMax:
+            type: optional<double>
+            docs: Inclusive upper bound on the numeric value. Requires dataType=NUMERIC as a single value; otherwise the request returns HTTP 400.
+          traceId:
+            type: optional<string>
+            docs: Comma-separated list of trace IDs to filter by. Mutually exclusive with sessionId, experimentId. May be combined with observationId to scope the observation lookup to a specific trace.
+          sessionId:
+            type: optional<string>
+            docs: Comma-separated list of session IDs to filter by. Mutually exclusive with traceId, observationId, experimentId.
+          observationId:
+            type: optional<string>
+            docs: >
+              Comma-separated list of observation IDs to filter by. Requires traceId to be specified,
+              because observation IDs are scoped to a trace. Mutually exclusive with sessionId, experimentId.
+              Returns HTTP 400 when used without traceId.
+          experimentId:
+            type: optional<string>
+            docs: Comma-separated list of dataset run IDs (experiment IDs) to filter by. Mutually exclusive with traceId, sessionId, observationId.
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Inclusive lower bound on the score timestamp.
+          toTimestamp:
+            type: optional<datetime>
+            docs: Exclusive upper bound on the score timestamp.
       response: GetScoresResponse
-    get-by-id:
-      docs: Get a score (supports both trace and session scores)
-      method: GET
-      path: /scores/{scoreId}
-      path-parameters:
-        scoreId:
-          type: string
-          docs: The unique langfuse identifier of a score
-      response: commons.Score
 
 types:
-  GetScoresResponseTraceData:
+  ScoreSubjectTrace:
     properties:
-      userId:
+      id:
+        type: string
+        docs: The trace ID.
+
+  ScoreSubjectObservation:
+    properties:
+      id:
+        type: string
+        docs: The observation ID.
+      traceId:
         type: optional<string>
-        docs: The user ID associated with the trace referenced by score
-      tags:
-        type: optional<list<string>>
-        docs: A list of tags associated with the trace referenced by score
+        docs: The parent trace ID, if available.
+
+  ScoreSubjectSession:
+    properties:
+      id:
+        type: string
+        docs: The session ID.
+
+  ScoreSubjectExperiment:
+    properties:
+      id:
+        type: string
+        docs: The dataset run ID (experiment ID).
+
+  ScoreSubject:
+    docs: A reference to the entity this score is attached to. Discriminated by "kind" — one of trace, observation, session, or experiment.
+    discriminant: kind
+    union:
+      trace:
+        type: ScoreSubjectTrace
+        docs: Subject is a trace-level score.
+      observation:
+        type: ScoreSubjectObservation
+        docs: Subject is an observation-level score scoped to a trace.
+      session:
+        type: ScoreSubjectSession
+        docs: Subject is a session-level score.
+      experiment:
+        type: ScoreSubjectExperiment
+        docs: Subject is a dataset run (experiment) score.
+
+  # Score model types keep the V3 suffix because commons.yml already declares
+  # Score, NumericScore, BooleanScore, etc. for the v1/v2 API surface.
+  # Fern uses a flat global namespace, so those names are taken.
+  BaseScoreV3:
+    properties:
+      id: string
+      projectId: string
+      name: string
+      source: commons.ScoreSource
+      timestamp: datetime
       environment:
-        type: optional<string>
-        docs: The environment of the trace referenced by score
-      sessionId:
-        type: optional<string>
-        docs: The session ID associated with the trace referenced by score
+        type: string
+        docs: The environment from which this score originated.
+      createdAt: datetime
+      updatedAt: datetime
+      comment:
+        type: optional<nullable<string>>
+        docs: Optional comment attached to the score. Present when "details" is included in the fields parameter.
+      configId:
+        type: optional<nullable<string>>
+        docs: The score config ID, if this score was created from a config. Present when "details" is included in the fields parameter.
+      metadata:
+        type: optional<map<string, unknown>>
+        docs: Arbitrary metadata attached to the score. Present when "details" is included in the fields parameter.
+      authorUserId:
+        type: optional<nullable<string>>
+        docs: The user who created this score, if available. Present when "annotation" is included in the fields parameter.
+      queueId:
+        type: optional<nullable<string>>
+        docs: The annotation queue this score belongs to, if any. Present when "annotation" is included in the fields parameter.
+      subject:
+        type: optional<ScoreSubject>
+        docs: The entity this score is attached to (trace, observation, session, or experiment). Present when "subject" is included in the fields parameter.
 
-  GetScoresResponseDataNumeric:
-    extends: commons.NumericScore
+  NumericScoreV3:
+    extends: BaseScoreV3
     properties:
-      trace: optional<GetScoresResponseTraceData>
+      value:
+        type: double
+        docs: The numeric value of the score.
 
-  GetScoresResponseDataCategorical:
-    extends: commons.CategoricalScore
+  BooleanScoreV3:
+    extends: BaseScoreV3
     properties:
-      trace: optional<GetScoresResponseTraceData>
+      value:
+        type: boolean
+        docs: The boolean value of the score.
 
-  GetScoresResponseDataBoolean:
-    extends: commons.BooleanScore
+  CategoricalScoreV3:
+    extends: BaseScoreV3
     properties:
-      trace: optional<GetScoresResponseTraceData>
+      value:
+        type: string
+        docs: The string category value of the score.
 
-  GetScoresResponseDataCorrection:
-    extends: commons.CorrectionScore
+  TextScoreV3:
+    extends: BaseScoreV3
     properties:
-      trace: optional<GetScoresResponseTraceData>
+      value:
+        type: string
+        docs: The text content of the score.
 
-  GetScoresResponseDataText:
-    extends: commons.TextScore
+  CorrectionScoreV3:
+    extends: BaseScoreV3
     properties:
-      trace: optional<GetScoresResponseTraceData>
+      value:
+        type: string
+        docs: The correction content of the score. Empty string if not set.
 
-  GetScoresResponseData:
+  ScoreV3:
     discriminant: dataType
     union:
-      NUMERIC: GetScoresResponseDataNumeric
-      CATEGORICAL: GetScoresResponseDataCategorical
-      BOOLEAN: GetScoresResponseDataBoolean
-      CORRECTION: GetScoresResponseDataCorrection
-      TEXT: GetScoresResponseDataText
+      NUMERIC:
+        type: NumericScoreV3
+        docs: Score with NUMERIC data type. Value is a number.
+      BOOLEAN:
+        type: BooleanScoreV3
+        docs: Score with BOOLEAN data type. Value is a boolean.
+      CATEGORICAL:
+        type: CategoricalScoreV3
+        docs: Score with CATEGORICAL data type. Value is a string category.
+      TEXT:
+        type: TextScoreV3
+        docs: Score with TEXT data type. Value is a string.
+      CORRECTION:
+        type: CorrectionScoreV3
+        docs: Score with CORRECTION data type. Value is the correction string.
+
+  GetScoresMeta:
+    properties:
+      limit: integer
+      cursor:
+        type: optional<string>
+        docs: URL-safe base64 (base64url) cursor for the next page. Absent when there are no more results.
 
   GetScoresResponse:
     properties:
-      data: list<GetScoresResponseData>
-      meta: pagination.MetaResponse
+      data: list<ScoreV3>
+      meta: GetScoresMeta

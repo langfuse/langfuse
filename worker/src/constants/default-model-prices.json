@@ -3442,6 +3442,68 @@
     ]
   },
   {
+    "id": "0b9a828d-9fdc-46d4-b5ec-f6574c42ad65",
+    "modelName": "claude-fable-5",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-fable-5(-v1(:0)?)?)$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "0b9a828d-9fdc-46d4-b5ec-f6574c42ad65_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "33f4e272-750f-49d9-90ed-313b3c920da1",
+    "modelName": "claude-mythos-5",
+    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "33f4e272-750f-49d9-90ed-313b3c920da1_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "cmig1hb7i000104l72qrzgc6h",
     "modelName": "gemini-2.5-pro",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-pro)$",

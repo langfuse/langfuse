@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class PostHogIntegrationProcessingQueue {
@@ -15,15 +11,12 @@ export class PostHogIntegrationProcessingQueue {
       return PostHogIntegrationProcessingQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    PostHogIntegrationProcessingQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.PostHogIntegrationProcessingQueue,
+    );
+    PostHogIntegrationProcessingQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.PostHogIntegrationProcessingQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.PostHogIntegrationProcessingQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,

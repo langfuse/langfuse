@@ -11,6 +11,9 @@ evaluating, and debugging AI applications.
   bug.
 - For user-visible frontend changes in `web/**`, review the affected flow in a
   real browser before signoff.
+- For documentation screenshots in Markdown, avoid fixed `height` on `<img>`
+  tags; prefer Markdown images or width-only HTML so previews preserve aspect
+  ratio.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 

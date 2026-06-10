@@ -1,9 +1,9 @@
 import { v4 as uuidv4 } from "uuid";
+import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
-  createOrgProjectAndApiKey,
   MonitorService,
   type SessionContext,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/monitors/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
@@ -13,12 +13,12 @@ const baseMonitorInput = (projectId: string) => ({
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: "GT" as const,
   alertThreshold: 100,
   warningThreshold: null,
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
-  status: "active" as const,
+  status: "ACTIVE" as const,
   name: "High error rate",
   tags: [],
 });
@@ -68,7 +68,7 @@ describe("MonitorService (integration)", () => {
       // "5m" is a sub-day window → 1-minute cadence.
       expect(row!.cadenceMs).toBe(60_000n);
       expect(row!.schedulerBatchId).toBeGreaterThan(0n);
-      expect(row!.nextRunAt.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(row!.nextRunAt).toBeNull();
       expect(row!.severity).toBe("UNKNOWN");
       expect(row!.createdBy).toBe(creator.userId);
       expect(row!.updatedBy).toBe(creator.userId);
@@ -142,7 +142,7 @@ describe("MonitorService (integration)", () => {
           severity: "ALERT",
           severityChangedAt: new Date(),
           alertedAt: new Date(),
-          lastCompletedRunAt: new Date(),
+          lastCompletedAt: new Date(),
         },
       });
 
@@ -153,10 +153,10 @@ describe("MonitorService (integration)", () => {
       });
 
       expect(updated.name).toBe("Renamed");
-      expect(updated.severity).toBe("alert");
+      expect(updated.severity).toBe("ALERT");
       expect(updated.severityChangedAt).not.toBeNull();
       expect(updated.alertedAt).not.toBeNull();
-      expect(updated.lastCompletedRunAt).not.toBeNull();
+      expect(updated.lastCompletedAt).not.toBeNull();
 
       const row = await prisma.monitor.findUnique({
         where: { id: created.id },
@@ -172,6 +172,131 @@ describe("MonitorService (integration)", () => {
           id: "mon_missing",
         }),
       ).rejects.toBeInstanceOf(LangfuseNotFoundError);
+    });
+
+    it("flips severity to PAUSED when status leaves ACTIVE", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      expect(created.severity).toBe("UNKNOWN");
+
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
+        id: created.id,
+        status: "PAUSED",
+      });
+
+      expect(updated.severity).toBe("PAUSED");
+      expect(updated.severityChangedAt).not.toBeNull();
+    });
+
+    it("flips severity to UNKNOWN when status returns to ACTIVE", async () => {
+      const created = await MonitorService.create(creator, {
+        ...baseMonitorInput(projectId),
+        status: "PAUSED",
+      });
+      expect(created.severity).toBe("PAUSED");
+
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
+        id: created.id,
+        status: "ACTIVE",
+      });
+
+      expect(updated.severity).toBe("UNKNOWN");
+      expect(updated.severityChangedAt).not.toBeNull();
+    });
+
+    it("leaves status and worker-owned severity untouched when status is omitted", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      await prisma.monitor.update({
+        where: { id: created.id },
+        data: { severity: "ALERT", severityChangedAt: new Date() },
+      });
+
+      const { status, ...withoutStatus } = baseMonitorInput(projectId);
+      const updated = await MonitorService.update(editor, {
+        ...withoutStatus,
+        id: created.id,
+        name: "Renamed",
+      });
+
+      expect(updated.name).toBe("Renamed");
+      expect(updated.status).toBe("ACTIVE");
+      expect(updated.severity).toBe("ALERT");
+    });
+
+    it("does not resurrect a paused monitor when status is omitted", async () => {
+      const created = await MonitorService.create(creator, {
+        ...baseMonitorInput(projectId),
+        status: "PAUSED",
+      });
+      expect(created.severity).toBe("PAUSED");
+
+      const { status, ...withoutStatus } = baseMonitorInput(projectId);
+      const updated = await MonitorService.update(editor, {
+        ...withoutStatus,
+        id: created.id,
+        name: "Renamed",
+      });
+
+      expect(updated.status).toBe("PAUSED");
+      expect(updated.severity).toBe("PAUSED");
+    });
+
+    it("preserves worker-owned severity when status does not change", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+      await prisma.monitor.update({
+        where: { id: created.id },
+        data: { severity: "ALERT", severityChangedAt: new Date() },
+      });
+
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
+        id: created.id,
+        name: "Renamed",
+      });
+
+      expect(updated.severity).toBe("ALERT");
+    });
+
+    it("clears worker lifecycle stamps when update changes schedulerBatchId", async () => {
+      const created = await MonitorService.create(
+        creator,
+        baseMonitorInput(projectId),
+      );
+
+      await prisma.monitor.update({
+        where: { id: created.id },
+        data: {
+          lastPublishedAt: new Date("2026-05-27T11:58:30.000Z"),
+          lastCompletedAt: null,
+        },
+      });
+
+      const updated = await MonitorService.update(editor, {
+        ...baseMonitorInput(projectId),
+        id: created.id,
+        filters: [
+          {
+            column: "environment" as const,
+            operator: "=" as const,
+            value: "production",
+            type: "string" as const,
+          },
+        ],
+      });
+
+      expect(updated.nextRunAt).toBeNull();
+      expect(updated.lastPublishedAt).toBeNull();
+      expect(updated.lastCompletedAt).toBeNull();
     });
   });
 

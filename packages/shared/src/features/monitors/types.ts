@@ -1,5 +1,10 @@
 /** types.ts contains the monitor domain — schemas, types, and the
  * `validate*` refinements consumed by the input schemas. */
+import {
+  MonitorSeverity as PrismaMonitorSeverity,
+  MonitorStatus as PrismaMonitorStatus,
+  MonitorThresholdOperator as PrismaMonitorThresholdOperator,
+} from "@prisma/client";
 import { z } from "zod";
 
 import { singleFilter } from "../../interfaces/filters";
@@ -7,6 +12,16 @@ import { metric as MetricSchema, viewsV2 } from "../query/types";
 
 import { isValidQuery } from "./isValidQuery";
 import { isValidThresholdOrder } from "./isValidThresholdOrder";
+
+/** ErrorNameRequired is the message emitted when the Monitor name is missing or empty. */
+export const ErrorNameRequired = "Name is a required field";
+
+/** ErrorAlertThresholdRequired is the message emitted when alertThreshold is missing. */
+export const ErrorAlertThresholdRequired =
+  "Alert threshold is a required field";
+
+/** ErrorAtLeastOneTrigger is the message emitted when a Monitor has no automations. */
+export const ErrorAtLeastOneTrigger = "At least one automation is required";
 
 /**
  * MonitorFiltersSchema is the array of filters applied to a Monitor's
@@ -16,53 +31,25 @@ import { isValidThresholdOrder } from "./isValidThresholdOrder";
 export const MonitorFiltersSchema = z.array(singleFilter);
 export type MonitorFilters = z.infer<typeof MonitorFiltersSchema>;
 
-/**
- * MonitorSeveritySchema is the kebab-case wire form of Prisma's
- * `MonitorSeverity` enum. The service translates between this and Prisma at
- * the persistence boundary.
- */
-export const MonitorSeveritySchema = z.enum([
-  "unknown",
-  "no-data",
-  "ok",
-  "warning",
-  "alert",
-]);
+/** MonitorSeveritySchema is the wire form of Prisma's `MonitorSeverity` enum. */
+export const MonitorSeveritySchema = z.enum(PrismaMonitorSeverity);
 export type MonitorSeverity = z.infer<typeof MonitorSeveritySchema>;
 
-/**
- * MonitorStatusSchema is the kebab-case wire form of Prisma's `MonitorStatus`
- * enum.
- */
-export const MonitorStatusSchema = z.enum([
-  "paused",
-  "active",
-  "error-bad-query",
-]);
+/** MonitorStatusSchema is the wire form of Prisma's `MonitorStatus` enum. */
+export const MonitorStatusSchema = z.enum(PrismaMonitorStatus);
 export type MonitorStatus = z.infer<typeof MonitorStatusSchema>;
 
-/**
- * MonitorWriteStatusSchema is the subset of `MonitorStatusSchema` callers may
- * submit on create/update. `error-bad-query` is owned by the scheduler/worker
- * (flipped when a monitor's query fails to evaluate); accepting it on inputs
- * would let callers forge a broken state or clear a legitimately broken
- * monitor without scheduler revalidation.
- */
-export const MonitorWriteStatusSchema = z.enum(["active", "paused"]);
+/** MonitorWriteStatusSchema is the subset of MonitorStatusSchema callers may submit on create/update. */
+export const MonitorWriteStatusSchema = z.enum([
+  PrismaMonitorStatus.ACTIVE,
+  PrismaMonitorStatus.PAUSED,
+]);
 export type MonitorWriteStatus = z.infer<typeof MonitorWriteStatusSchema>;
 
-/**
- * MonitorThresholdOperatorSchema is the kebab-case wire form of Prisma's
- * `MonitorThresholdOperator` enum.
- */
-export const MonitorThresholdOperatorSchema = z.enum([
-  "gt",
-  "gte",
-  "lt",
-  "lte",
-  "eq",
-  "neq",
-]);
+/** MonitorThresholdOperatorSchema is the wire form of Prisma's `MonitorThresholdOperator` enum. */
+export const MonitorThresholdOperatorSchema = z.enum(
+  PrismaMonitorThresholdOperator,
+);
 export type MonitorThresholdOperator = z.infer<
   typeof MonitorThresholdOperatorSchema
 >;
@@ -112,8 +99,9 @@ export type MonitorRenotify = z.infer<typeof MonitorRenotifySchema>;
 
 /**
  * MonitorNoDataSchema describes behavior when a Monitor query returns no rows.
- * `SILENT` only alerts on recovery; `NOTIFY` also alerts after
- * `intervalMinutes` of sustained NO_DATA.
+ * `SILENT` suppresses all NO_DATA notifications (entry, persistence, recovery);
+ * `NOTIFY` alerts on entry after `intervalMinutes` of sustained NO_DATA,
+ * re-fires per the renotify cadence, and alerts on recovery.
  */
 export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("SILENT") }),
@@ -128,10 +116,7 @@ export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
 ]);
 export type MonitorNoData = z.infer<typeof MonitorNoDataSchema>;
 
-/**
- * validateThresholdOrder enforces correct warning/alert threshold ordering on
- * the Monitor input schemas.
- */
+/** validateThresholdOrder enforces correct warning/alert threshold ordering on the Monitor input schemas. */
 export const validateThresholdOrder = (
   input: {
     thresholdOperator: MonitorThresholdOperator;
@@ -140,25 +125,35 @@ export const validateThresholdOrder = (
   },
   ctx: z.RefinementCtx,
 ): void => {
-  if (!isValidThresholdOrder(input)) {
-    // For gt/gte the predicate requires `warning < alert` (strict);
-    // for lt/lte it requires `warning > alert` (strict). Map to the actual
-    // required relation symbol so the error message doesn't claim the
-    // non-strict variant for `gte`/`lte`.
-    const symbol = input.thresholdOperator.startsWith("g") ? ">" : "<";
+  const result = isValidThresholdOrder(input);
+  if (!result.valid) {
     ctx.addIssue({
       code: "custom",
-      message: `alertThreshold must be ${symbol} warningThreshold`,
+      message: result.reason,
       path: ["threshold"],
     });
   }
 };
 
+/** validateAtLeastOneTrigger enforces that a Monitor has at least one automation on the input schemas. */
+export const validateAtLeastOneTrigger = (
+  input: { triggerIds: string[] },
+  ctx: z.RefinementCtx,
+): void => {
+  if (input.triggerIds.length < 1) {
+    ctx.addIssue({
+      code: "custom",
+      message: ErrorAtLeastOneTrigger,
+      path: ["triggerIds"],
+    });
+  }
+};
+
 /**
- * validateQuery enforces a valid (view, metric, filters) shape on the Monitor
- * input schemas.
+ * validateMonitorQuery enforces a valid (view, metric, filters) shape on the
+ * Monitor input schemas.
  */
-export const validateQuery = (
+export const validateMonitorQuery = (
   input: {
     view: z.infer<typeof viewsV2>;
     metric: z.infer<typeof MetricSchema>;
@@ -168,7 +163,7 @@ export const validateQuery = (
 ): void => {
   const result = isValidQuery({
     view: input.view,
-    metric: input.metric,
+    metrics: [input.metric],
     filters: input.filters,
   });
   if (!result.valid) {
@@ -200,40 +195,47 @@ export const MonitorSchema = z.object({
   // Monitor Config
   window: MonitorWindowSchema,
   thresholdOperator: MonitorThresholdOperatorSchema,
-  alertThreshold: z.number(),
+  alertThreshold: z.number({ message: ErrorAlertThresholdRequired }),
   warningThreshold: z.number().nullable(),
   noData: MonitorNoDataSchema.default({ mode: "SILENT" }),
   renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
 
   // MonitorAlert Config
-  name: z.string().min(1).max(200),
+  name: z
+    .string({ message: ErrorNameRequired })
+    .min(1, ErrorNameRequired)
+    .max(200),
   tags: z.array(z.string().max(60)).max(20).default([]),
+  triggerIds: z.array(z.string()).default([]),
 
   // Monitor State
-  severity: MonitorSeveritySchema.default("unknown"),
+  severity: MonitorSeveritySchema.default("UNKNOWN"),
   severityChangedAt: z.date().nullable(),
   alertedAt: z.date().nullable(),
 
   // MonitorScheduler State
-  status: MonitorStatusSchema.default("active"),
-  nextRunAt: z.date(),
-  lastPublishedRunAt: z.date().nullable(),
-  lastCompletedRunAt: z.date().nullable(),
+  status: MonitorStatusSchema.default("ACTIVE"),
+  nextRunAt: z.date().nullable(),
+  lastPublishedAt: z.date().nullable(),
+  lastClaimedAt: z.date().nullable(),
+  lastCompletedAt: z.date().nullable(),
 });
 export type Monitor = z.infer<typeof MonitorSchema>;
 
 /**
- * MonitorAlertSchema is emitted when a monitor alerts. It carries the query
- * shape (`view` / `filters` / `window`) alongside the rendered message so
- * that recipients can reconstruct the underlying observations / scores query.
+ * MonitorAlertSchema is emitted when a monitor alerts.
+ * It carries enough information to query events that occurred
+ * during the evaluation window of the monitor.
  */
 export const MonitorAlertSchema = z.object({
   monitorId: z.string(),
   projectId: z.string(),
-  permalink: z.url(),
+  permalink: z.url().optional(),
   message: z.object({ title: z.string(), body: z.string() }),
   severity: MonitorSeveritySchema,
   timestamp: z.coerce.date(),
+  fromTimestamp: z.coerce.date(),
+  toTimestamp: z.coerce.date(),
   view: MonitorViewSchema,
   filters: MonitorFiltersSchema,
   window: MonitorWindowSchema,

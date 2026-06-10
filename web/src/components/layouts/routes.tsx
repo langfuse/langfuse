@@ -1,6 +1,7 @@
 import { type Flag } from "@/src/features/feature-flags/types";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import {
+  BellRing,
   Database,
   LayoutDashboard,
   LifeBuoy,
@@ -61,6 +62,8 @@ export type Route = {
   productModule?: ProductModule; // Product module this route belongs to. Used to show/hide modules via ui customization.
   show?: (p: {
     organization: User["organizations"][number] | undefined;
+    projectId: string | undefined;
+    isLangfuseCloud: boolean;
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -124,6 +127,17 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Monitors",
+    pathname: "/project/[projectId]/monitors",
+    icon: BellRing,
+    projectRbacScopes: ["monitors:read"],
+    featureFlag: "monitors",
+    show: ({ isLangfuseCloud }) => isLangfuseCloud,
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+    label: "Beta",
+  },
+  {
     title: "Prompts",
     pathname: "/project/[projectId]/prompts",
     icon: FileJson,
@@ -179,7 +193,6 @@ export const ROUTES: Route[] = [
     featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
-    label: "Beta",
   },
   {
     title: "Upgrade",
@@ -235,7 +248,8 @@ export const ROUTES: Route[] = [
     section: RouteSection.Secondary,
     pathname: "",
     featureFlag: "inAppAgent",
-    show: ({ organization }) => organization?.aiFeaturesEnabled === true,
+    show: ({ organization, projectId, isLangfuseCloud }) =>
+      isLangfuseCloud && organization !== undefined && projectId !== undefined,
     menuNode: <InAppAiAgentButton />,
   },
   {

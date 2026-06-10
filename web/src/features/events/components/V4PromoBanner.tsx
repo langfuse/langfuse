@@ -12,7 +12,6 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
 const CHANGELOG_URL =
   "https://langfuse.com/changelog/2026-03-10-simplify-for-scale";
@@ -42,7 +41,6 @@ export function V4PromoBanner() {
     isLoading,
   } = useV4Beta();
   const capture = usePostHogClientCapture();
-  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { getTopBannerOffset } = useTopBanner();
   const [isDismissed, setIsDismissed] = useLocalStorage<boolean>(
     DISMISSED_STORAGE_KEY,
@@ -53,7 +51,7 @@ export function V4PromoBanner() {
   const isAuthenticated = session.status === "authenticated";
 
   // Match the v4BetaToggleVisible logic from navigationFilters.ts.
-  const isToggleVisible = canToggleV4 && isLangfuseCloud;
+  const isToggleVisible = canToggleV4;
   const pageMessage = PAGE_MESSAGES[router.pathname];
 
   const isVisible =

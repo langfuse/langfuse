@@ -1,5 +1,5 @@
 import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
-import { env } from "../env";
+import { env, v4WritesToEventsTable } from "../env";
 import { randomUUID } from "crypto";
 import {
   convertDateToClickhouseDateTime,
@@ -34,8 +34,7 @@ describe("ProjectDeletionProcessingJob", () => {
   let s3Prefix: string | null = null;
   const orgId = "seed-org-id";
 
-  const maybeEventsIt =
-    env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true" ? it : it.skip;
+  const maybeEventsIt = v4WritesToEventsTable(env) ? it : it.skip;
 
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({

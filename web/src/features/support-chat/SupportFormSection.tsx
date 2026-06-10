@@ -10,6 +10,7 @@ import {
   TopicGroups,
   type MessageType,
   SupportFormSchema,
+  isHighTierSupportPlan,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -24,7 +25,13 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import { RadioGroup } from "@/src/components/ui/radio-group";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -41,9 +48,9 @@ import {
   DropzoneContent,
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
-import { Paperclip, Trash2 } from "lucide-react";
+import { Info, Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { PLAIN_MAX_FILE_SIZE_BYTES } from "./plain/plainConstants";
+import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 /** Make RHF generics match the resolver (Zod defaults => input can be undefined) */
@@ -52,12 +59,16 @@ type SupportFormValues = z.output<typeof SupportFormSchema>;
 
 /**
  * File upload constraints - single source of truth for validation
- * Uses Plain API's file size limit
+ * Uses Pylon's file size limit
  */
 const FILE_UPLOAD_CONSTRAINTS = {
   maxFiles: 5,
-  maxFileSizeBytes: PLAIN_MAX_FILE_SIZE_BYTES, // 6MB (Plain API limit)
-  maxCombinedBytes: 50 * 1024 * 1024, // 50MB
+  maxFileSizeBytes: PYLON_MAX_FILE_SIZE_BYTES, // 10MB (Pylon API limit)
+  // Files are sent to /api/support/upload-attachments as base64-encoded JSON,
+  // which inflates the body by ~33%. The endpoint's bodyParser caps the body
+  // at 50MB, so the raw combined size must stay below ~37.5MB to fit. Use 35MB
+  // for headroom (JSON overhead, multiple files).
+  maxCombinedBytes: 35 * 1024 * 1024, // 35MB raw (~47MB once base64-encoded)
 } as const;
 
 /**
@@ -158,6 +169,12 @@ export function SupportFormSection({
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
 
+  // Team / Enterprise customers may manually escalate a request to Sev-1.
+  const canRequestHighPriority = isHighTierSupportPlan(organization?.plan);
+
+  // Controlled so the high-priority info tooltip opens on hover and on click.
+  const [highPriorityInfoOpen, setHighPriorityInfoOpen] = useState(false);
+
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
 
@@ -176,6 +193,7 @@ export function SupportFormSection({
     defaultValues: {
       messageType: "Question" as MessageType,
       severity: "Question or feature request",
+      isHighPriority: false,
       topic: "",
       message: "",
       integrationType: "",
@@ -188,55 +206,33 @@ export function SupportFormSection({
     selectedTopic as any,
   );
 
-  const createSupportThread = api.plainRouter.createSupportThread.useMutation({
-    onSuccess: (data) => {
-      form.reset({
-        messageType: "Question",
-        severity: "Question or feature request",
-        topic: "",
-        message: "",
-      });
-      setWarnedShortOnce(false);
-      setFiles(undefined);
-      if (data.pylonIssueFailed) {
-        showErrorToast(
-          "Support request was not sent",
-          "Please contact support@langfuse.com",
-        );
-      } else {
+  const createSupportThread = api.supportRouter.createSupportThread.useMutation(
+    {
+      onSuccess: (data) => {
+        // Pylon is the only destination, so a failed issue means no ticket
+        // exists anywhere. Keep the form state (message, topic, severity,
+        // attachments) intact so the user can retry instead of wiping it.
+        if (data.pylonIssueFailed) {
+          showErrorToast(
+            "Support request was not sent",
+            "Please contact support@langfuse.com",
+          );
+          return;
+        }
+        form.reset({
+          messageType: "Question",
+          severity: "Question or feature request",
+          isHighPriority: false,
+          topic: "",
+          message: "",
+        });
+        setWarnedShortOnce(false);
+        setFiles(undefined);
         onSuccess();
-      }
+      },
+      onSettled: () => setIsSubmittingLocal(false),
     },
-    onSettled: () => setIsSubmittingLocal(false),
-  });
-
-  const prepareUploads = api.plainRouter.prepareAttachmentUploads.useMutation({
-    onError: (error) => {
-      setIsSubmittingLocal(false);
-      showErrorToast(
-        "Upload Preparation Failed",
-        error.message || "Failed to prepare file uploads. Please try again.",
-        "ERROR",
-      );
-    },
-  });
-
-  async function uploadToPlainS3(
-    uploadFormUrl: string,
-    uploadFormData: { key: string; value: string }[],
-    file: File,
-  ) {
-    const form = new FormData();
-    uploadFormData.forEach(({ key, value }) => form.append(key, value));
-    form.append("file", file, file.name);
-    const res = await fetch(uploadFormUrl, { method: "POST", body: form });
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(
-        `Attachment upload failed (${res.status} ${res.statusText}) ${text}`,
-      );
-    }
-  }
+  );
 
   async function uploadFilesToPylon(filesToUpload: File[]): Promise<string[]> {
     const filePayloads = await Promise.all(
@@ -288,54 +284,20 @@ export function SupportFormSection({
         throw new Error(validation.error);
       }
 
-      // 1) Request presigned S3 upload forms
-      const uploadPlans =
-        files && files.length
-          ? await prepareUploads.mutateAsync({
-              files: files.map((f) => ({
-                fileName: f.name,
-                fileSizeBytes: f.size,
-              })),
-            })
-          : {
-              uploads: [] as any[],
-              customerId: undefined as string | undefined,
-            };
-
-      // 2) Upload blobs to Plain S3 and Pylon in parallel
+      // 1) Upload attachments to Pylon. This is the only attachment path, so
+      // do NOT swallow failures: let them propagate to the outer catch (which
+      // surfaces the error via form.setError) instead of silently dropping the
+      // user's files while still creating the thread.
       let pylonAttachmentUrls: string[] = [];
       if (files && files.length) {
-        const plainUploadPromise = Promise.all(
-          files.map(async (file, idx) => {
-            const plan = uploadPlans.uploads[idx];
-            if (!plan) throw new Error("Missing upload plan for a file.");
-            await uploadToPlainS3(
-              plan.uploadFormUrl,
-              plan.uploadFormData,
-              file,
-            );
-          }),
-        );
-
-        const pylonUploadPromise = uploadFilesToPylon(files).catch((err) => {
-          console.warn("Pylon attachment upload failed (best-effort):", err);
-          return [] as string[];
-        });
-
-        const [, pylonUrls] = await Promise.all([
-          plainUploadPromise,
-          pylonUploadPromise,
-        ]);
-        pylonAttachmentUrls = pylonUrls;
+        pylonAttachmentUrls = await uploadFilesToPylon(files);
       }
 
-      // 3) Create thread with attachmentIds (Plain) and pylonAttachmentUrls (Pylon)
-      const attachmentIds =
-        uploadPlans.uploads?.map((u: any) => u.attachmentId) ?? [];
-
+      // 2) Create the support thread in Pylon
       await createSupportThread.mutateAsync({
         messageType: parsed.messageType,
         severity: parsed.severity,
+        isHighPriority: parsed.isHighPriority,
         topic: parsed.topic as any,
         integrationType: parsed.integrationType,
         message: parsed.message,
@@ -353,7 +315,6 @@ export function SupportFormSection({
           language: navigator.language,
           viewport: { w: window.innerWidth, h: window.innerHeight },
         },
-        attachmentIds,
         pylonAttachmentUrls,
       });
     } catch (err: any) {
@@ -431,20 +392,64 @@ export function SupportFormSection({
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Severity</FormLabel>
-                <FormControl>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select severity" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {SEVERITIES.map((s) => (
-                        <SelectItem key={s} value={s}>
-                          {s}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </FormControl>
+                <div className="flex items-center gap-3">
+                  <FormControl>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select severity" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SEVERITIES.map((s) => (
+                          <SelectItem key={s} value={s}>
+                            {s}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+
+                  {/* High priority (Sev-1) — only for Team / Enterprise plans */}
+                  {canRequestHighPriority && (
+                    <FormField
+                      control={form.control}
+                      name="isHighPriority"
+                      render={({ field: priorityField }) => (
+                        <FormItem className="flex shrink-0 flex-row items-center gap-1.5 space-y-0">
+                          <FormControl>
+                            <Checkbox
+                              checked={priorityField.value ?? false}
+                              onCheckedChange={priorityField.onChange}
+                            />
+                          </FormControl>
+                          <FormLabel className="cursor-pointer text-sm font-normal whitespace-nowrap">
+                            Urgent (Sev-1)
+                          </FormLabel>
+                          <Tooltip
+                            open={highPriorityInfoOpen}
+                            onOpenChange={setHighPriorityInfoOpen}
+                          >
+                            <TooltipTrigger asChild>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setHighPriorityInfoOpen((open) => !open)
+                                }
+                                className="text-muted-foreground hover:text-foreground"
+                                aria-label="High priority info"
+                              >
+                                <Info className="h-3.5 w-3.5" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent className="max-w-xs">
+                              Mark as high priority only for time-critical
+                              issues such as production outages.
+                            </TooltipContent>
+                          </Tooltip>
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </div>
                 <FormMessage />
               </FormItem>
             )}
