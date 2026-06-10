@@ -18,7 +18,13 @@ const REQUIRED_ENV_VARS = [
   "CLICKHOUSE_PASSWORD",
 ];
 
-const missing = REQUIRED_ENV_VARS.filter((name) => !process.env[name]);
+// === undefined, not falsy: empty strings are valid for some of these
+// (e.g. passwordless local ClickHouse) and pass the zod schema; only
+// absence makes the src/server import throw. Malformed present values are
+// handled by the import catch below.
+const missing = REQUIRED_ENV_VARS.filter(
+  (name) => process.env[name] === undefined,
+);
 if (missing.length > 0) {
   console.error(
     `error: missing env vars: ${missing.join(", ")} — is the repo-root .env present?`,
