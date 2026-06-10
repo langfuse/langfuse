@@ -24,7 +24,6 @@ env:
   # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
   # for their display names.
   NODE_VERSION: 24
-  CLICKHOUSE_CLIENT_VERSION: "25.12.9.61"
 
   # Disable CI cache restores for fork PRs.
   #
@@ -280,10 +279,18 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - name: Start dependency containers in background
+        # Independent of the image build, so let the build overlap it. The
+        # compose up below re-validates their health.
+        run: |
+          docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /dev/null 2>&1 &
       - name: Build images
+        # Skip the Next.js type check inside the web image build: the lint job
+        # runs `pnpm run typecheck` already. Release builds keep type-checking.
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
-          docker buildx bake -f /tmp/bake.json
+          docker buildx bake -f /tmp/bake.json \
+            --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true"
       - name: Start compose services and wait for healthchecks
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180
@@ -341,14 +348,19 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Install golang-migrate for Clickhouse migrations
+      - name: Install golang-migrate for Clickhouse migrations in background
+        # Only needed by the "Migrate DB" step, so let the dependency setup
+        # overlap the 1-25s download. "Migrate DB" waits for the marker file.
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
-          which migrate
+          (
+            set -e
+            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+              --output migrate.linux-amd64.tar.gz \
+              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+            tar xzf migrate.linux-amd64.tar.gz
+            sudo mv migrate /usr/bin/migrate
+            touch /tmp/migrate-installed
+          ) > /tmp/migrate-install.log 2>&1 &
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.4.0
@@ -392,43 +404,22 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          # Turbo hashes the whole .env (turbo.json globalDependencies) and
+          # each deploy-mode writes a different .env, so keys must be
+          # mode-scoped for every matrix job to replay its own builds.
+          key: ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-turbo-
-      - name: Cache Next.js builds
-        if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] test-only Next.js cache; not consumed by artifact publishing or release jobs
-        with:
-          path: |
-            ~/.npm
-            ${{ github.workspace }}/web/.next/cache
-          key: ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-
-      - name: Run dev containers
+            ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode }}-
+      # No Next.js build cache here on purpose: its ~30s/job restore+save cost
+      # roughly cancels the build speedup, and the Turbo cache above already
+      # replays unchanged builds.
+      - name: Start dev containers in background
+        # Independent of the build, so let the build overlap the ~15-20s
+        # container startup. "Wait for dev containers" collects the result.
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
-          docker compose ps
+          (docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
-      - name: Migrate DB
-        run: |
-          pnpm run db:migrate
-          pnpm --filter=shared ch:up
-      - name: Download and extract ClickHouse client for dev-tables setup
-        if: matrix.deploy-mode == ''
-        run: |
-          ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
-
-          # The binary is usually located in ./usr/bin/clickhouse in the archive
-          dpkg-deb -x clickhouse-client.deb ch_client_dir
-          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
-      - name: Setup Dev Tables
-        if: matrix.deploy-mode == ''
-        run: |
-          pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm run build
         env:
@@ -436,6 +427,32 @@ jobs:
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Wait for dev containers
+        run: |
+          timeout 200 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' || true
+          cat /tmp/compose-up.log
+          docker compose ps
+          exit "$(cat /tmp/compose-up.exit)"
+      - name: Migrate DB
+        run: |
+          timeout 120 bash -c 'until [ -f /tmp/migrate-installed ]; do sleep 1; done' \
+            || { cat /tmp/migrate-install.log; exit 1; }
+          pnpm run db:migrate
+          pnpm --filter=shared ch:up
+      - name: Provide ClickHouse client via dev container for dev-tables setup
+        if: matrix.deploy-mode == ''
+        # The clickhouse-server container already ships the client binary;
+        # a shim avoids re-downloading the ~300MB client package every run.
+        run: |
+          sudo tee /usr/local/bin/clickhouse > /dev/null <<'EOF'
+          #!/bin/bash
+          exec docker exec -i langfuse-clickhouse clickhouse "$@"
+          EOF
+          sudo chmod +x /usr/local/bin/clickhouse
+      - name: Setup Dev Tables
+        if: matrix.deploy-mode == ''
+        run: |
+          pnpm --filter=shared ch:dev-tables
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -451,11 +468,23 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-unit
+        # The server tests are I/O-bound (Postgres/ClickHouse/HTTP roundtrips),
+        # so 8 workers on the 4-vCPU runner overlap DB waits. Worker isolation
+        # is configured per project in vitest.config.mts. The CPU-bound client
+        # (jsdom) tests measured slower when merged into this invocation, so
+        # they keep their own step below.
+        env:
+          NODE_COMPILE_CACHE: /tmp/node-compile-cache
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-unit --maxWorkers=8
       - name: run test-client
         if: matrix.deploy-mode == ''
         working-directory: web
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
+      - name: Prune stale turbo cache entries
+        if: env.CI_CACHE_ALLOWED == 'true'
+        # Each run saves the restored archive plus new entries, so the cache
+        # grows without bound unless old entries are dropped before the save.
+        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
 
   tests-worker:
     timeout-minutes: 20
@@ -531,13 +560,16 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run db:seed
           pnpm run --filter=shared ch:up
-      - name: Download and extract ClickHouse client for dev-tables setup
+      - name: Provide ClickHouse client via dev container for dev-tables setup
         if: matrix.deploy-mode == ''
+        # The clickhouse-server container already ships the client binary;
+        # a shim avoids re-downloading the ~300MB client package every run.
         run: |
-          ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
-          dpkg-deb -x clickhouse-client.deb ch_client_dir
-          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
+          sudo tee /usr/local/bin/clickhouse > /dev/null <<'EOF'
+          #!/bin/bash
+          exec docker exec -i langfuse-clickhouse clickhouse "$@"
+          EOF
+          sudo chmod +x /usr/local/bin/clickhouse
       - name: Setup Dev Tables
         if: matrix.deploy-mode == ''
         run: |
