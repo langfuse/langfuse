@@ -399,7 +399,7 @@ const cases: ProcessCase[] = [
             severity: "ALERT",
             message: {
               title: `[ALERT] Test ${monitorAId}`,
-              body: "`count(observations.count)` is **above** `100`",
+              body: "`count(observations.count)` is **above** `100` over the last **5m**",
             },
             view: "observations",
             window: "5m",

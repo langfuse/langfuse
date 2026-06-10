@@ -94,7 +94,7 @@ const cases: Case[] = [
     next: "ALERT",
     expected: {
       title: "[ALERT] Latency monitor",
-      body: `${metricRef} is **above** \`100\``,
+      body: `${metricRef} is **above** \`100\` over the last **5m**`,
     },
   },
   {
@@ -103,7 +103,7 @@ const cases: Case[] = [
     next: "WARNING",
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `${metricRef} is **above** \`50\``,
+      body: `${metricRef} is **above** \`50\` over the last **5m**`,
     },
   },
   {
@@ -112,7 +112,7 @@ const cases: Case[] = [
     next: "WARNING",
     expected: {
       title: "[WARNING] Latency monitor",
-      body: `${metricRef} is **above** \`100\``,
+      body: `${metricRef} is **above** \`100\` over the last **5m**`,
     },
   },
 ];
@@ -150,7 +150,9 @@ describe("renderAlertMessage", () => {
         },
         completion: completion("ALERT"),
       });
-      expect(result.body).toBe(`${metricRef} is **${word}** \`100\``);
+      expect(result.body).toBe(
+        `${metricRef} is **${word}** \`100\` over the last **5m**`,
+      );
     },
   );
 });
