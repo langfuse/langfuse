@@ -1,12 +1,18 @@
+import { ErrorPage } from "@/src/components/error-page";
 import ContainerPage from "@/src/components/layouts/container-page";
 import { WebCalloutSettingsPage } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
+import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 
 export default function WebCalloutsSettings() {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
+  const availability = api.webCallouts.availability.useQuery(
+    { projectId: projectId ?? "" },
+    { enabled: Boolean(projectId), staleTime: 60_000 },
+  );
 
-  if (!projectId) {
+  if (!projectId || availability.isPending) {
     return null;
   }
 
@@ -19,7 +25,11 @@ export default function WebCalloutsSettings() {
         ],
       }}
     >
-      <WebCalloutSettingsPage projectId={projectId} />
+      {availability.data?.enabled === true ? (
+        <WebCalloutSettingsPage projectId={projectId} />
+      ) : (
+        <ErrorPage title="Page not found" message="This page does not exist." />
+      )}
     </ContainerPage>
   );
 }

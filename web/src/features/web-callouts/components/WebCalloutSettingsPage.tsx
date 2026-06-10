@@ -666,6 +666,15 @@ export function WebCalloutIntegrationCard(props: {
   projectId: string;
   hasAccess: boolean;
 }) {
+  const availability = api.webCallouts.availability.useQuery(
+    { projectId: props.projectId },
+    { staleTime: 60_000 },
+  );
+
+  if (availability.data?.enabled !== true) {
+    return null;
+  }
+
   return (
     <Card className="p-3">
       <div className="mb-4 flex items-center gap-2">
