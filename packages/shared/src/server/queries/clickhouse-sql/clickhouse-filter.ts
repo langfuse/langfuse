@@ -27,6 +27,65 @@ type ClickhouseFilter = {
   params: { [x: string]: any } | {};
 };
 
+const buildEventsMetadataArrayStringObjectCondition = (opts: {
+  operator: (typeof filterOperators)["stringObject"][number] | FtsMatchOperator;
+  namesColumn: string;
+  valuesColumn: string;
+  keyParam: string;
+  valueParam: string;
+  clickhouseTable: string;
+  field: string;
+  value: string;
+}): { query: string; hasKey: string } => {
+  const valueAccessor = `${opts.valuesColumn}[indexOf(${opts.namesColumn}, {${opts.keyParam}: String})]`;
+  const hasKey = `has(${opts.namesColumn}, {${opts.keyParam}: String})`;
+  const valueParam = `{${opts.valueParam}: String}`;
+
+  let query: string;
+  switch (opts.operator) {
+    case "=":
+      query = FTS_OPERATOR_DESCRIPTORS["="].metadataArrayCondition({
+        hasKey,
+        valuesColumn: opts.valuesColumn,
+        valueAccessor,
+        valueParam,
+      });
+      break;
+    case "contains":
+      query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
+      break;
+    case "does not contain":
+      query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) = 0)`;
+      break;
+    case "starts with":
+      query = `${hasKey} AND (startsWith(${valueAccessor}, ${valueParam}))`;
+      break;
+    case "ends with":
+      query = `${hasKey} AND (endsWith(${valueAccessor}, ${valueParam}))`;
+      break;
+    case FTS_MATCH_OPERATOR:
+      assertValidFtsMatchFilter({
+        filterType: "stringObject",
+        clickhouseTable: opts.clickhouseTable,
+        field: opts.field,
+        value: opts.value,
+      });
+      query = FTS_OPERATOR_DESCRIPTORS[
+        FTS_MATCH_OPERATOR
+      ].metadataArrayCondition({
+        hasKey,
+        valuesColumn: opts.valuesColumn,
+        valueAccessor,
+        valueParam,
+      });
+      break;
+    default:
+      throw new Error(`Unsupported operator: ${opts.operator}`);
+  }
+
+  return { query, hasKey };
+};
+
 export class StringFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -352,50 +411,16 @@ export class StringObjectFilter implements Filter {
       // had the key — including `does not contain`).
       const namesColumn = `${prefix}${this.field}_names`;
       const valuesColumn = `${prefix}${this.field}_values`;
-      const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
-      const hasKey = `has(${namesColumn}, {${varKeyName}: String})`;
-      const valueParam = `{${varValueName}: String}`;
-
-      switch (this.operator) {
-        case "=":
-          query = FTS_OPERATOR_DESCRIPTORS["="].metadataArrayCondition({
-            hasKey,
-            valuesColumn,
-            valueAccessor,
-            valueParam,
-          });
-          break;
-        case "contains":
-          query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
-          break;
-        case "does not contain":
-          query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) = 0)`;
-          break;
-        case "starts with":
-          query = `${hasKey} AND (startsWith(${valueAccessor}, ${valueParam}))`;
-          break;
-        case "ends with":
-          query = `${hasKey} AND (endsWith(${valueAccessor}, ${valueParam}))`;
-          break;
-        case FTS_MATCH_OPERATOR:
-          assertValidFtsMatchFilter({
-            filterType: "stringObject",
-            clickhouseTable: this.clickhouseTable,
-            field: this.field,
-            value: this.value,
-          });
-          query = FTS_OPERATOR_DESCRIPTORS[
-            FTS_MATCH_OPERATOR
-          ].metadataArrayCondition({
-            hasKey,
-            valuesColumn,
-            valueAccessor,
-            valueParam,
-          });
-          break;
-        default:
-          throw new Error(`Unsupported operator: ${this.operator}`);
-      }
+      query = buildEventsMetadataArrayStringObjectCondition({
+        operator: this.operator,
+        namesColumn,
+        valuesColumn,
+        keyParam: varKeyName,
+        valueParam: varValueName,
+        clickhouseTable: this.clickhouseTable,
+        field: this.field,
+        value: this.value,
+      }).query;
     } else {
       // For observations/traces tables, use Map access: metadata[key]
       const column = `${prefix}${this.field}`;
@@ -423,6 +448,67 @@ export class StringObjectFilter implements Filter {
 
     return {
       query,
+      params: { [varKeyName]: this.key, [varValueName]: this.value },
+    };
+  }
+}
+
+export class EventsStringObjectFilterWithTraceFallback implements Filter {
+  public clickhouseTable: string;
+  public field: string;
+  public key: string;
+  public value: string;
+  public operator:
+    | (typeof filterOperators)["stringObject"][number]
+    | FtsMatchOperator;
+  public tablePrefix?: string;
+  public traceMetadataPrefix: string;
+
+  constructor(opts: {
+    baseFilter: StringObjectFilter;
+    traceMetadataPrefix: string;
+  }) {
+    this.clickhouseTable = opts.baseFilter.clickhouseTable;
+    this.field = opts.baseFilter.field;
+    this.value = opts.baseFilter.value;
+    this.operator = opts.baseFilter.operator;
+    this.tablePrefix = opts.baseFilter.tablePrefix;
+    this.key = opts.baseFilter.key;
+    this.traceMetadataPrefix = opts.traceMetadataPrefix;
+  }
+
+  apply(): ClickhouseFilter {
+    const varKeyName = `stringObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
+    const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
+    const prefix = this.tablePrefix ? this.tablePrefix + "." : "";
+    const observationNamesColumn = `${prefix}${this.field}_names`;
+    const observationValuesColumn = `${prefix}${this.field}_values`;
+    const traceNamesColumn = `${this.traceMetadataPrefix}.metadata_names`;
+    const traceValuesColumn = `${this.traceMetadataPrefix}.metadata_values`;
+
+    const observation = buildEventsMetadataArrayStringObjectCondition({
+      operator: this.operator,
+      namesColumn: observationNamesColumn,
+      valuesColumn: observationValuesColumn,
+      keyParam: varKeyName,
+      valueParam: varValueName,
+      clickhouseTable: this.clickhouseTable,
+      field: this.field,
+      value: this.value,
+    });
+    const trace = buildEventsMetadataArrayStringObjectCondition({
+      operator: this.operator,
+      namesColumn: traceNamesColumn,
+      valuesColumn: traceValuesColumn,
+      keyParam: varKeyName,
+      valueParam: varValueName,
+      clickhouseTable: this.clickhouseTable,
+      field: this.field,
+      value: this.value,
+    });
+
+    return {
+      query: `(${observation.query} OR (NOT ${observation.hasKey} AND (${trace.query})))`,
       params: { [varKeyName]: this.key, [varValueName]: this.value },
     };
   }

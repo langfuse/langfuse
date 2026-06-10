@@ -28,6 +28,7 @@ import {
 } from "./traces";
 import {
   DateTimeFilter,
+  EventsStringObjectFilterWithTraceFallback,
   type Filter,
   FilterList,
   FullEventsObservations,
@@ -42,6 +43,7 @@ import {
   isFtsTextField,
   type ApiColumnMapping,
   ObservationPriceFields,
+  StringObjectFilter,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import type {
@@ -54,6 +56,7 @@ import {
   eventsScoresAggregation,
   eventsSessionsAggregation,
   eventsTraceMetadata,
+  eventsTraceMetadataArrays,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -323,6 +326,23 @@ export function extractTimeFilter(
     : null;
 }
 
+const isEventsMetadataStringObjectFilter = (
+  filter: Filter,
+): filter is StringObjectFilter =>
+  filter instanceof StringObjectFilter &&
+  filter.clickhouseTable.startsWith("events_") &&
+  filter.field === "metadata";
+
+const withTraceMetadataFallback = (filterList: FilterList): FilterList =>
+  filterList.map((filter) =>
+    isEventsMetadataStringObjectFilter(filter)
+      ? new EventsStringObjectFilterWithTraceFallback({
+          baseFilter: filter,
+          traceMetadataPrefix: "tm",
+        })
+      : filter,
+  );
+
 /**
  * Column mapping for public API filters on events table (observations)
  */
@@ -525,6 +545,11 @@ async function getObservationsFromEventsTableInternal<T>(
   );
 
   const startTimeFrom = extractTimeFilter(observationsFilter);
+  const needsTraceMetadataFallback = observationsFilter.some(
+    isEventsMetadataStringObjectFilter,
+  );
+  const observationsFilterWithTraceMetadataFallback =
+    withTraceMetadataFallback(observationsFilter);
   const hasObservationScoresFilter = baseFilter.some((f) => {
     const column = f.column.toLowerCase();
     return (
@@ -597,11 +622,24 @@ async function getObservationsFromEventsTableInternal<T>(
         eventsTableNativeUiColumnDefinitions,
       ),
     );
-    const appliedNativeFilter = nativeFilter.apply();
+    const nativeFilterWithTraceMetadataFallback =
+      withTraceMetadataFallback(nativeFilter);
+    const appliedNativeFilter = nativeFilterWithTraceMetadataFallback.apply();
     const qualifyingObsBuilder = new EventsQueryBuilder({ projectId })
       .selectRaw(
         "e.span_id",
         `ROW_NUMBER() OVER (PARTITION BY e.trace_id ORDER BY e.start_time ${direction}, e.event_ts ${direction}, e.span_id ${direction}) as _rn`,
+      )
+      .when(needsTraceMetadataFallback, (b) =>
+        b
+          .withCTE(
+            "trace_metadata",
+            eventsTraceMetadataArrays({ projectId, startTimeFrom }),
+          )
+          .leftJoin(
+            "trace_metadata AS tm",
+            "ON tm.trace_id = e.trace_id AND tm.project_id = e.project_id",
+          ),
       )
       .when(search.requiresEventsFull, (b) => b.forceFullTable())
       .where(appliedNativeFilter)
@@ -635,6 +673,12 @@ async function getObservationsFromEventsTableInternal<T>(
         }),
       ),
     )
+    .when(needsTraceMetadataFallback, (b) =>
+      b.withCTE(
+        "trace_metadata",
+        eventsTraceMetadataArrays({ projectId, startTimeFrom }),
+      ),
+    )
     .when(hasObservationScoresFilter, (b) =>
       b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
     )
@@ -644,8 +688,14 @@ async function getObservationsFromEventsTableInternal<T>(
         "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
       ),
     )
+    .when(needsTraceMetadataFallback, (b) =>
+      b.leftJoin(
+        "trace_metadata AS tm",
+        "ON tm.trace_id = e.trace_id AND tm.project_id = e.project_id",
+      ),
+    )
     .when(search.requiresEventsFull, (b) => b.forceFullTable())
-    .applyFilters(observationsFilter)
+    .applyFilters(observationsFilterWithTraceMetadataFallback)
     .where(search)
     .when(orderByEntries.length > 0, (b) => b.orderByColumns(orderByEntries))
     .limit(limit, offset);
@@ -1252,6 +1302,9 @@ function buildObservationsQueryComponents(
   const hasTraceFilter = observationsFilter.some(
     (f) => f.clickhouseTable === "traces",
   );
+  const needsTraceMetadataFallback = observationsFilter.some(
+    isEventsMetadataStringObjectFilter,
+  );
   const filtersNeedFullTable = observationsFilter.some(
     (f) =>
       f.clickhouseTable.startsWith("events") &&
@@ -1260,7 +1313,7 @@ function buildObservationsQueryComponents(
 
   // Extract time filter and apply filters
   const startTimeFrom = extractTimeFilter(observationsFilter);
-  const appliedFilter = observationsFilter.apply();
+  const appliedFilter = withTraceMetadataFallback(observationsFilter).apply();
 
   // Build external CTEs
   const externalCTEs: Array<{
@@ -1276,6 +1329,15 @@ function buildObservationsQueryComponents(
       }).buildWithParams(),
     });
   }
+  if (needsTraceMetadataFallback) {
+    externalCTEs.push({
+      name: "trace_metadata",
+      queryWithParams: eventsTraceMetadataArrays({
+        projectId,
+        startTimeFrom,
+      }),
+    });
+  }
 
   // Build query with joins and filters (no CTEs)
   const queryBuilder = new EventsQueryBuilder({ projectId })
@@ -1284,6 +1346,12 @@ function buildObservationsQueryComponents(
       b.leftJoin(
         "traces t",
         "ON t.id = e.trace_id AND t.project_id = e.project_id",
+      ),
+    )
+    .when(needsTraceMetadataFallback, (b) =>
+      b.leftJoin(
+        "trace_metadata AS tm",
+        "ON tm.trace_id = e.trace_id AND tm.project_id = e.project_id",
       ),
     )
     .where(appliedFilter);
