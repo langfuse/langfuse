@@ -170,7 +170,7 @@ export class ClickHouseQueryBuilder {
         '${projectId}' AS project_id,
         '${environment}' AS environment,
         if(randUniform(0, 1) < 0.47, 'GENERATION', if(randUniform(0, 1) < 0.94, 'SPAN', 'EVENT')) AS type,
-        if(number % 6 = 0, NULL, toString(number - 1)) AS parent_observation_id,
+        if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${projectId.slice(-8)}')) AS parent_observation_id,
         toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS start_time,
         addMilliseconds(start_time, 
           case 
