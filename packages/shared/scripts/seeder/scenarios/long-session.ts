@@ -122,10 +122,14 @@ const run = async (
       },
       input: buildPayload(
         style,
-        isHuge ? 100_000 : rng.int(300, payloadBytes),
+        isHuge ? 100_000 : rng.int(Math.min(300, payloadBytes), payloadBytes),
         rng,
       ),
-      output: buildPayload(style, rng.int(200, payloadBytes), rng),
+      output: buildPayload(
+        style,
+        rng.int(Math.min(200, payloadBytes), payloadBytes),
+        rng,
+      ),
       created_at: Date.now(),
       updated_at: Date.now(),
       event_ts: Date.now(),
@@ -432,7 +436,8 @@ export const longSessionScenario: ScenarioDefinition = {
       flag: "payload-bytes",
       type: "number",
       default: 2_000,
-      description: "max bytes for regular trace payloads",
+      description:
+        "approx max bytes for regular trace payloads (generation granularity is ~one paragraph/object, so very small values overshoot)",
     },
     {
       flag: "minutes",
