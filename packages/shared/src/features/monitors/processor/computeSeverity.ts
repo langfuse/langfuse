@@ -79,5 +79,4 @@ function matches(
     case MonitorThresholdOperatorSchema.enum.NEQ:
       return value !== threshold;
   }
-  return false;
 }
