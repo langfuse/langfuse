@@ -47,6 +47,13 @@ const run = async (
   const scoresPerTrace = params["scores-per-trace"] as number;
   const richPayloads = params["rich-payloads"] as boolean;
 
+  if (count < 1) {
+    throw new SeedError(
+      `--count must be >= 1, got ${count}`,
+      "pass a positive integer, e.g. --count 10000",
+    );
+  }
+
   const builder = new ClickHouseQueryBuilder();
   const fileContent = richPayloads ? loadFileContent() : undefined;
   const counts: Record<string, number> = {
@@ -73,18 +80,20 @@ const run = async (
     };
   }
 
-  // Bulk SQL uses fixed `trace-bulk-{n}-{projectId-suffix}` ids, so re-runs
-  // with the same count overwrite rather than duplicate.
+  // Ids are `{id-prefix}-trace-bulk-{n}-{projectId-suffix}`: re-runs with the
+  // same prefix and count overwrite, a different --id-prefix adds an
+  // independent copy.
   ctx.log(
     `bulk-inserting ${count} traces, ${counts.observations} observations, ${counts.scores} scores over ${days} day(s)`,
   );
+  const bulkOpts = { numberOfDays: days, idPrefix: ctx.idPrefix };
   const queries = [
     builder.buildBulkTracesInsert(
       ctx.projectId,
       count,
       ctx.environment,
       fileContent,
-      { numberOfDays: days },
+      bulkOpts,
     ),
     builder.buildBulkObservationsInsert(
       ctx.projectId,
@@ -92,14 +101,14 @@ const run = async (
       observationsPerTrace,
       ctx.environment,
       fileContent,
-      { numberOfDays: days },
+      bulkOpts,
     ),
     builder.buildBulkScoresInsert(
       ctx.projectId,
       count,
       scoresPerTrace,
       ctx.environment,
-      { numberOfDays: days },
+      bulkOpts,
     ),
   ];
   for (const query of queries) {
@@ -114,13 +123,19 @@ const run = async (
     traces: await countRows(
       "traces",
       `project_id = {projectId: String} AND id LIKE {prefix: String}`,
-      { projectId: ctx.projectId, prefix: `trace-bulk-%-${idSuffix}` },
+      {
+        projectId: ctx.projectId,
+        prefix: `${ctx.idPrefix}-trace-bulk-%-${idSuffix}`,
+      },
       "uniqExact(id)",
     ),
     observations: await countRows(
       "observations",
       `project_id = {projectId: String} AND id LIKE {prefix: String}`,
-      { projectId: ctx.projectId, prefix: `obs-bulk-%-${idSuffix}` },
+      {
+        projectId: ctx.projectId,
+        prefix: `${ctx.idPrefix}-obs-bulk-%-${idSuffix}`,
+      },
       "uniqExact(id)",
     ),
   };

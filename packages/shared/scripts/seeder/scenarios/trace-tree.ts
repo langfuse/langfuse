@@ -118,6 +118,12 @@ const run = async (
       `Unknown --payload-style "${payloadStyle}". Allowed: ${PAYLOAD_STYLES.join(", ")}`,
     );
   }
+  if (observationCount < 1) {
+    throw new SeedError(
+      `--observations must be >= 1, got ${observationCount}`,
+      "pass a positive integer, e.g. --observations 200",
+    );
+  }
 
   const rng = new Rng(ctx.seed);
   const traceId = `${ctx.idPrefix}-trace`;

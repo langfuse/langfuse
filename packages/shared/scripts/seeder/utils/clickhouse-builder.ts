@@ -88,7 +88,7 @@ export class ClickHouseQueryBuilder {
     count: number,
     environment: string = "default",
     fileContent?: { heavyMarkdown: string; nestedJson: any; chatMlJson: any },
-    opts: { numberOfDays: number } = { numberOfDays: 1 },
+    opts: { numberOfDays: number; idPrefix?: string } = { numberOfDays: 1 },
   ): string {
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -100,11 +100,14 @@ export class ClickHouseQueryBuilder {
     const escapedChatMl = fileContent
       ? this.escapeString(JSON.stringify(fileContent.chatMlJson))
       : '{"messages": []}';
+    const idPrefix = opts.idPrefix
+      ? `${this.escapeString(opts.idPrefix)}-`
+      : "";
 
     return `
       INSERT INTO traces
-      SELECT 
-        concat('trace-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
+      SELECT
+        concat('${idPrefix}trace-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
         toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
         concat('trace-', toString(number % 10)) AS name,
         if(randUniform(0, 1) < 0.3, concat('user_', toString(rand() % 1000)), NULL) AS user_id,
@@ -141,9 +144,12 @@ export class ClickHouseQueryBuilder {
     observationsPerTrace: number = 5,
     environment: string = "default",
     fileContent?: { heavyMarkdown: string; nestedJson: any; chatMlJson: any },
-    opts: { numberOfDays: number } = { numberOfDays: 1 },
+    opts: { numberOfDays: number; idPrefix?: string } = { numberOfDays: 1 },
   ): string {
     const totalObservations = tracesCount * observationsPerTrace;
+    const idPrefix = opts.idPrefix
+      ? `${this.escapeString(opts.idPrefix)}-`
+      : "";
 
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -159,8 +165,8 @@ export class ClickHouseQueryBuilder {
     return `
       INSERT INTO observations
       SELECT 
-        concat('obs-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
-        concat('trace-bulk-', toString(number % ${tracesCount}), '-${projectId.slice(-8)}') AS trace_id,
+        concat('${idPrefix}obs-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
+        concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${projectId.slice(-8)}') AS trace_id,
         '${projectId}' AS project_id,
         '${environment}' AS environment,
         if(randUniform(0, 1) < 0.47, 'GENERATION', if(randUniform(0, 1) < 0.94, 'SPAN', 'EVENT')) AS type,
@@ -228,21 +234,24 @@ export class ClickHouseQueryBuilder {
     tracesCount: number,
     scoresPerTrace: number = 2,
     environment: string = "default",
-    opts: { numberOfDays: number } = { numberOfDays: 1 },
+    opts: { numberOfDays: number; idPrefix?: string } = { numberOfDays: 1 },
   ): string {
     const totalScores = tracesCount * scoresPerTrace;
+    const idPrefix = opts.idPrefix
+      ? `${this.escapeString(opts.idPrefix)}-`
+      : "";
 
     return `
       INSERT INTO scores
-      SELECT 
-        concat('score-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
+      SELECT
+        concat('${idPrefix}score-bulk-', toString(number), '-${projectId.slice(-8)}') AS id,
         toDateTime(now() - randUniform(0, ${opts.numberOfDays} * 24 * 60 * 60)) AS timestamp,
         '${projectId}' AS project_id,
         '${environment}' AS environment,
-        concat('trace-bulk-', toString(number % ${tracesCount}), '-${projectId.slice(-8)}') AS trace_id,
+        concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${projectId.slice(-8)}') AS trace_id,
         if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 100)), NULL) AS session_id,
         NULL AS dataset_run_id,
-        if(randUniform(0, 1) < 0.1, concat('obs-bulk-', toString(rand() % (${tracesCount} * 5)), '-${projectId.slice(-8)}'), NULL) AS observation_id,
+        if(randUniform(0, 1) < 0.1, concat('${idPrefix}obs-bulk-', toString(rand() % (${tracesCount} * 5)), '-${projectId.slice(-8)}'), NULL) AS observation_id,
         concat('metric_', toString((number % ${scoresPerTrace * 5}) + 1)) AS name,
         case 
           when (number % 3) = 0 then toDecimal64(randUniform(0, 100), 8)

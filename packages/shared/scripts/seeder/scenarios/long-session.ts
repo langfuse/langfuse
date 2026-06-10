@@ -47,6 +47,13 @@ const run = async (
   const sessionId =
     (params["session-id"] as string) || `${ctx.idPrefix}-session`;
 
+  if (traceCount < 1) {
+    throw new SeedError(
+      `--traces must be >= 1, got ${traceCount}`,
+      "pass a positive integer, e.g. --traces 120",
+    );
+  }
+
   const rng = new Rng(ctx.seed);
   const sessionStart = Date.now() - windowMinutes * 60 * 1000;
   const stepMs = (windowMinutes * 60 * 1000) / Math.max(traceCount, 1);
