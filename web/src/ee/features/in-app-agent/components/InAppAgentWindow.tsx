@@ -27,7 +27,19 @@ import {
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
 
-const AUTO_SCROLL_THRESHOLD_PX = 200;
+const AUTO_SCROLL_THRESHOLD_PX = 50;
+const SCROLL_DIRECTION_TOLERANCE_PX = 1;
+
+function scrollViewportToBottom(viewport: HTMLDivElement | null) {
+  if (!viewport) {
+    return;
+  }
+
+  viewport.scrollTo({
+    top: viewport.scrollHeight,
+    behavior: "auto",
+  });
+}
 
 export type InAppAgentWindowMessage = {
   id: string;
@@ -94,38 +106,25 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     zIndex,
   } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
-  const scrollPositionRef = useRef<{
-    scrollHeight: number;
-    scrollTop: number;
-    clientHeight: number;
-  } | null>(null);
+  const isAutoScrollAttachedRef = useRef(true);
+  const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
 
   useEffect(() => {
-    const viewport = viewportRef.current;
-
-    if (!viewport) {
+    if (!isAutoScrollAttachedRef.current) {
       return;
     }
 
-    const scrollPosition = scrollPositionRef.current;
-    const isNearBottom =
-      !scrollPosition ||
-      scrollPosition.scrollHeight -
-        scrollPosition.scrollTop -
-        scrollPosition.clientHeight <=
-        AUTO_SCROLL_THRESHOLD_PX;
-
-    if (!isNearBottom) {
-      return;
-    }
-
-    viewport.scrollTo({
-      top: viewport.scrollHeight,
-      behavior: "smooth",
-    });
+    scrollViewportToBottom(viewportRef.current);
   }, [messages]);
+
+  useEffect(() => {
+    isAutoScrollAttachedRef.current = true;
+    previousScrollTopRef.current = 0;
+
+    scrollViewportToBottom(viewportRef.current);
+  }, [selectedConversationId]);
 
   useEffect(() => {
     const input = inputRef.current;
@@ -254,11 +253,22 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           className="min-h-0 flex-1 overflow-y-auto"
           onScroll={(event) => {
             const viewport = event.currentTarget;
-            scrollPositionRef.current = {
-              scrollHeight: viewport.scrollHeight,
-              scrollTop: viewport.scrollTop,
-              clientHeight: viewport.clientHeight,
-            };
+            const distanceFromBottom =
+              viewport.scrollHeight -
+              viewport.scrollTop -
+              viewport.clientHeight;
+            const isNearBottom = distanceFromBottom <= AUTO_SCROLL_THRESHOLD_PX;
+            const scrolledUp =
+              viewport.scrollTop <
+              previousScrollTopRef.current - SCROLL_DIRECTION_TOLERANCE_PX;
+
+            if (scrolledUp && !isNearBottom) {
+              isAutoScrollAttachedRef.current = false;
+            } else if (isNearBottom) {
+              isAutoScrollAttachedRef.current = true;
+            }
+
+            previousScrollTopRef.current = viewport.scrollTop;
           }}
         >
           <div
@@ -364,8 +374,14 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               Promise.resolve(onSubmit(content))
                 .then((submitted) => {
                   if (submitted) {
+                    isAutoScrollAttachedRef.current = true;
+
                     setInput((currentInput) =>
                       currentInput.trim() === content ? "" : currentInput,
+                    );
+
+                    window.requestAnimationFrame(() =>
+                      scrollViewportToBottom(viewportRef.current),
                     );
                   }
                 })
