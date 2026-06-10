@@ -2,6 +2,8 @@
 
 import { useMemo } from "react";
 import { z } from "zod";
+import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
@@ -10,8 +12,10 @@ import type { InAppAgentToolCallContent } from "./InAppAgentMessage";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import {
   AgUiMessageSchema,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiMessage,
 } from "@/src/ee/features/in-app-agent/schema";
+import { getRedirectActionMessage } from "./utils/redirectAction";
 
 type ControlledInAppAgentWindowBaseProps = {
   zIndex?: number;
@@ -49,6 +53,11 @@ export function ControlledInAppAgentWindow(
     submit,
     submitFeedback,
   } = useInAppAiAgent();
+  const projectId = useProjectIdFromURL();
+  const {
+    isBetaEnabled: isV4TracesEnabled,
+    isInitializing: isV4TracesInitializing,
+  } = useV4Beta();
   const isInputDisabled =
     isRunning || isSubmitting || isSelectedConversationHydrating;
 
@@ -115,24 +124,50 @@ export function ControlledInAppAgentWindow(
                 .join("")
             : "";
 
-      const toolContent =
-        message.role === "assistant"
-          ? (message.toolCalls?.map((toolCall): InAppAgentToolCallContent => {
-              const result = toolResults.get(toolCall.id);
+      const toolContent: InAppAgentToolCallContent[] = [];
+      const redirectActions: InAppAgentWindowMessage[] = [];
 
-              return {
-                type: "tool",
-                name: toolCall.function.name,
-                args: toolCall.function.arguments,
-                ...(result?.content !== undefined
-                  ? { result: result.content }
-                  : {}),
-                ...(result?.error !== undefined ? { error: result.error } : {}),
-              };
-            }) ?? [])
-          : [];
+      if (message.role === "assistant") {
+        for (const toolCall of message.toolCalls ?? []) {
+          if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+            const redirectAction = getRedirectActionMessage({
+              messageId: message.id,
+              toolCallId: toolCall.id,
+              args: toolCall.function.arguments,
+              projectId,
+              tracesRouteOptions: {
+                isV4TracesEnabled,
+                isV4TracesInitializing,
+              },
+            });
 
-      if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
+            if (redirectAction) {
+              redirectActions.push(redirectAction);
+            }
+
+            continue;
+          }
+
+          const result = toolResults.get(toolCall.id);
+
+          toolContent.push({
+            type: "tool",
+            name: toolCall.function.name,
+            args: toolCall.function.arguments,
+            ...(result?.content !== undefined
+              ? { result: result.content }
+              : {}),
+            ...(result?.error !== undefined ? { error: result.error } : {}),
+          });
+        }
+      }
+
+      if (
+        role === "assistant" &&
+        toolContent.length > 0 &&
+        redirectActions.length === 0 &&
+        !text.trim()
+      ) {
         pendingToolGroupId ??= `tools-${message.id}`;
         pendingTools.push(...toolContent);
         return;
@@ -140,7 +175,12 @@ export function ControlledInAppAgentWindow(
 
       flushPendingTools();
 
-      if (role === "assistant" && !text.trim() && toolContent.length === 0) {
+      if (
+        role === "assistant" &&
+        !text.trim() &&
+        toolContent.length === 0 &&
+        redirectActions.length === 0
+      ) {
         return;
       }
 
@@ -168,6 +208,8 @@ export function ControlledInAppAgentWindow(
           content: { type: "toolGroup", tools: toolContent },
         });
       }
+
+      mappedMessages.push(...redirectActions);
     });
 
     flushPendingTools();
@@ -219,7 +261,14 @@ export function ControlledInAppAgentWindow(
     }
 
     return mappedMessages;
-  }, [error, isRunning, messages]);
+  }, [
+    error,
+    isRunning,
+    isV4TracesEnabled,
+    isV4TracesInitializing,
+    messages,
+    projectId,
+  ]);
 
   const closeButtonProps =
     props.showCloseButton === false

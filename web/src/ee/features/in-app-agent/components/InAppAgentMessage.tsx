@@ -1,7 +1,15 @@
 "use client";
 
-import { Loader2, ThumbsDown, ThumbsUp, Wrench } from "lucide-react";
+import {
+  ArrowRight,
+  Loader2,
+  ThumbsDown,
+  ThumbsUp,
+  Wrench,
+} from "lucide-react";
+import { useRouter } from "next/router";
 import { Streamdown } from "streamdown";
+import { Button } from "@/src/components/ui/button";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -29,6 +37,7 @@ export type InAppAgentMessageRole = "assistant" | "user";
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
   | { type: "text"; text: string; feedback?: InAppAgentMessageFeedback }
+  | { type: "redirectAction"; label: string; href: string }
   | {
       type: "toolGroup";
       tools: InAppAgentToolCallContent[];
@@ -63,6 +72,10 @@ export function InAppAgentMessage({
   windowZIndex,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
+  if (content.type === "redirectAction") {
+    return <RedirectAction content={content} isCompact={isCompact} />;
+  }
+
   if (content.type === "toolGroup") {
     return (
       <div
@@ -101,7 +114,10 @@ const MessageCard = forwardRef<
   HTMLDivElement,
   {
     role: InAppAgentMessageRole;
-    content: Exclude<InAppAgentMessageContent, { type: "toolGroup" }>;
+    content: Exclude<
+      InAppAgentMessageContent,
+      { type: "toolGroup" | "redirectAction" }
+    >;
     isCompact: boolean;
   }
 >(function MessageCard({ role, content, isCompact }, ref) {
@@ -397,6 +413,31 @@ function FeedbackButton({
     >
       {children}
     </button>
+  );
+}
+
+function RedirectAction({
+  content,
+  isCompact,
+}: {
+  content: Extract<InAppAgentMessageContent, { type: "redirectAction" }>;
+  isCompact: boolean;
+}) {
+  const router = useRouter();
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="secondary"
+      className={cn("shrink-0", isCompact ? "h-6 px-2 text-xs" : "h-7")}
+      onClick={() => {
+        router.push(content.href).catch(() => undefined);
+      }}
+    >
+      {content.label}
+      <ArrowRight className="ml-1 size-3" />
+    </Button>
   );
 }
 

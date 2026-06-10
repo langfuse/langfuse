@@ -449,6 +449,15 @@ export const Conversation = meta.story({
         },
       },
       {
+        id: "assistant-redirect-1",
+        role: "assistant",
+        content: {
+          type: "redirectAction",
+          label: "Open slow traces",
+          href: "/project/project-1/traces?dateRange=24h&orderBy=column-latency_order-DESC",
+        },
+      },
+      {
         id: "user-2",
         role: "user",
         content: {

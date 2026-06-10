@@ -186,6 +186,9 @@ describe("createAgUiStream", () => {
         tools: {
           langfuse_search: { server: "langfuse" },
           langfuseDocs_search: { server: "langfuseDocs" },
+          langfuse_proposeRedirect: expect.objectContaining({
+            id: "langfuse_proposeRedirect",
+          }),
         },
       }),
     );

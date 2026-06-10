@@ -3,11 +3,14 @@ import { MastraAgent } from "@ag-ui/mastra";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
+import { createTool } from "@mastra/core/tools";
 import { MCPClient } from "@mastra/mcp";
 
-import type {
-  AgUiEvent,
-  AgUiRunAgentInput,
+import {
+  type AgUiEvent,
+  type AgUiRunAgentInput,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  InAppAgentRedirectToolInputSchema,
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
@@ -39,6 +42,14 @@ If the user asks you to perform an action, you have two options:
 - Explain to the user how they can perform the action themselves in the UI (use the docs for this if needed).
 - If the action is available via the CLI, suggest that the user can ask their own agent (Claude, Codex or similar) to perform the action for them using the CLI, for that they should use the Langfuse skill: https://github.com/langfuse/skills. When suggesting this, provide a prompt the user can use as a code block.
 </permissions>
+
+<user_navigation>
+When a relevant Langfuse page would help the user, answer the question normally and call ${IN_APP_AGENT_REDIRECT_TOOL_NAME} to propose opening that page.
+The tool call should be the last thing in your response before ending your turn, and should not be mentioned in the text of your response.
+Use the redirect proposal only for known in-app destinations from the tool schema. Never invent URLs or ask the user to paste links.
+When the user asks for a trace view with specific state, use the typed trace params for time ranges, search, filters, and ordering instead of describing URL query parameters.
+Use a short action label, for example "Open members" or "Open traces".
+</user_navigation>
 
 <style_rules>
 Be concise, factual, and useful. Unless asked for a detailed explanation, keep your answers short and to the point.
@@ -537,6 +548,21 @@ async function createMastraAdapter(params: {
     const tools = {
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
       ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createTool({
+        id: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+        description:
+          "Propose a user-confirmed navigation action to a known Langfuse page. This does not navigate automatically.",
+        inputSchema: InAppAgentRedirectToolInputSchema,
+        execute: async (input) => {
+          const { destination } =
+            InAppAgentRedirectToolInputSchema.parse(input);
+
+          return {
+            status: "proposal_created" as const,
+            destination,
+          };
+        },
+      }),
     };
 
     const agent = new Agent({
