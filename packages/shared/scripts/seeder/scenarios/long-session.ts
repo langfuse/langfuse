@@ -136,6 +136,8 @@ const run = async (
     });
     traces.push(trace);
 
+    const rootObservationIndex = observations.length;
+    let maxChildEndTime = 0;
     for (let o = 0; o < observationsPerTrace; o++) {
       const observationId = `${traceId}-o${o}`;
       const isRoot = o === 0;
@@ -146,6 +148,9 @@ const run = async (
         o === 1 || (o > 1 && jitter(ctx.seed, t * 311 + o, 9) < 3);
       const startTime =
         timestamp + o * 350 + jitter(ctx.seed, t * 131 + o, 100);
+      const endTime =
+        startTime + (isGeneration ? rng.int(700, 3500) : rng.int(10, 300));
+      if (!isRoot) maxChildEndTime = Math.max(maxChildEndTime, endTime);
       const hasError = t % 13 === 6 && isGeneration;
       const usageInput = rng.int(100, 4000);
       const usageOutput = rng.int(50, 2000);
@@ -170,8 +175,7 @@ const run = async (
               ? "gpt-4o-completion"
               : rng.pick(["fetch-context", "log-event", "format-reply"]),
           start_time: startTime,
-          end_time:
-            startTime + (isGeneration ? rng.int(700, 3500) : rng.int(10, 300)),
+          end_time: endTime,
           completion_start_time: isGeneration
             ? startTime + rng.int(90, 350)
             : null,
@@ -232,6 +236,12 @@ const run = async (
           event_ts: Date.now(),
         }),
       );
+    }
+
+    // The root "session-turn" span must cover its children, otherwise the
+    // waterfall shows children running after their parent already ended.
+    if (observationsPerTrace > 1) {
+      observations[rootObservationIndex].end_time = maxChildEndTime + 25;
     }
 
     if (t % 3 === 0) {

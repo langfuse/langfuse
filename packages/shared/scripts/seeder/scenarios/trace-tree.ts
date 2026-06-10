@@ -176,18 +176,43 @@ const run = async (
     event_ts: Date.now(),
   });
 
+  // Timeline offsets, all jitter()-derived (never the sequential rng stream
+  // or wall clock — start_time is an events_full ORDER BY key, and stream
+  // randomness would re-key rows when unrelated flags change on re-run).
+  // Top-down: a child starts shortly after its OWN PARENT starts, so the
+  // waterfall shows no orphaned gaps. Bottom-up: a parent's end covers its
+  // children. parentIndex < index makes both single passes safe.
+  const startOffsets = new Array<number>(shape.length).fill(0);
+  for (const node of shape) {
+    startOffsets[node.index] =
+      node.parentIndex === null
+        ? 0
+        : startOffsets[node.parentIndex] +
+          10 +
+          jitter(ctx.seed, node.index, 80);
+  }
+  const endOffsets = new Array<number>(shape.length).fill(0);
+  for (let i = shape.length - 1; i >= 0; i--) {
+    const node = shape[i];
+    const ownDuration =
+      node.kind === "GENERATION"
+        ? 600 + jitter(ctx.seed, i * 3 + 1, 3400)
+        : 5 + jitter(ctx.seed, i * 3 + 2, 395);
+    // endOffsets[i] holds the max end of already-processed children here
+    const end = Math.max(startOffsets[i] + ownDuration, endOffsets[i] + 5);
+    endOffsets[i] = end;
+    if (node.parentIndex !== null) {
+      endOffsets[node.parentIndex] = Math.max(
+        endOffsets[node.parentIndex],
+        end,
+      );
+    }
+  }
+
   let retryNodeUsed = false;
   const observations: ObservationRecordInsertType[] = shape.map((node) => {
     const isGeneration = node.kind === "GENERATION";
-    // jitter() not rng: start_time lands in the events_full ORDER BY, and
-    // stream-position randomness would re-key rows when unrelated flags
-    // (payload size, count) change between re-runs with the same id prefix.
-    const startTime =
-      traceTimestamp +
-      node.depth * 150 +
-      node.index * 4 +
-      jitter(ctx.seed, node.index, 40);
-    const duration = isGeneration ? rng.int(600, 4000) : rng.int(5, 400);
+    const startTime = traceTimestamp + startOffsets[node.index];
     const missingEndTime = node.index > 0 && node.index % 19 === 0;
     const isError = node.index % 29 === 7;
     const isFailedToolRetryPair =
@@ -238,7 +263,7 @@ const run = async (
           : `${ctx.idPrefix}-obs-${node.parentIndex}`,
       name,
       start_time: startTime,
-      end_time: missingEndTime ? null : startTime + duration,
+      end_time: missingEndTime ? null : traceTimestamp + endOffsets[node.index],
       completion_start_time: isGeneration ? startTime + rng.int(80, 400) : null,
       level:
         isError || isFailedToolRetryPair
@@ -455,6 +480,12 @@ const run = async (
   if (verified.observations < observations.length) {
     throw new SeedError(
       `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
+    );
+  }
+  const expectedKinds = Math.min(observations.length, ALL_KINDS.length);
+  if (verified.observationKinds < expectedKinds) {
+    throw new SeedError(
+      `Readback mismatch: expected ${expectedKinds} distinct observation kinds, found ${verified.observationKinds}`,
     );
   }
   if (verified.scores < scores.length) {
