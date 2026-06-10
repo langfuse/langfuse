@@ -1,9 +1,21 @@
 import { z } from "zod";
 import type { Session } from "next-auth";
 
-import { BaseError, ForbiddenError } from "@langfuse/shared";
+import {
+  BaseError,
+  ForbiddenError,
+  InvalidRequestError,
+  ScoreDataTypeEnum,
+  ScoreSourceEnum,
+  TEXT_SCORE_MAX_LENGTH,
+} from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import {
+  convertDateToClickhouseDateTime,
+  upsertScore,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { InAppAgentMessageFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
@@ -11,9 +23,13 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
+  deleteMessageFeedback,
   getConversationMessages,
+  getConversationMessagesWithFeedback,
+  getMessageRunId,
   getOwnedConversationOrThrow,
   serializeConversation,
+  upsertMessageFeedback,
 } from "@/src/ee/features/in-app-agent/server/persistence";
 
 const CONVERSATION_LIST_LIMIT = 50;
@@ -27,6 +43,15 @@ const ConversationIdInput = z.object({
   projectId: z.string(),
   conversationId: z.string(),
 });
+
+const SubmitFeedbackInput = ConversationIdInput.extend({
+  messageId: z.string(),
+  value: InAppAgentMessageFeedbackValueSchema.nullable(),
+  comment: z.string().trim().max(TEXT_SCORE_MAX_LENGTH).nullable().optional(),
+});
+
+const IN_APP_AGENT_FEEDBACK_SCORE_NAME = "in_app_agent_feedback";
+const IN_APP_AGENT_FEEDBACK_ENVIRONMENT = "langfuse-in-app-agent";
 
 export const inAppAgentRouter = createTRPCRouter({
   listConversations: protectedProjectProcedure
@@ -88,10 +113,11 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      const messages = await getConversationMessages({
+      const messages = await getConversationMessagesWithFeedback({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
+        userId: ctx.session.user.id,
       });
 
       return {
@@ -103,6 +129,109 @@ export const inAppAgentRouter = createTRPCRouter({
           conversationId: input.conversationId,
         },
       };
+    }),
+
+  submitFeedback: protectedProjectProcedureWithoutTracing
+    .input(SubmitFeedbackInput)
+    .mutation(async ({ ctx, input }) => {
+      const projectAvailability = await assertInAppAgentAvailable({
+        ctx,
+        projectId: input.projectId,
+      });
+
+      await getOwnedConversationOrThrow({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        userId: ctx.session.user.id,
+      });
+
+      const messages = await getConversationMessages({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+      });
+      const targetMessage = messages.find(
+        (message) => message.id === input.messageId,
+      );
+
+      if (
+        targetMessage?.role !== "assistant" ||
+        typeof targetMessage.content !== "string" ||
+        targetMessage.content.length === 0
+      ) {
+        throw new InvalidRequestError(
+          "Feedback can only be submitted for assistant text messages",
+        );
+      }
+
+      const comment = input.comment?.trim() ? input.comment.trim() : null;
+      if (input.value === null) {
+        await deleteMessageFeedback({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          conversationId: input.conversationId,
+          messageId: input.messageId,
+          userId: ctx.session.user.id,
+        });
+
+        return { feedback: null };
+      }
+
+      const messageRunId = await getMessageRunId({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+      });
+      if (!messageRunId) {
+        throw new InvalidRequestError(
+          "Feedback can only be submitted for persisted assistant messages",
+        );
+      }
+      const scoreId = `afbs_${input.messageId}_${ctx.session.user.id}`;
+      const now = new Date();
+      const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+
+      if (projectAvailability.aiTelemetryEnabled && scoreProjectId) {
+        await upsertScore({
+          id: scoreId,
+          timestamp: convertDateToClickhouseDateTime(now),
+          project_id: scoreProjectId,
+          environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
+          trace_id: input.conversationId,
+          observation_id: messageRunId,
+          session_id: input.conversationId,
+          name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
+          value: input.value === "thumbs_up" ? 1 : 0,
+          source: ScoreSourceEnum.ANNOTATION,
+          comment,
+          author_user_id: ctx.session.user.id,
+          config_id: null,
+          data_type: ScoreDataTypeEnum.BOOLEAN,
+          string_value: input.value === "thumbs_up" ? "true" : "false",
+          queue_id: null,
+          created_at: convertDateToClickhouseDateTime(now),
+          updated_at: convertDateToClickhouseDateTime(now),
+          metadata: {
+            project_id: input.projectId,
+            conversation_id: input.conversationId,
+            message_id: input.messageId,
+          },
+        });
+      }
+
+      const feedback = await upsertMessageFeedback({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        userId: ctx.session.user.id,
+        value: input.value,
+        comment,
+      });
+
+      return { feedback };
     }),
 });
 
@@ -149,6 +278,7 @@ async function assertInAppAgentAvailable({
       organization: {
         select: {
           aiFeaturesEnabled: true,
+          aiTelemetryEnabled: true,
         },
       },
     },
@@ -157,4 +287,8 @@ async function assertInAppAgentAvailable({
   if (!project?.organization.aiFeaturesEnabled) {
     throw new ForbiddenError("Assistant is not enabled for this organization");
   }
+
+  return {
+    aiTelemetryEnabled: project.organization.aiTelemetryEnabled,
+  };
 }

@@ -22,6 +22,7 @@ import {
 import {
   AgUiMessageSchema,
   type AgUiMessage,
+  type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
 } from "@/src/ee/features/in-app-agent/schema";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -60,6 +61,7 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   loadMoreConversations: () => undefined,
   selectConversation: () => undefined,
   submit: async () => false,
+  submitFeedback: async () => undefined,
 };
 
 type InAppAiAgentMessage = AgUiMessage;
@@ -88,6 +90,11 @@ type InAppAiAgentContextType = {
   loadMoreConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   submit: (content: string) => Promise<boolean>;
+  submitFeedback: (params: {
+    messageId: string;
+    value: InAppAgentMessageFeedbackValue | null;
+    comment?: string | null;
+  }) => Promise<void>;
 };
 
 const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
@@ -187,6 +194,7 @@ function InAppAiAgentProviderInner({
       enabled: open && Boolean(selectedConversationId) && !isSubmitting,
     },
   );
+  const feedbackMutation = api.inAppAgent.submitFeedback.useMutation();
 
   const conversations = useMemo(
     () =>
@@ -501,6 +509,52 @@ function InAppAiAgentProviderInner({
     ],
   );
 
+  const submitFeedback = useCallback(
+    async (params: {
+      messageId: string;
+      value: InAppAgentMessageFeedbackValue | null;
+      comment?: string | null;
+    }) => {
+      if (!selectedConversationId) {
+        return;
+      }
+
+      try {
+        const result = await feedbackMutation.mutateAsync({
+          projectId,
+          conversationId: selectedConversationId,
+          messageId: params.messageId,
+          value: params.value,
+          comment: params.comment ?? null,
+        });
+
+        setMessages((currentMessages) =>
+          currentMessages.map((message) =>
+            message.role === "assistant" && message.id === params.messageId
+              ? { ...message, feedback: result.feedback ?? undefined }
+              : message,
+          ),
+        );
+
+        await utils.inAppAgent.getConversation.invalidate({
+          projectId,
+          conversationId: selectedConversationId,
+        });
+      } catch (error) {
+        const errorMessage = getAgentErrorMessage(error);
+        showErrorToast("Failed to save feedback", errorMessage);
+        console.error("Failed to save in-app agent feedback", error);
+        throw error;
+      }
+    },
+    [
+      feedbackMutation,
+      projectId,
+      selectedConversationId,
+      utils.inAppAgent.getConversation,
+    ],
+  );
+
   useEffect(() => {
     if (!open) {
       setIsExpanded(false);
@@ -526,6 +580,7 @@ function InAppAiAgentProviderInner({
       loadMoreConversations,
       selectConversation,
       submit,
+      submitFeedback,
     }),
     [
       isExpanded,
@@ -543,6 +598,7 @@ function InAppAiAgentProviderInner({
       selectedConversationId,
       setOpen,
       submit,
+      submitFeedback,
     ],
   );
 
