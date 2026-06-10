@@ -108,7 +108,10 @@ const run = async (
       count,
       scoresPerTrace,
       ctx.environment,
-      bulkOpts,
+      {
+        ...bulkOpts,
+        observationsPerTrace,
+      },
     ),
   ];
   for (const query of queries) {

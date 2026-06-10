@@ -234,9 +234,14 @@ export class ClickHouseQueryBuilder {
     tracesCount: number,
     scoresPerTrace: number = 2,
     environment: string = "default",
-    opts: { numberOfDays: number; idPrefix?: string } = { numberOfDays: 1 },
+    opts: {
+      numberOfDays: number;
+      idPrefix?: string;
+      observationsPerTrace?: number;
+    } = { numberOfDays: 1 },
   ): string {
     const totalScores = tracesCount * scoresPerTrace;
+    const observationsPerTrace = opts.observationsPerTrace ?? 5;
     const idPrefix = opts.idPrefix
       ? `${this.escapeString(opts.idPrefix)}-`
       : "";
@@ -251,7 +256,7 @@ export class ClickHouseQueryBuilder {
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${projectId.slice(-8)}') AS trace_id,
         if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 100)), NULL) AS session_id,
         NULL AS dataset_run_id,
-        if(randUniform(0, 1) < 0.1, concat('${idPrefix}obs-bulk-', toString(rand() % (${tracesCount} * 5)), '-${projectId.slice(-8)}'), NULL) AS observation_id,
+        if(randUniform(0, 1) < 0.1, concat('${idPrefix}obs-bulk-', toString((number % ${tracesCount}) + ${tracesCount} * (rand() % ${observationsPerTrace})), '-${projectId.slice(-8)}'), NULL) AS observation_id,
         concat('metric_', toString((number % ${scoresPerTrace * 5}) + 1)) AS name,
         case 
           when (number % 3) = 0 then toDecimal64(randUniform(0, 100), 8)
