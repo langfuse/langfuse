@@ -4255,5 +4255,184 @@
         }
       }
     ]
+  },
+  {
+    "id": "9dc1501e-943e-488d-bdfb-41f31d456ba3",
+    "modelName": "sonar",
+    "matchPattern": "(?i)^(perplexity\\/)?sonar$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "9dc1501e-943e-488d-bdfb-41f31d456ba3_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1e-06,
+          "output": 1e-06
+        }
+      }
+    ]
+  },
+  {
+    "id": "d89b1626-5fe2-440b-a67b-c104274c1c8b",
+    "modelName": "sonar-pro",
+    "matchPattern": "(?i)^(perplexity\\/)?sonar-pro$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "d89b1626-5fe2-440b-a67b-c104274c1c8b_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 3e-06,
+          "output": 1.5e-05
+        }
+      }
+    ]
+  },
+  {
+    "id": "f5184c04-401c-4478-8710-62d74df2cf6e",
+    "modelName": "sonar-reasoning-pro",
+    "matchPattern": "(?i)^(perplexity\\/)?sonar-reasoning-pro$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "f5184c04-401c-4478-8710-62d74df2cf6e_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-06,
+          "output": 8e-06
+        }
+      }
+    ]
+  },
+  {
+    "id": "08793146-43d5-4ac0-9714-3f78b13cf6cd",
+    "modelName": "sonar-deep-research",
+    "matchPattern": "(?i)^(perplexity\\/)?sonar-deep-research$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "08793146-43d5-4ac0-9714-3f78b13cf6cd_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-06,
+          "output": 8e-06,
+          "internal_reasoning": 3e-06,
+          "output_reasoning": 3e-06,
+          "reasoning_tokens": 3e-06
+        }
+      }
+    ]
+  },
+  {
+    "id": "a49b856e-0112-4f4f-a5ad-b3160bee74a4",
+    "modelName": "sonar-pro-search",
+    "matchPattern": "(?i)^perplexity\\/sonar-pro-search$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "a49b856e-0112-4f4f-a5ad-b3160bee74a4_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 3e-06,
+          "output": 1.5e-05
+        }
+      }
+    ]
+  },
+  {
+    "id": "7b2b7c63-5642-4ea9-961e-c67c0ef4af3e",
+    "modelName": "pplx-embed-v1-0.6b",
+    "matchPattern": "(?i)^(pplx-embed-v1-0\\.6b)$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "7b2b7c63-5642-4ea9-961e-c67c0ef4af3e_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "total": 4e-09
+        }
+      }
+    ]
+  },
+  {
+    "id": "c8bddcbf-bab8-4039-a5e3-83953451b2fb",
+    "modelName": "pplx-embed-v1-4b",
+    "matchPattern": "(?i)^(pplx-embed-v1-4b)$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "c8bddcbf-bab8-4039-a5e3-83953451b2fb_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "total": 3e-08
+        }
+      }
+    ]
+  },
+  {
+    "id": "4b022db1-fdb6-462a-aeb0-af23e2be96e6",
+    "modelName": "pplx-embed-context-v1-0.6b",
+    "matchPattern": "(?i)^(pplx-embed-context-v1-0\\.6b)$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "4b022db1-fdb6-462a-aeb0-af23e2be96e6_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "total": 8e-09
+        }
+      }
+    ]
+  },
+  {
+    "id": "180b64d8-8a53-4b94-a32d-086ebc7aa7a3",
+    "modelName": "pplx-embed-context-v1-4b",
+    "matchPattern": "(?i)^(pplx-embed-context-v1-4b)$",
+    "createdAt": "2026-06-10T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "180b64d8-8a53-4b94-a32d-086ebc7aa7a3_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "total": 5e-08
+        }
+      }
+    ]
   }
 ]
