@@ -301,6 +301,9 @@ importers:
       safe-regex2:
         specifier: ^5.0.0
         version: 5.0.0
+      slackify-markdown:
+        specifier: ^5.0.0
+        version: 5.0.0
       undici:
         specifier: ^7.24.6
         version: 7.25.0

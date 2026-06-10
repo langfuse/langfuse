@@ -31,14 +31,14 @@ import {
   logger,
   redis,
 } from "@langfuse/shared/src/server";
-import { MonitorWebhookQueueEventSchema } from "@langfuse/shared/monitors/server";
+import {
+  MonitorWebhookQueueEventSchema,
+  buildMonitorAlertSlackMessage,
+} from "@langfuse/shared/monitors/server";
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
-import {
-  SlackMessageBuilder,
-  escapeSlackMrkdwn,
-} from "../features/slack/slackMessageBuilder";
+import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 
 // GitHub repository_dispatch client_payload: max 10 top-level properties and <64KB.
 // https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event
@@ -726,24 +726,29 @@ async function executeSlackAction({
 
   const slackConfig = actionConfig.config;
 
-  try {
-    // monitor-alert envelopes survive a BullMQ JSON round-trip as plain strings;
-    // parse to recover the Dates buildMonitorMessage formats, matching the
-    // webhook/github dispatchers' buildWebhookOutboundPayload discipline.
-    let payload = input.payload;
-    if (payload.type === "monitor-alert") {
-      const parsed = MonitorWebhookQueueEventSchema.safeParse(payload);
-      if (!parsed.success) {
-        throw new InternalServerError(
-          `Invalid monitor-alert payload: ${parsed.error.message}`,
-        );
-      }
-      payload = parsed.data;
+  // TODO: unify automation execution log and failure handling across all message types (not scalable yet)
+  // TODO: implement a strategy/policy + registry pattern for different webhook providers.
+  if (input.payload.type === "monitor-alert") {
+    try {
+      await sendSlackMonitorAlert({
+        payload: input.payload,
+        projectId,
+        channelId: slackConfig.channelId,
+        automationId: automation.id,
+      });
+    } catch (error) {
+      logger.error("Error executing Slack action", error);
+      await slackMonitorAlertFailure({ projectId, automation });
     }
+    return;
+  }
 
+  try {
     // Build message blocks using predefined formats or custom template
     let blocks: any[] = [];
-    let attachments: { color: string }[] | undefined;
+    let attachments:
+      | { color: string; fallback?: string; blocks?: any[] }[]
+      | undefined;
 
     // TODO: Custom templates not supported via the UI yet
     if (slackConfig.messageTemplate) {
@@ -762,7 +767,7 @@ async function executeSlackAction({
 
     // Use predefined message format if no custom template or template failed
     if (blocks.length === 0) {
-      const message = SlackMessageBuilder.buildMessage(payload);
+      const message = SlackMessageBuilder.buildMessage(input.payload);
       blocks = message.blocks;
       attachments = message.attachments;
       logger.debug(
@@ -780,74 +785,29 @@ async function executeSlackAction({
       channelId: slackConfig.channelId,
       blocks,
       attachments,
-      text:
-        payload.type === "monitor-alert"
-          ? escapeSlackMrkdwn(payload.payload.message.title)
-          : "Langfuse Notification",
+      text: "Langfuse Notification",
     });
 
     // Update execution status to completed
-    if (input.payload.type === "monitor-alert") {
-      try {
-        await resetAutomationFailures({
-          projectId,
-          automationId: automation.id,
-        });
-      } catch (resetError) {
-        logger.warn(
-          `Failed to reset automation failure counter after successful delivery for automation ${automation.id} in project ${projectId}`,
-          resetError,
-        );
-      }
-    } else {
-      await prisma.automationExecution.update({
-        where: {
-          projectId,
-          triggerId: automation.trigger.id,
-          actionId: automation.action.id,
-          id: executionId,
+    await prisma.automationExecution.update({
+      where: {
+        projectId,
+        triggerId: automation.trigger.id,
+        actionId: automation.action.id,
+        id: executionId,
+      },
+      data: {
+        status: ActionExecutionStatus.COMPLETED,
+        startedAt: executionStart,
+        finishedAt: new Date(),
+        output: {
+          channel: sendResult.channel,
+          messageTs: sendResult.messageTs,
         },
-        data: {
-          status: ActionExecutionStatus.COMPLETED,
-          startedAt: executionStart,
-          finishedAt: new Date(),
-          output: {
-            channel: sendResult.channel,
-            messageTs: sendResult.messageTs,
-          },
-        },
-      });
-    }
+      },
+    });
   } catch (error) {
     logger.error("Error executing Slack action", error);
-
-    if (input.payload.type === "monitor-alert") {
-      const count = await incrementAutomationFailure({
-        projectId,
-        automationId: automation.id,
-      });
-      if (count >= automationFailureThreshold) {
-        await prisma.trigger.update({
-          where: { id: automation.trigger.id, projectId },
-          data: { status: JobConfigState.INACTIVE },
-        });
-        try {
-          await resetAutomationFailures({
-            projectId,
-            automationId: automation.id,
-          });
-        } catch (resetError) {
-          logger.warn(
-            `Failed to reset automation failure counter after auto-disable for automation ${automation.id} in project ${projectId}`,
-            resetError,
-          );
-        }
-        logger.warn(
-          `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/slack)`,
-        );
-      }
-      return;
-    }
 
     // Get action config for updating in case of failure
     const failureActionConfig = await getActionByIdWithSecrets({
@@ -899,6 +859,59 @@ async function executeSlackAction({
 
     logger.debug(
       `Slack action failed for action ${automation.action.id} in project ${projectId}`,
+    );
+  }
+}
+
+/** sendSlackMonitorAlert builds and posts a monitor-alert to Slack, then clears the failure streak. */
+async function sendSlackMonitorAlert({
+  payload,
+  projectId,
+  channelId,
+  automationId,
+}: {
+  payload: WebhookInput["payload"];
+  projectId: string;
+  channelId: string;
+  automationId: string;
+}) {
+  const parsed = MonitorWebhookQueueEventSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new InternalServerError(
+      `Invalid monitor-alert payload: ${parsed.error.message}`,
+    );
+  }
+  const message = buildMonitorAlertSlackMessage(parsed.data.payload);
+  const client =
+    await SlackService.getInstance().getWebClientForProject(projectId);
+  await SlackService.getInstance().sendMessage({
+    client,
+    channelId,
+    ...message,
+  });
+  await resetAutomationFailures({ projectId, automationId });
+}
+
+/** slackMonitorAlertFailure tracks a failed monitor-alert delivery and auto-disables the trigger past the failure threshold. */
+async function slackMonitorAlertFailure({
+  projectId,
+  automation,
+}: {
+  projectId: string;
+  automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
+}) {
+  const count = await incrementAutomationFailure({
+    projectId,
+    automationId: automation.id,
+  });
+  if (count >= automationFailureThreshold) {
+    await prisma.trigger.update({
+      where: { id: automation.trigger.id, projectId },
+      data: { status: JobConfigState.INACTIVE },
+    });
+    await resetAutomationFailures({ projectId, automationId: automation.id });
+    logger.warn(
+      `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/slack)`,
     );
   }
 }

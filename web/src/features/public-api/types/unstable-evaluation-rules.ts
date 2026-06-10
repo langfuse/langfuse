@@ -49,7 +49,7 @@ export const GetUnstableEvaluationRuleQuery = z.object({
 
 export const GetUnstableEvaluationRuleResponse = APIEvaluationRule;
 
-const EvaluationRuleCreateBase = {
+export const EvaluationRuleCreateBase = {
   name: z.string().min(1),
   evaluator: PublicEvaluationRuleEvaluatorReference,
   enabled: z.boolean(),
@@ -104,7 +104,9 @@ export const PostUnstableEvaluationRuleResponse = APIEvaluationRule;
 
 export const PatchUnstableEvaluationRuleQuery = GetUnstableEvaluationRuleQuery;
 
-const EvaluationRulePatchBase = {
+// Exported for reuse (see EvaluationRuleCreateBase) — the create fields, all
+// made optional for PATCH.
+export const EvaluationRulePatchBase = {
   name: z.string().min(1).optional(),
   evaluator: PublicEvaluationRuleEvaluatorReferencePatch.optional(),
   enabled: z.boolean().optional(),

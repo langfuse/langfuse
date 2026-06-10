@@ -29,7 +29,7 @@ export function renderAlertMessage(args: {
       monitor.alertThreshold,
       monitor.warningThreshold ?? null,
     );
-    body = `${metricRef} is **${operatorWord(monitor.thresholdOperator)}** \`${threshold}\``;
+    body = `${metricRef} is **${operatorWord(monitor.thresholdOperator)}** \`${threshold}\` over the last **${monitor.window}**`;
   }
   return { title, body };
 }
