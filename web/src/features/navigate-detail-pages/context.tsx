@@ -1,7 +1,9 @@
 import React, {
   type PropsWithChildren,
   createContext,
+  useCallback,
   useContext,
+  useMemo,
   useState,
 } from "react";
 
@@ -68,15 +70,20 @@ export function DetailPageListsProvider(props: PropsWithChildren) {
     Record<string, Array<ListEntry>>
   >({});
 
-  const setDetailPageList = <TEntry extends ListEntry>(
-    key: string,
-    list: Array<TEntry>,
-  ) => {
-    setLists((prevLists) => ({ ...prevLists, [key]: list }));
-  };
+  const setDetailPageList = useCallback<ListContextType["setDetailPageList"]>(
+    (key, list) => {
+      setLists((prevLists) => ({ ...prevLists, [key]: list }));
+    },
+    [],
+  );
+
+  const contextValue = useMemo(
+    () => ({ detailPagelists, setDetailPageList }),
+    [detailPagelists, setDetailPageList],
+  );
 
   return (
-    <DetailPageLists.Provider value={{ detailPagelists, setDetailPageList }}>
+    <DetailPageLists.Provider value={contextValue}>
       {props.children}
     </DetailPageLists.Provider>
   );

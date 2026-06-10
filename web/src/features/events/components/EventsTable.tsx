@@ -323,7 +323,7 @@ export default function ObservationsEventsTable({
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
-    void Promise.all([
+    Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
       utils.events.filterOptions.invalidate(),
@@ -334,7 +334,7 @@ export default function ObservationsEventsTable({
   // Include refreshTick to force recalculation on refresh
   const tableDateRange = useMemo(() => {
     // refreshTick forces recalculation but isn't used in computation
-    void refreshTick;
+    refreshTick;
     return toAbsoluteTimeRange(timeRange) ?? undefined;
   }, [timeRange, refreshTick]);
 

@@ -1,4 +1,5 @@
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -6,6 +7,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   BatchExportStatus,
+  BatchExportTableName,
   CreateBatchExportSchema,
   paginationZod,
 } from "@langfuse/shared";
@@ -31,6 +33,20 @@ export const batchExportRouter = createTRPCRouter({
         });
 
         const { projectId, query, format, name } = input;
+
+        if (query.tableName === BatchExportTableName.AuditLogs) {
+          throwIfNoEntitlement({
+            entitlement: "audit-logs",
+            sessionUser: ctx.session.user,
+            projectId,
+          });
+          throwIfNoProjectAccess({
+            session: ctx.session,
+            projectId,
+            scope: "auditLogs:read",
+          });
+        }
+
         assertLegacyTracingIoSearchCanCreateBatchJob({
           searchQuery: query.searchQuery,
           searchType: query.searchType,

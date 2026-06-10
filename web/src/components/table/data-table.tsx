@@ -334,12 +334,14 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = isValidCssVariableName({
-                      name: header.id,
-                      includesHyphens: false,
-                    })
-                      ? `calc(var(--header-${header.id}-size) * 1px)`
-                      : 150;
+                    const width = columnDef.isFlexWidth
+                      ? "auto"
+                      : isValidCssVariableName({
+                            name: header.id,
+                            includesHyphens: false,
+                          })
+                        ? `calc(var(--header-${header.id}-size) * 1px)`
+                        : 150;
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -350,8 +352,8 @@ export function DataTable<TData extends object, TValue>({
                           getPinningClasses(header.column),
                         )}
                         style={{
-                          width,
                           ...getCommonPinningStyles(header.column),
+                          width,
                         }}
                         onClick={(event) => {
                           event.preventDefault();
@@ -608,8 +610,10 @@ function TableBodyComponent<TData>({
                     getPinningClasses(column),
                   )}
                   style={{
-                    width: `calc(var(--col-${column.id}-size) * 1px)`,
                     ...getCommonPinningStyles(column),
+                    width: columnDef.isFlexWidth
+                      ? "auto"
+                      : `calc(var(--col-${column.id}-size) * 1px)`,
                   }}
                 >
                   <div
@@ -679,8 +683,10 @@ function TableBodyComponent<TData>({
                     getPinningClasses(cell.column),
                   )}
                   style={{
-                    width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
                     ...getCommonPinningStyles(cell.column),
+                    width: columnDef.isFlexWidth
+                      ? "auto"
+                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
                   }}
                 >
                   <div

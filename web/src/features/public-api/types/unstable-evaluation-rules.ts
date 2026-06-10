@@ -4,9 +4,11 @@ import {
   ExperimentEvaluationRuleMapping,
   ObservationEvaluationRuleFilter,
   ObservationEvaluationRuleMapping,
+  PUBLIC_EVALUATOR_TYPE_CODE,
   PublicEvaluationRuleFilter,
   PublicEvaluationRuleEvaluator,
   PublicEvaluationRuleEvaluatorReference,
+  PublicEvaluationRuleEvaluatorReferencePatch,
   PublicEvaluationRuleMapping,
   PublicEvaluationRuleStatus,
   PublicEvaluationRuleTarget,
@@ -54,20 +56,46 @@ const EvaluationRuleCreateBase = {
   sampling: z.number().gt(0).lte(1).default(1),
 };
 
-export const PostUnstableEvaluationRuleBody = z.discriminatedUnion("target", [
-  z.object({
-    ...EvaluationRuleCreateBase,
-    target: z.literal("observation"),
-    filter: z.array(ObservationEvaluationRuleFilter).default([]),
-    mapping: z.array(ObservationEvaluationRuleMapping),
-  }),
-  z.object({
-    ...EvaluationRuleCreateBase,
-    target: z.literal("experiment"),
-    filter: z.array(ExperimentEvaluationRuleFilter).default([]),
-    mapping: z.array(ExperimentEvaluationRuleMapping),
-  }),
-]);
+const PostUnstableObservationEvaluationRuleBody = z.object({
+  ...EvaluationRuleCreateBase,
+  target: z.literal("observation"),
+  filter: z.array(ObservationEvaluationRuleFilter).default([]),
+  mapping: z.array(ObservationEvaluationRuleMapping).optional(),
+});
+
+const PostUnstableExperimentEvaluationRuleBody = z.object({
+  ...EvaluationRuleCreateBase,
+  target: z.literal("experiment"),
+  filter: z.array(ExperimentEvaluationRuleFilter).default([]),
+  mapping: z.array(ExperimentEvaluationRuleMapping).optional(),
+});
+
+// `code` evaluators use a fixed runtime mapping managed by Langfuse and must
+// omit `mapping`; `llm_as_judge` evaluators require it.
+export const PostUnstableEvaluationRuleBody = z
+  .discriminatedUnion("target", [
+    PostUnstableObservationEvaluationRuleBody,
+    PostUnstableExperimentEvaluationRuleBody,
+  ])
+  .refine(
+    (data) =>
+      data.evaluator.type !== PUBLIC_EVALUATOR_TYPE_CODE ||
+      data.mapping === undefined,
+    {
+      path: ["mapping"],
+      message:
+        "Code evaluator mappings are managed by Langfuse and cannot be provided in the request body.",
+    },
+  )
+  .refine(
+    (data) =>
+      data.evaluator.type === PUBLIC_EVALUATOR_TYPE_CODE ||
+      data.mapping !== undefined,
+    {
+      path: ["mapping"],
+      message: "LLM-as-judge evaluation rules require a variable mapping.",
+    },
+  );
 export type PostUnstableEvaluationRuleBodyType = z.infer<
   typeof PostUnstableEvaluationRuleBody
 >;
@@ -78,7 +106,7 @@ export const PatchUnstableEvaluationRuleQuery = GetUnstableEvaluationRuleQuery;
 
 const EvaluationRulePatchBase = {
   name: z.string().min(1).optional(),
-  evaluator: PublicEvaluationRuleEvaluatorReference.optional(),
+  evaluator: PublicEvaluationRuleEvaluatorReferencePatch.optional(),
   enabled: z.boolean().optional(),
   sampling: z.number().gt(0).lte(1).optional(),
 };

@@ -6,6 +6,7 @@ import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
+import motionStyles from "./dialog-motion.module.css";
 
 const Dialog = DialogPrimitive.Root;
 
@@ -15,14 +16,26 @@ const DialogPortal = DialogPrimitive.Portal;
 
 const DialogClose = DialogPrimitive.Close;
 
+type DialogOverlayMode = "subtle" | "invisible" | "blocking";
+
+const dialogOverlayClasses: Record<DialogOverlayMode, string> = {
+  invisible: "bg-transparent",
+  subtle: "bg-black/25 dark:bg-black/45",
+  blocking: "bg-black/50 dark:bg-black/65",
+};
+
 const DialogOverlay = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> & {
+    overlayMode?: DialogOverlayMode;
+  }
+>(({ className, overlayMode = "subtle", ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "bg-foreground/40 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50",
+      motionStyles.overlay,
+      "fixed inset-0 z-50",
+      dialogOverlayClasses[overlayMode],
       className,
     )}
     {...props}
@@ -31,7 +44,7 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] overflow-hidden z-50 flex w-full flex-col translate-x-[-50%] translate-y-[-50%] bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden z-50 flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-background shadow-lg sm:rounded-lg",
   {
     variants: {
       size: {
@@ -52,6 +65,7 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     closeOnInteractionOutside?: boolean;
     confirmCloseOnEscape?: string;
+    overlayMode?: DialogOverlayMode;
     stopPropagationOnEnterSpace?: boolean;
   } & VariantProps<typeof dialogContentVariants>
 >(
@@ -61,6 +75,7 @@ const DialogContent = React.forwardRef<
       children,
       closeOnInteractionOutside = false,
       confirmCloseOnEscape,
+      overlayMode = "subtle",
       stopPropagationOnEnterSpace = true,
       onEscapeKeyDown,
       size,
@@ -91,10 +106,13 @@ const DialogContent = React.forwardRef<
 
     return (
       <DialogPortal>
-        <DialogOverlay />
+        <DialogOverlay overlayMode={overlayMode} />
         <DialogPrimitive.Content
           ref={ref}
-          className={cn(dialogContentVariants({ size, className }))}
+          className={cn(
+            motionStyles.content,
+            dialogContentVariants({ size, className }),
+          )}
           aria-describedby={undefined}
           onKeyDown={handleKeyDown}
           onEscapeKeyDown={handleEscapeKeyDown}

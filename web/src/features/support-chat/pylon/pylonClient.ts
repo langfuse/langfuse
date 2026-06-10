@@ -1,4 +1,5 @@
 import { logger } from "@langfuse/shared/src/server";
+import { isHighTierSupportPlan } from "../formConstants";
 
 const PYLON_API_BASE = "https://api.usepylon.com";
 
@@ -256,14 +257,18 @@ export function mapMessageTypeToPylonQuestionType(messageType: string): string {
 export function mapToPylonCaseSeverity(params: {
   severity: string;
   plan?: string;
+  /** Customer manually requested high priority via the support form. */
+  isHighPriority?: boolean;
 }): "Sev-1" | "Sev-2" | "Sev-3" {
-  const { severity, plan } = params;
-  const isHighTierPlan =
-    plan === "cloud:team" ||
-    plan === "cloud:enterprise" ||
-    plan === "self-hosted:enterprise";
+  const { severity, plan, isHighPriority } = params;
+  const isHighTierPlan = isHighTierSupportPlan(plan);
 
-  if (severity === "Outage, data loss, or data breach" && isHighTierPlan) {
+  // High-tier customers (Team/Enterprise) get Sev-1 either automatically for
+  // outages, or when they manually flag a time-critical request as urgent.
+  if (
+    isHighTierPlan &&
+    (isHighPriority || severity === "Outage, data loss, or data breach")
+  ) {
     return "Sev-1";
   }
 

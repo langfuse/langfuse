@@ -52,7 +52,6 @@ import {
   JumpCloudProvider,
   traceException,
   sendResetPasswordVerificationRequest,
-  buildMailServerConfig,
   instrumentAsync,
   logger,
   resolveProjectRole,
@@ -164,7 +163,9 @@ const staticProviders: Provider[] = [
 if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
   staticProviders.push(
     EmailProvider({
-      server: buildMailServerConfig(env.SMTP_CONNECTION_URL),
+      // SMTP vs SES dispatch happens inside sendVerificationRequest via
+      // createMailTransport; NextAuth itself only forwards this string.
+      server: env.SMTP_CONNECTION_URL,
       from: env.EMAIL_FROM_ADDRESS,
       maxAge: 3 * 60, // 3 minutes
       async generateVerificationToken() {
@@ -805,9 +806,29 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
 
           span.setAttribute("langfuse.user.email", dbUser?.email ?? "");
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
-          const isCloudDeploymentOrDev = Boolean(
+          // V4 preview availability is governed by the write mode:
+          // - events_only: the legacy traces/observations tables are no longer
+          //   written, so the events-aware UI is the only correct read path —
+          //   force the preview on for everyone and hide the toggle.
+          // - legacy: the events tables are not written, so the preview cannot
+          //   read — keep it off and hide the toggle.
+          // - dual: both table sets are written, so the preview is optional. On
+          //   Cloud we keep the date-based rollout (new orgs are auto-enabled
+          //   and locked on at signup/org-creation, older orgs may toggle).
+          //   Self-hosted dual deployments are opt-in, but only once they have
+          //   also set LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN=true —
+          //   otherwise feature paths still gated on that flag would silently
+          //   fall back to legacy tables while the core UI reads events.
+          const v4WriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+          const isLangfuseCloud = Boolean(
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
           );
+          // In dual mode the preview is available on Cloud (governed by the
+          // rollout below) or on self-hosted deployments that opted into the
+          // preview read path via ALLOW_PREVIEW_OPT_IN.
+          const dualPreviewAvailable =
+            isLangfuseCloud ||
+            env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
           return {
             ...session,
@@ -817,6 +838,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
+              v4WriteMode,
             },
             user:
               dbUser !== null
@@ -830,23 +852,31 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled: isCloudDeploymentOrDev
-                      ? dbUser.v4BetaEnabled
-                      : false,
-                    canToggleV4: isCloudDeploymentOrDev
-                      ? canToggleV4({
-                          userCreatedAt: dbUser.createdAt,
-                          organizations: dbUser.organizationMemberships.map(
-                            (orgMembership) => ({
-                              id: orgMembership.organization.id,
-                              createdAt: orgMembership.organization.createdAt,
-                            }),
-                          ),
-                          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-                            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-                            : [],
-                        })
-                      : false,
+                    v4BetaEnabled:
+                      v4WriteMode === "events_only"
+                        ? true
+                        : v4WriteMode === "dual" && dualPreviewAvailable
+                          ? dbUser.v4BetaEnabled
+                          : false,
+                    canToggleV4:
+                      v4WriteMode === "dual" && dualPreviewAvailable
+                        ? isLangfuseCloud
+                          ? canToggleV4({
+                              userCreatedAt: dbUser.createdAt,
+                              organizations: dbUser.organizationMemberships.map(
+                                (orgMembership) => ({
+                                  id: orgMembership.organization.id,
+                                  createdAt:
+                                    orgMembership.organization.createdAt,
+                                }),
+                              ),
+                              excludedOrganizationIds:
+                                env.NEXT_PUBLIC_DEMO_ORG_ID
+                                  ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                                  : [],
+                            })
+                          : true
+                        : false,
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
@@ -866,6 +896,8 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                             >) ?? {},
                           aiFeaturesEnabled:
                             orgMembership.organization.aiFeaturesEnabled,
+                          aiTelemetryEnabled:
+                            orgMembership.organization.aiTelemetryEnabled,
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {

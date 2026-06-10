@@ -62,6 +62,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
   },
   addUserToSpan: addUserToSpanMock,
   createShaHash: createShaHashMock,
+  deleteApiKeyFromDb: vi.fn(),
   invalidateCachedApiKeys: vi.fn(),
   invalidateCachedOrgApiKeys: vi.fn(),
   invalidateCachedProjectApiKeys: vi.fn(),
@@ -126,7 +127,7 @@ describe("ApiAuthService span metadata", () => {
     vi.clearAllMocks();
   });
 
-  it("adds the api key id to the auth span for Basic auth", async () => {
+  it("adds api key metadata to the auth span for Basic auth", async () => {
     const { apiKey, orgId, projectId, publicKey, secretKey } =
       createProjectApiKey();
     const prisma = {
@@ -148,12 +149,13 @@ describe("ApiAuthService span metadata", () => {
         apiKeyId: apiKey.id,
         orgId,
         projectId,
+        publicKey,
       }),
       fakeAuthSpan,
     );
   });
 
-  it("adds the api key id to the auth span for Bearer auth", async () => {
+  it("adds api key metadata to the auth span for Bearer auth", async () => {
     const { apiKey, orgId, projectId, publicKey } = createProjectApiKey();
     const prisma = {
       apiKey: {
@@ -172,6 +174,7 @@ describe("ApiAuthService span metadata", () => {
         apiKeyId: apiKey.id,
         orgId,
         projectId,
+        publicKey,
       }),
       fakeAuthSpan,
     );

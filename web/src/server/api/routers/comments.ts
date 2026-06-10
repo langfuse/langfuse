@@ -12,6 +12,7 @@ import { TRPCError } from "@trpc/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
 import {
   getTracesIdentifierForSession,
+  getTracesIdentifierForSessionFromEvents,
   logger,
   NotificationQueue,
   QueueJobs,
@@ -312,10 +313,13 @@ export const commentsRouter = createTRPCRouter({
         scope: "comments:read",
       });
 
-      const clickhouseTraces = await getTracesIdentifierForSession(
-        input.projectId,
-        input.sessionId,
-      );
+      const clickhouseTraces = ctx.session.user?.v4BetaEnabled
+        ? await getTracesIdentifierForSessionFromEvents(
+            input.projectId,
+            input.sessionId,
+          )
+        : // eslint-disable-next-line @typescript-eslint/no-deprecated
+          await getTracesIdentifierForSession(input.projectId, input.sessionId);
 
       const allTraceCommentCounts = await ctx.prisma.$queryRaw<
         Array<{ objectId: string; count: bigint }>
@@ -348,10 +352,13 @@ export const commentsRouter = createTRPCRouter({
         scope: "comments:read",
       });
 
-      const clickhouseTraces = await getTracesIdentifierForSession(
-        input.projectId,
-        input.sessionId,
-      );
+      const clickhouseTraces = ctx.session.user?.v4BetaEnabled
+        ? await getTracesIdentifierForSessionFromEvents(
+            input.projectId,
+            input.sessionId,
+          )
+        : // eslint-disable-next-line @typescript-eslint/no-deprecated
+          await getTracesIdentifierForSession(input.projectId, input.sessionId);
 
       const traceIds = clickhouseTraces.map((t) => t.id);
 

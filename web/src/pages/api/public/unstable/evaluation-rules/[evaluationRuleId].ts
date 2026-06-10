@@ -42,6 +42,7 @@ export default withUnstablePublicEvalsMiddlewares({
       });
 
       const evaluationRule = await updatePublicEvaluationRule({
+        orgId: auth.scope.orgId,
         projectId: auth.scope.projectId,
         evaluationRuleId: query.evaluationRuleId,
         input: body,
