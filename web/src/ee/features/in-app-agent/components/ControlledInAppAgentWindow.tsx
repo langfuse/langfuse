@@ -7,6 +7,7 @@ import { getDrawerMessages } from "./utils/utils";
 
 type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
+  isFeedbackEnabled: boolean;
   zIndex?: number;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
@@ -60,6 +61,7 @@ export function ControlledInAppAgentWindow(
       error={error}
       isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
+      isFeedbackEnabled={props.isFeedbackEnabled}
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}
       conversations={conversations}

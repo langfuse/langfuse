@@ -15,7 +15,7 @@ import {
   upsertScore,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { InAppAgentMessageFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
+import { InAppAgentRunFeedbackValueSchema } from "@/src/ee/features/in-app-agent/schema";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
@@ -23,9 +23,12 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
+  deleteRunFeedback,
   getConversationMessages,
+  getConversationMessagesWithFeedback,
   getOwnedConversationOrThrow,
   serializeConversation,
+  upsertRunFeedback,
 } from "@/src/ee/features/in-app-agent/server/persistence";
 
 const CONVERSATION_LIST_LIMIT = 50;
@@ -42,8 +45,7 @@ const ConversationIdInput = z.object({
 
 const SubmitFeedbackInput = ConversationIdInput.extend({
   messageId: z.string(),
-  runId: z.string(),
-  value: InAppAgentMessageFeedbackValueSchema.nullable(),
+  value: InAppAgentRunFeedbackValueSchema.nullable(),
   comment: z.string().trim().max(TEXT_SCORE_MAX_LENGTH).nullable().optional(),
 });
 
@@ -110,10 +112,11 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      const messages = await getConversationMessages({
+      const messages = await getConversationMessagesWithFeedback({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,
+        userId: ctx.session.user.id,
       });
 
       return {
@@ -142,6 +145,23 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
+      if (input.value === null) {
+        await deleteRunFeedback({
+          prisma: ctx.prisma,
+          projectId: input.projectId,
+          conversationId: input.conversationId,
+          messageId: input.messageId,
+          userId: ctx.session.user.id,
+        });
+
+        return { feedback: null };
+      }
+
+      const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+      if (!projectAvailability.aiTelemetryEnabled || !scoreProjectId) {
+        throw new ForbiddenError("Assistant feedback is not enabled");
+      }
+
       const messages = await getConversationMessages({
         prisma: ctx.prisma,
         projectId: input.projectId,
@@ -161,50 +181,52 @@ export const inAppAgentRouter = createTRPCRouter({
         );
       }
 
-      if (targetMessage.runId !== input.runId) {
+      const comment = input.comment?.trim() ? input.comment.trim() : null;
+      if (!targetMessage.runId) {
         throw new InvalidRequestError(
           "Feedback can only be submitted for persisted assistant messages",
         );
       }
-
-      const comment = input.comment?.trim() ? input.comment.trim() : null;
-      if (input.value === null) {
-        return { feedback: null };
-      }
-
       const scoreId = `afbs_${input.messageId}_${ctx.session.user.id}`;
       const now = new Date();
-      const scoreProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
-      if (projectAvailability.aiTelemetryEnabled && scoreProjectId) {
-        await upsertScore({
-          id: scoreId,
-          timestamp: convertDateToClickhouseDateTime(now),
-          project_id: scoreProjectId,
-          environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
-          trace_id: input.conversationId,
-          observation_id: input.runId,
-          session_id: input.conversationId,
-          name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
-          value: input.value === "thumbs_up" ? 1 : 0,
-          source: ScoreSourceEnum.ANNOTATION,
-          comment,
-          author_user_id: ctx.session.user.id,
-          config_id: null,
-          data_type: ScoreDataTypeEnum.BOOLEAN,
-          string_value: input.value === "thumbs_up" ? "true" : "false",
-          queue_id: null,
-          created_at: convertDateToClickhouseDateTime(now),
-          updated_at: convertDateToClickhouseDateTime(now),
-          metadata: {
-            project_id: input.projectId,
-            conversation_id: input.conversationId,
-            message_id: input.messageId,
-          },
-        });
-      }
+      await upsertScore({
+        id: scoreId,
+        timestamp: convertDateToClickhouseDateTime(now),
+        project_id: scoreProjectId,
+        environment: IN_APP_AGENT_FEEDBACK_ENVIRONMENT,
+        trace_id: input.conversationId,
+        observation_id: targetMessage.runId,
+        session_id: input.conversationId,
+        name: IN_APP_AGENT_FEEDBACK_SCORE_NAME,
+        value: input.value === "thumbs_up" ? 1 : 0,
+        source: ScoreSourceEnum.ANNOTATION,
+        comment,
+        author_user_id: ctx.session.user.id,
+        config_id: null,
+        data_type: ScoreDataTypeEnum.BOOLEAN,
+        string_value: input.value === "thumbs_up" ? "true" : "false",
+        queue_id: null,
+        created_at: convertDateToClickhouseDateTime(now),
+        updated_at: convertDateToClickhouseDateTime(now),
+        metadata: {
+          project_id: input.projectId,
+          conversation_id: input.conversationId,
+          message_id: input.messageId,
+        },
+      });
 
-      return { feedback: { value: input.value, comment } };
+      const feedback = await upsertRunFeedback({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        conversationId: input.conversationId,
+        messageId: input.messageId,
+        userId: ctx.session.user.id,
+        value: input.value,
+        comment,
+      });
+
+      return { feedback };
     }),
 });
 

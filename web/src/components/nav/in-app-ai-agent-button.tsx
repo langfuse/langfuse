@@ -34,6 +34,7 @@ export const InAppAiAgentButton = () => {
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
   const isInAppAgentEnabled =
     session.data?.user?.featureFlags.inAppAgent === true;
+  const isFeedbackEnabled = organization?.aiTelemetryEnabled === true;
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -130,6 +131,7 @@ export const InAppAiAgentButton = () => {
               {({ isHeaderDragHandleEnabled }) => (
                 <ControlledInAppAgentWindow
                   isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+                  isFeedbackEnabled={isFeedbackEnabled}
                   zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
                   isExpanded={isExpanded}
                   onExpandedChange={(nextIsExpanded) => {

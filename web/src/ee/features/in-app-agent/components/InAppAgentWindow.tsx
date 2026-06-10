@@ -30,7 +30,7 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
-import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
+import type { InAppAgentRunFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -90,6 +90,7 @@ export type InAppAgentWindowProps = {
   hasMoreConversations: boolean;
   isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
+  isFeedbackEnabled: boolean;
   isInputDisabled: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
@@ -100,8 +101,7 @@ export type InAppAgentWindowProps = {
   onSubmit: (input: string) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
     messageId: string;
-    runId: string;
-    value: InAppAgentMessageFeedbackValue | null;
+    value: InAppAgentRunFeedbackValue | null;
     comment?: string | null;
   }) => Promise<void>;
   selectedConversationId: string | undefined;
@@ -115,6 +115,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     hasMoreConversations,
     isHeaderDragHandleEnabled = false,
     isExpanded,
+    isFeedbackEnabled,
     isInputDisabled,
     isLoadingMoreConversations,
     messages,
@@ -406,12 +407,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 const isLastMessageOfTurn = messages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
-                const feedbackRunId =
+                const canSubmitFeedback =
                   message.role === "assistant" &&
                   message.content.type === "text" &&
-                  isLastMessageOfTurn
-                    ? message.runId
-                    : undefined;
+                  isLastMessageOfTurn &&
+                  Boolean(message.runId);
 
                 return (
                   <li
@@ -429,11 +429,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       isFeedbackDisabled={isInputDisabled}
                       windowZIndex={zIndex}
                       onSubmitFeedback={
-                        feedbackRunId
+                        isFeedbackEnabled && canSubmitFeedback
                           ? (params) =>
                               onSubmitFeedback({
                                 messageId: message.id,
-                                runId: feedbackRunId,
                                 ...params,
                               })
                           : undefined
