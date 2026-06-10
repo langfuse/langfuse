@@ -122,11 +122,15 @@ const checkProject = async (projectId: string): Promise<CheckResult> => {
           fix: `${FIX.dbSeed} — or pass an existing project via --project <id>`,
         };
   } catch (error) {
+    // checkPostgres already proves connectivity, so a failure here is most
+    // likely a missing table (Prisma P2021 — migrations not applied); only
+    // P1xxx codes indicate connection-level problems.
+    const prismaCode = (error as { code?: string }).code ?? "";
     return {
       name: "project",
       status: "fail",
       detail: (error as Error).message,
-      fix: FIX.infraUp,
+      fix: prismaCode.startsWith("P1") ? FIX.infraUp : FIX.dbMigrate,
     };
   }
 };

@@ -66,14 +66,18 @@ const buildTreeShape = (
   breadth: number,
   kinds: ObservationType[],
   rng: Rng,
+  seed: number,
 ): TreeNode[] => {
   const nodes: TreeNode[] = [];
+  // jitter() not rng for kinds: observation `type` is the 2nd v3 ORDER BY
+  // column, and stream-position randomness would re-key rows when flags
+  // that shift rng consumption change between same-prefix re-runs.
   const kindAt = (index: number): ObservationType =>
     index < kinds.length
       ? kinds[index]
-      : rng.bool(0.4)
+      : jitter(seed, index * 5 + 3, 9) < 4
         ? "GENERATION"
-        : rng.pick(kinds);
+        : kinds[jitter(seed, index * 5 + 4, kinds.length - 1)];
 
   for (let i = 0; i < count; i++) {
     if (i === 0) {
@@ -141,6 +145,7 @@ const run = async (
     breadth,
     ALL_KINDS,
     rng,
+    ctx.seed,
   );
 
   const rootInput = buildPayload(payloadStyle, payloadBytes, rng);

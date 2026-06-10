@@ -218,7 +218,7 @@ export class ClickHouseQueryBuilder {
         toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 60) AS start_time,
         addMilliseconds(start_time,
           case
-            when type = 'GENERATION' then 5 + h2 % 26
+            when type = 'GENERATION' then 600 + h2 % 3400
             when type = 'SPAN' then 1 + h2 % 50
             else 1 + h2 % 10
           end) AS end_time,
@@ -257,7 +257,7 @@ export class ClickHouseQueryBuilder {
         NULL) AS prompt_version,
         start_time AS created_at,
         start_time AS updated_at,
-        start_time AS event_ts,
+        now() AS event_ts,
         0 AS is_deleted,
         '' AS usage_pricing_tier_id,
         '' AS usage_pricing_tier_name,
@@ -346,7 +346,7 @@ export class ClickHouseQueryBuilder {
         NULL AS queue_id,
         timestamp AS created_at,
         timestamp AS updated_at,
-        timestamp AS event_ts,
+        now() AS event_ts,
         0 AS is_deleted,
         NULL AS execution_trace_id,
         '' AS long_string_value
