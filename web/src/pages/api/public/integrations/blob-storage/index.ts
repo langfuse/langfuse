@@ -15,7 +15,9 @@ import {
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
+  InvalidRequestError,
   isLegacyBlobExportAllowed,
+  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
@@ -160,13 +162,28 @@ async function handleUpsertBlobStorageIntegration(
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
   if (validatedData.exportSource) {
+    const internalSource = toInternalExportSource(validatedData.exportSource);
     assertLegacyBlobExportSourceAllowed({
       project,
-      nextInternalExportSource: toInternalExportSource(
-        validatedData.exportSource,
-      ),
+      nextInternalExportSource: internalSource,
       isCloud,
     });
+    if (
+      internalSource === AnalyticsIntegrationExportSource.EVENTS ||
+      internalSource ===
+        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS
+    ) {
+      if (
+        !isEnrichedBlobExportAvailable(
+          isCloud,
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+        )
+      ) {
+        throw new InvalidRequestError(
+          "Enriched blob export is not available on this deployment",
+        );
+      }
+    }
   }
 
   await auditLog({

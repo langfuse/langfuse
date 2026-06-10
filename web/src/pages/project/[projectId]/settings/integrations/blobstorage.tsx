@@ -279,10 +279,18 @@ const BlobStorageIntegrationSettingsForm = ({
       exportStartDate: state?.exportStartDate || null,
       exportSource: isPostCutoffCloud
         ? AnalyticsIntegrationExportSource.EVENTS
-        : state?.exportSource ||
-          (eventsExportAvailable
-            ? AnalyticsIntegrationExportSource.EVENTS
-            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+        : (() => {
+            const persisted = state?.exportSource;
+            const isEnriched =
+              persisted === AnalyticsIntegrationExportSource.EVENTS ||
+              persisted ===
+                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
+            if (persisted && (!isEnriched || eventsExportAvailable))
+              return persisted;
+            return eventsExportAvailable
+              ? AnalyticsIntegrationExportSource.EVENTS
+              : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+          })(),
       // Empty array in the DB means "export everything" (the worker falls back
       // to all groups), so surface it as the full selection in the form.
       exportFieldGroups: state?.exportFieldGroups?.length
@@ -315,10 +323,18 @@ const BlobStorageIntegrationSettingsForm = ({
       exportStartDate: state?.exportStartDate || null,
       exportSource: isPostCutoffCloud
         ? AnalyticsIntegrationExportSource.EVENTS
-        : state?.exportSource ||
-          (eventsExportAvailable
-            ? AnalyticsIntegrationExportSource.EVENTS
-            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+        : (() => {
+            const persisted = state?.exportSource;
+            const isEnriched =
+              persisted === AnalyticsIntegrationExportSource.EVENTS ||
+              persisted ===
+                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
+            if (persisted && (!isEnriched || eventsExportAvailable))
+              return persisted;
+            return eventsExportAvailable
+              ? AnalyticsIntegrationExportSource.EVENTS
+              : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+          })(),
       // Empty array in the DB means "export everything" (the worker falls back
       // to all groups), so surface it as the full selection in the form.
       exportFieldGroups: state?.exportFieldGroups?.length
