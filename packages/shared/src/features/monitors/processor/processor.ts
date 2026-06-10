@@ -315,7 +315,6 @@ function processMonitor(args: {
     value === null
       ? resolveNoDataSeverity({
           noData: monitor.noData,
-          aggregation: monitor.metric.aggregation,
           prevSeverity: monitor.severity,
           operator: monitor.thresholdOperator,
           alertThreshold: monitor.alertThreshold,

@@ -78,6 +78,7 @@ import TagManager from "@/src/features/tag/components/TagManager";
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
+import { Badge } from "@/src/components/ui/badge";
 
 /** windowLabels maps each MonitorWindow enum value to a human label. */
 const windowLabels: Record<MonitorWindow, string> = {
@@ -139,7 +140,7 @@ const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
   window: "5m",
   thresholdOperator: "GT",
   warningThreshold: null,
-  noData: { mode: "AUTOMATIC" },
+  noData: { mode: "SUBSTITUTE_ZERO" },
   renotify: { mode: "OFF" },
   tags: [],
   triggerIds: [],
@@ -772,7 +773,7 @@ export const MonitorForm = ({
                     <AccordionTrigger className="justify-start gap-2 py-2 text-sm font-medium [&>svg]:order-first [&>svg]:-rotate-90 [&[data-state=open]>svg]:rotate-0">
                       Advanced Options
                     </AccordionTrigger>
-                    <AccordionContent className="space-y-6 pt-2">
+                    <AccordionContent className="space-y-6 px-1 pt-2">
                       <FormField
                         control={form.control}
                         name="noData"
@@ -974,7 +975,7 @@ const NoDataField = ({
   disabled?: boolean;
 }) => (
   <div className="space-y-2">
-    <Label>On no data</Label>
+    <Label>When there is no data</Label>
     <Select
       value={value.mode}
       onValueChange={(mode) =>
@@ -992,21 +993,40 @@ const NoDataField = ({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="AUTOMATIC">Automatic</SelectItem>
-        <SelectItem value="SUBSTITUTE_ZERO">Substitute zero</SelectItem>
-        <SelectItem value="LAST_SEVERITY">Keep the last severity</SelectItem>
-        <SelectItem value="SHOW_NO_DATA">No Data</SelectItem>
-        <SelectItem value="NOTIFY_NO_DATA">
-          Notify after sustained No Data
+        <SelectItem value="SUBSTITUTE_ZERO">
+          <span className="inline-flex items-center gap-1.5">
+            Treat missing data as
+            <code className="bg-secondary rounded border px-0.5">0</code>
+          </span>
         </SelectItem>
-        <SelectItem value="RESOLVE">Resolve to OK</SelectItem>
+        <SelectItem value="LAST_SEVERITY">
+          <span className="inline-flex items-center gap-1.5">
+            Keep the previous
+            <Badge
+              variant="secondary"
+              className="w-20 justify-center bg-slate-100 py-1 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              SEVERITY
+            </Badge>
+          </span>
+        </SelectItem>
+        <SelectItem value="SHOW_NO_DATA">
+          <span className="inline-flex items-center gap-1.5">
+            Show severity
+            <MonitorSeverityBadge severity="NO_DATA" />
+          </span>
+        </SelectItem>
+        <SelectItem value="NOTIFY_NO_DATA">
+          <span className="inline-flex items-center gap-1.5">
+            Notify after sustained
+            <MonitorSeverityBadge severity="NO_DATA" />
+          </span>
+        </SelectItem>
       </SelectContent>
     </Select>
     {value.mode === "NOTIFY_NO_DATA" && (
       <div className="flex items-center gap-2">
-        <Label className="text-muted-foreground text-xs">
-          Notify every (minutes)
-        </Label>
+        <Label className="text-muted-foreground text-xs">Notify after</Label>
         <Input
           type="number"
           min={1}
@@ -1019,8 +1039,9 @@ const NoDataField = ({
             })
           }
           disabled={disabled}
-          className="w-32"
+          className="w-24"
         />
+        <Label className="text-muted-foreground text-xs">minutes</Label>
       </div>
     )}
   </div>

@@ -101,15 +101,12 @@ describe("MonitorRenotifySchema", () => {
 });
 
 describe("MonitorNoDataSchema", () => {
-  it.each([
-    "AUTOMATIC",
-    "SUBSTITUTE_ZERO",
-    "LAST_SEVERITY",
-    "SHOW_NO_DATA",
-    "RESOLVE",
-  ])("accepts the %s variant", (mode) => {
-    expect(MonitorNoDataSchema.safeParse({ mode }).success).toBe(true);
-  });
+  it.each(["SUBSTITUTE_ZERO", "LAST_SEVERITY", "SHOW_NO_DATA"])(
+    "accepts the %s variant",
+    (mode) => {
+      expect(MonitorNoDataSchema.safeParse({ mode }).success).toBe(true);
+    },
+  );
 
   it("accepts the NOTIFY_NO_DATA variant with a valid interval", () => {
     const result = MonitorNoDataSchema.safeParse({

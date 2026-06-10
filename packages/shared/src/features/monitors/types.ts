@@ -99,7 +99,6 @@ export type MonitorRenotify = z.infer<typeof MonitorRenotifySchema>;
 
 /** MonitorNoDataSchema describes how a null metric value resolves to a severity. */
 export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("AUTOMATIC") }),
   z.object({ mode: z.literal("SUBSTITUTE_ZERO") }),
   z.object({ mode: z.literal("LAST_SEVERITY") }),
   z.object({ mode: z.literal("SHOW_NO_DATA") }),
@@ -111,7 +110,6 @@ export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
       .min(1)
       .max(60 * 24),
   }),
-  z.object({ mode: z.literal("RESOLVE") }),
 ]);
 export type MonitorNoData = z.infer<typeof MonitorNoDataSchema>;
 
@@ -196,7 +194,7 @@ export const MonitorSchema = z.object({
   thresholdOperator: MonitorThresholdOperatorSchema,
   alertThreshold: z.number({ message: ErrorAlertThresholdRequired }),
   warningThreshold: z.number().nullable(),
-  noData: MonitorNoDataSchema.default({ mode: "AUTOMATIC" }),
+  noData: MonitorNoDataSchema.default({ mode: "SUBSTITUTE_ZERO" }),
   renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
 
   // MonitorAlert Config

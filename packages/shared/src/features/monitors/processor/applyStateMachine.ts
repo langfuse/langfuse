@@ -95,8 +95,8 @@ function shouldEmit(args: {
   // NO_DATA persistence: only NOTIFY_NO_DATA re-emits, firing the first alert
   // after intervalMinutes of sustained NO_DATA (anchored on severityChangedAt
   // when no prior alert exists), then re-emitting on the renotify cadence. A
-  // monitor frozen at NO_DATA under LAST_SEVERITY/AUTOMATIC neither re-notifies
-  // nor emits on silent recovery.
+  // monitor frozen at NO_DATA under LAST_SEVERITY neither re-notifies nor emits
+  // on silent recovery.
   if (args.prev === "NO_DATA" && args.next === "NO_DATA") {
     if (args.noData.mode !== "NOTIFY_NO_DATA") return false;
     // An alert from a prior severity stretch doesn't count toward the current
