@@ -49,12 +49,24 @@ export interface GetChannelsResult {
   hasPrivateChannelAccess: boolean;
 }
 
-export interface SlackMessageParams {
-  client: WebClient;
-  channelId: string;
+/** SlackMessage is the Block Kit payload sent to Slack. */
+export interface SlackMessage {
   blocks: any[];
   text?: string;
-  attachments?: unknown[];
+  attachments?: { color: string; fallback?: string; blocks?: any[] }[];
+}
+
+export interface SlackMessageParams extends SlackMessage {
+  client: WebClient;
+  channelId: string;
+}
+
+/** escapeSlackMrkdwn escapes Slack mrkdwn special characters to prevent injection. */
+export function escapeSlackMrkdwn(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export interface SlackMessageResponse {

@@ -556,13 +556,12 @@ describe("Slack Processor", () => {
 
       await executeWebhook(wireInput, { skipValidation: true });
 
-      expect(mockSlackService.sendMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          text: undefined,
-          attachments: expect.arrayContaining([
-            expect.objectContaining({ fallback: "[ALERT] High error rate" }),
-          ]),
-        }),
+      const sent = mockSlackService.sendMessage.mock.calls[0][0];
+      expect(sent.text).toBeUndefined();
+      expect(sent.attachments).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ fallback: "[ALERT] High error rate" }),
+        ]),
       );
     });
 

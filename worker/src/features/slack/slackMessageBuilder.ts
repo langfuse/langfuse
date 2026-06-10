@@ -1,43 +1,16 @@
-import { logger } from "@langfuse/shared/src/server";
-import type { WebhookInput } from "@langfuse/shared/src/server";
-import type { MonitorSeverity } from "@langfuse/shared";
-import type { MonitorWebhookQueueEvent } from "@langfuse/shared/monitors/server";
-import { slackifyMarkdown } from "slackify-markdown";
+import {
+  logger,
+  escapeSlackMrkdwn,
+  type WebhookInput,
+  type SlackMessage,
+} from "@langfuse/shared/src/server";
 import { env } from "../../env";
-
-/** severityVisual maps MonitorSeverity to its Slack emoji + attachment color per RFC §895-900. */
-const severityVisual: Record<
-  MonitorSeverity,
-  { emoji: string; color: string }
-> = {
-  ALERT: { emoji: "🚨", color: "#dc3545" },
-  WARNING: { emoji: "⚠️", color: "#ffc107" },
-  OK: { emoji: "✅", color: "#28a745" },
-  NO_DATA: { emoji: "❓", color: "#6c757d" },
-  UNKNOWN: { emoji: "❓", color: "#6c757d" },
-  PAUSED: { emoji: "⏸️", color: "#6c757d" },
-};
-
-/** Escape Slack mrkdwn special characters to prevent injection (e.g. <!channel>)
- * @see https://docs.slack.dev/messaging/formatting-message-text/#escaping */
-export function escapeSlackMrkdwn(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
 
 type WebhookInputPayload = WebhookInput["payload"];
 type PromptVersionPayload = Extract<
   WebhookInputPayload,
   { type: "prompt-version" }
 >;
-
-/** SlackMessage is the Block Kit payload returned by buildMessage. */
-export interface SlackMessage {
-  blocks: any[];
-  attachments?: { color: string; fallback?: string; blocks?: any[] }[];
-}
 
 /**
  * Builds Slack Block Kit messages for different Langfuse event types
@@ -153,58 +126,6 @@ export class SlackMessageBuilder {
     ];
   }
 
-  /** buildMonitorMessage renders a MonitorWebhookQueueEvent into Slack Block Kit per RFC §855-902. The processor emits standard markdown; we convert the body to Slack mrkdwn via slackify-markdown. */
-  static buildMonitorMessage(envelope: MonitorWebhookQueueEvent): SlackMessage {
-    const alert = envelope.payload;
-    const { color } = severityVisual[alert.severity];
-    const title = escapeSlackMrkdwn(alert.message.title);
-    const titleText = alert.permalink
-      ? `*<${alert.permalink}|${title}>*`
-      : `*${title}*`;
-    const blocks: any[] = [
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: titleText },
-      },
-      {
-        type: "section",
-        text: { type: "mrkdwn", text: slackifyMarkdown(alert.message.body) },
-      },
-      {
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: `⏱ ${alert.timestamp.toISOString()}`,
-          },
-        ],
-      },
-      ...(alert.permalink
-        ? [
-            {
-              type: "actions",
-              elements: [
-                {
-                  type: "button",
-                  text: {
-                    type: "plain_text",
-                    text: "View in Langfuse",
-                    emoji: true,
-                  },
-                  url: alert.permalink,
-                },
-              ],
-            },
-          ]
-        : []),
-    ];
-    // Color bar renders only on attachment-nested blocks; top-level text/blocks would duplicate above it.
-    return {
-      blocks: [],
-      attachments: [{ color, fallback: alert.message.title, blocks }],
-    };
-  }
-
   /**
    * Get action-specific configuration (emoji, color, etc.)
    */
@@ -232,8 +153,6 @@ export class SlackMessageBuilder {
       switch (payload.type) {
         case "prompt-version":
           return { blocks: this.buildPromptVersionMessage(payload) };
-        case "monitor-alert":
-          return this.buildMonitorMessage(payload);
         default: {
           const unknownType = (payload as { type: string }).type;
           logger.warn(`Unsupported Slack message type: ${unknownType}`);
