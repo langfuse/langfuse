@@ -1,8 +1,9 @@
 import { EventType } from "@ag-ui/core";
 import { HttpAgent } from "@ag-ui/client";
+import { Agent } from "@mastra/core/agent";
 import { describe, expect, it, vi } from "vitest";
 
-import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
+import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
@@ -65,12 +66,19 @@ vi.mock("@mastra/mcp", () => ({
   MCPClient: vi.fn().mockImplementation(function () {
     return {
       listTools: vi.fn().mockResolvedValue({}),
+      listToolsetsWithErrors: vi.fn().mockResolvedValue({
+        toolsets: {
+          langfuse: { search: { server: "langfuse" } },
+          langfuseDocs: { search: { server: "langfuseDocs" } },
+        },
+        errors: {},
+      }),
       disconnect: adapterEvents.cleanup,
     };
   }),
 }));
 
-vi.mock("@/src/features/in-app-agent/server/instrumentation", () => ({
+vi.mock("@/src/ee/features/in-app-agent/server/instrumentation", () => ({
   createInAppAgentInstrumentation:
     instrumentationMocks.createInAppAgentInstrumentation,
 }));
@@ -82,7 +90,7 @@ describe("createAgUiStream", () => {
 
   it("serializes valid events including adapter message snapshots", async () => {
     const { createAgUiStream } =
-      await import("@/src/features/in-app-agent/server/agent");
+      await import("@/src/ee/features/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",
@@ -173,6 +181,14 @@ describe("createAgUiStream", () => {
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
     expect(adapterEvents.inputs).toEqual([input]);
+    expect(Agent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: {
+          langfuse_search: { server: "langfuse" },
+          langfuseDocs_search: { server: "langfuseDocs" },
+        },
+      }),
+    );
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
@@ -226,7 +242,7 @@ describe("createAgUiStream", () => {
 
   it("lets HttpAgent subscribers observe streamed run errors", async () => {
     const { createAgUiStream } =
-      await import("@/src/features/in-app-agent/server/agent");
+      await import("@/src/ee/features/in-app-agent/server/agent");
     const input = {
       threadId: "conversation-1",
       runId: "run-1",

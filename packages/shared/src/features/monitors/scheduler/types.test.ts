@@ -9,7 +9,8 @@ describe("MonitorQueueEventSchema", () => {
   const validQueueEvent = {
     projectId: "proj_01",
     schedulerBatchId: 42n,
-    scheduledAt: new Date("2026-05-18T12:00:00.000Z"),
+    runAt: new Date("2026-05-18T12:00:00.000Z"),
+    publishedAt: new Date("2026-05-18T12:00:00.500Z"),
     view: "observations" as const,
     filters: [],
     window: "5m" as const,
@@ -22,13 +23,13 @@ describe("MonitorQueueEventSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("coerces a string scheduledAt to a Date", () => {
+  it("coerces a string runAt to a Date", () => {
     const result = MonitorQueueEventSchema.safeParse({
       ...validQueueEvent,
-      scheduledAt: "2026-05-18T12:00:00.000Z",
+      runAt: "2026-05-18T12:00:00.000Z",
     });
     expect(result.success).toBe(true);
-    if (result.success) expect(result.data.scheduledAt).toBeInstanceOf(Date);
+    if (result.success) expect(result.data.runAt).toBeInstanceOf(Date);
   });
 
   it("coerces a string schedulerBatchId to a bigint", () => {
@@ -41,6 +42,19 @@ describe("MonitorQueueEventSchema", () => {
       expect(typeof result.data.schedulerBatchId).toBe("bigint");
   });
 
+  it("preserves full precision when coercing a large bigint string wire value", () => {
+    const huge = 123456789012345678901234567890n;
+    const result = MonitorQueueEventSchema.safeParse({
+      ...validQueueEvent,
+      schedulerBatchId: huge.toString(),
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(typeof result.data.schedulerBatchId).toBe("bigint");
+      expect(result.data.schedulerBatchId).toBe(huge);
+    }
+  });
+
   it("rejects a window outside the MonitorWindow tier set", () => {
     expect(
       MonitorQueueEventSchema.safeParse({
@@ -51,10 +65,6 @@ describe("MonitorQueueEventSchema", () => {
   });
 
   it("rejects a negative schedulerBatchId", () => {
-    // `calculateSchedulerBatchId` masks the sha256 high 8 bytes with
-    // `& (2^63 - 1)`, so the producer can never emit a negative value. Guard
-    // the wire boundary so anything else looks like an obvious validator
-    // failure rather than corrupted data.
     expect(
       MonitorQueueEventSchema.safeParse({
         ...validQueueEvent,
@@ -64,9 +74,6 @@ describe("MonitorQueueEventSchema", () => {
   });
 
   it("accepts zero as a schedulerBatchId", () => {
-    // Cryptographically improbable but mathematically possible; the
-    // refinement is `.nonnegative()`, not `.positive()`, to match the
-    // producer's contract.
     expect(
       MonitorQueueEventSchema.safeParse({
         ...validQueueEvent,
@@ -76,8 +83,6 @@ describe("MonitorQueueEventSchema", () => {
   });
 
   it("accepts an empty monitors array", () => {
-    // Scheduler may publish with zero monitors if everything in the batch was
-    // filtered out — schema should not block; downstream worker handles it.
     expect(
       MonitorQueueEventSchema.safeParse({ ...validQueueEvent, monitors: [] })
         .success,
@@ -87,14 +92,18 @@ describe("MonitorQueueEventSchema", () => {
 
 describe("MonitorWebhookQueueEventSchema", () => {
   const validEnvelope = {
+    id: "exe_01",
+    timestamp: new Date("2026-05-18T12:01:00.000Z"),
     type: "monitor-alert" as const,
-    version: "v1" as const,
+    apiVersion: "v1" as const,
     payload: {
       monitorId: "mon_01",
       projectId: "proj_01",
-      severity: "alert" as const,
+      severity: "ALERT" as const,
       permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
       timestamp: new Date("2026-05-18T12:01:00.000Z"),
+      fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+      toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
       message: { title: "High error rate", body: "errors > 100" },
       view: "observations" as const,
       filters: [],
@@ -117,22 +126,40 @@ describe("MonitorWebhookQueueEventSchema", () => {
     ).toBe(false);
   });
 
-  it("rejects a wrong version literal", () => {
+  it("rejects a wrong apiVersion literal", () => {
     expect(
       MonitorWebhookQueueEventSchema.safeParse({
         ...validEnvelope,
-        version: "v2",
+        apiVersion: "v2",
       }).success,
     ).toBe(false);
+  });
+
+  it("requires id", () => {
+    const { id: _unused, ...withoutId } = validEnvelope;
+    expect(MonitorWebhookQueueEventSchema.safeParse(withoutId).success).toBe(
+      false,
+    );
+  });
+
+  it("requires timestamp", () => {
+    const { timestamp: _unused, ...withoutTs } = validEnvelope;
+    expect(MonitorWebhookQueueEventSchema.safeParse(withoutTs).success).toBe(
+      false,
+    );
+  });
+
+  it("coerces a string timestamp to a Date", () => {
+    const result = MonitorWebhookQueueEventSchema.safeParse({
+      ...validEnvelope,
+      timestamp: "2026-05-18T12:01:00.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
   });
 });
 
 describe("scheduler DTO JSON round-trip (wire contract)", () => {
-  // BigInt and Date can't be JSON-stringified natively; the wire schemas use
-  // `z.coerce.*` to recover them on the consumer side. These tests lock that
-  // contract: produce → JSON.stringify → JSON.parse → schema.parse must
-  // round-trip successfully.
-
   const stringifyWithBigInt = (value: unknown) =>
     JSON.stringify(value, (_key, v) =>
       typeof v === "bigint" ? v.toString() : v,
@@ -142,7 +169,8 @@ describe("scheduler DTO JSON round-trip (wire contract)", () => {
     const event = {
       projectId: "proj_01",
       schedulerBatchId: 42n,
-      scheduledAt: new Date("2026-05-18T12:00:00.000Z"),
+      runAt: new Date("2026-05-18T12:00:00.000Z"),
+      publishedAt: new Date("2026-05-18T12:00:00.500Z"),
       view: "observations" as const,
       filters: [],
       window: "5m" as const,
@@ -154,21 +182,25 @@ describe("scheduler DTO JSON round-trip (wire contract)", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(typeof result.data.schedulerBatchId).toBe("bigint");
-      expect(result.data.scheduledAt).toBeInstanceOf(Date);
+      expect(result.data.runAt).toBeInstanceOf(Date);
       expect(result.data.window).toBe("5m");
     }
   });
 
   it("round-trips a MonitorWebhookQueueEvent envelope through JSON", () => {
     const envelope = {
+      id: "exe_01",
+      timestamp: new Date("2026-05-18T12:01:00.000Z"),
       type: "monitor-alert" as const,
-      version: "v1" as const,
+      apiVersion: "v1" as const,
       payload: {
         monitorId: "mon_01",
         projectId: "proj_01",
-        severity: "alert" as const,
+        severity: "ALERT" as const,
         permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
         timestamp: new Date("2026-05-18T12:01:00.000Z"),
+        fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+        toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
         message: { title: "High error rate", body: "errors > 100" },
         view: "observations" as const,
         filters: [],
@@ -179,6 +211,7 @@ describe("scheduler DTO JSON round-trip (wire contract)", () => {
     const result = MonitorWebhookQueueEventSchema.safeParse(wire);
     expect(result.success).toBe(true);
     if (result.success) {
+      expect(result.data.timestamp).toBeInstanceOf(Date);
       expect(result.data.payload.timestamp).toBeInstanceOf(Date);
     }
   });

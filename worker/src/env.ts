@@ -185,7 +185,13 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
+  LANGFUSE_MONITOR_SCHEDULER_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_MONITOR_SCHEDULERS: z.coerce.number().int().min(1).default(1),
+
   // Flags to toggle queue consumers on or off.
+  QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -467,6 +473,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_MONITOR_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()

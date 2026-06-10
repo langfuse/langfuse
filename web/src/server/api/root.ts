@@ -56,7 +56,7 @@ import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/a
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 
 /**
  * This is the primary router for your server.

@@ -22,20 +22,21 @@ const validMonitorBase = {
   metric: { measure: "count", aggregation: "count" as const },
 
   window: "5m" as const,
-  thresholdOperator: "gt" as const,
+  thresholdOperator: "GT" as const,
   alertThreshold: 100,
   warningThreshold: null,
 
-  severity: "unknown" as const,
+  severity: "UNKNOWN" as const,
   severityChangedAt: null,
 
   noData: { mode: "SILENT" as const },
   renotify: { mode: "OFF" as const },
 
-  status: "active" as const,
+  status: "ACTIVE" as const,
   nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
-  lastPublishedRunAt: null,
-  lastCompletedRunAt: null,
+  lastPublishedAt: null,
+  lastClaimedAt: null,
+  lastCompletedAt: null,
 
   name: "High error rate",
   tags: [],
@@ -153,13 +154,33 @@ describe("MonitorSchema", () => {
   });
 });
 
+describe("MonitorSchema.triggerIds", () => {
+  it("defaults to [] when omitted", () => {
+    const result = MonitorSchema.safeParse(validMonitorBase);
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.triggerIds).toEqual([]);
+  });
+
+  it("accepts a list of trigger IDs", () => {
+    const result = MonitorSchema.safeParse({
+      ...validMonitorBase,
+      triggerIds: ["trig-a", "trig-b"],
+    });
+    expect(result.success).toBe(true);
+    if (result.success)
+      expect(result.data.triggerIds).toEqual(["trig-a", "trig-b"]);
+  });
+});
+
 describe("MonitorAlertSchema", () => {
   const validAlert = {
     monitorId: "mon_01",
     projectId: "proj_01",
-    severity: "alert" as const,
+    severity: "ALERT" as const,
     permalink: "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
     timestamp: new Date("2026-05-18T12:01:00.000Z"),
+    fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+    toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
     message: { title: "High error rate", body: "errors > 100" },
     view: "observations" as const,
     filters: [],
@@ -170,10 +191,17 @@ describe("MonitorAlertSchema", () => {
     expect(MonitorAlertSchema.safeParse(validAlert).success).toBe(true);
   });
 
-  it("rejects a non-URL permalink", () => {
+  it("accepts an omitted permalink (self-hosted without NEXTAUTH_URL)", () => {
+    const { permalink: _permalink, ...withoutPermalink } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutPermalink).success).toBe(true);
+  });
+
+  it("rejects a relative (path-only) permalink", () => {
     expect(
-      MonitorAlertSchema.safeParse({ ...validAlert, permalink: "not-a-url" })
-        .success,
+      MonitorAlertSchema.safeParse({
+        ...validAlert,
+        permalink: "/project/proj_01/monitors/mon_01",
+      }).success,
     ).toBe(false);
   });
 
@@ -197,5 +225,28 @@ describe("MonitorAlertSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.timestamp).toBeInstanceOf(Date);
+  });
+
+  it("rejects an alert missing fromTimestamp", () => {
+    const { fromTimestamp: _unused, ...withoutFrom } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutFrom).success).toBe(false);
+  });
+
+  it("rejects an alert missing toTimestamp", () => {
+    const { toTimestamp: _unused, ...withoutTo } = validAlert;
+    expect(MonitorAlertSchema.safeParse(withoutTo).success).toBe(false);
+  });
+
+  it("coerces fromTimestamp/toTimestamp strings to Dates", () => {
+    const result = MonitorAlertSchema.safeParse({
+      ...validAlert,
+      fromTimestamp: "2026-05-18T11:55:30.000Z",
+      toTimestamp: "2026-05-18T12:00:30.000Z",
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fromTimestamp).toBeInstanceOf(Date);
+      expect(result.data.toTimestamp).toBeInstanceOf(Date);
+    }
   });
 });
