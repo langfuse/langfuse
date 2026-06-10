@@ -139,6 +139,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
   return (
     <section
+      aria-label="Assistant"
       className={cn(
         "bg-background flex min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
         isExpanded
@@ -389,6 +390,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             }}
           >
             <textarea
+              autoFocus={!isExpanded}
               ref={inputRef}
               value={input}
               onChange={(event) => setInput(event.target.value)}
