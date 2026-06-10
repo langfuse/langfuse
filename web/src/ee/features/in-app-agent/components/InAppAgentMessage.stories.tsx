@@ -1,4 +1,5 @@
 import preview from "../../../../../.storybook/preview";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { InAppAgentMessage } from "./InAppAgentMessage";
 
 const meta = preview.meta({
@@ -12,6 +13,59 @@ export const AssistantText = meta.story({
       type: "text",
       text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
     },
+  },
+});
+
+export const AssistantTextWithFeedback = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
+    },
+    onSubmitFeedback: fn(),
+  },
+});
+
+export const ShortAssistantTextWithFeedback = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "OK",
+    },
+    onSubmitFeedback: fn(),
+  },
+});
+
+export const AssistantTextWithFeedbackComment = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
+      feedback: {
+        value: "thumbs_up",
+        comment: "Helpful answer.",
+      },
+    },
+    onSubmitFeedback: fn(),
+  },
+});
+
+export const AssistantTextWithLongFeedbackComment = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
+      feedback: {
+        value: "thumbs_down",
+        comment:
+          "Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, and going through the cites of the word in classical literature, discovered the undoubtable source.",
+      },
+    },
+    onSubmitFeedback: fn(),
   },
 });
 
@@ -175,5 +229,42 @@ export const Connecting = meta.story({
       type: "loading",
       label: "Connecting...",
     },
+  },
+});
+
+export const FeedbackPopoverInteraction = meta.story({
+  name: "(Test) Feedback Popover Interaction",
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "Langfuse tracks traces, observations, scores, and metadata so teams can debug LLM applications.",
+    },
+    onSubmitFeedback: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(
+      await canvas.findByRole("button", { name: "Good response" }),
+    );
+
+    const commentInput = await body.findByPlaceholderText(
+      "Optional feedback comment",
+    );
+    await expect(commentInput).toBeVisible();
+
+    const saveButton = await body.findByRole("button", {
+      name: "Save comment",
+    });
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    await userEvent.click(saveButton);
+
+    await waitFor(() => {
+      expect(
+        body.queryByPlaceholderText("Optional feedback comment"),
+      ).not.toBeInTheDocument();
+    });
   },
 });

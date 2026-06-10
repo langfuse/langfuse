@@ -116,6 +116,7 @@ export class InAppAgentInstrumentation {
       tags: ["in-app-agent"],
     });
     this.span = this.trace.span({
+      id: params.input.runId,
       name: IN_APP_AGENT_SPAN_NAME,
       input: getAgentSpanInput(params.input),
       metadata: params.metadata,

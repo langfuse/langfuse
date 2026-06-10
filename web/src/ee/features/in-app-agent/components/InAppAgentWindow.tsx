@@ -25,11 +25,13 @@ import {
   type InAppAgentMessageContent,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
+import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
 
 const AUTO_SCROLL_THRESHOLD_PX = 200;
 
 export type InAppAgentWindowMessage = {
   id: string;
+  runId?: string;
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
 };
@@ -63,6 +65,12 @@ export type InAppAgentWindowProps = {
   onNewConversation: () => void;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
+  onSubmitFeedback: (params: {
+    messageId: string;
+    runId: string;
+    value: InAppAgentMessageFeedbackValue | null;
+    comment?: string | null;
+  }) => Promise<void>;
   selectedConversationId: string | undefined;
   zIndex?: number;
 } & InAppAgentWindowCloseButtonProps;
@@ -81,6 +89,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onNewConversation,
     onSelectConversation,
     onSubmit,
+    onSubmitFeedback,
     selectedConversationId,
     zIndex,
   } = props;
@@ -281,6 +290,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             <ol className="flex w-full flex-col gap-3 pb-4">
               {messages.map((message) => {
                 const hasToolContent = message.content.type === "toolGroup";
+                const feedbackRunId =
+                  message.role === "assistant" &&
+                  message.content.type === "text"
+                    ? message.runId
+                    : undefined;
 
                 return (
                   <li
@@ -295,6 +309,18 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       role={message.role}
                       content={message.content}
                       isCompact={!isExpanded}
+                      isFeedbackDisabled={isInputDisabled}
+                      windowZIndex={zIndex}
+                      onSubmitFeedback={
+                        feedbackRunId
+                          ? (params) =>
+                              onSubmitFeedback({
+                                messageId: message.id,
+                                runId: feedbackRunId,
+                                ...params,
+                              })
+                          : undefined
+                      }
                     />
                   </li>
                 );

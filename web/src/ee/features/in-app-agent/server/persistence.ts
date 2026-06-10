@@ -32,6 +32,11 @@ export type SerializedInAppAgentConversation = {
   updatedAt: Date;
 };
 
+type PersistedConversationEvent = {
+  event: AgUiEvent;
+  runId: string;
+};
+
 export function serializeConversation(
   conversation: Pick<
     InAppAgentConversation,
@@ -262,17 +267,20 @@ export async function getConversationEvents(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
-}) {
+}): Promise<PersistedConversationEvent[]> {
   const events = await params.prisma.inAppAgentEvent.findMany({
     where: {
       projectId: params.projectId,
       conversationId: params.conversationId,
     },
     orderBy: { sequenceNumber: "asc" },
-    select: { event: true },
+    select: { event: true, runId: true },
   });
 
-  return events.map(({ event }) => event as unknown as AgUiEvent);
+  return events.map(({ event, runId }) => ({
+    event: event as unknown as AgUiEvent,
+    runId,
+  }));
 }
 
 export async function getConversationMessages(params: {
@@ -280,7 +288,7 @@ export async function getConversationMessages(params: {
   projectId: string;
   conversationId: string;
 }) {
-  return getMessagesFromEvents(await getConversationEvents(params));
+  return getMessagesFromPersistedEvents(await getConversationEvents(params));
 }
 
 export async function getConversationMessagesForReplay(params: {
@@ -303,12 +311,26 @@ export function getMessagesFromEvents(events: readonly AgUiEvent[]) {
   return accumulator.getMessages();
 }
 
+function getMessagesFromPersistedEvents(
+  events: readonly PersistedConversationEvent[],
+) {
+  const accumulator = createConversationMessageAccumulator([]);
+
+  for (const { event, runId } of events) {
+    accumulator.processEvent(event, runId);
+  }
+
+  return accumulator.getMessages();
+}
+
 function sanitizeConversationMessagesForReplay(
   messages: readonly AgUiMessage[],
 ): readonly AgUiMessage[] {
   const messagesWithoutOrphanToolCalls =
     dropUnpairedAssistantToolCalls(messages);
-  return dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls);
+  return stripAssistantRunIds(
+    dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
+  );
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
@@ -439,13 +461,17 @@ export function createConversationMessageAccumulator(
 ) {
   const messages: AgUiMessage[] = [];
   const messageIndexes = new Map<string, number>();
-  const textDrafts = new Map<string, { id: string; content: string }>();
+  const textDrafts = new Map<
+    string,
+    { id: string; content: string; runId?: string }
+  >();
   const toolCallDrafts = new Map<
     string,
     {
       parentMessageId: string;
       name: string;
       args: string;
+      runId?: string;
     }
   >();
 
@@ -476,7 +502,7 @@ export function createConversationMessageAccumulator(
     upsertMessage(message);
   }
 
-  const processEvent = (event: AgUiEvent): boolean => {
+  const processEvent = (event: AgUiEvent, runId?: string): boolean => {
     switch (event.type) {
       case EventType.RUN_STARTED: {
         if (!isRecord(event.input) || !Array.isArray(event.input.messages)) {
@@ -509,22 +535,25 @@ export function createConversationMessageAccumulator(
         const draft = textDrafts.get(messageId) ?? {
           id: messageId,
           content: existingContent ?? "",
+          runId,
         };
 
         draft.content += getString(event, "delta") ?? "";
+        draft.runId ??= runId;
         textDrafts.set(messageId, draft);
 
         return upsertMessage({
           id: draft.id,
           role: "assistant",
           content: draft.content,
+          ...(draft.runId ? { runId: draft.runId } : {}),
         });
       }
       case EventType.TEXT_MESSAGE_START: {
         const messageId = getString(event, "messageId");
 
         if (messageId && getString(event, "role") === "assistant") {
-          textDrafts.set(messageId, { id: messageId, content: "" });
+          textDrafts.set(messageId, { id: messageId, content: "", runId });
         }
         break;
       }
@@ -535,6 +564,7 @@ export function createConversationMessageAccumulator(
 
         if (draft) {
           draft.content += delta;
+          draft.runId ??= runId;
         }
         break;
       }
@@ -550,6 +580,7 @@ export function createConversationMessageAccumulator(
           id: draft.id,
           role: "assistant",
           content: draft.content,
+          ...((draft.runId ?? runId) ? { runId: draft.runId ?? runId } : {}),
         });
 
         textDrafts.delete(draft.id);
@@ -565,6 +596,7 @@ export function createConversationMessageAccumulator(
             parentMessageId,
             name,
             args: "",
+            runId,
           });
         }
         break;
@@ -586,6 +618,7 @@ export function createConversationMessageAccumulator(
           const changed = upsertMessage({
             id: draft.parentMessageId,
             role: "assistant",
+            ...((draft.runId ?? runId) ? { runId: draft.runId ?? runId } : {}),
             toolCalls: [
               {
                 id: toolCallId,
@@ -647,6 +680,23 @@ export function createConversationMessageAccumulator(
     upsertMessage,
     processEvent,
   };
+}
+
+function stripAssistantRunIds(messages: readonly AgUiMessage[]) {
+  let changed = false;
+
+  const sanitizedMessages = messages.map((message): AgUiMessage => {
+    if (message.role !== "assistant" || !message.runId) {
+      return message;
+    }
+
+    changed = true;
+    const sanitizedMessage = { ...message };
+    delete sanitizedMessage.runId;
+    return sanitizedMessage;
+  });
+
+  return changed ? sanitizedMessages : messages;
 }
 
 type InAppAgentTx = Prisma.TransactionClient;
