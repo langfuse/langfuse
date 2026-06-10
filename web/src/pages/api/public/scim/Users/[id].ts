@@ -51,41 +51,57 @@ async function provisionMembership({
   apiKeyId: string;
   role?: Role;
 }): Promise<ProvisionOutcome | null> {
-  const applyToExisting = async (existing: {
-    id: string;
-    role: Role;
-  }): Promise<ProvisionOutcome | null> => {
-    // No explicit role requested, or the role is unchanged → leave as-is.
-    if (role === undefined || role === existing.role) {
-      return { kind: "unchanged", role: existing.role };
-    }
-    const targetRole: Role = role;
-
+  // Apply an explicit role to an existing membership. The membership is
+  // re-read INSIDE the Serializable transaction so the no-op check, the
+  // last-OWNER guard, and the update all act on the same snapshot — a read
+  // taken outside the transaction could race a concurrent promotion or
+  // deprovision past the guard (Postgres SSI only protects reads made within
+  // the transaction). Returns "missing" when the membership disappeared before
+  // the transaction started, so the caller can fall through to the create
+  // path; returns null when the request was rejected and the response written.
+  const applyRoleToExisting = async (
+    targetRole: Role,
+  ): Promise<ProvisionOutcome | "missing" | null> => {
     try {
-      // Enforce the org-wide "at least one OWNER" invariant inside a
-      // Serializable transaction, mirroring deprovisionOrReject and the tRPC
-      // updateOrgMembership path, so demoting the last OWNER cannot orphan the
-      // org and two concurrent demotions cannot both pass the check.
       const result = await prisma.$transaction(
         async (tx) => {
-          if (existing.role === "OWNER" && targetRole !== "OWNER") {
+          const current = await tx.organizationMembership.findUnique({
+            where: { orgId_userId: { orgId, userId } },
+          });
+          if (!current) {
+            return { t: "missing" as const };
+          }
+          if (current.role === targetRole) {
+            return { t: "unchanged" as const, role: current.role };
+          }
+          // Enforce the org-wide "at least one OWNER" invariant, mirroring
+          // deprovisionOrReject and the tRPC updateOrgMembership path, so
+          // demoting the last OWNER cannot orphan the org and two concurrent
+          // demotions cannot both pass the check.
+          if (current.role === "OWNER" && targetRole !== "OWNER") {
             const ownerCount = await tx.organizationMembership.count({
               where: { orgId, role: "OWNER" },
             });
             if (ownerCount <= 1) {
-              return "lastOwner" as const;
+              return { t: "lastOwner" as const };
             }
           }
           const updated = await tx.organizationMembership.update({
             where: { orgId_userId: { orgId, userId } },
             data: { role: targetRole },
           });
-          return { updated };
+          return { t: "updated" as const, before: current, after: updated };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
 
-      if (result === "lastOwner") {
+      if (result.t === "missing") {
+        return "missing";
+      }
+      if (result.t === "unchanged") {
+        return { kind: "unchanged", role: result.role };
+      }
+      if (result.t === "lastOwner") {
         logger.warn(
           `[SCIM] Refused to demote last OWNER ${userId} in org ${orgId}`,
         );
@@ -100,10 +116,10 @@ async function provisionMembership({
 
       await auditLog({
         resourceType: "orgMembership",
-        resourceId: result.updated.id,
+        resourceId: result.after.id,
         action: "update",
-        before: existing,
-        after: result.updated,
+        before: result.before,
+        after: result.after,
         apiKeyId,
         orgId,
       });
@@ -133,7 +149,16 @@ async function provisionMembership({
     where: { orgId_userId: { orgId, userId } },
   });
   if (existing) {
-    return applyToExisting(existing);
+    // No explicit role requested → leave the membership untouched.
+    if (role === undefined) {
+      return { kind: "unchanged", role: existing.role };
+    }
+    const applied = await applyRoleToExisting(role);
+    if (applied !== "missing") {
+      return applied;
+    }
+    // Membership vanished between the read and the transaction (concurrent
+    // deprovision) — fall through to the create path below.
   }
 
   // Missing → create with the explicit role when provided, otherwise NONE.
@@ -153,19 +178,22 @@ async function provisionMembership({
     });
     return { kind: "created", role: roleToCreate };
   } catch (error) {
-    // A concurrent provisioning request created the row first. Re-read it and
-    // apply the requested role (if any), keeping the periodic sync idempotent.
+    // A concurrent provisioning request created the row first. Apply the
+    // requested role onto it (if any), keeping the periodic sync idempotent.
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      const current = await prisma.organizationMembership.findUnique({
-        where: { orgId_userId: { orgId, userId } },
-      });
-      if (current) {
-        return applyToExisting(current);
+      if (role === undefined) {
+        return { kind: "unchanged", role: roleToCreate };
       }
-      return { kind: "unchanged", role: roleToCreate };
+      const applied = await applyRoleToExisting(role);
+      // "missing" here means the row vanished again right after the conflict;
+      // don't loop — report the request as applied with no changes, like the
+      // pre-existing fallback did. The next sync converges.
+      return applied === "missing"
+        ? { kind: "unchanged", role: roleToCreate }
+        : applied;
     }
     throw error;
   }
