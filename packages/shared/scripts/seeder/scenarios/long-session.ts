@@ -249,8 +249,9 @@ const run = async (
   );
 
   if (withV4) {
+    const tracesById = new Map(traces.map((tr) => [tr.id, tr]));
     for (const obs of observations) {
-      const trace = traces.find((tr) => tr.id === obs.trace_id);
+      const trace = obs.trace_id ? tracesById.get(obs.trace_id) : undefined;
       if (trace) events.push(observationToEvent(obs, trace));
     }
   }
@@ -311,16 +312,20 @@ const run = async (
     await createEventsCh(batch);
   }
 
+  // uniqExact(id): count() would see pre-merge ReplacingMergeTree duplicates
+  // after re-runs with the same id prefix.
   const verified: Record<string, number> = {
     traces: await countRows(
       "traces",
       `project_id = {projectId: String} AND session_id = {sessionId: String}`,
       { projectId: ctx.projectId, sessionId },
+      "uniqExact(id)",
     ),
     observations: await countRows(
       "observations",
       `project_id = {projectId: String} AND trace_id LIKE {prefix: String}`,
       { projectId: ctx.projectId, prefix: `${ctx.idPrefix}-t%` },
+      "uniqExact(id)",
     ),
   };
   if (withV4) {
@@ -328,12 +333,23 @@ const run = async (
       "events_full",
       `project_id = {projectId: String} AND session_id = {sessionId: String}`,
       { projectId: ctx.projectId, sessionId },
+      "uniqExact(span_id)",
     );
   }
 
   if (verified.traces < traces.length) {
     throw new SeedError(
       `Readback mismatch: expected ${traces.length} session traces, found ${verified.traces}`,
+    );
+  }
+  if (verified.observations < observations.length) {
+    throw new SeedError(
+      `Readback mismatch: expected ${observations.length} observations, found ${verified.observations}`,
+    );
+  }
+  if (withV4 && verified.events < events.length) {
+    throw new SeedError(
+      `Readback mismatch: expected ${events.length} events_full rows, found ${verified.events}`,
     );
   }
 

@@ -238,7 +238,15 @@ const checkHttp = async (
   detailOnPass: string,
 ): Promise<CheckResult> => {
   try {
-    await fetch(url, { signal: AbortSignal.timeout(3000) });
+    const response = await fetch(url, { signal: AbortSignal.timeout(3000) });
+    if (!response.ok) {
+      return {
+        name,
+        status: "warn",
+        detail: `${url} returned HTTP ${response.status}`,
+        fix,
+      };
+    }
     return { name, status: "pass", detail: detailOnPass };
   } catch {
     return { name, status: "warn", detail: `no response from ${url}`, fix };

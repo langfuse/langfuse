@@ -138,11 +138,30 @@ const run = async (
       },
       "uniqExact(id)",
     ),
+    scores: await countRows(
+      "scores",
+      `project_id = {projectId: String} AND id LIKE {prefix: String}`,
+      {
+        projectId: ctx.projectId,
+        prefix: `${ctx.idPrefix}-score-bulk-%-${idSuffix}`,
+      },
+      "uniqExact(id)",
+    ),
   };
 
   if (verified.traces < count) {
     throw new SeedError(
       `Readback mismatch: expected at least ${count} bulk traces, found ${verified.traces}`,
+    );
+  }
+  if (verified.observations < counts.observations) {
+    throw new SeedError(
+      `Readback mismatch: expected ${counts.observations} bulk observations, found ${verified.observations}`,
+    );
+  }
+  if (verified.scores < counts.scores) {
+    throw new SeedError(
+      `Readback mismatch: expected ${counts.scores} bulk scores, found ${verified.scores}`,
     );
   }
 

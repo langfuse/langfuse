@@ -393,11 +393,14 @@ const run = async (
     await createEventsCh(batch);
   }
 
+  // uniqExact(id): count() would see pre-merge ReplacingMergeTree duplicates
+  // after re-runs with the same id prefix.
   const verified: Record<string, number> = {
     observations: await countRows(
       "observations",
       `project_id = {projectId: String} AND trace_id = {traceId: String}`,
       { projectId: ctx.projectId, traceId },
+      "uniqExact(id)",
     ),
     observationKinds: await countRows(
       "observations",
@@ -411,6 +414,7 @@ const run = async (
       "events_full",
       `project_id = {projectId: String} AND trace_id = {traceId: String}`,
       { projectId: ctx.projectId, traceId },
+      "uniqExact(span_id)",
     );
   }
 
