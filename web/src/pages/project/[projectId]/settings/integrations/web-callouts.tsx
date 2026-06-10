@@ -16,6 +16,12 @@ export default function WebCalloutsSettings() {
     return null;
   }
 
+  if (availability.data?.enabled !== true) {
+    return (
+      <ErrorPage title="Page not found" message="This page does not exist." />
+    );
+  }
+
   return (
     <ContainerPage
       headerProps={{
@@ -25,11 +31,7 @@ export default function WebCalloutsSettings() {
         ],
       }}
     >
-      {availability.data?.enabled === true ? (
-        <WebCalloutSettingsPage projectId={projectId} />
-      ) : (
-        <ErrorPage title="Page not found" message="This page does not exist." />
-      )}
+      <WebCalloutSettingsPage projectId={projectId} />
     </ContainerPage>
   );
 }
