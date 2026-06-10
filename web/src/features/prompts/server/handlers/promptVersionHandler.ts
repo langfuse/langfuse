@@ -1,4 +1,3 @@
-import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { LATEST_PROMPT_LABEL } from "@langfuse/shared";
 
