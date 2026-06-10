@@ -4,7 +4,7 @@
  * Used for all main application pages when user is authenticated
  */
 
-import type { PropsWithChildren } from "react";
+import { useState, type PropsWithChildren } from "react";
 import Head from "next/head";
 import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
@@ -21,6 +21,7 @@ import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
+import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 
 const CommandMenu = dynamic(
   () =>
@@ -102,6 +103,7 @@ export function AuthenticatedLayout({
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+  const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -126,6 +128,8 @@ export function AuthenticatedLayout({
     }),
   );
 
+  const hasFeaturePreviews = isLangfuseCloud;
+
   // User navigation items for sidebar dropdown
   const userNavProps = {
     user: {
@@ -136,6 +140,14 @@ export function AuthenticatedLayout({
     items: [
       { name: "Account Settings", href: "/account/settings" },
       { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
+      ...(hasFeaturePreviews
+        ? [
+            {
+              name: "Feature Preview",
+              onClick: () => setFeaturePreviewOpen(true),
+            },
+          ]
+        : []),
       ...(isLangfuseCloud
         ? [
             {
@@ -190,6 +202,13 @@ export function AuthenticatedLayout({
                 <CommandMenu mainNavigation={navigation.navigation} />
               </SidebarInset>
             </div>
+            {hasFeaturePreviews ? (
+              <ControlledFeaturePreviewModal
+                session={session}
+                open={featurePreviewOpen}
+                onOpenChange={setFeaturePreviewOpen}
+              />
+            ) : null}
           </div>
         </SidebarProvider>
       </TopBannerProvider>

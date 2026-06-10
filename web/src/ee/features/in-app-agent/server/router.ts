@@ -215,7 +215,6 @@ async function assertInAppAgentAvailable({
   ctx: {
     session: {
       user: NonNullable<Session["user"]>;
-      environment: { enableExperimentalFeatures?: boolean };
     };
     prisma: PrismaClient;
   };
@@ -230,10 +229,7 @@ async function assertInAppAgentAvailable({
     );
   }
 
-  const isInAppAgentEnabled =
-    ctx.session.user.featureFlags.inAppAgent === true ||
-    ctx.session.user.admin === true ||
-    ctx.session.environment.enableExperimentalFeatures === true;
+  const isInAppAgentEnabled = ctx.session.user.featureFlags.inAppAgent === true;
 
   if (!isInAppAgentEnabled) {
     throw new ForbiddenError("Assistant is not enabled for this user");
