@@ -99,11 +99,14 @@ const SanitizedInAppAgentScreenContextOutputSchema = z.object({
     }),
 });
 
+type SanitizedValue<T> = [value: T, wasSanitized: boolean];
+type SanitizedFilterValue = string | number | boolean | string[] | undefined;
+
 // Security boundary for prompt context: this schema accepts client-controlled
 // AG-UI context, rejects untrusted URLs, and emits only bounded, allowlisted
 // URL facts. Localhost URLs are accepted only in development. Do not pass raw
 // context values into prompts or tracing.
-export const SanitizedInAppAgentScreenContextSchema = z
+const SanitizedInAppAgentScreenContextSchema = z
   .array(AgUiContextSchema)
   .transform((context, ctx) => {
     const currentUrl = context.find(
@@ -136,25 +139,54 @@ export const SanitizedInAppAgentScreenContextSchema = z
     const isProjectRoute = pathSegments[0] === "project";
     const rawProjectId = isProjectRoute ? pathSegments[1] : undefined;
     const rawResource = isProjectRoute ? pathSegments[2] : undefined;
+    const parsedResource = ResourceSchema.safeParse(rawResource);
     const projectId = ProjectIdSchema.safeParse(rawProjectId).success
       ? rawProjectId
       : undefined;
-    const resource = ResourceSchema.safeParse(rawResource).success
-      ? rawResource
-      : undefined;
-    const path = isProjectRoute
-      ? sanitizeProjectPath({ projectId, rawProjectId, resource })
-      : sanitizeNonProjectPath(pathSegments);
+    const resource = parsedResource.success ? parsedResource.data : undefined;
+    const [path, didSanitizePath] = isProjectRoute
+      ? sanitizeProjectPath({ rawPath, projectId, rawProjectId, resource })
+      : sanitizeNonProjectPath({ rawPath, pathSegments });
+    const [traceId, didSanitizeTraceId] = sanitizeSearchParam(
+      url,
+      "traceId",
+      SafeIdSchema,
+    );
+    const [observationId, didSanitizeObservationId] = sanitizeSearchParam(
+      url,
+      "observation",
+      SafeIdSchema,
+    );
+    const [peekId, didSanitizePeekId] = sanitizeSearchParam(
+      url,
+      "peek",
+      SafeIdSchema,
+    );
+    const [timestamp, didSanitizeTimestamp] = sanitizeSearchParam(
+      url,
+      "timestamp",
+      SafeTimestampSchema,
+    );
+    const [filters, didSanitizeFilters] = parseSafeFilters(
+      url.searchParams.get("filter"),
+    );
     const currentPage = {
       path,
       projectId,
       resource,
-      traceId: url.searchParams.get("traceId"),
-      observationId: url.searchParams.get("observation"),
-      peekId: url.searchParams.get("peek"),
-      timestamp: url.searchParams.get("timestamp"),
-      filters: parseSafeFilters(url.searchParams.get("filter")),
+      traceId,
+      observationId,
+      peekId,
+      timestamp,
+      filters,
     };
+    const wasSanitized =
+      didSanitizePath ||
+      didSanitizeTraceId ||
+      didSanitizeObservationId ||
+      didSanitizePeekId ||
+      didSanitizeTimestamp ||
+      didSanitizeFilters;
 
     const parsedContext =
       SanitizedInAppAgentScreenContextOutputSchema.safeParse({ currentPage });
@@ -167,20 +199,24 @@ export const SanitizedInAppAgentScreenContextSchema = z
       return z.NEVER;
     }
 
-    return parsedContext.data;
+    return { context: parsedContext.data, wasSanitized };
   });
 
 export type SanitizedInAppAgentScreenContext = z.infer<
-  typeof SanitizedInAppAgentScreenContextSchema
+  typeof SanitizedInAppAgentScreenContextOutputSchema
 >;
 
 export function sanitizeInAppAgentScreenContext(
   context: z.infer<typeof AgUiContextSchema>[],
-): SanitizedInAppAgentScreenContext | null {
+): [SanitizedInAppAgentScreenContext | null, boolean] {
   const parsedContext =
     SanitizedInAppAgentScreenContextSchema.safeParse(context);
 
-  return parsedContext.success ? parsedContext.data : null;
+  if (!parsedContext.success) {
+    return [null, false];
+  }
+
+  return [parsedContext.data.context, parsedContext.data.wasSanitized];
 }
 
 function isAllowedScreenContextUrl(url: URL): boolean {
@@ -195,11 +231,12 @@ function isAllowedScreenContextUrl(url: URL): boolean {
 }
 
 function sanitizeProjectPath(params: {
+  rawPath: string;
   projectId?: string;
   rawProjectId?: string;
   resource?: z.infer<typeof ResourceSchema>;
-}) {
-  return `/${[
+}): SanitizedValue<string> {
+  const path = `/${[
     "project",
     params.projectId ??
       (params.rawProjectId ? REDACTED_PATH_SEGMENT : undefined),
@@ -207,11 +244,18 @@ function sanitizeProjectPath(params: {
   ]
     .filter(Boolean)
     .join("/")}`;
+
+  return [path, path !== params.rawPath];
 }
 
-function sanitizeNonProjectPath(pathSegments: string[]) {
+function sanitizeNonProjectPath(params: {
+  rawPath: string;
+  pathSegments: string[];
+}): SanitizedValue<string> {
+  const { rawPath, pathSegments } = params;
+
   if (pathSegments.length === 0) {
-    return "/";
+    return ["/", rawPath !== "/"];
   }
 
   const parsedSegments = pathSegments.map((segment) => ({
@@ -222,11 +266,29 @@ function sanitizeNonProjectPath(pathSegments: string[]) {
     parsedSegments.every(({ isSafe }) => isSafe) &&
     isInstructionLikePath(pathSegments);
 
-  return `/${parsedSegments
+  const path = `/${parsedSegments
     .map(({ segment, isSafe }) =>
       pathLooksInstructionLike || !isSafe ? REDACTED_PATH_SEGMENT : segment,
     )
     .join("/")}`.slice(0, 2048);
+
+  return [path, path !== rawPath];
+}
+
+function sanitizeSearchParam<T>(
+  url: URL,
+  key: string,
+  schema: z.ZodType<T>,
+): SanitizedValue<T | undefined> {
+  const rawValue = url.searchParams.get(key);
+
+  if (rawValue === null) {
+    return [undefined, false];
+  }
+
+  const parsedValue = schema.safeParse(rawValue);
+
+  return parsedValue.success ? [parsedValue.data, false] : [undefined, true];
 }
 
 function isInstructionLikePath(pathSegments: string[]): boolean {
@@ -311,14 +373,26 @@ function isSafeEmailLike(value: string): boolean {
   );
 }
 
-function parseSafeFilters(filter: string | null) {
+function parseSafeFilters(
+  filter: string | null,
+): SanitizedValue<SafeScreenContextFilter[]> {
   if (!filter) {
-    return [];
+    return [[], false];
   }
 
-  return decodeFiltersGeneric(normalizeLegacyFilterKeySlots(filter))
-    .flatMap((decodedFilter) => sanitizeFilter(decodedFilter))
-    .slice(0, 10);
+  let wasSanitized = false;
+  const sanitizedFilters = decodeFiltersGeneric(
+    normalizeLegacyFilterKeySlots(filter),
+  ).flatMap((decodedFilter) => {
+    const [filters, didSanitizeFilter] = sanitizeFilter(decodedFilter);
+    wasSanitized ||= didSanitizeFilter;
+    return filters;
+  });
+
+  return [
+    sanitizedFilters.slice(0, 10),
+    wasSanitized || sanitizedFilters.length > 10,
+  ];
 }
 
 function normalizeLegacyFilterKeySlots(filter: string) {
@@ -336,15 +410,15 @@ function normalizeLegacyFilterKeySlots(filter: string) {
 
 function sanitizeFilter(
   filter: ReturnType<typeof decodeFiltersGeneric>[number],
-): SafeScreenContextFilter[] {
-  const sanitizedValue = sanitizeFilterValue(filter.value);
+): SanitizedValue<SafeScreenContextFilter[]> {
+  const [sanitizedValue, didSanitizeValue] = sanitizeFilterValue(filter.value);
 
   if (
     sanitizedValue === undefined &&
     filter.type !== "null" &&
     filter.type !== "positionInTrace"
   ) {
-    return [];
+    return [[], true];
   }
 
   const sanitizedFilter = SanitizedScreenContextFilterSchema.safeParse({
@@ -359,24 +433,32 @@ function sanitizeFilter(
         : { value: sanitizedValue }),
   });
 
-  return sanitizedFilter.success ? [sanitizedFilter.data] : [];
+  return sanitizedFilter.success
+    ? [[sanitizedFilter.data], didSanitizeValue]
+    : [[], true];
 }
 
-function sanitizeFilterValue(value: unknown) {
+function sanitizeFilterValue(
+  value: unknown,
+): SanitizedValue<SanitizedFilterValue> {
   if (value instanceof Date) {
-    return Number.isNaN(value.getTime()) ? undefined : value.toISOString();
+    return Number.isNaN(value.getTime())
+      ? [undefined, true]
+      : [value.toISOString(), false];
   }
 
   if (typeof value === "string") {
-    return FilterValueSchema.safeParse(value).success ? value : undefined;
+    return FilterValueSchema.safeParse(value).success
+      ? [value, false]
+      : [undefined, true];
   }
 
   if (typeof value === "number") {
-    return Number.isFinite(value) ? value : undefined;
+    return Number.isFinite(value) ? [value, false] : [undefined, true];
   }
 
   if (typeof value === "boolean") {
-    return value;
+    return [value, false];
   }
 
   if (Array.isArray(value)) {
@@ -386,8 +468,13 @@ function sanitizeFilterValue(value: unknown) {
         : [],
     );
 
-    return values.length > 0 ? values.slice(0, 10) : undefined;
+    return values.length > 0
+      ? [
+          values.slice(0, 10),
+          values.length !== value.length || values.length > 10,
+        ]
+      : [undefined, true];
   }
 
-  return undefined;
+  return [undefined, true];
 }

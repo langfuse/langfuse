@@ -436,7 +436,17 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
     throw new InvalidRequestError("Input payload must include a user message");
   }
 
-  const context = sanitizeInAppAgentScreenContext(input.context);
+  const [context, didSanitizeScreenContextUrl] =
+    sanitizeInAppAgentScreenContext(input.context);
+
+  if (didSanitizeScreenContextUrl) {
+    logger.warn("Sanitized in-app agent screen context URL", {
+      unsanitizedUrl: input.context.find(
+        (item) => item.description === "currentUrl",
+      )?.value,
+      sanitizedContext: context,
+    });
+  }
 
   return {
     threadId: input.threadId,
