@@ -115,6 +115,11 @@ export const ObservationDetailViewHeader = memo(
               observationType={observation.type}
               projectId={projectId}
               spanName={observation.name ?? ""}
+              webCallout={{
+                traceId,
+                observationId: observation.id,
+                sessionId: observation.sessionId ?? null,
+              }}
             />
           </div>
           {/* Action buttons */}
