@@ -1,11 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Pencil, Plus, Trash2, Webhook, X } from "lucide-react";
-import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { ActionButton } from "@/src/components/ActionButton";
 import Header from "@/src/components/layouts/header";
 import { StatusBadge } from "@/src/components/layouts/status-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
@@ -53,7 +53,6 @@ import {
   WEB_CALLOUT_HEADER_NAME_PATTERN,
 } from "@/src/features/web-callouts/headerRules";
 import { api, type RouterOutputs } from "@/src/utils/api";
-import { cn } from "@/src/utils/tailwind";
 
 type WebCalloutEndpoint = RouterOutputs["webCallouts"]["all"][number];
 
@@ -685,18 +684,13 @@ export function WebCalloutIntegrationCard(props: {
         Send backend callouts from trace, observation, and session detail views
         to your own application.
       </p>
-      <Button
-        asChild
+      <ActionButton
         variant="secondary"
-        disabled={!props.hasAccess}
-        className={cn(!props.hasAccess && "pointer-events-none")}
+        hasAccess={props.hasAccess}
+        href={`/project/${props.projectId}/settings/integrations/web-callouts`}
       >
-        <Link
-          href={`/project/${props.projectId}/settings/integrations/web-callouts`}
-        >
-          Configure
-        </Link>
-      </Button>
+        Configure
+      </ActionButton>
     </Card>
   );
 }

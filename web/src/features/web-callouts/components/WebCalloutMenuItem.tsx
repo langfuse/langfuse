@@ -1,4 +1,3 @@
-import { useRouter } from "next/router";
 import { Webhook } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -23,10 +22,6 @@ type WebCalloutTarget = {
 };
 
 function useWebCalloutAction(props: WebCalloutTarget) {
-  const router = useRouter();
-  const routeSessionId =
-    typeof router.query.sessionId === "string" ? router.query.sessionId : null;
-
   const endpoint = api.webCallouts.enabled.useQuery(
     { projectId: props.projectId },
     {
@@ -59,7 +54,7 @@ function useWebCalloutAction(props: WebCalloutTarget) {
       projectId: props.projectId,
       traceId: props.traceId,
       observationId: props.observationId ?? null,
-      sessionId: props.sessionId ?? routeSessionId ?? null,
+      sessionId: props.sessionId ?? null,
     });
   };
 
