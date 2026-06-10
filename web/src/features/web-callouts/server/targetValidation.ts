@@ -157,6 +157,7 @@ const tryGetTrace = async ({
   projectId: string;
 }) => {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Per customer requirement, web callouts should also work on v3.
     return await getTraceById({
       traceId,
       projectId,
@@ -211,6 +212,7 @@ const tryGetObservation = async ({
   projectId: string;
 }) => {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Per customer requirement, web callouts should also work on v3.
     return await getObservationById({
       id: observationId,
       projectId,
@@ -314,6 +316,7 @@ const tryGetTracesIdentifierForSession = async ({
   sessionId: string;
 }) => {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Per customer requirement, web callouts should also work on v3.
     return await getTracesIdentifierForSession(projectId, sessionId);
   } catch (error) {
     logger.warn("Failed to validate web callout session via traces table", {
