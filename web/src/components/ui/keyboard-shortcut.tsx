@@ -2,13 +2,15 @@ import * as React from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
+type KeyboardShortcutContent =
+  | { children: React.ReactNode; keys?: never }
+  | { children?: never; keys: React.ReactNode[] };
+
 export type KeyboardShortcutProps = Omit<
   React.ComponentPropsWithoutRef<"kbd">,
   "children"
-> & {
-  children?: React.ReactNode;
-  keys?: React.ReactNode[];
-};
+> &
+  KeyboardShortcutContent;
 
 const KeyboardShortcut = React.forwardRef<HTMLElement, KeyboardShortcutProps>(
   ({ className, children, keys, ...props }, ref) => (
