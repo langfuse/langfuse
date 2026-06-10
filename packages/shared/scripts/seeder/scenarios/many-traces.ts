@@ -105,6 +105,7 @@ const run = async (
     numberOfDays: days,
     idPrefix: ctx.idPrefix,
     anchorSeconds: Math.floor(utcDayStartMs() / 1000),
+    seed: ctx.seed,
   };
   const queries = [
     builder.buildBulkTracesInsert(

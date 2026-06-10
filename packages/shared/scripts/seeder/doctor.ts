@@ -268,6 +268,7 @@ const checkMinio = async (): Promise<CheckResult> => {
       status: "warn",
       detail:
         "LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT not set (only needed for media/event uploads)",
+      fix: "set LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT in .env (e.g. http://localhost:9090) if media/event upload tests are needed",
     };
   }
   return checkHttp(

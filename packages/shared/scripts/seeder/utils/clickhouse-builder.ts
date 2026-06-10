@@ -95,6 +95,7 @@ export class ClickHouseQueryBuilder {
       numberOfDays: number;
       idPrefix?: string;
       anchorSeconds?: number;
+      seed?: number;
     } = { numberOfDays: 1 },
   ): string {
     // Escape file content if provided
@@ -116,6 +117,7 @@ export class ClickHouseQueryBuilder {
     const spreadSeconds = opts.numberOfDays * 86400;
     const anchorSeconds =
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
+    const seedSalt = (opts.seed ?? 0) >>> 0;
 
     // Timestamps derive from `number` and anchor to midnight UTC (computed
     // in TS, independent of the ClickHouse server timezone) so same-day
@@ -129,27 +131,35 @@ export class ClickHouseQueryBuilder {
         concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
         toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
         concat('trace-', toString(number % 10)) AS name,
-        if(randUniform(0, 1) < 0.3, concat('user_', toString(rand() % 1000)), NULL) AS user_id,
+        if(h1 % 10 < 3, concat('user_', toString(h1 % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
         NULL AS release,
         NULL AS version,
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
-        if(randUniform(0, 1) < 0.1, true, false) AS public,
-        if(randUniform(0, 1) < 0.05, true, false) AS bookmarked,
+        if(h2 % 10 = 0, true, false) AS public,
+        if(h2 % 20 = 1, true, false) AS bookmarked,
         array() AS tags,
-        if(randUniform(0, 1) < 0.3, '${escapedHeavyMarkdown}',
+        if(h3 % 10 < 3, '${escapedHeavyMarkdown}',
           '${escapedChatMl}'
         ) AS input,
-        if(randUniform(0, 1) < 0.2, '${escapedNestedJson}',
+        if(h3 % 10 >= 8, '${escapedNestedJson}',
           '${escapedChatMl}'
         ) AS output,
-        if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 100)), NULL) AS session_id,
+        if(h1 % 100 < 30, concat('session_', toString(h2 % 100)), NULL) AS session_id,
         now() AS created_at,
         now() AS updated_at,
         now() AS event_ts,
         0 AS is_deleted
-      FROM numbers(${count});
+      FROM
+      (
+        SELECT
+          number,
+          xxHash32(number * 4 + ${seedSalt}) AS h1,
+          xxHash32(number * 4 + 1 + ${seedSalt}) AS h2,
+          xxHash32(number * 4 + 2 + ${seedSalt}) AS h3
+        FROM numbers(${count})
+      );
     `;
   }
 
@@ -167,6 +177,7 @@ export class ClickHouseQueryBuilder {
       numberOfDays: number;
       idPrefix?: string;
       anchorSeconds?: number;
+      seed?: number;
     } = { numberOfDays: 1 },
   ): string {
     const totalObservations = tracesCount * observationsPerTrace;
@@ -179,6 +190,7 @@ export class ClickHouseQueryBuilder {
     const spreadSeconds = opts.numberOfDays * 86400;
     const anchorSeconds =
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
+    const seedSalt = (opts.seed ?? 0) >>> 0;
 
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -201,14 +213,14 @@ export class ClickHouseQueryBuilder {
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
-        multiIf(number % 100 < 47, 'GENERATION', number % 100 < 94, 'SPAN', 'EVENT') AS type,
+        multiIf(h1 % 100 < 47, 'GENERATION', h1 % 100 < 94, 'SPAN', 'EVENT') AS type,
         if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${idSuffix}')) AS parent_observation_id,
         toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 60) AS start_time,
-        addMilliseconds(start_time, 
-          case 
-            when type = 'GENERATION' then floor(randUniform(5, 30))
-            when type = 'SPAN' then floor(randUniform(1, 50))
-            else floor(randUniform(1, 10))
+        addMilliseconds(start_time,
+          case
+            when type = 'GENERATION' then 5 + h2 % 26
+            when type = 'SPAN' then 1 + h2 % 50
+            else 1 + h2 % 10
           end) AS end_time,
         case
           when type = 'GENERATION' then concat('generation-', toString(number % 10))
@@ -216,24 +228,24 @@ export class ClickHouseQueryBuilder {
           else concat('event-', toString(number % 10))
         end AS name,
         ${this.buildNestedMetadataMapSql(["'key'", "'value'"])} AS metadata,
-        if(randUniform(0, 1) < 0.85, 'DEFAULT', if(randUniform(0, 1) < 0.7, 'DEBUG', if(randUniform(0, 1) < 0.3, 'ERROR', 'WARNING'))) AS level,
+        multiIf(h3 % 1000 < 850, 'DEFAULT', h3 % 1000 < 955, 'DEBUG', h3 % 1000 < 969, 'ERROR', 'WARNING') AS level,
         NULL AS status_message,
         NULL AS version,
-        if(type = 'GENERATION', 
-          if(randUniform(0, 1) < 0.4, '${escapedHeavyMarkdown}', '${escapedChatMl}'),
+        if(type = 'GENERATION',
+          if(h2 % 10 < 4, '${escapedHeavyMarkdown}', '${escapedChatMl}'),
           NULL) AS input,
-        if(type = 'GENERATION', 
-          if(randUniform(0, 1) < 0.3, '${escapedNestedJson}', '${escapedChatMl}'),
+        if(type = 'GENERATION',
+          if(h2 % 10 >= 7, '${escapedNestedJson}', '${escapedChatMl}'),
           NULL) AS output,
         if(type = 'GENERATION', 'gpt-4', NULL) AS provided_model_name,
-        if(type = 'GENERATION', concat('model_', toString(rand() % 1000)), NULL) AS internal_model_id,
+        if(type = 'GENERATION', concat('model_', toString(h2 % 1000)), NULL) AS internal_model_id,
         if(type = 'GENERATION', '{"temperature": 0.7}', '{}') AS model_parameters,
-        if(type = 'GENERATION', map('input', toUInt64(randUniform(20, 200)), 'output', toUInt64(randUniform(10, 100)), 'total', toUInt64(randUniform(30, 300))), map()) AS provided_usage_details,
-        if(type = 'GENERATION', map('input', toUInt64(randUniform(20, 200)), 'output', toUInt64(randUniform(10, 100)), 'total', toUInt64(randUniform(30, 300))), map()) AS usage_details,
-        if(type = 'GENERATION', map('input', toDecimal64(randUniform(0.00001, 0.001), 8), 'output', toDecimal64(randUniform(0.00001, 0.002), 8), 'total', toDecimal64(randUniform(0.00002, 0.003), 8)), map()) AS provided_cost_details,
-        if(type = 'GENERATION', map('input', toDecimal64(randUniform(0.00001, 0.001), 8), 'output', toDecimal64(randUniform(0.00001, 0.002), 8), 'total', toDecimal64(randUniform(0.00002, 0.003), 8)), map()) AS cost_details,
-        if(type = 'GENERATION', toDecimal64(randUniform(0.00002, 0.003), 8), NULL) AS total_cost,
-        if(type = 'GENERATION', addMilliseconds(start_time, floor(randUniform(100, 500))), NULL) AS completion_start_time,
+        if(type = 'GENERATION', map('input', toUInt64(20 + h1 % 181), 'output', toUInt64(10 + h2 % 91), 'total', toUInt64(30 + h1 % 181 + h2 % 91)), map()) AS provided_usage_details,
+        if(type = 'GENERATION', map('input', toUInt64(20 + h1 % 181), 'output', toUInt64(10 + h2 % 91), 'total', toUInt64(30 + h1 % 181 + h2 % 91)), map()) AS usage_details,
+        if(type = 'GENERATION', map('input', toDecimal64((10 + h1 % 990) / 1000000, 8), 'output', toDecimal64((10 + h2 % 1990) / 1000000, 8), 'total', toDecimal64((20 + h1 % 990 + h2 % 1990) / 1000000, 8)), map()) AS provided_cost_details,
+        if(type = 'GENERATION', map('input', toDecimal64((10 + h1 % 990) / 1000000, 8), 'output', toDecimal64((10 + h2 % 1990) / 1000000, 8), 'total', toDecimal64((20 + h1 % 990 + h2 % 1990) / 1000000, 8)), map()) AS cost_details,
+        if(type = 'GENERATION', toDecimal64((20 + h1 % 990 + h2 % 1990) / 1000000, 8), NULL) AS total_cost,
+        if(type = 'GENERATION', addMilliseconds(start_time, toUInt32(100 + h3 % 400)), NULL) AS completion_start_time,
         if("type" = 'GENERATION' AND number % 10 = 0,
         arrayElement(['${SEED_TEXT_PROMPTS.map((p) => this.escapeString(p.id)).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
         NULL) AS prompt_id,
@@ -253,7 +265,15 @@ export class ClickHouseQueryBuilder {
         [] AS tool_calls,
         [] AS tool_call_names
 
-      FROM numbers(${totalObservations});
+      FROM
+      (
+        SELECT
+          number,
+          xxHash32(number * 4 + ${seedSalt}) AS h1,
+          xxHash32(number * 4 + 1 + ${seedSalt}) AS h2,
+          xxHash32(number * 4 + 2 + ${seedSalt}) AS h3
+        FROM numbers(${totalObservations})
+      );
     `;
   }
 
@@ -271,6 +291,7 @@ export class ClickHouseQueryBuilder {
       idPrefix?: string;
       observationsPerTrace?: number;
       anchorSeconds?: number;
+      seed?: number;
     } = { numberOfDays: 1 },
   ): string {
     const totalScores = tracesCount * scoresPerTrace;
@@ -284,6 +305,7 @@ export class ClickHouseQueryBuilder {
     const spreadSeconds = opts.numberOfDays * 86400;
     const anchorSeconds =
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
+    const seedSalt = (opts.seed ?? 0) >>> 0;
 
     return `
       INSERT INTO scores
@@ -293,17 +315,17 @@ export class ClickHouseQueryBuilder {
         '${escapedProjectId}' AS project_id,
         '${escapedEnvironment}' AS environment,
         concat('${idPrefix}trace-bulk-', toString(number % ${tracesCount}), '-${idSuffix}') AS trace_id,
-        if(randUniform(0, 1) < 0.3, concat('session_', toString(rand() % 100)), NULL) AS session_id,
+        if(h1 % 10 < 3, concat('session_', toString(h2 % 100)), NULL) AS session_id,
         NULL AS dataset_run_id,
         ${
           observationsPerTrace > 0
-            ? `if(randUniform(0, 1) < 0.1, concat('${idPrefix}obs-bulk-', toString((number % ${tracesCount}) + ${tracesCount} * (rand() % ${observationsPerTrace})), '-${idSuffix}'), NULL)`
+            ? `if(h1 % 10 = 0, concat('${idPrefix}obs-bulk-', toString((number % ${tracesCount}) + ${tracesCount} * (h2 % ${observationsPerTrace})), '-${idSuffix}'), NULL)`
             : "NULL"
         } AS observation_id,
         concat('metric_', toString((number % ${scoresPerTrace * 5}) + 1)) AS name,
         case 
-          when (number % 3) = 0 then toDecimal64(randUniform(0, 100), 8)
-          when (number % 3) = 1 then if(randUniform(0, 1) < 0.5, 1, 0)
+          when (number % 3) = 0 then toDecimal64((h3 % 10000) / 100, 8)
+          when (number % 3) = 1 then if(h3 % 2 = 0, 1, 0)
           else NULL
         end AS value,
         'API' AS source,
@@ -318,7 +340,7 @@ export class ClickHouseQueryBuilder {
         end AS data_type,
         case 
           when (number % 3) = 1 then if(value = 1, 'True', 'False')
-          when (number % 3) = 2 then concat('category_', toString((rand() % 5) + 1))
+          when (number % 3) = 2 then concat('category_', toString((h1 % 5) + 1))
           else NULL
         end AS string_value,
         NULL AS queue_id,
@@ -328,7 +350,15 @@ export class ClickHouseQueryBuilder {
         0 AS is_deleted,
         NULL AS execution_trace_id,
         '' AS long_string_value
-      FROM numbers(${totalScores});
+      FROM
+      (
+        SELECT
+          number,
+          xxHash32(number * 4 + ${seedSalt}) AS h1,
+          xxHash32(number * 4 + 1 + ${seedSalt}) AS h2,
+          xxHash32(number * 4 + 2 + ${seedSalt}) AS h3
+        FROM numbers(${totalScores})
+      );
     `;
   }
 }
