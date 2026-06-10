@@ -59,6 +59,7 @@ const meta = preview.meta({
     onClose: fn(),
     onExpandedChange: fn(),
     onSubmit: fn(),
+    onSubmitFeedback: fn(),
     showCloseButton: true,
   },
   render: StatefulInAppAgentWindow,

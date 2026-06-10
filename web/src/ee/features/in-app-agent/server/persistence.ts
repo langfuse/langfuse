@@ -5,14 +5,17 @@ import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import type {
   InAppAgentConversation,
+  InAppAgentMessageFeedback as PrismaInAppAgentMessageFeedback,
   Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 
+import { createInAppAgentMessageFeedbackId } from "@/src/ee/features/in-app-agent/ids";
 import {
   AgUiMessageSchema,
   type AgUiEvent,
   type AgUiMessage,
+  type InAppAgentMessageFeedback,
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 
@@ -283,6 +286,136 @@ export async function getConversationMessages(params: {
   return getMessagesFromEvents(await getConversationEvents(params));
 }
 
+export async function getMessageRunId(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  messageId: string;
+}) {
+  const event = await params.prisma.inAppAgentEvent.findFirst({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      type: {
+        in: [
+          EventType.TEXT_MESSAGE_START,
+          EventType.TEXT_MESSAGE_CHUNK,
+          EventType.TEXT_MESSAGE_CONTENT,
+          EventType.TEXT_MESSAGE_END,
+        ],
+      },
+      event: {
+        path: ["messageId"],
+        equals: params.messageId,
+      },
+    },
+    orderBy: { sequenceNumber: "asc" },
+    select: { runId: true },
+  });
+
+  return event?.runId;
+}
+
+export async function getConversationMessagesWithFeedback(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+}) {
+  const [messages, feedback] = await Promise.all([
+    getConversationMessages(params),
+    getConversationFeedback(params),
+  ]);
+  const feedbackByMessageId = new Map(
+    feedback.map((item) => [item.messageId, serializeMessageFeedback(item)]),
+  );
+
+  return messages.map((message): AgUiMessage => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    const messageFeedback = feedbackByMessageId.get(message.id);
+
+    if (!messageFeedback) {
+      return message;
+    }
+
+    return {
+      ...message,
+      feedback: messageFeedback,
+    };
+  });
+}
+
+export async function getConversationFeedback(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+}) {
+  return params.prisma.inAppAgentMessageFeedback.findMany({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      createdByUserId: params.userId,
+    },
+  });
+}
+
+export async function deleteMessageFeedback(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  messageId: string;
+  userId: string;
+}) {
+  await params.prisma.inAppAgentMessageFeedback.deleteMany({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      messageId: params.messageId,
+      createdByUserId: params.userId,
+    },
+  });
+}
+
+export async function upsertMessageFeedback(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  messageId: string;
+  userId: string;
+  value: InAppAgentMessageFeedback["value"];
+  comment: string | null;
+}) {
+  const feedback = await params.prisma.inAppAgentMessageFeedback.upsert({
+    where: {
+      projectId_conversationId_messageId_createdByUserId: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        messageId: params.messageId,
+        createdByUserId: params.userId,
+      },
+    },
+    create: {
+      id: createInAppAgentMessageFeedbackId(),
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      messageId: params.messageId,
+      createdByUserId: params.userId,
+      value: params.value === "thumbs_up",
+      comment: params.comment,
+    },
+    update: {
+      value: params.value === "thumbs_up",
+      comment: params.comment,
+    },
+  });
+
+  return serializeMessageFeedback(feedback);
+}
+
 export async function getConversationMessagesForReplay(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -309,6 +442,18 @@ function sanitizeConversationMessagesForReplay(
   const messagesWithoutOrphanToolCalls =
     dropUnpairedAssistantToolCalls(messages);
   return dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls);
+}
+
+function serializeMessageFeedback(
+  feedback: PrismaInAppAgentMessageFeedback,
+): InAppAgentMessageFeedback {
+  return {
+    id: feedback.id,
+    value: feedback.value ? "thumbs_up" : "thumbs_down",
+    comment: feedback.comment,
+    createdAt: feedback.createdAt,
+    updatedAt: feedback.updatedAt,
+  };
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {

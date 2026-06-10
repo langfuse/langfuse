@@ -47,6 +47,7 @@ export function ControlledInAppAgentWindow(
     selectConversation,
     selectedConversationId,
     submit,
+    submitFeedback,
   } = useInAppAiAgent();
   const isInputDisabled =
     isRunning || isSubmitting || isSelectedConversationHydrating;
@@ -150,6 +151,9 @@ export function ControlledInAppAgentWindow(
           content: {
             type: "text",
             text,
+            ...(message.role === "assistant" && message.feedback
+              ? { feedback: message.feedback }
+              : {}),
           },
         });
       }
@@ -235,6 +239,7 @@ export function ControlledInAppAgentWindow(
       onNewConversation={() => selectConversation(null)}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      onSubmitFeedback={submitFeedback}
       {...closeButtonProps}
     />
   );

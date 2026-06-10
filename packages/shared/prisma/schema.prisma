@@ -79,6 +79,7 @@ model User {
   defaultViews              DefaultView[]               @relation("DefaultViewUser")
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
+  inAppAgentMessageFeedback InAppAgentMessageFeedback[] @relation("InAppAgentMessageFeedbackCreatedByUser")
 
   @@map("users")
 }
@@ -174,6 +175,7 @@ model Project {
   InAppAgentConversation    InAppAgentConversation[]
   InAppAgentEvent           InAppAgentEvent[]
   InAppAgentRun             InAppAgentRun[]
+  InAppAgentMessageFeedback InAppAgentMessageFeedback[]
 
   @@index([orgId])
   @@map("projects")
@@ -227,8 +229,9 @@ model InAppAgentConversation {
   createdAt         DateTime                              @default(now()) @map("created_at")
   updatedAt         DateTime                              @default(now()) @updatedAt @map("updated_at")
 
-  events InAppAgentEvent[]
-  runs   InAppAgentRun[]
+  events   InAppAgentEvent[]
+  runs     InAppAgentRun[]
+  feedback InAppAgentMessageFeedback[]
 
   @@id([id, projectId])
   @@index([projectId, createdByUserId, deletedAt, updatedAt, id], map: "in_app_agent_conversations_project_user_list_idx")
@@ -273,6 +276,26 @@ model InAppAgentRun {
   @@id([id, projectId])
   @@index([projectId, conversationId, createdAt], map: "in_app_agent_runs_project_conversation_created_idx")
   @@map("in_app_agent_runs")
+}
+
+model InAppAgentMessageFeedback {
+  id              String
+  projectId       String                 @map("project_id")
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  conversationId  String                 @map("conversation_id")
+  conversation    InAppAgentConversation @relation(fields: [conversationId, projectId], references: [id, projectId], onDelete: Cascade)
+  messageId       String                 @map("message_id")
+  createdByUserId String?                @map("created_by_user_id")
+  createdByUser   User?                  @relation("InAppAgentMessageFeedbackCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  value           Boolean
+  comment         String?                @db.VarChar(500)
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @default(now()) @updatedAt @map("updated_at")
+
+  @@id([id, projectId])
+  @@unique([projectId, conversationId, messageId, createdByUserId], map: "in_app_agent_feedback_project_conversation_message_user_key")
+  @@index([projectId, conversationId], map: "in_app_agent_message_feedback_project_conversation_idx")
+  @@map("in_app_agent_message_feedback")
 }
 
 model BackgroundMigration {

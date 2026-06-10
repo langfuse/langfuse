@@ -4,6 +4,7 @@ import type { AgUiRunAgentInput } from "@/src/ee/features/in-app-agent/schema";
 import { InAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 
 const traceId = "0123456789abcdef0123456789abcdef";
+const agentRunObservationId = "run-1";
 
 const mocks = vi.hoisted(() => {
   const toolSpan = {
@@ -11,7 +12,7 @@ const mocks = vi.hoisted(() => {
     end: vi.fn(),
   };
   const agentSpan = {
-    observationId: "agent-span-1",
+    observationId: "run-1",
     traceId: "0123456789abcdef0123456789abcdef",
     span: vi.fn(() => toolSpan),
     update: vi.fn(),
@@ -129,7 +130,11 @@ describe("InAppAgentInstrumentation", () => {
       "input",
     );
     expect(mocks.trace.span).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "agent-run", input: "hello" }),
+      expect.objectContaining({
+        id: agentRunObservationId,
+        name: "agent-run",
+        input: "hello",
+      }),
     );
     expect(mocks.agentSpan.span).not.toHaveBeenCalled();
     expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
@@ -137,7 +142,7 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         id: "tool-1",
         traceId,
-        parentObservationId: "agent-span-1",
+        parentObservationId: agentRunObservationId,
         name: "listObservations",
         input: { limit: 10 },
         output: "tool result",
@@ -151,6 +156,10 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         output: "hi there",
       }),
+    );
+    expect(mocks.handler.langfuse.enqueue).not.toHaveBeenCalledWith(
+      "span-create",
+      expect.anything(),
     );
     expect(mocks.trace.update.mock.calls[0][0]).not.toHaveProperty("output");
   });
