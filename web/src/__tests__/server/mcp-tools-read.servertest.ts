@@ -19,6 +19,16 @@ vi.mock("@/src/features/media/server/getMediaStorageClient", () => ({
   }),
 }));
 
+// Skip the LLM model preflight so llm_as_judge evaluators don't require a
+// provisioned default eval model.
+vi.mock(
+  "@/src/features/evals/server/evaluator-preflight",
+  async (importActual) => ({
+    ...(await importActual<object>()),
+    getEvaluatorDefinitionPreflightError: vi.fn(async () => null),
+  }),
+);
+
 import { nanoid } from "nanoid";
 import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
@@ -33,6 +43,7 @@ import { ScoreConfigDataType } from "@langfuse/shared";
 import {
   createMcpTestSetup,
   createPromptInDb,
+  mcpEvalOutputDefinition,
   mockServerContext,
   verifyAuditLog,
   verifyToolAnnotations,
@@ -119,6 +130,24 @@ import {
   handleGetMedia,
 } from "@/src/features/mcp/features/media/tools/getMedia";
 import {
+  getEvaluatorTool,
+  handleGetEvaluator,
+} from "@/src/features/mcp/features/evals/tools/getEvaluator";
+import {
+  listEvaluatorsTool,
+  handleListEvaluators,
+} from "@/src/features/mcp/features/evals/tools/listEvaluators";
+import {
+  getEvaluationRuleTool,
+  handleGetEvaluationRule,
+} from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
+import {
+  listEvaluationRulesTool,
+  handleListEvaluationRules,
+} from "@/src/features/mcp/features/evals/tools/listEvaluationRules";
+import { handleUpsertEvaluator } from "@/src/features/mcp/features/evals/tools/upsertEvaluator";
+import { handleCreateEvaluationRule } from "@/src/features/mcp/features/evals/tools/createEvaluationRule";
+import {
   GetDatasetItemsMcpInput,
   GetDatasetMcpInput,
   GetDatasetRunMcpInput,
@@ -132,6 +161,56 @@ const maybeEventsTable =
     : describe.skip;
 const maybeEventsTableIt =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+const createLlmEvaluatorForMcpReadTest = async (
+  setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+  name = `mcp-eval-${nanoid()}`,
+) => {
+  return (await handleUpsertEvaluator(
+    {
+      name,
+      type: "llm_as_judge",
+      prompt: "Judge {{input}} against {{output}}",
+      outputDefinition: mcpEvalOutputDefinition,
+      modelConfig: null,
+    },
+    setup.context,
+  )) as { id: string; name: string };
+};
+
+const createEvaluationRuleForMcpReadTest = async (
+  setup: Awaited<ReturnType<typeof createMcpTestSetup>>,
+) => {
+  const evaluatorName = `mcp-eval-${nanoid()}`;
+  const evaluator = await createLlmEvaluatorForMcpReadTest(
+    setup,
+    evaluatorName,
+  );
+  const ruleName = `mcp-rule-${nanoid()}`;
+  const rule = (await handleCreateEvaluationRule(
+    {
+      name: ruleName,
+      evaluator: {
+        name: evaluatorName,
+        scope: "project",
+        type: "llm_as_judge",
+      },
+      enabled: false,
+      sampling: 1,
+      target: "observation",
+      filter: [
+        { column: "version", operator: "=", value: "1.0.0", type: "string" },
+      ],
+      mapping: [
+        { variable: "input", source: "input" },
+        { variable: "output", source: "output" },
+      ],
+    },
+    setup.context,
+  )) as { id: string; name: string };
+
+  return { evaluator, rule };
+};
 
 const createObservationEvent = (params: {
   projectId: string;
@@ -242,6 +321,117 @@ describe("MCP Read Tools", () => {
 
       expect(properties).toHaveProperty("name");
       expect(properties).not.toHaveProperty("datasetId");
+    });
+  });
+
+  describe("listEvaluators tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listEvaluatorsTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(listEvaluatorsTool.name, context),
+      ).resolves.toMatchObject({
+        definition: expect.objectContaining({ name: listEvaluatorsTool.name }),
+      });
+    });
+
+    it("should list evaluators for the current project", async () => {
+      const setup = await createMcpTestSetup();
+      const { context } = setup;
+      const evaluator = await createLlmEvaluatorForMcpReadTest(setup);
+
+      const result = (await handleListEvaluators(
+        { page: 1, limit: 50 },
+        context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data.map((item) => item.id)).toContain(evaluator.id);
+    });
+  });
+
+  describe("getEvaluator tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getEvaluatorTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(getEvaluatorTool.name, context),
+      ).resolves.toMatchObject({
+        definition: expect.objectContaining({ name: getEvaluatorTool.name }),
+      });
+    });
+
+    it("should fetch an evaluator by id", async () => {
+      const setup = await createMcpTestSetup();
+      const evaluator = await createLlmEvaluatorForMcpReadTest(setup);
+
+      await expect(
+        handleGetEvaluator({ evaluatorId: evaluator.id }, setup.context),
+      ).resolves.toMatchObject({ id: evaluator.id, name: evaluator.name });
+    });
+  });
+
+  describe("listEvaluationRules tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(listEvaluationRulesTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(listEvaluationRulesTool.name, context),
+      ).resolves.toMatchObject({
+        definition: expect.objectContaining({
+          name: listEvaluationRulesTool.name,
+        }),
+      });
+    });
+
+    it("should list evaluation rules for the current project", async () => {
+      const setup = await createMcpTestSetup();
+      const { rule } = await createEvaluationRuleForMcpReadTest(setup);
+
+      const result = (await handleListEvaluationRules(
+        { page: 1, limit: 50 },
+        setup.context,
+      )) as { data: Array<{ id: string }> };
+
+      expect(result.data.map((item) => item.id)).toContain(rule.id);
+    });
+  });
+
+  describe("getEvaluationRule tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getEvaluationRuleTool, { readOnlyHint: true });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(getEvaluationRuleTool.name, context),
+      ).resolves.toMatchObject({
+        definition: expect.objectContaining({
+          name: getEvaluationRuleTool.name,
+        }),
+      });
+    });
+
+    it("should fetch an evaluation rule by id", async () => {
+      const setup = await createMcpTestSetup();
+      const { rule } = await createEvaluationRuleForMcpReadTest(setup);
+
+      await expect(
+        handleGetEvaluationRule({ evaluationRuleId: rule.id }, setup.context),
+      ).resolves.toMatchObject({ id: rule.id, name: rule.name });
     });
   });
 
