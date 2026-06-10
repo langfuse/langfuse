@@ -580,7 +580,7 @@ export default function ObservationsEventsTable({
             type: BatchActionType.Delete,
             label: "Delete Traces",
             description:
-              "This permanently deletes the traces related to the selected observations and cannot be undone. All observations in those traces will be deleted, not only the selected observations. Trace deletion happens asynchronously and may take up to 24 hours.",
+              "This permanently deletes all observations within this trace(s), as well as the trace(s), even if you only have single observations selected. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.",
             disabled: selectAll || selectedTraceIds.length === 0,
             disabledReason: selectAll
               ? "Delete traces is only available for observations selected on the current page."
