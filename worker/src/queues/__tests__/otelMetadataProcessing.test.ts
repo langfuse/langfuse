@@ -67,6 +67,8 @@ function buildOtelSpan(params: {
   scopeAttrKey: string;
   scopeAttrValue: string;
   metadataAttrs: Array<{ key: string; value: Record<string, unknown> }>;
+  traceMetadataAttrs?: Array<{ key: string; value: Record<string, unknown> }>;
+  traceMetadata?: Record<string, unknown>;
 }) {
   return {
     resource: {
@@ -102,6 +104,20 @@ function buildOtelSpan(params: {
                 key: "langfuse.observation.type",
                 value: { stringValue: "span" },
               },
+              ...(params.traceMetadata
+                ? [
+                    {
+                      key: "langfuse.trace.metadata",
+                      value: {
+                        stringValue: JSON.stringify(params.traceMetadata),
+                      },
+                    },
+                  ]
+                : []),
+              ...(params.traceMetadataAttrs ?? []).map((attr) => ({
+                key: `langfuse.trace.metadata.${attr.key}`,
+                value: attr.value,
+              })),
               ...params.metadataAttrs.map((attr) => ({
                 key: `langfuse.observation.metadata.${attr.key}`,
                 value: attr.value,
@@ -122,8 +138,13 @@ async function processAndCreateEvent(
   const eventInputs = processor.processToEvent([otelSpan]);
   expect(eventInputs.length).toBeGreaterThan(0);
 
+  const observationEvent = eventInputs.find(
+    (eventInput) => eventInput.type !== "trace-create",
+  );
+  expect(observationEvent).toBeDefined();
+
   const eventRecord = await ingestionService.createEventRecord(
-    eventInputs[0],
+    observationEvent!,
     "test/otel/test.json",
   );
 
@@ -195,6 +216,33 @@ describe("OTel metadata processing", () => {
       expect(nameToValue["topic"]).toBe("test");
       expect(nameToValue["resourceAttributes"]).toBeUndefined();
       expect(nameToValue["scope.attributes"]).toBeUndefined();
+    });
+
+    it("makes propagated trace metadata filterable on observations", async () => {
+      const { nameToValue } = await processAndCreateEvent(
+        buildOtelSpan({
+          scopeVersion: "4.6.0",
+          resourceAttrKey: "service.name",
+          resourceAttrValue: "checkout-agent",
+          scopeAttrKey: "public_key",
+          scopeAttrValue: "pk-test",
+          traceMetadata: {
+            tenant: "acme",
+            experiment: { cohort: "rerank-v2" },
+          },
+          traceMetadataAttrs: [
+            { key: "llm_provider", value: { stringValue: "anthropic" } },
+          ],
+          metadataAttrs: [
+            { key: "span_kind", value: { stringValue: "retriever" } },
+          ],
+        }),
+      );
+
+      expect(nameToValue["tenant"]).toBe("acme");
+      expect(nameToValue["experiment.cohort"]).toBe("rerank-v2");
+      expect(nameToValue["llm_provider"]).toBe("anthropic");
+      expect(nameToValue["span_kind"]).toBe("retriever");
     });
   });
 
