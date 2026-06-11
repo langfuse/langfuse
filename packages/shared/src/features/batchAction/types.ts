@@ -35,6 +35,9 @@ export const BatchActionQuerySchema = z.object({
   orderBy,
   searchQuery: z.string().optional(),
   searchType: z.array(TracingSearchType).optional(),
+  // Dispatch-time snapshot of the user's v4 beta flag; routes the sessions
+  // read stream to the events table instead of the legacy traces path.
+  useEventsTable: z.boolean().optional(),
 });
 
 export type BatchActionQuery = z.infer<typeof BatchActionQuerySchema>;
