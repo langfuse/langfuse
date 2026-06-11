@@ -1,17 +1,11 @@
 import type { z } from "zod";
-import { AnalyticsIntegrationExportSource } from "@langfuse/shared";
 
 export function validateExportFieldGroups(
   data: { exportSource: string; exportFieldGroups: unknown[] },
   ctx: z.RefinementCtx,
 ) {
-  const requiresFieldGroups =
-    data.exportSource === AnalyticsIntegrationExportSource.EVENTS ||
-    data.exportSource ===
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
-
-  if (!requiresFieldGroups) return;
-
+  // Field groups apply to all export sources (legacy observations honor them
+  // too), so core is required regardless of the selected source.
   if (!data.exportFieldGroups.includes("core")) {
     ctx.addIssue({
       code: "custom",

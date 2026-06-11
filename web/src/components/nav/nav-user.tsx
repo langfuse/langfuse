@@ -108,7 +108,8 @@ export function NavUser({ user, items }: UserNavigationProps) {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+            // Ensure the zIndex here is higher than that of the in-app agent window (see: web/src/ee/features/in-app-agent/components/InAppAgentWindow.tsx)
+            className="z-60 w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             align="end"
             sideOffset={4}

@@ -7,7 +7,6 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
-import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -25,10 +24,6 @@ export default withMiddlewares({
 
       const includesTrace = requestedFields.includes("trace");
       const hasTraceFilters = Boolean(query.userId || query.traceTags);
-
-      logger.info(
-        `fields: ${query.fields}, includesTrace: ${includesTrace}, hasTraceFilters: ${hasTraceFilters}`,
-      );
 
       if (!includesTrace && hasTraceFilters) {
         throw new InvalidRequestError(

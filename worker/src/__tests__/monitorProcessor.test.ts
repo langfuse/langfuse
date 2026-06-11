@@ -11,6 +11,12 @@ import {
   type MonitorQueueEventInput,
   type GetTriggerConfigurations,
 } from "@langfuse/shared/monitors/server";
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+} from "@langfuse/shared/monitors";
 import { prisma } from "@langfuse/shared/src/db";
 import type { Prisma, PrismaClient } from "@prisma/client";
 
@@ -36,7 +42,12 @@ type SeedOverrides = Partial<{
   alertThreshold: number;
   warningThreshold: number | null;
   thresholdOperator: ThresholdOperator;
-  noData: { mode: "SILENT" } | { mode: "NOTIFY"; intervalMinutes: number };
+  noData:
+    | { mode: "SHOW_NO_DATA" }
+    | {
+        mode: "NOTIFY_NO_DATA";
+        intervalMinutes: number;
+      };
   renotify: { mode: "OFF" } | { mode: "EVERY"; intervalMinutes: number };
   severity: MonitorSeverity;
   severityChangedAt: Date | null;
@@ -109,7 +120,11 @@ const matchAnyAlertTrigger: TriggerSeed = {
     {
       column: "severity",
       operator: "any of",
-      value: ["WARNING", "ALERT", "NO_DATA"],
+      value: [
+        MonitorSeveritySchema.enum.WARNING,
+        MonitorSeveritySchema.enum.ALERT,
+        MonitorSeveritySchema.enum.NO_DATA,
+      ],
       type: "stringOptions",
     },
   ],
@@ -132,23 +147,24 @@ async function seedMonitor(projectId: string, seed: MonitorSeed) {
       }) as unknown as Prisma.InputJsonValue,
       windowMs: seed.windowMs ?? fiveMinutesMs,
       cadenceMs: oneMinuteMs,
-      thresholdOperator: seed.thresholdOperator ?? "GT",
+      thresholdOperator:
+        seed.thresholdOperator ?? MonitorThresholdOperatorSchema.enum.GT,
       alertThreshold: seed.alertThreshold ?? 100,
       warningThreshold: seed.warningThreshold ?? null,
       noData: (seed.noData ?? {
-        mode: "SILENT",
+        mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA,
       }) as unknown as Prisma.InputJsonValue,
       renotify: (seed.renotify ?? {
         mode: "OFF",
       }) as unknown as Prisma.InputJsonValue,
-      status: seed.status ?? "ACTIVE",
+      status: seed.status ?? MonitorStatusSchema.enum.ACTIVE,
       schedulerBatchId: seed.schedulerBatchId ?? 0n,
       nextRunAt: new Date("2099-01-01T00:00:00.000Z"),
       lastPublishedAt:
         seed.lastPublishedAt === undefined ? runAt : seed.lastPublishedAt,
       lastClaimedAt: seed.lastClaimedAt ?? null,
       lastCompletedAt: seed.lastCompletedAt ?? null,
-      severity: seed.severity ?? "UNKNOWN",
+      severity: seed.severity ?? MonitorSeveritySchema.enum.UNKNOWN,
       severityChangedAt: seed.severityChangedAt ?? null,
       alertedAt: seed.alertedAt ?? null,
       tags: seed.tags ?? [],
@@ -272,8 +288,8 @@ function wrapDbPauseBeforeComplete(
             await target.monitor.updateMany({
               where: { projectId },
               data: {
-                status: "PAUSED",
-                severity: "PAUSED",
+                status: MonitorStatusSchema.enum.PAUSED,
+                severity: MonitorSeveritySchema.enum.PAUSED,
                 severityChangedAt: at,
               },
             });
@@ -318,7 +334,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
       },
@@ -329,7 +345,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "OK",
+          severity: MonitorSeveritySchema.enum.OK,
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -343,7 +359,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       },
     ],
@@ -354,7 +370,7 @@ const cases: ProcessCase[] = [
           {
             column: "severity",
             operator: "any of",
-            value: ["WARNING"],
+            value: [MonitorSeveritySchema.enum.WARNING],
             type: "stringOptions",
           },
         ],
@@ -365,7 +381,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -379,7 +395,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       },
     ],
@@ -396,10 +412,10 @@ const cases: ProcessCase[] = [
           apiVersion: "v1",
           payload: {
             monitorId: monitorAId,
-            severity: "ALERT",
+            severity: MonitorSeveritySchema.enum.ALERT,
             message: {
               title: `[ALERT] Test ${monitorAId}`,
-              body: "`count(observations.count)` is **above** `100`",
+              body: "`count(observations.count)` is **above** `100` over the last **5m**",
             },
             view: "observations",
             window: "5m",
@@ -409,7 +425,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -423,7 +439,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "ALERT",
+        severity: MonitorSeveritySchema.enum.ALERT,
         severityChangedAt: tenMinutesAgo,
         alertedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
@@ -437,7 +453,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: tenMinutesAgo,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -451,7 +467,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "ALERT",
+        severity: MonitorSeveritySchema.enum.ALERT,
         severityChangedAt: tenMinutesAgo,
         alertedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
@@ -465,7 +481,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: tenMinutesAgo,
           alertedAt: tenMinutesAgo,
           lastClaimedAt: justAfterRunAt,
@@ -479,10 +495,13 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
-        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+        noData: {
+          mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+          intervalMinutes: 5,
+        },
       },
     ],
     ch: [{ count_count: 0 }],
@@ -492,7 +511,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "NO_DATA",
+          severity: MonitorSeveritySchema.enum.NO_DATA,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -506,10 +525,10 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
         alertThreshold: 3,
-        thresholdOperator: "GT",
+        thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
       },
     ],
     ch: [{ count_count: 5 }],
@@ -520,13 +539,16 @@ const cases: ProcessCase[] = [
         payload: {
           type: "monitor-alert",
           apiVersion: "v1",
-          payload: { monitorId: monitorAId, severity: "ALERT" },
+          payload: {
+            monitorId: monitorAId,
+            severity: MonitorSeveritySchema.enum.ALERT,
+          },
         },
       },
       rows: [
         {
           id: monitorAId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -540,10 +562,13 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
-        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+        noData: {
+          mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+          intervalMinutes: 5,
+        },
       },
     ],
     ch: [{}],
@@ -553,7 +578,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "NO_DATA",
+          severity: MonitorSeveritySchema.enum.NO_DATA,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -567,10 +592,10 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
-        noData: { mode: "SILENT" },
+        noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
       },
     ],
     ch: [{}],
@@ -580,7 +605,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "NO_DATA",
+          severity: MonitorSeveritySchema.enum.NO_DATA,
           severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -594,7 +619,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
       },
@@ -606,7 +631,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "OK",
+          severity: MonitorSeveritySchema.enum.OK,
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: null,
@@ -620,7 +645,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
       },
@@ -631,8 +656,8 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          status: "ERROR_BAD_QUERY",
-          severity: "PAUSED",
+          status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+          severity: MonitorSeveritySchema.enum.PAUSED,
           severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -646,7 +671,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
       },
@@ -661,8 +686,8 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          status: "ERROR_BAD_QUERY",
-          severity: "PAUSED",
+          status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+          severity: MonitorSeveritySchema.enum.PAUSED,
           severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -676,7 +701,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
       },
@@ -688,7 +713,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "OK",
+          severity: MonitorSeveritySchema.enum.OK,
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -702,7 +727,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
       },
@@ -718,8 +743,8 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          status: "ACTIVE",
-          severity: "OK",
+          status: MonitorStatusSchema.enum.ACTIVE,
+          severity: MonitorSeveritySchema.enum.OK,
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -733,7 +758,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       },
     ],
@@ -746,7 +771,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "UNKNOWN",
+          severity: MonitorSeveritySchema.enum.UNKNOWN,
           severityChangedAt: null,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -760,7 +785,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       },
     ],
@@ -773,7 +798,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "UNKNOWN",
+          severity: MonitorSeveritySchema.enum.UNKNOWN,
           severityChangedAt: null,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -789,7 +814,7 @@ const cases: ProcessCase[] = [
       {
         id: monitorAId,
         schedulerBatchId: 7n,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
         lastClaimedAt: runAt,
@@ -799,7 +824,7 @@ const cases: ProcessCase[] = [
       {
         id: monitorBId,
         schedulerBatchId: 7n,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       },
     ],
@@ -813,7 +838,7 @@ const cases: ProcessCase[] = [
           apiVersion: "v1",
           payload: {
             monitorId: monitorBId,
-            severity: "ALERT",
+            severity: MonitorSeveritySchema.enum.ALERT,
           },
         },
       },
@@ -821,7 +846,7 @@ const cases: ProcessCase[] = [
         // done: untouched
         {
           id: monitorAId,
-          severity: "OK",
+          severity: MonitorSeveritySchema.enum.OK,
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: runAt,
@@ -830,7 +855,7 @@ const cases: ProcessCase[] = [
         // claimable: fully processed
         {
           id: monitorBId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -844,7 +869,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       },
     ],
@@ -867,7 +892,10 @@ const cases: ProcessCase[] = [
           payload: {
             type: "monitor-alert",
             apiVersion: "v1",
-            payload: { monitorId: monitorAId, severity: "ALERT" },
+            payload: {
+              monitorId: monitorAId,
+              severity: MonitorSeveritySchema.enum.ALERT,
+            },
           },
         },
         {
@@ -875,14 +903,17 @@ const cases: ProcessCase[] = [
           payload: {
             type: "monitor-alert",
             apiVersion: "v1",
-            payload: { monitorId: monitorAId, severity: "ALERT" },
+            payload: {
+              monitorId: monitorAId,
+              severity: MonitorSeveritySchema.enum.ALERT,
+            },
           },
         },
       ],
       rows: [
         {
           id: monitorAId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -896,7 +927,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       },
     ],
@@ -911,7 +942,7 @@ const cases: ProcessCase[] = [
           {
             column: "severity",
             operator: "any of",
-            value: ["WARNING"],
+            value: [MonitorSeveritySchema.enum.WARNING],
             type: "stringOptions",
           },
         ],
@@ -925,13 +956,16 @@ const cases: ProcessCase[] = [
         payload: {
           type: "monitor-alert",
           apiVersion: "v1",
-          payload: { monitorId: monitorAId, severity: "ALERT" },
+          payload: {
+            monitorId: monitorAId,
+            severity: MonitorSeveritySchema.enum.ALERT,
+          },
         },
       },
       rows: [
         {
           id: monitorAId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -945,7 +979,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: laterPublish,
       },
@@ -957,7 +991,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "OK",
+          severity: MonitorSeveritySchema.enum.OK,
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: null,
@@ -971,7 +1005,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: null,
       },
     ],
@@ -982,7 +1016,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "UNKNOWN",
+          severity: MonitorSeveritySchema.enum.UNKNOWN,
           severityChangedAt: null,
           alertedAt: null,
           lastClaimedAt: null,
@@ -996,7 +1030,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
         lastClaimedAt: justAfterRunAt,
         lastCompletedAt: null,
@@ -1009,7 +1043,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "UNKNOWN",
+          severity: MonitorSeveritySchema.enum.UNKNOWN,
           severityChangedAt: null,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -1023,7 +1057,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
         lastClaimedAt: runAt,
@@ -1037,7 +1071,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "OK",
+          severity: MonitorSeveritySchema.enum.OK,
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: runAt,
@@ -1051,7 +1085,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "ALERT",
+        severity: MonitorSeveritySchema.enum.ALERT,
         severityChangedAt: tenMinutesAgo,
         alertedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
@@ -1066,7 +1100,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "ALERT",
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: tenMinutesAgo,
           alertedAt: tenMinutesAgo,
           lastClaimedAt: laterPublish,
@@ -1080,7 +1114,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         alertedAt: null,
         lastPublishedAt: runAt,
@@ -1094,7 +1128,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "PAUSED",
+          severity: MonitorSeveritySchema.enum.PAUSED,
           severityChangedAt: pausedAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -1108,7 +1142,7 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         alertedAt: null,
         lastPublishedAt: runAt, // worker claims event with publishedAt=runAt, stamps lastClaimedAt=justAfterRunAt
@@ -1122,7 +1156,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "OK", // complete CAS no-ops → prior severity preserved
+          severity: MonitorSeveritySchema.enum.OK, // complete CAS no-ops → prior severity preserved
           severityChangedAt: tenMinutesAgo,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt, // worker's claim stamp, untouched by rescue
@@ -1136,8 +1170,8 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        status: "PAUSED",
-        severity: "PAUSED",
+        status: MonitorStatusSchema.enum.PAUSED,
+        severity: MonitorSeveritySchema.enum.PAUSED,
         lastPublishedAt: runAt,
         lastClaimedAt: null,
         lastCompletedAt: null,
@@ -1150,7 +1184,7 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          severity: "PAUSED",
+          severity: MonitorSeveritySchema.enum.PAUSED,
           severityChangedAt: null,
           alertedAt: null,
           lastClaimedAt: null,
@@ -1164,12 +1198,12 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       },
       {
         id: monitorBId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
         metric: { measure: "bogus_measure", aggregation: "count" },
@@ -1183,14 +1217,17 @@ const cases: ProcessCase[] = [
         payload: {
           type: "monitor-alert",
           apiVersion: "v1",
-          payload: { monitorId: monitorAId, severity: "ALERT" },
+          payload: {
+            monitorId: monitorAId,
+            severity: MonitorSeveritySchema.enum.ALERT,
+          },
         },
       },
       rows: [
         {
           id: monitorAId,
-          status: "ACTIVE",
-          severity: "ALERT",
+          status: MonitorStatusSchema.enum.ACTIVE,
+          severity: MonitorSeveritySchema.enum.ALERT,
           severityChangedAt: justAfterRunAt,
           alertedAt: justAfterRunAt,
           lastClaimedAt: justAfterRunAt,
@@ -1198,8 +1235,8 @@ const cases: ProcessCase[] = [
         },
         {
           id: monitorBId,
-          status: "ERROR_BAD_QUERY",
-          severity: "PAUSED",
+          status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+          severity: MonitorSeveritySchema.enum.PAUSED,
           severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -1213,11 +1250,14 @@ const cases: ProcessCase[] = [
     monitors: [
       {
         id: monitorAId,
-        severity: "OK",
+        severity: MonitorSeveritySchema.enum.OK,
         severityChangedAt: tenMinutesAgo,
         lastPublishedAt: runAt,
         metric: { measure: "bogus_measure", aggregation: "count" },
-        noData: { mode: "NOTIFY", intervalMinutes: 5 },
+        noData: {
+          mode: MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA,
+          intervalMinutes: 5,
+        },
       },
     ],
     ch: [{ count_count: 0 }],
@@ -1227,8 +1267,8 @@ const cases: ProcessCase[] = [
       rows: [
         {
           id: monitorAId,
-          status: "ERROR_BAD_QUERY",
-          severity: "PAUSED",
+          status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+          severity: MonitorSeveritySchema.enum.PAUSED,
           severityChangedAt: justAfterRunAt,
           alertedAt: null,
           lastClaimedAt: justAfterRunAt,
@@ -1398,7 +1438,7 @@ describe("MonitorProcessor.process evaluation offset", () => {
     const monitorId = `m_off_${v4()}`;
     await seedMonitor(projectId, {
       id: monitorId,
-      severity: "UNKNOWN",
+      severity: MonitorSeveritySchema.enum.UNKNOWN,
       lastPublishedAt: runAt,
       triggerIds: ["trig_off"],
     });
@@ -1471,7 +1511,7 @@ describe("MonitorProcessor.process wire deserialization", () => {
     const monitorId = `m_wire_${v4()}`;
     await seedMonitor(projectId, {
       id: monitorId,
-      severity: "UNKNOWN",
+      severity: MonitorSeveritySchema.enum.UNKNOWN,
       lastPublishedAt: runAt,
       triggerIds: ["trig_wire"],
     });
@@ -1543,7 +1583,7 @@ describe("MonitorProcessor.process count metric", () => {
     const monitorId = `m_count_${v4()}`;
     await seedMonitor(projectId, {
       id: monitorId,
-      severity: "UNKNOWN",
+      severity: MonitorSeveritySchema.enum.UNKNOWN,
       lastPublishedAt: runAt,
     });
 
@@ -1590,7 +1630,7 @@ describe("MonitorProcessor.process executeQuery failure logging", () => {
     try {
       await seedMonitor(projectId, {
         id: monitorAId,
-        severity: "UNKNOWN",
+        severity: MonitorSeveritySchema.enum.UNKNOWN,
         lastPublishedAt: runAt,
       });
 

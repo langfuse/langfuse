@@ -20,4 +20,8 @@ export class BaseError extends Error {
       Error.captureStackTrace(this);
     }
   }
+
+  public isUserError(): boolean {
+    return this.httpCode >= 400 && this.httpCode < 500;
+  }
 }
