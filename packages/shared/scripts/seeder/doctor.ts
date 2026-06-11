@@ -220,6 +220,50 @@ const checkClickhouse = async (): Promise<{
   };
 };
 
+const checkClickhouseMemory = async (): Promise<CheckResult> => {
+  try {
+    const result = await withTimeout(
+      clickhouseClient().query({
+        query: `SELECT
+          anyIf(value, metric = 'MemoryResident') AS resident,
+          greatest(anyIf(value, metric = 'CGroupMemoryTotal'), anyIf(value, metric = 'OSMemoryTotal')) AS total
+        FROM system.asynchronous_metrics
+        WHERE metric IN ('MemoryResident', 'CGroupMemoryTotal', 'OSMemoryTotal')`,
+        format: "JSONEachRow",
+      }),
+      4000,
+    );
+    const rows = await result.json<{ resident: number; total: number }>();
+    const resident = Number(rows[0]?.resident ?? 0);
+    const total = Number(rows[0]?.total ?? 0);
+    if (total <= 0) {
+      return {
+        name: "clickhouse-memory",
+        status: "pass",
+        detail: "memory metrics unavailable (skipped)",
+      };
+    }
+    const ratio = resident / total;
+    const summary = `${(resident / 1024 ** 3).toFixed(1)} GiB of ${(total / 1024 ** 3).toFixed(1)} GiB`;
+    // Long-running local servers accumulate memory and large seeds then die
+    // with MEMORY_LIMIT_EXCEEDED even though connectivity checks pass.
+    return ratio < 0.7
+      ? { name: "clickhouse-memory", status: "pass", detail: summary }
+      : {
+          name: "clickhouse-memory",
+          status: "warn",
+          detail: `${summary} — large seeds may hit MEMORY_LIMIT_EXCEEDED`,
+          fix: "docker restart langfuse-clickhouse  (frees memory; data persists on the volume)",
+        };
+  } catch {
+    return {
+      name: "clickhouse-memory",
+      status: "pass",
+      detail: "memory metrics unavailable (skipped)",
+    };
+  }
+};
+
 const checkRedis = async (): Promise<CheckResult> => {
   if (!redis) {
     return {
@@ -295,21 +339,30 @@ export const runDoctor = async (
     return { ok: false, checks: [env] };
   }
 
-  const [postgres, migrations, project, clickhouse, redisCheck, minio, web] =
-    await Promise.all([
-      checkPostgres(),
-      checkMigrations(),
-      checkProject(projectId),
-      checkClickhouse(),
-      checkRedis(),
-      checkMinio(),
-      checkHttp(
-        "web-app",
-        `${baseUrl}/api/public/health`,
-        FIX.devWeb,
-        `responding at ${baseUrl} (deep links will work)`,
-      ),
-    ]);
+  const [
+    postgres,
+    migrations,
+    project,
+    clickhouse,
+    clickhouseMemory,
+    redisCheck,
+    minio,
+    web,
+  ] = await Promise.all([
+    checkPostgres(),
+    checkMigrations(),
+    checkProject(projectId),
+    checkClickhouse(),
+    checkClickhouseMemory(),
+    checkRedis(),
+    checkMinio(),
+    checkHttp(
+      "web-app",
+      `${baseUrl}/api/public/health`,
+      FIX.devWeb,
+      `responding at ${baseUrl} (deep links will work)`,
+    ),
+  ]);
 
   const checks = [
     env,
@@ -319,6 +372,7 @@ export const runDoctor = async (
     clickhouse.connectivity,
     clickhouse.legacyTables,
     clickhouse.v4Tables,
+    clickhouseMemory,
     redisCheck,
     minio,
     web,
