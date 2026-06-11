@@ -116,8 +116,9 @@ export class InAppAgentInstrumentation {
       tags: ["in-app-agent"],
     });
     this.span = this.trace.span({
+      id: params.input.runId,
       name: IN_APP_AGENT_SPAN_NAME,
-      input: getLastUserMessageText(params.input),
+      input: getAgentSpanInput(params.input),
       metadata: params.metadata,
     });
   }
@@ -368,6 +369,19 @@ export class InAppAgentInstrumentation {
       this.toolSpans.delete(toolCallId);
     }
   }
+}
+
+function getAgentSpanInput(input: AgUiRunAgentInput): unknown {
+  const message = getLastUserMessageText(input);
+
+  if (input.context.length === 0) {
+    return message;
+  }
+
+  return {
+    message,
+    context: input.context,
+  };
 }
 
 function getLastUserMessageText(input: AgUiRunAgentInput): string | undefined {

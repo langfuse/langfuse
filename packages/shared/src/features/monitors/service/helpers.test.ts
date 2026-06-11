@@ -4,7 +4,14 @@ import { z } from "zod";
 
 import { InvalidRequestError, LangfuseNotFoundError } from "../../../errors";
 import { singleFilter } from "../../../interfaces/filters";
-import { MonitorViewSchema, MonitorWindowSchema } from "../types";
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+  MonitorViewSchema,
+  MonitorWindowSchema,
+} from "../types";
 import { DAY, HOUR, MINUTE, WEEK } from "../helpers";
 import {
   calculateCadence,
@@ -141,12 +148,24 @@ describe("toPrismaWhere", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["ALERT", "WARNING"],
+        value: [
+          MonitorSeveritySchema.enum.ALERT,
+          MonitorSeveritySchema.enum.WARNING,
+        ],
       },
     ];
     expect(toPrismaWhere("proj_01", filter)).toEqual({
       projectId: "proj_01",
-      AND: [{ severity: { in: ["ALERT", "WARNING"] } }],
+      AND: [
+        {
+          severity: {
+            in: [
+              MonitorSeveritySchema.enum.ALERT,
+              MonitorSeveritySchema.enum.WARNING,
+            ],
+          },
+        },
+      ],
     });
   });
 
@@ -156,12 +175,12 @@ describe("toPrismaWhere", () => {
         type: "stringOptions",
         column: "severity",
         operator: "none of",
-        value: ["PAUSED"],
+        value: [MonitorSeveritySchema.enum.PAUSED],
       },
     ];
     expect(toPrismaWhere("proj_01", filter)).toEqual({
       projectId: "proj_01",
-      AND: [{ NOT: { severity: { in: ["PAUSED"] } } }],
+      AND: [{ NOT: { severity: { in: [MonitorSeveritySchema.enum.PAUSED] } } }],
     });
   });
 
@@ -473,15 +492,15 @@ describe("monitorFromPrisma", () => {
     windowMs: 5n * 60_000n,
     cadenceMs: 60_000n,
     schedulerBatchId: 42n,
-    thresholdOperator: "GT" as const,
+    thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
     alertThreshold: new Prisma.Decimal(100),
     warningThreshold: null,
-    noData: { mode: "SILENT" as const },
+    noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
     renotify: { mode: "OFF" as const },
-    severity: "UNKNOWN" as const,
+    severity: MonitorSeveritySchema.enum.UNKNOWN,
     severityChangedAt: null,
     alertedAt: null,
-    status: "ACTIVE" as const,
+    status: MonitorStatusSchema.enum.ACTIVE,
     nextRunAt: new Date("2026-05-18T00:01:00.000Z"),
     lastPublishedAt: null,
     lastClaimedAt: null,
@@ -494,9 +513,11 @@ describe("monitorFromPrisma", () => {
   it("translates a representative row to the domain shape", () => {
     const monitor = monitorFromPrisma(prismaRow);
     expect(monitor.view).toBe("observations");
-    expect(monitor.status).toBe("ACTIVE");
-    expect(monitor.severity).toBe("UNKNOWN");
-    expect(monitor.thresholdOperator).toBe("GT");
+    expect(monitor.status).toBe(MonitorStatusSchema.enum.ACTIVE);
+    expect(monitor.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
+    expect(monitor.thresholdOperator).toBe(
+      MonitorThresholdOperatorSchema.enum.GT,
+    );
     expect(monitor.window).toBe("5m");
     expect(monitor.alertThreshold).toBe(100);
     expect(monitor.warningThreshold).toBeNull();
@@ -519,21 +540,30 @@ describe("monitorFromPrisma", () => {
 
 describe("updateStatusAndSeverity", () => {
   it("emits PAUSED with a timestamp when status leaves ACTIVE", () => {
-    const result = updateStatusAndSeverity("ACTIVE", "PAUSED");
-    expect(result.status).toBe("PAUSED");
-    expect(result.severity).toBe("PAUSED");
+    const result = updateStatusAndSeverity(
+      MonitorStatusSchema.enum.ACTIVE,
+      MonitorStatusSchema.enum.PAUSED,
+    );
+    expect(result.status).toBe(MonitorStatusSchema.enum.PAUSED);
+    expect(result.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
   it("emits UNKNOWN with a timestamp when status returns to ACTIVE", () => {
-    const result = updateStatusAndSeverity("PAUSED", "ACTIVE");
-    expect(result.status).toBe("ACTIVE");
-    expect(result.severity).toBe("UNKNOWN");
+    const result = updateStatusAndSeverity(
+      MonitorStatusSchema.enum.PAUSED,
+      MonitorStatusSchema.enum.ACTIVE,
+    );
+    expect(result.status).toBe(MonitorStatusSchema.enum.ACTIVE);
+    expect(result.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
   it("resets the publish lifecycle stamps when status returns to ACTIVE", () => {
-    const result = updateStatusAndSeverity("PAUSED", "ACTIVE");
+    const result = updateStatusAndSeverity(
+      MonitorStatusSchema.enum.PAUSED,
+      MonitorStatusSchema.enum.ACTIVE,
+    );
     expect(result.nextRunAt).toBeNull();
     expect(result.lastPublishedAt).toBeNull();
     expect(result.lastCompletedAt).toBeNull();
@@ -542,34 +572,60 @@ describe("updateStatusAndSeverity", () => {
   });
 
   it("emits UNKNOWN when recovering from ERROR_BAD_QUERY to ACTIVE", () => {
-    const result = updateStatusAndSeverity("ERROR_BAD_QUERY", "ACTIVE");
-    expect(result.status).toBe("ACTIVE");
-    expect(result.severity).toBe("UNKNOWN");
+    const result = updateStatusAndSeverity(
+      MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+      MonitorStatusSchema.enum.ACTIVE,
+    );
+    expect(result.status).toBe(MonitorStatusSchema.enum.ACTIVE);
+    expect(result.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
   it("emits PAUSED when going from ACTIVE to ERROR_BAD_QUERY", () => {
-    const result = updateStatusAndSeverity("ACTIVE", "ERROR_BAD_QUERY");
-    expect(result.status).toBe("ERROR_BAD_QUERY");
-    expect(result.severity).toBe("PAUSED");
+    const result = updateStatusAndSeverity(
+      MonitorStatusSchema.enum.ACTIVE,
+      MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+    );
+    expect(result.status).toBe(MonitorStatusSchema.enum.ERROR_BAD_QUERY);
+    expect(result.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
     expect(result.severityChangedAt).toBeInstanceOf(Date);
   });
 
   it("writes only status when it does not change", () => {
-    expect(updateStatusAndSeverity("ACTIVE", "ACTIVE")).toEqual({
-      status: "ACTIVE",
+    expect(
+      updateStatusAndSeverity(
+        MonitorStatusSchema.enum.ACTIVE,
+        MonitorStatusSchema.enum.ACTIVE,
+      ),
+    ).toEqual({
+      status: MonitorStatusSchema.enum.ACTIVE,
     });
-    expect(updateStatusAndSeverity("PAUSED", "PAUSED")).toEqual({
-      status: "PAUSED",
+    expect(
+      updateStatusAndSeverity(
+        MonitorStatusSchema.enum.PAUSED,
+        MonitorStatusSchema.enum.PAUSED,
+      ),
+    ).toEqual({
+      status: MonitorStatusSchema.enum.PAUSED,
     });
   });
 
   it("writes only status when transitioning between two non-ACTIVE states", () => {
-    expect(updateStatusAndSeverity("PAUSED", "ERROR_BAD_QUERY")).toEqual({
-      status: "ERROR_BAD_QUERY",
+    expect(
+      updateStatusAndSeverity(
+        MonitorStatusSchema.enum.PAUSED,
+        MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+      ),
+    ).toEqual({
+      status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
     });
-    expect(updateStatusAndSeverity("ERROR_BAD_QUERY", "PAUSED")).toEqual({
-      status: "PAUSED",
+    expect(
+      updateStatusAndSeverity(
+        MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+        MonitorStatusSchema.enum.PAUSED,
+      ),
+    ).toEqual({
+      status: MonitorStatusSchema.enum.PAUSED,
     });
   });
 });

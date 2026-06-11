@@ -22,15 +22,19 @@ import {
 import {
   AgUiMessageSchema,
   type AgUiMessage,
+  type InAppAgentMessageFeedback,
+  type InAppAgentMessageFeedbackValue,
   type InAppAgentRuntimeState,
 } from "@/src/ee/features/in-app-agent/schema";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
+import { createInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
 const OPEN_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-open";
+const FEEDBACK_STORAGE_KEY_PREFIX = "langfuse:in-app-ai-agent-feedback";
 
 const getConversationAgentState = (
   projectId: string,
@@ -59,9 +63,15 @@ const NOOP_CONTEXT: InAppAiAgentContextType = {
   loadMoreConversations: () => undefined,
   selectConversation: () => undefined,
   submit: async () => false,
+  submitFeedback: async () => undefined,
 };
 
 type InAppAiAgentMessage = AgUiMessage;
+
+type InAppAiAgentFeedbackByConversationId = Record<
+  string,
+  Record<string, InAppAgentMessageFeedback>
+>;
 
 export type InAppAiAgentConversation = {
   id: string;
@@ -87,6 +97,12 @@ type InAppAiAgentContextType = {
   loadMoreConversations: () => void;
   selectConversation: (conversationId: string | null) => void;
   submit: (content: string) => Promise<boolean>;
+  submitFeedback: (params: {
+    messageId: string;
+    runId: string;
+    value: InAppAgentMessageFeedbackValue | null;
+    comment?: string | null;
+  }) => Promise<void>;
 };
 
 const InAppAiAgentContext = createContext<InAppAiAgentContextType | null>(null);
@@ -157,12 +173,18 @@ function InAppAiAgentProviderInner({
   const [selectedConversationId, setSelectedConversationId] = useSessionStorage<
     string | null
   >(`${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`, null);
+  const [feedbackByConversationId, setFeedbackByConversationId] =
+    useSessionStorage<InAppAiAgentFeedbackByConversationId>(
+      `${FEEDBACK_STORAGE_KEY_PREFIX}:${projectId}`,
+      {},
+    );
   const [messages, setMessages] = useState<InAppAiAgentMessage[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const agentRef = useRef<HttpAgent | null>(null);
+  const activeRunIdRef = useRef<string | null>(null);
   const intentionalAbortRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const subscriptionRef = useRef<ReturnType<HttpAgent["subscribe"]> | null>(
@@ -186,6 +208,7 @@ function InAppAiAgentProviderInner({
       enabled: open && Boolean(selectedConversationId) && !isSubmitting,
     },
   );
+  const feedbackMutation = api.inAppAgent.submitFeedback.useMutation();
 
   const conversations = useMemo(
     () =>
@@ -195,6 +218,16 @@ function InAppAiAgentProviderInner({
   );
   const hasMoreConversations = conversationListQuery.hasNextPage === true;
   const isLoadingMoreConversations = conversationListQuery.isFetchingNextPage;
+  const messagesWithFeedback = useMemo(
+    () =>
+      mergeMessagesWithFeedback(
+        messages,
+        selectedConversationId
+          ? feedbackByConversationId[selectedConversationId]
+          : undefined,
+      ),
+    [feedbackByConversationId, messages, selectedConversationId],
+  );
   const fetchNextConversationsPage = conversationListQuery.fetchNextPage;
   const loadMoreConversations = useCallback(() => {
     if (!hasMoreConversations || isLoadingMoreConversations) {
@@ -238,6 +271,7 @@ function InAppAiAgentProviderInner({
     subscriptionRef.current = null;
     agentRef.current?.abortRun();
     agentRef.current = null;
+    activeRunIdRef.current = null;
   }, []);
 
   // Hydrate local state from the selected persisted conversation once it loads.
@@ -313,6 +347,9 @@ function InAppAiAgentProviderInner({
     }
 
     subscriptionRef.current = agent.subscribe({
+      onRunStartedEvent: ({ event }) => {
+        activeRunIdRef.current = event.runId;
+      },
       onRunErrorEvent: ({ event }) => {
         if (intentionalAbortRef.current) {
           return;
@@ -323,10 +360,20 @@ function InAppAiAgentProviderInner({
         console.error("In-app agent drawer run error", event);
       },
       onMessagesChanged: ({ messages }) => {
-        setMessages(messages.filter(isAgentConversationMessage));
+        setMessages(
+          attachActiveRunIdToAssistantMessages(
+            messages.filter(isAgentConversationMessage),
+            activeRunIdRef.current,
+          ),
+        );
       },
       onStateChanged: ({ messages }) => {
-        setMessages(messages.filter(isAgentConversationMessage));
+        setMessages(
+          attachActiveRunIdToAssistantMessages(
+            messages.filter(isAgentConversationMessage),
+            activeRunIdRef.current,
+          ),
+        );
       },
     });
   }, []);
@@ -370,7 +417,11 @@ function InAppAiAgentProviderInner({
     (agent: HttpAgent, conversationId: string) => {
       setIsRunning(true);
       agent
-        .runAgent()
+        .runAgent({
+          context: createInAppAgentScreenContext({
+            currentUrl: window.location.href,
+          }),
+        })
         .catch((error) => {
           if (intentionalAbortRef.current) {
             return;
@@ -381,14 +432,21 @@ function InAppAiAgentProviderInner({
           console.error("In-app agent drawer error", error);
         })
         .finally(() => {
+          const runId = activeRunIdRef.current;
           setIsRunning(false);
-          setMessages(agent.messages.filter(isAgentConversationMessage));
+          setMessages(
+            attachActiveRunIdToAssistantMessages(
+              agent.messages.filter(isAgentConversationMessage),
+              runId,
+            ),
+          );
           utils.inAppAgent.listConversations.invalidate({ projectId });
           utils.inAppAgent.getConversation.invalidate({
             projectId,
             conversationId,
           });
           releaseSubmitLock();
+          activeRunIdRef.current = null;
           intentionalAbortRef.current = false;
         });
     },
@@ -402,12 +460,16 @@ function InAppAiAgentProviderInner({
 
   const selectConversation = useCallback(
     (conversationId: string | null) => {
+      if (isRunning || conversationId === selectedConversationId) {
+        return;
+      }
+
       setError(null);
       resetAgent();
       setMessages([]);
       setSelectedConversationId(conversationId);
     },
-    [resetAgent, setSelectedConversationId],
+    [isRunning, resetAgent, selectedConversationId, setSelectedConversationId],
   );
 
   const submit = useCallback(
@@ -492,6 +554,62 @@ function InAppAiAgentProviderInner({
     ],
   );
 
+  const submitFeedback = useCallback(
+    async (params: {
+      messageId: string;
+      runId: string;
+      value: InAppAgentMessageFeedbackValue | null;
+      comment?: string | null;
+    }) => {
+      if (!selectedConversationId) {
+        return;
+      }
+
+      try {
+        const result = await feedbackMutation.mutateAsync({
+          projectId,
+          conversationId: selectedConversationId,
+          messageId: params.messageId,
+          runId: params.runId,
+          value: params.value,
+          comment: params.comment ?? null,
+        });
+
+        setFeedbackByConversationId((currentFeedback) => {
+          const nextFeedback = { ...currentFeedback };
+          const conversationFeedback = {
+            ...(nextFeedback[selectedConversationId] ?? {}),
+          };
+
+          if (result.feedback) {
+            conversationFeedback[params.messageId] = result.feedback;
+          } else {
+            delete conversationFeedback[params.messageId];
+          }
+
+          if (Object.keys(conversationFeedback).length > 0) {
+            nextFeedback[selectedConversationId] = conversationFeedback;
+          } else {
+            delete nextFeedback[selectedConversationId];
+          }
+
+          return nextFeedback;
+        });
+      } catch (error) {
+        const errorMessage = getAgentErrorMessage(error);
+        showErrorToast("Failed to save feedback", errorMessage);
+        console.error("Failed to save in-app agent feedback", error);
+        throw error;
+      }
+    },
+    [
+      feedbackMutation,
+      projectId,
+      selectedConversationId,
+      setFeedbackByConversationId,
+    ],
+  );
+
   useEffect(() => {
     if (!open) {
       setIsExpanded(false);
@@ -509,7 +627,7 @@ function InAppAiAgentProviderInner({
       isSubmitting,
       isSelectedConversationHydrating,
       error,
-      messages,
+      messages: messagesWithFeedback,
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
@@ -517,6 +635,7 @@ function InAppAiAgentProviderInner({
       loadMoreConversations,
       selectConversation,
       submit,
+      submitFeedback,
     }),
     [
       isExpanded,
@@ -528,12 +647,13 @@ function InAppAiAgentProviderInner({
       isSelectedConversationHydrating,
       isSubmitting,
       loadMoreConversations,
-      messages,
+      messagesWithFeedback,
       open,
       selectConversation,
       selectedConversationId,
       setOpen,
       submit,
+      submitFeedback,
     ],
   );
 
@@ -561,6 +681,45 @@ function getHydratedMessages(
   }
 
   return storedMessages?.filter(isAgentConversationMessage) ?? [];
+}
+
+function mergeMessagesWithFeedback(
+  messages: InAppAiAgentMessage[],
+  feedbackByMessageId: Record<string, InAppAgentMessageFeedback> | undefined,
+): InAppAiAgentMessage[] {
+  if (!feedbackByMessageId || Object.keys(feedbackByMessageId).length === 0) {
+    return messages;
+  }
+
+  return messages.map((message) => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    const feedback = feedbackByMessageId[message.id];
+    if (!feedback) {
+      return message;
+    }
+
+    return { ...message, feedback };
+  });
+}
+
+function attachActiveRunIdToAssistantMessages(
+  messages: InAppAiAgentMessage[],
+  runId: string | null,
+): InAppAiAgentMessage[] {
+  if (!runId) {
+    return messages;
+  }
+
+  return messages.map((message) => {
+    if (message.role !== "assistant" || message.runId) {
+      return message;
+    }
+
+    return { ...message, runId };
+  });
 }
 
 function getAgentErrorMessage(error: unknown): string {
