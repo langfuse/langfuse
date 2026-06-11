@@ -47,6 +47,11 @@ import { observationsTableCols } from "../../observationsTable";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
 import { ObservationType } from "../../domain";
+import {
+  LEGACY_OBSERVATION_EXPORT_FIELDS,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
+} from "../../domain/observation-field-groups";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
@@ -1813,46 +1818,39 @@ export const getTraceIdsForObservations = async (
   }));
 };
 
+// SQL expressions for the export fields of LEGACY_OBSERVATION_EXPORT_FIELDS
+// (the domain-level export contract) that are not plain column reads. Every
+// other field selects the table column of the same name.
+const LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES: Record<string, string> = {
+  latency:
+    "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency",
+  time_to_first_token:
+    "if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time) / 1000) as time_to_first_token",
+  model_id: "internal_model_id as model_id",
+};
+
 export const getObservationsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
 ) {
+  // core is always required (provides id, trace_id, start/end_time used for deduplication)
+  const effectiveGroups = new Set<ObservationFieldGroupFull>([
+    "core",
+    ...fieldGroups,
+  ]);
+
+  const selectedColumns = LEGACY_OBSERVATION_EXPORT_FIELDS.filter((column) =>
+    effectiveGroups.has(column.group),
+  ).map(
+    (column) =>
+      LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES[column.field] ?? column.field,
+  );
+
   const query = `
     SELECT
-      id,
-      trace_id,
-      project_id,
-      environment,
-      type,
-      parent_observation_id,
-      start_time,
-      end_time,
-      name,
-      metadata,
-      level,
-      status_message,
-      version,
-      input,
-      output,
-      provided_model_name,
-      model_parameters,
-      usage_details,
-      cost_details,
-      completion_start_time,
-      prompt_name,
-      prompt_version,
-      total_cost,
-      if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency,
-      if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time) / 1000) as time_to_first_token,
-      internal_model_id as model_id,
-      created_at,
-      updated_at,
-      prompt_id,
-      tool_calls,
-      tool_call_names,
-      tool_definitions,
-      usage_pricing_tier_name
+      ${selectedColumns.join(",\n      ")}
     FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}

@@ -277,10 +277,12 @@ const processBlobStorageExport = async (config: {
             config.projectId,
             config.minTimestamp,
             config.maxTimestamp,
+            exportFieldGroups,
           ),
           config.projectId,
           "model_id",
           false, // v3 query already returns latency in seconds
+          exportFieldGroups,
         );
         break;
       case "scores":
