@@ -159,8 +159,10 @@ export const CreateExperimentsForm = ({
                   via SDK / API
                 </CardTitle>
                 <CardDescription>
-                  Start any dataset run via the Langfuse SDKs. To configure runs
-                  via webhook, use the button below.
+                  Start any dataset run via the Langfuse SDKs.
+                  {datasetId
+                    ? " To configure runs via webhook, use the button below."
+                    : null}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -211,7 +213,7 @@ export const CreateExperimentsForm = ({
                     View Docs
                   </Link>
                 </Button>
-                {!existingRemoteExperiment.data && (
+                {!existingRemoteExperiment.data && datasetId && (
                   <Button
                     variant="outline"
                     title="Set up remote dataset run in UI trigger"
