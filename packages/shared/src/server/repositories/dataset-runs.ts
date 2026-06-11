@@ -5,27 +5,18 @@ import type z from "zod";
 
 type Json = z.infer<typeof jsonSchema>;
 
-const isUniqueConstraintError = (error: any): boolean => {
-  return (
-    error.code === "P2002" || // Prisma unique constraint
-    error.message?.includes("duplicate key") ||
-    error.message?.toLowerCase().includes("unique constraint") ||
-    error.message?.includes("violates unique constraint")
-  );
-};
-
 /**
- * Create or fetch a dataset run with optimistic concurrency handling.
+ * Create or fetch a dataset run using an atomic upsert.
  *
  * Behavior:
- * - First tries to find an existing run by (projectId, datasetId, name).
- * - If not found, attempts to create it.
- * - If creation fails due to a unique constraint (likely created concurrently),
- *   fetches and returns the existing run.
- * - If all steps fail, throws an error.
+ * - Uses Prisma upsert on the (datasetId, projectId, name) unique constraint
+ *   so concurrent callers all converge to the same run without errors.
+ * - If the run already exists, returns it unchanged.
  *
- * Rationale: The public API can receive many POST requests almost simultaneously,
- * which is not concurrency-safe without this guard.
+ * Rationale: The public API can receive many POST requests almost simultaneously
+ * (e.g. dataset.run_experiment with max_concurrency > 1). The previous
+ * create-then-catch approach worked but logged Prisma unique-constraint errors
+ * on every concurrent call. Upsert is atomic and silent.
  */
 export const createOrFetchDatasetRun = async ({
   projectId,
@@ -42,56 +33,24 @@ export const createOrFetchDatasetRun = async ({
   metadata?: Json | null;
   createdAt?: Date;
 }) => {
-  try {
-    // Attempt to fetch existing run
-    const existingRun = await prisma.datasetRuns.findUnique({
-      where: {
-        datasetId_projectId_name: {
-          datasetId,
-          projectId,
-          name: name,
-        },
-      },
-    });
-    if (existingRun) {
-      return existingRun;
-    }
-
-    // Attempt creation
-    const datasetRun = await prisma.datasetRuns.create({
-      data: {
-        id: v4(),
+  return prisma.datasetRuns.upsert({
+    where: {
+      datasetId_projectId_name: {
         datasetId,
         projectId,
         name,
-        description: description ?? null,
-        metadata: metadata ?? {},
-        createdAt: createdAt ?? new Date(),
-        updatedAt: createdAt ?? new Date(),
       },
-    });
-    return datasetRun;
-  } catch (error) {
-    // Check if it's a unique constraint violation
-    if (isUniqueConstraintError(error)) {
-      // Fetch existing run
-      const existingRun = await prisma.datasetRuns.findUnique({
-        where: {
-          datasetId_projectId_name: {
-            datasetId,
-            projectId,
-            name: name,
-          },
-        },
-      });
-
-      if (existingRun) {
-        return existingRun;
-      }
-    } else {
-      throw error;
-    }
-  }
-
-  throw new Error("Failed to create or fetch dataset run");
+    },
+    create: {
+      id: v4(),
+      datasetId,
+      projectId,
+      name,
+      description: description ?? null,
+      metadata: metadata ?? {},
+      createdAt: createdAt ?? new Date(),
+      updatedAt: createdAt ?? new Date(),
+    },
+    update: {}, // Run already exists, return it unchanged
+  });
 };
