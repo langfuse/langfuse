@@ -67,7 +67,7 @@ export function InAppAgentMessage({
     return (
       <div
         className={cn(
-          "bg-card dark:bg-header text-card-foreground border-border rounded-2xl border py-2 shadow-xs",
+          "bg-card dark:bg-header text-foreground border-border rounded-2xl border py-2 shadow-xs",
           isCompact
             ? "rounded-xl py-1 text-[0.775rem]"
             : "rounded-2xl py-1.5 text-sm",
@@ -111,13 +111,13 @@ const MessageCard = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "shadow-xs",
+        "max-w-full overflow-hidden wrap-break-word shadow-xs",
         isCompact
           ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
           : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
           ? "bg-primary text-primary-foreground"
-          : "bg-card dark:bg-header text-card-foreground border-border border",
+          : "bg-card dark:bg-header text-foreground border-border border",
       )}
     >
       {content.type === "loading" ? (
@@ -545,7 +545,7 @@ function MessageText({
   return (
     <div
       className={cn(
-        "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-table:m-0! prose-headings:text-inherit dark:prose-pre:bg-card prose-pre:leading-tight prose-table:border prose-td:p-2 prose-th:p-2 prose-table:bg-muted dark:prose-table:bg-card prose-table:overflow-hidden prose-table:rounded prose-tr:border-b prose-tr:border-border dark:prose-tr:border-border prose-headings:text-sm prose-hr:border-border max-w-none",
+        "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-table:m-0! prose-headings:text-inherit dark:prose-pre:bg-card prose-pre:leading-tight prose-table:border prose-td:p-2 prose-th:p-2 prose-table:bg-muted dark:prose-table:bg-card prose-table:overflow-hidden prose-table:rounded prose-tr:border-b prose-tr:border-border dark:prose-tr:border-border prose-headings:text-sm prose-hr:border-border prose-code:before:content-[''] prose-code:after:content-[''] prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-1 dark:prose-code:bg-card prose-code:font-normal max-w-none [&_pre>code]:p-0",
         isCompact
           ? "prose-headings:my-2 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-ol:my-1 prose-blockquote:my-2 prose-pre:my-2 prose-table:my-2 prose-th:text-xs prose-hr:my-3 text-[0.775rem] leading-4"
           : "prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-blockquote:my-2.5 prose-pre:my-2.5 prose-table:my-2.5 prose-th:text-sm prose-hr:my-5 leading-4.5",
@@ -594,7 +594,11 @@ function MessageText({
           tr: ({ children }) => <tr>{children}</tr>,
           th: ({ children }) => <th>{children}</th>,
           td: ({ children }) => <td>{children}</td>,
-          table: ({ children }) => <table>{children}</table>,
+          table: ({ children }) => (
+            <div className="overflow-x-auto rounded">
+              <table>{children}</table>
+            </div>
+          ),
         }}
       >
         {text}

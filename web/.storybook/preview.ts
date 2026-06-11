@@ -1,6 +1,7 @@
 import { definePreview } from "@storybook/nextjs-vite";
 import addonA11y from "@storybook/addon-a11y";
 import { createElement } from "react";
+import { TooltipProvider } from "../src/components/ui/tooltip";
 import { ThemeProvider } from "../src/features/theming/ThemeProvider";
 import "../src/styles/globals.css";
 
@@ -36,9 +37,13 @@ export default definePreview({
           forcedTheme: theme,
         },
         createElement(
-          "div",
-          { className: "min-h-screen bg-background text-foreground" },
-          createElement(Story),
+          TooltipProvider,
+          null,
+          createElement(
+            "div",
+            { className: "min-h-screen bg-background text-foreground" },
+            createElement(Story),
+          ),
         ),
       );
     },
