@@ -1,5 +1,6 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { entitlementAccess } from "@/src/features/entitlements/constants/entitlements";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
@@ -479,21 +480,29 @@ describe("monitors trpc", () => {
   });
 
   describe("entitlement limit", () => {
+    const monitorLimit =
+      entitlementAccess["cloud:hobby"].entitlementLimits["monitor-count"];
+    if (typeof monitorLimit !== "number") {
+      throw new Error(
+        "expected cloud:hobby monitor-count limit to be a number",
+      );
+    }
+
     it("rejects monitors.create when org is at the monitor-count limit", async () => {
       const { project, caller } = await prepare();
-      await seedMonitors(caller, project.id, 10);
+      await seedMonitors(caller, project.id, monitorLimit);
 
       await expect(
         caller.monitors.create({
           ...validMonitorInput(project.id),
-          name: "Eleventh monitor",
+          name: `Monitor ${monitorLimit + 1}`,
         }),
       ).rejects.toThrow(/monitor-count/i);
     });
 
     it("counts monitors with non-ACTIVE status toward the limit", async () => {
       const { project, caller } = await prepare();
-      await seedMonitors(caller, project.id, 10);
+      await seedMonitors(caller, project.id, monitorLimit);
 
       const seeded = await prisma.monitor.findMany({
         where: { projectId: project.id },
@@ -511,14 +520,14 @@ describe("monitors trpc", () => {
       await expect(
         caller.monitors.create({
           ...validMonitorInput(project.id),
-          name: "Eleventh monitor",
+          name: `Monitor ${monitorLimit + 1}`,
         }),
       ).rejects.toThrow(/monitor-count/i);
     });
 
     it("allows monitors.update when at the limit", async () => {
       const { project, caller } = await prepare();
-      await seedMonitors(caller, project.id, 10);
+      await seedMonitors(caller, project.id, monitorLimit);
 
       const [first] = await prisma.monitor.findMany({
         where: { projectId: project.id },
