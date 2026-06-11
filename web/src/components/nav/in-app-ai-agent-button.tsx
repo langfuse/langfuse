@@ -6,6 +6,7 @@ import {
   type CSSProperties,
 } from "react";
 import { createPortal } from "react-dom";
+import { useSession } from "next-auth/react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -29,10 +30,13 @@ import { cn } from "@/src/utils/tailwind";
 const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
 
 export const InAppAiAgentButton = () => {
+  const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
   const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const isInAppAgentEnabled =
+    session.data?.user?.featureFlags.inAppAgent === true;
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -103,7 +107,7 @@ export const InAppAiAgentButton = () => {
     };
   }, [isExpanded, open]);
 
-  if (!isAvailable || !hasInAppAgentEntitlement) {
+  if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
     return null;
   }
 
