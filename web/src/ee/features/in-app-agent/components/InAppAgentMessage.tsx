@@ -545,7 +545,7 @@ function MessageText({
   return (
     <div
       className={cn(
-        "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-table:m-0! prose-headings:text-inherit dark:prose-pre:bg-card prose-pre:leading-tight prose-table:border prose-td:p-2 prose-th:p-2 prose-table:bg-muted dark:prose-table:bg-card prose-table:overflow-hidden prose-table:rounded prose-tr:border-b prose-tr:border-border dark:prose-tr:border-border prose-headings:text-sm prose-hr:border-border max-w-none",
+        "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-table:m-0! prose-headings:text-inherit dark:prose-pre:bg-card prose-pre:leading-tight prose-table:border prose-td:p-2 prose-th:p-2 prose-table:bg-muted dark:prose-table:bg-card prose-table:overflow-hidden prose-table:rounded prose-tr:border-b prose-tr:border-border dark:prose-tr:border-border prose-headings:text-sm prose-hr:border-border prose-code:before:content-[''] prose-code:after:content-[''] prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-1 dark:prose-code:bg-card prose-code:font-normal max-w-none [&_pre>code]:p-0",
         isCompact
           ? "prose-headings:my-2 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-ol:my-1 prose-blockquote:my-2 prose-pre:my-2 prose-table:my-2 prose-th:text-xs prose-hr:my-3 text-[0.775rem] leading-4"
           : "prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-blockquote:my-2.5 prose-pre:my-2.5 prose-table:my-2.5 prose-th:text-sm prose-hr:my-5 leading-4.5",
