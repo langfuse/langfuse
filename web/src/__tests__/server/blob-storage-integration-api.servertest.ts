@@ -791,7 +791,7 @@ describe("Blob Storage Integrations API", () => {
 
     // ---- LEGACY_TRACES_OBSERVATIONS path ----
 
-    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups omitted -> 200; GET hides field groups", async () => {
+    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups omitted -> 200; GET returns all 11 groups", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -820,10 +820,12 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(integration).toBeDefined();
       expect(integration?.exportSource).toBe("LEGACY_TRACES_OBSERVATIONS");
-      expect(integration?.exportFieldGroups).toBeNull();
+      expect(integration?.exportFieldGroups).toHaveLength(
+        OBSERVATION_FIELD_GROUPS_FULL.length,
+      );
     });
 
-    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=null -> 200; GET hides field groups", async () => {
+    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=null -> 200; GET returns all 11 groups", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -852,10 +854,12 @@ describe("Blob Storage Integrations API", () => {
         (i) => i.projectId === testProject1Id,
       );
       expect(integration).toBeDefined();
-      expect(integration?.exportFieldGroups).toBeNull();
+      expect(integration?.exportFieldGroups).toHaveLength(
+        OBSERVATION_FIELD_GROUPS_FULL.length,
+      );
     });
 
-    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=[] -> 400 with 'not applicable'", async () => {
+    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=[] (missing core) -> 400", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -871,10 +875,10 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(result.status).toBe(400);
       const message = JSON.stringify(result.body);
-      expect(message.toLowerCase()).toContain("not applicable");
+      expect(message.toLowerCase()).toContain("core");
     });
 
-    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=[core,io] -> 400 with 'not applicable'", async () => {
+    it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=[core,io] -> 200 and GET returns same value", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -882,18 +886,23 @@ describe("Blob Storage Integrations API", () => {
         exportFieldGroups: ["core", "io"],
       };
 
-      const result = await makeAPICall(
+      const putResponse = await makeZodVerifiedAPICall(
+        BlobStorageIntegrationResponseSchema,
         "PUT",
         "/api/public/integrations/blob-storage",
         requestBody,
         createBasicAuthHeader(testApiKey, testApiSecretKey),
       );
-      expect(result.status).toBe(400);
-      const message = JSON.stringify(result.body);
-      expect(message.toLowerCase()).toContain("not applicable");
+      expect(putResponse.status).toBe(200);
+      expect(putResponse.body.exportFieldGroups).toStrictEqual(["core", "io"]);
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
-    it("GET hides exportFieldGroups for legacy LEGACY_TRACES_OBSERVATIONS rows seeded via Prisma", async () => {
+    it("GET returns exportFieldGroups for LEGACY_TRACES_OBSERVATIONS rows seeded via Prisma", async () => {
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -927,7 +936,11 @@ describe("Blob Storage Integrations API", () => {
       );
       expect(integration).toBeDefined();
       expect(integration?.exportSource).toBe("LEGACY_TRACES_OBSERVATIONS");
-      expect(integration?.exportFieldGroups).toBeNull();
+      expect(integration?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metadata",
+      ]);
     });
 
     it("PUT LEGACY_TRACES_OBSERVATIONS preserves existing export_field_groups column in DB", async () => {
@@ -968,13 +981,13 @@ describe("Blob Storage Integrations API", () => {
         where: { projectId: testProject1Id },
       });
       expect(saved?.bucketName).toBe("updated-bucket");
-      // REST never overwrites export_field_groups for this source.
+      // Omitting exportFieldGroups on update preserves the stored value.
       expect(saved?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
     // ---- Response shape ----
 
-    it("PUT response includes exportSource and exportFieldGroups (null for LEGACY_TRACES_OBSERVATIONS)", async () => {
+    it("PUT response includes exportSource and exportFieldGroups for LEGACY_TRACES_OBSERVATIONS", async () => {
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -993,11 +1006,12 @@ describe("Blob Storage Integrations API", () => {
         "exportSource",
         "LEGACY_TRACES_OBSERVATIONS",
       );
-      expect(response.body).toHaveProperty("exportFieldGroups");
-      expect(response.body.exportFieldGroups).toBeNull();
+      expect(response.body.exportFieldGroups).toHaveLength(
+        OBSERVATION_FIELD_GROUPS_FULL.length,
+      );
     });
 
-    it("GET response includes exportSource always and exportFieldGroups with source-conditional null", async () => {
+    it("GET response includes exportSource and exportFieldGroups for all sources", async () => {
       // Seed two integrations on different projects with different sources
       await prisma.blobStorageIntegration.create({
         data: {
@@ -1054,7 +1068,11 @@ describe("Blob Storage Integrations API", () => {
       expect(legacyIntegration?.exportSource).toBe(
         "LEGACY_TRACES_OBSERVATIONS",
       );
-      expect(legacyIntegration?.exportFieldGroups).toBeNull();
+      expect(legacyIntegration?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metadata",
+      ]);
       expect(enrichedIntegration?.exportSource).toBe("OBSERVATIONS_V2");
       expect(enrichedIntegration?.exportFieldGroups).toStrictEqual([
         "core",

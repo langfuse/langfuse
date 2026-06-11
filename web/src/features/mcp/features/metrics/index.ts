@@ -22,5 +22,6 @@ export const metricsFeature: McpFeatureModule = {
       allowInAppAgentKey: true,
     },
   ],
-  isEnabled: async () => env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true",
+  isEnabled: async () =>
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
 };

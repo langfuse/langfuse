@@ -1,3 +1,4 @@
+import { env } from "../../env";
 import { queryClickhouse } from "../repositories";
 
 // ============================================================================
@@ -12,6 +13,20 @@ export type QueryStatus = "running" | "completed" | "failed" | "not_found";
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Builds a system-table reference, optionally wrapped in clusterAllReplicas
+ * when CH is deployed as a cluster. Single-node deployments (self-hosted) read
+ * the local table directly.
+ */
+function systemTableRef(
+  table: "system.processes" | "system.query_log",
+): string {
+  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
+    return `clusterAllReplicas('${env.CLICKHOUSE_CLUSTER_NAME}', '${table}')`;
+  }
+  return table;
 }
 
 // ============================================================================
@@ -35,7 +50,7 @@ export async function pollQueryStatus(
   const running = await queryClickhouse<{ query_id: string }>({
     query: `
         SELECT query_id
-        FROM clusterAllReplicas('default', 'system.processes')
+        FROM ${systemTableRef("system.processes")}
         WHERE query_id = {queryId: String}
         LIMIT 1
       `,
@@ -59,7 +74,7 @@ export async function pollQueryStatus(
   }>({
     query: `
       SELECT type, exception_code
-      FROM clusterAllReplicas('default', 'system.query_log')
+      FROM ${systemTableRef("system.query_log")}
       WHERE query_id = {queryId: String}
       ORDER BY event_time_microseconds DESC
       LIMIT 1
@@ -107,7 +122,7 @@ export async function getQueryError(
   const result = await queryClickhouse<{ exception_message: string }>({
     query: `
       SELECT exception as exception_message
-      FROM clusterAllReplicas('default', 'system.query_log')
+      FROM ${systemTableRef("system.query_log")}
       WHERE query_id = {queryId: String}
         AND type != 'QueryStart'
         AND exception != ''

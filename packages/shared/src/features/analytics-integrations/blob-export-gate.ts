@@ -36,3 +36,11 @@ export function isLegacyBlobExportAllowed(
   if (!isCloud) return true;
   return projectCreatedAt < LEGACY_BLOB_EXPORT_CUTOFF;
 }
+
+/**
+ * Whether this deployment has the enriched events export path.
+ * Today equivalent to `isLangfuseCloud`; flip when self-hosted is provisioned with the migration.
+ */
+export function isEnrichedBlobExportAvailable(isCloud: boolean): boolean {
+  return isCloud;
+}

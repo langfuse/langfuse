@@ -1,4 +1,3 @@
-import { logger } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { LATEST_PROMPT_LABEL } from "@langfuse/shared";
 
@@ -29,8 +28,6 @@ export const promptVersionHandler = withMiddlewares({
         promptVersion: Number(promptVersion),
         newLabels,
       });
-
-      logger.info(`Prompt updated ${JSON.stringify(updatedPrompt)}`);
 
       return updatedPrompt;
     },

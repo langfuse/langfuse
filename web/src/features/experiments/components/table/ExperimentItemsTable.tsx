@@ -52,11 +52,15 @@ import {
 import { MemoizedIOTableCell } from "@/src/components/ui/IOTableCell";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { cn } from "@/src/utils/tailwind";
-import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
-import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
+import { createScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { ExperimentCompareTable } from "./ExperimentCompareTable";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import {
+  useExperimentItemsFilterOptions,
+  type ScoreColumnDef,
+} from "@/src/features/experiments/hooks/useExperimentItemsFilterOptions";
 import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import { computeScoreDiffs } from "@/src/features/datasets/lib/computeScoreDiffs";
 import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/peek-experiment-item-detail";
@@ -64,6 +68,28 @@ import { TablePeekViewExperimentItemDetail } from "@/src/components/table/peek/p
 const renderExperimentSpecificHeader = (label: string) => (
   <span className="text-muted-foreground">{label}</span>
 );
+
+/**
+ * Transforms score column definitions to the format expected by createScoreColumns.
+ * Computes the aggregate key from name/source/dataType.
+ */
+function toScoreColumnInput(scoreColumnDefs: ScoreColumnDef[]): Array<{
+  key: string;
+  name: string;
+  source: string;
+  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+}> {
+  return scoreColumnDefs.map(({ name, dataType, source }) => ({
+    key: composeAggregateScoreKey({
+      name,
+      source: source as "API" | "ANNOTATION" | "EVAL",
+      dataType,
+    }),
+    name,
+    source,
+    dataType,
+  }));
+}
 
 export const getDefaultExperimentFilterTarget = (props: {
   baselineId?: string;
@@ -247,6 +273,13 @@ export default function ExperimentItemsTable({
         : comparisonIds,
     [comparisonIds, fallbackBaselineId],
   );
+  // All experiment IDs (base first, then comparisons)
+  const allExperimentIds = useMemo(() => {
+    return fallbackBaselineId
+      ? [fallbackBaselineId, ...comparisonIdsWithoutFallbackBaseline]
+      : [];
+  }, [fallbackBaselineId, comparisonIdsWithoutFallbackBaseline]);
+
   const defaultFilterTargetExperimentId = getDefaultExperimentFilterTarget({
     baselineId,
     comparisonIds,
@@ -285,12 +318,22 @@ export default function ExperimentItemsTable({
     order: "DESC",
   });
 
+  // Fetch score filter options scoped to selected experiments
+  const {
+    filterOptions: scoreFilterOptions,
+    scoreColumns: scoreColumnDefs,
+    isLoading: isFilterOptionsLoading,
+  } = useExperimentItemsFilterOptions({
+    projectId,
+    experimentIds: allExperimentIds,
+  });
+
   // Use sidebar filter state for the sidebar UI (provides proper facets, options, etc.)
   // This is the single source of truth for filters
   const queryFilter = useSidebarFilterState(
     experimentItemsFilterConfig,
-    {},
-    { stateLocation: "url" },
+    scoreFilterOptions,
+    { stateLocation: "url", loading: isFilterOptionsLoading },
   );
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
@@ -471,44 +514,42 @@ export default function ExperimentItemsTable({
     },
   );
 
-  // All experiment IDs for color coding (base first, then comparisons)
-  const allExperimentIds = useMemo(() => {
-    return fallbackBaselineId
-      ? [fallbackBaselineId, ...comparisonIdsWithoutFallbackBaseline]
-      : [];
-  }, [fallbackBaselineId, comparisonIdsWithoutFallbackBaseline]);
   const colorExperimentIds = useMemo(
     () => (hasBaseline ? allExperimentIds : []),
     [hasBaseline, allExperimentIds],
   );
 
-  const {
-    scoreColumns: observationScoreColumns,
-    isLoading: isObservationScoreColumnsLoading,
-  } = useScoreColumns<ExperimentItemData>({
-    scoreColumnKey: "observationScores",
-    projectId,
-    rawKey: true,
-    filter: scoreFilters.forExperimentItems({
-      experimentIds: allExperimentIds,
-    }),
-    isFilterDataPending: allExperimentIds.length === 0,
-  });
+  // Create score columns from the shared filter options data
+  // This ensures sidebar filters and column visibility use the same data source
+  const observationScoreColumns = useMemo(
+    () =>
+      createScoreColumns<ExperimentItemData>(
+        toScoreColumnInput(scoreColumnDefs.observationScoreColumns),
+        "observationScores",
+        "smart",
+        undefined,
+        undefined,
+        true,
+      ),
+    [scoreColumnDefs.observationScoreColumns],
+  );
 
-  const {
-    scoreColumns: traceScoreColumns,
-    isLoading: isTraceScoreColumnsLoading,
-  } = useScoreColumns<ExperimentItemData>({
-    scoreColumnKey: "traceScores",
-    projectId,
-    rawKey: true,
-    filter: scoreFilters.forExperimentItems({
-      experimentIds: allExperimentIds,
-    }),
-    prefix: "Trace",
-    defaultHidden: true,
-    isFilterDataPending: allExperimentIds.length === 0,
-  });
+  const traceScoreColumns = useMemo(
+    () =>
+      createScoreColumns<ExperimentItemData>(
+        toScoreColumnInput(scoreColumnDefs.traceScoreColumns),
+        "traceScores",
+        "smart",
+        "Trace",
+        true,
+        true,
+      ),
+    [scoreColumnDefs.traceScoreColumns],
+  );
+
+  // Use the shared loading state for both sidebar and columns
+  const isObservationScoreColumnsLoading = isFilterOptionsLoading;
+  const isTraceScoreColumnsLoading = isFilterOptionsLoading;
 
   const buildExperimentScoreColumns = useCallback(
     (

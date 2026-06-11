@@ -16,6 +16,8 @@ import {
   StringFilter,
   FullObservations,
   orderByToClickhouseSql,
+  createPublicApiObservationsColumnMapping,
+  deriveFilters,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -45,6 +47,11 @@ import { observationsTableCols } from "../../observationsTable";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
 import { ObservationType } from "../../domain";
+import {
+  LEGACY_OBSERVATION_EXPORT_FIELDS,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
+} from "../../domain/observation-field-groups";
 import { recordDistribution } from "../instrumentation";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
@@ -328,7 +335,15 @@ export const getObservationForTraceIdByName = async ({
   return records.map((record) => convertObservation(record));
 };
 
-export const getObservationById = async ({
+/**
+ * Retrieves an observation by its ID from the legacy `observations` table.
+ *
+ * Prefer the routing wrapper `getObservationById` (in repositories/events.ts)
+ * for application reads: it dispatches between this legacy reader and the events
+ * table based on the V4 migration flags. Call this directly only when you
+ * specifically need the legacy table (e.g. backfills, migration tooling).
+ */
+export const getObservationByIdFromObservationsTable = async ({
   id,
   projectId,
   fetchWithInputOutput = false,
@@ -1803,46 +1818,39 @@ export const getTraceIdsForObservations = async (
   }));
 };
 
+// SQL expressions for the export fields of LEGACY_OBSERVATION_EXPORT_FIELDS
+// (the domain-level export contract) that are not plain column reads. Every
+// other field selects the table column of the same name.
+const LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES: Record<string, string> = {
+  latency:
+    "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency",
+  time_to_first_token:
+    "if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time) / 1000) as time_to_first_token",
+  model_id: "internal_model_id as model_id",
+};
+
 export const getObservationsForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
 ) {
+  // core is always required (provides id, trace_id, start/end_time used for deduplication)
+  const effectiveGroups = new Set<ObservationFieldGroupFull>([
+    "core",
+    ...fieldGroups,
+  ]);
+
+  const selectedColumns = LEGACY_OBSERVATION_EXPORT_FIELDS.filter((column) =>
+    effectiveGroups.has(column.group),
+  ).map(
+    (column) =>
+      LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES[column.field] ?? column.field,
+  );
+
   const query = `
     SELECT
-      id,
-      trace_id,
-      project_id,
-      environment,
-      type,
-      parent_observation_id,
-      start_time,
-      end_time,
-      name,
-      metadata,
-      level,
-      status_message,
-      version,
-      input,
-      output,
-      provided_model_name,
-      model_parameters,
-      usage_details,
-      cost_details,
-      completion_start_time,
-      prompt_name,
-      prompt_version,
-      total_cost,
-      if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency,
-      if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time) / 1000) as time_to_first_token,
-      internal_model_id as model_id,
-      created_at,
-      updated_at,
-      prompt_id,
-      tool_calls,
-      tool_call_names,
-      tool_definitions,
-      usage_pricing_tier_name
+      ${selectedColumns.join(",\n      ")}
     FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
@@ -2105,4 +2113,192 @@ export const getCostByEvaluatorIds = async (
     evaluatorId: row.evaluator_id,
     totalCost: Number(row.total_cost),
   }));
+};
+
+// ─── Public-API observation query helpers ─────────────────────────────────────
+
+type PublicApiObservationQueryType = {
+  page: number;
+  limit: number;
+  projectId: string;
+  traceId?: string;
+  userId?: string;
+  name?: string;
+  type?: string;
+  parentObservationId?: string;
+  fromStartTime?: string;
+  toStartTime?: string;
+  version?: string;
+  advancedFilters?: FilterState;
+};
+
+export const generateObservationsForPublicApi = async (
+  props: PublicApiObservationQueryType,
+) => {
+  const chFilter = generatePublicApiObservationFilter(props);
+  const appliedFilter = chFilter.apply();
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
+  const disableObservationsFinal = await shouldSkipObservationsFinal(
+    props.projectId,
+  );
+
+  const query = `
+    with clickhouse_keys as (
+      SELECT DISTINCT
+        id,
+        trace_id,
+        project_id,
+        type,
+        toDate(start_time)
+      FROM observations o
+        ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+      WHERE o.project_id = {projectId: String}
+        ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
+        AND ${appliedFilter.query}
+      ORDER BY start_time DESC
+        ${props.limit !== undefined && props.page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+    )
+    SELECT
+      id,
+      trace_id,
+      project_id,
+      type,
+      parent_observation_id,
+      environment,
+      start_time,
+      end_time,
+      name,
+      metadata,
+      level,
+      status_message,
+      version,
+      input,
+      output,
+      provided_model_name,
+      internal_model_id,
+      model_parameters,
+      provided_usage_details,
+      usage_details,
+      provided_cost_details,
+      cost_details,
+      total_cost,
+      completion_start_time,
+      prompt_id,
+      prompt_name,
+      prompt_version,
+      created_at,
+      updated_at,
+      event_ts
+    FROM observations o ${disableObservationsFinal ? "" : "FINAL"}
+    WHERE o.project_id = {projectId: String}
+      AND (id, trace_id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
+    ORDER BY start_time DESC
+  `;
+
+  return measureAndReturn({
+    operationName: "generateObservationsForPublicApi",
+    projectId: props.projectId,
+    input: {
+      params: {
+        ...appliedFilter.params,
+        projectId: props.projectId,
+        ...(props.limit !== undefined ? { limit: props.limit } : {}),
+        ...(props.page !== undefined
+          ? { offset: (props.page - 1) * props.limit }
+          : {}),
+      },
+      tags: {
+        feature: "tracing",
+        type: "observation",
+        projectId: props.projectId,
+        operation_name: "generateObservationsForPublicApi",
+      },
+    },
+    fn: async (input) => {
+      const result = await queryClickhouse<ObservationRecordReadType>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      });
+      return result.map((r) => convertObservation(r));
+    },
+  });
+};
+
+export const getObservationsCountForPublicApi = async (
+  props: PublicApiObservationQueryType,
+) => {
+  const chFilter = generatePublicApiObservationFilter(props);
+  const filter = chFilter.apply();
+  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
+
+  const query = `
+    SELECT count() as count
+    FROM observations o
+    ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
+    WHERE o.project_id = {projectId: String}
+    ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
+    AND ${filter.query}
+  `;
+
+  return measureAndReturn({
+    operationName: "getObservationsCountForPublicApi",
+    projectId: props.projectId,
+    input: {
+      params: { ...filter.params, projectId: props.projectId },
+      tags: {
+        feature: "tracing",
+        type: "observation",
+        projectId: props.projectId,
+        operation_name: "getObservationsCountForPublicApi",
+      },
+    },
+    fn: async (input) => {
+      const records = await queryClickhouse<{ count: string }>({
+        query: query.replace("__TRACE_TABLE__", "traces"),
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      });
+      return records.map((record) => Number(record.count)).shift();
+    },
+  });
+};
+
+const publicApiObservationsFilterParams =
+  createPublicApiObservationsColumnMapping(
+    "observations",
+    "o",
+    "parent_observation_id",
+  );
+
+const generatePublicApiObservationFilter = (
+  query: PublicApiObservationQueryType,
+) => {
+  const { advancedFilters, ...simpleFilterProps } = query;
+  const chFilter = deriveFilters(
+    simpleFilterProps,
+    publicApiObservationsFilterParams,
+    advancedFilters,
+    observationsTableUiColumnDefinitions.filter(
+      (c) => c.clickhouseTableName !== "scores",
+    ),
+    observationsTableCols,
+  );
+
+  const filteredChFilter = chFilter.filter(
+    (f) => f.clickhouseTable !== "scores",
+  );
+
+  filteredChFilter.push(
+    new StringFilter({
+      clickhouseTable: "observations",
+      field: "project_id",
+      operator: "=",
+      value: query.projectId,
+    }),
+  );
+  return filteredChFilter;
 };

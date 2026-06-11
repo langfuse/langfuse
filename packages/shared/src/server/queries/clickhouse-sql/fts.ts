@@ -18,6 +18,7 @@ export const FTS_MATCH_TARGET_ERROR =
   "`matches` is only supported for input, output, and metadata filters.";
 
 export const FTS_TEXT_NORMALIZER = "lower";
+export const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
 
 export const FTS_EVENTS_TABLES: ReadonlySet<string> = new Set(
   EVENTS_TABLE_NAMES,
@@ -76,17 +77,35 @@ export const hasFtsSearchToken = (value: string): boolean =>
 const normalizeFtsTextExpr = (expr: string): string =>
   `${FTS_TEXT_NORMALIZER}(${expr})`;
 
+const ftsSearchTokensExpr = (valueParam: string, normalize: boolean): string =>
+  `arrayDistinct(tokens(${normalize ? normalizeFtsTextExpr(valueParam) : valueParam}))`;
+
+const ftsSearchTokenPrefilterExpr = (
+  valueParam: string,
+  normalize: boolean,
+): string =>
+  `arraySlice(${ftsSearchTokensExpr(valueParam, normalize)}, 1, ${FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS})`;
+
+// `hasAllTokens` can only accept up to 64 search tokens. This predicate is only
+// an index prefilter; exact equality, ILIKE, or position() enforces semantics.
+const ftsTokenPrefilterPredicate = (
+  fieldExpr: string,
+  valueParam: string,
+  normalizeValue: boolean,
+): string =>
+  `hasAllTokens(${fieldExpr}, ${ftsSearchTokenPrefilterExpr(valueParam, normalizeValue)})`;
+
 export const ftsTextTokenPredicate = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
-  `hasAllTokens(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)})`;
+  ftsTokenPrefilterPredicate(normalizeFtsTextExpr(fieldExpr), valueParam, true);
 
 export const ftsTextTokenConjunct = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
-  `(empty(tokens(${normalizeFtsTextExpr(valueParam)})) OR ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
+  `(empty(${ftsSearchTokensExpr(valueParam, true)}) OR ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
 export const ftsTextIndexedSubstringCondition = (
   fieldExpr: string,
@@ -102,7 +121,7 @@ export const ftsMetadataArrayHas = (
 export const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
   valueParam: string,
-): string => `hasAllTokens(${arrayExpr}, ${valueParam})`;
+): string => ftsTokenPrefilterPredicate(arrayExpr, valueParam, false);
 
 type FtsMetadataArrayConditionContext = {
   hasKey: string;

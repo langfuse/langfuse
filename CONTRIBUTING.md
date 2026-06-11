@@ -111,7 +111,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.11.1.3
+- Pnpm v.11.4.0
 - Docker to run the database locally
 - Clickhouse client
 
@@ -210,6 +210,15 @@ When you change the shared MCP setup:
    pnpm install
    pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
    ```
+
+   The pre-commit hook runs formatting and lint checks. To skip only the lint
+   check for a commit, set `LANGFUSE_PRE_COMMIT_SKIP_LINT`, for example:
+
+   ```bash
+   LANGFUSE_PRE_COMMIT_SKIP_LINT=1 git commit -m "your commit message"
+   ```
+
+   CI still runs the required checks for pull requests.
 
 4. Create an env file
 

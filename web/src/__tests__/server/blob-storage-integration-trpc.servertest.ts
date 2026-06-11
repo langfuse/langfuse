@@ -468,7 +468,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       ).rejects.toThrow();
     });
 
-    it("accepts empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
+    it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
       const { caller, project } = await prepare();
       await prisma.project.update({
         where: { id: project.id },
@@ -482,7 +482,27 @@ describe("Blob Storage Integration tRPC Router", () => {
           exportSource: "TRACES_OBSERVATIONS" as const,
           exportFieldGroups: [],
         }),
-      ).resolves.not.toThrow();
+      ).rejects.toThrow();
+    });
+
+    it("accepts a custom subset including core when exportSource is TRACES_OBSERVATIONS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "TRACES_OBSERVATIONS" as const,
+        exportFieldGroups: ["core", "io"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
     it("overwrites stored subset when a new subset is submitted", async () => {
