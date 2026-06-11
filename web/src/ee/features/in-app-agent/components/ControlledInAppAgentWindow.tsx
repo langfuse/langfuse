@@ -47,6 +47,7 @@ export function ControlledInAppAgentWindow(
     selectConversation,
     selectedConversationId,
     submit,
+    submitFeedback,
   } = useInAppAiAgent();
   const isInputDisabled =
     isRunning || isSubmitting || isSelectedConversationHydrating;
@@ -146,10 +147,16 @@ export function ControlledInAppAgentWindow(
       if (text.trim() || role === "user") {
         mappedMessages.push({
           id: message.id,
+          ...(message.role === "assistant" && message.runId
+            ? { runId: message.runId }
+            : {}),
           role,
           content: {
             type: "text",
             text,
+            ...(message.role === "assistant" && message.feedback
+              ? { feedback: message.feedback }
+              : {}),
           },
         });
       }
@@ -235,6 +242,7 @@ export function ControlledInAppAgentWindow(
       onNewConversation={() => selectConversation(null)}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      onSubmitFeedback={submitFeedback}
       {...closeButtonProps}
     />
   );

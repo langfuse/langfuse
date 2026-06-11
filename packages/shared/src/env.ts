@@ -459,6 +459,11 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("true"),
 
+  // API ClickHouse query options
+  LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS: z
+    .enum(["true", "false"])
+    .default("false"),
+
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),
 
