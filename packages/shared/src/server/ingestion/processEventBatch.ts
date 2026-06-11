@@ -14,7 +14,6 @@ import {
   instrumentAsync,
   recordDistribution,
   recordIncrement,
-  traceException,
 } from "../instrumentation";
 import { logger } from "../logger";
 import { QueueJobs } from "../queues";
@@ -446,8 +445,7 @@ export const aggregateBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
-    traceException(errors);
-    logger.error("Error processing events", {
+    logger.warn("Error processing events", {
       errors: returnedErrors,
       "langfuse.project.id": projectId,
     });
