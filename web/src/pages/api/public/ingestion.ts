@@ -163,20 +163,20 @@ export default async function handler(
       });
     }
 
+    if (error instanceof z.ZodError) {
+      logger.error(`Zod exception`, error.issues);
+      return res.status(400).json({
+        message: "Invalid request data",
+        error: error.issues,
+      });
+    }
+
     logger.error("error_handling_ingestion_event", error);
     traceException(error);
 
     if (isPrismaException(error)) {
       return res.status(500).json({
         error: "Internal Server Error",
-      });
-    }
-
-    if (error instanceof z.ZodError) {
-      logger.error(`Zod exception`, error.issues);
-      return res.status(400).json({
-        message: "Invalid request data",
-        error: error.issues,
       });
     }
 
