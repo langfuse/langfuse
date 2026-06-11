@@ -1,6 +1,13 @@
 import { describe, it, expect } from "vitest";
 
-import type { Monitor, MonitorSeverity } from "../types";
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+  type Monitor,
+  type MonitorSeverity,
+} from "../types";
 import type { MonitorCompletion } from "./applyStateMachine";
 import { renderAlertMessage } from "./renderAlertMessage";
 
@@ -18,18 +25,18 @@ const baseMonitor: Monitor = {
   filters: [],
   metric: { measure: "latency", aggregation: "p95" },
   window: "5m",
-  thresholdOperator: "GT",
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: 50,
-  noData: { mode: "SILENT" },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" },
   name: "Latency monitor",
   tags: [],
   triggerIds: [],
-  severity: "OK",
+  severity: MonitorSeveritySchema.enum.OK,
   severityChangedAt: null,
   alertedAt: null,
-  status: "ACTIVE",
+  status: MonitorStatusSchema.enum.ACTIVE,
   nextRunAt: null,
   lastPublishedAt: null,
   lastClaimedAt: null,
@@ -42,7 +49,7 @@ const completion = (severity: MonitorSeverity): MonitorCompletion => ({
   lastClaimedAt: t0,
   lastCompletedAt: t0,
   publishedAt: t0,
-  status: "ACTIVE",
+  status: MonitorStatusSchema.enum.ACTIVE,
   severity,
   severityChangedAt: null,
   alertedAt: null,
@@ -63,8 +70,8 @@ const metricRef = "`p95(observations.latency)`";
 const cases: Case[] = [
   {
     name: "NO_DATA: body reports no data over the window",
-    monitor: { severity: "OK", window: "1h" },
-    next: "NO_DATA",
+    monitor: { severity: MonitorSeveritySchema.enum.OK, window: "1h" },
+    next: MonitorSeveritySchema.enum.NO_DATA,
     expected: {
       title: "[NO_DATA] Latency monitor",
       body: `${metricRef} has no data over the last **1h**`,
@@ -72,8 +79,8 @@ const cases: Case[] = [
   },
   {
     name: "NO_DATA -> OK: body reports recovery and data again",
-    monitor: { severity: "NO_DATA" },
-    next: "OK",
+    monitor: { severity: MonitorSeveritySchema.enum.NO_DATA },
+    next: MonitorSeveritySchema.enum.OK,
     expected: {
       title: "[OK] Latency monitor",
       body: `${metricRef} recovered and is reporting data again`,
@@ -81,8 +88,8 @@ const cases: Case[] = [
   },
   {
     name: "OK from a threshold severity: body reports recovery",
-    monitor: { severity: "ALERT" },
-    next: "OK",
+    monitor: { severity: MonitorSeveritySchema.enum.ALERT },
+    next: MonitorSeveritySchema.enum.OK,
     expected: {
       title: "[OK] Latency monitor",
       body: `${metricRef} recovered`,
@@ -90,8 +97,12 @@ const cases: Case[] = [
   },
   {
     name: "ALERT: body uses alert threshold",
-    monitor: { severity: "OK", thresholdOperator: "GT", alertThreshold: 100 },
-    next: "ALERT",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
+      alertThreshold: 100,
+    },
+    next: MonitorSeveritySchema.enum.ALERT,
     expected: {
       title: "[ALERT] Latency monitor",
       body: `${metricRef} is **above** \`100\` over the last **5m**`,
@@ -99,8 +110,12 @@ const cases: Case[] = [
   },
   {
     name: "WARNING with warning band: body uses warning threshold",
-    monitor: { severity: "OK", alertThreshold: 100, warningThreshold: 50 },
-    next: "WARNING",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      alertThreshold: 100,
+      warningThreshold: 50,
+    },
+    next: MonitorSeveritySchema.enum.WARNING,
     expected: {
       title: "[WARNING] Latency monitor",
       body: `${metricRef} is **above** \`50\` over the last **5m**`,
@@ -108,8 +123,12 @@ const cases: Case[] = [
   },
   {
     name: "WARNING with null warning band: falls back to alert threshold",
-    monitor: { severity: "OK", alertThreshold: 100, warningThreshold: null },
-    next: "WARNING",
+    monitor: {
+      severity: MonitorSeveritySchema.enum.OK,
+      alertThreshold: 100,
+      warningThreshold: null,
+    },
+    next: MonitorSeveritySchema.enum.WARNING,
     expected: {
       title: "[WARNING] Latency monitor",
       body: `${metricRef} is **above** \`100\` over the last **5m**`,
@@ -130,12 +149,12 @@ describe("renderAlertMessage", () => {
   type OperatorCase = { op: Monitor["thresholdOperator"]; word: string };
   /** operatorCases covers every operator's rendered word. */
   const operatorCases: OperatorCase[] = [
-    { op: "GT", word: "above" },
-    { op: "GTE", word: "at or above" },
-    { op: "LT", word: "below" },
-    { op: "LTE", word: "at or below" },
-    { op: "EQ", word: "equal to" },
-    { op: "NEQ", word: "not equal to" },
+    { op: MonitorThresholdOperatorSchema.enum.GT, word: "above" },
+    { op: MonitorThresholdOperatorSchema.enum.GTE, word: "at or above" },
+    { op: MonitorThresholdOperatorSchema.enum.LT, word: "below" },
+    { op: MonitorThresholdOperatorSchema.enum.LTE, word: "at or below" },
+    { op: MonitorThresholdOperatorSchema.enum.EQ, word: "equal to" },
+    { op: MonitorThresholdOperatorSchema.enum.NEQ, word: "not equal to" },
   ];
 
   it.each(operatorCases)(
@@ -144,11 +163,11 @@ describe("renderAlertMessage", () => {
       const result = renderAlertMessage({
         monitor: {
           ...baseMonitor,
-          severity: "OK",
+          severity: MonitorSeveritySchema.enum.OK,
           thresholdOperator: op,
           alertThreshold: 100,
         },
-        completion: completion("ALERT"),
+        completion: completion(MonitorSeveritySchema.enum.ALERT),
       });
       expect(result.body).toBe(
         `${metricRef} is **${word}** \`100\` over the last **5m**`,

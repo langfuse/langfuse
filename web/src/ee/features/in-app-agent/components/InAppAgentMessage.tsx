@@ -1,15 +1,34 @@
 "use client";
 
-import { Loader2, Wrench } from "lucide-react";
+import { Loader2, ThumbsDown, ThumbsUp, Wrench } from "lucide-react";
 import { Streamdown } from "streamdown";
+import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
-import { useMemo } from "react";
+import {
+  forwardRef,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
+import type {
+  InAppAgentMessageFeedback,
+  InAppAgentMessageFeedbackValue,
+} from "@/src/ee/features/in-app-agent/schema";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/src/components/ui/popover";
+import { useElementSize } from "@/src/hooks/useElementSize";
+import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
-  | { type: "text"; text: string }
+  | { type: "text"; text: string; feedback?: InAppAgentMessageFeedback }
   | {
       type: "toolGroup";
       tools: InAppAgentToolCallContent[];
@@ -28,15 +47,22 @@ export type InAppAgentMessageProps = {
   role: InAppAgentMessageRole;
   content: InAppAgentMessageContent;
   isCompact?: boolean;
+  isFeedbackDisabled?: boolean;
+  windowZIndex?: number;
+  onSubmitFeedback?: (params: {
+    value: InAppAgentMessageFeedbackValue | null;
+    comment?: string | null;
+  }) => Promise<void>;
 };
 
 export function InAppAgentMessage({
   role,
   content,
   isCompact = false,
+  isFeedbackDisabled = false,
+  windowZIndex,
+  onSubmitFeedback,
 }: InAppAgentMessageProps) {
-  const isUser = role === "user";
-
   if (content.type === "toolGroup") {
     return (
       <div
@@ -56,8 +82,34 @@ export function InAppAgentMessage({
     );
   }
 
+  if (content.type === "text" && role === "assistant" && onSubmitFeedback) {
+    return (
+      <AssistantMessageWithFeedback
+        content={content}
+        isCompact={isCompact}
+        isFeedbackDisabled={isFeedbackDisabled}
+        windowZIndex={windowZIndex}
+        onSubmitFeedback={onSubmitFeedback}
+      />
+    );
+  }
+
+  return <MessageCard role={role} content={content} isCompact={isCompact} />;
+}
+
+const MessageCard = forwardRef<
+  HTMLDivElement,
+  {
+    role: InAppAgentMessageRole;
+    content: Exclude<InAppAgentMessageContent, { type: "toolGroup" }>;
+    isCompact: boolean;
+  }
+>(function MessageCard({ role, content, isCompact }, ref) {
+  const isUser = role === "user";
+
   return (
     <div
+      ref={ref}
       className={cn(
         "shadow-xs",
         isCompact
@@ -74,6 +126,277 @@ export function InAppAgentMessage({
         <MessageText role={role} text={content.text} isCompact={isCompact} />
       )}
     </div>
+  );
+});
+
+function AssistantMessageWithFeedback({
+  content,
+  isCompact,
+  isFeedbackDisabled,
+  windowZIndex,
+  onSubmitFeedback,
+}: {
+  content: Extract<InAppAgentMessageContent, { type: "text" }>;
+  isCompact: boolean;
+  isFeedbackDisabled: boolean;
+  windowZIndex?: number;
+  onSubmitFeedback: (params: {
+    value: InAppAgentMessageFeedbackValue | null;
+    comment?: string | null;
+  }) => Promise<void>;
+}) {
+  const [messageCardRef, messageCardSize] = useElementSize<HTMLDivElement>();
+
+  return (
+    <div className="flex max-w-full flex-col items-start">
+      <MessageCard
+        ref={messageCardRef}
+        role="assistant"
+        content={content}
+        isCompact={isCompact}
+      />
+      <MessageFeedbackControls
+        feedback={content.feedback}
+        isCompact={isCompact}
+        isFeedbackDisabled={isFeedbackDisabled}
+        windowZIndex={windowZIndex}
+        maxWidth={messageCardSize?.width}
+        onSubmitFeedback={onSubmitFeedback}
+      />
+    </div>
+  );
+}
+
+function MessageFeedbackControls({
+  feedback,
+  isCompact,
+  isFeedbackDisabled,
+  windowZIndex,
+  maxWidth,
+  onSubmitFeedback,
+}: {
+  feedback?: InAppAgentMessageFeedback;
+  isCompact: boolean;
+  isFeedbackDisabled: boolean;
+  windowZIndex?: number;
+  maxWidth?: number;
+  onSubmitFeedback: (params: {
+    value: InAppAgentMessageFeedbackValue | null;
+    comment?: string | null;
+  }) => Promise<void>;
+}) {
+  const [committedComment, setCommittedComment] = useState(
+    feedback?.comment?.trim() ?? "",
+  );
+  const [comment, setComment] = useState(feedback?.comment ?? "");
+  const [selectedValue, setSelectedValue] = useState(feedback?.value);
+  const [isCommentPopoverOpen, setIsCommentPopoverOpen] = useState(false);
+  const isFeedbackDisabledRef = useRef(isFeedbackDisabled);
+  isFeedbackDisabledRef.current = isFeedbackDisabled;
+
+  const [submitFeedback, isSubmittingFeedback] = useWatchedPromiseCallback(
+    async (
+      value: InAppAgentMessageFeedbackValue | null,
+      nextComment: string = committedComment,
+    ) => {
+      await onSubmitFeedback({
+        value,
+        comment: nextComment.trim() || null,
+      });
+    },
+    [committedComment, onSubmitFeedback],
+  );
+
+  const [submitComment, isSubmittingComment] =
+    useWatchedPromiseCallback(async () => {
+      if (!selectedValue) {
+        return;
+      }
+
+      await onSubmitFeedback({
+        value: selectedValue,
+        comment: comment.trim() || null,
+      });
+      setCommittedComment(comment.trim());
+      setIsCommentPopoverOpen(false);
+    }, [comment, onSubmitFeedback, selectedValue]);
+
+  const isSaving = isSubmittingFeedback || isSubmittingComment;
+  const isDisabled = isFeedbackDisabled || isSaving;
+
+  const handleSubmitComment = async () => {
+    if (!selectedValue) {
+      return;
+    }
+
+    await submitComment().catch(() => undefined);
+  };
+
+  const handleSelectFeedback = (value: InAppAgentMessageFeedbackValue) => {
+    if (selectedValue === value) {
+      submitFeedback(null, "")
+        .then(() => {
+          setSelectedValue(undefined);
+          setComment("");
+          setCommittedComment("");
+          setIsCommentPopoverOpen(false);
+        })
+        .catch(() => undefined);
+      return;
+    }
+
+    submitFeedback(value, "")
+      .then(() => {
+        setSelectedValue(value);
+        setComment("");
+        setCommittedComment("");
+        setIsCommentPopoverOpen(!isFeedbackDisabledRef.current);
+      })
+      .catch(() => undefined);
+  };
+
+  return (
+    <div
+      style={maxWidth ? { width: maxWidth, maxWidth: "100%" } : undefined}
+      className={cn(
+        "flex max-w-full min-w-50 flex-col items-start overflow-hidden",
+        isCompact ? "mt-1.5" : "mt-2",
+      )}
+    >
+      <Popover
+        open={!isFeedbackDisabled && isCommentPopoverOpen}
+        onOpenChange={(open) => {
+          if (!isFeedbackDisabled) {
+            setIsCommentPopoverOpen(open);
+          }
+        }}
+      >
+        <div className="flex w-full min-w-0 items-center gap-1">
+          <PopoverAnchor className="inline-flex">
+            <FeedbackButton
+              label="Good response"
+              isSelected={selectedValue === "thumbs_up"}
+              disabled={isDisabled}
+              onClick={() => handleSelectFeedback("thumbs_up")}
+            >
+              <ThumbsUp
+                className={cn(
+                  isCompact ? "size-3" : "size-3.5",
+                  selectedValue === "thumbs_up" && "text-foreground",
+                )}
+              />
+            </FeedbackButton>
+          </PopoverAnchor>
+          <FeedbackButton
+            label="Bad response"
+            isSelected={selectedValue === "thumbs_down"}
+            disabled={isDisabled}
+            onClick={() => handleSelectFeedback("thumbs_down")}
+          >
+            <ThumbsDown
+              className={cn(
+                isCompact ? "size-3" : "size-3.5",
+                selectedValue === "thumbs_down" && "text-foreground",
+              )}
+            />
+          </FeedbackButton>
+          {committedComment ? (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isDisabled}
+              onClick={() => setIsCommentPopoverOpen(true)}
+            >
+              Comment: {committedComment}
+            </button>
+          ) : null}
+        </div>
+        {selectedValue ? (
+          <PopoverContent
+            align="start"
+            side="top"
+            className="w-72 space-y-1.5 p-2"
+            style={
+              typeof windowZIndex === "number"
+                ? { zIndex: windowZIndex + 1 }
+                : undefined
+            }
+          >
+            <div>
+              <textarea
+                value={comment}
+                onChange={(event) => setComment(event.target.value)}
+                disabled={isDisabled}
+                placeholder="Optional feedback comment"
+                rows={3}
+                maxLength={500}
+                className={cn(
+                  "border-input bg-background text-foreground placeholder:text-muted-foreground w-full resize-none rounded-md border px-2 py-1",
+                  isCompact ? "text-xs" : "text-sm",
+                )}
+              />
+              <CommentButton
+                disabled={isDisabled}
+                className={cn(!isCompact && "px-2 py-1.5 text-sm")}
+                onClick={() => {
+                  handleSubmitComment().catch(() => undefined);
+                }}
+              >
+                {isSubmittingComment ? "Saving..." : "Save comment"}
+              </CommentButton>
+            </div>
+          </PopoverContent>
+        ) : null}
+      </Popover>
+    </div>
+  );
+}
+
+const CommentButton = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement>
+>(function CommentButton({ children, className, ...props }, ref) {
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={cn(
+        "text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-md border px-1.5 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-60",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+});
+
+function FeedbackButton({
+  children,
+  disabled,
+  isSelected,
+  label,
+  onClick,
+}: {
+  children: ReactNode;
+  disabled: boolean;
+  isSelected: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={isSelected}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "text-muted-foreground/50 hover:text-muted-foreground rounded-md p-1 disabled:cursor-not-allowed",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 
@@ -239,11 +562,23 @@ function MessageText({
           h6: ({ children }) => <h6>{children}</h6>,
 
           p: ({ children }) => <p>{children}</p>,
-          a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer">
-              {children}
-            </a>
-          ),
+          a: ({ children, href }) => {
+            const safeHref = getSafeLinkUrl(href);
+
+            if (!safeHref) {
+              return (
+                <span className="text-muted-foreground underline">
+                  {children}
+                </span>
+              );
+            }
+
+            return (
+              <a href={safeHref} target="_blank" rel="noopener noreferrer">
+                {children}
+              </a>
+            );
+          },
           hr: ({ children }) => <hr>{children}</hr>,
           ul: ({ children }) => <ul>{children}</ul>,
           ol: ({ children }) => <ol>{children}</ol>,

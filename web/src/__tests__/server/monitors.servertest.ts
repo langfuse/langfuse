@@ -5,6 +5,12 @@ import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import { type Role } from "@langfuse/shared/src/db";
+import {
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
+} from "@langfuse/shared/monitors";
 
 type RoleName = keyof typeof Role;
 
@@ -103,12 +109,12 @@ const validMonitorInput = (projectId: string) => ({
   filters: [],
   metric: { measure: "count", aggregation: "count" as const },
   window: "5m" as const,
-  thresholdOperator: "GT" as const,
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: null,
-  noData: { mode: "SILENT" as const },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" as const },
-  status: "ACTIVE" as const,
+  status: MonitorStatusSchema.enum.ACTIVE,
   name: "High error rate",
   tags: [],
   triggerIds: ["trig_01"],
@@ -172,14 +178,14 @@ describe("monitors trpc", () => {
       );
       await prisma.monitor.update({
         where: { id: created.id },
-        data: { status: "ERROR_BAD_QUERY" },
+        data: { status: MonitorStatusSchema.enum.ERROR_BAD_QUERY },
       });
 
       const fetched = await caller.monitors.get({
         projectId: project.id,
         id: created.id,
       });
-      expect(fetched.status).toBe("ERROR_BAD_QUERY");
+      expect(fetched.status).toBe(MonitorStatusSchema.enum.ERROR_BAD_QUERY);
     });
   });
 
@@ -221,7 +227,7 @@ describe("monitors trpc", () => {
       await expect(
         caller.monitors.create({
           ...validMonitorInput(project.id),
-          thresholdOperator: "GT",
+          thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
           alertThreshold: 100,
           warningThreshold: 100,
         }),
@@ -332,7 +338,7 @@ describe("monitors trpc", () => {
       });
       await prisma.monitor.update({
         where: { id: a.id },
-        data: { severity: "ALERT" },
+        data: { severity: MonitorSeveritySchema.enum.ALERT },
       });
 
       const result = await caller.monitors.all({
@@ -345,7 +351,7 @@ describe("monitors trpc", () => {
             type: "stringOptions",
             column: "severity",
             operator: "any of",
-            value: ["ALERT"],
+            value: [MonitorSeveritySchema.enum.ALERT],
           },
         ],
       });
@@ -368,7 +374,7 @@ describe("monitors trpc", () => {
       await caller.monitors.update({
         ...validMonitorInput(project.id),
         id: a.id,
-        status: "PAUSED",
+        status: MonitorStatusSchema.enum.PAUSED,
       });
 
       const result = await caller.monitors.all({
@@ -381,7 +387,7 @@ describe("monitors trpc", () => {
             type: "stringOptions",
             column: "severity",
             operator: "none of",
-            value: ["PAUSED"],
+            value: [MonitorSeveritySchema.enum.PAUSED],
           },
         ],
       });
@@ -394,32 +400,32 @@ describe("monitors trpc", () => {
       const created = await caller.monitors.create(
         validMonitorInput(project.id),
       );
-      expect(created.severity).toBe("UNKNOWN");
+      expect(created.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
 
       const paused = await caller.monitors.update({
         ...validMonitorInput(project.id),
         id: created.id,
-        status: "PAUSED",
+        status: MonitorStatusSchema.enum.PAUSED,
       });
-      expect(paused.status).toBe("PAUSED");
-      expect(paused.severity).toBe("PAUSED");
+      expect(paused.status).toBe(MonitorStatusSchema.enum.PAUSED);
+      expect(paused.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
     });
 
     it("flipping status PAUSED → ACTIVE via update resets severity to UNKNOWN", async () => {
       const { project, caller } = await prepare();
       const created = await caller.monitors.create({
         ...validMonitorInput(project.id),
-        status: "PAUSED",
+        status: MonitorStatusSchema.enum.PAUSED,
       });
-      expect(created.severity).toBe("PAUSED");
+      expect(created.severity).toBe(MonitorSeveritySchema.enum.PAUSED);
 
       const resumed = await caller.monitors.update({
         ...validMonitorInput(project.id),
         id: created.id,
-        status: "ACTIVE",
+        status: MonitorStatusSchema.enum.ACTIVE,
       });
-      expect(resumed.status).toBe("ACTIVE");
-      expect(resumed.severity).toBe("UNKNOWN");
+      expect(resumed.status).toBe(MonitorStatusSchema.enum.ACTIVE);
+      expect(resumed.severity).toBe(MonitorSeveritySchema.enum.UNKNOWN);
     });
 
     it("filters by tags (any of)", async () => {
@@ -495,11 +501,11 @@ describe("monitors trpc", () => {
       });
       await prisma.monitor.update({
         where: { id: seeded[0].id },
-        data: { status: "PAUSED" },
+        data: { status: MonitorStatusSchema.enum.PAUSED },
       });
       await prisma.monitor.update({
         where: { id: seeded[1].id },
-        data: { status: "ERROR_BAD_QUERY" },
+        data: { status: MonitorStatusSchema.enum.ERROR_BAD_QUERY },
       });
 
       await expect(

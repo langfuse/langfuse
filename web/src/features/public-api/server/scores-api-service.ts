@@ -157,12 +157,20 @@ export class ScoresApiService {
    * v2: Returns all score types including CORRECTION and TEXT
    */
   async generateScoresForPublicApi(props: ScoreQueryType) {
-    return _handleGenerateScoresForPublicApi({
+    const results = await _handleGenerateScoresForPublicApi({
       props,
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
       scoreDataTypes:
         this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
     });
+    // Apply API-shape transformation (moves longStringValue→stringValue for
+    // CORRECTION, strips longStringValue for others). Must happen here because
+    // convertScoreToPublicApi is a web-layer concern that the shared repository
+    // function deliberately does not call.
+    return results.map(({ trace, ...rest }) => ({
+      ...convertScoreToPublicApi(rest),
+      trace,
+    }));
   }
 
   /**
