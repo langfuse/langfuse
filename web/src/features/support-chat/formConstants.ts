@@ -64,9 +64,39 @@ export const HIGH_TIER_SUPPORT_PLANS = [
   "self-hosted:enterprise",
 ] as const;
 
+/**
+ * Plans that may raise a Severity 2 (Sev-2) support request — Pro tier and
+ * above. Hobby/Core (and free/unknown plans) are limited to Severity 3.
+ */
+export const SEV2_SUPPORT_PLANS = [
+  "cloud:pro",
+  "cloud:team",
+  "cloud:enterprise",
+  "self-hosted:pro",
+  "self-hosted:enterprise",
+] as const;
+
 /** Whether the given plan may raise a Severity 1 support request. */
 export const isHighTierSupportPlan = (plan?: string): boolean =>
   !!plan && (HIGH_TIER_SUPPORT_PLANS as readonly string[]).includes(plan);
+
+/** Whether the given plan may raise a Severity 2 support request. */
+export const canRaiseSeverity2 = (plan?: string): boolean =>
+  !!plan && (SEV2_SUPPORT_PLANS as readonly string[]).includes(plan);
+
+/**
+ * Whether a given severity level can be selected on the given plan. Used both
+ * to grey out options in the UI and as a server-side safeguard in
+ * `mapToPylonCaseSeverity`.
+ */
+export const isSeverityAllowedForPlan = (
+  severity: string,
+  plan?: string,
+): boolean => {
+  if (severity === SEVERITY_1) return isHighTierSupportPlan(plan);
+  if (severity === SEVERITY_2) return canRaiseSeverity2(plan);
+  return true; // Severity 3 is always available
+};
 
 export const IntegrationTypeSchema = z.enum([
   "Python SDK",

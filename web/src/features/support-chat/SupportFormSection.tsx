@@ -6,13 +6,12 @@ import { type z } from "zod";
 import {
   MESSAGE_TYPES,
   SEVERITIES,
-  SEVERITY_1,
   SEVERITY_3,
   INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
   SupportFormSchema,
-  isHighTierSupportPlan,
+  isSeverityAllowedForPlan,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -169,9 +168,6 @@ export function SupportFormSection({
   onSuccess: () => void;
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
-
-  // Only Team / Enterprise customers may raise a Severity 1 request.
-  const canRequestHighPriority = isHighTierSupportPlan(organization?.plan);
 
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
@@ -395,10 +391,12 @@ export function SupportFormSection({
                     </SelectTrigger>
                     <SelectContent>
                       {SEVERITIES.map((s) => {
-                        const isSev1Locked =
-                          s === SEVERITY_1 && !canRequestHighPriority;
+                        const allowed = isSeverityAllowedForPlan(
+                          s,
+                          organization?.plan,
+                        );
 
-                        if (!isSev1Locked) {
+                        if (allowed) {
                           return (
                             <SelectItem key={s} value={s}>
                               {s}
