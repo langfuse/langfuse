@@ -2017,10 +2017,6 @@ export function buildEventsFullTableSubqueryQuery(opts: {
   projectId: string;
   innerBuilder: EventsQueryBuilder;
   fieldSetNames: FieldSetName[];
-  externalCTEs?: Array<{
-    name: string;
-    queryWithParams: { query: string; params: Record<string, any> };
-  }>;
 }): QueryWithParams {
   // A pre-existing projection on the inner builder would misalign the
   // positional IN-tuple match — fail fast.
@@ -2042,20 +2038,14 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     return expr ? [expr] : [];
   });
 
-  const params: Record<string, any> = { projectId: opts.projectId };
-  const cteParts: string[] = [];
-  for (const cte of opts.externalCTEs ?? []) {
-    cteParts.push(`${cte.name} AS (${cte.queryWithParams.query})`);
-    Object.assign(params, cte.queryWithParams.params);
-  }
   // Inner params last so the inner subquery's bindings win on overlap.
-  Object.assign(params, innerParams);
+  const params: Record<string, any> = {
+    projectId: opts.projectId,
+    ...innerParams,
+  };
 
   const tuple = `(${SUBQUERY_IDENTITY_TUPLE.join(", ")})`;
   const queryParts: string[] = [];
-  if (cteParts.length > 0) {
-    queryParts.push(`WITH ${cteParts.join(",\n")}`);
-  }
   queryParts.push(
     `SELECT\n  ${outerSelect.join(",\n  ")}`,
     "FROM events_full e",

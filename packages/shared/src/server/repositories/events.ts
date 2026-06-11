@@ -1532,7 +1532,6 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       projectId,
       innerBuilder: baseBuilder,
       fieldSetNames: ["core", ...requestedFields],
-      externalCTEs,
     });
   } else if (!needsIOCTE) {
     // Simple path: add CTEs back to the builder and use directly
