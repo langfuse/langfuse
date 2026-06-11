@@ -998,6 +998,15 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   }
 
   /**
+   * True if any field-set or raw SELECT expressions have been added.
+   * Used by the subquery-IN rewrite to assert the inner builder projects
+   * nothing but the identity tuple (positional IN matching depends on it).
+   */
+  hasSelectExpressions(): boolean {
+    return this.selectFields.size > 0 || this.rawSelectExpressions.length > 0;
+  }
+
+  /**
    * Add SELECT fields from predefined field sets
    */
   selectFieldSet(...setNames: Array<FieldSetName>): this {
@@ -2029,7 +2038,14 @@ export function buildEventsFullTableSubqueryQuery(opts: {
   }>;
 }): QueryWithParams {
   // Inner: project only the identity tuple. Filters/ORDER BY/LIMIT are already
-  // configured on the builder by the caller.
+  // configured on the builder by the caller. The outer IN clause matches the
+  // tuple positionally, so any pre-existing SELECT expression on the inner
+  // builder would misalign the match — fail fast instead.
+  if (opts.innerBuilder.hasSelectExpressions()) {
+    throw new Error(
+      "buildEventsFullTableSubqueryQuery requires an inner builder without SELECT expressions; it projects the identity tuple itself",
+    );
+  }
   const { query: innerQuery, params: innerParams } = opts.innerBuilder
     .selectRaw(...SUBQUERY_IDENTITY_TUPLE)
     .buildWithParams();
