@@ -6,11 +6,15 @@ import { type z } from "zod";
 import {
   MESSAGE_TYPES,
   SEVERITIES,
+  SEVERITY_1,
+  SEVERITY_2,
+  SEVERITY_3,
   INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
   SupportFormSchema,
-  isHighTierSupportPlan,
+  isSeverityAllowedForPlan,
+  highestSupportPlan,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -25,13 +29,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { Checkbox } from "@/src/components/ui/checkbox";
 import { RadioGroup } from "@/src/components/ui/radio-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -41,6 +39,7 @@ import {
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
 
 import {
@@ -48,7 +47,7 @@ import {
   DropzoneContent,
   DropzoneEmptyState,
 } from "@/src/components/ui/shadcn-io/dropzone";
-import { Info, Paperclip, Trash2 } from "lucide-react";
+import { Paperclip, Trash2 } from "lucide-react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { PYLON_MAX_FILE_SIZE_BYTES } from "./pylon/pylonConstants";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
@@ -168,12 +167,20 @@ export function SupportFormSection({
   onSuccess: () => void;
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
+  const session = useSession();
 
-  // Team / Enterprise customers may manually escalate a request to Sev-1.
-  const canRequestHighPriority = isHighTierSupportPlan(organization?.plan);
-
-  // Controlled so the high-priority info tooltip opens on hover and on click.
-  const [highPriorityInfoOpen, setHighPriorityInfoOpen] = useState(false);
+  // The support drawer is mounted globally and reachable from pages without an
+  // org/project in the URL (home, setup, onboarding, account settings), where
+  // `organization` is null. Fall back to the user's highest-tier org plan so
+  // severity eligibility reflects what the user actually has access to instead
+  // of being wrongly restricted. The server applies the same fallback.
+  const effectivePlan =
+    organization?.plan ??
+    highestSupportPlan(
+      (session.data?.user?.organizations ?? []).map((o) => o.plan),
+    );
+  const isSev1Allowed = isSeverityAllowedForPlan(SEVERITY_1, effectivePlan);
+  const isSev2Allowed = isSeverityAllowedForPlan(SEVERITY_2, effectivePlan);
 
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
@@ -192,8 +199,7 @@ export function SupportFormSection({
     resolver: zodResolver(SupportFormSchema),
     defaultValues: {
       messageType: "Question" as MessageType,
-      severity: "Question or feature request",
-      isHighPriority: false,
+      severity: SEVERITY_3,
       topic: "",
       message: "",
       integrationType: "",
@@ -221,8 +227,7 @@ export function SupportFormSection({
         }
         form.reset({
           messageType: "Question",
-          severity: "Question or feature request",
-          isHighPriority: false,
+          severity: SEVERITY_3,
           topic: "",
           message: "",
         });
@@ -297,7 +302,6 @@ export function SupportFormSection({
       await createSupportThread.mutateAsync({
         messageType: parsed.messageType,
         severity: parsed.severity,
-        isHighPriority: parsed.isHighPriority,
         topic: parsed.topic as any,
         integrationType: parsed.integrationType,
         message: parsed.message,
@@ -385,71 +389,42 @@ export function SupportFormSection({
             )}
           />
 
-          {/* Severity */}
+          {/* Priority (maps to Pylon case_severity). Severity 1 is gated to
+              Team / Enterprise plans. */}
           <FormField
             control={form.control}
             name="severity"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Severity</FormLabel>
-                <div className="flex items-center gap-3">
-                  <FormControl>
-                    <Select value={field.value} onValueChange={field.onChange}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Select severity" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {SEVERITIES.map((s) => (
-                          <SelectItem key={s} value={s}>
-                            {s}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </FormControl>
-
-                  {/* High priority (Sev-1) — only for Team / Enterprise plans */}
-                  {canRequestHighPriority && (
-                    <FormField
-                      control={form.control}
-                      name="isHighPriority"
-                      render={({ field: priorityField }) => (
-                        <FormItem className="flex shrink-0 flex-row items-center gap-1.5 space-y-0">
-                          <FormControl>
-                            <Checkbox
-                              checked={priorityField.value ?? false}
-                              onCheckedChange={priorityField.onChange}
-                            />
-                          </FormControl>
-                          <FormLabel className="cursor-pointer text-sm font-normal whitespace-nowrap">
-                            Urgent (Sev-1)
-                          </FormLabel>
-                          <Tooltip
-                            open={highPriorityInfoOpen}
-                            onOpenChange={setHighPriorityInfoOpen}
-                          >
-                            <TooltipTrigger asChild>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setHighPriorityInfoOpen((open) => !open)
-                                }
-                                className="text-muted-foreground hover:text-foreground"
-                                aria-label="High priority info"
-                              >
-                                <Info className="h-3.5 w-3.5" />
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              Mark as high priority only for time-critical
-                              issues such as production outages.
-                            </TooltipContent>
-                          </Tooltip>
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                </div>
+                <FormLabel>Priority</FormLabel>
+                <FormControl>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SEVERITIES.map((s) => (
+                        <SelectItem
+                          key={s}
+                          value={s}
+                          disabled={!isSeverityAllowedForPlan(s, effectivePlan)}
+                        >
+                          {s}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormControl>
+                {/* Explain the gating for all input modalities (keyboard /
+                    screen-reader users can't reach a per-item tooltip, and a
+                    tooltip portal can stack behind the dropdown). */}
+                {!isSev1Allowed && (
+                  <FormDescription>
+                    {isSev2Allowed
+                      ? "Severity 1 is available on the Team and Enterprise plans."
+                      : "Severity 1 (Team and Enterprise) and Severity 2 (Pro and above) are not available on your current plan."}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
