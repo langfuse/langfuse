@@ -170,13 +170,18 @@ export const GetDatasetRunV1Response = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
 }).strict();
 
+const publicApiIdSchema = z
+  .string()
+  .min(1, "ID must not be empty")
+  .max(255, "ID must be at most 255 characters");
+
 // POST /dataset-items
 export const PostDatasetItemsV1Body = z.object({
   datasetName: z.string(),
   input: z.any().nullish(),
   expectedOutput: z.any().nullish(),
   metadata: z.any().nullish(),
-  id: z.string().nullish(),
+  id: publicApiIdSchema.nullish(),
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).nullish(),
