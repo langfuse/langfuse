@@ -131,11 +131,13 @@ const getScoresWithTraceMetadataFromEvents = async (props: {
 
   return scores.map((score) => {
     const trace = traceMetadata.find((t) => t.id === score.traceId);
+    // `?? null` (not `|| null`): preserve explicit empty strings/arrays so
+    // rows serialize the same as the legacy traces-JOIN export path.
     return {
       ...score,
-      traceName: trace?.name || null,
-      traceUserId: trace?.user_id || null,
-      traceTags: trace?.tags && trace.tags.length > 0 ? trace.tags : null,
+      traceName: trace?.name ?? null,
+      traceUserId: trace?.user_id ?? null,
+      traceTags: trace?.tags ?? null,
     };
   });
 };
