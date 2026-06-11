@@ -367,10 +367,7 @@ export class ScoresApiService {
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
       includeTrace,
       needsTraceJoin,
-      pagination:
-        props.limit !== undefined && props.page !== undefined
-          ? { limit: props.limit, page: props.page }
-          : undefined,
+      pagination: { limit: props.limit, page: props.page },
     });
     // Apply API-shape transformation (moves longStringValue→stringValue for
     // CORRECTION, strips longStringValue for others). Must happen here because

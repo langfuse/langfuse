@@ -46,7 +46,7 @@ describe("getTracesCountForPublicApi — FINAL modifier", () => {
 
     expect(mockQueryClickhouse).toHaveBeenCalledOnce();
     const { query } = mockQueryClickhouse.mock.calls[0][0];
-    expect(query).toContain("FINAL");
+    expect(query).toMatch(/FROM\s+traces\s+t\s+FINAL/);
   });
 
   it("does not use FINAL for skip-index trace filters (user_id / session_id / metadata)", async () => {
@@ -80,6 +80,6 @@ describe("getTracesCountForPublicApi — FINAL modifier", () => {
 
     expect(mockQueryClickhouse).toHaveBeenCalledOnce();
     const { query } = mockQueryClickhouse.mock.calls[0][0];
-    expect(query).toContain("FINAL");
+    expect(query).toMatch(/FROM\s+traces\s+t\s+FINAL/);
   });
 });

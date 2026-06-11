@@ -34,10 +34,7 @@ export const generateTracesForPublicApi = ({
     projectId: props.projectId,
     filter,
     orderBy,
-    pagination:
-      props.limit !== undefined && props.page !== undefined
-        ? { limit: props.limit, page: props.page }
-        : undefined,
+    pagination: { limit: props.limit, page: props.page },
     fields: props.fields,
   });
 };
@@ -59,9 +56,6 @@ export const getTracesCountForPublicApi = ({
   return _getTracesCountForPublicApi({
     projectId: props.projectId,
     filter,
-    pagination:
-      props.limit !== undefined && props.page !== undefined
-        ? { limit: props.limit, page: props.page }
-        : undefined,
+    pagination: { limit: props.limit, page: props.page },
   });
 };

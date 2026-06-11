@@ -79,10 +79,7 @@ export const generateDailyMetrics = (props: DailyMetricsQueryProps) => {
   return _generateDailyMetrics({
     projectId: props.projectId,
     filter,
-    pagination:
-      props.limit !== undefined && props.page !== undefined
-        ? { limit: props.limit, page: props.page }
-        : undefined,
+    pagination: { limit: props.limit, page: props.page },
   });
 };
 

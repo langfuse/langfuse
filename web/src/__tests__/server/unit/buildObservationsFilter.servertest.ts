@@ -1,16 +1,26 @@
-const { mockGenerateObservations, mockGetObservationsCount } = vi.hoisted(
-  () => ({
-    mockGenerateObservations: vi.fn(),
-    mockGetObservationsCount: vi.fn(),
-  }),
-);
+const {
+  mockGenerateObservations,
+  mockGetObservationsCount,
+  mockDeriveFilters,
+} = vi.hoisted(() => ({
+  mockGenerateObservations: vi.fn(),
+  mockGetObservationsCount: vi.fn(),
+  mockDeriveFilters: vi.fn(),
+}));
+
+// Captured inside the mock factory so we can use it as the default pass-through.
+let realDeriveFilters: (...args: unknown[]) => unknown;
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
+  realDeriveFilters = (
+    actual as Record<string, (...args: unknown[]) => unknown>
+  ).deriveFilters;
   return {
     ...(actual as object),
     generateObservationsForPublicApi: mockGenerateObservations,
     getObservationsCountForPublicApi: mockGetObservationsCount,
+    deriveFilters: mockDeriveFilters,
   };
 });
 
@@ -18,6 +28,7 @@ import {
   generateObservationsForPublicApi,
   getObservationsCountForPublicApi,
 } from "@/src/features/public-api/server/observations";
+import { FilterList, StringFilter } from "@langfuse/shared/src/server";
 
 const BASE = {
   projectId: "project-1",
@@ -30,6 +41,7 @@ describe("buildObservationsFilter", () => {
     vi.clearAllMocks();
     mockGenerateObservations.mockResolvedValue([]);
     mockGetObservationsCount.mockResolvedValue(0);
+    mockDeriveFilters.mockImplementation(realDeriveFilters);
   });
 
   it("always injects project_id on the observations table", async () => {
@@ -69,16 +81,34 @@ describe("buildObservationsFilter", () => {
     ).toBe(true);
   });
 
-  it("excludes any filters targeting the scores table", async () => {
-    // parentObservationId exercises a real filter path; supply advancedFilters
-    // that would normally create a scores-table filter to verify they are stripped.
-    await generateObservationsForPublicApi({
-      ...BASE,
-      parentObservationId: "obs-parent",
-    });
+  it("strips scores-table filters even when deriveFilters produces them", async () => {
+    // Simulate a future regression where deriveFilters somehow emits a
+    // scores-table filter. The post-process strip in buildObservationsFilter
+    // must remove it before the filter reaches the repository.
+    mockDeriveFilters.mockReturnValueOnce(
+      new FilterList([
+        new StringFilter({
+          clickhouseTable: "scores",
+          field: "name",
+          operator: "=",
+          value: "accuracy",
+        }),
+        new StringFilter({
+          clickhouseTable: "observations",
+          field: "trace_id",
+          operator: "=",
+          value: "trace-abc",
+        }),
+      ]),
+    );
+
+    await generateObservationsForPublicApi(BASE);
 
     const { filter } = mockGenerateObservations.mock.calls[0][0];
     expect(filter.some((f: any) => f.clickhouseTable === "scores")).toBe(false);
+    expect(filter.some((f: any) => f.clickhouseTable === "observations")).toBe(
+      true,
+    );
   });
 
   it("passes the correct projectId and pagination through to the repository", async () => {
@@ -94,7 +124,20 @@ describe("buildObservationsFilter", () => {
     expect(callArg.pagination).toEqual({ page: 3, limit: 50 });
   });
 
-  it("count variant also strips scores-table filters and injects project_id", async () => {
+  it("count variant strips scores-table filters and injects project_id", async () => {
+    // Same injection approach as the list variant to verify the strip runs
+    // on the count path too.
+    mockDeriveFilters.mockReturnValueOnce(
+      new FilterList([
+        new StringFilter({
+          clickhouseTable: "scores",
+          field: "value",
+          operator: "=",
+          value: "0.9",
+        }),
+      ]),
+    );
+
     await getObservationsCountForPublicApi({ ...BASE, traceId: "trace-abc" });
 
     const { filter } = mockGetObservationsCount.mock.calls[0][0];
