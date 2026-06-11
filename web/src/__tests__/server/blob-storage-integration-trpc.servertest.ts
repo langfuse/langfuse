@@ -507,6 +507,14 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { id: project.id },
         data: { createdAt: PRE_CUTOFF },
       });
+      // Pre-cutoff integration row (legacy exporter) so the integration-cutoff
+      // gate allows the legacy source; this test only exercises field-group
+      // handling, not the cutoff.
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { createdAt: INTEGRATION_PRE_CUTOFF },
+      });
 
       await caller.blobStorageIntegration.update({
         projectId: project.id,
@@ -775,7 +783,7 @@ describe("Blob Storage Integration tRPC Router", () => {
             projectId: project.id,
             ...baseConfig,
             exportSource: "TRACES_OBSERVATIONS" as const,
-            exportFieldGroups: [],
+            exportFieldGroups: ["core"],
           }),
         ).rejects.toMatchObject({ code: "BAD_REQUEST" });
       } finally {
@@ -803,7 +811,7 @@ describe("Blob Storage Integration tRPC Router", () => {
             projectId: project.id,
             ...baseConfig,
             exportSource: "TRACES_OBSERVATIONS" as const,
-            exportFieldGroups: [],
+            exportFieldGroups: ["core"],
           }),
         ).resolves.not.toThrow();
       } finally {
@@ -852,7 +860,7 @@ describe("Blob Storage Integration tRPC Router", () => {
             projectId: project.id,
             ...baseConfig,
             exportSource: "TRACES_OBSERVATIONS" as const,
-            exportFieldGroups: [],
+            exportFieldGroups: ["core"],
           }),
         ).rejects.toMatchObject({ code: "BAD_REQUEST" });
       } finally {
