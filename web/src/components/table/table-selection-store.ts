@@ -1,9 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { useSyncExternalStore } from "react";
 import { type RowSelectionState, type Updater } from "@tanstack/react-table";
 
 type RowSelectionUpdater = Updater<RowSelectionState>;
@@ -24,40 +19,24 @@ export interface TableSelectionStoreState {
   };
 }
 
+/**
+ * Minimal store surface DataTable needs for selection rendering. Tables that
+ * keep selection in an external store pass it explicitly via the
+ * `selectionStore` prop; DataTable stays context-free so nested tables are
+ * unaffected by each other's selection state.
+ */
 export interface TableSelectionStoreLike {
   subscribe: (listener: () => void) => () => void;
   getState: () => TableSelectionStoreState;
 }
 
-const TableSelectionStoreContext =
-  createContext<TableSelectionStoreLike | null>(null);
-
 const subscribeNoop = () => () => undefined;
 
-export function TableSelectionStoreProvider({
-  children,
-  store,
-}: {
-  children: ReactNode;
-  store: TableSelectionStoreLike;
-}) {
-  return (
-    <TableSelectionStoreContext.Provider value={store}>
-      {children}
-    </TableSelectionStoreContext.Provider>
-  );
-}
-
-export function useOptionalTableSelectionStore() {
-  return useContext(TableSelectionStoreContext);
-}
-
-function useOptionalTableSelectionValue<TValue>(
+function useTableSelectionValue<TValue>(
+  store: TableSelectionStoreLike | undefined,
   selector: (state: TableSelectionStoreState) => TValue,
   fallback: TValue,
 ) {
-  const store = useOptionalTableSelectionStore();
-
   return useSyncExternalStore(
     store?.subscribe ?? subscribeNoop,
     () => (store ? selector(store.getState()) : fallback),
@@ -66,24 +45,34 @@ function useOptionalTableSelectionValue<TValue>(
 }
 
 export function useTableRowIsSelected(
+  store: TableSelectionStoreLike | undefined,
   rowId: string,
   fallbackSelected: boolean,
 ) {
-  return useOptionalTableSelectionValue(
+  return useTableSelectionValue(
+    store,
     (state) => Boolean(state.rowSelection[rowId]),
     fallbackSelected,
   );
 }
 
-export function useTableSelectAll(fallbackSelectAll: boolean) {
-  return useOptionalTableSelectionValue(
+export function useTableSelectAll(
+  store: TableSelectionStoreLike | undefined,
+  fallbackSelectAll: boolean,
+) {
+  return useTableSelectionValue(
+    store,
     (state) => state.selectAll,
     fallbackSelectAll,
   );
 }
 
-export function useTableRowSelection(fallbackRowSelection: RowSelectionState) {
-  return useOptionalTableSelectionValue(
+export function useTableRowSelection(
+  store: TableSelectionStoreLike | undefined,
+  fallbackRowSelection: RowSelectionState,
+) {
+  return useTableSelectionValue(
+    store,
     (state) => state.rowSelection,
     fallbackRowSelection,
   );

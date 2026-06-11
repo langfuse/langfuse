@@ -1,6 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { useStore } from "zustand";
-import { TableSelectionStoreProvider } from "@/src/features/table/components/TableSelectionStoreContext";
 import {
   type ObservationsTableStore,
   type ObservationsTableStoreState,
@@ -18,9 +17,7 @@ export function ObservationsTableStoreProvider({
 }) {
   return (
     <ObservationsTableStoreContext.Provider value={store}>
-      <TableSelectionStoreProvider store={store}>
-        {children}
-      </TableSelectionStoreProvider>
+      {children}
     </ObservationsTableStoreContext.Provider>
   );
 }

@@ -49,9 +49,10 @@ import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
 import {
+  type TableSelectionStoreLike,
   useTableRowIsSelected,
   useTableSelectAll,
-} from "@/src/features/table/components/TableSelectionStoreContext";
+} from "@/src/components/table/table-selection-store";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -66,6 +67,8 @@ interface DataTableProps<TData, TValue> {
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
+  /** External selection store; row highlight/checkbox state reads from it instead of TanStack rowSelection */
+  selectionStore?: TableSelectionStoreLike;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
@@ -177,6 +180,7 @@ export function DataTable<TData extends object, TValue>({
   pagination,
   rowSelection,
   setRowSelection,
+  selectionStore,
   columnVisibility,
   onColumnVisibilityChange,
   columnOrder,
@@ -450,6 +454,7 @@ export function DataTable<TData extends object, TValue>({
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
+                selectionStore={selectionStore}
                 topAlignCells={topAlignCells}
                 cellPadding={cellPadding}
                 tableSnapshot={{
@@ -470,6 +475,7 @@ export function DataTable<TData extends object, TValue>({
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
+                selectionStore={selectionStore}
                 topAlignCells={topAlignCells}
                 cellPadding={cellPadding}
               />
@@ -518,6 +524,7 @@ interface TableBodyComponentProps<TData> {
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
+  selectionStore?: TableSelectionStoreLike;
   topAlignCells?: boolean;
   cellPadding?: DataTableCellPadding;
   /** Used for React.memo comparison only */
@@ -533,18 +540,27 @@ function TableRowComponent<TData>({
   onRowClick,
   getRowClassName,
   highlightAllRows = false,
+  selectionStore,
   children,
 }: {
   row: Row<TData>;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
+  selectionStore?: TableSelectionStoreLike;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const selectedRowId = router.query.peek as string | undefined;
-  const rowIsSelected = useTableRowIsSelected(row.id, row.getIsSelected());
-  const shouldHighlightAllRows = useTableSelectAll(highlightAllRows);
+  const rowIsSelected = useTableRowIsSelected(
+    selectionStore,
+    row.id,
+    row.getIsSelected(),
+  );
+  const shouldHighlightAllRows = useTableSelectAll(
+    selectionStore,
+    highlightAllRows,
+  );
 
   return (
     <TableRow
@@ -586,6 +602,7 @@ function TableBodyComponent<TData>({
   onRowClick,
   getRowClassName,
   highlightAllRows,
+  selectionStore,
   topAlignCells = false,
   cellPadding = "compact",
   tableSnapshot: _tableSnapshot,
@@ -671,6 +688,7 @@ function TableBodyComponent<TData>({
             onRowClick={onRowClick}
             getRowClassName={getRowClassName}
             highlightAllRows={highlightAllRows}
+            selectionStore={selectionStore}
           >
             {row.getVisibleCells().map((cell) => {
               const cellValue = cell.getValue();
@@ -781,6 +799,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
   if (prev.highlightAllRows !== next.highlightAllRows) return false;
+  if (prev.selectionStore !== next.selectionStore) return false;
   if (prev.cellPadding !== next.cellPadding) return false;
 
   // Then do more expensive deep equality checks

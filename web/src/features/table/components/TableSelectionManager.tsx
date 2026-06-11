@@ -1,10 +1,10 @@
 import { TableCheckboxLoadingCell } from "@/src/components/table/loading-cells";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
-  useOptionalTableSelectionStore,
+  type TableSelectionStoreLike,
   useTableRowIsSelected,
   useTableRowSelection,
-} from "@/src/features/table/components/TableSelectionStoreContext";
+} from "@/src/components/table/table-selection-store";
 import {
   type Table,
   type Row,
@@ -16,21 +16,25 @@ interface TableSelectionManagerProps {
   tableName: string;
   setSelectedRows: (rows: RowSelectionState) => void;
   setSelectAll: (value: boolean) => void;
+  /** External selection store; when set, checkboxes read/write it instead of TanStack rowSelection */
+  selectionStore?: TableSelectionStoreLike;
 }
 
 function SelectionHeaderCheckbox<TData>({
+  selectionStore,
   setSelectedRows,
   setSelectAll,
   table,
 }: {
+  selectionStore?: TableSelectionStoreLike;
   setSelectedRows: (rows: RowSelectionState) => void;
   setSelectAll: (value: boolean) => void;
   table: Table<TData>;
 }) {
-  const selectionStore = useOptionalTableSelectionStore();
   const pageRows = table.getRowModel().rows;
   const pageRowIds = pageRows.map((row) => row.id);
   const rowSelection = useTableRowSelection(
+    selectionStore,
     table.getState().rowSelection ?? {},
   );
 
@@ -82,13 +86,18 @@ function SelectionHeaderCheckbox<TData>({
 
 function SelectionRowCheckbox<TData>({
   row,
+  selectionStore,
   setSelectAll,
 }: {
   row: Row<TData>;
+  selectionStore?: TableSelectionStoreLike;
   setSelectAll: (value: boolean) => void;
 }) {
-  const selectionStore = useOptionalTableSelectionStore();
-  const rowIsSelected = useTableRowIsSelected(row.id, row.getIsSelected());
+  const rowIsSelected = useTableRowIsSelected(
+    selectionStore,
+    row.id,
+    row.getIsSelected(),
+  );
 
   return (
     <div
@@ -121,6 +130,7 @@ export function TableSelectionManager<TData>({
   tableName: _tableName,
   setSelectedRows,
   setSelectAll,
+  selectionStore,
 }: TableSelectionManagerProps) {
   return {
     selectActionColumn: {
@@ -133,12 +143,17 @@ export function TableSelectionManager<TData>({
       header: ({ table }: { table: Table<TData> }) => (
         <SelectionHeaderCheckbox
           table={table}
+          selectionStore={selectionStore}
           setSelectedRows={setSelectedRows}
           setSelectAll={setSelectAll}
         />
       ),
       cell: ({ row }: { row: Row<TData> }) => (
-        <SelectionRowCheckbox row={row} setSelectAll={setSelectAll} />
+        <SelectionRowCheckbox
+          row={row}
+          selectionStore={selectionStore}
+          setSelectAll={setSelectAll}
+        />
       ),
     },
   };

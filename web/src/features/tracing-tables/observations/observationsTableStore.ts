@@ -1,6 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { type RowSelectionState, type Updater } from "@tanstack/react-table";
-import { type TableSelectionStoreState } from "@/src/features/table/components/TableSelectionStoreContext";
+import { type TableSelectionStoreState } from "@/src/components/table/table-selection-store";
 
 type RowSelectionUpdater = Updater<RowSelectionState>;
 type BooleanUpdater = Updater<boolean>;

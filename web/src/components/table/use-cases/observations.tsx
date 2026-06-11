@@ -92,8 +92,10 @@ import {
   type RefreshInterval,
   REFRESH_INTERVALS,
 } from "@/src/components/table/data-table-refresh-button";
-import { ObservationsTableStoreProvider } from "@/src/features/tracing-tables/observations/ObservationsTableStoreProvider";
-import { useObservationsTableStore } from "@/src/features/tracing-tables/observations/ObservationsTableStoreProvider";
+import {
+  ObservationsTableStoreProvider,
+  useObservationsTableStore,
+} from "@/src/features/tracing-tables/observations/ObservationsTableStoreProvider";
 import { useObservationsTableView } from "@/src/features/tracing-tables/observations/useObservationsTableView";
 
 export type ObservationsTableRow = {
@@ -594,6 +596,7 @@ export default function ObservationsTable({
     tableName: "observations",
     setSelectedRows: observationsTableStore.getState().actions.setRowSelection,
     setSelectAll: observationsTableStore.getState().actions.setSelectAll,
+    selectionStore: observationsTableStore,
   });
 
   const handleAddToAnnotationQueue = async ({
@@ -1456,6 +1459,7 @@ export default function ObservationsTable({
               tableName={"observations"}
               columns={columns}
               peekView={peekConfig}
+              selectionStore={observationsTableStore}
               data={
                 generations.isPending || isViewLoading
                   ? { isLoading: true, isError: false }
