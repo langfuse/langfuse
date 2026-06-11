@@ -215,8 +215,14 @@ const getSessionsTableFromEventsGeneric = async <T>(
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
+  // Only push the session_id filter into the inner aggregation CTE for
+  // "any of": withSessionIds always emits `session_id IN (...)`, which would
+  // contradict the outer `NOT IN (...)` for "none of" and yield empty results.
   const sessionIdFilter = sessionFilters.find(
-    (f) => f instanceof StringOptionsFilter && f.field === "session_id",
+    (f) =>
+      f instanceof StringOptionsFilter &&
+      f.field === "session_id" &&
+      f.operator === "any of",
   ) as StringOptionsFilter | undefined;
 
   const requiresScoresJoin =

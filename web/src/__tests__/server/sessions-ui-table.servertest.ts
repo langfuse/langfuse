@@ -252,6 +252,44 @@ describe("trpc.sessions", () => {
     expect(uiSessions[0].user_ids).toEqual(["user1"]);
   });
 
+  it("LFE-10268: should GET sessions filtered by session id with 'none of' operator", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const excludedSessionId = v4();
+    const keptSessionId = v4();
+
+    await prisma.traceSession.createMany({
+      data: [
+        { id: excludedSessionId, projectId },
+        { id: keptSessionId, projectId },
+      ],
+    });
+
+    const traces = [
+      createTrace({ session_id: excludedSessionId, project_id: projectId }),
+      createTrace({ session_id: keptSessionId, project_id: projectId }),
+    ];
+
+    await seedSessionData(traces);
+
+    const uiSessions = await sessionsTable({
+      projectId: projectId,
+      filter: [
+        {
+          column: "id",
+          type: "stringOptions",
+          operator: "none of",
+          value: [excludedSessionId],
+        },
+      ],
+      orderBy: null,
+      limit: 10000,
+      page: 0,
+    });
+
+    expect(uiSessions.length).toBe(1);
+    expect(uiSessions[0].session_id).toBe(keptSessionId);
+  });
+
   it("should GET sessions ordered by total cost", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const sessionId1 = v4();
