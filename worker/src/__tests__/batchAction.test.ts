@@ -866,6 +866,86 @@ describe("select all test suite", () => {
 });
 
 maybeDescribe("events table batch actions", () => {
+  it("should add sessions to annotation queue from events table when useEventsTable is true", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const sessionId1 = uuidv4();
+    const sessionId2 = uuidv4();
+
+    await prisma.traceSession.createMany({
+      data: [
+        { id: sessionId1, projectId },
+        { id: sessionId2, projectId },
+      ],
+    });
+
+    const now = Date.now() * 1000; // Events use microseconds
+
+    // Sessions exist only in the events table — the legacy traces-based
+    // reader cannot resolve them, so the test fails if the snapshotted
+    // useEventsTable flag is not passed through to the read stream.
+    const events = [
+      createEvent({
+        project_id: projectId,
+        trace_id: uuidv4(),
+        session_id: sessionId1,
+        type: "GENERATION",
+        start_time: now,
+        end_time: now + 1000000,
+      }),
+      createEvent({
+        project_id: projectId,
+        trace_id: uuidv4(),
+        session_id: sessionId2,
+        type: "GENERATION",
+        start_time: now,
+        end_time: now + 1000000,
+      }),
+    ];
+
+    await createEventsCh(events);
+
+    const queueId = uuidv4();
+    await prisma.annotationQueue.create({
+      data: {
+        id: queueId,
+        projectId,
+        name: "test-queue-events",
+      },
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "session-add-to-annotation-queue" as const,
+        tableName: BatchExportTableName.Sessions,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        targetId: queueId,
+        query: {
+          filter: [],
+          orderBy: { column: "createdAt", order: "DESC" },
+          useEventsTable: true,
+        },
+        type: BatchActionType.Create,
+      },
+    });
+
+    const queueItems = await prisma.annotationQueueItem.findMany({
+      where: { queueId, projectId },
+    });
+
+    expect(queueItems).toHaveLength(2);
+    const objectIds = queueItems.map((item) => item.objectId);
+    expect(objectIds).toContain(sessionId1);
+    expect(objectIds).toContain(sessionId2);
+    expect(queueItems.every((item) => item.objectType === "SESSION")).toBe(
+      true,
+    );
+  });
+
   it("should add observations to dataset from events table with full mapping", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 
