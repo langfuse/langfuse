@@ -15,12 +15,12 @@ import {
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
-  InvalidRequestError,
   isLegacyBlobExportAllowed,
   isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 
@@ -161,30 +161,40 @@ async function handleUpsertBlobStorageIntegration(
 
   const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-  if (validatedData.exportSource) {
-    const internalSource = toInternalExportSource(validatedData.exportSource);
+  const isV4PreviewEnabled =
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+  const internalExportSource =
+    validatedData.exportSource != null
+      ? toInternalExportSource(validatedData.exportSource)
+      : undefined;
+
+  if (internalExportSource) {
     assertLegacyBlobExportSourceAllowed({
       project,
-      nextInternalExportSource: internalSource,
+      nextInternalExportSource: internalExportSource,
       isCloud,
     });
-    if (
-      internalSource === AnalyticsIntegrationExportSource.EVENTS ||
-      internalSource ===
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS
-    ) {
-      if (
-        !isEnrichedBlobExportAvailable(
-          isCloud,
-          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
-        )
-      ) {
-        throw new InvalidRequestError(
-          "Enriched blob export is not available on this deployment",
-        );
-      }
-    }
   }
+
+  // Partial PUTs that omit exportSource preserve the persisted value, so the
+  // enriched gate must consider the existing row too — otherwise a stale
+  // enriched source left behind by a V4-preview flag rollback keeps driving
+  // the worker against unpopulated tables. The extra read only happens when
+  // the gate could actually reject (enriched export unavailable).
+  const existingIntegration =
+    internalExportSource === undefined &&
+    !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
+      ? await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: validatedData.projectId },
+          select: { exportSource: true },
+        })
+      : null;
+  assertEnrichedBlobExportSourceAllowed({
+    nextInternalExportSource: internalExportSource,
+    existingExportSource: existingIntegration?.exportSource,
+    isCloud,
+    isV4PreviewEnabled,
+  });
 
   await auditLog({
     action: "update",
@@ -218,10 +228,7 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
-      exportSource:
-        validatedData.exportSource != null
-          ? toInternalExportSource(validatedData.exportSource)
-          : undefined,
+      exportSource: internalExportSource,
       exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
