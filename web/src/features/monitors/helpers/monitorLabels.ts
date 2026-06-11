@@ -10,12 +10,12 @@ export const windowLabels: Record<MonitorWindow, string> = {
   "10m": "10 minutes",
   "15m": "15 minutes",
   "30m": "30 minutes",
-  "1h": "1 hour",
+  "1h": "hour",
   "2h": "2 hours",
   "4h": "4 hours",
   "1d": "1 day",
   "2d": "2 days",
-  "1w": "1 week",
+  "1w": "week",
 };
 
 /** operatorLabels maps each MonitorThresholdOperator to a natural-language label. */
