@@ -9,6 +9,7 @@ import {
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
+  type SessionEventsMetricsRow,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -150,6 +151,38 @@ export const getSessionsTableFromEvents = async (props: {
   return rows.map((row) => ({
     ...row,
     trace_count: Number(row.trace_count),
+  }));
+};
+
+// Single-query equivalent of getSessionsTableFromEvents + getSessionMetricsFromEvents,
+// mirroring the legacy getSessionsWithMetrics. Used by batch export so the metrics
+// aggregation inherits the same filter (incl. the createdAt cutoff) and clickhouseConfigs
+// (extended HTTP timeouts) as the row query, in a single round-trip.
+export const getSessionsWithMetricsFromEvents = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const rows = await getSessionsTableFromEventsGeneric<SessionEventsMetricsRow>(
+    {
+      select: "metrics",
+      projectId: props.projectId,
+      filter: props.filter,
+      orderBy: props.orderBy,
+      limit: props.limit,
+      page: props.page,
+      clickhouseConfigs: props.clickhouseConfigs,
+      tags: { kind: "analytic_events" },
+    },
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    trace_count: Number(row.trace_count),
+    total_observations: Number(row.total_observations),
   }));
 };
 
