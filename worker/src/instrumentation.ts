@@ -9,12 +9,7 @@ import { WinstonInstrumentation } from "@opentelemetry/instrumentation-winston";
 import { AwsInstrumentation } from "@opentelemetry/instrumentation-aws-sdk";
 import { BullMQInstrumentation } from "@appsignal/opentelemetry-instrumentation-bullmq";
 import { ioredisRequestHook } from "@langfuse/shared/src/server";
-import {
-  envDetector,
-  processDetector,
-  resourceFromAttributes,
-} from "@opentelemetry/resources";
-import { awsEcsDetector } from "@opentelemetry/resource-detector-aws";
+import { envDetector, resourceFromAttributes } from "@opentelemetry/resources";
 import { containerDetector } from "@opentelemetry/resource-detector-container";
 import { env } from "./env";
 
@@ -67,12 +62,12 @@ const sdk = new NodeSDK({
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
   ],
-  resourceDetectors: [
-    envDetector,
-    processDetector,
-    awsEcsDetector,
-    containerDetector,
-  ],
+  // Datadog's OTLP intake flattens resource attributes onto every ingested
+  // span, so each detector attribute costs ingest bytes per span. The AWS ECS
+  // and process detectors only duplicated infra tags the Datadog agent adds
+  // itself (~1KB/span). containerDetector must stay: the agent resolves those
+  // infra tags by looking up the container.id resource attribute.
+  resourceDetectors: [envDetector, containerDetector],
 });
 
 sdk.start();

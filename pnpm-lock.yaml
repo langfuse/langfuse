@@ -479,9 +479,6 @@ importers:
       '@opentelemetry/instrumentation-winston':
         specifier: ^0.57.0
         version: 0.57.0(@opentelemetry/api@1.9.0)
-      '@opentelemetry/resource-detector-aws':
-        specifier: ^2.13.0
-        version: 2.14.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/resource-detector-container':
         specifier: ^0.8.4
         version: 0.8.5(@opentelemetry/api@1.9.0)
@@ -957,9 +954,6 @@ importers:
       '@opentelemetry/instrumentation-winston':
         specifier: ^0.57.0
         version: 0.57.0(@opentelemetry/api@1.9.0)
-      '@opentelemetry/resource-detector-aws':
-        specifier: ^2.13.0
-        version: 2.14.0(@opentelemetry/api@1.9.0)
       '@opentelemetry/resource-detector-container':
         specifier: ^0.8.4
         version: 0.8.5(@opentelemetry/api@1.9.0)
@@ -3353,12 +3347,6 @@ packages:
   '@opentelemetry/redis-common@0.38.2':
     resolution: {integrity: sha512-1BCcU93iwSRZvDAgwUxC/DV4T/406SkMfxGqu5ojc3AvNI+I9GhV7v0J1HljsczuuhcnFLYqD5VmwVXfCGHzxA==}
     engines: {node: ^18.19.0 || >=20.6.0}
-
-  '@opentelemetry/resource-detector-aws@2.14.0':
-    resolution: {integrity: sha512-1a0YMG6wZuLUfwkSgfe77vN60V5SmK//kM+JsQFT7dOKLyFvpN5A+TpX/eFdaqnhg89CxyF7XpKMBbg1DGv5bw==}
-    engines: {node: ^18.19.0 || >=20.6.0}
-    peerDependencies:
-      '@opentelemetry/api': ^1.0.0
 
   '@opentelemetry/resource-detector-container@0.8.5':
     resolution: {integrity: sha512-vWlfpiCHKWVrT/3EHgJfRLGX8ghVsEZ6CBHhJo5sAQQnwInDNcXjbBJm74Jiyqt0eg7NLeT0EfpXHCUSeYgFaA==}
@@ -14747,13 +14735,6 @@ snapshots:
       '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.0)
 
   '@opentelemetry/redis-common@0.38.2': {}
-
-  '@opentelemetry/resource-detector-aws@2.14.0(@opentelemetry/api@1.9.0)':
-    dependencies:
-      '@opentelemetry/api': 1.9.0
-      '@opentelemetry/core': 2.7.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/resources': 2.7.1(@opentelemetry/api@1.9.0)
-      '@opentelemetry/semantic-conventions': 1.40.0
 
   '@opentelemetry/resource-detector-container@0.8.5(@opentelemetry/api@1.9.0)':
     dependencies:
