@@ -111,7 +111,7 @@ const MessageCard = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "shadow-xs",
+        "max-w-full overflow-hidden wrap-break-word shadow-xs",
         isCompact
           ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
           : "rounded-2xl px-3 py-1.5 text-sm",
@@ -594,7 +594,11 @@ function MessageText({
           tr: ({ children }) => <tr>{children}</tr>,
           th: ({ children }) => <th>{children}</th>,
           td: ({ children }) => <td>{children}</td>,
-          table: ({ children }) => <table>{children}</table>,
+          table: ({ children }) => (
+            <div className="overflow-x-auto rounded">
+              <table>{children}</table>
+            </div>
+          ),
         }}
       >
         {text}
