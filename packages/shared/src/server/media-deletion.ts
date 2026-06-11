@@ -1,10 +1,8 @@
 import chunk from "lodash/chunk";
 
-import { Prisma, prisma } from "../db";
+import { prisma } from "../db";
 
 const BATCH_SIZE = 10_000;
-
-type DeletedCountRow = { deletedCount: number };
 
 interface MediaFileRef {
   id: string;
@@ -52,77 +50,19 @@ export interface StorageClient {
  */
 export async function deleteMediaLinkRowsByProjectId(params: {
   projectId: string;
-  batchSize?: number;
 }): Promise<void> {
-  const batchSize = params.batchSize ?? BATCH_SIZE;
-  if (batchSize <= 0) {
-    throw new Error("batchSize must be greater than 0");
-  }
-
-  let traceMediaDeletedCount: number;
-  do {
-    traceMediaDeletedCount = await deleteTraceMediaLinkRowsBatchByProjectId({
-      projectId: params.projectId,
-      batchSize,
-    });
-  } while (traceMediaDeletedCount === batchSize);
-
-  let observationMediaDeletedCount: number;
-  do {
-    observationMediaDeletedCount =
-      await deleteObservationMediaLinkRowsBatchByProjectId({
+  await prisma.$transaction([
+    prisma.traceMedia.deleteMany({
+      where: {
         projectId: params.projectId,
-        batchSize,
-      });
-  } while (observationMediaDeletedCount === batchSize);
-}
-
-async function deleteTraceMediaLinkRowsBatchByProjectId(params: {
-  projectId: string;
-  batchSize: number;
-}): Promise<number> {
-  const rows = await prisma.$queryRaw<DeletedCountRow[]>(Prisma.sql`
-    WITH batch AS (
-      SELECT id
-      FROM trace_media
-      WHERE project_id = ${params.projectId}
-      LIMIT ${params.batchSize}
-    ),
-    deleted AS (
-      DELETE FROM trace_media tm
-      USING batch
-      WHERE tm.id = batch.id
-      RETURNING 1
-    )
-    SELECT COUNT(*)::int AS "deletedCount"
-    FROM deleted
-  `);
-
-  return rows[0]?.deletedCount ?? 0;
-}
-
-async function deleteObservationMediaLinkRowsBatchByProjectId(params: {
-  projectId: string;
-  batchSize: number;
-}): Promise<number> {
-  const rows = await prisma.$queryRaw<DeletedCountRow[]>(Prisma.sql`
-    WITH batch AS (
-      SELECT id
-      FROM observation_media
-      WHERE project_id = ${params.projectId}
-      LIMIT ${params.batchSize}
-    ),
-    deleted AS (
-      DELETE FROM observation_media om
-      USING batch
-      WHERE om.id = batch.id
-      RETURNING 1
-    )
-    SELECT COUNT(*)::int AS "deletedCount"
-    FROM deleted
-  `);
-
-  return rows[0]?.deletedCount ?? 0;
+      },
+    }),
+    prisma.observationMedia.deleteMany({
+      where: {
+        projectId: params.projectId,
+      },
+    }),
+  ]);
 }
 
 /**

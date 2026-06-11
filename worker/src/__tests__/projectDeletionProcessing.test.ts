@@ -24,7 +24,6 @@ import {
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteEventsOlderThanDays,
-  deleteMediaLinkRowsByProjectId,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
@@ -144,82 +143,6 @@ describe("ProjectDeletionProcessingJob", () => {
     await expect(
       prisma.observationMedia.findMany({ where: { projectId } }),
     ).resolves.toHaveLength(0);
-  });
-
-  it("should delete project media link rows in batches", async () => {
-    const projectId = randomUUID();
-    const otherProjectId = randomUUID();
-
-    await Promise.all([
-      ...Array.from({ length: 5 }, (_, index) =>
-        prisma.traceMedia.create({
-          data: {
-            id: randomUUID(),
-            projectId,
-            traceId: `trace-${index}`,
-            mediaId: randomUUID(),
-            field: "input",
-          },
-        }),
-      ),
-      ...Array.from({ length: 5 }, (_, index) =>
-        prisma.observationMedia.create({
-          data: {
-            id: randomUUID(),
-            projectId,
-            traceId: `trace-${index}`,
-            observationId: `observation-${index}`,
-            mediaId: randomUUID(),
-            field: "output",
-          },
-        }),
-      ),
-      prisma.traceMedia.create({
-        data: {
-          id: randomUUID(),
-          projectId: otherProjectId,
-          traceId: randomUUID(),
-          mediaId: randomUUID(),
-          field: "input",
-        },
-      }),
-      prisma.observationMedia.create({
-        data: {
-          id: randomUUID(),
-          projectId: otherProjectId,
-          traceId: randomUUID(),
-          observationId: randomUUID(),
-          mediaId: randomUUID(),
-          field: "output",
-        },
-      }),
-    ]);
-
-    try {
-      await deleteMediaLinkRowsByProjectId({ projectId, batchSize: 2 });
-
-      await expect(
-        prisma.traceMedia.findMany({ where: { projectId } }),
-      ).resolves.toHaveLength(0);
-      await expect(
-        prisma.observationMedia.findMany({ where: { projectId } }),
-      ).resolves.toHaveLength(0);
-      await expect(
-        prisma.traceMedia.findMany({ where: { projectId: otherProjectId } }),
-      ).resolves.toHaveLength(1);
-      await expect(
-        prisma.observationMedia.findMany({
-          where: { projectId: otherProjectId },
-        }),
-      ).resolves.toHaveLength(1);
-    } finally {
-      await prisma.traceMedia.deleteMany({
-        where: { projectId: { in: [projectId, otherProjectId] } },
-      });
-      await prisma.observationMedia.deleteMany({
-        where: { projectId: { in: [projectId, otherProjectId] } },
-      });
-    }
   });
 
   it("should delete clickhouse event data on project delete", async () => {
