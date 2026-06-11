@@ -48,6 +48,7 @@ describe("buildEventsFullTableSubqueryQuery", () => {
       ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC
       LIMIT {limit: Int32}
       )
+      ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC
       SETTINGS log_comment = 'observations-v2-subquery-rewrite'"
     `);
     expect(params).toMatchInlineSnapshot(`
