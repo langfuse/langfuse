@@ -5,6 +5,7 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
   createTraceScore,
+  createDatasetRunScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -2370,7 +2371,13 @@ describe("batch export test suite", () => {
         data_type: "NUMERIC",
         metadata: { reason: "test-metadata" },
       });
-      await createScoresCh([score]);
+      const runScore = createDatasetRunScore({
+        project_id: projectId,
+        name: "run-accuracy",
+        value: 0.5,
+        data_type: "NUMERIC",
+      });
+      await createScoresCh([score, runScore]);
 
       // The trace exists only in the events table (v4 world) — no row is
       // written to the legacy traces table, so the legacy traces JOIN would
@@ -2400,9 +2407,9 @@ describe("batch export test suite", () => {
         rows.push(chunk);
       }
 
-      expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({
-        id: score.id,
+      expect(rows).toHaveLength(2);
+      const traceScoreRow = rows.find((r) => r.id === score.id);
+      expect(traceScoreRow).toMatchObject({
         traceId,
         name: "accuracy",
         value: 0.95,
@@ -2410,6 +2417,14 @@ describe("batch export test suite", () => {
         userId: "events-user",
         traceTags: ["events-tag"],
         metadata: { reason: "test-metadata" },
+      });
+      // Dataset run scores have no trace; the export must keep the run id.
+      const runScoreRow = rows.find((r) => r.id === runScore.id);
+      expect(runScoreRow).toMatchObject({
+        traceId: null,
+        datasetRunId: runScore.dataset_run_id,
+        name: "run-accuracy",
+        value: 0.5,
       });
     });
 

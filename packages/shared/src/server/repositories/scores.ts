@@ -1171,6 +1171,7 @@ const getScoresUiGeneric = async <T>(props: {
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
+        s.dataset_run_id,
         s.observation_id,
         s.author_user_id,
         t.user_id,
@@ -1398,6 +1399,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
+        s.dataset_run_id,
         s.observation_id,
         s.author_user_id,
         s.created_at,
