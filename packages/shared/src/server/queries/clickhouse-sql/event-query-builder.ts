@@ -998,12 +998,15 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   }
 
   /**
-   * True if any field-set or raw SELECT expressions have been added.
-   * Used by the subquery-IN rewrite to assert the inner builder projects
-   * nothing but the identity tuple (positional IN matching depends on it).
+   * True if any projection (field set, raw expression, or IO selection) has
+   * been added.
    */
   hasSelectExpressions(): boolean {
-    return this.selectFields.size > 0 || this.rawSelectExpressions.length > 0;
+    return (
+      this.selectFields.size > 0 ||
+      this.rawSelectExpressions.length > 0 ||
+      this.ioFields !== null
+    );
   }
 
   /**
