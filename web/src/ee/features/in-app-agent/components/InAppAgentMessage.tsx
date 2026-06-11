@@ -67,7 +67,7 @@ export function InAppAgentMessage({
     return (
       <div
         className={cn(
-          "bg-card dark:bg-header text-card-foreground border-border rounded-2xl border py-2 shadow-xs",
+          "bg-card dark:bg-header text-foreground border-border rounded-2xl border py-2 shadow-xs",
           isCompact
             ? "rounded-xl py-1 text-[0.775rem]"
             : "rounded-2xl py-1.5 text-sm",
@@ -117,7 +117,7 @@ const MessageCard = forwardRef<
           : "rounded-2xl px-3 py-1.5 text-sm",
         isUser
           ? "bg-primary text-primary-foreground"
-          : "bg-card dark:bg-header text-card-foreground border-border border",
+          : "bg-card dark:bg-header text-foreground border-border border",
       )}
     >
       {content.type === "loading" ? (
