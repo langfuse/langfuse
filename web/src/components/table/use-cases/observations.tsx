@@ -6,7 +6,14 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+} from "react";
 import { TokenUsageBadge } from "@/src/components/token-usage-badge";
 import { useQueryFilterState } from "@/src/features/filters/hooks/useFilterState";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -1384,7 +1391,9 @@ export default function ObservationsTable({
 
   const pageRowIds = useMemo(() => rows.map((row) => row.id), [rows]);
 
-  useEffect(() => {
+  // Layout effect so store-subscribed consumers (toolbar count) update before
+  // paint when the page rows change — no one-frame stale selection count.
+  useLayoutEffect(() => {
     observationsTableStore.getState().actions.syncPageRows({
       pageRowIds,
       totalCount,

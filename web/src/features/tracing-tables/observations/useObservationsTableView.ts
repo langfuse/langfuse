@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { useSelectAll } from "@/src/features/table/hooks/useSelectAll";
 import {
   createObservationsTableStore,
@@ -18,7 +18,9 @@ export function useObservationsTableView({
     }),
   );
 
-  useEffect(() => {
+  // Layout effect so a selectAll reset (e.g. route change) reaches
+  // store-subscribed rows before paint — no one-frame stale highlight.
+  useLayoutEffect(() => {
     store.getState().actions.syncSelectAll(selectAll);
   }, [selectAll, store]);
 
