@@ -346,7 +346,7 @@ export const MonitorForm = ({
     return getValidMonitorAggregationsForMeasure(measureDef);
   }, [watched.view, watched.metric?.measure]);
 
-  /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Sum of Observations Latency below 100"). */
+  /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Sum Observations Latency below 100"). */
   const namePlaceholder = useMemo(
     () =>
       renderNamePlaceholder({

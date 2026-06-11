@@ -11,7 +11,7 @@ describe("renderNamePlaceholder", () => {
         thresholdOperator: "LT",
         alertThreshold: 100,
       }),
-    ).toBe("Sum of Observations Latency below 100");
+    ).toBe("Sum Observations Latency below 100");
   });
 
   it("percentile aggregation: kept verbatim, not start-cased into 'P 95'", () => {
@@ -22,7 +22,7 @@ describe("renderNamePlaceholder", () => {
         thresholdOperator: "GT",
         alertThreshold: 100,
       }),
-    ).toBe("p95 of Observations Latency above 100");
+    ).toBe("p95 Observations Latency above 100");
   });
 
   it("bare count: omits the measure", () => {
@@ -33,7 +33,7 @@ describe("renderNamePlaceholder", () => {
         thresholdOperator: "GT",
         alertThreshold: 5,
       }),
-    ).toBe("Count of Observations above 5");
+    ).toBe("Count Observations above 5");
   });
 
   it("missing threshold: defaults the value to 0", () => {
@@ -44,6 +44,6 @@ describe("renderNamePlaceholder", () => {
         thresholdOperator: "GT",
         alertThreshold: null,
       }),
-    ).toBe("Count of Observations above 0");
+    ).toBe("Count Observations above 0");
   });
 });
