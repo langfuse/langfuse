@@ -194,7 +194,8 @@ const main = async (): Promise<number> => {
       }).values;
     } catch (error) {
       throw new SeedError(
-        `${(error as Error).message}\nSupported: doctor [--json] [--project <id>]`,
+        (error as Error).message,
+        "supported usage: doctor [--json] [--project <id>]",
       );
     }
     const result = await runDoctor(
@@ -214,7 +215,8 @@ const main = async (): Promise<number> => {
       }).values;
     } catch (error) {
       throw new SeedError(
-        `${(error as Error).message}\nSupported: list [--json]`,
+        (error as Error).message,
+        "supported usage: list [--json]",
       );
     }
     const listed = Object.values(scenarios).map((scenario) => ({
@@ -260,7 +262,8 @@ const main = async (): Promise<number> => {
   } catch (error) {
     if (error instanceof SeedError) throw error;
     throw new SeedError(
-      `${(error as Error).message}\nRun "pnpm run seed -- list" to see supported flags.`,
+      (error as Error).message,
+      "run `pnpm run seed -- list` to see supported flags",
     );
   }
 

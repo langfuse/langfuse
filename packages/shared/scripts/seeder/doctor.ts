@@ -170,13 +170,14 @@ const checkClickhouse = async (): Promise<{
         name: "clickhouse-tables",
         status: "fail",
         detail: "skipped (no connection)",
-        fix: FIX.chMigrate,
+        // migration commands need a reachable ClickHouse; fix the root cause
+        fix: FIX.infraUp,
       },
       v4Tables: {
         name: "clickhouse-v4-tables",
         status: "warn",
         detail: "skipped (no connection)",
-        fix: FIX.chDevTables,
+        fix: FIX.infraUp,
       },
     };
   }

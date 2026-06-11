@@ -242,7 +242,7 @@ const run = async (
 export const manyTracesScenario: ScenarioDefinition = {
   name: "many-traces",
   description:
-    "Bulk traces/observations/scores via ClickHouse numbers() SQL for trace-list and filter performance work. Fast even for 100k+ traces; ids are deterministic so re-runs do not duplicate.",
+    "Bulk traces/observations/scores for trace-list and filter performance work: ClickHouse numbers() SQL, fast even for 100k+ traces, deterministic ids so re-runs do not duplicate.",
   supportsV4: false,
   flags: [
     {
