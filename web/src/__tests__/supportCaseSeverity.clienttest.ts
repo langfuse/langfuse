@@ -13,6 +13,7 @@ import {
   SEVERITY_2,
   SEVERITY_3,
   isSeverityAllowedForPlan,
+  highestSupportPlan,
 } from "@/src/features/support-chat/formConstants";
 
 const HIGH_TIER = "cloud:enterprise"; // may raise Sev-1, Sev-2, Sev-3
@@ -91,6 +92,38 @@ describe("isSeverityAllowedForPlan", () => {
   it("always allows Severity 3", () => {
     expect(isSeverityAllowedForPlan(SEVERITY_3, LOW_TIER)).toBe(true);
     expect(isSeverityAllowedForPlan(SEVERITY_3, undefined)).toBe(true);
+  });
+});
+
+describe("highestSupportPlan", () => {
+  it("returns the plan granting the highest severity from a list", () => {
+    expect(highestSupportPlan(["cloud:hobby", "cloud:enterprise"])).toBe(
+      "cloud:enterprise",
+    );
+    expect(highestSupportPlan(["cloud:hobby", "cloud:pro"])).toBe("cloud:pro");
+  });
+
+  it("ignores undefined/empty entries", () => {
+    expect(highestSupportPlan([undefined, "cloud:team", undefined])).toBe(
+      "cloud:team",
+    );
+  });
+
+  it("returns a low-tier plan when that is all the user has", () => {
+    expect(highestSupportPlan(["cloud:hobby", "cloud:core"])).toBe(
+      "cloud:hobby",
+    );
+  });
+
+  it("returns undefined when there are no plans", () => {
+    expect(highestSupportPlan([])).toBeUndefined();
+    expect(highestSupportPlan([undefined])).toBeUndefined();
+  });
+
+  it("a Team/Enterprise member filing off-context can still raise Sev-1", () => {
+    // Regression: support form opened from a no-org page must not wrongly gate.
+    const best = highestSupportPlan(["cloud:hobby", "cloud:enterprise"]);
+    expect(isSeverityAllowedForPlan(SEVERITY_1, best)).toBe(true);
   });
 });
 

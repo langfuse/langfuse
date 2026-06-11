@@ -6,12 +6,15 @@ import { type z } from "zod";
 import {
   MESSAGE_TYPES,
   SEVERITIES,
+  SEVERITY_1,
+  SEVERITY_2,
   SEVERITY_3,
   INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
   SupportFormSchema,
   isSeverityAllowedForPlan,
+  highestSupportPlan,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -28,11 +31,6 @@ import {
 } from "@/src/components/ui/form";
 import { RadioGroup } from "@/src/components/ui/radio-group";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -41,6 +39,7 @@ import {
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
 
 import {
@@ -168,6 +167,20 @@ export function SupportFormSection({
   onSuccess: () => void;
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
+  const session = useSession();
+
+  // The support drawer is mounted globally and reachable from pages without an
+  // org/project in the URL (home, setup, onboarding, account settings), where
+  // `organization` is null. Fall back to the user's highest-tier org plan so
+  // severity eligibility reflects what the user actually has access to instead
+  // of being wrongly restricted. The server applies the same fallback.
+  const effectivePlan =
+    organization?.plan ??
+    highestSupportPlan(
+      (session.data?.user?.organizations ?? []).map((o) => o.plan),
+    );
+  const isSev1Allowed = isSeverityAllowedForPlan(SEVERITY_1, effectivePlan);
+  const isSev2Allowed = isSeverityAllowedForPlan(SEVERITY_2, effectivePlan);
 
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
@@ -390,42 +403,28 @@ export function SupportFormSection({
                       <SelectValue placeholder="Select a priority" />
                     </SelectTrigger>
                     <SelectContent>
-                      {SEVERITIES.map((s) => {
-                        const allowed = isSeverityAllowedForPlan(
-                          s,
-                          organization?.plan,
-                        );
-
-                        if (allowed) {
-                          return (
-                            <SelectItem key={s} value={s}>
-                              {s}
-                            </SelectItem>
-                          );
-                        }
-
-                        // Disabled items have `pointer-events: none`, so wrap in
-                        // a trigger element that still receives hover to show
-                        // the "not available on your plan" tooltip.
-                        return (
-                          <Tooltip key={s}>
-                            <TooltipTrigger asChild>
-                              <div className="cursor-not-allowed">
-                                <SelectItem value={s} disabled>
-                                  {s}
-                                </SelectItem>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs">
-                              This option is not available on your current
-                              Langfuse plan.
-                            </TooltipContent>
-                          </Tooltip>
-                        );
-                      })}
+                      {SEVERITIES.map((s) => (
+                        <SelectItem
+                          key={s}
+                          value={s}
+                          disabled={!isSeverityAllowedForPlan(s, effectivePlan)}
+                        >
+                          {s}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </FormControl>
+                {/* Explain the gating for all input modalities (keyboard /
+                    screen-reader users can't reach a per-item tooltip, and a
+                    tooltip portal can stack behind the dropdown). */}
+                {!isSev1Allowed && (
+                  <FormDescription>
+                    {isSev2Allowed
+                      ? "Severity 1 is available on the Team and Enterprise plans."
+                      : "Severity 1 (Team and Enterprise) and Severity 2 (Pro and above) are not available on your current plan."}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}

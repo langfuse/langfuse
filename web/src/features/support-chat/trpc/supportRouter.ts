@@ -15,6 +15,7 @@ import {
   SeveritySchema,
   TopicSchema,
   TopicGroups,
+  highestSupportPlan,
 } from "../formConstants";
 
 import {
@@ -146,6 +147,16 @@ export const supportRouter = createTRPCRouter({
 
         currentSupportRequestContext.plan = organization.plan;
         currentSupportRequestContext.organizationId = organization.id;
+      }
+
+      // When no specific org/project is in context (the support form is
+      // reachable from pages without org/project in the URL), fall back to the
+      // user's highest-tier org plan. This mirrors the client-side gating so a
+      // legitimate Team/Enterprise user is not silently downgraded.
+      if (!currentSupportRequestContext.plan) {
+        currentSupportRequestContext.plan = highestSupportPlan(
+          ctx.session.user.organizations.map((o) => o.plan),
+        );
       }
 
       // Resolve the Pylon case severity (Sev-1/2/3). Sev-1 is gated to

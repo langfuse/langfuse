@@ -98,6 +98,30 @@ export const isSeverityAllowedForPlan = (
   return true; // Severity 3 is always available
 };
 
+/**
+ * Picks the plan granting the highest support severity from a list. Used as a
+ * fallback when no specific org/project is in context (e.g. the support form is
+ * opened from a page without an org/project in the URL): eligibility should
+ * reflect the best plan the user has access to rather than defaulting to none.
+ */
+export const highestSupportPlan = (
+  plans: Array<string | undefined>,
+): string | undefined => {
+  const rank = (plan?: string) =>
+    isHighTierSupportPlan(plan) ? 3 : canRaiseSeverity2(plan) ? 2 : 1;
+  let best: string | undefined;
+  let bestRank = 0;
+  for (const plan of plans) {
+    if (!plan) continue;
+    const r = rank(plan);
+    if (r > bestRank) {
+      bestRank = r;
+      best = plan;
+    }
+  }
+  return best;
+};
+
 export const IntegrationTypeSchema = z.enum([
   "Python SDK",
   "TypeScript SDK",
