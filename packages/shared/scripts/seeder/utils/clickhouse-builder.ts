@@ -131,7 +131,7 @@ export class ClickHouseQueryBuilder {
         concat('${idPrefix}trace-bulk-', toString(number), '-${idSuffix}') AS id,
         toDateTime(${anchorSeconds} - intDiv(number * ${spreadSeconds}, ${Math.max(count, 1)})) AS timestamp,
         concat('trace-', toString(number % 10)) AS name,
-        if(h1 % 10 < 3, concat('user_', toString(h1 % 1000)), NULL) AS user_id,
+        if(h1 % 10 < 3, concat('${idPrefix}user_', toString(h1 % 1000)), NULL) AS user_id,
         ${this.buildNestedMetadataMapSql(["'generated'", "'bulk'"])} AS metadata,
         NULL AS release,
         NULL AS version,
@@ -216,7 +216,9 @@ export class ClickHouseQueryBuilder {
         multiIf(h1 % 100 < 47, 'GENERATION', h1 % 100 < 94, 'SPAN', 'EVENT') AS type,
         if(number < ${tracesCount}, NULL, concat('${idPrefix}obs-bulk-', toString(number - ${tracesCount}), '-${idSuffix}')) AS parent_observation_id,
         toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + intDiv(number, ${Math.max(tracesCount, 1)}) * 60) AS start_time,
-        addMilliseconds(start_time,
+        addMilliseconds(
+          toDateTime(${anchorSeconds} - intDiv((number % ${Math.max(tracesCount, 1)}) * ${spreadSeconds}, ${Math.max(tracesCount, 1)}) + ${Math.max(observationsPerTrace - 1, 0)} * 60),
+          (${Math.max(observationsPerTrace - 1, 0)} - intDiv(number, ${Math.max(tracesCount, 1)})) * 4000 +
           case
             when type = 'GENERATION' then 600 + h2 % 3400
             when type = 'SPAN' then 1 + h2 % 50
