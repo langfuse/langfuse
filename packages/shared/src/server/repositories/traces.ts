@@ -2168,9 +2168,15 @@ export const getTracesCountForPublicApi = async ({
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
-  const needsComplexQuery =
-    filter.some((f) => f.clickhouseTable === "observations") ||
-    filter.some((f) => f.clickhouseTable === "scores");
+  const needsComplexQuery = filter.some(
+    (f) =>
+      f.clickhouseTable === "observations" ||
+      f.clickhouseTable === "scores" ||
+      (f.clickhouseTable === "traces" &&
+        !["user_id", "session_id", "metadata"].some((c) =>
+          f.field.includes(c),
+        )),
+  );
 
   let query = `
     SELECT count() as count
