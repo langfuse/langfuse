@@ -670,7 +670,7 @@ const extendedPrismaAdapter: Adapter = {
     // This is idempotent - won't duplicate or overwrite existing memberships
     const user = await prisma.user.findUnique({
       where: { id: data.userId },
-      select: { id: true, email: true },
+      select: { id: true, email: true, name: true },
     });
     if (user) {
       await createProjectMembershipsOnSignup(user);

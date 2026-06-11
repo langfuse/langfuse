@@ -8,6 +8,7 @@ import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsSer
 import { z } from "zod";
 import { type Role } from "@langfuse/shared";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -238,6 +239,18 @@ export default async function handler(
       logger.info(
         `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,
       );
+
+      await getSfdcService()?.upsertUser({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+      });
+      await getSfdcService()?.setUserRole({
+        orgId: authCheck.scope.orgId,
+        userId: user.id,
+        email: user.email,
+        role,
+      });
 
       // Return SCIM formatted user
       return res.status(201).json({

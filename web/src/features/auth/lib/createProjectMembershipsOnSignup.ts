@@ -5,11 +5,13 @@ import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 export async function createProjectMembershipsOnSignup(
   user: {
     id: string;
     email: string | null;
+    name: string | null;
   },
   options?: { userWasJustCreated?: boolean },
 ) {
@@ -153,6 +155,18 @@ export async function createProjectMembershipsOnSignup(
       }
     }
 
+    // SFDC lead upsert (never throws; no-op when SfdcService is not
+    // configured).
+    // Must run BEFORE processMembershipInvitations below so the lead exists
+    // when setUserRole events fire for accepted invitations.
+    if (options?.userWasJustCreated || isNewUser) {
+      await getSfdcService()?.upsertUser({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+      });
+    }
+
     // Invites do not work for users without emails (some future SSO users)
     if (user.email) await processMembershipInvitations(user.email, user.id);
 
@@ -279,4 +293,14 @@ async function processMembershipInvitations(email: string, userId: string) {
       },
     }),
   ]);
+
+  // SFDC: link the freshly-created lead to each org as an org-member.
+  for (const invitation of invitationsForUser) {
+    await getSfdcService()?.setUserRole({
+      orgId: invitation.orgId,
+      userId,
+      email,
+      role: invitation.orgRole,
+    });
+  }
 }
