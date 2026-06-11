@@ -1502,23 +1502,18 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       options,
     );
 
-  // The subquery-IN rewrite only replaces the CTE+JOIN split query, i.e. the
-  // needsIOCTE branch. The non-CTE simple path is untouched, so the
-  // truncated-metadata default (events_core) is preserved exactly.
-  // External CTEs (the traces CTE from hasTraceFilter) are excluded: whether
-  // ClickHouse resolves an outer-scope CTE inside the IN subquery is
-  // unverified, and no v2 observations filter currently produces one
-  // (user_id is denormalized onto events_*). Fall back to the CTE+JOIN path
-  // if that ever changes.
+  // The rewrite only replaces the CTE+JOIN split query (needsIOCTE branch);
+  // the non-CTE simple path is untouched. External CTEs are excluded: their
+  // resolution inside the IN subquery is unverified, and no v2 filter
+  // currently produces one, so that case keeps the CTE+JOIN path.
   const useSubqueryRewrite =
     needsIOCTE &&
     externalCTEs.length === 0 &&
     shouldUseObservationsSubqueryRewrite();
 
   if (!useSubqueryRewrite) {
-    // CTE+JOIN and simple paths project core + requested scalar groups on the
-    // base builder. The subquery path skips this: its inner only needs the
-    // identity tuple, which the builder projects itself.
+    // Skipped under the rewrite: its inner query projects only the identity
+    // tuple, which buildEventsFullTableSubqueryQuery adds itself.
     baseBuilder.selectFieldSet("core");
     const excludeFromBase = new Set<string>(["core", "io"]);
     if (metadataFromFullTable) excludeFromBase.add("metadata");
@@ -1533,8 +1528,6 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   let builder: QueryWithParams;
 
   if (useSubqueryRewrite) {
-    // Outer fetches core + every requested group from events_full; inner runs
-    // filter/sort/limit and emits the identity tuple for the IN clause.
     builder = buildEventsFullTableSubqueryQuery({
       projectId,
       innerBuilder: baseBuilder,

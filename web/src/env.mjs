@@ -430,8 +430,7 @@ export const env = createEnv({
       .enum(["legacy", "dual", "events_only"])
       .default("legacy"),
 
-    // Kill-switch for the observations v2 subquery-IN rewrite.
-    // Default off; flip per-env after soak. Worker omitted: v2 query path is web-only.
+    // Temporary kill-switch for the observations v2 subquery-IN rewrite.
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
       .enum(["true", "false"])
       .default("false"),

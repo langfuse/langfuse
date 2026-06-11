@@ -1744,11 +1744,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
     });
   });
 
-  // The subquery-IN rewrite only replaces the CTE+JOIN split query, i.e.
-  // requests that hit the needsIOCTE branch (io requested, or metadata with
-  // expandMetadata). These tests exercise that branch under both flag values and
-  // assert (a) byte-identical results vs the CTE path and (b) the canonical
-  // ORDER BY. The non-CTE simple path is unaffected and covered by the suites above.
+  // Exercises the needsIOCTE branch (the only path the rewrite replaces)
+  // under both flag values: results must match the CTE path byte-identically
+  // and keep the canonical ORDER BY.
   maybe("subquery rewrite", () => {
     const originalFlag = sharedEnv.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE;
 

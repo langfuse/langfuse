@@ -439,11 +439,8 @@ const EnvSchema = z.object({
   LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
     .enum(["true", "false"])
     .default("false"),
-  // Kill-switch for the observations v2 subquery-IN late-materialization
-  // rewrite. When "true", GET /api/public/v2/observations and the observations
-  // MCP tools route wide-field requests through the JOIN-free subquery builder
-  // instead of the CTE+JOIN split query. Temporary toggle; intended for removal
-  // after one clean release cycle.
+  // Temporary kill-switch for the observations v2 subquery-IN rewrite
+  // (JOIN-free alternative to the CTE+JOIN split query).
   LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
     .enum(["true", "false"])
     .default("false"),

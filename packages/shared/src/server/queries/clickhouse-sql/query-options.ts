@@ -35,15 +35,9 @@ export async function shouldSkipObservationsFinal(
 }
 
 /**
- * Whether the observations v2 public API should use the subquery-IN
- * late-materialization rewrite instead of the CTE+JOIN split query.
- *
- * Gated by LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE (default "false"). This is a
- * temporary kill-switch: both code paths coexist until the flag is retired in a
- * follow-up, once the new path has soaked in production for one release cycle
- * without regression. The two paths return identical result sets; the flag exists
- * because ClickHouse query plans can shift even when output is byte-identical, so a
- * fast env-flip revert is preferable to a code rollback.
+ * Whether the observations v2 public API should use the subquery-IN rewrite
+ * instead of the CTE+JOIN split query. Temporary kill-switch; both paths
+ * return identical result sets.
  */
 export function shouldUseObservationsSubqueryRewrite(): boolean {
   return env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE === "true";

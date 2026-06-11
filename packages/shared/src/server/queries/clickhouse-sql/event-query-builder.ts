@@ -512,9 +512,8 @@ abstract class AbstractQueryBuilder {
   protected orderByClause: string = "";
 
   /**
-   * The built ORDER BY clause (empty string if none was set). Exposed so
-   * wrapper queries (e.g. the subquery-IN rewrite) can re-apply the exact
-   * sort of an inner builder instead of duplicating it by hand.
+   * The built ORDER BY clause (empty string if none was set). Lets wrapper
+   * queries re-apply an inner builder's exact sort.
    */
   getOrderByClause(): string {
     return this.orderByClause;
@@ -2001,10 +2000,8 @@ export function buildEventsFullTableSplitQuery(opts: {
 }
 
 /**
- * Identity tuple used by the subquery-IN rewrite. The inner subquery projects
- * exactly these columns (in this order) and the outer IN clause matches against
- * the same tuple positionally. project_id is included so the outer can prune by
- * partition before the hash-set check.
+ * Identity tuple for the subquery-IN rewrite. The inner subquery projects
+ * exactly these columns; the outer IN clause matches them positionally.
  */
 const SUBQUERY_IDENTITY_TUPLE = [
   "e.span_id",
@@ -2014,22 +2011,14 @@ const SUBQUERY_IDENTITY_TUPLE = [
 ] as const;
 
 /**
- * Build the observations v2 subquery-IN late-materialization query.
+ * Build the observations v2 subquery-IN late-materialization query: an outer
+ * SELECT on events_full gated by an identity-tuple IN subquery that runs the
+ * filter/sort/limit on the inner builder's table. No JOIN — ClickHouse builds
+ * the inner hash set once and prunes the outer scan.
  *
- * Emits a single outer SELECT against events_full gated by an
- * `(span_id, trace_id, start_time, project_id) IN (SELECT ...)` subquery that
- * runs the filter/sort/limit on the inner builder's table (events_core, or
- * events_full when forceFullTable() escalates). There is no JOIN: ClickHouse
- * builds the inner hash set once and prunes the outer scan.
- *
- * The inner builder must already carry filters, ORDER BY, and LIMIT; this
- * function owns the inner identity-tuple SELECT (so it always lines up with the
- * outer IN tuple). The outer SELECT projects core + requested field groups from
- * events_full, guaranteeing full untruncated input/output/metadata. The outer
- * re-applies the canonical ORDER BY because IN does not preserve order.
- *
- * The CTE+JOIN counterpart is buildEventsFullTableSplitQuery; both must return
- * identical result sets.
+ * The inner builder must carry filters, ORDER BY, and LIMIT but no SELECTs;
+ * this function projects the identity tuple itself. Counterpart of
+ * buildEventsFullTableSplitQuery; both must return identical result sets.
  */
 export function buildEventsFullTableSubqueryQuery(opts: {
   projectId: string;
@@ -2040,10 +2029,8 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     queryWithParams: { query: string; params: Record<string, any> };
   }>;
 }): QueryWithParams {
-  // Inner: project only the identity tuple. Filters/ORDER BY/LIMIT are already
-  // configured on the builder by the caller. The outer IN clause matches the
-  // tuple positionally, so any pre-existing SELECT expression on the inner
-  // builder would misalign the match — fail fast instead.
+  // A pre-existing projection on the inner builder would misalign the
+  // positional IN-tuple match — fail fast.
   if (opts.innerBuilder.hasSelectExpressions()) {
     throw new Error(
       "buildEventsFullTableSubqueryQuery requires an inner builder without SELECT expressions; it projects the identity tuple itself",
@@ -2053,8 +2040,7 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     .selectRaw(...SUBQUERY_IDENTITY_TUPLE)
     .buildWithParams();
 
-  // Outer SELECT expressions: core + requested field groups, all from
-  // events_full (e. prefix). Dedupe field keys while preserving order.
+  // Outer SELECT: core + requested field groups from events_full, deduped.
   const fieldKeys = Array.from(
     new Set(opts.fieldSetNames.flatMap((name) => FIELD_SETS[name])),
   );
@@ -2063,9 +2049,8 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     return expr ? [expr] : [];
   });
 
-  // Canonical ORDER BY: reuse the inner builder's clause verbatim (both
-  // reference the `e.` prefix), re-applied here because IN does not preserve
-  // order. Bounded by the inner LIMIT (<= page size).
+  // Re-apply the inner builder's ORDER BY verbatim (same `e.` prefix);
+  // IN does not preserve order.
   const outerOrderBy = opts.innerBuilder.getOrderByClause();
   if (!outerOrderBy) {
     throw new Error(
@@ -2079,8 +2064,7 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     cteParts.push(`${cte.name} AS (${cte.queryWithParams.query})`);
     Object.assign(params, cte.queryWithParams.params);
   }
-  // Inner params last so the inner subquery's bindings win on any overlap
-  // (same projectId value, plus filter/cursor/limit bindings).
+  // Inner params last so the inner subquery's bindings win on overlap.
   Object.assign(params, innerParams);
 
   const tuple = `(${SUBQUERY_IDENTITY_TUPLE.join(", ")})`;
