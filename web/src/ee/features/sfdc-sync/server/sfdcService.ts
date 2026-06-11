@@ -99,14 +99,34 @@ export type RemoveUserInput = {
 };
 
 /**
- * Loose response schema. Mulesoft is expected to return `sfdcOrgId` /
- * `sfdcUserId` on success but the exact shape is not in our control;
- * unknown / missing fields are tolerated.
+ * Loose response schema for the org endpoint. Mulesoft returns `sfdcOrgId`
+ * on updateOrg; unknown / missing fields are tolerated. The user endpoint
+ * (`/manage-user`) acks with a plain-text body and never returns an id.
  */
 const SfdcResponse = z.looseObject({
   sfdcOrgId: z.string().optional(),
-  sfdcUserId: z.string().optional(),
 });
+
+// TODO(go-live): local-debug helper for the temporary console.log calls in
+// `post` — remove together with them before go-live. Prefixes every output
+// line so the whole payload/body survives `... | grep SFDC`.
+function sfdcDebugLog(header: string, body: unknown): void {
+  let text: string;
+  if (typeof body === "string") {
+    try {
+      text = body ? JSON.stringify(JSON.parse(body), null, 2) : "<empty body>";
+    } catch {
+      text = body;
+    }
+  } else {
+    text = JSON.stringify(body, null, 2);
+  }
+  const prefixed = text
+    .split("\n")
+    .map((line) => `[SFDC][DEBUG] ${line}`)
+    .join("\n");
+  console.log(`[SFDC][DEBUG] ${header}\n${prefixed}`);
+}
 
 interface SfdcConfig {
   userUrl: string;
@@ -169,14 +189,12 @@ export class SfdcService {
         });
         return;
       }
-      const response = await this.post({
+      await this.post({
         url: this.config.userUrl,
         payload: { isLangfuse: true, ...parsed.data },
         context: { event: "upsertUser", userId: parsed.data.userId },
+        expectJsonResponse: false,
       });
-      if (response?.sfdcUserId) {
-        await this.persistSfdcUserId(parsed.data.userId, response.sfdcUserId);
-      }
     });
   }
 
@@ -207,6 +225,11 @@ export class SfdcService {
           isLangfuse: true,
           type: "updateOrg" as const,
           campaign: this.config.campaignId,
+          // The Mulesoft updateOrg flow runs `numServices* > 0` comparisons
+          // and 500s on null — always send 0
+          numServicesAws: 0,
+          numServicesGcp: 0,
+          numServicesAzure: 0,
           ...parsed.data,
         },
         context: { event: "upsertOrg", orgId: parsed.data.orgId },
@@ -347,14 +370,19 @@ export class SfdcService {
     url: string;
     payload: Record<string, unknown>;
     context: Record<string, unknown>;
+    /** The user endpoint acks with plain text — set false to skip JSON parsing. */
+    expectJsonResponse?: boolean;
   }): Promise<z.infer<typeof SfdcResponse> | null> {
-    const { url, payload, context } = args;
+    const { url, payload, context, expectJsonResponse = true } = args;
     const controller = new AbortController();
     const timeout = setTimeout(
       () => controller.abort(),
       env.MULESOFT_SFDC_REQUEST_TIMEOUT_MS,
     );
     const startTime = Date.now();
+
+    // TODO(go-live): temporary local-debug log — remove before go-live.
+    sfdcDebugLog(`→ POST ${url}`, payload);
 
     try {
       const response = await fetch(url, {
@@ -369,6 +397,11 @@ export class SfdcService {
 
       if (!response.ok) {
         const responseBody = await response.text().catch(() => "");
+        // TODO(go-live): temporary local-debug log — remove before go-live.
+        sfdcDebugLog(
+          `← ${response.status} ${response.statusText}`,
+          responseBody,
+        );
         traceException(new Error(`Mulesoft returned ${response.status}`));
         logger.warn("[SFDC] Mulesoft returned non-2xx", {
           ...context,
@@ -390,7 +423,9 @@ export class SfdcService {
 
       // Tolerate empty / non-JSON bodies; we only care if an ID comes back.
       const responseText = await response.text();
-      if (!responseText) return null;
+      // TODO(go-live): temporary local-debug log — remove before go-live.
+      sfdcDebugLog(`← ${response.status}`, responseText);
+      if (!expectJsonResponse || !responseText) return null;
 
       let parsed: unknown;
       try {
@@ -433,45 +468,11 @@ export class SfdcService {
   }
 
   /**
-   * Persist the returned sfdcUserId on the User row. Logs an error on
+   * Persist the returned sfdcOrgId on the Organization row. Logs an error on
    * mismatch with an existing value (SFDC-side merge) but does NOT throw —
    * we don't want to trigger any retry loop because the upstream call
    * already succeeded.
    */
-  private async persistSfdcUserId(
-    userId: string,
-    sfdcUserId: string,
-  ): Promise<void> {
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { sfdcUserId: true },
-      });
-      if (user?.sfdcUserId && user.sfdcUserId !== sfdcUserId) {
-        logger.error(
-          "[SFDC] sfdcUserId changed for existing user (SFDC-side merge?)",
-          {
-            userId,
-            existingSfdcUserId: user.sfdcUserId,
-            returnedSfdcUserId: sfdcUserId,
-          },
-        );
-      }
-      if (!user?.sfdcUserId) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { sfdcUserId },
-        });
-      }
-    } catch (err) {
-      logger.warn("[SFDC] failed to persist sfdcUserId", {
-        userId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  /** Same as persistSfdcUserId but for the Organization row. */
   private async persistSfdcOrgId(
     orgId: string,
     sfdcOrgId: string,

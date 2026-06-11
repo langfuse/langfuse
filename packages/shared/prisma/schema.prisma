@@ -54,10 +54,6 @@ model User {
   image                     String?
   admin                     Boolean                     @default(false)
   v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
-  // SFDC Lead / Contact ID returned by the Mulesoft `/manage-user` endpoint on
-  // Langfuse Cloud. NULL for self-hosted or pre-integration users. Persisted so
-  // we can detect SFDC-side merges/changes on subsequent upserts.
-  sfdcUserId                String?                     @map("sfdc_user_id")
   accounts                  Account[]
   sessions                  Session[]
   organizationMemberships   OrganizationMembership[]

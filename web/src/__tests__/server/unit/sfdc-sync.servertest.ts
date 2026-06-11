@@ -191,26 +191,17 @@ describe("SfdcService.upsertUser", () => {
     expect(loggerMock.warn).toHaveBeenCalled();
   });
 
-  it("persists sfdcUserId when the response contains one", async () => {
-    fetchMock.mockResolvedValueOnce(okJsonResponse({ sfdcUserId: "sfdc-u-1" }));
+  it("treats the plain-text 'Success' ack as success — no warn, no persistence", async () => {
+    // /manage-user never returns JSON or an id; CH Cloud discards this
+    // response too.
+    fetchMock.mockResolvedValueOnce(new Response("Success", { status: 200 }));
     await SfdcService.tryCreate()!.upsertUser({
       userId: "user-42",
       email: "u@example.com",
       name: "U",
     });
-    expect(prismaMock.user.update).toHaveBeenCalledWith({
-      where: { id: "user-42" },
-      data: { sfdcUserId: "sfdc-u-1" },
-    });
-  });
-
-  it("does not persist when the response omits sfdcUserId", async () => {
-    fetchMock.mockResolvedValueOnce(okJsonResponse({}));
-    await SfdcService.tryCreate()!.upsertUser({
-      userId: "user-42",
-      email: "u@example.com",
-      name: "U",
-    });
+    expect(loggerMock.warn).not.toHaveBeenCalled();
+    expect(loggerMock.error).not.toHaveBeenCalled();
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
@@ -237,28 +228,6 @@ describe("SfdcService.upsertUser", () => {
     expect(loggerMock.warn).toHaveBeenCalled();
   });
 
-  it("logs error on mismatched existing sfdcUserId but does NOT throw", async () => {
-    prismaMock.user.findUnique.mockResolvedValueOnce({
-      sfdcUserId: "sfdc-old",
-    });
-    fetchMock.mockResolvedValueOnce(okJsonResponse({ sfdcUserId: "sfdc-new" }));
-    await SfdcService.tryCreate()!.upsertUser({
-      userId: "user-42",
-      email: "u@example.com",
-      name: "U",
-    });
-    expect(loggerMock.error).toHaveBeenCalledWith(
-      expect.stringContaining("sfdcUserId changed"),
-      expect.objectContaining({
-        userId: "user-42",
-        existingSfdcUserId: "sfdc-old",
-        returnedSfdcUserId: "sfdc-new",
-      }),
-    );
-    // existing value preserved — no overwrite
-    expect(prismaMock.user.update).not.toHaveBeenCalled();
-  });
-
   it("never rejects on invalid email — logs warn and skips fetch", async () => {
     await expect(
       SfdcService.tryCreate()!.upsertUser({
@@ -268,19 +237,6 @@ describe("SfdcService.upsertUser", () => {
       }),
     ).resolves.toBeUndefined();
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(loggerMock.warn).toHaveBeenCalled();
-  });
-
-  it("never rejects even when persistence throws after a 2xx", async () => {
-    fetchMock.mockResolvedValueOnce(okJsonResponse({ sfdcUserId: "sfdc-x" }));
-    prismaMock.user.findUnique.mockRejectedValueOnce(new Error("db down"));
-    await expect(
-      SfdcService.tryCreate()!.upsertUser({
-        userId: "user-42",
-        email: "u@example.com",
-        name: "U",
-      }),
-    ).resolves.toBeUndefined();
     expect(loggerMock.warn).toHaveBeenCalled();
   });
 });
@@ -307,6 +263,11 @@ describe("SfdcService.upsertOrg", () => {
       email: "u@example.com",
       role: "OWNER",
       campaign: "campaign-test-id",
+      // Mulesoft's updateOrg flow 500s when the CH service counts are
+      // missing (null > 0 comparison in DataWeave) — must always be sent.
+      numServicesAws: 0,
+      numServicesGcp: 0,
+      numServicesAzure: 0,
     });
   });
 
@@ -323,6 +284,59 @@ describe("SfdcService.upsertOrg", () => {
       where: { id: "org-9" },
       data: { sfdcOrgId: "sfdc-o-9" },
     });
+  });
+
+  it("does not persist when the response omits sfdcOrgId", async () => {
+    fetchMock.mockResolvedValueOnce(okJsonResponse({}));
+    await SfdcService.tryCreate()!.upsertOrg({
+      orgId: "org-9",
+      orgName: "Org Nine",
+      userId: "user-1",
+      email: "u@example.com",
+      role: "OWNER",
+    });
+    expect(prismaMock.organization.update).not.toHaveBeenCalled();
+  });
+
+  it("logs error on mismatched existing sfdcOrgId but does NOT overwrite", async () => {
+    prismaMock.organization.findUnique.mockResolvedValueOnce({
+      sfdcOrgId: "sfdc-old",
+    });
+    fetchMock.mockResolvedValueOnce(okJsonResponse({ sfdcOrgId: "sfdc-new" }));
+    await SfdcService.tryCreate()!.upsertOrg({
+      orgId: "org-9",
+      orgName: "Org Nine",
+      userId: "user-1",
+      email: "u@example.com",
+      role: "OWNER",
+    });
+    expect(loggerMock.error).toHaveBeenCalledWith(
+      expect.stringContaining("sfdcOrgId changed"),
+      expect.objectContaining({
+        orgId: "org-9",
+        existingSfdcOrgId: "sfdc-old",
+        returnedSfdcOrgId: "sfdc-new",
+      }),
+    );
+    // existing value preserved — no overwrite
+    expect(prismaMock.organization.update).not.toHaveBeenCalled();
+  });
+
+  it("never rejects even when persistence throws after a 2xx", async () => {
+    fetchMock.mockResolvedValueOnce(okJsonResponse({ sfdcOrgId: "sfdc-x" }));
+    prismaMock.organization.findUnique.mockRejectedValueOnce(
+      new Error("db down"),
+    );
+    await expect(
+      SfdcService.tryCreate()!.upsertOrg({
+        orgId: "org-9",
+        orgName: "Org Nine",
+        userId: "user-1",
+        email: "u@example.com",
+        role: "OWNER",
+      }),
+    ).resolves.toBeUndefined();
+    expect(loggerMock.warn).toHaveBeenCalled();
   });
 });
 
