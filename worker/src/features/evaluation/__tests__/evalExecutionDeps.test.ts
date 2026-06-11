@@ -20,7 +20,7 @@ vi.mock("../../../env", async (importOriginal) => {
     ...original,
     env: {
       ...original.env,
-      LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE: "true",
+      LANGFUSE_MIGRATION_V4_WRITE_MODE: "dual",
     },
   };
 });

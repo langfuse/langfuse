@@ -10,8 +10,8 @@ import { ScoresTableCell } from "@/src/components/scores-table-cell";
 import { toOrderedScoresList } from "@/src/features/scores/lib/helpers";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
 
-// Simple score column creation
-function createScoreColumns<T extends Record<string, any>>(
+// Simple score column creation - exported for reuse
+export function createScoreColumns<T extends Record<string, any>>(
   scoreColumns: Array<{
     key: string;
     name: string;

@@ -24,7 +24,6 @@ env:
   # env context in jobs.<job_id>.name, so matrix jobs use matrix.node-version
   # for their display names.
   NODE_VERSION: 24
-  CLICKHOUSE_CLIENT_VERSION: "25.12.9.61"
 
   # Disable CI cache restores for fork PRs.
   #
@@ -36,31 +35,28 @@ env:
   CI_CACHE_ALLOWED: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
+  # Skips runs whose git tree was already tested in a prior successful run of
+  # this workflow (replaces fkirc/skip-duplicate-actions). This fires almost
+  # exclusively on pushes to main, whose tree the merge queue just tested, so
+  # the job only runs for push events: pull_request and merge_group runs skip
+  # it instantly and their jobs start without waiting for it (~45-100s of
+  # wall clock per run).
   pre-job:
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    if: github.event_name == 'push'
     outputs:
       should_skip: ${{ steps.skip_check.outputs.should_skip }}
-      llm_connections_changed: ${{ steps.filter.outputs.llm_connections }}
     timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: read
     steps:
-      # Replaces fkirc/skip-duplicate-actions — skips runs whose git tree
-      # was already tested in a prior successful run of this workflow.
       - id: skip_check
         env:
-          EVENT_NAME: ${{ github.event_name }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
           COMMIT_SHA: ${{ github.sha }}
           RUN_ID: ${{ github.run_id }}
         run: |
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            echo "should_skip=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           CURRENT_TREE=$(gh api "repos/$REPOSITORY/git/commits/$COMMIT_SHA" --jq '.tree.sha')
 
           MATCH=$(gh api "repos/$REPOSITORY/actions/workflows/pipeline.yml/runs?status=success&per_page=20" \
@@ -73,6 +69,16 @@ jobs:
           else
             echo "should_skip=false" >> "$GITHUB_OUTPUT"
           fi
+
+  llm-connections-filter:
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    outputs:
+      changed: ${{ steps.filter.outputs.llm_connections }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           # Recommended for paths-filter action
@@ -92,7 +98,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -137,7 +146,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -195,7 +207,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -227,7 +242,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -264,7 +282,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     env:
       DOCKER_COMPOSE_FILE: docker-compose.build.yml
     steps:
@@ -280,12 +301,22 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN_READ }}
       - name: Set NEXT_PUBLIC_BUILD_ID
         run: echo "NEXT_PUBLIC_BUILD_ID=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - name: Start dependency containers in background
+        # Independent of the image build, so let the build overlap it. The
+        # healthcheck step below surfaces its output and re-validates health.
+        run: |
+          (set +e; docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180 postgres redis minio clickhouse > /tmp/deps-up.log 2>&1; echo $? > /tmp/deps-up.exit) &
       - name: Build images
+        # Skip the Next.js type check inside the web image build: the lint job
+        # runs `pnpm run typecheck` already. Release builds keep type-checking.
         run: |
           docker compose -f "$DOCKER_COMPOSE_FILE" build --print > /tmp/bake.json
-          docker buildx bake -f /tmp/bake.json
+          docker buildx bake -f /tmp/bake.json \
+            --set "langfuse-web.args.NEXT_IGNORE_BUILD_ERRORS=true"
       - name: Start compose services and wait for healthchecks
         run: |
+          timeout 300 bash -c 'until [ -f /tmp/deps-up.exit ]; do sleep 1; done' || true
+          cat /tmp/deps-up.log
           docker compose -f "$DOCKER_COMPOSE_FILE" up -d --wait --wait-timeout 180
       - name: Check worker health
         run: |
@@ -330,7 +361,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-web (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
@@ -341,14 +375,19 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
-      - name: Install golang-migrate for Clickhouse migrations
+      - name: Install golang-migrate for Clickhouse migrations in background
+        # Only needed by the "Migrate DB" step, so let the dependency setup
+        # overlap the 1-25s download. "Migrate DB" waits for the marker file.
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
-          which migrate
+          (
+            set -e
+            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+              --output migrate.linux-amd64.tar.gz \
+              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+            tar xzf migrate.linux-amd64.tar.gz
+            sudo mv migrate /usr/bin/migrate
+            touch /tmp/migrate-installed
+          ) > /tmp/migrate-install.log 2>&1 &
       - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
         with:
           version: 11.4.0
@@ -386,48 +425,30 @@ jobs:
           echo "ADMIN_API_KEY=admin-api-key" >> .env
           echo "LANGFUSE_EE_LICENSE_KEY=langfuse_ee_test" >> .env
           echo "LANGFUSE_SKIP_EVALUATOR_MODEL_CALL_VALIDATION=true" >> .env
+          echo "LANGFUSE_ENABLE_SCORES_V3_API=true" >> .env
       - name: Setup Turbo cache
         if: env.CI_CACHE_ALLOWED == 'true'
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] test job cache only; publish jobs rebuild artifacts and do not restore this cache
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          # Turbo hashes the whole .env (turbo.json globalDependencies) and
+          # each deploy-mode writes a different .env, so keys must be
+          # mode-scoped for every matrix job to replay its own builds. The
+          # default mode gets an explicit "-default" segment so its restore
+          # prefix cannot match the other modes' keys.
+          key: ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-turbo-
-      - name: Cache Next.js builds
-        if: env.CI_CACHE_ALLOWED == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # zizmor: ignore[cache-poisoning] test-only Next.js cache; not consumed by artifact publishing or release jobs
-        with:
-          path: |
-            ~/.npm
-            ${{ github.workspace }}/web/.next/cache
-          key: ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('web/**/*.js', 'web/**/*.jsx', 'web/**/*.ts', 'web/**/*.tsx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-nextjs-web-${{ matrix.node-version }}-
-      - name: Run dev containers
+            ${{ runner.os }}-turbo-mode${{ matrix.deploy-mode == '' && '-default' || matrix.deploy-mode }}-
+      # No Next.js build cache here on purpose: its ~30s/job restore+save cost
+      # roughly cancels the build speedup, and the Turbo cache above already
+      # replays unchanged builds.
+      - name: Start dev containers in background
+        # Independent of the build, so let the build overlap the ~15-20s
+        # container startup. "Wait for dev containers" collects the result.
         run: |
-          docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180
-          docker compose ps
+          (set +e; docker compose -f docker-compose.dev${{ matrix.deploy-mode }}.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
         env:
           POSTGRES_VERSION: ${{ matrix.postgres-version }}
-      - name: Migrate DB
-        run: |
-          pnpm run db:migrate
-          pnpm --filter=shared ch:up
-      - name: Download and extract ClickHouse client for dev-tables setup
-        if: matrix.deploy-mode == ''
-        run: |
-          ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
-
-          # The binary is usually located in ./usr/bin/clickhouse in the archive
-          dpkg-deb -x clickhouse-client.deb ch_client_dir
-          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
-      - name: Setup Dev Tables
-        if: matrix.deploy-mode == ''
-        run: |
-          pnpm --filter=shared ch:dev-tables
       - name: Build
         run: pnpm run build
         env:
@@ -435,6 +456,33 @@ jobs:
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Wait for dev containers
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
+          cat /tmp/compose-up.log
+          docker compose ps
+          exit "$(cat /tmp/compose-up.exit)"
+      - name: Migrate DB
+        run: |
+          timeout 120 bash -c 'until [ -f /tmp/migrate-installed ]; do sleep 1; done' \
+            || { cat /tmp/migrate-install.log; exit 1; }
+          pnpm run db:migrate
+          pnpm --filter=shared ch:up
+      - name: Provide ClickHouse client via dev container for dev-tables setup
+        if: matrix.deploy-mode == ''
+        # The clickhouse-server container already ships the client binary;
+        # a shim avoids re-downloading the ~300MB client package every run.
+        run: |
+          sudo tee /usr/local/bin/clickhouse > /dev/null <<'EOF'
+          #!/bin/bash
+          exec docker exec -i langfuse-clickhouse clickhouse "$@"
+          EOF
+          sudo chmod +x /usr/local/bin/clickhouse
+      - name: Setup Dev Tables
+        if: matrix.deploy-mode == ''
+        run: |
+          pnpm --filter=shared ch:dev-tables
       - name: Start Langfuse
         run: (pnpm run start&)
         env:
@@ -450,18 +498,33 @@ jobs:
           LANGFUSE_INIT_USER_PASSWORD: "password"
       - name: run tests
         working-directory: web
-        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-unit
+        # The server tests are I/O-bound (Postgres/ClickHouse/HTTP roundtrips),
+        # so 8 workers on the 4-vCPU runner overlap DB waits. Worker isolation
+        # is configured per project in vitest.config.mts. The CPU-bound client
+        # (jsdom) tests measured slower when merged into this invocation, so
+        # they keep their own step below.
+        env:
+          NODE_COMPILE_CACHE: /tmp/node-compile-cache
+        run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project server --project server-isolated --project server-unit --maxWorkers=8
       - name: run test-client
         if: matrix.deploy-mode == ''
         working-directory: web
         run: npx dotenv -e ../.env.test -e ../.env -- vitest run --project client
+      - name: Prune stale turbo cache entries
+        if: env.CI_CACHE_ALLOWED == 'true'
+        # Each run saves the restored archive plus new entries, so the cache
+        # grows without bound unless old entries are dropped before the save.
+        run: find .turbo/cache -type f -mtime +3 -delete 2>/dev/null || true
 
   tests-worker:
     timeout-minutes: 20
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-worker (node${{ matrix.node-version }}, pg${{ matrix.postgres-version }}, mode${{ matrix.deploy-mode }})
     strategy:
       matrix:
@@ -530,13 +593,16 @@ jobs:
           pnpm run db:migrate
           pnpm --filter=shared run db:seed
           pnpm run --filter=shared ch:up
-      - name: Download and extract ClickHouse client for dev-tables setup
+      - name: Provide ClickHouse client via dev container for dev-tables setup
         if: matrix.deploy-mode == ''
+        # The clickhouse-server container already ships the client binary;
+        # a shim avoids re-downloading the ~300MB client package every run.
         run: |
-          ARCH="amd64"
-          wget "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/clickhouse-common-static_${CLICKHOUSE_CLIENT_VERSION}_${ARCH}.deb" -O clickhouse-client.deb
-          dpkg-deb -x clickhouse-client.deb ch_client_dir
-          sudo cp ch_client_dir/usr/bin/clickhouse /usr/local/bin/
+          sudo tee /usr/local/bin/clickhouse > /dev/null <<'EOF'
+          #!/bin/bash
+          exec docker exec -i langfuse-clickhouse clickhouse "$@"
+          EOF
+          sudo chmod +x /usr/local/bin/clickhouse
       - name: Setup Dev Tables
         if: matrix.deploy-mode == ''
         run: |
@@ -552,7 +618,8 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: startsWith(github.ref, 'refs/tags/') || (needs.pre-job.outputs.should_skip != 'true' && (needs.pre-job.outputs.llm_connections_changed == 'true' || github.event_name == 'workflow_dispatch'))
+      - llm-connections-filter
+    if: ${{ !cancelled() && (startsWith(github.ref, 'refs/tags/') || ((github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') && (needs.llm-connections-filter.outputs.changed == 'true' || github.event_name == 'workflow_dispatch'))) }}
     name: test-worker-llm-connections (node24, pg15)
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -630,7 +697,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -684,31 +754,26 @@ jobs:
         run: |
           cp .env.dev.example .env
           cp .env.dev.example web/.env
-      - name: Install golang-migrate for Clickhouse migrations
+      # The next three downloads/startups have no dependency on the build, so
+      # they run in the background and the build overlaps them. Later steps
+      # wait on their marker files.
+      - name: Install golang-migrate for Clickhouse migrations in background
         run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
-          which migrate
-      - name: Run + migrate
+          (
+            set -e
+            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+              --output migrate.linux-amd64.tar.gz \
+              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+            tar xzf migrate.linux-amd64.tar.gz
+            sudo mv migrate /usr/bin/migrate
+            touch /tmp/migrate-installed
+          ) > /tmp/migrate-install.log 2>&1 &
+      - name: Start dev containers in background
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
-          docker compose ps
-      - name: Ensure Docker dependencies are healthy
+          (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
+      - name: Install playwright in background
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
-          fi
-      - name: Seed DB
-        run: |
-          pnpm run db:migrate
-          pnpm --filter=shared run ch:up
-          pnpm --filter=shared run db:seed
+          (set +e; pnpm --filter=web exec playwright install --with-deps --only-shell chromium > /tmp/playwright-install.log 2>&1; echo $? > /tmp/playwright-install.exit) &
       - name: Build
         run: pnpm run build
         env:
@@ -716,8 +781,26 @@ jobs:
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
-      - name: Install playwright
-        run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
+      - name: Wait for dev containers
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
+          cat /tmp/compose-up.log
+          docker compose ps
+          exit "$(cat /tmp/compose-up.exit)"
+      - name: Seed DB
+        run: |
+          timeout 120 bash -c 'until [ -f /tmp/migrate-installed ]; do sleep 1; done' \
+            || { cat /tmp/migrate-install.log; exit 1; }
+          pnpm run db:migrate
+          pnpm --filter=shared run ch:up
+          pnpm --filter=shared run db:seed
+      - name: Wait for playwright install
+        run: |
+          timeout 600 bash -c 'until [ -f /tmp/playwright-install.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for playwright install"; cat /tmp/playwright-install.log; exit 1; }
+          cat /tmp/playwright-install.log
+          exit "$(cat /tmp/playwright-install.exit)"
       - name: Run e2e tests
         run: pnpm --filter=web run test:e2e
 
@@ -725,7 +808,10 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     needs:
       - pre-job
-    if: needs.pre-job.outputs.should_skip != 'true'
+    # pre-job only runs on push events; everywhere else it resolves as skipped
+    # at run creation, so this job starts immediately (!cancelled() lets the
+    # condition evaluate despite the skipped dependency).
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -755,34 +841,26 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: Install golang-migrate for Clickhouse migrations
-        run: |
-          curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
-            --output migrate.linux-amd64.tar.gz \
-            https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
-          tar xzf migrate.linux-amd64.tar.gz
-          sudo mv migrate /usr/bin/migrate
-          which migrate
       - name: Load default env
         run: |
           cp .env.dev.example .env
-      - name: Run + migrate
+      # The next two downloads/startups have no dependency on the build, so
+      # they run in the background and the build overlaps them. Later steps
+      # wait on their marker files.
+      - name: Install golang-migrate for Clickhouse migrations in background
         run: |
-          docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180
-          docker compose ps
-      - name: Ensure Docker dependencies are healthy
+          (
+            set -e
+            curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors \
+              --output migrate.linux-amd64.tar.gz \
+              https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz
+            tar xzf migrate.linux-amd64.tar.gz
+            sudo mv migrate /usr/bin/migrate
+            touch /tmp/migrate-installed
+          ) > /tmp/migrate-install.log 2>&1 &
+      - name: Start dev containers in background
         run: |
-          if docker compose ps | grep "(unhealthy)"; then
-            echo "One or more services are unhealthy"
-            exit 1
-          else
-            echo "All services are healthy"
-          fi
-      - name: Seed DB
-        run: |
-          pnpm run db:migrate
-          pnpm --filter=shared run ch:up
-          pnpm --filter=shared run db:seed:examples
+          (set +e; docker compose -f docker-compose.dev.yml up -d --wait --wait-timeout 180 > /tmp/compose-up.log 2>&1; echo $? > /tmp/compose-up.exit) &
       - name: Build
         run: pnpm run build
         env:
@@ -790,6 +868,20 @@ jobs:
           # TypeScript is checked explicitly in the lint job; skip duplicate
           # Next.js type checks in test builds to reduce CI runtime.
           NEXT_IGNORE_BUILD_ERRORS: "true"
+      - name: Wait for dev containers
+        run: |
+          timeout 300 bash -c 'until [ -f /tmp/compose-up.exit ]; do sleep 1; done' \
+            || { echo "Timed out waiting for background docker compose up"; cat /tmp/compose-up.log; exit 1; }
+          cat /tmp/compose-up.log
+          docker compose ps
+          exit "$(cat /tmp/compose-up.exit)"
+      - name: Seed DB
+        run: |
+          timeout 120 bash -c 'until [ -f /tmp/migrate-installed ]; do sleep 1; done' \
+            || { cat /tmp/migrate-install.log; exit 1; }
+          pnpm run db:migrate
+          pnpm --filter=shared run ch:up
+          pnpm --filter=shared run db:seed:examples
       - name: Run server
         run: (pnpm run start&)
       - name: Check worker health

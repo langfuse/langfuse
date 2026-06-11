@@ -359,9 +359,9 @@ const query = `
 `;
 ```
 
-**`is_deleted` on `traces`, `observations`, and `scores` is dormant — avoid new filters.**
+**`is_deleted` on `traces`, `observations`, `scores`, and `dataset_run_items_rmt` is dormant — avoid new filters.**
 
-These three tables are declared as
+These four tables are declared as
 `ReplacingMergeTree(event_ts, is_deleted)`, but no production
 code writes `is_deleted = 1` for them — all deletes use
 ClickHouse's lightweight `DELETE FROM` mutation (e.g.
@@ -374,7 +374,7 @@ needed.
 
 What this means for query authors:
 
-- **`WHERE is_deleted = 0` filters on these three tables are
+- **`WHERE is_deleted = 0` filters on these four tables are
   dead weight in practice.** A few legacy reads still carry
   them (e.g. `web/src/features/score-analytics/server/`); new
   code should not add them unless soft-delete writes have

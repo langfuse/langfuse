@@ -11,7 +11,6 @@ import {
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
-  AnalyticsIntegrationExportSource,
   type ObservationFieldGroupFull,
   LangfuseNotFoundError,
   UnauthorizedError,
@@ -96,10 +95,7 @@ async function handleGetBlobStorageIntegrations(
       compressed: integration.compressed,
       exportSource: toPublicExportSource(integration.exportSource),
       exportFieldGroups:
-        integration.exportSource ===
-        AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-          ? null
-          : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
+        integration.exportFieldGroups as ObservationFieldGroupFull[],
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -232,10 +228,7 @@ async function handleUpsertBlobStorageIntegration(
     compressed: integration.compressed,
     exportSource: toPublicExportSource(integration.exportSource),
     exportFieldGroups:
-      integration.exportSource ===
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS
-        ? null
-        : (integration.exportFieldGroups as ObservationFieldGroupFull[]),
+      integration.exportFieldGroups as ObservationFieldGroupFull[],
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

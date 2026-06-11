@@ -26,6 +26,9 @@ next-env.d.ts
 # production
 /build
 
+# claude worktrees
+.claude/worktrees
+
 # idea
 .idea
 
@@ -99,6 +102,7 @@ web/test-results/*
 
 # claude meta files
 .claude/tsc-cache
+.claude/worktrees
 
 # Refactoring planning files (local only)
 **/.refactor/

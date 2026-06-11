@@ -67,14 +67,18 @@ import {
 } from "@/src/features/evals/server/audit-log-resource-types";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import {
+  CodeEvalTestRunSetupError,
   runCodeEvalTest,
-  runCodeEvalTestForJobConfig,
 } from "@/src/features/evals/server/codeEvalTestRun";
 import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
+  assertCodeEvalJobConfigCanRun,
+  CodeEvalJobConfigError,
+} from "@/src/features/evals/server/codeEvalJobConfigValidation";
+import {
   CreateEvalTemplateInputSchema,
   validateEvalTemplateCreation,
 } from "@/src/features/evals/server/evalTemplateCreation";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   getCodeEvalCapabilities,
   isCodeEvalEnabled,
@@ -338,7 +342,7 @@ const validateEvalTemplateCanRun = async ({
   }
 };
 
-const assertCodeEvalJobConfigTestSucceeds = async ({
+const assertCodeEvalJobConfigCanRunForTRPC = async ({
   prisma,
   orgId,
   projectId,
@@ -357,55 +361,72 @@ const assertCodeEvalJobConfigTestSucceeds = async ({
   scoreName: string;
   filter: z.infer<typeof singleFilter>[] | null;
 }) => {
-  if (
-    target !== EvalTargetObject.EVENT &&
-    target !== EvalTargetObject.EXPERIMENT
-  ) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Code evaluators can only run on observations or experiments.",
-    });
-  }
-
-  const parsedMapping = z.array(observationVariableMapping).parse(mapping);
-
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true") {
-    const result = await runCodeEvalTestForJobConfig({
+  try {
+    await assertCodeEvalJobConfigCanRun({
       prisma,
       orgId,
       projectId,
       evalTemplateId,
       target,
-      mapping: parsedMapping,
+      mapping,
       scoreName,
       filter,
     });
-
-    if (!result) {
-      if (target !== EvalTargetObject.EXPERIMENT) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "No matching observation found to test this code evaluator. Adjust the filters and try again.",
-        });
-      }
-
-      return;
+  } catch (error) {
+    if (error instanceof CodeEvalJobConfigError) {
+      throw toCodeEvalJobConfigTRPCError(error);
     }
 
-    if (!result.success) {
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message: result.error.message,
-      });
-    }
-  } else if (target === EvalTargetObject.EXPERIMENT) {
-    return;
-  } else {
-    // TODO: add self-hosting path for target events
-    return;
+    throw error;
   }
 };
+
+function toCodeEvalJobConfigTRPCError(error: CodeEvalJobConfigError) {
+  switch (error.code) {
+    case "invalid_target":
+    case "invalid_request":
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
+    case "resource_not_found":
+      return new TRPCError({
+        code: "NOT_FOUND",
+        message: error.message,
+      });
+    case "preflight_failed":
+      return new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: error.message,
+      });
+    default:
+      return assertUnreachable(error.code);
+  }
+}
+
+function toCodeEvalTRPCError(error: CodeEvalTestRunSetupError) {
+  switch (error.code) {
+    case "TEMPLATE_NOT_FOUND":
+    case "OBSERVATION_NOT_FOUND":
+      return new TRPCError({
+        code: "NOT_FOUND",
+        message: error.message,
+      });
+    case "UNSUPPORTED_LANGUAGE":
+    case "INVALID_TARGET":
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
+    case "DISPATCHER_NOT_CONFIGURED":
+      return new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: error.message,
+      });
+    default:
+      return assertUnreachable(error.code);
+  }
+}
 
 export const evalRouter = createTRPCRouter({
   codeEvalCapabilities: authenticatedProcedure.query(() =>
@@ -958,7 +979,7 @@ export const evalRouter = createTRPCRouter({
       const validatedFilter = filterValidation.validatedFilters;
 
       if (evalTemplate.type === EvalTemplateType.CODE) {
-        await assertCodeEvalJobConfigTestSucceeds({
+        await assertCodeEvalJobConfigCanRunForTRPC({
           prisma: ctx.prisma,
           orgId: ctx.session.orgId,
           projectId: input.projectId,
@@ -1058,19 +1079,28 @@ export const evalRouter = createTRPCRouter({
         mapping: input.mapping,
       });
 
-      return runCodeEvalTest({
-        prisma: ctx.prisma,
-        orgId: ctx.session.orgId,
-        projectId: input.projectId,
-        evalTemplateId: input.evalTemplateId,
-        target: input.target,
-        mapping: input.mapping,
-        scoreName: input.scoreName,
-        observationId: input.observationId,
-        traceId: input.traceId,
-        startTime: input.startTime,
-        shouldReadFromObservationsTable: input.shouldReadFromObservationsTable,
-      });
+      try {
+        return await runCodeEvalTest({
+          prisma: ctx.prisma,
+          orgId: ctx.session.orgId,
+          projectId: input.projectId,
+          evalTemplateId: input.evalTemplateId,
+          target: input.target,
+          mapping: input.mapping,
+          scoreName: input.scoreName,
+          observationId: input.observationId,
+          traceId: input.traceId,
+          startTime: input.startTime,
+          shouldReadFromObservationsTable:
+            input.shouldReadFromObservationsTable,
+        });
+      } catch (error) {
+        if (error instanceof CodeEvalTestRunSetupError) {
+          throw toCodeEvalTRPCError(error);
+        }
+
+        throw error;
+      }
     }),
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplateInputSchema)
@@ -1444,7 +1474,7 @@ export const evalRouter = createTRPCRouter({
           sourceCodeLanguage: existingJob.evalTemplate.sourceCodeLanguage,
         });
 
-        await assertCodeEvalJobConfigTestSucceeds({
+        await assertCodeEvalJobConfigCanRunForTRPC({
           prisma: ctx.prisma,
           orgId: ctx.session.orgId,
           projectId,

@@ -36,10 +36,6 @@ week while keeping each source's evidence easy to audit.
 
 - Use [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md) for
   production Datadog query shapes and environment/site routing.
-- Use the repo-owned `detect-prod-regressions` skill when the review includes
-  slow API/queue degradation, unalerted regressions, or route/consumer trends.
-  Run its phased flow: retrieve the full candidate data set first, investigate
-  each finding in depth, then cross-reference incident.io and Linear.
 - Use [`linear-bug-triage`](../linear-bug-triage/SKILL.md) only after a human
   explicitly approves a Linear write-back.
 
@@ -52,18 +48,19 @@ week while keeping each source's evidence easy to audit.
    incident.io public incident table below, even when no rows are found.
 3. Gather Datadog alert/page signals for the window. Use incident.io alerts or
    escalations when they represent pages; use Datadog monitor/event data when
-   available. Always produce the incident.io pager-load day/night table below
-   when incident.io escalation data is available. First build the exhaustive
-   alert universe by paginating through Datadog events until no more results
-   remain for the window; do not rely on a truncated first page, sampled titles,
-   or a few spot checks. Cover all prod envs in scope even when one site is
-   noisy or one env looks quiet. After the full pass, group repeated firings of
-   the same monitor instead of counting every notification as a separate event.
-   If the user also asks for unalerted API route or queue consumer degradation,
-   run that proactive Datadog sweep as a separate phased pass: retrieve all
-   recent/baseline route and queue measurements across environments first,
-   perform a focused root-cause investigation for each ranked finding, then
-   cross-reference incident.io and Linear.
+   available. Always produce the incident.io pager-load day/night table below,
+   even when escalation data is unavailable; in that case, follow the section's
+   `No measurements found` fallback. First build the exhaustive alert universe
+   by paginating through Datadog events until no more results remain for the
+   window; do not rely on a truncated first page, sampled titles, or a few spot
+   checks. Cover all prod envs in scope even when one site is noisy or one env
+   looks quiet. After the full pass, group repeated firings of the same monitor
+   instead of counting every notification as a separate event. If the user also
+   asks for unalerted API route or queue consumer degradation, run that
+   proactive Datadog sweep as a separate phased pass inside this review:
+   retrieve all recent/baseline route and queue measurements across environments
+   first, perform a focused root-cause investigation for each ranked finding,
+   then cross-reference incident.io and Linear.
 4. For each Datadog alert/page signal row, perform a deeper investigation
    before writing the final report. Do not stop at the monitor title or
    top-level count. Inspect matching APM spans, representative traces, related
@@ -81,11 +78,12 @@ week while keeping each source's evidence easy to audit.
 6. Gather Linear bugs from the `bug` label first. Include all `bug`-labeled
    tickets created, updated, completed, or still-open with production evidence
    during the window. Inspect likely production bugs with issue details and
-   comments when status, owner, or evidence is unclear.
+   comments when status, owner, or evidence is unclear. Use Linear as the
+   source of truth for deduplication and follow-up ownership: search existing
+   issues, comments, and linked source URLs before treating a signal as new.
 7. Classify each bug, alert, and error-log pattern. Separate production
-   breakage from staging,
-   self-hosted, internal-only, duplicate, canceled, test, or monitor-noise
-   signals.
+   breakage from staging, self-hosted, internal-only, duplicate, canceled, test,
+   or monitor-noise signals.
 8. Cross-reference the source tables. Link Datadog rows to matching incident.io
    incidents or Linear bugs when evidence supports the relationship. Link
    incident.io rows to Datadog alerts/monitors and Linear follow-ups when
@@ -99,6 +97,12 @@ week while keeping each source's evidence easy to audit.
 Keep Datadog, incident.io, and Linear as separate output sections. Use links
 inside each source table to show relationships instead of synthesizing a
 separate cross-source table.
+
+Use Linear as the source of truth for deduplication across weeks and workflows.
+Before reporting a bug, security finding, cost concern, or alert as new, search
+Linear for matching issue keys, titles, source URLs, and comments. If an
+existing issue covers it, link to that issue and mark the review row as already
+tracked instead of reporting it again as fresh work.
 
 Use this table to decide what each source should link to:
 
@@ -125,6 +129,18 @@ When proposing or later creating links, use short stable titles:
 
 Do not write any of these links unless the user explicitly asks for changes
 after reviewing the report.
+
+## Output Table Rules
+
+Use the tables defined below as the default output contract. Keep the table
+names, column names, and section order stable across runs so reviewers can scan
+the same shape every week. Do not add extra source-specific tables unless the
+user asks or the existing columns cannot represent an important finding.
+
+If a section has no rows, keep the section and write `No rows found` or
+`No measurements found` with the query/source that was checked. If a row is
+unclear, classify it as `unclear` or `unknown/no measurements` instead of
+dropping it.
 
 ## Datadog Alert/Page Signals
 
@@ -304,12 +320,14 @@ monitor/page clusters without inventing a day/night split.
 
 Start from all Linear tickets with the `bug` label that were touched by the
 window. Do not rely only on text searches for `prod`, `incident`, or `Datadog`;
-those searches are useful for enrichment but are not the source universe.
+those searches are useful for enrichment but are not the source universe. This
+table is the Linear source inventory, not a cross-source summary. A Linear bug
+can be classified as non-production, duplicate, canceled, or no-action.
 
 Use this table for the bug section:
 
 | Linear | Title | Summary | Owner | Status | Touched Last Week Because | Production Evidence | Classification | Counted? |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ------ | ----- | ------- | ----- | ------ | ------------------------- | ------------------- | -------------- | -------- |
 
 Column rules:
 
@@ -331,7 +349,8 @@ Column rules:
   `internal-only`, `self-hosted`, `staging/dev`, `duplicate/canceled/no-action`,
   or `unclear`.
 - `Counted?`: `yes` only when the bug label and production/customer-impacting
-  evidence support including it in fixed/open production bug counts.
+  evidence support including it in fixed/open production bug counts. Do not use
+  this field as a cross-source issue count.
 
 For headline counts, report fixed and open production bugs separately from the
 total number of bug-labeled tickets reviewed.
