@@ -12,6 +12,8 @@ import {
 import { utcDayStartMs } from "./rng";
 import { countRows, escapeLike, tracesListLink } from "./verify";
 
+const SESSION_POOL_SIZE = 100;
+
 /**
  * Loads the bundled large fixtures, sliced exactly like SeederOrchestrator so
  * the inline INSERT ... SELECT FROM numbers() SQL stays under ClickHouse's
@@ -71,6 +73,7 @@ const run = async (
   const builder = new ClickHouseQueryBuilder();
   const fileContent = richPayloads ? loadFileContent() : undefined;
   const counts: Record<string, number> = {
+    sessions: SESSION_POOL_SIZE,
     traces: count,
     observations: count * observationsPerTrace,
     scores: count * scoresPerTrace,
@@ -158,7 +161,7 @@ const run = async (
   // session detail page 404s without the Postgres trace_sessions rows
   // (same contract long-session handles for its own session).
   await prisma.traceSession.createMany({
-    data: Array.from({ length: 100 }, (_, i) => ({
+    data: Array.from({ length: SESSION_POOL_SIZE }, (_, i) => ({
       id: `${ctx.idPrefix}-session_${i}`,
       projectId: ctx.projectId,
       environment: ctx.environment,

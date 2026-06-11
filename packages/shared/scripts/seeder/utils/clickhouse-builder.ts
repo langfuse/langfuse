@@ -243,7 +243,7 @@ export class ClickHouseQueryBuilder {
           if(h2 % 10 >= 7, '${escapedNestedJson}', '${escapedChatMl}'),
           NULL) AS output,
         if(type = 'GENERATION', 'gpt-4', NULL) AS provided_model_name,
-        if(type = 'GENERATION', concat('model_', toString(h2 % 1000)), NULL) AS internal_model_id,
+        NULL AS internal_model_id,
         if(type = 'GENERATION', '{"temperature": 0.7}', '{}') AS model_parameters,
         if(type = 'GENERATION', map('input', toUInt64(20 + h1 % 181), 'output', toUInt64(10 + h2 % 91), 'total', toUInt64(30 + h1 % 181 + h2 % 91)), map()) AS provided_usage_details,
         if(type = 'GENERATION', map('input', toUInt64(20 + h1 % 181), 'output', toUInt64(10 + h2 % 91), 'total', toUInt64(30 + h1 % 181 + h2 % 91)), map()) AS usage_details,

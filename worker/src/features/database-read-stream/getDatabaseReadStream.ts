@@ -15,6 +15,7 @@ import {
   getScoresUiTable,
   getPublicSessionsFilter,
   getSessionsWithMetrics,
+  getSessionsWithMetricsFromEvents,
   getDistinctScoreNames,
   getObservationsTableWithModelData,
   getScoresForObservations,
@@ -104,6 +105,7 @@ export const getDatabaseReadStreamPaginated = async ({
   cutoffCreatedAt,
   searchQuery,
   searchType,
+  useEventsTable,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
 }: {
   projectId: string;
@@ -209,14 +211,27 @@ export const getDatabaseReadStreamPaginated = async ({
             projectId,
             finalFilter ?? [],
           );
-          const sessions = await getSessionsWithMetrics({
-            projectId: projectId,
-            filter: sessionsFilter,
-            orderBy: orderBy,
-            limit: pageSize,
-            page: Math.floor(offset / pageSize),
-            clickhouseConfigs,
-          });
+          // v4-enabled users (snapshotted as useEventsTable at dispatch) read
+          // sessions from the ClickHouse events table. Both readers apply the
+          // same filter (incl. the createdAt cutoff) and clickhouseConfigs, and
+          // expose the same field names, so the row mapping below is shared.
+          const sessions = useEventsTable
+            ? await getSessionsWithMetricsFromEvents({
+                projectId: projectId,
+                filter: sessionsFilter,
+                orderBy: orderBy,
+                limit: pageSize,
+                page: Math.floor(offset / pageSize),
+                clickhouseConfigs,
+              })
+            : await getSessionsWithMetrics({
+                projectId: projectId,
+                filter: sessionsFilter,
+                orderBy: orderBy,
+                limit: pageSize,
+                page: Math.floor(offset / pageSize),
+                clickhouseConfigs,
+              });
 
           const prismaSessionInfo = await prisma.traceSession.findMany({
             where: {

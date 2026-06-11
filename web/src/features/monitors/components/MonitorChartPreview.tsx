@@ -1,15 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { type z } from "zod";
 
 import { api } from "@/src/utils/api";
 import { Card, CardContent } from "@/src/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
@@ -22,19 +15,14 @@ import {
 import {
   type MonitorThresholdOperator,
   type MonitorView,
+  type MonitorWindow,
+  windowToMs,
 } from "@langfuse/shared/monitors";
-import { TIME_RANGES } from "@/src/utils/date-range-utils";
 
-/** previewRangePresets lists the time ranges offered in the preview picker. */
-const previewRangePresets = [
-  "last1Hour",
-  "last6Hours",
-  "last1Day",
-  "last7Days",
-  "last30Days",
-] as const satisfies ReadonlyArray<keyof typeof TIME_RANGES>;
+import { renderChartSubtitle } from "../helpers/renderMonitorLabels";
 
-type PreviewRangePreset = (typeof previewRangePresets)[number];
+/** previewBucketCount is the number of complete window buckets the preview renders. */
+const previewBucketCount = 20;
 
 /** MonitorChartPreview renders the live time-series preview with alert/warning threshold bands for a monitor draft. */
 export const MonitorChartPreview = ({
@@ -43,6 +31,7 @@ export const MonitorChartPreview = ({
   filters,
   measure,
   aggregation,
+  window,
   thresholdOperator,
   alertThreshold,
   warningThreshold,
@@ -52,23 +41,21 @@ export const MonitorChartPreview = ({
   filters: FilterState;
   measure: string;
   aggregation: z.infer<typeof metricAggregations>;
+  window: MonitorWindow;
   thresholdOperator: MonitorThresholdOperator;
   alertThreshold: number | null | undefined;
   warningThreshold: number | null | undefined;
 }) => {
-  /** rangePreset is the currently selected preview window key. */
-  const [rangePreset, setRangePreset] =
-    useState<PreviewRangePreset>("last1Day");
-
-  /** fromTimestamp and toTimestamp bound the preview query to the picked range, anchored to now. */
+  /** fromTimestamp and toTimestamp span 20 complete window buckets ending at the last floored boundary. */
   const { fromTimestamp, toTimestamp } = useMemo(() => {
-    const now = Date.now();
-    const minutes = TIME_RANGES[rangePreset].minutes ?? 24 * 60;
+    const ms = Number(windowToMs(window));
+    const to = Math.floor(Date.now() / ms) * ms;
+    const from = to - previewBucketCount * ms;
     return {
-      toTimestamp: new Date(now).toISOString(),
-      fromTimestamp: new Date(now - minutes * 60_000).toISOString(),
+      toTimestamp: new Date(to).toISOString(),
+      fromTimestamp: new Date(from).toISOString(),
     };
-  }, [rangePreset]);
+  }, [window]);
 
   /** queryResult runs the preview query for the draft monitor. */
   const queryResult = api.dashboard.executeQuery.useQuery(
@@ -80,7 +67,7 @@ export const MonitorChartPreview = ({
         dimensions: [],
         metrics: [{ measure, aggregation }],
         filters,
-        timeDimension: { granularity: "auto" },
+        timeDimension: { granularity: window },
         fromTimestamp,
         toTimestamp,
         orderBy: null,
@@ -139,24 +126,16 @@ export const MonitorChartPreview = ({
     <Card className="h-full">
       <CardContent className="flex h-full flex-col pt-4">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold tracking-tight">Live Preview</h3>
-          <Select
-            value={rangePreset}
-            onValueChange={(value) =>
-              setRangePreset(value as PreviewRangePreset)
-            }
-          >
-            <SelectTrigger className="h-8 w-auto gap-2 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end">
-              {previewRangePresets.map((preset) => (
-                <SelectItem key={preset} value={preset} className="text-xs">
-                  {TIME_RANGES[preset].label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div>
+            <h3 className="text-lg font-bold tracking-tight">Live Preview</h3>
+            <p className="text-muted-foreground text-sm">
+              {renderChartSubtitle({
+                view,
+                metric: { measure, aggregation },
+                window,
+              })}
+            </p>
+          </div>
         </div>
         <div className="relative min-h-0 flex-1">
           <Chart

@@ -197,6 +197,7 @@ export const handleBatchActionJob = async (
                 ...streamParams,
                 orderBy: query.orderBy,
                 tableName: tableName as BatchTableNames,
+                useEventsTable: query.useEventsTable,
               });
 
     // Process stream in database-sized batches

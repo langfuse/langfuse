@@ -114,7 +114,7 @@ const run = async (
   const startedAt = Date.now();
   const observationCount = params["observations"] as number;
   const requestedDepth = params["depth"] as number;
-  const breadth = params["breadth"] as number;
+  const requestedBreadth = params["breadth"] as number;
   // depth deeper than the observation count is geometrically impossible;
   // clamping it down is helpful, not a silent rewrite of intent (the
   // validator below enforces the >= 2 lower bound on the requested value)
@@ -135,9 +135,9 @@ const run = async (
       "pass at least 2 (root plus one level), e.g. --depth 8",
     );
   }
-  if (breadth < 1) {
+  if (requestedBreadth < 1) {
     throw new SeedError(
-      `--breadth must be >= 1, got ${breadth}`,
+      `--breadth must be >= 1, got ${requestedBreadth}`,
       "pass a positive integer, e.g. --breadth 30",
     );
   }
@@ -154,6 +154,10 @@ const run = async (
     );
   }
 
+  const breadth = Math.min(
+    requestedBreadth,
+    Math.max(0, observationCount - depth),
+  );
   const rng = new Rng(ctx.seed);
   const traceId = `${ctx.idPrefix}-trace`;
   const traceTimestamp = utcDayStartMs();

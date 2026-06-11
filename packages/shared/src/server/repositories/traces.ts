@@ -9,11 +9,7 @@ import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
-import {
-  orderByToClickhouseSql,
-  deriveFilters,
-  createPublicApiTracesColumnMapping,
-} from "../queries";
+import { orderByToClickhouseSql } from "../queries";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { OrderByState } from "../../interfaces/orderBy";
@@ -1753,13 +1749,16 @@ const traceOrderByColumns = [
   queryPrefix: "t",
 }));
 
-const publicApiTracesFilterParams = createPublicApiTracesColumnMapping(
-  "traces",
-  "t",
-);
-
 async function buildTracesBaseQuery(
-  props: TraceQueryType,
+  {
+    projectId,
+    filter,
+    pagination,
+  }: {
+    projectId: string;
+    filter: FilterList;
+    pagination?: { limit: number; page: number };
+  },
   select:
     | {
         includeObservations: boolean;
@@ -1775,26 +1774,16 @@ async function buildTracesBaseQuery(
         includeScores: false;
         count: true;
       },
-  advancedFilters?: FilterState,
   orderBy?: OrderByState,
 ): Promise<{
   query: string;
   params: Record<string, any>;
   fromTimeFilter?: DateTimeFilter | undefined;
 }> {
-  const disableObservationsFinal = await shouldSkipObservationsFinal(
-    props.projectId,
-  );
+  const disableObservationsFinal = await shouldSkipObservationsFinal(projectId);
   const propagateObservationsTimeBounds =
     env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS === "true";
 
-  let filter = deriveFilters(
-    props,
-    publicApiTracesFilterParams,
-    advancedFilters,
-    tracesTableUiColumnDefinitions,
-    tracesTableCols,
-  );
   const appliedFilter = filter.apply();
 
   const fromTimeFilter = filter.find(
@@ -1946,7 +1935,7 @@ async function buildTracesBaseQuery(
   `;
 
   const paginationClause =
-    props.limit !== undefined && props.page !== undefined
+    pagination !== undefined
       ? `LIMIT {limit: Int32} OFFSET {offset: Int32}`
       : "";
   const limitByClause = shouldUseSkipIndexes
@@ -2066,11 +2055,13 @@ async function buildTracesBaseQuery(
   const params = {
     ...appliedEnvironmentFilter.params,
     ...appliedFilter.params,
-    projectId: props.projectId,
+    projectId,
     dataTypes: LISTABLE_SCORE_TYPES,
-    ...(props.limit !== undefined ? { limit: props.limit } : {}),
-    ...(props.page !== undefined
-      ? { offset: (props.page - 1) * props.limit }
+    ...(pagination !== undefined
+      ? {
+          limit: pagination.limit,
+          offset: (pagination.page - 1) * pagination.limit,
+        }
       : {}),
     ...(fromTimeFilter
       ? {
@@ -2090,22 +2081,26 @@ async function buildTracesBaseQuery(
 }
 
 export const generateTracesForPublicApi = async ({
-  props,
-  advancedFilters,
+  projectId,
+  filter,
   orderBy,
+  pagination,
+  fields,
 }: {
-  props: TraceQueryType;
-  advancedFilters?: FilterState;
+  projectId: string;
+  filter: FilterList;
   orderBy: OrderByState;
+  pagination?: { limit: number; page: number };
+  fields?: TraceFieldGroup[];
 }) => {
-  const requestedFields = props.fields ?? TRACE_FIELD_GROUPS;
+  const requestedFields = fields ?? TRACE_FIELD_GROUPS;
   const includeIO = requestedFields.includes("io");
   const includeScores = requestedFields.includes("scores");
   const includeObservations = requestedFields.includes("observations");
   const includeMetrics = requestedFields.includes("metrics");
 
   const { query, params, fromTimeFilter } = await buildTracesBaseQuery(
-    props,
+    { projectId, filter, pagination },
     {
       includeIO,
       includeObservations,
@@ -2113,19 +2108,18 @@ export const generateTracesForPublicApi = async ({
       includeScores,
       count: false,
     },
-    advancedFilters,
     orderBy,
   );
   const result = await measureAndReturn({
     operationName: "getTracesForPublicApi",
-    projectId: props.projectId,
+    projectId,
     input: {
       params,
       tags: {
         feature: "tracing",
         type: "trace",
         kind: "public-api",
-        projectId: props.projectId,
+        projectId,
         operation_name: "getTracesForPublicApi",
       },
       fromTimestamp: fromTimeFilter?.value ?? undefined,
@@ -2157,20 +2151,32 @@ export const generateTracesForPublicApi = async ({
 };
 
 export const getTracesCountForPublicApi = async ({
-  props,
-  advancedFilters,
+  projectId,
+  filter,
+  pagination,
 }: {
-  props: TraceQueryType;
-  advancedFilters?: FilterState;
+  projectId: string;
+  filter: FilterList;
+  pagination?: { limit: number; page: number };
 }) => {
-  let filter = deriveFilters(
-    props,
-    publicApiTracesFilterParams,
-    advancedFilters,
-    tracesTableUiColumnDefinitions,
-    tracesTableCols,
-  );
   const appliedFilter = filter.apply();
+
+  const fromTimeFilter = filter.find(
+    (f) =>
+      f.clickhouseTable === "traces" &&
+      f.field.includes("timestamp") &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as DateTimeFilter | undefined;
+
+  const needsComplexQuery = filter.some(
+    (f) =>
+      f.clickhouseTable === "observations" ||
+      f.clickhouseTable === "scores" ||
+      (f.clickhouseTable === "traces" &&
+        !["user_id", "session_id", "metadata"].some((c) =>
+          f.field.includes(c),
+        )),
+  );
 
   let query = `
     SELECT count() as count
@@ -2181,12 +2187,12 @@ export const getTracesCountForPublicApi = async ({
 
   let params: Record<string, any> = {
     ...appliedFilter.params,
-    projectId: props.projectId,
+    projectId,
   };
 
-  if (advancedFilters !== undefined && advancedFilters.length > 0) {
+  if (needsComplexQuery) {
     ({ query, params } = await buildTracesBaseQuery(
-      props,
+      { projectId, filter, pagination },
       {
         includeObservations: false,
         includeIO: false,
@@ -2194,24 +2200,21 @@ export const getTracesCountForPublicApi = async ({
         includeScores: false,
         count: true,
       },
-      advancedFilters,
     ));
   }
 
-  const timestamp = props.fromTimestamp
-    ? new Date(props.fromTimestamp)
-    : undefined;
+  const timestamp = fromTimeFilter?.value;
 
   return measureAndReturn({
     operationName: "getTracesCountForPublicApi",
-    projectId: props.projectId,
+    projectId,
     input: {
       params,
       tags: {
         feature: "tracing",
         type: "trace",
         kind: "count",
-        projectId: props.projectId,
+        projectId,
         operation_name: "getTracesCountForPublicApi",
       },
       timestamp,

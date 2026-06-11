@@ -34,6 +34,21 @@ import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-ag
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
+const CONVERSATION_STARTERS = [
+  [
+    "Get started with Langfuse",
+    "Where should I start with setting up Langfuse?",
+  ],
+  ["Optimize my setup", "What should I improve in my Langfuse setup?"],
+  [
+    "Find problematic traces",
+    "Show me patterns in failed or low-scoring traces.",
+  ],
+  [
+    "Investigate unusual patterns",
+    "Are there unusual latency or cost patterns recently?",
+  ],
+] as const;
 
 function scrollViewportToBottom(viewport: HTMLDivElement | null) {
   if (!viewport) {
@@ -115,6 +130,31 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const previousScrollTopRef = useRef(0);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
+  const hasUserMessage = messages.some((message) => message.role === "user");
+
+  const submitInput = (content: string) => {
+    const trimmedContent = content.trim();
+
+    if (!trimmedContent || isInputDisabled) {
+      return;
+    }
+
+    Promise.resolve(onSubmit(trimmedContent))
+      .then((submitted) => {
+        if (submitted) {
+          isAutoScrollAttachedRef.current = true;
+
+          setInput((currentInput) =>
+            currentInput.trim() === trimmedContent ? "" : currentInput,
+          );
+
+          window.requestAnimationFrame(() =>
+            scrollViewportToBottom(viewportRef.current),
+          );
+        }
+      })
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
     if (!isAutoScrollAttachedRef.current) {
@@ -306,8 +346,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               isExpanded ? "px-0" : "px-3",
             )}
           >
-            {messages.length === 0 ? (
-              <div className="flex h-full w-full flex-1 flex-col items-center justify-center">
+            {!hasUserMessage ? (
+              <div className="flex h-full w-full flex-1 flex-col items-center justify-center px-2">
                 <div>
                   <BotMessageSquare className="text-muted-foreground mx-auto h-8 w-8" />
                 </div>
@@ -316,10 +356,28 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                 </p>
                 <p className="text-muted-foreground/60 mt-2 max-w-xs text-center text-sm leading-relaxed">
                   I can help you with any questions you have about Langfuse or
-                  assist you in exploring your event data.
+                  assist you in exploring your data.
                   <br />
-                  Just ask me anything!
+                  What do you want to do?
                 </p>
+                <div className="mt-6 flex max-w-sm flex-wrap items-center justify-center gap-2">
+                  {CONVERSATION_STARTERS.map(([label, message]) => (
+                    <button
+                      key={label}
+                      type="button"
+                      className={cn(
+                        "bg-card dark:bg-header text-foreground border-border hover:bg-muted/60 border text-[0.775rem] leading-none shadow-xs transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                        isExpanded
+                          ? "rounded-2xl px-3 py-2"
+                          : "rounded-xl px-2 py-1.5",
+                      )}
+                      disabled={isInputDisabled}
+                      onClick={() => submitInput(message)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
 
@@ -377,7 +435,11 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </div>
         </div>
         <div
-          className={cn("p-1.5", isExpanded ? "pt-0" : "bg-header border-t")}
+          className={cn(
+            "p-1.5",
+            isExpanded ? "pt-0" : "bg-header",
+            !isExpanded && hasUserMessage && "border-t",
+          )}
         >
           <form
             className={cn(
@@ -392,28 +454,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             }}
             onSubmit={(event) => {
               event.preventDefault();
-
-              const content = input.trim();
-
-              if (!content || isInputDisabled) {
-                return;
-              }
-
-              Promise.resolve(onSubmit(content))
-                .then((submitted) => {
-                  if (submitted) {
-                    isAutoScrollAttachedRef.current = true;
-
-                    setInput((currentInput) =>
-                      currentInput.trim() === content ? "" : currentInput,
-                    );
-
-                    window.requestAnimationFrame(() =>
-                      scrollViewportToBottom(viewportRef.current),
-                    );
-                  }
-                })
-                .catch(() => undefined);
+              submitInput(input);
             }}
           >
             <textarea

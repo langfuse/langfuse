@@ -832,6 +832,26 @@ export class QueryBuilder {
         return `toMonday(${sql})`;
       case "month":
         return `toStartOfMonth(${sql})`;
+      case "5m":
+        return `toStartOfInterval(${sql}, INTERVAL 5 MINUTE)`;
+      case "10m":
+        return `toStartOfInterval(${sql}, INTERVAL 10 MINUTE)`;
+      case "15m":
+        return `toStartOfInterval(${sql}, INTERVAL 15 MINUTE)`;
+      case "30m":
+        return `toStartOfInterval(${sql}, INTERVAL 30 MINUTE)`;
+      case "1h":
+        return `toStartOfInterval(${sql}, INTERVAL 1 HOUR)`;
+      case "2h":
+        return `toStartOfInterval(${sql}, INTERVAL 2 HOUR)`;
+      case "4h":
+        return `toStartOfInterval(${sql}, INTERVAL 4 HOUR)`;
+      case "1d":
+        return `toStartOfInterval(${sql}, INTERVAL 1 DAY)`;
+      case "2d":
+        return `toStartOfInterval(${sql}, INTERVAL 2 DAY)`;
+      case "1w":
+        return `toStartOfInterval(${sql}, INTERVAL 7 DAY)`;
       case "auto":
         throw new Error(
           `Granularity 'auto' is not supported for getTimeDimensionSql`,
@@ -1101,6 +1121,36 @@ export class QueryBuilder {
         break;
       case "month":
         step = "INTERVAL 1 MONTH";
+        break;
+      case "5m":
+        step = "INTERVAL 5 MINUTE";
+        break;
+      case "10m":
+        step = "INTERVAL 10 MINUTE";
+        break;
+      case "15m":
+        step = "INTERVAL 15 MINUTE";
+        break;
+      case "30m":
+        step = "INTERVAL 30 MINUTE";
+        break;
+      case "1h":
+        step = "INTERVAL 1 HOUR";
+        break;
+      case "2h":
+        step = "INTERVAL 2 HOUR";
+        break;
+      case "4h":
+        step = "INTERVAL 4 HOUR";
+        break;
+      case "1d":
+        step = "INTERVAL 1 DAY";
+        break;
+      case "2d":
+        step = "INTERVAL 2 DAY";
+        break;
+      case "1w":
+        step = "INTERVAL 7 DAY";
         break;
       default:
         step = "INTERVAL 1 DAY"; // Default to day if granularity is unknown

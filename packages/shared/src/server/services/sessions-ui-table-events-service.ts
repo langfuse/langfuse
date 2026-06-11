@@ -9,6 +9,7 @@ import {
   FilterList,
   StringOptionsFilter,
   orderByToClickhouseSql,
+  type SessionEventsMetricsRow,
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
@@ -153,6 +154,38 @@ export const getSessionsTableFromEvents = async (props: {
   }));
 };
 
+// Single-query equivalent of getSessionsTableFromEvents + getSessionMetricsFromEvents,
+// mirroring the legacy getSessionsWithMetrics. Used by batch export so the metrics
+// aggregation inherits the same filter (incl. the createdAt cutoff) and clickhouseConfigs
+// (extended HTTP timeouts) as the row query, in a single round-trip.
+export const getSessionsWithMetricsFromEvents = async (props: {
+  projectId: string;
+  filter: FilterState;
+  orderBy?: OrderByState;
+  limit?: number;
+  page?: number;
+  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
+}) => {
+  const rows = await getSessionsTableFromEventsGeneric<SessionEventsMetricsRow>(
+    {
+      select: "metrics",
+      projectId: props.projectId,
+      filter: props.filter,
+      orderBy: props.orderBy,
+      limit: props.limit,
+      page: props.page,
+      clickhouseConfigs: props.clickhouseConfigs,
+      tags: { kind: "analytic_events" },
+    },
+  );
+
+  return rows.map((row) => ({
+    ...row,
+    trace_count: Number(row.trace_count),
+    total_observations: Number(row.total_observations),
+  }));
+};
+
 export type FetchSessionsTableFromEventsProps = {
   select: "count" | "rows" | "metrics";
   projectId: string;
@@ -182,8 +215,14 @@ const getSessionsTableFromEventsGeneric = async <T>(
       (f.operator === ">=" || f.operator === ">"),
   ) as DateTimeFilter | undefined;
 
+  // Only push the session_id filter into the inner aggregation CTE for
+  // "any of": withSessionIds always emits `session_id IN (...)`, which would
+  // contradict the outer `NOT IN (...)` for "none of" and yield empty results.
   const sessionIdFilter = sessionFilters.find(
-    (f) => f instanceof StringOptionsFilter && f.field === "session_id",
+    (f) =>
+      f instanceof StringOptionsFilter &&
+      f.field === "session_id" &&
+      f.operator === "any of",
   ) as StringOptionsFilter | undefined;
 
   const requiresScoresJoin =

@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 
 import Page from "@/src/components/layouts/page";
-import { MonitorForm } from "@/src/features/monitors";
+import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
 
 /** NewMonitorPage renders the create-monitor form for a project. */

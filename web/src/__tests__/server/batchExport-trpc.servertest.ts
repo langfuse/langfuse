@@ -20,15 +20,21 @@ function makeSession(
   opts: {
     plan?: Plan;
     projectRole?: Role;
+    v4BetaEnabled?: boolean;
   } = {},
 ): Session {
-  const { plan = "cloud:hobby", projectRole = "MEMBER" } = opts;
+  const {
+    plan = "cloud:hobby",
+    projectRole = "MEMBER",
+    v4BetaEnabled = false,
+  } = opts;
   return {
     expires: "1",
     user: {
       id: "user-test",
       canCreateOrganizations: true,
       name: "Test User",
+      v4BetaEnabled,
       organizations: [
         {
           id: orgId,
@@ -158,4 +164,79 @@ describe("batchExport tRPC – audit_logs table authorization", () => {
       expect(job?.query).toMatchObject({ tableName: "audit_logs" });
     },
   );
+});
+
+describe("batchExport tRPC – useEventsTable snapshot", () => {
+  afterAll(async () => {
+    await prisma.organization.deleteMany({
+      where: { id: { in: __orgIds } },
+    });
+  });
+
+  const sessionsExportInput = (projectId: string, name: string) => ({
+    projectId,
+    name,
+    query: {
+      tableName: BatchTableNames.Sessions,
+      filter: null,
+      orderBy: null,
+    },
+    format: BatchExportFileFormat.CSV,
+  });
+
+  it("snapshots useEventsTable=true into the persisted query when v4 beta is enabled", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          projectRole: "OWNER",
+          v4BetaEnabled: true,
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await caller.batchExport.create(
+      sessionsExportInput(project.id, "sessions export v4 on"),
+    );
+
+    const job = await prisma.batchExport.findFirst({
+      where: { projectId: project.id, name: "sessions export v4 on" },
+    });
+    expect(job?.query).toMatchObject({
+      tableName: "sessions",
+      useEventsTable: true,
+    });
+  });
+
+  it("snapshots useEventsTable=false when v4 beta is disabled", async () => {
+    const { project, org } = await createOrgProjectAndApiKey();
+    __orgIds.push(org.id);
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession(org.id, org.name, project.id, project.name, {
+          projectRole: "OWNER",
+          v4BetaEnabled: false,
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    await caller.batchExport.create(
+      sessionsExportInput(project.id, "sessions export v4 off"),
+    );
+
+    const job = await prisma.batchExport.findFirst({
+      where: { projectId: project.id, name: "sessions export v4 off" },
+    });
+    expect(job?.query).toMatchObject({
+      tableName: "sessions",
+      useEventsTable: false,
+    });
+  });
 });

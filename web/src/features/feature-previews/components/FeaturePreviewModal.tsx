@@ -12,6 +12,7 @@ import { Switch } from "@/src/components/ui/switch";
 
 import inAppAgentDarkIllustration from "../assets/in-app-agent-dark.svg";
 import inAppAgentLightIllustration from "../assets/in-app-agent-light.svg";
+import { Button } from "@/src/components/ui/button";
 
 const IN_APP_AGENT_PREVIEW_ITEM = {
   id: "in-app-agent",
@@ -21,6 +22,7 @@ const IN_APP_AGENT_PREVIEW_ITEM = {
     "Explore project data, understand connected Langfuse resources, and get practical help while investigating your application.",
   details:
     "This experimental preview can help you inspect traces and observations, look up related scores or prompts, and answer practical questions while you work in a project. Today, it is most useful for exploring project data and understanding how different Langfuse resources connect. Over time, the goal is to help teams generate insights faster and improve their agentic products with less manual investigation.",
+  feedbackUrl: "https://github.com/orgs/langfuse/discussions/14196",
 } as const;
 
 const FEATURE_PREVIEW_MODAL_TITLE = "Feature Preview";
@@ -96,6 +98,15 @@ export function FeaturePreviewModal({
                 <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-5">
                   {IN_APP_AGENT_PREVIEW_ITEM.description}
                 </p>
+                <Button asChild className="mt-4">
+                  <a
+                    href={IN_APP_AGENT_PREVIEW_ITEM.feedbackUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Give feedback
+                  </a>
+                </Button>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-2">
                 <Switch

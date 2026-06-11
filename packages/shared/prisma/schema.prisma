@@ -1361,8 +1361,6 @@ model Media {
   bucketName       String             @map("bucket_name")
   contentType      String             @map("content_type")
   contentLength    BigInt             @map("content_length")
-  TraceMedia       TraceMedia[]
-  ObservationMedia ObservationMedia[]
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
@@ -1376,7 +1374,6 @@ model TraceMedia {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId   String   @map("media_id")
-  media     Media    @relation(fields: [mediaId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId   String   @map("trace_id")
   field     String   @map("field")
 
@@ -1391,7 +1388,6 @@ model ObservationMedia {
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId       String   @map("media_id")
-  media         Media    @relation(fields: [mediaId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId       String   @map("trace_id")
   observationId String   @map("observation_id")
   field         String   @map("field")

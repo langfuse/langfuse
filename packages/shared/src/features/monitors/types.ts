@@ -7,8 +7,9 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 
+import { InvalidRequestError } from "../../errors";
 import { singleFilter } from "../../interfaces/filters";
-import { metric as MetricSchema, viewsV2 } from "../query/types";
+import { granularities, metric as MetricSchema, viewsV2 } from "../query/types";
 
 import { isValidQuery } from "./isValidQuery";
 import { isValidThresholdOrder } from "./isValidThresholdOrder";
@@ -59,7 +60,7 @@ export type MonitorThresholdOperator = z.infer<
  * window. The service translates between this and a bigint of milliseconds
  * (the Prisma `windowMs` column) at the persistence boundary.
  */
-export const MonitorWindowSchema = z.enum([
+export const MonitorWindowSchema = granularities.extract([
   "5m",
   "10m",
   "15m",
@@ -72,6 +73,62 @@ export const MonitorWindowSchema = z.enum([
   "1w",
 ]);
 export type MonitorWindow = z.infer<typeof MonitorWindowSchema>;
+
+/** windowToMs converts the MonitorWindow api enum to a bigint of milliseconds. */
+export const windowToMs = (w: MonitorWindow): bigint => {
+  switch (w) {
+    case "5m":
+      return 5n * 60_000n;
+    case "10m":
+      return 10n * 60_000n;
+    case "15m":
+      return 15n * 60_000n;
+    case "30m":
+      return 30n * 60_000n;
+    case "1h":
+      return 60n * 60_000n;
+    case "2h":
+      return 2n * 60n * 60_000n;
+    case "4h":
+      return 4n * 60n * 60_000n;
+    case "1d":
+      return 24n * 60n * 60_000n;
+    case "2d":
+      return 2n * 24n * 60n * 60_000n;
+    case "1w":
+      return 7n * 24n * 60n * 60_000n;
+  }
+};
+
+/** windowFromMs converts a bigint of milliseconds to the MonitorWindow api enum. */
+export const windowFromMs = (ms: bigint): MonitorWindow => {
+  switch (ms) {
+    case 5n * 60_000n:
+      return "5m";
+    case 10n * 60_000n:
+      return "10m";
+    case 15n * 60_000n:
+      return "15m";
+    case 30n * 60_000n:
+      return "30m";
+    case 60n * 60_000n:
+      return "1h";
+    case 2n * 60n * 60_000n:
+      return "2h";
+    case 4n * 60n * 60_000n:
+      return "4h";
+    case 24n * 60n * 60_000n:
+      return "1d";
+    case 2n * 24n * 60n * 60_000n:
+      return "2d";
+    case 7n * 24n * 60n * 60_000n:
+      return "1w";
+    default:
+      throw new InvalidRequestError(
+        `windowMs ${ms.toString()} does not correspond to a known MonitorWindow tier`,
+      );
+  }
+};
 
 /**
  * MonitorViewSchema is an alias of the query `viewsV2` schema.

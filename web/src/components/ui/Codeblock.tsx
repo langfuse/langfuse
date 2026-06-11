@@ -4,6 +4,7 @@ import { cn } from "@/src/utils/tailwind";
 import { Check, Copy } from "lucide-react";
 import { type FC, memo, useState } from "react";
 import { Highlight, themes } from "prism-react-renderer";
+import { useTheme } from "next-themes";
 
 interface Props {
   language: string;
@@ -45,6 +46,8 @@ export const programmingLanguages: languageMap = {
 
 const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
   const [isCopied, setIsCopied] = useState(false);
+  const { resolvedTheme } = useTheme();
+  const appliedTheme = theme ?? resolvedTheme;
   const handleCopy = () => {
     setIsCopied(true);
     copyTextToClipboard(value ?? "");
@@ -77,7 +80,7 @@ const CodeBlock: FC<Props> = memo(({ language, value, theme, className }) => {
         </div>
       </div>
       <Highlight
-        theme={theme === "dark" ? themes.vsDark : themes.github}
+        theme={appliedTheme === "dark" ? themes.vsDark : themes.github}
         code={value}
         language={language}
       >

@@ -66,7 +66,7 @@ export const entitlementAccess: Record<
       "annotation-queue-count": 1,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 10,
+      "monitor-count": 20,
     },
   },
   "cloud:core": {
@@ -77,7 +77,7 @@ export const entitlementAccess: Record<
       "annotation-queue-count": 3,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 10,
+      "monitor-count": 20,
     },
   },
   "cloud:pro": {
@@ -92,7 +92,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 10,
+      "monitor-count": 20,
     },
   },
   "cloud:team": {
@@ -113,7 +113,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 10,
+      "monitor-count": 20,
     },
   },
   "cloud:enterprise": {
@@ -134,7 +134,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 10,
+      "monitor-count": 20,
     },
   },
   oss: {
@@ -145,7 +145,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 10,
+      "monitor-count": 20,
     },
   },
   "self-hosted:pro": {
@@ -156,7 +156,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 10,
+      "monitor-count": 20,
     },
   },
   "self-hosted:enterprise": {
@@ -176,7 +176,7 @@ export const entitlementAccess: Record<
       "data-access-days": false,
       "model-based-evaluations-count-evaluators": false,
       "prompt-management-count-prompts": false,
-      "monitor-count": 10,
+      "monitor-count": 20,
     },
   },
 };

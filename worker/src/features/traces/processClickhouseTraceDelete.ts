@@ -9,7 +9,7 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { env, v4WritesToEventsTable } from "../../env";
-import { prisma } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { chunk } from "lodash";
 
 const deleteMediaItemsForTraces = async (
@@ -80,24 +80,29 @@ const deleteMediaItemsForTraces = async (
 
   for (const mediaIdChunk of mediaIdChunks) {
     // First, fetch media items that are orphaned (no references) to get their bucket paths
-    const orphanedMedia = await prisma.media.findMany({
-      select: {
-        id: true,
-        bucketPath: true,
-      },
-      where: {
-        projectId,
-        id: {
-          in: mediaIdChunk,
-        },
-        TraceMedia: {
-          none: {},
-        },
-        ObservationMedia: {
-          none: {},
-        },
-      },
-    });
+    const orphanedMedia = await prisma.$queryRaw<
+      { id: string; bucketPath: string }[]
+    >`
+      SELECT
+        m.id,
+        m.bucket_path AS "bucketPath"
+      FROM media m
+      WHERE
+        m.project_id = ${projectId}
+        AND m.id IN (${Prisma.join(mediaIdChunk)})
+        AND NOT EXISTS (
+          SELECT 1
+          FROM trace_media tm
+          WHERE tm.project_id = m.project_id
+            AND tm.media_id = m.id
+        )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM observation_media om
+          WHERE om.project_id = m.project_id
+            AND om.media_id = m.id
+        )
+    `;
 
     if (orphanedMedia.length > 0) {
       // Delete from S3

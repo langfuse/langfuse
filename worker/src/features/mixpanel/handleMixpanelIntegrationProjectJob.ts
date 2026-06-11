@@ -18,6 +18,25 @@ import {
   transformScoreForMixpanel,
   transformEventForMixpanel,
 } from "./transformers";
+import { env } from "../../env";
+
+const sleep = (ms: number) =>
+  ms > 0
+    ? new Promise((resolve) => setTimeout(resolve, ms))
+    : Promise.resolve();
+
+// Throttle exports after each flush so a single project sync cannot burst the
+// target Mixpanel instance with an unbounded event rate (issue #12786).
+const flushWithDelay = async (mixpanel: MixpanelClient) => {
+  // flush() is a no-op on an empty batch, so only throttle when we actually
+  // sent something. Avoids a wasted delay when the terminal flush has nothing
+  // left to send (e.g. event count is an exact multiple of the flush size).
+  const hadEvents = mixpanel.getBatchSize() > 0;
+  await mixpanel.flush();
+  if (hadEvents) {
+    await sleep(env.LANGFUSE_MIXPANEL_FLUSH_DELAY_MS);
+  }
+};
 
 type MixpanelExecutionConfig = {
   projectId: string;
@@ -32,7 +51,10 @@ type MixpanelExecutionConfig = {
   useGraceHash: boolean;
 };
 
-const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
+const processMixpanelTraces = async (
+  mixpanel: MixpanelClient,
+  config: MixpanelExecutionConfig,
+) => {
   const traces = getTracesForAnalyticsIntegrations(
     config.projectId,
     config.projectName,
@@ -45,11 +67,6 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
     `[MIXPANEL] Sending traces for project ${config.projectId} to Mixpanel`,
   );
 
-  const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedMixpanelProjectToken,
-    region: config.mixpanelRegion,
-  });
-
   let count = 0;
   for await (const trace of traces) {
     count++;
@@ -57,19 +74,22 @@ const processMixpanelTraces = async (config: MixpanelExecutionConfig) => {
     mixpanel.addEvent(event);
 
     if (count % 1000 === 0) {
-      await mixpanel.flush();
+      await flushWithDelay(mixpanel);
       logger.info(
         `[MIXPANEL] Sent ${count} traces to Mixpanel for project ${config.projectId}`,
       );
     }
   }
-  await mixpanel.flush();
+  await flushWithDelay(mixpanel);
   logger.info(
     `[MIXPANEL] Sent ${count} traces to Mixpanel for project ${config.projectId}`,
   );
 };
 
-const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
+const processMixpanelGenerations = async (
+  mixpanel: MixpanelClient,
+  config: MixpanelExecutionConfig,
+) => {
   const generations = getGenerationsForAnalyticsIntegrations(
     config.projectId,
     config.projectName,
@@ -82,11 +102,6 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
     `[MIXPANEL] Sending generations for project ${config.projectId} to Mixpanel`,
   );
 
-  const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedMixpanelProjectToken,
-    region: config.mixpanelRegion,
-  });
-
   let count = 0;
   for await (const generation of generations) {
     count++;
@@ -94,19 +109,22 @@ const processMixpanelGenerations = async (config: MixpanelExecutionConfig) => {
     mixpanel.addEvent(event);
 
     if (count % 1000 === 0) {
-      await mixpanel.flush();
+      await flushWithDelay(mixpanel);
       logger.info(
         `[MIXPANEL] Sent ${count} generations to Mixpanel for project ${config.projectId}`,
       );
     }
   }
-  await mixpanel.flush();
+  await flushWithDelay(mixpanel);
   logger.info(
     `[MIXPANEL] Sent ${count} generations to Mixpanel for project ${config.projectId}`,
   );
 };
 
-const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
+const processMixpanelScores = async (
+  mixpanel: MixpanelClient,
+  config: MixpanelExecutionConfig,
+) => {
   const scores = getScoresForAnalyticsIntegrations(
     config.projectId,
     config.projectName,
@@ -119,11 +137,6 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
     `[MIXPANEL] Sending scores for project ${config.projectId} to Mixpanel`,
   );
 
-  const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedMixpanelProjectToken,
-    region: config.mixpanelRegion,
-  });
-
   let count = 0;
   for await (const score of scores) {
     count++;
@@ -131,19 +144,22 @@ const processMixpanelScores = async (config: MixpanelExecutionConfig) => {
     mixpanel.addEvent(event);
 
     if (count % 1000 === 0) {
-      await mixpanel.flush();
+      await flushWithDelay(mixpanel);
       logger.info(
         `[MIXPANEL] Sent ${count} scores to Mixpanel for project ${config.projectId}`,
       );
     }
   }
-  await mixpanel.flush();
+  await flushWithDelay(mixpanel);
   logger.info(
     `[MIXPANEL] Sent ${count} scores to Mixpanel for project ${config.projectId}`,
   );
 };
 
-const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
+const processMixpanelEvents = async (
+  mixpanel: MixpanelClient,
+  config: MixpanelExecutionConfig,
+) => {
   const events = getEventsForAnalyticsIntegrations(
     config.projectId,
     config.projectName,
@@ -155,11 +171,6 @@ const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
     `[MIXPANEL] Sending events for project ${config.projectId} to Mixpanel`,
   );
 
-  const mixpanel = new MixpanelClient({
-    projectToken: config.decryptedMixpanelProjectToken,
-    region: config.mixpanelRegion,
-  });
-
   let count = 0;
   for await (const analyticsEvent of events) {
     count++;
@@ -167,13 +178,13 @@ const processMixpanelEvents = async (config: MixpanelExecutionConfig) => {
     mixpanel.addEvent(event);
 
     if (count % 1000 === 0) {
-      await mixpanel.flush();
+      await flushWithDelay(mixpanel);
       logger.info(
         `[MIXPANEL] Sent ${count} events to Mixpanel for project ${config.projectId}`,
       );
     }
   }
-  await mixpanel.flush();
+  await flushWithDelay(mixpanel);
   logger.info(
     `[MIXPANEL] Sent ${count} events to Mixpanel for project ${config.projectId}`,
   );
@@ -236,20 +247,24 @@ export const handleMixpanelIntegrationProjectJob = async (
   };
 
   try {
-    const processPromises: Promise<void>[] = [];
+    // Reuse a single client and run streams sequentially so the per-job export
+    // rate stays bounded. Running the streams in parallel with one client each
+    // produced an unbounded burst that overwhelmed the target (issue #12786).
+    const mixpanel = new MixpanelClient({
+      projectToken: executionConfig.decryptedMixpanelProjectToken,
+      region: executionConfig.mixpanelRegion,
+    });
 
     // Always include scores
-    processPromises.push(processMixpanelScores(executionConfig));
+    await processMixpanelScores(mixpanel, executionConfig);
 
     // Traces and observations - for TRACES_OBSERVATIONS and TRACES_OBSERVATIONS_EVENTS
     if (
       mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS" ||
       mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
     ) {
-      processPromises.push(
-        processMixpanelTraces(executionConfig),
-        processMixpanelGenerations(executionConfig),
-      );
+      await processMixpanelTraces(mixpanel, executionConfig);
+      await processMixpanelGenerations(mixpanel, executionConfig);
     }
 
     // Events - for EVENTS and TRACES_OBSERVATIONS_EVENTS
@@ -257,10 +272,8 @@ export const handleMixpanelIntegrationProjectJob = async (
       mixpanelIntegration.exportSource === "EVENTS" ||
       mixpanelIntegration.exportSource === "TRACES_OBSERVATIONS_EVENTS"
     ) {
-      processPromises.push(processMixpanelEvents(executionConfig));
+      await processMixpanelEvents(mixpanel, executionConfig);
     }
-
-    await Promise.all(processPromises);
 
     // Update the last run information for the mixpanelIntegration record.
     await prisma.mixpanelIntegration.update({
