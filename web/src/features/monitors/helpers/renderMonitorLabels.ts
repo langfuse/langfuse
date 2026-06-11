@@ -23,14 +23,14 @@ const metricSubject = (view: MonitorView, measure: string): string =>
     ? viewLabels[view]
     : `${viewLabels[view]} ${startCase(measure)}`;
 
-/** renderMetricDescription renders a metric as prose, e.g. "Sum Observations Latency". */
+/** renderMetricDescription renders a metric as prose, e.g. "Sum of Observations Latency". */
 const renderMetricDescription = (
   view: MonitorView,
   metric: { measure: string; aggregation: z.infer<typeof metricAggregations> },
 ): string =>
-  `${aggregationLabel(metric.aggregation)} ${metricSubject(view, metric.measure)}`;
+  `${aggregationLabel(metric.aggregation)} of ${metricSubject(view, metric.measure)}`;
 
-/** renderNamePlaceholder renders the auto-suggested monitor name, e.g. "Sum Observations Latency below 100 in the last 5 minutes". */
+/** renderNamePlaceholder renders the auto-suggested monitor name, e.g. "Sum of Observations Latency below 100 in the last 5 minutes". */
 export const renderNamePlaceholder = ({
   view,
   metric,
@@ -51,7 +51,7 @@ export const renderNamePlaceholder = ({
   return `${renderMetricDescription(view, metric)} ${operatorLabels[thresholdOperator]} ${value} in the last ${windowLabels[window]}`;
 };
 
-/** renderChartSubtitle renders the preview subtitle, e.g. "Sum Observations Latency every 5 minutes". */
+/** renderChartSubtitle renders the preview subtitle, e.g. "Sum of Observations Latency every 5 minutes". */
 export const renderChartSubtitle = ({
   view,
   metric,

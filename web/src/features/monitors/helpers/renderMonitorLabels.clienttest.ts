@@ -12,7 +12,7 @@ describe("renderNamePlaceholder", () => {
         alertThreshold: 100,
         window: "5m",
       }),
-    ).toBe("Sum Observations Latency below 100 in the last 5 minutes");
+    ).toBe("Sum of Observations Latency below 100 in the last 5 minutes");
   });
 
   it("percentile aggregation: kept verbatim, not start-cased into 'P 95'", () => {
@@ -24,7 +24,7 @@ describe("renderNamePlaceholder", () => {
         alertThreshold: 100,
         window: "1h",
       }),
-    ).toBe("p95 Observations Latency above 100 in the last hour");
+    ).toBe("p95 of Observations Latency above 100 in the last hour");
   });
 
   it("bare count: omits the measure", () => {
@@ -36,7 +36,7 @@ describe("renderNamePlaceholder", () => {
         alertThreshold: 5,
         window: "1w",
       }),
-    ).toBe("Count Observations above 5 in the last week");
+    ).toBe("Count of Observations above 5 in the last week");
   });
 
   it("missing threshold: defaults the value to 0", () => {
@@ -48,6 +48,6 @@ describe("renderNamePlaceholder", () => {
         alertThreshold: null,
         window: "5m",
       }),
-    ).toBe("Count Observations above 0 in the last 5 minutes");
+    ).toBe("Count of Observations above 0 in the last 5 minutes");
   });
 });
