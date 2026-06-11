@@ -28,7 +28,7 @@ progress output. Full usage and the need→command table live in the
   `event-mirror.ts` (v3 observation → v4 `events_full` row), `verify.ts`
 - `seed-postgres.ts`, `seed-clickhouse.ts`, `utils/` — the pre-existing
   `pnpm run dx` seed path (unchanged by the CLI)
-- `seeder-2-0-rfc.md` — design rationale and roadmap
+- `README.md` — design rationale, contract, and roadmap
 
 ## Rules for changes
 

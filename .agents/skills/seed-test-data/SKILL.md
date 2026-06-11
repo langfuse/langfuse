@@ -64,4 +64,4 @@ function using the deterministic `Rng` (never `Math.random`), register it in
 `scenarios/index.ts`, and update the table in
 `packages/shared/scripts/seeder/AGENTS.md` and this skill. Scenario names,
 flags, and JSON keys are additive-only contracts. Design rationale:
-`packages/shared/scripts/seeder/seeder-2-0-rfc.md`.
+`packages/shared/scripts/seeder/README.md`.

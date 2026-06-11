@@ -7,7 +7,7 @@
  *   pnpm run seed -- <scenario> [flags]
  *
  * Scenario names, flag names, and JSON output keys are a stable, additive-only
- * contract. See ./seeder-2-0-rfc.md and ./AGENTS.md.
+ * contract. See ./README.md and ./AGENTS.md.
  */
 import { parseArgs } from "node:util";
 import { prisma } from "../../src/db";

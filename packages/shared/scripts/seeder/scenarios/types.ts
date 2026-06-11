@@ -3,7 +3,7 @@
  *
  * Scenario names, flag names, and SeedSummary JSON keys are a public,
  * additive-only contract consumed by agents and scripts. Do not rename or
- * remove fields; add new ones instead. See ../seeder-2-0-rfc.md.
+ * remove fields; add new ones instead. See ../README.md.
  */
 
 export type ScenarioFlagType = "string" | "number" | "boolean";
