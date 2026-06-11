@@ -1,24 +1,79 @@
 import preview from "../../../../../.storybook/preview";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { fn } from "storybook/test";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
+import {
+  getInitialInAppAgentWindowShellGeometry,
+  InAppAgentWindowShell,
+} from "./InAppAgentWindowShell";
+import { useMovableResizablePanelGeometry } from "@/src/components/movable-resizable-panel";
+
+function getStoryViewport() {
+  return {
+    height: typeof window === "undefined" ? 768 : window.innerHeight,
+    width: typeof window === "undefined" ? 1024 : window.innerWidth,
+  };
+}
+
+function InAppAgentWindowStoryShell({
+  children,
+  isExpanded,
+}: {
+  children: (props: { isHeaderDragHandleEnabled: boolean }) => ReactNode;
+  isExpanded: boolean;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const [initialGeometry] = useState(() => {
+    const viewport = getStoryViewport();
+
+    return getInitialInAppAgentWindowShellGeometry({
+      viewportHeight: viewport.height,
+      viewportWidth: viewport.width,
+    });
+  });
+
+  const geometry = useMovableResizablePanelGeometry({
+    getInitialGeometry: () => initialGeometry,
+  });
+
+  const floatingGeometry = isExpanded ? null : geometry.getGeometry();
+
+  return (
+    <InAppAgentWindowShell
+      floatingGeometry={floatingGeometry}
+      isExpanded={isExpanded}
+      panelRef={panelRef}
+      zIndex={1}
+      onPositionChange={geometry.setPosition}
+      onSizeChange={geometry.setSize}
+    >
+      {children}
+    </InAppAgentWindowShell>
+  );
+}
 
 function StatefulInAppAgentWindow(args: InAppAgentWindowProps) {
   const [isExpanded, setIsExpanded] = useState(args.isExpanded);
 
   return (
-    <InAppAgentWindow
-      {...args}
-      isExpanded={isExpanded}
-      onExpandedChange={(isExpanded) => {
-        setIsExpanded(isExpanded);
-        args.onExpandedChange(isExpanded);
-      }}
-    />
+    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+      {({ isHeaderDragHandleEnabled }) => (
+        <InAppAgentWindow
+          {...args}
+          isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+          isExpanded={isExpanded}
+          onExpandedChange={(isExpanded) => {
+            setIsExpanded(isExpanded);
+            args.onExpandedChange(isExpanded);
+          }}
+        />
+      )}
+    </InAppAgentWindowStoryShell>
   );
 }
 
@@ -153,14 +208,23 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
   const [messages, setMessages] = useState<InAppAgentWindowMessage[]>(
     streamingSeedMessages,
   );
-  const streamRef = useRef({
+  type StreamingPhase =
+    | "start"
+    | "intro"
+    | "tool-loading"
+    | "tool-done"
+    | "conclusion";
+
+  const streamRef = useRef<{
+    cycle: number;
+    phase: StreamingPhase;
+    phaseTicks: number;
+    introMessageId: string;
+    toolMessageId: string;
+    conclusionMessageId: string;
+  }>({
     cycle: 0,
-    phase: "start" as
-      | "start"
-      | "intro"
-      | "tool-loading"
-      | "tool-done"
-      | "conclusion",
+    phase: "start",
     phaseTicks: 0,
     introMessageId: "",
     toolMessageId: "",
@@ -321,28 +385,33 @@ function StreamingInAppAgentWindow(args: InAppAgentWindowProps) {
   }, []);
 
   return (
-    <InAppAgentWindow
-      {...args}
-      isExpanded={isExpanded}
-      messages={messages}
-      onExpandedChange={(isExpanded) => {
-        setIsExpanded(isExpanded);
-        args.onExpandedChange(isExpanded);
-      }}
-      onSubmit={(input) => {
-        setMessages((currentMessages) => [
-          ...currentMessages,
-          {
-            id: `manual-${currentMessages.length}`,
-            role: "user",
-            content: { type: "text", text: input },
-          },
-        ]);
+    <InAppAgentWindowStoryShell isExpanded={isExpanded}>
+      {({ isHeaderDragHandleEnabled }) => (
+        <InAppAgentWindow
+          {...args}
+          isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+          isExpanded={isExpanded}
+          messages={messages}
+          onExpandedChange={(isExpanded) => {
+            setIsExpanded(isExpanded);
+            args.onExpandedChange(isExpanded);
+          }}
+          onSubmit={(input) => {
+            setMessages((currentMessages) => [
+              ...currentMessages,
+              {
+                id: `manual-${currentMessages.length}`,
+                role: "user",
+                content: { type: "text", text: input },
+              },
+            ]);
 
-        args.onSubmit(input);
-        return true;
-      }}
-    />
+            args.onSubmit(input);
+            return true;
+          }}
+        />
+      )}
+    </InAppAgentWindowStoryShell>
   );
 }
 
@@ -391,7 +460,7 @@ const meta = preview.meta({
     onSubmitFeedback: fn(),
     showCloseButton: true,
   },
-  render: StatefulInAppAgentWindow,
+  render: (args) => <StatefulInAppAgentWindow {...args} />,
 });
 
 export const Empty = meta.story({
@@ -556,7 +625,7 @@ export const Streaming = meta.story({
     selectedConversationId: "conversation-1",
     messages: streamingSeedMessages,
   },
-  render: StreamingInAppAgentWindow,
+  render: (args) => <StreamingInAppAgentWindow {...args} />,
 });
 
 export const LoadingResponse = meta.story({
