@@ -502,7 +502,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       const result = await caller.blobStorageIntegration.get({
         projectId: project.id,
       });
-      expect(result?.exportFieldGroups).toStrictEqual(["core", "io"]);
+      expect(result?.config?.exportFieldGroups).toStrictEqual(["core", "io"]);
     });
 
     it("overwrites stored subset when a new subset is submitted", async () => {
