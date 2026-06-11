@@ -108,6 +108,14 @@ const run = async (
     anchorSeconds: Math.floor(utcDayStartMs() / 1000),
     seed: ctx.seed,
   };
+  // Link ~10% of generations to REAL prompts — fabricated prompt ids would
+  // silently break the trace-detail prompt badge. No prompts -> NULL columns.
+  const prompts = await prisma.prompt.findMany({
+    where: { projectId: ctx.projectId },
+    select: { id: true, name: true, version: true },
+    orderBy: { createdAt: "asc" },
+    take: 10,
+  });
   const queries = [
     builder.buildBulkTracesInsert(
       ctx.projectId,
@@ -125,7 +133,7 @@ const run = async (
         observationsPerTrace,
         ctx.environment,
         fileContent,
-        bulkOpts,
+        { ...bulkOpts, prompts },
       ),
     );
   }

@@ -5,7 +5,6 @@ import {
   DatasetRunItemRecordInsertType,
   createDatasetRunItemsCh,
 } from "../../../src/server";
-import { SEED_TEXT_PROMPTS } from "./postgres-seed-constants";
 import {
   createTracesCh,
   createObservationsCh,
@@ -178,6 +177,9 @@ export class ClickHouseQueryBuilder {
       idPrefix?: string;
       anchorSeconds?: number;
       seed?: number;
+      /** real Postgres prompt rows to link ~10% of generations to; omitted
+       * -> prompt columns stay NULL (fabricated ids break the PromptBadge) */
+      prompts?: { id: string; name: string; version: number }[];
     } = { numberOfDays: 1 },
   ): string {
     const totalObservations = tracesCount * observationsPerTrace;
@@ -191,6 +193,7 @@ export class ClickHouseQueryBuilder {
     const anchorSeconds =
       opts.anchorSeconds ?? Math.floor(Date.now() / 86_400_000) * 86_400;
     const seedSalt = (opts.seed ?? 0) >>> 0;
+    const prompts = opts.prompts ?? [];
 
     // Escape file content if provided
     const escapedHeavyMarkdown = fileContent
@@ -248,15 +251,27 @@ export class ClickHouseQueryBuilder {
         if(type = 'GENERATION', map('input', toDecimal64((10 + h1 % 990) / 1000000, 8), 'output', toDecimal64((10 + h2 % 1990) / 1000000, 8), 'total', toDecimal64((20 + h1 % 990 + h2 % 1990) / 1000000, 8)), map()) AS cost_details,
         if(type = 'GENERATION', toDecimal64((20 + h1 % 990 + h2 % 1990) / 1000000, 8), NULL) AS total_cost,
         if(type = 'GENERATION', addMilliseconds(start_time, toUInt32(100 + h3 % 400)), NULL) AS completion_start_time,
-        if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => this.escapeString(p.id)).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
-        NULL) AS prompt_id,
-        if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => this.escapeString(p.name)).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
-        NULL) AS prompt_name,
-        if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement(['${SEED_TEXT_PROMPTS.map((p) => this.escapeString(String(p.version))).join("','")}'], 1 + (number % ${SEED_TEXT_PROMPTS.length})),
-        NULL) AS prompt_version,
+        ${
+          prompts.length > 0
+            ? `if("type" = 'GENERATION' AND number % 10 = 0,
+        arrayElement(['${prompts.map((p) => this.escapeString(p.id)).join("','")}'], 1 + (number % ${prompts.length})),
+        NULL)`
+            : "NULL"
+        } AS prompt_id,
+        ${
+          prompts.length > 0
+            ? `if("type" = 'GENERATION' AND number % 10 = 0,
+        arrayElement(['${prompts.map((p) => this.escapeString(p.name)).join("','")}'], 1 + (number % ${prompts.length})),
+        NULL)`
+            : "NULL"
+        } AS prompt_name,
+        ${
+          prompts.length > 0
+            ? `if("type" = 'GENERATION' AND number % 10 = 0,
+        arrayElement([${prompts.map((p) => Math.floor(p.version)).join(",")}], 1 + (number % ${prompts.length})),
+        NULL)`
+            : "NULL"
+        } AS prompt_version,
         start_time AS created_at,
         start_time AS updated_at,
         now() AS event_ts,
