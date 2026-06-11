@@ -323,6 +323,12 @@ const BlobStorageIntegrationSettingsForm = ({
   }, [state]);
 
   const watchedExportMode = blobStorageForm.watch("exportMode");
+  const watchedExportSource = blobStorageForm.watch("exportSource");
+  // The legacy observations table contains fewer columns than the enriched
+  // observations, so the per-group field lists differ for legacy-only exports.
+  const isLegacyOnlyExport =
+    watchedExportSource ===
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
@@ -806,7 +812,9 @@ const BlobStorageIntegrationSettingsForm = ({
                           )}
                         </div>
                         <div className="text-muted-foreground text-xs">
-                          {option.description}
+                          {isLegacyOnlyExport
+                            ? option.legacyDescription
+                            : option.description}
                         </div>
                       </label>
                     </div>
