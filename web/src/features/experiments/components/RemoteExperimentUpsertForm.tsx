@@ -44,6 +44,7 @@ export const RemoteExperimentUpsertForm = ({
   datasetId,
   existingRemoteExperiment,
   setShowRemoteExperimentUpsertForm,
+  onBack,
 }: {
   projectId: string;
   datasetId: string;
@@ -53,6 +54,7 @@ export const RemoteExperimentUpsertForm = ({
     enabled?: boolean;
   } | null;
   setShowRemoteExperimentUpsertForm: (show: boolean) => void;
+  onBack?: () => void;
 }) => {
   const hasDatasetAccess = useHasProjectAccess({
     projectId,
@@ -164,7 +166,13 @@ export const RemoteExperimentUpsertForm = ({
       <DialogHeader>
         <Button
           variant="ghost"
-          onClick={() => setShowRemoteExperimentUpsertForm(false)}
+          onClick={() => {
+            if (onBack) {
+              onBack();
+            } else {
+              setShowRemoteExperimentUpsertForm(false);
+            }
+          }}
           className="inline-block self-start"
         >
           ← Back

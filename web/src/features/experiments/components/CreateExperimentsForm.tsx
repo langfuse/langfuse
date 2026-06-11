@@ -21,6 +21,7 @@ import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
+import { RemoteExperimentDatasetStep } from "@/src/features/experiments/components/RemoteExperimentDatasetStep";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
 import { RemoteExperimentTriggerModal } from "@/src/features/experiments/components/RemoteExperimentTriggerModal";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -57,6 +58,8 @@ export const CreateExperimentsForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const [showPromptForm, setShowPromptForm] = useState(false);
+  const [showRemoteExperimentDatasetStep, setShowRemoteExperimentDatasetStep] =
+    useState(false);
   const [showRemoteExperimentUpsertForm, setShowRemoteExperimentUpsertForm] =
     useState(false);
   const [
@@ -68,7 +71,11 @@ export const CreateExperimentsForm = ({
     projectId,
     scope: "promptExperiments:CUD",
   });
-  const datasetId = defaultValues.datasetId;
+  const fixedDatasetId = defaultValues.datasetId;
+  const [remoteExperimentDataset, setRemoteExperimentDataset] = useState<
+    { id: string; name?: string } | undefined
+  >(fixedDatasetId ? { id: fixedDatasetId } : undefined);
+  const datasetId = fixedDatasetId ?? remoteExperimentDataset?.id;
 
   const existingRemoteExperiment = api.datasets.getRemoteExperiment.useQuery(
     {
@@ -91,6 +98,7 @@ export const CreateExperimentsForm = ({
   if (
     showSDKRunInfoPage &&
     !showPromptForm &&
+    !showRemoteExperimentDatasetStep &&
     !showRemoteExperimentUpsertForm &&
     !showRemoteExperimentTriggerModal
   ) {
@@ -133,7 +141,12 @@ export const CreateExperimentsForm = ({
               <CardFooter className="mt-auto flex flex-row gap-2">
                 <Button
                   className="w-full"
-                  onClick={() => setShowPromptForm(true)}
+                  onClick={() => {
+                    setShowPromptForm(true);
+                    setShowRemoteExperimentDatasetStep(false);
+                    setShowRemoteExperimentUpsertForm(false);
+                    setShowRemoteExperimentTriggerModal(false);
+                  }}
                 >
                   Configure
                 </Button>
@@ -169,6 +182,11 @@ export const CreateExperimentsForm = ({
                   <li>Custom evaluation logic</li>
                   <li>Integration with your codebase</li>
                 </ul>
+                {!fixedDatasetId && remoteExperimentDataset?.name ? (
+                  <p className="text-muted-foreground mt-4 text-xs">
+                    Selected dataset: {remoteExperimentDataset.name}
+                  </p>
+                ) : null}
               </CardContent>
               <CardFooter className="mt-auto flex flex-row gap-2">
                 {!!existingRemoteExperiment.data && datasetId && (
@@ -188,7 +206,10 @@ export const CreateExperimentsForm = ({
                     <Button
                       className="rounded-l-none rounded-r-md border-l-2 px-2"
                       title="Edit remote trigger settings"
-                      onClick={() => setShowRemoteExperimentUpsertForm(true)}
+                      onClick={() => {
+                        setShowRemoteExperimentDatasetStep(false);
+                        setShowRemoteExperimentUpsertForm(true);
+                      }}
                     >
                       <span className="relative mr-1 text-xs">
                         <Cog className="h-3 w-3" />
@@ -217,7 +238,13 @@ export const CreateExperimentsForm = ({
                     title="Set up remote dataset run in UI trigger"
                     className="h-8 w-8 shrink-0"
                     size="icon"
-                    onClick={() => setShowRemoteExperimentUpsertForm(true)}
+                    onClick={() => {
+                      if (fixedDatasetId) {
+                        setShowRemoteExperimentUpsertForm(true);
+                      } else {
+                        setShowRemoteExperimentDatasetStep(true);
+                      }
+                    }}
                   >
                     <Zap className="h-4 w-4" />
                   </Button>
@@ -227,6 +254,21 @@ export const CreateExperimentsForm = ({
           </div>
         </DialogBody>
       </>
+    );
+  }
+
+  if (showRemoteExperimentDatasetStep) {
+    return (
+      <RemoteExperimentDatasetStep
+        projectId={projectId}
+        initialDatasetId={remoteExperimentDataset?.id}
+        onBack={() => setShowRemoteExperimentDatasetStep(false)}
+        onContinue={(dataset) => {
+          setRemoteExperimentDataset(dataset);
+          setShowRemoteExperimentDatasetStep(false);
+          setShowRemoteExperimentUpsertForm(true);
+        }}
+      />
     );
   }
 
@@ -252,6 +294,14 @@ export const CreateExperimentsForm = ({
         datasetId={datasetId}
         existingRemoteExperiment={existingRemoteExperiment.data}
         setShowRemoteExperimentUpsertForm={setShowRemoteExperimentUpsertForm}
+        onBack={
+          fixedDatasetId
+            ? undefined
+            : () => {
+                setShowRemoteExperimentUpsertForm(false);
+                setShowRemoteExperimentDatasetStep(true);
+              }
+        }
       />
     );
   }
