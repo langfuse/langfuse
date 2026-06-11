@@ -1,0 +1,280 @@
+import { readFileSync } from "fs";
+import path from "path";
+import { prisma } from "../../../src/db";
+import { clickhouseClient } from "../../../src/server";
+import { ClickHouseQueryBuilder } from "../utils/clickhouse-builder";
+import {
+  ScenarioContext,
+  ScenarioDefinition,
+  SeedError,
+  SeedSummary,
+} from "./types";
+import { utcDayStartMs } from "./rng";
+import { countRows, escapeLike, tracesListLink } from "./verify";
+
+/**
+ * Loads the bundled large fixtures, sliced exactly like SeederOrchestrator so
+ * the inline INSERT ... SELECT FROM numbers() SQL stays under ClickHouse's
+ * max_query_size.
+ */
+const loadFileContent = () => {
+  const utilsDir = path.join(__dirname, "../utils");
+  const nestedJson = JSON.parse(
+    readFileSync(path.join(utilsDir, "nested_json.json"), "utf-8"),
+  );
+  const chatMlJson = JSON.parse(
+    readFileSync(path.join(utilsDir, "chat_ml_json.json"), "utf-8"),
+  );
+  return {
+    heavyMarkdown: readFileSync(path.join(utilsDir, "markdown.txt"), "utf-8"),
+    nestedJson: {
+      ...nestedJson,
+      products: nestedJson.products?.slice(0, 3) ?? [],
+    },
+    chatMlJson: {
+      ...chatMlJson,
+      messages: chatMlJson.messages?.slice(0, 4) ?? [],
+    },
+  };
+};
+
+const run = async (
+  ctx: ScenarioContext,
+  params: Record<string, string | number | boolean>,
+): Promise<SeedSummary> => {
+  const startedAt = Date.now();
+  const count = params["count"] as number;
+  const days = params["days"] as number;
+  const observationsPerTrace = params["observations-per-trace"] as number;
+  const scoresPerTrace = params["scores-per-trace"] as number;
+  const richPayloads = params["rich-payloads"] as boolean;
+
+  if (count < 1) {
+    throw new SeedError(
+      `--count must be >= 1, got ${count}`,
+      "pass a positive integer, e.g. --count 10000",
+    );
+  }
+  if (observationsPerTrace < 0 || scoresPerTrace < 0) {
+    throw new SeedError(
+      `--observations-per-trace and --scores-per-trace must be >= 0, got ${observationsPerTrace} / ${scoresPerTrace}`,
+      "pass 0 to seed traces without observations/scores, or a positive integer",
+    );
+  }
+  if (days < 0) {
+    throw new SeedError(
+      `--days must be >= 0, got ${days}`,
+      "negative windows would place traces in the future, hidden by UI time filters",
+    );
+  }
+
+  const builder = new ClickHouseQueryBuilder();
+  const fileContent = richPayloads ? loadFileContent() : undefined;
+  const counts: Record<string, number> = {
+    traces: count,
+    observations: count * observationsPerTrace,
+    scores: count * scoresPerTrace,
+  };
+  const links = [tracesListLink(ctx)];
+
+  if (ctx.dryRun) {
+    return {
+      scenario: "many-traces",
+      target: "clickhouse",
+      params,
+      projectId: ctx.projectId,
+      environment: ctx.environment,
+      traceIds: [],
+      sessionIds: Array.from(
+        { length: 5 },
+        (_, i) => `${ctx.idPrefix}-session_${i}`,
+      ),
+      counts,
+      verified: {},
+      links,
+      dryRun: true,
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
+  // Ids are `{id-prefix}-trace-bulk-{n}-{projectId-suffix}`: re-runs with the
+  // same prefix and count overwrite, a different --id-prefix adds an
+  // independent copy.
+  ctx.log(
+    `bulk-inserting ${count} traces, ${counts.observations} observations, ${counts.scores} scores over ${days} day(s)`,
+  );
+  // One shared anchor so the three INSERT statements cannot straddle a UTC
+  // midnight and anchor observations/scores to a different day than traces.
+  const bulkOpts = {
+    numberOfDays: days,
+    idPrefix: ctx.idPrefix,
+    anchorSeconds: Math.floor(utcDayStartMs() / 1000),
+    seed: ctx.seed,
+  };
+  // Link ~10% of generations to REAL prompts — fabricated prompt ids would
+  // silently break the trace-detail prompt badge. No prompts -> NULL columns.
+  const prompts = await prisma.prompt.findMany({
+    where: { projectId: ctx.projectId },
+    select: { id: true, name: true, version: true },
+    orderBy: { createdAt: "asc" },
+    take: 10,
+  });
+  const queries = [
+    builder.buildBulkTracesInsert(
+      ctx.projectId,
+      count,
+      ctx.environment,
+      fileContent,
+      bulkOpts,
+    ),
+  ];
+  if (observationsPerTrace > 0) {
+    queries.push(
+      builder.buildBulkObservationsInsert(
+        ctx.projectId,
+        count,
+        observationsPerTrace,
+        ctx.environment,
+        fileContent,
+        { ...bulkOpts, prompts },
+      ),
+    );
+  }
+  if (scoresPerTrace > 0) {
+    queries.push(
+      builder.buildBulkScoresInsert(
+        ctx.projectId,
+        count,
+        scoresPerTrace,
+        ctx.environment,
+        {
+          ...bulkOpts,
+          observationsPerTrace,
+        },
+      ),
+    );
+  }
+  // The bulk SQL references {id-prefix}-session_0..99 on ~30% of traces; the
+  // session detail page 404s without the Postgres trace_sessions rows
+  // (same contract long-session handles for its own session).
+  await prisma.traceSession.createMany({
+    data: Array.from({ length: 100 }, (_, i) => ({
+      id: `${ctx.idPrefix}-session_${i}`,
+      projectId: ctx.projectId,
+      environment: ctx.environment,
+    })),
+    skipDuplicates: true,
+  });
+
+  for (const query of queries) {
+    await clickhouseClient().command({
+      query,
+      clickhouse_settings: { wait_end_of_query: 1 },
+    });
+  }
+
+  const idSuffix = escapeLike(ctx.projectId.slice(-8));
+  const verified: Record<string, number> = {
+    traces: await countRows(
+      "traces",
+      `project_id = {projectId: String} AND id LIKE {prefix: String}`,
+      {
+        projectId: ctx.projectId,
+        prefix: `${escapeLike(ctx.idPrefix)}-trace-bulk-%-${idSuffix}`,
+      },
+      "uniqExact(id)",
+    ),
+    observations: await countRows(
+      "observations",
+      `project_id = {projectId: String} AND id LIKE {prefix: String}`,
+      {
+        projectId: ctx.projectId,
+        prefix: `${escapeLike(ctx.idPrefix)}-obs-bulk-%-${idSuffix}`,
+      },
+      "uniqExact(id)",
+    ),
+    scores: await countRows(
+      "scores",
+      `project_id = {projectId: String} AND id LIKE {prefix: String}`,
+      {
+        projectId: ctx.projectId,
+        prefix: `${escapeLike(ctx.idPrefix)}-score-bulk-%-${idSuffix}`,
+      },
+      "uniqExact(id)",
+    ),
+  };
+
+  if (verified.traces < count) {
+    throw new SeedError(
+      `Readback mismatch: expected at least ${count} bulk traces, found ${verified.traces}`,
+    );
+  }
+  if (verified.observations < counts.observations) {
+    throw new SeedError(
+      `Readback mismatch: expected ${counts.observations} bulk observations, found ${verified.observations}`,
+    );
+  }
+  if (verified.scores < counts.scores) {
+    throw new SeedError(
+      `Readback mismatch: expected ${counts.scores} bulk scores, found ${verified.scores}`,
+    );
+  }
+
+  return {
+    scenario: "many-traces",
+    target: "clickhouse",
+    params,
+    projectId: ctx.projectId,
+    environment: ctx.environment,
+    traceIds: [],
+    sessionIds: Array.from(
+      { length: 5 },
+      (_, i) => `${ctx.idPrefix}-session_${i}`,
+    ),
+    counts,
+    verified,
+    links,
+    dryRun: false,
+    durationMs: Date.now() - startedAt,
+  };
+};
+
+export const manyTracesScenario: ScenarioDefinition = {
+  name: "many-traces",
+  description:
+    "Bulk traces/observations/scores for trace-list and filter performance work: ClickHouse numbers() SQL, fast even for 100k+ traces, deterministic ids so re-runs do not duplicate.",
+  supportsV4: false,
+  flags: [
+    {
+      flag: "count",
+      type: "number",
+      default: 10_000,
+      description: "number of traces",
+    },
+    {
+      flag: "days",
+      type: "number",
+      default: 3,
+      description: "spread timestamps over the past N days",
+    },
+    {
+      flag: "observations-per-trace",
+      type: "number",
+      default: 5,
+      description: "observations per trace",
+    },
+    {
+      flag: "scores-per-trace",
+      type: "number",
+      default: 2,
+      description: "scores per trace",
+    },
+    {
+      flag: "rich-payloads",
+      type: "boolean",
+      default: false,
+      description: "embed bundled markdown/JSON fixtures as payloads",
+    },
+  ],
+  run,
+};
