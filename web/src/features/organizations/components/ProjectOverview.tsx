@@ -3,6 +3,7 @@ import {
   ChevronDown,
   LockIcon,
   MessageSquareText,
+  PlusIcon,
   Settings,
   Users,
 } from "lucide-react";
@@ -25,7 +26,6 @@ import {
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
-import { PlusIcon } from "lucide-react";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
