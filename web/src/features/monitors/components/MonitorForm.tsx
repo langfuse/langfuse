@@ -83,47 +83,13 @@ import { MonitorChartPreview } from "./MonitorChartPreview";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 import { Badge } from "@/src/components/ui/badge";
-
-/** windowLabels maps each MonitorWindow enum value to a human label. */
-const windowLabels: Record<MonitorWindow, string> = {
-  "5m": "5 minutes",
-  "10m": "10 minutes",
-  "15m": "15 minutes",
-  "30m": "30 minutes",
-  "1h": "1 hour",
-  "2h": "2 hours",
-  "4h": "4 hours",
-  "1d": "1 day",
-  "2d": "2 days",
-  "1w": "1 week",
-};
-
-/** operatorLabels maps each MonitorThresholdOperator to a natural-language label. */
-const operatorLabels: Record<MonitorThresholdOperator, string> = {
-  GT: "above",
-  GTE: "above or equal to",
-  LT: "below",
-  LTE: "below or equal to",
-  EQ: "equal to",
-  NEQ: "not equal to",
-};
-
-/** operatorSymbol maps each MonitorThresholdOperator to a single math glyph. */
-const operatorSymbol: Record<MonitorThresholdOperator, string> = {
-  GT: ">",
-  GTE: "≥",
-  LT: "<",
-  LTE: "≤",
-  EQ: "=",
-  NEQ: "≠",
-};
-
-/** viewLabels maps each MonitorView to a human label. */
-const viewLabels: Record<MonitorView, string> = {
-  observations: "Observations",
-  "scores-numeric": "Scores (numeric)",
-  "scores-categorical": "Scores (categorical)",
-};
+import {
+  operatorLabels,
+  operatorSymbol,
+  viewLabels,
+  windowLabels,
+} from "../helpers/monitorLabels";
+import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
@@ -377,30 +343,27 @@ export const MonitorForm = ({
     return getValidMonitorAggregationsForMeasure(measureDef);
   }, [watched.view, watched.metric?.measure]);
 
-  /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Count of Observations > 0"). */
-  const namePlaceholder = useMemo(() => {
-    const view = (watched.view ?? "observations") as MonitorView;
-    const measure = watched.metric?.measure ?? "count";
-    const aggregation = watched.metric?.aggregation ?? "count";
-    const op = (watched.thresholdOperator ??
-      MonitorThresholdOperatorSchema.enum.GT) as MonitorThresholdOperator;
-    const threshold = watched.alertThreshold;
-    const aggLabel = startCase(aggregation);
-    const viewLabel = viewLabels[view];
-    const base =
-      measure === "count"
-        ? `${aggLabel} of ${viewLabel}`
-        : `${aggLabel} of ${viewLabel} ${startCase(measure)}`;
-    const value =
-      threshold != null && Number.isFinite(threshold) ? threshold : 0;
-    return `${base} ${operatorSymbol[op]} ${value}`;
-  }, [
-    watched.view,
-    watched.metric?.measure,
-    watched.metric?.aggregation,
-    watched.thresholdOperator,
-    watched.alertThreshold,
-  ]);
+  /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Sum of Observations Latency below 100"). */
+  const namePlaceholder = useMemo(
+    () =>
+      renderNamePlaceholder({
+        view: (watched.view ?? "observations") as MonitorView,
+        metric: {
+          measure: watched.metric?.measure ?? "count",
+          aggregation: watched.metric?.aggregation ?? "count",
+        },
+        thresholdOperator: (watched.thresholdOperator ??
+          MonitorThresholdOperatorSchema.enum.GT) as MonitorThresholdOperator,
+        alertThreshold: watched.alertThreshold,
+      }),
+    [
+      watched.view,
+      watched.metric?.measure,
+      watched.metric?.aggregation,
+      watched.thresholdOperator,
+      watched.alertThreshold,
+    ],
+  );
 
   namePlaceholderRef.current = namePlaceholder;
 

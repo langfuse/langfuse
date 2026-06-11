@@ -19,8 +19,10 @@ import {
   windowToMs,
 } from "@langfuse/shared/monitors";
 
+import { renderChartSubtitle } from "../helpers/renderMonitorLabels";
+
 /** previewBucketCount is the number of complete window buckets the preview renders. */
-const previewBucketCount = 25;
+const previewBucketCount = 20;
 
 /** MonitorChartPreview renders the live time-series preview with alert/warning threshold bands for a monitor draft. */
 export const MonitorChartPreview = ({
@@ -44,7 +46,7 @@ export const MonitorChartPreview = ({
   alertThreshold: number | null | undefined;
   warningThreshold: number | null | undefined;
 }) => {
-  /** fromTimestamp and toTimestamp span 25 complete window buckets ending at the last floored boundary. */
+  /** fromTimestamp and toTimestamp span 20 complete window buckets ending at the last floored boundary. */
   const { fromTimestamp, toTimestamp } = useMemo(() => {
     const ms = Number(windowToMs(window));
     const to = Math.floor(Date.now() / ms) * ms;
@@ -124,7 +126,16 @@ export const MonitorChartPreview = ({
     <Card className="h-full">
       <CardContent className="flex h-full flex-col pt-4">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold tracking-tight">Live Preview</h3>
+          <div>
+            <h3 className="text-lg font-bold tracking-tight">Live Preview</h3>
+            <p className="text-muted-foreground text-sm">
+              {renderChartSubtitle({
+                view,
+                metric: { measure, aggregation },
+                window,
+              })}
+            </p>
+          </div>
         </div>
         <div className="relative min-h-0 flex-1">
           <Chart
