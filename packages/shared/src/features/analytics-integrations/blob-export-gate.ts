@@ -31,7 +31,7 @@ const _exporterOverride = process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF
 export const LEGACY_BLOB_EXPORTER_CUTOFF =
   _exporterOverride && !isNaN(_exporterOverride.getTime())
     ? _exporterOverride
-    : new Date("2026-06-12T00:00:00.000Z");
+    : new Date("2026-06-22T00:00:00.000Z");
 
 // Internal enum values that are considered "legacy". satisfies ensures each
 // element remains a valid AnalyticsIntegrationExportSource — catches renames or
