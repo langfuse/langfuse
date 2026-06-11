@@ -148,11 +148,6 @@ const sdk = new NodeSDK({
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
   ],
-  // Datadog's OTLP intake flattens resource attributes onto every ingested
-  // span, so each detector attribute costs ingest bytes per span. The AWS ECS
-  // and process detectors only duplicated infra tags the Datadog agent adds
-  // itself (~1KB/span). containerDetector must stay: the agent resolves those
-  // infra tags by looking up the container.id resource attribute.
   resourceDetectors: [envDetector, containerDetector],
   sampler: new TraceIdRatioBasedSampler(env.OTEL_TRACE_SAMPLING_RATIO),
 });
