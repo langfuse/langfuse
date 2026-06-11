@@ -336,7 +336,17 @@ export async function getRelevantTraces(
 }
 
 /**
+ * Span/trace lookup key scoped by project. Span and trace ids are
+ * user-supplied, so the same id can exist in multiple projects within one
+ * batch; unscoped keys would let one project's data enrich another's.
+ */
+export function projectScopedKey(projectId: string, id: string): string {
+  return `${projectId}:${id}`;
+}
+
+/**
  * Build span and child maps for efficient lookups and tree traversal.
+ * Both maps are keyed by `projectScopedKey`.
  */
 export function buildSpanMaps(spans: SpanRecord[]): {
   spanMap: Map<string, SpanRecord>;
@@ -346,36 +356,37 @@ export function buildSpanMaps(spans: SpanRecord[]): {
   const childMap = new Map<string, SpanRecord[]>();
 
   for (const span of spans) {
-    spanMap.set(span.span_id, span);
+    spanMap.set(projectScopedKey(span.project_id, span.span_id), span);
 
     // Add to parent's children list
-    const parentId = span.parent_span_id;
-    if (!childMap.has(parentId)) {
-      childMap.set(parentId, []);
+    const parentKey = projectScopedKey(span.project_id, span.parent_span_id);
+    if (!childMap.has(parentKey)) {
+      childMap.set(parentKey, []);
     }
-    childMap.get(parentId)!.push(span);
+    childMap.get(parentKey)!.push(span);
   }
 
   return { spanMap, childMap };
 }
 
 /**
- * Recursively find all child spans for a given root span.
+ * Recursively find all child spans for a given root span key
+ * (see `projectScopedKey`).
  */
 export function findAllChildren(
-  rootSpanId: string,
+  rootSpanKey: string,
   childMap: Map<string, SpanRecord[]>,
 ): SpanRecord[] {
   const children: SpanRecord[] = [];
-  const queue: string[] = [rootSpanId];
+  const queue: string[] = [rootSpanKey];
 
   while (queue.length > 0) {
-    const currentId = queue.shift()!;
-    const directChildren = childMap.get(currentId) || [];
+    const currentKey = queue.shift()!;
+    const directChildren = childMap.get(currentKey) || [];
 
     for (const child of directChildren) {
       children.push(child);
-      queue.push(child.span_id);
+      queue.push(projectScopedKey(child.project_id, child.span_id));
     }
   }
 
@@ -489,16 +500,14 @@ export function enrichSpansWithExperiment(
 }
 
 /**
- * Write enriched spans directly to the events_full table.
+ * Convert enriched spans to events_full insert records.
  * Spans already have model match, usage, and cost details from ClickHouse,
- * so we skip IngestionService enrichment and write EventRecordInsertType directly.
+ * so we skip IngestionService enrichment and build EventRecordInsertType directly.
  */
-export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
-  if (spans.length === 0) {
-    return;
-  }
-
-  const clickhouseWriter = ClickhouseWriter.getInstance();
+export function convertEnrichedSpansToEventRecords(
+  spans: EnrichedSpan[],
+): EventRecordInsertType[] {
+  const records: EventRecordInsertType[] = [];
   const now = Date.now() * 1000; // microseconds
 
   for (const span of spans) {
@@ -599,7 +608,24 @@ export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
       event_ts: now,
     };
 
-    clickhouseWriter.addToQueue(TableName.EventsFull, eventRecord);
+    records.push(eventRecord);
+  }
+
+  return records;
+}
+
+/**
+ * Write enriched spans to the events_full table via the ClickhouseWriter
+ * queue (buffered; flushed by the writer's interval).
+ */
+export function writeEnrichedSpans(spans: EnrichedSpan[]): void {
+  if (spans.length === 0) {
+    return;
+  }
+
+  const clickhouseWriter = ClickhouseWriter.getInstance();
+  for (const record of convertEnrichedSpansToEventRecords(spans)) {
+    clickhouseWriter.addToQueue(TableName.EventsFull, record);
   }
 
   logger.info(
@@ -878,19 +904,22 @@ async function processExperimentBackfill(
     const allSpans = [...observations, ...traces];
     const { spanMap, childMap } = buildSpanMaps(allSpans);
 
-    // Build a map of trace_id -> {userId, sessionId} for efficient lookup
+    // Build a project-scoped map of trace properties for efficient lookup
     const tracePropertiesMap = new Map<string, TraceProperties>();
     for (const trace of traces) {
-      tracePropertiesMap.set(trace.trace_id, {
-        name: trace.name,
-        userId: trace.user_id,
-        sessionId: trace.session_id,
-        version: trace.version,
-        release: trace.release,
-        tags: trace.tags,
-        bookmarked: trace.bookmarked,
-        public: trace.public,
-      });
+      tracePropertiesMap.set(
+        projectScopedKey(trace.project_id, trace.trace_id),
+        {
+          name: trace.name,
+          userId: trace.user_id,
+          sessionId: trace.session_id,
+          version: trace.version,
+          release: trace.release,
+          tags: trace.tags,
+          bookmarked: trace.bookmarked,
+          public: trace.public,
+        },
+      );
     }
 
     // Process each dataset run item
@@ -900,7 +929,8 @@ async function processExperimentBackfill(
     for (const dri of driChunk) {
       // Find the root span (either observation or trace)
       const rootSpanId = dri.observation_id || `t-${dri.trace_id}`;
-      const rootSpan = spanMap.get(rootSpanId);
+      const rootSpanKey = projectScopedKey(dri.project_id, rootSpanId);
+      const rootSpan = spanMap.get(rootSpanKey);
 
       if (!rootSpan) {
         logger.warn(
@@ -910,10 +940,12 @@ async function processExperimentBackfill(
       }
 
       // Get trace-level properties for this trace
-      const traceProperties = tracePropertiesMap.get(dri.trace_id);
+      const traceProperties = tracePropertiesMap.get(
+        projectScopedKey(dri.project_id, dri.trace_id),
+      );
 
       // Find all children recursively
-      const childSpans = findAllChildren(rootSpanId, childMap);
+      const childSpans = findAllChildren(rootSpanKey, childMap);
 
       // Enrich spans with experiment properties and propagate trace-level properties
       const enrichedSpans = enrichSpansWithExperiment(
@@ -926,16 +958,22 @@ async function processExperimentBackfill(
       allEnrichedSpans.push(...enrichedSpans);
 
       // Track which spans have been processed
-      processedSpanIds.add(rootSpan.span_id);
+      processedSpanIds.add(
+        projectScopedKey(rootSpan.project_id, rootSpan.span_id),
+      );
       for (const child of childSpans) {
-        processedSpanIds.add(child.span_id);
+        processedSpanIds.add(projectScopedKey(child.project_id, child.span_id));
       }
     }
 
     // Add all remaining spans that weren't enriched (e.g., trace-derived spans that weren't roots)
     for (const span of allSpans) {
-      if (!processedSpanIds.has(span.span_id)) {
-        const traceProperties = tracePropertiesMap.get(span.trace_id);
+      if (
+        !processedSpanIds.has(projectScopedKey(span.project_id, span.span_id))
+      ) {
+        const traceProperties = tracePropertiesMap.get(
+          projectScopedKey(span.project_id, span.trace_id),
+        );
         allEnrichedSpans.push(
           convertToEnrichedSpanWithoutExperiment(span, traceProperties),
         );

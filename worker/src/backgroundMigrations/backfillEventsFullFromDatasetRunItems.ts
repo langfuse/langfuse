@@ -10,15 +10,15 @@ import { prisma } from "@langfuse/shared/src/db";
 import { parseArgs } from "node:util";
 import {
   buildSpanMaps,
+  convertEnrichedSpansToEventRecords,
   enrichSpansWithExperiment,
   findAllChildren,
-  writeEnrichedSpans,
+  projectScopedKey,
   type DatasetRunItem,
   type EnrichedSpan,
   type SpanRecord,
   type TraceProperties,
 } from "../features/eventPropagation/handleExperimentBackfill";
-import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import { checkPredecessorMigrationFinalized } from "./utils/backfillBase";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match
@@ -394,9 +394,35 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   // ============================================================================
 
   /**
-   * Enriches one DRI batch and writes the resulting EnrichedSpans to the
-   * ClickhouseWriter queue. Throws DescendantCapExceededError if any DRI's
-   * trace exceeds the cap.
+   * Inserts enriched spans into events_full synchronously. The migration
+   * deliberately bypasses the shared ClickhouseWriter queue: its buffer is
+   * owned by live ingestion and flushed on its own schedule, so buffered
+   * migration writes could be dropped on shutdown after the cursor already
+   * advanced. An awaited insert keeps the invariant that the cursor only
+   * moves past durably written data. Transient insert failures propagate to
+   * the batch retry loop in run(); re-inserting a batch is safe because
+   * events_full is a ReplacingMergeTree.
+   */
+  private async insertEnrichedSpans(spans: EnrichedSpan[]): Promise<void> {
+    if (spans.length === 0) return;
+
+    await clickhouseClient().insert({
+      table: "events_full",
+      format: "JSONEachRow",
+      values: convertEnrichedSpansToEventRecords(spans),
+      clickhouse_settings: {
+        log_comment: JSON.stringify({
+          feature: "background-migration",
+          operation: "backfillEventsFullFromDatasetRunItems",
+        }),
+      },
+    });
+  }
+
+  /**
+   * Enriches one DRI batch and inserts the resulting EnrichedSpans into
+   * events_full. Throws DescendantCapExceededError if any DRI's trace
+   * exceeds the cap.
    */
   private async processBatch(
     driBatch: DatasetRunItem[],
@@ -416,16 +442,19 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
 
     const tracePropertiesMap = new Map<string, TraceProperties>();
     for (const trace of traces) {
-      tracePropertiesMap.set(trace.trace_id, {
-        name: trace.name,
-        userId: trace.user_id,
-        sessionId: trace.session_id,
-        version: trace.version,
-        release: trace.release,
-        tags: trace.tags,
-        bookmarked: trace.bookmarked,
-        public: trace.public,
-      });
+      tracePropertiesMap.set(
+        projectScopedKey(trace.project_id, trace.trace_id),
+        {
+          name: trace.name,
+          userId: trace.user_id,
+          sessionId: trace.session_id,
+          version: trace.version,
+          release: trace.release,
+          tags: trace.tags,
+          bookmarked: trace.bookmarked,
+          public: trace.public,
+        },
+      );
     }
 
     const allEnrichedSpans: EnrichedSpan[] = [];
@@ -433,7 +462,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
 
     for (const dri of driBatch) {
       const rootSpanId = dri.observation_id || `t-${dri.trace_id}`;
-      const rootSpan = spanMap.get(rootSpanId);
+      const rootSpanKey = projectScopedKey(dri.project_id, rootSpanId);
+      const rootSpan = spanMap.get(rootSpanKey);
 
       if (!rootSpan) {
         logger.warn(
@@ -443,12 +473,12 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         continue;
       }
 
-      const childSpans = findAllChildren(rootSpanId, childMap);
+      const childSpans = findAllChildren(rootSpanKey, childMap);
       if (childSpans.length > config.maxDescendantsPerDri) {
-        // Persist the DRIs enriched so far before halting.
-        if (allEnrichedSpans.length > 0) {
-          writeEnrichedSpans(allEnrichedSpans);
-        }
+        // Persist the DRIs enriched so far before halting, so an operator
+        // who advances the cursor past the offending DRI does not lose the
+        // earlier DRIs of this batch.
+        await this.insertEnrichedSpans(allEnrichedSpans);
 
         throw new DescendantCapExceededError(
           dri,
@@ -457,7 +487,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         );
       }
 
-      const traceProperties = tracePropertiesMap.get(dri.trace_id);
+      const traceProperties = tracePropertiesMap.get(
+        projectScopedKey(dri.project_id, dri.trace_id),
+      );
       const enrichedSpans = enrichSpansWithExperiment(
         rootSpan,
         childSpans,
@@ -467,9 +499,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       allEnrichedSpans.push(...enrichedSpans);
     }
 
-    if (allEnrichedSpans.length > 0) {
-      writeEnrichedSpans(allEnrichedSpans);
-    }
+    await this.insertEnrichedSpans(allEnrichedSpans);
 
     return { enriched: allEnrichedSpans.length, skipped };
   }
@@ -631,6 +661,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       }
 
       // Advance cursor to the last DRI's PK so a resume picks up after it.
+      // The batch's writes were awaited in processBatch, so the cursor never
+      // moves past data that is not durably in ClickHouse.
       const last = driBatch[driBatch.length - 1];
       state.cursor = {
         projectId: last.project_id,
@@ -641,8 +673,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       state.processedDris += driBatch.length;
       await this.updateState(state);
 
-      // Brief pause between batches so the ClickhouseWriter queue can drain
-      // and we don't hot-loop the DRI table.
+      // Brief pause between batches so we don't hot-loop the DRI table.
       await sleep(Math.min(config.pollIntervalMs, 5_000));
     }
 
@@ -652,9 +683,6 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       );
       return;
     }
-
-    // Drain pending writes before we return. Inner function catches all errors, i.e. no try/catch wrap.
-    await ClickhouseWriter.getInstance().flushAll(true);
 
     logger.info(
       `[Backfill Events DRIs] Finished events_full backfill in ${(
