@@ -3,16 +3,15 @@ import { describe, expect, it } from "vitest";
 import { renderNamePlaceholder } from "./renderMonitorLabels";
 
 describe("renderNamePlaceholder", () => {
-  it("measured metric: aggregation, view + measure, word operator, threshold, window", () => {
+  it("measured metric: aggregation of view + measure is operator threshold", () => {
     expect(
       renderNamePlaceholder({
         view: "observations",
         metric: { measure: "latency", aggregation: "sum" },
         thresholdOperator: "LT",
         alertThreshold: 100,
-        window: "5m",
       }),
-    ).toBe("Sum of Observations Latency below 100 in the last 5 minutes");
+    ).toBe("Sum of Observations Latency is below 100");
   });
 
   it("percentile aggregation: kept verbatim, not start-cased into 'P 95'", () => {
@@ -22,9 +21,8 @@ describe("renderNamePlaceholder", () => {
         metric: { measure: "latency", aggregation: "p95" },
         thresholdOperator: "GT",
         alertThreshold: 100,
-        window: "1h",
       }),
-    ).toBe("p95 of Observations Latency above 100 in the last hour");
+    ).toBe("p95 of Observations Latency is above 100");
   });
 
   it("bare count: omits the measure", () => {
@@ -34,9 +32,8 @@ describe("renderNamePlaceholder", () => {
         metric: { measure: "count", aggregation: "count" },
         thresholdOperator: "GT",
         alertThreshold: 5,
-        window: "1w",
       }),
-    ).toBe("Count of Observations above 5 in the last week");
+    ).toBe("Count of Observations is above 5");
   });
 
   it("missing threshold: defaults the value to 0", () => {
@@ -46,8 +43,7 @@ describe("renderNamePlaceholder", () => {
         metric: { measure: "count", aggregation: "count" },
         thresholdOperator: "GT",
         alertThreshold: null,
-        window: "5m",
       }),
-    ).toBe("Count of Observations above 0 in the last 5 minutes");
+    ).toBe("Count of Observations is above 0");
   });
 });
