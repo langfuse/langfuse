@@ -1908,5 +1908,92 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(subqueryPath.body.data.length).toBe(2);
       expect(subqueryPath.body.data).toEqual(ctePath.body.data);
     });
+
+    it("paginates without skips or duplicates under the subquery path", async () => {
+      const traceId = randomUUID();
+      const seeded = await seedRichObservations(traceId, 5);
+      const expectedIds = [...seeded]
+        .sort((a, b) => b.startMicros - a.startMicros)
+        .map((s) => s.id);
+
+      setRewrite("true");
+      const collected: string[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 4; page++) {
+        const response = await getObservations(
+          `/api/public/v2/observations?traceId=${traceId}&fields=io&limit=2` +
+            (cursor ? `&cursor=${cursor}` : ""),
+        );
+        expect(response.status).toBe(200);
+        collected.push(...response.body.data.map((o: { id: string }) => o.id));
+        cursor = response.body.meta.cursor ?? undefined;
+        if (!cursor) break;
+      }
+
+      // Every seeded row exactly once, in canonical order across pages.
+      expect(collected).toEqual(expectedIds);
+    });
+
+    it("returns identical results to the CTE path for FTS filters (forceFullTable)", async () => {
+      // A `matches` filter on output is an FTS filter, which escalates the
+      // inner query from events_core to events_full.
+      const traceId = randomUUID();
+      const base = Date.now() * 1000;
+      const matching = [randomUUID(), randomUUID()];
+
+      await createEventsCh(
+        Array.from({ length: 5 }, (_, i) => {
+          const obsId = i < 2 ? matching[i] : randomUUID();
+          return createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `fts-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: base + i * 1000 * 1000,
+            input: `input-${i}-${"x".repeat(300)}`,
+            output:
+              i < 2
+                ? `needle result ${i} ${"y".repeat(300)}`
+                : `plain result ${i} ${"y".repeat(300)}`,
+          });
+        }),
+      );
+
+      const filterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+      ]);
+      const url = `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,io&filter=${encodeURIComponent(filterParam)}`;
+
+      setRewrite("false");
+      const ctePath = await getObservations(url);
+      setRewrite("true");
+      const subqueryPath = await getObservations(url);
+
+      expect(ctePath.status).toBe(200);
+      expect(subqueryPath.status).toBe(200);
+      expect(
+        subqueryPath.body.data.map((o: { id: string }) => o.id).sort(),
+      ).toEqual([...matching].sort());
+      expect(subqueryPath.body.data).toEqual(ctePath.body.data);
+    });
+
+    it("returns an empty page under the subquery path", async () => {
+      setRewrite("true");
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${randomUUID()}&fields=io`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
+      expect(response.body.meta.cursor).toBeUndefined();
+    });
   });
 });
