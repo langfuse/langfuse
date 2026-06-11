@@ -120,27 +120,6 @@ const SfdcResponse = z.looseObject({
   sfdcOrgId: z.string().optional(),
 });
 
-// TODO(go-live): local-debug helper for the temporary console.log calls in
-// `post` — remove together with them before go-live. Prefixes every output
-// line so the whole payload/body survives `... | grep SFDC`.
-function sfdcDebugLog(header: string, body: unknown): void {
-  let text: string;
-  if (typeof body === "string") {
-    try {
-      text = body ? JSON.stringify(JSON.parse(body), null, 2) : "<empty body>";
-    } catch {
-      text = body;
-    }
-  } else {
-    text = JSON.stringify(body, null, 2);
-  }
-  const prefixed = text
-    .split("\n")
-    .map((line) => `[SFDC][DEBUG] ${line}`)
-    .join("\n");
-  console.log(`[SFDC][DEBUG] ${header}\n${prefixed}`);
-}
-
 interface SfdcConfig {
   userUrl: string;
   orgUrl: string;
@@ -402,9 +381,6 @@ export class SfdcService {
     );
     const startTime = Date.now();
 
-    // TODO(go-live): temporary local-debug log — remove before go-live.
-    sfdcDebugLog(`→ POST ${url}`, payload);
-
     try {
       const response = await fetch(url, {
         method: "POST",
@@ -418,11 +394,6 @@ export class SfdcService {
 
       if (!response.ok) {
         const responseBody = await response.text().catch(() => "");
-        // TODO(go-live): temporary local-debug log — remove before go-live.
-        sfdcDebugLog(
-          `← ${response.status} ${response.statusText}`,
-          responseBody,
-        );
         traceException(new Error(`Mulesoft returned ${response.status}`));
         logger.warn("[SFDC] Mulesoft returned non-2xx", {
           ...context,
@@ -444,15 +415,13 @@ export class SfdcService {
 
       // Tolerate empty / non-JSON bodies; we only care if an ID comes back.
       const responseText = await response.text();
-      // TODO(go-live): temporary local-debug log — remove before go-live.
-      sfdcDebugLog(`← ${response.status}`, responseText);
       if (!expectJsonResponse || !responseText) return null;
 
       let parsed: unknown;
       try {
         parsed = JSON.parse(responseText);
       } catch {
-        logger.warn("[SFDC] Mulesoft returned non-JSON body", {
+        logger.info("[SFDC] Mulesoft returned non-JSON body", {
           ...context,
           responseBody: responseText.slice(0, 500),
         });
