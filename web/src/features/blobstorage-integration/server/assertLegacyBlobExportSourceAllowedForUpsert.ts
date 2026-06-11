@@ -16,9 +16,8 @@ import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-
  * `existingIntegration` is `null` for a brand-new integration, which is treated
  * as non-legacy (new-customer rules) by `isLegacyBlobExporter`.
  *
- * The cutoff is keyed on `isCloud` directly (via the helper's short-circuit),
- * not `isEnrichedBlobExportAvailable(isCloud)`, so a future self-hosted flip of
- * the latter does not silently fire this gate for self-hosted (LFE-10148).
+ * Keyed on `isCloud` directly, not on enriched-export availability: self-hosted
+ * stays exempt even with the V4 preview enabled (see blob-export-gate.ts).
  */
 export function assertLegacyBlobExportSourceAllowedForUpsert({
   project,

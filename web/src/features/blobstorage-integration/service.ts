@@ -176,7 +176,7 @@ export async function upsertBlobStorageIntegration(params: {
     // Validate the *persisted* row instead — its `createdAt` reflects the actual
     // CREATE/UPDATE outcome (CREATE → now(); UPDATE → preserved). If the row
     // that now exists is a brand-new post-cutoff Cloud exporter carrying a legacy
-    // source, throw to roll back. UPDATEs of pre-cutoff rows (User B) keep their
+    // source, throw to roll back. UPDATEs of pre-cutoff rows keep their
     // original createdAt and are unaffected.
     if (
       params.refuseLegacyOnCreate &&

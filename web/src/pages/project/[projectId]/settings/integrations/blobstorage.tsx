@@ -256,11 +256,10 @@ const BlobStorageIntegrationSettingsForm = ({
     project?.createdAt != null &&
     !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
   const eventsExportAvailable = isEnrichedExportAvailable;
-  // Integration-level cutoff: an existing row created before
+  // Integration-level cutoff (Cloud only): an existing row created before
   // LEGACY_BLOB_EXPORTER_CUTOFF stays legacy (picker visible); a new row (no
   // state yet) or a post-cutoff row is not legacy (picker hidden, pinned to
-  // EVENTS). Stable across User A's return journey because the row's createdAt
-  // is immutable.
+  // EVENTS). Stable across revisits because the row's createdAt is immutable.
   const isLegacyExporter = isLegacyBlobExporter(
     state?.createdAt ? new Date(state.createdAt) : null,
     isLangfuseCloud,
@@ -268,9 +267,9 @@ const BlobStorageIntegrationSettingsForm = ({
   const forceEventsExport =
     isPostCutoffCloud || (eventsExportAvailable && !isLegacyExporter);
   // The picker only exists where the enriched events export is available
-  // (Cloud today). On self-hosted it stays hidden, defaulting to
-  // TRACES_OBSERVATIONS, until LFE-10148. `!forceEventsExport` alone would drop
-  // that gate and expose EVENTS on self-hosted, which is not provisioned there.
+  // (Cloud, or self-hosted with the V4 preview opt-in — server-computed flag).
+  // Where it isn't, the picker stays hidden and the form defaults to
+  // TRACES_OBSERVATIONS, since EVENTS is not provisioned there.
   const showExportSourceField = eventsExportAvailable && !forceEventsExport;
 
   const blobStorageForm = useForm({
