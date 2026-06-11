@@ -23,6 +23,24 @@ const AgUiToolCallSchema = z.object({
   encryptedValue: z.string().optional(),
 });
 
+export const InAppAgentMessageFeedbackValueSchema = z.enum([
+  "thumbs_up",
+  "thumbs_down",
+]);
+
+export type InAppAgentMessageFeedbackValue = z.infer<
+  typeof InAppAgentMessageFeedbackValueSchema
+>;
+
+export const InAppAgentMessageFeedbackSchema = z.object({
+  value: InAppAgentMessageFeedbackValueSchema,
+  comment: z.string().nullable(),
+});
+
+export type InAppAgentMessageFeedback = z.infer<
+  typeof InAppAgentMessageFeedbackSchema
+>;
+
 const AgUiInputContentSourceSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("data"),
@@ -84,6 +102,8 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
     role: z.literal("assistant"),
     content: z.string().optional(),
     toolCalls: z.array(AgUiToolCallSchema).optional(),
+    feedback: InAppAgentMessageFeedbackSchema.optional(),
+    runId: z.string().optional(),
   }),
   AgUiBaseMessageSchema.extend({
     role: z.literal("user"),

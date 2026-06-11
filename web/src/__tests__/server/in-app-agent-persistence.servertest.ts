@@ -348,6 +348,7 @@ describe("in-app agent persistence", () => {
         id: "assistant-message-1",
         role: "assistant",
         content: "I will inspect recent traces and look for outliers.",
+        runId: run1.id,
       },
       {
         id: "user-message-2",
@@ -358,6 +359,7 @@ describe("in-app agent persistence", () => {
         id: "assistant-message-2",
         role: "assistant",
         content: "Next trace inspected.",
+        runId: run2.id,
       },
     ]);
 
@@ -421,6 +423,55 @@ describe("in-app agent persistence", () => {
     expect(listedConversations.conversations.map((item) => item.id)).toContain(
       conversation.id,
     );
+  });
+
+  it("requires feedback run ids to match persisted assistant messages", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "feedback-user",
+      content: "Answer me",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events,
+      messageId: "feedback-assistant",
+      chunks: ["Here is an answer"],
+    });
+
+    await expect(
+      caller.submitFeedback({
+        projectId,
+        conversationId: conversation.id,
+        messageId: "feedback-assistant",
+        runId: createInAppAgentRunId(),
+        value: null,
+        comment: null,
+      }),
+    ).rejects.toThrow(
+      "Feedback can only be submitted for persisted assistant messages",
+    );
+
+    await expect(
+      caller.submitFeedback({
+        projectId,
+        conversationId: conversation.id,
+        messageId: "feedback-assistant",
+        runId: run.id,
+        value: null,
+        comment: null,
+      }),
+    ).resolves.toEqual({ feedback: null });
   });
 
   it("does not reduce partial assistant content before the end event", async () => {
