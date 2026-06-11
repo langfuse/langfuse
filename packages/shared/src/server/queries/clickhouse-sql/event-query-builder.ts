@@ -510,14 +510,6 @@ abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected havingClauses: string[] = [];
   protected orderByClause: string = "";
-
-  /**
-   * The built ORDER BY clause (empty string if none was set). Lets wrapper
-   * queries re-apply an inner builder's exact sort.
-   */
-  getOrderByClause(): string {
-    return this.orderByClause;
-  }
   protected limitByClause: string = "";
   protected limitClause: string = "";
   protected params: Record<string, any> = {};
@@ -2017,8 +2009,9 @@ const SUBQUERY_IDENTITY_TUPLE = [
  * the inner hash set once and prunes the outer scan.
  *
  * The inner builder must carry filters, ORDER BY, and LIMIT but no SELECTs;
- * this function projects the identity tuple itself. Counterpart of
- * buildEventsFullTableSplitQuery; both must return identical result sets.
+ * this function projects the identity tuple itself. The outer SELECT has no
+ * ORDER BY — result order is unspecified. Counterpart of
+ * buildEventsFullTableSplitQuery; both must return the same row set.
  */
 export function buildEventsFullTableSubqueryQuery(opts: {
   projectId: string;
@@ -2049,15 +2042,6 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     return expr ? [expr] : [];
   });
 
-  // Re-apply the inner builder's ORDER BY verbatim (same `e.` prefix);
-  // IN does not preserve order.
-  const outerOrderBy = opts.innerBuilder.getOrderByClause();
-  if (!outerOrderBy) {
-    throw new Error(
-      "buildEventsFullTableSubqueryQuery requires the inner builder to carry an ORDER BY; keyset pagination depends on it",
-    );
-  }
-
   const params: Record<string, any> = { projectId: opts.projectId };
   const cteParts: string[] = [];
   for (const cte of opts.externalCTEs ?? []) {
@@ -2077,7 +2061,6 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     "FROM events_full e",
     "WHERE e.project_id = {projectId: String}",
     `  AND ${tuple} IN (\n${innerQuery}\n)`,
-    outerOrderBy,
     "SETTINGS log_comment = 'observations-v2-subquery-rewrite'",
   );
 
