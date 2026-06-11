@@ -46,6 +46,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type { AnalyticsGenerationEvent } from "../analytics-integrations/types";
 import { ObservationType } from "../../domain";
 import {
+  LEGACY_OBSERVATION_EXPORT_FIELDS,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
@@ -1815,55 +1816,16 @@ export const getTraceIdsForObservations = async (
   }));
 };
 
-// Column projections of the legacy observations table per observation field
-// group, in the column order of the full export (kept stable so exports with
-// all groups selected are unchanged). Groups missing from this list
-// (trace_context) have no counterpart in the legacy table: denormalized trace
-// fields only exist on the events table.
-const LEGACY_OBSERVATION_EXPORT_COLUMNS: Array<{
-  sql: string;
-  group: ObservationFieldGroupFull;
-}> = [
-  { sql: "id", group: "core" },
-  { sql: "trace_id", group: "core" },
-  { sql: "project_id", group: "core" },
-  { sql: "environment", group: "basic" },
-  { sql: "type", group: "core" },
-  { sql: "parent_observation_id", group: "core" },
-  { sql: "start_time", group: "core" },
-  { sql: "end_time", group: "core" },
-  { sql: "name", group: "basic" },
-  { sql: "metadata", group: "metadata" },
-  { sql: "level", group: "basic" },
-  { sql: "status_message", group: "basic" },
-  { sql: "version", group: "basic" },
-  { sql: "input", group: "io" },
-  { sql: "output", group: "io" },
-  { sql: "provided_model_name", group: "model" },
-  { sql: "model_parameters", group: "model" },
-  { sql: "usage_details", group: "usage" },
-  { sql: "cost_details", group: "usage" },
-  { sql: "completion_start_time", group: "time" },
-  { sql: "prompt_name", group: "prompt" },
-  { sql: "prompt_version", group: "prompt" },
-  { sql: "total_cost", group: "usage" },
-  {
-    sql: "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency",
-    group: "metrics",
-  },
-  {
-    sql: "if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time) / 1000) as time_to_first_token",
-    group: "metrics",
-  },
-  { sql: "internal_model_id as model_id", group: "model" },
-  { sql: "created_at", group: "time" },
-  { sql: "updated_at", group: "time" },
-  { sql: "prompt_id", group: "prompt" },
-  { sql: "tool_calls", group: "tools" },
-  { sql: "tool_call_names", group: "tools" },
-  { sql: "tool_definitions", group: "tools" },
-  { sql: "usage_pricing_tier_name", group: "usage" },
-];
+// SQL expressions for the export fields of LEGACY_OBSERVATION_EXPORT_FIELDS
+// (the domain-level export contract) that are not plain column reads. Every
+// other field selects the table column of the same name.
+const LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES: Record<string, string> = {
+  latency:
+    "if(isNull(end_time), NULL, date_diff('millisecond', start_time, end_time) / 1000) as latency",
+  time_to_first_token:
+    "if(isNull(completion_start_time), NULL, date_diff('millisecond', start_time, completion_start_time) / 1000) as time_to_first_token",
+  model_id: "internal_model_id as model_id",
+};
 
 export const getObservationsForBlobStorageExport = function (
   projectId: string,
@@ -1877,13 +1839,16 @@ export const getObservationsForBlobStorageExport = function (
     ...fieldGroups,
   ]);
 
-  const selectedColumns = LEGACY_OBSERVATION_EXPORT_COLUMNS.filter((column) =>
+  const selectedColumns = LEGACY_OBSERVATION_EXPORT_FIELDS.filter((column) =>
     effectiveGroups.has(column.group),
+  ).map(
+    (column) =>
+      LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES[column.field] ?? column.field,
   );
 
   const query = `
     SELECT
-      ${selectedColumns.map((column) => column.sql).join(",\n      ")}
+      ${selectedColumns.join(",\n      ")}
     FROM observations
     WHERE project_id = {projectId: String}
     AND start_time >= {minTimestamp: DateTime64(3)}
