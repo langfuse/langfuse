@@ -121,7 +121,10 @@ const coerceValues = (
     if (flag.type === "number") {
       const parsed = Number(raw);
       if (raw === "" || !Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-        throw new SeedError(`--${flag.flag} expects an integer, got "${raw}"`);
+        throw new SeedError(
+          `--${flag.flag} expects an integer, got "${raw}"`,
+          `pass an integer, e.g. --${flag.flag} ${String(flag.default)}`,
+        );
       }
       params[flag.flag] = parsed;
     } else {
@@ -240,10 +243,10 @@ const main = async (): Promise<number> => {
     ? scenarios[command]
     : undefined;
   if (!scenario) {
-    console.error(
-      `Unknown scenario "${command}". Available: ${Object.keys(scenarios).join(", ")}, doctor, list`,
+    throw new SeedError(
+      `unknown scenario "${command}" — available: ${Object.keys(scenarios).join(", ")}, doctor, list`,
+      "run `pnpm run seed -- list` to see scenarios and flags",
     );
-    return 1;
   }
 
   const allFlags = [...scenario.flags, ...COMMON_FLAGS];

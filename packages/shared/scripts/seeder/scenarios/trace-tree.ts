@@ -65,7 +65,6 @@ const buildTreeShape = (
   depth: number,
   breadth: number,
   kinds: ObservationType[],
-  rng: Rng,
   seed: number,
 ): TreeNode[] => {
   const nodes: TreeNode[] = [];
@@ -90,7 +89,13 @@ const buildTreeShape = (
     } else if (i < depth + breadth) {
       parentIndex = Math.min(2, depth - 1); // hub fan-out
     } else {
-      parentIndex = rng.bool(0.2) ? Math.min(2, depth - 1) : rng.int(0, i - 1);
+      // jitter() not rng: parentIndex cascades into start_time (an
+      // events_full ORDER BY key) via startOffsets, so stream-position
+      // randomness would re-key rows across same-prefix re-runs.
+      parentIndex =
+        jitter(seed, i * 17 + 1, 4) < 1
+          ? Math.min(2, depth - 1)
+          : jitter(seed, i * 17 + 2, i - 1);
     }
     nodes.push({
       index: i,
@@ -108,18 +113,31 @@ const run = async (
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
   const observationCount = params["observations"] as number;
-  const depth = Math.max(
-    2,
-    Math.min(params["depth"] as number, observationCount),
-  );
-  const breadth = Math.max(1, params["breadth"] as number);
+  const requestedDepth = params["depth"] as number;
+  const breadth = params["breadth"] as number;
+  // depth deeper than the observation count is geometrically impossible;
+  // clamping it is helpful, not a silent rewrite of intent
+  const depth = Math.max(2, Math.min(requestedDepth, observationCount));
   const payloadBytes = params["payload-bytes"] as number;
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
 
   if (!PAYLOAD_STYLES.includes(payloadStyle)) {
     throw new SeedError(
-      `Unknown --payload-style "${payloadStyle}". Allowed: ${PAYLOAD_STYLES.join(", ")}`,
+      `Unknown --payload-style "${payloadStyle}"`,
+      `pass one of: ${PAYLOAD_STYLES.join(", ")}`,
+    );
+  }
+  if (requestedDepth < 2) {
+    throw new SeedError(
+      `--depth must be >= 2, got ${requestedDepth}`,
+      "pass at least 2 (root plus one level), e.g. --depth 8",
+    );
+  }
+  if (breadth < 1) {
+    throw new SeedError(
+      `--breadth must be >= 1, got ${breadth}`,
+      "pass a positive integer, e.g. --breadth 30",
     );
   }
   if (observationCount < 1) {
@@ -144,7 +162,6 @@ const run = async (
     depth,
     breadth,
     ALL_KINDS,
-    rng,
     ctx.seed,
   );
 
