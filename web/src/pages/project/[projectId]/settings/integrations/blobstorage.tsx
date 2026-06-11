@@ -329,6 +329,13 @@ const BlobStorageIntegrationSettingsForm = ({
   const isLegacyOnlyExport =
     watchedExportSource ===
     AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+  // Traces and legacy observations are only exported for the legacy and mixed
+  // sources; an EVENTS-only export produces scores and enriched observations.
+  const includesLegacyExport =
+    watchedExportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS ||
+    watchedExportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
@@ -758,13 +765,13 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Export Field Groups</FormLabel>
               <FormDescription>
-                Choose which field groups to include in the observation exports
-                (legacy observations and enriched observations). Deselect large
-                groups (e.g. Input / Output) to reduce export size, or
-                privacy-sensitive groups (e.g. Metadata) to avoid storing user
-                data. Traces and scores are always exported in full. Fields that
-                only exist on the enriched observations (e.g. Trace Context) are
-                omitted from the legacy observations export.
+                Choose which field groups to include in the observation exports.
+                Deselect large groups (e.g. Input / Output) to reduce export
+                size, or privacy-sensitive groups (e.g. Metadata) to avoid
+                storing user data.
+                {includesLegacyExport
+                  ? " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
+                  : " Scores are always exported in full."}
               </FormDescription>
               <div className="mt-2 space-y-2">
                 {EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
