@@ -510,6 +510,15 @@ abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected havingClauses: string[] = [];
   protected orderByClause: string = "";
+
+  /**
+   * The built ORDER BY clause (empty string if none was set). Exposed so
+   * wrapper queries (e.g. the subquery-IN rewrite) can re-apply the exact
+   * sort of an inner builder instead of duplicating it by hand.
+   */
+  getOrderByClause(): string {
+    return this.orderByClause;
+  }
   protected limitByClause: string = "";
   protected limitClause: string = "";
   protected params: Record<string, any> = {};
@@ -2035,12 +2044,15 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     return expr ? [expr] : [];
   });
 
-  // Canonical ORDER BY: identical to what the inner builder emits via
-  // orderByColumns, re-applied here because IN does not preserve order.
-  // Bounded by the inner LIMIT (<= page size).
-  const outerOrderBy =
-    "ORDER BY e.project_id DESC, toStartOfMinute(e.start_time) DESC, " +
-    "e.start_time DESC, xxHash32(e.trace_id) DESC, e.span_id DESC";
+  // Canonical ORDER BY: reuse the inner builder's clause verbatim (both
+  // reference the `e.` prefix), re-applied here because IN does not preserve
+  // order. Bounded by the inner LIMIT (<= page size).
+  const outerOrderBy = opts.innerBuilder.getOrderByClause();
+  if (!outerOrderBy) {
+    throw new Error(
+      "buildEventsFullTableSubqueryQuery requires the inner builder to carry an ORDER BY; keyset pagination depends on it",
+    );
+  }
 
   const params: Record<string, any> = { projectId: opts.projectId };
   const cteParts: string[] = [];
