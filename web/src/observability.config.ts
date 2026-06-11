@@ -33,6 +33,11 @@ import { env } from "@/src/env.mjs";
  * Tracer that never records spans but keeps the caller's parent span context
  * active, so descendant spans attach to the real parent. Dropping spans via a
  * sampler instead would mint a new unsampled span id and orphan the subtree.
+ *
+ * Unlike the upstream NoopTracer, startActiveSpan intentionally does NOT set
+ * the non-recording span as the active span: trace.getActiveSpan() must keep
+ * returning the real recording parent (http.server) so helpers that write to
+ * the active span (traceException, addUserToSpan) land on an exported span.
  */
 class PassthroughTracer implements Tracer {
   startSpan(
@@ -77,9 +82,7 @@ class PassthroughTracer implements Tracer {
       fn = arg4 as F;
     }
     const span = this.startSpan(name, undefined, ctx);
-    return context.with(trace.setSpan(ctx, span), () =>
-      fn(span),
-    ) as ReturnType<F>;
+    return context.with(ctx, () => fn(span)) as ReturnType<F>;
   }
 }
 
