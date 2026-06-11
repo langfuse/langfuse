@@ -10,6 +10,17 @@ import {
 
 import { operatorLabels, viewLabels, windowLabels } from "./monitorLabels";
 
+/** proseWindowLabels overrides windowLabels for prose, dropping the redundant "1" on singular units. */
+const proseWindowLabels: Partial<Record<MonitorWindow, string>> = {
+  "1h": "hour",
+  "1d": "day",
+  "1w": "week",
+};
+
+/** windowLabel renders a window for prose, e.g. "hour" or "5 minutes". */
+const windowLabel = (window: MonitorWindow): string =>
+  proseWindowLabels[window] ?? windowLabels[window];
+
 /** aggregationLabel renders an aggregation as a leading word, e.g. "Sum" or "p95". */
 export const aggregationLabel = (
   aggregation: z.infer<typeof metricAggregations>,
@@ -59,4 +70,4 @@ export const renderChartSubtitle = ({
   metric: { measure: string; aggregation: z.infer<typeof metricAggregations> };
   window: MonitorWindow;
 }): string =>
-  `${renderMetricDescription(view, metric)} every ${windowLabels[window]}`;
+  `${renderMetricDescription(view, metric)} every ${windowLabel(window)}`;

@@ -87,7 +87,7 @@ import {
   operatorLabels,
   operatorSymbol,
   viewLabels,
-  windowSelectLabels,
+  windowLabels,
 } from "../helpers/monitorLabels";
 import {
   aggregationLabel,
@@ -734,7 +734,7 @@ export const MonitorForm = ({
                         <SelectContent>
                           {MonitorWindowSchema.options.map((w) => (
                             <SelectItem key={w} value={w}>
-                              {windowSelectLabels[w]}
+                              {windowLabels[w]}
                             </SelectItem>
                           ))}
                         </SelectContent>
