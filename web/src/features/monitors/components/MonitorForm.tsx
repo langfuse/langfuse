@@ -89,7 +89,10 @@ import {
   viewLabels,
   windowLabels,
 } from "../helpers/monitorLabels";
-import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
+import {
+  aggregationLabel,
+  renderNamePlaceholder,
+} from "../helpers/renderMonitorLabels";
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (projectId: string): Partial<CreateMonitor> => ({
@@ -544,7 +547,7 @@ export const MonitorForm = ({
                           <SelectContent>
                             {aggregationOptions.map((a) => (
                               <SelectItem key={a} value={a}>
-                                {startCase(a)}
+                                {aggregationLabel(a)}
                               </SelectItem>
                             ))}
                           </SelectContent>

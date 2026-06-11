@@ -14,6 +14,17 @@ describe("renderNamePlaceholder", () => {
     ).toBe("Sum of Observations Latency below 100");
   });
 
+  it("percentile aggregation: kept verbatim, not start-cased into 'P 95'", () => {
+    expect(
+      renderNamePlaceholder({
+        view: "observations",
+        metric: { measure: "latency", aggregation: "p95" },
+        thresholdOperator: "GT",
+        alertThreshold: 100,
+      }),
+    ).toBe("p95 of Observations Latency above 100");
+  });
+
   it("bare count: omits the measure", () => {
     expect(
       renderNamePlaceholder({

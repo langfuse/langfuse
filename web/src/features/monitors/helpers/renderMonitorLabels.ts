@@ -10,10 +10,12 @@ import {
 
 import { operatorLabels, viewLabels, windowLabels } from "./monitorLabels";
 
-/** aggregationLabel renders an aggregation as a leading word, e.g. "Sum". */
-const aggregationLabel = (
+/** aggregationLabel renders an aggregation as a leading word, e.g. "Sum" or "p95". */
+export const aggregationLabel = (
   aggregation: z.infer<typeof metricAggregations>,
-): string => startCase(aggregation);
+): string =>
+  // startCase mangles percentile tokens ("p95" -> "P 95"); keep them verbatim.
+  /^p\d+$/.test(aggregation) ? aggregation : startCase(aggregation);
 
 /** metricSubject renders the noun a metric measures, e.g. "Observations Latency" or "Observations" for a bare count. */
 const metricSubject = (view: MonitorView, measure: string): string =>
