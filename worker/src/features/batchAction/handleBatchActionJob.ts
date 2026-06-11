@@ -197,9 +197,6 @@ export const handleBatchActionJob = async (
                 ...streamParams,
                 orderBy: query.orderBy,
                 tableName: tableName as BatchTableNames,
-                // Snapshotted at dispatch time from the user's v4 beta flag;
-                // routes the sessions read to the events table so the resolved
-                // selection matches the UI table the user selected from.
                 useEventsTable: query.useEventsTable,
               });
 

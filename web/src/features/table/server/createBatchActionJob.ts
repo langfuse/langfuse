@@ -57,9 +57,8 @@ export const createBatchActionJob = async ({
     tableName,
   });
 
-  // Snapshot the user's v4 beta flag into the persisted query so the worker
-  // resolves the selection from the same data source as the UI table the user
-  // selected from, never the live user record. Overrides any client-sent value.
+  // Snapshot the user's v4 beta flag so the worker reads from the same data
+  // source as the UI table; overrides any client-sent value.
   const queryWithSnapshot: BatchActionQuery = {
     ...query,
     useEventsTable: session.user.v4BetaEnabled ?? false,

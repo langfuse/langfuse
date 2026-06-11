@@ -35,10 +35,8 @@ export const BatchActionQuerySchema = z.object({
   orderBy,
   searchQuery: z.string().optional(),
   searchType: z.array(TracingSearchType).optional(),
-  // Snapshotted at dispatch time from the user's v4 beta flag. When true, the
-  // sessions read stream resolves the selection from the ClickHouse events
-  // table instead of the legacy traces path. Persisted in the job payload so
-  // the worker reads the snapshot, never the live user record.
+  // Dispatch-time snapshot of the user's v4 beta flag; routes the sessions
+  // read stream to the events table instead of the legacy traces path.
   useEventsTable: z.boolean().optional(),
 });
 

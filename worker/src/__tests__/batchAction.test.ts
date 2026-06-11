@@ -881,8 +881,7 @@ maybeDescribe("events table batch actions", () => {
 
     const now = Date.now() * 1000; // Events use microseconds
 
-    // Sessions exist only in the events table — the legacy traces-based
-    // reader cannot resolve them, so the test fails if the snapshotted
+    // Sessions exist only in the events table, so this fails if the
     // useEventsTable flag is not passed through to the read stream.
     const events = [
       createEvent({
