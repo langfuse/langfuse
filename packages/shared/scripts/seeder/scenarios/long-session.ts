@@ -72,6 +72,38 @@ const run = async (
     );
   }
 
+  if (ctx.dryRun) {
+    // counts are derivable from the flags — skip payload/array generation
+    const firstTraceTimestamp =
+      utcDayStartMs() - windowMinutes * 60 * 1000 + jitter(ctx.seed, 0, 500);
+    return {
+      scenario: "long-session",
+      target: "clickhouse",
+      params,
+      projectId: ctx.projectId,
+      environment: ctx.environment,
+      traceIds: Array.from(
+        { length: Math.min(traceCount, 5) },
+        (_, i) => `${ctx.idPrefix}-t${i}`,
+      ),
+      sessionIds: [sessionId],
+      counts: {
+        sessions: 1,
+        traces: traceCount,
+        observations: traceCount * observationsPerTrace,
+        scores: Math.ceil(traceCount / 3) + Math.ceil(traceCount / 5) + 1,
+        events: withV4 ? traceCount + traceCount * observationsPerTrace : 0,
+      },
+      verified: {},
+      links: [
+        sessionLink(ctx, sessionId),
+        traceLink(ctx, `${ctx.idPrefix}-t0`, firstTraceTimestamp),
+      ],
+      dryRun: true,
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
   const rng = new Rng(ctx.seed);
   const sessionStart = utcDayStartMs() - windowMinutes * 60 * 1000;
   const stepMs = (windowMinutes * 60 * 1000) / Math.max(traceCount, 1);
@@ -314,23 +346,6 @@ const run = async (
     sessionLink(ctx, sessionId),
     traceLink(ctx, traces[0].id, traces[0].timestamp as number),
   ];
-
-  if (ctx.dryRun) {
-    return {
-      scenario: "long-session",
-      target: "clickhouse",
-      params,
-      projectId: ctx.projectId,
-      environment: ctx.environment,
-      traceIds: traces.slice(0, 5).map((t) => t.id),
-      sessionIds: [sessionId],
-      counts,
-      verified: {},
-      links,
-      dryRun: true,
-      durationMs: Date.now() - startedAt,
-    };
-  }
 
   // The session detail page 404s without the Postgres trace_sessions row.
   await prisma.traceSession.upsert({

@@ -116,8 +116,9 @@ const run = async (
   const requestedDepth = params["depth"] as number;
   const breadth = params["breadth"] as number;
   // depth deeper than the observation count is geometrically impossible;
-  // clamping it is helpful, not a silent rewrite of intent
-  const depth = Math.max(2, Math.min(requestedDepth, observationCount));
+  // clamping it down is helpful, not a silent rewrite of intent (the
+  // validator below enforces the >= 2 lower bound on the requested value)
+  const depth = Math.min(requestedDepth, observationCount);
   const payloadBytes = params["payload-bytes"] as number;
   const payloadStyle = params["payload-style"] as PayloadStyle;
   const withV4 = params["v4"] as boolean;
@@ -156,6 +157,29 @@ const run = async (
   const rng = new Rng(ctx.seed);
   const traceId = `${ctx.idPrefix}-trace`;
   const traceTimestamp = utcDayStartMs();
+
+  if (ctx.dryRun) {
+    // counts are derivable from the flags — skip payload/array generation
+    return {
+      scenario: "trace-tree",
+      target: "clickhouse",
+      params,
+      projectId: ctx.projectId,
+      environment: ctx.environment,
+      traceIds: [traceId],
+      sessionIds: [],
+      counts: {
+        traces: 1,
+        observations: observationCount,
+        scores: 3 + (observationCount >= 7 ? 1 : 0),
+        events: withV4 ? observationCount + 1 : 0,
+      },
+      verified: {},
+      links: [traceLink(ctx, traceId, traceTimestamp)],
+      dryRun: true,
+      durationMs: Date.now() - startedAt,
+    };
+  }
 
   const shape = buildTreeShape(
     observationCount,
@@ -427,23 +451,6 @@ const run = async (
     scores: scores.length,
     events: events.length,
   };
-
-  if (ctx.dryRun) {
-    return {
-      scenario: "trace-tree",
-      target: "clickhouse",
-      params,
-      projectId: ctx.projectId,
-      environment: ctx.environment,
-      traceIds: [traceId],
-      sessionIds: [],
-      counts,
-      verified: {},
-      links: [traceLink(ctx, traceId, traceTimestamp)],
-      dryRun: true,
-      durationMs: Date.now() - startedAt,
-    };
-  }
 
   ctx.log(
     `writing 1 trace, ${observations.length} observations, ${scores.length} scores${withV4 ? `, ${events.length} events` : ""}`,
