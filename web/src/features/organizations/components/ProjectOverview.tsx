@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  ChevronDown,
   LockIcon,
   MessageSquareText,
   Settings,
@@ -14,7 +15,15 @@ import {
   CardTitle,
 } from "@/src/components/ui/card";
 import { Separator } from "@/src/components/ui/separator";
-import Header from "@/src/components/layouts/header";
+import { Badge } from "@/src/components/ui/badge";
+import { StatusBadge } from "@/src/components/layouts/status-badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/src/components/ui/collapsible";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { cn } from "@/src/utils/tailwind";
 import { Button } from "@/src/components/ui/button";
 import { PlusIcon } from "lucide-react";
 import Link from "next/link";
@@ -205,6 +214,11 @@ const SingleOrganizationProjectOverviewTile = ({
 }) => {
   const session = useSession();
   const org = session.data?.user?.organizations.find((o) => o.id === orgId);
+  // Persist the expanded/collapsed state per org (expanded by default).
+  const [expanded, setExpanded] = useLocalStorage(
+    `org-overview-expanded-${orgId}`,
+    true,
+  );
 
   if (!org) {
     return null;
@@ -222,29 +236,65 @@ const SingleOrganizationProjectOverviewTile = ({
     );
   }
 
+  const projectCount = org.projects.length;
+
+  // While searching, auto-expand orgs that have a match and collapse the rest
+  // so collapsed orgs don't hide search hits; otherwise follow the stored state.
+  const isSearching = Boolean(search?.trim());
+  const hasMatchingProject = org.projects.some(
+    (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
+  );
+  const open = isSearching ? hasMatchingProject : expanded;
+
   return (
-    <div key={orgId}>
-      <Header
-        title={org.name}
-        className="truncate"
-        status={orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ? "Demo Org" : undefined}
-        label={
-          isCloudPlan(org.plan)
-            ? {
-                text: planLabels[org.plan],
-                href: `/organization/${org.id}/settings/billing`,
+    <Collapsible
+      key={orgId}
+      open={open}
+      onOpenChange={isSearching ? undefined : setExpanded}
+    >
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2 md:gap-3">
+          <CollapsibleTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
+              aria-label={
+                open ? "Collapse organization" : "Expand organization"
               }
-            : undefined
-        }
-        actionButtons={
+            >
+              <ChevronDown
+                className={cn(
+                  "h-5 w-5 transition-transform",
+                  !open && "-rotate-90",
+                )}
+              />
+            </Button>
+          </CollapsibleTrigger>
+          <h3 className="truncate text-xl leading-7 font-bold">{org.name}</h3>
+          <Badge variant="secondary" className="shrink-0 font-normal">
+            {projectCount} {projectCount === 1 ? "project" : "projects"}
+          </Badge>
+          {orgId === env.NEXT_PUBLIC_DEMO_ORG_ID && (
+            <StatusBadge type="Demo Org" />
+          )}
+          {isCloudPlan(org.plan) && (
+            <Link href={`/organization/${org.id}/settings/billing`}>
+              <StatusBadge type={planLabels[org.plan]} />
+            </Link>
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
           <OrganizationActionButtons
             orgId={orgId}
             primaryButtonVariant="secondary"
           />
-        }
-      />
-      <OrganizationProjectTiles org={org} search={search} />
-    </div>
+        </div>
+      </div>
+      <CollapsibleContent>
+        <OrganizationProjectTiles org={org} search={search} />
+      </CollapsibleContent>
+    </Collapsible>
   );
 };
 
