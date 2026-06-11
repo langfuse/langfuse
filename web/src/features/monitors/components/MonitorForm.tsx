@@ -346,7 +346,7 @@ export const MonitorForm = ({
     return getValidMonitorAggregationsForMeasure(measureDef);
   }, [watched.view, watched.metric?.measure]);
 
-  /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Sum Observations Latency below 100"). */
+  /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold + window (e.g. "Sum Observations Latency below 100 in the last 5 minutes"). */
   const namePlaceholder = useMemo(
     () =>
       renderNamePlaceholder({
@@ -358,6 +358,7 @@ export const MonitorForm = ({
         thresholdOperator: (watched.thresholdOperator ??
           MonitorThresholdOperatorSchema.enum.GT) as MonitorThresholdOperator,
         alertThreshold: watched.alertThreshold,
+        window: (watched.window ?? "5m") as MonitorWindow,
       }),
     [
       watched.view,
@@ -365,6 +366,7 @@ export const MonitorForm = ({
       watched.metric?.aggregation,
       watched.thresholdOperator,
       watched.alertThreshold,
+      watched.window,
     ],
   );
 

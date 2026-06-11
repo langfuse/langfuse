@@ -30,23 +30,25 @@ const renderMetricDescription = (
 ): string =>
   `${aggregationLabel(metric.aggregation)} ${metricSubject(view, metric.measure)}`;
 
-/** renderNamePlaceholder renders the auto-suggested monitor name, e.g. "Sum Observations Latency below 100". */
+/** renderNamePlaceholder renders the auto-suggested monitor name, e.g. "Sum Observations Latency below 100 in the last 5 minutes". */
 export const renderNamePlaceholder = ({
   view,
   metric,
   thresholdOperator,
   alertThreshold,
+  window,
 }: {
   view: MonitorView;
   metric: { measure: string; aggregation: z.infer<typeof metricAggregations> };
   thresholdOperator: MonitorThresholdOperator;
   alertThreshold?: number | null;
+  window: MonitorWindow;
 }): string => {
   const value =
     alertThreshold != null && Number.isFinite(alertThreshold)
       ? alertThreshold
       : 0;
-  return `${renderMetricDescription(view, metric)} ${operatorLabels[thresholdOperator]} ${value}`;
+  return `${renderMetricDescription(view, metric)} ${operatorLabels[thresholdOperator]} ${value} in the last ${windowLabels[window]}`;
 };
 
 /** renderChartSubtitle renders the preview subtitle, e.g. "Sum Observations Latency every 5 minutes". */
