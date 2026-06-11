@@ -24,9 +24,6 @@ const buildSession = (params: {
   projectId: string;
   projectName: string;
   projectRole: RoleName;
-  monitorsFlag?: boolean;
-  admin?: boolean;
-  enableExperimentalFeatures?: boolean;
 }): Session => ({
   expires: "1",
   user: {
@@ -60,22 +57,16 @@ const buildSession = (params: {
       v4BetaToggleVisible: false,
       observationEvals: false,
       experimentsV4Enabled: false,
-      monitors: params.monitorsFlag ?? true,
     },
-    admin: params.admin ?? false,
+    admin: false,
   },
   environment: {
-    enableExperimentalFeatures: params.enableExperimentalFeatures ?? false,
+    enableExperimentalFeatures: false,
     selfHostedInstancePlan: "cloud:hobby",
   },
 });
 
-const prepare = async (overrides?: {
-  projectRole?: RoleName;
-  monitorsFlag?: boolean;
-  admin?: boolean;
-  enableExperimentalFeatures?: boolean;
-}) => {
+const prepare = async (overrides?: { projectRole?: RoleName }) => {
   const { project, org } = await createOrgProjectAndApiKey();
   orgIds.push(org.id);
   const user = await prisma.user.create({
@@ -93,9 +84,6 @@ const prepare = async (overrides?: {
     projectId: project.id,
     projectName: project.name,
     projectRole: overrides?.projectRole ?? "ADMIN",
-    monitorsFlag: overrides?.monitorsFlag,
-    admin: overrides?.admin,
-    enableExperimentalFeatures: overrides?.enableExperimentalFeatures,
   });
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
@@ -244,49 +232,6 @@ describe("monitors trpc", () => {
           metric: { measure: "bogus_measure", aggregation: "count" },
         }),
       ).rejects.toThrow();
-    });
-  });
-
-  describe("feature flag gating", () => {
-    it("rejects monitors.create when the flag is off, user is not admin, experimental is off", async () => {
-      const { project, caller } = await prepare({ monitorsFlag: false });
-      await expect(
-        caller.monitors.create(validMonitorInput(project.id)),
-      ).rejects.toThrow(/monitors/i);
-    });
-
-    it("allows monitors.create when admin (overrides flag)", async () => {
-      const { project, caller } = await prepare({
-        monitorsFlag: false,
-        admin: true,
-      });
-      const created = await caller.monitors.create(
-        validMonitorInput(project.id),
-      );
-      expect(created.id).toBeDefined();
-    });
-
-    it("allows monitors.create when enableExperimentalFeatures is true (overrides flag)", async () => {
-      const { project, caller } = await prepare({
-        monitorsFlag: false,
-        enableExperimentalFeatures: true,
-      });
-      const created = await caller.monitors.create(
-        validMonitorInput(project.id),
-      );
-      expect(created.id).toBeDefined();
-    });
-
-    it("rejects monitors.all when the flag is off", async () => {
-      const { project, caller } = await prepare({ monitorsFlag: false });
-      await expect(
-        caller.monitors.all({
-          projectId: project.id,
-          orderBy: null,
-          page: 1,
-          limit: 50,
-        }),
-      ).rejects.toThrow(/monitors/i);
     });
   });
 
