@@ -592,7 +592,11 @@ describe("trpc.sessions", () => {
   });
 });
 
-describe("parity: getSessionsWithMetrics vs getSessionsWithMetricsFromEvents", () => {
+// The events tables only exist where the v4 preview is enabled (CI creates
+// them via ch:dev-tables in the default deploy mode only).
+const maybeEventsTable = isEventsPath ? describe : describe.skip;
+
+maybeEventsTable("parity: sessions metrics from events vs legacy", () => {
   it("returns equivalent metric fields for the same session data", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const sessionId = v4();
@@ -605,12 +609,12 @@ describe("parity: getSessionsWithMetrics vs getSessionsWithMetricsFromEvents", (
       createTrace({
         session_id: sessionId,
         project_id: projectId,
-        user_id: "userA",
+        user_id: "user1",
       }),
       createTrace({
         session_id: sessionId,
         project_id: projectId,
-        user_id: "userB",
+        user_id: "user2",
       }),
     ];
 
