@@ -19,6 +19,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { cn } from "@/src/utils/tailwind";
 import {
   InAppAgentMessage,
@@ -155,30 +160,40 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6 shrink-0"
-            onClick={onNewConversation}
-            disabled={isInputDisabled}
-            aria-label="Start new conversation"
-          >
-            <Plus className="size-3" />
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          <Tooltip delayDuration={100} disableHoverableContent>
+            <TooltipTrigger asChild>
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className="size-6 shrink-0"
+                onClick={onNewConversation}
                 disabled={isInputDisabled}
-                aria-label="Conversation history"
+                aria-label="Start new conversation"
               >
-                <History className="size-3" />
+                <Plus className="size-3" />
               </Button>
-            </DropdownMenuTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Start new conversation</TooltipContent>
+          </Tooltip>
+          <DropdownMenu>
+            <Tooltip delayDuration={100} disableHoverableContent>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 shrink-0"
+                    disabled={isInputDisabled}
+                    aria-label="Conversation history"
+                  >
+                    <History className="size-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Conversation history</TooltipContent>
+            </Tooltip>
             <DropdownMenuContent
               align="end"
               className="max-h-80 w-64 overflow-y-auto"
@@ -220,31 +235,43 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-6"
-            aria-label={isExpanded ? "Collapse window" : "Expand window"}
-            onClick={() => onExpandedChange(!isExpanded)}
-          >
-            {isExpanded ? (
-              <Minimize2 className="size-3" />
-            ) : (
-              <Maximize2 className="size-3" />
-            )}
-          </Button>
+          <Tooltip delayDuration={100} disableHoverableContent>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-6"
+                aria-label={isExpanded ? "Collapse window" : "Expand window"}
+                onClick={() => onExpandedChange(!isExpanded)}
+              >
+                {isExpanded ? (
+                  <Minimize2 className="size-3" />
+                ) : (
+                  <Maximize2 className="size-3" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isExpanded ? "Collapse window" : "Expand window"}
+            </TooltipContent>
+          </Tooltip>
           {props.showCloseButton !== false ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-6"
-              aria-label="Close assistant"
-              onClick={props.onClose}
-            >
-              <Minus className="size-3" />
-            </Button>
+            <Tooltip delayDuration={100} disableHoverableContent>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  aria-label="Minimize assistant"
+                  onClick={props.onClose}
+                >
+                  <Minus className="size-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Minimize assistant</TooltipContent>
+            </Tooltip>
           ) : null}
         </div>
       </header>
