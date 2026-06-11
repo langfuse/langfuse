@@ -2358,6 +2358,61 @@ describe("batch export test suite", () => {
   // ==================== EVENTS TABLE EXPORT TESTS ====================
 
   maybeDescribe("events table export tests", () => {
+    it("should export scores with trace metadata from the events table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "accuracy",
+        value: 0.95,
+        data_type: "NUMERIC",
+        metadata: { reason: "test-metadata" },
+      });
+      await createScoresCh([score]);
+
+      // The trace exists only in the events table (v4 world) — no row is
+      // written to the legacy traces table, so the legacy traces JOIN would
+      // return empty trace metadata.
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          is_app_root: true,
+          trace_name: "events-trace",
+          user_id: "events-user",
+          tags: ["events-tag"],
+        }),
+      ]);
+
+      const stream = await getDatabaseReadStreamPaginated({
+        projectId,
+        tableName: BatchExportTableName.Scores,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({
+        id: score.id,
+        traceId,
+        name: "accuracy",
+        value: 0.95,
+        traceName: "events-trace",
+        userId: "events-user",
+        traceTags: ["events-tag"],
+        metadata: { reason: "test-metadata" },
+      });
+    });
+
     it("should export sessions from the events table when useEventsTable is true", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
