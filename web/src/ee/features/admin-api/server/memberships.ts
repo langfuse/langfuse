@@ -91,8 +91,6 @@ export async function handleUpdateMembership(
     },
   });
 
-  // SFDC: reflect the membership on the org-member bridge (never throws;
-  // no-op when not configured; NONE roles skipped by the service).
   await getSfdcService()?.setUserRole({
     orgId,
     userId: membership.userId,

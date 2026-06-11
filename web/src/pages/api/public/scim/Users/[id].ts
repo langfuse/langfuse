@@ -186,8 +186,6 @@ async function provisionMembership({
       apiKeyId,
       orgId,
     });
-    // roleToCreate may be NONE (no explicit role); the service skips NONE
-    // internally, so default provisions are not synced.
     await getSfdcService()?.setUserRole({
       orgId,
       userId,

@@ -4,27 +4,47 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
   return {
+    // Mutable env object handed to the env-module mock below. It starts with
+    // the Mulesoft test defaults; the mock factory layers the real
+    // (dotenv-loaded) env underneath so the full router graph imported by the
+    // call-site tests reads its usual values. Tests toggle individual keys;
+    // beforeEach restores the defaults.
     envMock: {
-      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING" as string | undefined,
-      MULESOFT_SFDC_USER_URL: "https://mulesoft.test/manage-user" as
-        | string
-        | undefined,
-      MULESOFT_SFDC_ORG_URL: "https://mulesoft.test/manage-org" as
-        | string
-        | undefined,
-      MULESOFT_SFDC_BASIC_AUTH_USER: "mule-user" as string | undefined,
-      MULESOFT_SFDC_BASIC_AUTH_PASSWORD: "mule-pass" as string | undefined,
-      MULESOFT_SFDC_CAMPAIGN_ID: "campaign-test-id" as string | undefined,
-      MULESOFT_SFDC_DEFAULT_COMPANY_NAME: "Acme Corp" as string | undefined,
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "STAGING",
+      MULESOFT_SFDC_USER_URL: "https://mulesoft.test/manage-user",
+      MULESOFT_SFDC_ORG_URL: "https://mulesoft.test/manage-org",
+      MULESOFT_SFDC_BASIC_AUTH_USER: "mule-user",
+      MULESOFT_SFDC_BASIC_AUTH_PASSWORD: "mule-pass",
+      MULESOFT_SFDC_CAMPAIGN_ID: "campaign-test-id",
+      MULESOFT_SFDC_DEFAULT_COMPANY_NAME: "Acme Corp",
+    } as Record<string, unknown> & {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: string | undefined;
+      MULESOFT_SFDC_USER_URL: string | undefined;
+      MULESOFT_SFDC_ORG_URL: string | undefined;
+      MULESOFT_SFDC_BASIC_AUTH_USER: string | undefined;
+      MULESOFT_SFDC_BASIC_AUTH_PASSWORD: string | undefined;
+      MULESOFT_SFDC_CAMPAIGN_ID: string | undefined;
+      MULESOFT_SFDC_DEFAULT_COMPANY_NAME: string | undefined;
     },
     prismaMock: {
       user: {
-        findUnique: vi.fn(async () => null),
+        findUnique: vi.fn(async (): Promise<unknown> => null),
         update: vi.fn(async () => ({})),
       },
       organization: {
-        findUnique: vi.fn(async () => null),
+        findUnique: vi.fn(
+          async (): Promise<{ sfdcOrgId: string | null } | null> => null,
+        ),
         update: vi.fn(async () => ({})),
+      },
+      organizationMembership: {
+        findFirst: vi.fn(async (): Promise<unknown> => null),
+        count: vi.fn(async () => 1),
+        update: vi.fn(async (): Promise<unknown> => ({})),
+        upsert: vi.fn(async (): Promise<unknown> => ({})),
+      },
+      auditLog: {
+        create: vi.fn(async () => ({})),
       },
     },
     loggerMock: {
@@ -39,8 +59,20 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/src/env.mjs", () => ({ env: envMock }));
-vi.mock("@langfuse/shared/src/db", () => ({ prisma: prismaMock }));
+// Partial mock — real env underneath, mutable Mulesoft overrides on top.
+// envMock keeps its object identity so per-test mutations stay visible.
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = (await importOriginal()) as { env: Record<string, unknown> };
+  const testDefaults = { ...envMock };
+  Object.assign(envMock, actual.env, testDefaults);
+  return { env: envMock };
+});
+// Partial mock — keep Role/Prisma/type exports for the router graph; only
+// the prisma client is replaced.
+vi.mock("@langfuse/shared/src/db", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return { ...actual, prisma: prismaMock };
+});
 // Partial mock — keep real exports for teardown.ts which imports `redis` and
 // `ClickHouseClientManager` from this module.
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -61,6 +93,13 @@ import {
   getSfdcService,
   resetSfdcServiceCacheForTests,
 } from "@/src/ee/features/sfdc-sync/server";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { handleUpdateMembership } from "@/src/ee/features/admin-api/server/memberships";
+import { Role } from "@langfuse/shared";
+import { type PrismaClient } from "@langfuse/shared/src/db";
+import type { Session } from "next-auth";
+import { type NextApiRequest, type NextApiResponse } from "next";
 
 // ---- Helpers ----
 
@@ -242,7 +281,7 @@ describe("SfdcService.upsertUser", () => {
 });
 
 describe("SfdcService.upsertOrg", () => {
-  it("sends type:updateOrg + campaign + isLangfuse + raw role", async () => {
+  it("sends type:updateOrg + campaign + isLangfuse + mapped role", async () => {
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
     await SfdcService.tryCreate()!.upsertOrg({
       orgId: "org-1",
@@ -261,7 +300,7 @@ describe("SfdcService.upsertOrg", () => {
       orgName: "Org One",
       userId: "user-1",
       email: "u@example.com",
-      role: "OWNER",
+      role: "ADMIN",
       campaign: "campaign-test-id",
       // Mulesoft's updateOrg flow 500s when the CH service counts are
       // missing (null > 0 comparison in DataWeave) — must always be sent.
@@ -340,38 +379,50 @@ describe("SfdcService.upsertOrg", () => {
   });
 });
 
-describe("SfdcService.setUserRole — Langfuse roles are passed through 1:1", () => {
-  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER"] as const)(
-    "passes %s through verbatim",
-    async (role) => {
-      fetchMock.mockResolvedValueOnce(emptyOkResponse());
-      await SfdcService.tryCreate()!.setUserRole({
-        orgId: "org-1",
-        userId: "user-1",
-        email: "u@example.com",
-        role,
-      });
-      const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-      expect(body).toMatchObject({
-        isLangfuse: true,
-        type: "setUserRole",
-        orgId: "org-1",
-        userId: "user-1",
-        email: "u@example.com",
-        role,
-        campaign: "campaign-test-id",
-      });
-    },
-  );
+describe("SfdcService.setUserRole — Langfuse roles map onto the SFDC picklist", () => {
+  // SFDC only accepts ADMIN and DEVELOPER as org-member roles.
+  it.each([
+    ["OWNER", "ADMIN"],
+    ["ADMIN", "ADMIN"],
+    ["MEMBER", "DEVELOPER"],
+    ["VIEWER", "DEVELOPER"],
+  ] as const)("maps %s to %s", async (role, sfdcRole) => {
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+    await SfdcService.tryCreate()!.setUserRole({
+      orgId: "org-1",
+      userId: "user-1",
+      email: "u@example.com",
+      role,
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toMatchObject({
+      isLangfuse: true,
+      type: "setUserRole",
+      orgId: "org-1",
+      userId: "user-1",
+      email: "u@example.com",
+      role: sfdcRole,
+      campaign: "campaign-test-id",
+    });
+  });
 
-  it("skips NONE roles without calling fetch (project-only memberships)", async () => {
+  it("syncs NONE roles as removeUser — a project-only member holds no org-member bridge", async () => {
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
     await SfdcService.tryCreate()!.setUserRole({
       orgId: "org-1",
       userId: "user-1",
       email: "u@example.com",
       role: "NONE",
     });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toEqual({
+      isLangfuse: true,
+      type: "removeUser",
+      orgId: "org-1",
+      userId: "user-1",
+      email: "u@example.com",
+    });
   });
 
   it("skips without calling fetch when email is missing", async () => {
@@ -401,6 +452,196 @@ describe("SfdcService.removeUser", () => {
       orgId: "org-1",
       userId: "user-1",
       email: "u@example.com",
+    });
+  });
+});
+
+// ---- Call sites ----
+//
+// A downgrade of an existing membership to NONE means the user effectively
+// left the org, so update call sites must sync it as removeUser — the service
+// itself skips NONE events (that skip is for memberships CREATED as NONE).
+// Exercised end-to-end: call site → real SfdcService → mocked fetch.
+
+function buildOwnerSession(orgId: string): Session {
+  return {
+    expires: "1",
+    user: {
+      id: "owner-user",
+      email: "owner@test.com",
+      name: "Owner",
+      canCreateOrganizations: true,
+      organizations: [
+        {
+          id: orgId,
+          name: "Test Org",
+          role: Role.OWNER,
+          plan: "cloud:team",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [],
+        },
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+      },
+      admin: false,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:team",
+    },
+  };
+}
+
+function createOwnerCaller(orgId: string) {
+  const ctx = createInnerTRPCContext({
+    session: buildOwnerSession(orgId),
+    headers: {},
+  });
+  return appRouter.createCaller({
+    ...ctx,
+    prisma: prismaMock as unknown as PrismaClient,
+  });
+}
+
+function createMockRes() {
+  const res = {
+    statusCode: 0,
+    body: undefined as unknown,
+    status(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json(payload: unknown) {
+      this.body = payload;
+      return this;
+    },
+  };
+  return res as typeof res & NextApiResponse;
+}
+
+describe("call site: tRPC members.updateOrgMembership", () => {
+  const membership = {
+    id: "om-1",
+    orgId: "org-1",
+    userId: "member-1",
+    role: "ADMIN",
+    user: { email: "member@test.com" },
+  };
+
+  it("syncs a downgrade to NONE as removeUser", async () => {
+    prismaMock.organizationMembership.findFirst.mockResolvedValueOnce(
+      membership,
+    );
+    prismaMock.organizationMembership.update.mockResolvedValueOnce({
+      ...membership,
+      role: "NONE",
+    });
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+
+    await createOwnerCaller("org-1").members.updateOrgMembership({
+      orgId: "org-1",
+      orgMembershipId: "om-1",
+      role: Role.NONE,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toMatchObject({
+      type: "removeUser",
+      orgId: "org-1",
+      userId: "member-1",
+      email: "member@test.com",
+    });
+    expect(body.role).toBeUndefined();
+  });
+
+  it("syncs a change between real roles as setUserRole", async () => {
+    prismaMock.organizationMembership.findFirst.mockResolvedValueOnce(
+      membership,
+    );
+    prismaMock.organizationMembership.update.mockResolvedValueOnce({
+      ...membership,
+      role: "MEMBER",
+    });
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+
+    await createOwnerCaller("org-1").members.updateOrgMembership({
+      orgId: "org-1",
+      orgMembershipId: "om-1",
+      role: Role.MEMBER,
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toMatchObject({
+      type: "setUserRole",
+      orgId: "org-1",
+      userId: "member-1",
+      email: "member@test.com",
+      role: "DEVELOPER",
+    });
+  });
+});
+
+describe("call site: admin API handleUpdateMembership", () => {
+  const member = { id: "member-1", email: "member@test.com", name: "Member" };
+
+  it("syncs a downgrade to NONE as removeUser", async () => {
+    prismaMock.user.findUnique.mockResolvedValueOnce(member);
+    prismaMock.organizationMembership.upsert.mockResolvedValueOnce({
+      orgId: "org-1",
+      userId: "member-1",
+      role: "NONE",
+    });
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+
+    const req = {
+      body: { userId: "member-1", role: "NONE" },
+    } as NextApiRequest;
+    const res = createMockRes();
+    await handleUpdateMembership(req, res, "org-1");
+
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toMatchObject({
+      type: "removeUser",
+      orgId: "org-1",
+      userId: "member-1",
+      email: "member@test.com",
+    });
+    expect(body.role).toBeUndefined();
+  });
+
+  it("syncs a real role as setUserRole", async () => {
+    prismaMock.user.findUnique.mockResolvedValueOnce(member);
+    prismaMock.organizationMembership.upsert.mockResolvedValueOnce({
+      orgId: "org-1",
+      userId: "member-1",
+      role: "MEMBER",
+    });
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+
+    const req = {
+      body: { userId: "member-1", role: "MEMBER" },
+    } as NextApiRequest;
+    const res = createMockRes();
+    await handleUpdateMembership(req, res, "org-1");
+
+    expect(res.statusCode).toBe(200);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toMatchObject({
+      type: "setUserRole",
+      orgId: "org-1",
+      userId: "member-1",
+      email: "member@test.com",
+      role: "DEVELOPER",
     });
   });
 });

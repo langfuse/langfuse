@@ -16,6 +16,7 @@ import {
  *   - `/manage-user` — upsertUser (lead/contact)
  *   - org endpoint  — upsertOrg (type:"updateOrg") on org create
  *                   — setUserRole (type:"setUserRole") on member add or role change
+ *                     (a NONE role is synced as removeUser instead)
  *                   — removeUser  (type:"removeUser")  on member removal
  *
  * Every payload carries `isLangfuse: true` to distinguish Langfuse traffic.
@@ -33,12 +34,22 @@ import {
  */
 
 /**
- * Langfuse org role passed through to SFDC verbatim — no mapping. NONE is
- * accepted as input for caller convenience (project-only memberships) but is
- * never synced; the service skips those events.
+ * Langfuse org roles accepted as input. NONE (project-only membership) is
+ * never sent as a role — `setUserRole` syncs it as a removal instead, since
+ * a NONE member must hold no org-member bridge in SFDC.
  */
 const LangfuseRole = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]);
 export type LangfuseRole = z.infer<typeof LangfuseRole>;
+
+/**
+ * The SFDC org-member role picklist allows only ADMIN and DEVELOPER.
+ */
+const LANGFUSE_TO_SFDC_ROLE = {
+  OWNER: "ADMIN",
+  ADMIN: "ADMIN",
+  MEMBER: "DEVELOPER",
+  VIEWER: "DEVELOPER",
+} as const;
 
 const UpsertUserPayload = z.object({
   userId: z.string().min(1),
@@ -47,7 +58,9 @@ const UpsertUserPayload = z.object({
   companyName: z.string().min(1),
 });
 
-const SyncableRole = LangfuseRole.exclude(["NONE"]);
+const SyncableRole = LangfuseRole.exclude(["NONE"]).transform(
+  (role) => LANGFUSE_TO_SFDC_ROLE[role],
+);
 
 const UpsertOrgPayload = z.object({
   orgId: z.string().min(1),
@@ -242,15 +255,23 @@ export class SfdcService {
 
   /**
    * Set or update a user's role within an org. Fires on membership creation
-   * (invite accept, admin add, SCIM provision) and on role changes. NONE
-   * roles (project-only memberships) are intentionally not synced.
+   * (invite accept, admin add, SCIM provision) and on role changes. A NONE
+   * role (project-only membership) means SFDC must hold no org-member bridge
+   * for the user, so it is synced as a removal — that covers downgrades of
+   * existing members.
    */
   async setUserRole(input: SetUserRoleInput): Promise<void> {
+    if (input.role === "NONE") {
+      return this.removeUser({
+        orgId: input.orgId,
+        userId: input.userId,
+        email: input.email,
+      });
+    }
     return this.run(
       "setUserRole",
       { orgId: input.orgId, userId: input.userId },
       async () => {
-        if (input.role === "NONE") return;
         if (!input.email) {
           logger.warn("[SFDC] skipping setUserRole — user has no email", {
             orgId: input.orgId,
