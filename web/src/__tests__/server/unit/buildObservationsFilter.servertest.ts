@@ -2,20 +2,19 @@ const {
   mockGenerateObservations,
   mockGetObservationsCount,
   mockDeriveFilters,
+  // A mutable holder so the mock factory (hoisted) can store the real
+  // deriveFilters implementation for use as the default pass-through.
+  realFns,
 } = vi.hoisted(() => ({
   mockGenerateObservations: vi.fn(),
   mockGetObservationsCount: vi.fn(),
   mockDeriveFilters: vi.fn(),
+  realFns: { deriveFilters: null as unknown },
 }));
-
-// Captured inside the mock factory so we can use it as the default pass-through.
-let realDeriveFilters: (...args: unknown[]) => unknown;
 
 vi.mock("@langfuse/shared/src/server", async () => {
   const actual = await vi.importActual("@langfuse/shared/src/server");
-  realDeriveFilters = (
-    actual as Record<string, (...args: unknown[]) => unknown>
-  ).deriveFilters;
+  realFns.deriveFilters = (actual as Record<string, unknown>).deriveFilters;
   return {
     ...(actual as object),
     generateObservationsForPublicApi: mockGenerateObservations,
@@ -41,7 +40,10 @@ describe("buildObservationsFilter", () => {
     vi.clearAllMocks();
     mockGenerateObservations.mockResolvedValue([]);
     mockGetObservationsCount.mockResolvedValue(0);
-    mockDeriveFilters.mockImplementation(realDeriveFilters);
+    // Pass through to the real deriveFilters by default.
+    mockDeriveFilters.mockImplementation((...args: unknown[]) =>
+      (realFns.deriveFilters as (...a: unknown[]) => unknown)(...args),
+    );
   });
 
   it("always injects project_id on the observations table", async () => {
