@@ -108,15 +108,20 @@ export default async function handler(
 
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
-    logger.error(error);
-    traceException(error);
-
     if (error instanceof BaseError) {
+      if (!error.isUserError()) {
+        logger.error(error);
+        traceException(error);
+      }
+
       return res.status(error.httpCode).json({
         error: error.name,
         message: error.message,
       });
     }
+
+    logger.error(error);
+    traceException(error);
 
     if (isPrismaException(error)) {
       return res.status(500).json({
