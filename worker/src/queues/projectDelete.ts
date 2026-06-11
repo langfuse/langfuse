@@ -1,6 +1,7 @@
 import { Job, Processor } from "bullmq";
 import {
   deleteEventsByProjectId,
+  deleteMediaLinkRowsByProjectId,
   deleteMediaFiles,
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
@@ -50,6 +51,8 @@ export const projectDeleteProcessor: Processor = async (
       ),
     });
   }
+
+  await deleteMediaLinkRowsByProjectId({ projectId });
 
   logger.info(
     `Deleting ClickHouse and S3 data for ${projectId} in org ${orgId}`,
