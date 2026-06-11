@@ -6,9 +6,9 @@ import {
   History,
   Maximize2,
   Minimize2,
+  Minus,
   Plus,
   SendHorizontal,
-  X,
 } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -243,7 +243,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               aria-label="Close assistant"
               onClick={props.onClose}
             >
-              <X className="size-3" />
+              <Minus className="size-3" />
             </Button>
           ) : null}
         </div>
