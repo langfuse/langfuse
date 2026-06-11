@@ -1505,8 +1505,15 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   // The subquery-IN rewrite only replaces the CTE+JOIN split query, i.e. the
   // needsIOCTE branch. The non-CTE simple path is untouched, so the
   // truncated-metadata default (events_core) is preserved exactly.
+  // External CTEs (the traces CTE from hasTraceFilter) are excluded: whether
+  // ClickHouse resolves an outer-scope CTE inside the IN subquery is
+  // unverified, and no v2 observations filter currently produces one
+  // (user_id is denormalized onto events_*). Fall back to the CTE+JOIN path
+  // if that ever changes.
   const useSubqueryRewrite =
-    needsIOCTE && shouldUseObservationsSubqueryRewrite();
+    needsIOCTE &&
+    externalCTEs.length === 0 &&
+    shouldUseObservationsSubqueryRewrite();
 
   if (!useSubqueryRewrite) {
     // CTE+JOIN and simple paths project core + requested scalar groups on the

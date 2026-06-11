@@ -1871,5 +1871,44 @@ describe("/api/public/v2/observations API Endpoint", () => {
         expectedIds,
       );
     });
+
+    it("returns identical results to the CTE path for trace-level (userId) filters", async () => {
+      // userId is a trace-level field denormalized onto events_*, so it
+      // filters inside the IN subquery without an external traces CTE.
+      const traceId = randomUUID();
+      const userId = `rewrite-user-${randomUUID()}`;
+      const base = Date.now() * 1000;
+
+      await createEventsCh(
+        Array.from({ length: 4 }, (_, i) => {
+          const obsId = randomUUID();
+          return createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            user_id: i < 2 ? userId : `other-user-${i}`,
+            name: `user-filter-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: base + i * 1000 * 1000,
+            input: `input-${i}-${"x".repeat(300)}`, // > events_core truncation
+            output: `output-${i}-${"y".repeat(300)}`,
+          });
+        }),
+      );
+
+      const url = `/api/public/v2/observations?traceId=${traceId}&userId=${userId}&fields=core,basic,io`;
+
+      setRewrite("false");
+      const ctePath = await getObservations(url);
+      setRewrite("true");
+      const subqueryPath = await getObservations(url);
+
+      expect(ctePath.status).toBe(200);
+      expect(subqueryPath.status).toBe(200);
+      expect(subqueryPath.body.data.length).toBe(2);
+      expect(subqueryPath.body.data).toEqual(ctePath.body.data);
+    });
   });
 });
