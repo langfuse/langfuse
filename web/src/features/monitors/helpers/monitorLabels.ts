@@ -4,7 +4,7 @@ import {
   type MonitorWindow,
 } from "@langfuse/shared/monitors";
 
-/** windowLabels maps each MonitorWindow enum value to a human label. */
+/** windowLabels maps each MonitorWindow to a prose label for metric descriptions, e.g. "hour". */
 export const windowLabels: Record<MonitorWindow, string> = {
   "5m": "5 minutes",
   "10m": "10 minutes",
@@ -16,6 +16,13 @@ export const windowLabels: Record<MonitorWindow, string> = {
   "1d": "1 day",
   "2d": "2 days",
   "1w": "week",
+};
+
+/** windowSelectLabels maps each MonitorWindow to its dropdown label, quantifying the singular units, e.g. "1 hour". */
+export const windowSelectLabels: Record<MonitorWindow, string> = {
+  ...windowLabels,
+  "1h": "1 hour",
+  "1w": "1 week",
 };
 
 /** operatorLabels maps each MonitorThresholdOperator to a natural-language label. */
