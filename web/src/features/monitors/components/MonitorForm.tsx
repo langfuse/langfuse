@@ -917,6 +917,7 @@ export const MonitorForm = ({
               (watched.metric?.aggregation ??
                 "count") as CreateMonitor["metric"]["aggregation"]
             }
+            window={(watched.window ?? "5m") as MonitorWindow}
             thresholdOperator={
               watched.thresholdOperator ??
               MonitorThresholdOperatorSchema.enum.GT
