@@ -15,14 +15,13 @@ import {
   SeveritySchema,
   TopicSchema,
   TopicGroups,
-  isHighTierSupportPlan,
 } from "../formConstants";
 
 import {
   createPylonIssue,
   buildPylonIssueBodyHtml,
   buildPylonMetadataString,
-  mapSeverityToPylonPriority,
+  mapCaseSeverityToPylonPriority,
   updatePylonAccountCustomFields,
   mapPlanToPylonCustomerTier,
   mapToPylonCaseSeverity,
@@ -35,8 +34,6 @@ import {
 const CreateSupportThreadInput = z.object({
   messageType: MessageTypeSchema,
   severity: SeveritySchema,
-  /** Manual Sev-1 escalation; only honored for high-tier plans (enforced below). */
-  isHighPriority: z.boolean().optional(),
   topic: TopicSchema,
   message: z.string().trim().min(1),
   url: z.url().optional(),
@@ -151,11 +148,13 @@ export const supportRouter = createTRPCRouter({
         currentSupportRequestContext.organizationId = organization.id;
       }
 
-      // Only honor a manual high-priority request for high-tier plans; ignore
-      // the client-supplied flag otherwise so it cannot be used to force Sev-1.
-      const honorHighPriority =
-        input.isHighPriority === true &&
-        isHighTierSupportPlan(currentSupportRequestContext.plan);
+      // Resolve the Pylon case severity (Sev-1/2/3). Sev-1 is gated to
+      // high-tier plans inside mapToPylonCaseSeverity, so a Severity 1 selection
+      // from a non-high-tier plan is safely downgraded server-side.
+      const caseSeverity = mapToPylonCaseSeverity({
+        severity: input.severity,
+        plan: currentSupportRequestContext.plan,
+      });
 
       const { topLevel, subtype } = splitTopic(input.topic);
 
@@ -199,9 +198,7 @@ export const supportRouter = createTRPCRouter({
             requesterEmail: email,
             requesterName: fullName,
             tags: ["Langfuse"],
-            priority: honorHighPriority
-              ? "urgent"
-              : mapSeverityToPylonPriority(input.severity),
+            priority: mapCaseSeverityToPylonPriority(caseSeverity),
             attachmentUrls: input.pylonAttachmentUrls,
             customFields: [
               ...(input.url
@@ -223,11 +220,7 @@ export const supportRouter = createTRPCRouter({
               { slug: "langfuse_metadata", value: pylonMetadata },
               {
                 slug: "case_severity",
-                value: mapToPylonCaseSeverity({
-                  severity: input.severity,
-                  plan: currentSupportRequestContext.plan,
-                  isHighPriority: honorHighPriority,
-                }),
+                value: caseSeverity,
               },
             ],
           });

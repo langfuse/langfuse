@@ -38,16 +38,24 @@ export const ALL_TOPICS = [
 export const TopicSchema = z.enum(ALL_TOPICS);
 export type Topic = z.infer<typeof TopicSchema>;
 
+/**
+ * Severity levels shown to the user. Wording mirrors the Pylon issue
+ * "Priority" field. Each maps to a Pylon `case_severity` value
+ * (Sev-1/Sev-2/Sev-3) in `mapToPylonCaseSeverity`.
+ */
 export const SeveritySchema = z.enum([
-  "Question or feature request",
-  "Feature not working as expected",
-  "Feature is not working at all",
-  "Outage, data loss, or data breach",
+  "Severity 1 (Critical Business Impact)",
+  "Severity 2 (Major Business Impact)",
+  "Severity 3 (Minor Business Impact or General Questions)",
 ]);
 export type Severity = z.infer<typeof SeveritySchema>;
 
+export const SEVERITY_1 = SeveritySchema.options[0];
+export const SEVERITY_2 = SeveritySchema.options[1];
+export const SEVERITY_3 = SeveritySchema.options[2];
+
 /**
- * Plans that may manually flag a support request as high priority (Sev-1).
+ * Plans that may raise a Severity 1 (Sev-1) support request.
  * Mirrors the high-tier check in `mapToPylonCaseSeverity`.
  */
 export const HIGH_TIER_SUPPORT_PLANS = [
@@ -56,7 +64,7 @@ export const HIGH_TIER_SUPPORT_PLANS = [
   "self-hosted:enterprise",
 ] as const;
 
-/** Whether the given plan may manually escalate a support request to Sev-1. */
+/** Whether the given plan may raise a Severity 1 support request. */
 export const isHighTierSupportPlan = (plan?: string): boolean =>
   !!plan && (HIGH_TIER_SUPPORT_PLANS as readonly string[]).includes(plan);
 
@@ -79,11 +87,6 @@ export type IntegrationType = z.infer<typeof IntegrationTypeSchema>;
 export const SupportFormSchema = z.object({
   messageType: MessageTypeSchema.default("Question"),
   severity: SeveritySchema,
-  /**
-   * Manual high-priority (Sev-1) escalation. Only honored server-side for
-   * high-tier plans (see {@link isHighTierSupportPlan}).
-   */
-  isHighPriority: z.boolean().default(false),
   integrationType: z.string().optional(),
   topic: z
     .union([TopicSchema, z.literal("")])
