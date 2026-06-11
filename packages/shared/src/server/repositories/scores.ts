@@ -3052,7 +3052,7 @@ const buildV3ListQuery = (
   LIMIT {limit: Int32}
 `;
 
-function polymorphicValueForV3(score: {
+export function polymorphicValueForV3(score: {
   dataType: ScoreDataTypeType;
   value: number;
   stringValue?: string | null;
