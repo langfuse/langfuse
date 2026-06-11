@@ -287,6 +287,8 @@ const run = async (
           value: Math.round(rng.next() * 100) / 100,
           data_type: "NUMERIC",
           source: "API",
+          comment: null,
+          metadata: {},
           timestamp,
         }),
       );
@@ -303,6 +305,8 @@ const run = async (
           string_value: rng.pick(["billing", "refund", "technical", "other"]),
           data_type: "CATEGORICAL",
           source: "API",
+          comment: null,
+          metadata: {},
           timestamp,
         }),
       );
@@ -319,6 +323,8 @@ const run = async (
       value: Math.round(rng.next() * 100) / 100,
       data_type: "NUMERIC",
       source: "API",
+      comment: null,
+      metadata: {},
       timestamp: sessionStart,
     }),
   );

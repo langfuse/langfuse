@@ -35,8 +35,10 @@ if (missing.length > 0) {
   // winston's console transport writes to stdout and src/server logs during
   // import; --json promises only the JSON summary on stdout, so raise the
   // level before anything loads (cli-main silences transports as a backstop).
-  // eslint-disable-next-line turbo/no-undeclared-env-vars -- CLI script, not a turbo task
-  if (process.argv.includes("--json") && !process.env.LANGFUSE_LOG_LEVEL) {
+
+  if (process.argv.includes("--json")) {
+    // unconditional: a user-set info/debug level would otherwise pollute the
+    // JSON-only stdout contract during the dynamic import below
     // eslint-disable-next-line turbo/no-undeclared-env-vars
     process.env.LANGFUSE_LOG_LEVEL = "error";
   }

@@ -387,6 +387,7 @@ const run = async (
       data_type: "NUMERIC",
       source: "API",
       comment: "seeded numeric score",
+      metadata: {},
       timestamp: traceTimestamp,
     }),
     createTraceScore({
@@ -400,6 +401,7 @@ const run = async (
       data_type: "CATEGORICAL",
       source: "API",
       comment: null,
+      metadata: {},
       timestamp: traceTimestamp,
     }),
     createTraceScore({
@@ -412,6 +414,8 @@ const run = async (
       string_value: undefined,
       data_type: "BOOLEAN",
       source: "API",
+      comment: null,
+      metadata: {},
       timestamp: traceTimestamp,
     }),
     ...(evaluatorNode
@@ -426,6 +430,8 @@ const run = async (
             value: Math.round(rng.next() * 100) / 100,
             data_type: "NUMERIC",
             source: "EVAL",
+            comment: null,
+            metadata: {},
             timestamp: traceTimestamp,
           }),
         ]

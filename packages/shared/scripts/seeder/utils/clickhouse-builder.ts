@@ -254,21 +254,21 @@ export class ClickHouseQueryBuilder {
         ${
           prompts.length > 0
             ? `if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement(['${prompts.map((p) => this.escapeString(p.id)).join("','")}'], 1 + (number % ${prompts.length})),
+        arrayElement(['${prompts.map((p) => this.escapeString(p.id)).join("','")}'], 1 + (h3 % ${prompts.length})),
         NULL)`
             : "NULL"
         } AS prompt_id,
         ${
           prompts.length > 0
             ? `if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement(['${prompts.map((p) => this.escapeString(p.name)).join("','")}'], 1 + (number % ${prompts.length})),
+        arrayElement(['${prompts.map((p) => this.escapeString(p.name)).join("','")}'], 1 + (h3 % ${prompts.length})),
         NULL)`
             : "NULL"
         } AS prompt_name,
         ${
           prompts.length > 0
             ? `if("type" = 'GENERATION' AND number % 10 = 0,
-        arrayElement([${prompts.map((p) => Math.floor(p.version)).join(",")}], 1 + (number % ${prompts.length})),
+        arrayElement([${prompts.map((p) => Math.floor(p.version)).join(",")}], 1 + (h3 % ${prompts.length})),
         NULL)`
             : "NULL"
         } AS prompt_version,

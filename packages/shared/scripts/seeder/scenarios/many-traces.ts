@@ -85,7 +85,10 @@ const run = async (
       projectId: ctx.projectId,
       environment: ctx.environment,
       traceIds: [],
-      sessionIds: [],
+      sessionIds: Array.from(
+        { length: 5 },
+        (_, i) => `${ctx.idPrefix}-session_${i}`,
+      ),
       counts,
       verified: {},
       links,
@@ -224,7 +227,10 @@ const run = async (
     projectId: ctx.projectId,
     environment: ctx.environment,
     traceIds: [],
-    sessionIds: [],
+    sessionIds: Array.from(
+      { length: 5 },
+      (_, i) => `${ctx.idPrefix}-session_${i}`,
+    ),
     counts,
     verified,
     links,
