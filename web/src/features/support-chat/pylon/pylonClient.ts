@@ -1,5 +1,9 @@
 import { logger } from "@langfuse/shared/src/server";
-import { isHighTierSupportPlan } from "../formConstants";
+import {
+  isHighTierSupportPlan,
+  SEVERITY_1,
+  SEVERITY_2,
+} from "../formConstants";
 
 const PYLON_API_BASE = "https://api.usepylon.com";
 
@@ -169,17 +173,20 @@ export async function updatePylonAccountCustomFields(
   }
 }
 
-export function mapSeverityToPylonPriority(
-  severity: string,
-): "urgent" | "high" | "medium" | "low" {
-  switch (severity) {
-    case "Outage, data loss, or data breach":
+/**
+ * Maps the effective Pylon `case_severity` to the Pylon issue `priority`.
+ * Derived from the (already plan-gated) case severity so the two fields stay
+ * consistent.
+ */
+export function mapCaseSeverityToPylonPriority(
+  caseSeverity: "Sev-1" | "Sev-2" | "Sev-3",
+): "urgent" | "high" | "low" {
+  switch (caseSeverity) {
+    case "Sev-1":
       return "urgent";
-    case "Feature is not working at all":
+    case "Sev-2":
       return "high";
-    case "Feature not working as expected":
-      return "medium";
-    case "Question or feature request":
+    case "Sev-3":
     default:
       return "low";
   }
@@ -254,31 +261,26 @@ export function mapMessageTypeToPylonQuestionType(messageType: string): string {
   }
 }
 
+/**
+ * Maps the user-selected severity level to the Pylon `case_severity` value.
+ *
+ * Severity 1 is only available to high-tier plans (Team/Enterprise). The option
+ * is disabled in the UI for other plans, but we also enforce it here as a
+ * server-side safeguard: a Severity 1 selection from a non-high-tier plan is
+ * downgraded to Sev-2.
+ */
 export function mapToPylonCaseSeverity(params: {
   severity: string;
   plan?: string;
-  /** Customer manually requested high priority via the support form. */
-  isHighPriority?: boolean;
 }): "Sev-1" | "Sev-2" | "Sev-3" {
-  const { severity, plan, isHighPriority } = params;
-  const isHighTierPlan = isHighTierSupportPlan(plan);
+  const { severity, plan } = params;
 
-  // High-tier customers (Team/Enterprise) get Sev-1 either automatically for
-  // outages, or when they manually flag a time-critical request as urgent.
-  if (
-    isHighTierPlan &&
-    (isHighPriority || severity === "Outage, data loss, or data breach")
-  ) {
-    return "Sev-1";
+  if (severity === SEVERITY_1) {
+    return isHighTierSupportPlan(plan) ? "Sev-1" : "Sev-2";
   }
-
-  if (
-    severity === "Outage, data loss, or data breach" ||
-    severity === "Feature is not working at all"
-  ) {
+  if (severity === SEVERITY_2) {
     return "Sev-2";
   }
-
   return "Sev-3";
 }
 
