@@ -3,7 +3,6 @@ import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
-  requireFeatureFlag,
   requireLangfuseCloud,
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -19,10 +18,8 @@ import {
   UpdateMonitorSchema,
 } from "@langfuse/shared/monitors/server";
 
-/** monitorsProcedure protects every monitors route behind a Langfuse Cloud check and the `monitors` flag. */
-const monitorsProcedure = protectedProjectProcedure
-  .use(requireLangfuseCloud)
-  .use(requireFeatureFlag("monitors"));
+/** monitorsProcedure protects every monitors route behind a Langfuse Cloud check. */
+const monitorsProcedure = protectedProjectProcedure.use(requireLangfuseCloud);
 
 /** sessionContextFromCtx adapts a tRPC session into a MonitorService SessionContext. */
 const sessionContextFromCtx = (ctx: {
