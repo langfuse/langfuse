@@ -607,7 +607,10 @@ export function CategoricalFacet({
 
   const MAX_VISIBLE_OPTIONS = 12;
   const visibleOptionValues = Array.from(
-    new Set([...options, ...value.filter((option) => option.length > 0)]),
+    new Set([
+      ...options.filter(Boolean),
+      ...value.filter((option) => option && option.length > 0),
+    ]),
   );
   const hasMoreOptions = visibleOptionValues.length > MAX_VISIBLE_OPTIONS;
 

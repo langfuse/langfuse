@@ -311,8 +311,11 @@ function processOptions(options: (string | SingleValueOption)[]): {
 
   for (const opt of options) {
     if (typeof opt === "string") {
-      values.push(opt);
-    } else if (typeof opt === "object" && "value" in opt) {
+      // Skip null/empty values: a facet option must be a selectable string. A null leaks in when a
+      // grouped-by options query returns a null/empty group key, and crashes the facet downstream.
+      if (opt) values.push(opt);
+    } else if (typeof opt === "object" && opt != null && "value" in opt) {
+      if (opt.value == null || opt.value === "") continue;
       values.push(opt.value);
       if (opt.count !== undefined) {
         counts.set(opt.value, opt.count);

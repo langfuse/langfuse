@@ -266,6 +266,7 @@ export const getObservationsGroupedByModel = async (
       SELECT o.provided_model_name AS name
       FROM observations o
       WHERE ${applied.query} AND o.type = 'GENERATION' AND ${notDeleted("o")}
+        AND o.provided_model_name IS NOT NULL AND o.provided_model_name != ''
       GROUP BY o.provided_model_name
       ORDER BY count(*) DESC
       LIMIT 1000`,
@@ -289,6 +290,7 @@ export const getObservationsGroupedByModelId = async (
       SELECT o.internal_model_id AS modelId
       FROM observations o
       WHERE ${applied.query} AND o.type = 'GENERATION' AND ${notDeleted("o")}
+        AND o.internal_model_id IS NOT NULL AND o.internal_model_id != ''
       GROUP BY o.internal_model_id
       ORDER BY count(*) DESC
       LIMIT 1000`,
@@ -313,6 +315,7 @@ export const getObservationsGroupedByName = async (
       SELECT o.name AS name
       FROM observations o
       WHERE ${applied.query} ${type ? "AND o.type = :type" : ""} AND ${notDeleted("o")}
+        AND o.name IS NOT NULL AND o.name != ''
       GROUP BY o.name
       ORDER BY count(*) DESC
       LIMIT 1000`,
