@@ -1256,8 +1256,9 @@ export const promptRouter = createTRPCRouter({
         },
       });
 
+      const userMap = new Map(users.map((u) => [u.id, u]));
       const joinedPromptAndUsers = prompts.map((p) => {
-        const user = users.find((u) => u.id === p.createdBy);
+        const user = userMap.get(p.createdBy);
         if (!user && p.createdBy === "API") {
           return { ...p, creator: "API" };
         }

@@ -107,7 +107,7 @@ export const createPrompt = async ({
     }
   }
 
-  const finalLabels = [...labels, LATEST_PROMPT_LABEL]; // Newly created prompts are always labeled as 'latest'
+  const finalLabels = [...new Set([...labels, LATEST_PROMPT_LABEL])]; // Newly created prompts are always labeled as 'latest'
 
   // If tags are undefined, use the tags from the latest prompt version
   const finalTags = [...new Set(tags ?? latestPrompt?.tags ?? [])];
