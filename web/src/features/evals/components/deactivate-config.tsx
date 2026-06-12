@@ -10,6 +10,7 @@ import {
 } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/ui/button";
 import { Switch } from "@/src/components/ui/switch";
+import { toast } from "sonner";
 
 export function DeactivateEvalConfig({
   projectId,
@@ -28,9 +29,12 @@ export function DeactivateEvalConfig({
     onSuccess: () => {
       utils.evals.invalidate();
     },
+    onError: (error) => {
+      toast.error(error.message);
+    },
   });
 
-  const onClick = () => {
+  const onClick = async () => {
     if (!projectId) {
       console.error("Project ID is missing");
       return;
@@ -38,19 +42,23 @@ export function DeactivateEvalConfig({
 
     const prevStatus = evalConfig?.status;
 
-    mutEvaluator.mutateAsync({
-      projectId,
-      evalConfigId: evalConfig?.id ?? "",
-      config: {
-        status: isActive ? EvaluatorStatus.INACTIVE : EvaluatorStatus.ACTIVE,
-      },
-    });
-    capture(
-      prevStatus === EvaluatorStatus.ACTIVE
-        ? "eval_config:deactivate"
-        : "eval_config:activate",
-    );
-    setIsOpen(false);
+    try {
+      await mutEvaluator.mutateAsync({
+        projectId,
+        evalConfigId: evalConfig?.id ?? "",
+        config: {
+          status: isActive ? EvaluatorStatus.INACTIVE : EvaluatorStatus.ACTIVE,
+        },
+      });
+      capture(
+        prevStatus === EvaluatorStatus.ACTIVE
+          ? "eval_config:deactivate"
+          : "eval_config:activate",
+      );
+      setIsOpen(false);
+    } catch {
+      // onError surfaces the server-side rejection to the user.
+    }
   };
 
   return (
