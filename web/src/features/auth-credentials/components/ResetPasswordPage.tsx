@@ -94,7 +94,6 @@ export function ResetPasswordPage({
         }, 2000);
       })
       .catch((error) => {
-        console.log(error.message);
         if (error instanceof TRPCClientError) {
           if (error.data?.code === "UNAUTHORIZED") {
             setShowResetPasswordEmailButton(true);
