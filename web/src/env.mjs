@@ -260,6 +260,16 @@ export const env = createEnv({
     AUTH_HTTP_PROXY: z.url().optional(),
     AUTH_HTTPS_PROXY: z.url().optional(),
     AUTH_SSO_TIMEOUT: z.coerce.number().int().positive().optional(),
+    // MCP server: optional OIDC bearer-token auth alongside BasicAuth.
+    // See: web/src/features/mcp/README.md
+    MCP_AUTH_OIDC_ENABLED: z.enum(["true", "false"]).optional(),
+    MCP_AUTH_OIDC_ISSUER: z.url().optional(),
+    MCP_AUTH_OIDC_AUDIENCE: z.string().optional(),
+    MCP_AUTH_OIDC_JWKS_URI: z.url().optional(),
+    MCP_AUTH_OIDC_USER_CLAIM: z
+      .enum(["email", "sub"])
+      .optional()
+      .default("email"),
     // EMAIL
     EMAIL_FROM_ADDRESS: z.string().optional(),
     SMTP_CONNECTION_URL: z.string().optional(),
@@ -697,6 +707,11 @@ export const env = createEnv({
     AUTH_HTTP_PROXY: process.env.AUTH_HTTP_PROXY,
     AUTH_HTTPS_PROXY: process.env.AUTH_HTTPS_PROXY,
     AUTH_SSO_TIMEOUT: process.env.AUTH_SSO_TIMEOUT,
+    MCP_AUTH_OIDC_ENABLED: process.env.MCP_AUTH_OIDC_ENABLED,
+    MCP_AUTH_OIDC_ISSUER: process.env.MCP_AUTH_OIDC_ISSUER,
+    MCP_AUTH_OIDC_AUDIENCE: process.env.MCP_AUTH_OIDC_AUDIENCE,
+    MCP_AUTH_OIDC_JWKS_URI: process.env.MCP_AUTH_OIDC_JWKS_URI,
+    MCP_AUTH_OIDC_USER_CLAIM: process.env.MCP_AUTH_OIDC_USER_CLAIM,
     // Email
     EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
     SMTP_CONNECTION_URL: process.env.SMTP_CONNECTION_URL,

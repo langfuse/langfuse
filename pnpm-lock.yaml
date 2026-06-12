@@ -665,6 +665,9 @@ importers:
       ip-address:
         specifier: ^10.2.0
         version: 10.2.0
+      jose:
+        specifier: ^5.9.6
+        version: 5.10.0
       json-schema-faker:
         specifier: 0.6.1
         version: 0.6.1
