@@ -35,17 +35,12 @@ import {
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
 import { OrderByState } from "../../interfaces/orderBy";
-import {
-  dashboardColumnDefinitions,
-  scoresTableUiColumnDefinitions,
-  scoresTableUiColumnDefinitionsFromEvents,
-} from "../tableMappings";
+import { scoresTableUiColumnDefinitionsFromEvents } from "../tableMappings";
 import {
   convertScoreAggregation,
   convertClickhouseScoreToDomain,
   ScoreAggregation,
 } from "./scores_converters";
-import { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./constants";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -53,17 +48,12 @@ import {
 import { ScoreRecordReadType } from "./definitions";
 import { env } from "../../env";
 import { _handleGetScoreById, _handleGetScoresByIds } from "./scores-utils";
-import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
 import type { AnalyticsScoreEvent } from "../analytics-integrations/types";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import { prisma } from "../../db";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { scoresColumnsTableUiColumnDefinitions } from "../tableMappings/mapScoresColumnsTable";
 import {
   eventsTraceMetadata,
-  eventsExperimentTraceIds,
   eventsExperiments,
 } from "../queries/clickhouse-sql/query-fragments";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
@@ -71,11 +61,9 @@ import {
   findUiColumnMapping,
   matchesUiColumnMapping,
 } from "../../tableDefinitions";
+import * as greptimeScoreReads from "./greptime/scores";
 
-const FILTER_OPTION_SCORE_NAME_LIMIT = 200;
-const FILTER_OPTION_CATEGORICAL_VALUE_LIMIT = 20;
-
-export const searchExistingAnnotationScore = async (
+export const searchExistingAnnotationScore = (
   projectId: string,
   observationId: string | null,
   traceId: string | null,
@@ -83,50 +71,16 @@ export const searchExistingAnnotationScore = async (
   name: string | undefined,
   configId: string | undefined,
   dataType: ScoreDataTypeType,
-) => {
-  if (!name && !configId) {
-    throw new Error("Either name or configId (or both) must be provided.");
-  }
-
-  const query = `
-    SELECT *
-    FROM scores s
-    WHERE s.project_id = {projectId: String}
-    AND s.source = 'ANNOTATION'
-    AND s.data_type = {dataType: String}
-    ${traceId ? `AND s.trace_id = {traceId: String}` : "AND isNull(s.trace_id)"}
-    ${observationId ? `AND s.observation_id = {observationId: String}` : "AND isNull(s.observation_id)"}
-    ${sessionId ? `AND s.session_id = {sessionId: String}` : "AND isNull(s.session_id)"}
-    AND (
-      FALSE
-      ${name ? `OR s.name = {name: String}` : ""}
-      ${configId ? `OR s.config_id = {configId: String}` : ""}
-    )
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id
-    LIMIT 1
-  `;
-
-  const rows = await queryClickhouse<ScoreRecordReadType>({
-    query,
-    params: {
-      projectId,
-      name,
-      configId,
-      traceId,
-      observationId,
-      sessionId,
-      dataType,
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-  });
-  return rows.map((row) => convertClickhouseScoreToDomain(row)).shift();
-};
+) =>
+  greptimeScoreReads.searchExistingAnnotationScore(
+    projectId,
+    observationId,
+    traceId,
+    sessionId,
+    name,
+    configId,
+    dataType,
+  );
 
 export const getScoreById = async ({
   projectId,
@@ -222,130 +176,22 @@ type GetScoresForExperimentsProps<
   includeHasMetadata?: IncludeHasMetadata;
 };
 
-const formatMetadataSelect = (
-  excludeMetadata: boolean,
-  includeHasMetadata: boolean,
-) => {
-  return [
-    !excludeMetadata ? "*" : "* EXCEPT (metadata)",
-    includeHasMetadata
-      ? "length(mapKeys(s.metadata)) > 0 AS has_metadata"
-      : null,
-  ]
-    .filter((s) => s != null)
-    .join(", ");
-};
-
-export const getScoresForSessions = async <
+export const getScoresForSessions = <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 >(
   props: GetScoresForSessionsProps<ExcludeMetadata, IncludeHasMetadata>,
-) => {
-  const {
-    projectId,
-    sessionIds,
-    limit,
-    offset,
-    clickhouseConfigs,
-    excludeMetadata = false,
-    includeHasMetadata = false,
-  } = props;
+) => greptimeScoreReads.getScoresForSessions(props);
 
-  const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
-
-  const query = `
-      select
-        ${select}
-      from scores s
-      WHERE s.project_id = {projectId: String}
-      AND s.session_id IN ({sessionIds: Array(String)})
-      AND s.data_type IN ({dataTypes: Array(String)})
-      ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-    `;
-
-  const rows = await queryClickhouse<ScoreRecordReadType>({
-    query: query,
-    params: {
-      projectId,
-      sessionIds,
-      limit,
-      offset,
-      dataTypes: LISTABLE_SCORE_TYPES,
-    },
-    tags: {
-      feature: "sessions",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-    clickhouseConfigs,
-  });
-
-  const includeMetadataPayload = excludeMetadata ? false : true;
-  return rows.map((row) =>
-    convertClickhouseScoreToDomain(row, includeMetadataPayload),
-  );
-};
-
-export const getScoresForExperiments = async <
+export const getScoresForExperiments = <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 >(
   props: GetScoresForExperimentsProps<ExcludeMetadata, IncludeHasMetadata>,
-) => {
-  const {
-    projectId,
-    runIds,
-    limit,
-    offset,
-    clickhouseConfigs,
-    excludeMetadata = false,
-    includeHasMetadata = false,
-  } = props;
-
-  const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
-
-  const query = `
-      select
-        ${select}
-      from scores s
-      WHERE s.project_id = {projectId: String}
-      AND s.dataset_run_id IN ({runIds: Array(String)})
-      AND s.data_type IN ({dataTypes: Array(String)})
-      ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-    `;
-
-  const rows = await queryClickhouse<ScoreRecordReadType>({
-    query: query,
-    params: {
-      projectId,
-      runIds,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
-      limit,
-      offset,
-    },
-    tags: {
-      feature: "sessions",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-    clickhouseConfigs,
-  });
-
-  const includeMetadataPayload = excludeMetadata ? false : true;
-  return rows.map((row) =>
-    convertClickhouseScoreToDomain<ExcludeMetadata, AggregatableScoreDataType>(
-      row,
-      includeMetadataPayload,
-    ),
-  );
-};
+) =>
+  greptimeScoreReads.getScoresForExperiments(props) as unknown as Promise<
+    ScoreByDataType<AggregatableScoreDataType>[]
+  >;
 
 export const getTraceScoresForDatasetRuns = async (
   projectId: string,
@@ -509,130 +355,20 @@ export const getScoresForExperimentItems = async (
   }));
 };
 
-const getScoresForTracesInternal = async <
-  ExcludeMetadata extends boolean,
-  IncludeHasMetadata extends boolean,
-  DataTypes extends readonly ScoreDataTypeType[],
->(
-  props: GetScoresForTracesProps<ExcludeMetadata, IncludeHasMetadata> & {
-    dataTypes?: DataTypes;
-  },
-) => {
-  const {
-    projectId,
-    traceIds,
-    level = "all",
-    timestamp,
-    dataTypes,
-    limit,
-    offset,
-    clickhouseConfigs,
-    excludeMetadata = false,
-    includeHasMetadata = false,
-    preferredClickhouseService,
-  } = props;
-
-  const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
-  const levelFilter =
-    level === "trace"
-      ? "AND s.observation_id IS NULL"
-      : level === "observation"
-        ? "AND s.observation_id IS NOT NULL"
-        : "";
-
-  const query = `
-      select
-        ${select}
-      from scores s
-      WHERE s.project_id = {projectId: String}
-      AND s.trace_id IN ({traceIds: Array(String)})
-      ${dataTypes ? `AND s.data_type IN ({dataTypes: Array(String)})` : ""}
-      ${timestamp ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
-      ${levelFilter}
-      ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
-      ${limit && offset ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-    `;
-
-  const rows = await queryClickhouse<
-    ScoreRecordReadType & {
-      metadata: ExcludeMetadata extends true
-        ? never
-        : ScoreRecordReadType["metadata"];
-      // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
-      has_metadata: IncludeHasMetadata extends true ? 0 | 1 : never;
-    }
-  >({
-    query: query,
-    params: {
-      projectId,
-      traceIds,
-      limit,
-      offset,
-      ...(dataTypes ? { dataTypes: dataTypes.map((d) => d.toString()) } : {}),
-      ...(timestamp
-        ? { traceTimestamp: convertDateToClickhouseDateTime(timestamp) }
-        : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-    clickhouseConfigs,
-    preferredClickhouseService,
-  });
-
-  const includeMetadataPayload = excludeMetadata ? false : true;
-  return rows.map((row) => {
-    const score = convertClickhouseScoreToDomain(
-      {
-        ...row,
-        metadata: excludeMetadata ? {} : row.metadata,
-      },
-      includeMetadataPayload,
-    );
-
-    recordDistribution(
-      "langfuse.query_by_id_age",
-      new Date().getTime() - score.timestamp.getTime(),
-      {
-        table: "scores",
-      },
-    );
-
-    if (includeHasMetadata) {
-      Object.assign(score, { hasMetadata: !!row.has_metadata });
-    }
-
-    return score;
-  });
-};
-
 // Used in multiple places, including the public API, hence the non-default exclusion of metadata via excludeMetadata flag
-export const getScoresForTraces = async <
+export const getScoresForTraces = <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 >(
   props: GetScoresForTracesProps<ExcludeMetadata, IncludeHasMetadata>,
-) => {
-  return getScoresForTracesInternal({
-    ...props,
-    dataTypes: LISTABLE_SCORE_TYPES,
-  });
-};
+) => greptimeScoreReads.getScoresForTraces(props);
 
-export const getScoresAndCorrectionsForTraces = async <
+export const getScoresAndCorrectionsForTraces = <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 >(
   props: GetScoresForTracesProps<ExcludeMetadata, IncludeHasMetadata>,
-) => {
-  return getScoresForTracesInternal({
-    ...props,
-  });
-};
+) => greptimeScoreReads.getScoresAndCorrectionsForTraces(props);
 
 export type GetScoresForObservationsProps<
   ExcludeMetadata extends boolean,
@@ -654,392 +390,44 @@ export type GetScoresForObservationsProps<
 };
 
 // Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
-export const getScoresForObservations = async <
+export const getScoresForObservations = <
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 >(
   props: GetScoresForObservationsProps<ExcludeMetadata, IncludeHasMetadata>,
-) => {
-  const {
-    projectId,
-    observationIds,
-    minTimestamp,
-    limit,
-    offset,
-    clickhouseConfigs,
-    excludeMetadata = false,
-    includeHasMetadata = false,
-  } = props;
+) =>
+  greptimeScoreReads.getScoresForObservations(props) as unknown as Promise<
+    Array<
+      ScoreByDataType<ScoreDataTypeType> & {
+        hasMetadata: IncludeHasMetadata extends true ? boolean : never;
+      }
+    >
+  >;
 
-  const select = [
-    !excludeMetadata ? "*" : "* EXCEPT (metadata)",
-    includeHasMetadata
-      ? "length(mapKeys(s.metadata)) > 0 AS has_metadata"
-      : null,
-  ]
-    .filter((s) => s != null)
-    .join(", ");
-
-  const query = `
-      select
-        ${select}
-      from scores s
-      WHERE s.project_id = {projectId: String}
-      AND s.observation_id IN ({observationIds: Array(String)})
-      AND s.data_type IN ({dataTypes: Array(String)})
-      ${minTimestamp ? `AND s.timestamp >= {minTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}
-      ORDER BY s.event_ts DESC
-      LIMIT 1 BY s.id, s.project_id
-      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-    `;
-
-  const rows = await queryClickhouse<
-    ScoreRecordReadType & {
-      metadata: ExcludeMetadata extends true
-        ? never
-        : ScoreRecordReadType["metadata"];
-      // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
-      has_metadata: IncludeHasMetadata extends true ? 0 | 1 : never;
-    }
-  >({
-    query: query,
-    params: {
-      projectId: projectId,
-      observationIds: observationIds,
-      dataTypes: LISTABLE_SCORE_TYPES,
-      limit: limit,
-      offset: offset,
-      ...(minTimestamp
-        ? { minTimestamp: convertDateToClickhouseDateTime(minTimestamp) }
-        : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-    clickhouseConfigs,
-  });
-
-  const includeMetadataPayload = excludeMetadata ? false : true;
-  return rows.map((row) => ({
-    ...convertClickhouseScoreToDomain(
-      {
-        ...row,
-        metadata: excludeMetadata ? {} : row.metadata,
-      },
-      includeMetadataPayload,
-    ),
-    hasMetadata: (includeHasMetadata
-      ? !!row.has_metadata
-      : undefined) as IncludeHasMetadata extends true ? boolean : never,
-  }));
-};
-
-/**
- * Event/experiment column mappings for building WHERE filters inside the events CTE.
- * Maps to actual events_proto columns with the "e" prefix used by EventsQueryBuilder.
- */
-const scoresEventsFilterMapping = [
-  {
-    uiTableName: "Experiment IDs",
-    uiTableId: "experimentIds",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: "experiment_id",
-    queryPrefix: "e",
-  },
-];
-
-export const getScoresGroupedByNameSourceType = async ({
-  projectId,
-  filter,
-  fromTimestamp,
-  toTimestamp,
-}: {
+export const getScoresGroupedByNameSourceType = (args: {
   projectId: string;
   filter: FilterCondition[];
   fromTimestamp?: Date;
   toTimestamp?: Date;
-}) => {
-  const scoresFilter = new FilterList();
-  scoresFilter.push(
-    ...createFilterFromFilterState(
-      filter,
-      scoresColumnsTableUiColumnDefinitions,
-      scoresTableCols,
-    ),
-  );
+}) => greptimeScoreReads.getScoresGroupedByNameSourceType(args);
 
-  // Separate scores-only filters from event/experiment filters
-  const nonEventFilters = scoresFilter.filter(
-    (f) => !f.clickhouseTable.startsWith("events_"),
-  );
-
-  const scoresFilterRes = nonEventFilters.apply();
-
-  // Only join dataset run items if there is a dataset run items filter
-  const performDatasetRunItemsJoin = scoresFilter.some(
-    (f) => f.clickhouseTable === "dataset_run_items_rmt",
-  );
-
-  // Extract event-level filter entries from the frontend filter state
-  const eventFilterState = filter.filter((filterEntry) =>
-    scoresEventsFilterMapping.some((col) =>
-      matchesUiColumnMapping(col, filterEntry.column),
-    ),
-  );
-
-  let eventsCTE = "";
-  let eventsCTEParams: Record<string, unknown> = {};
-  const hasEventsFilters = eventFilterState.length > 0;
-
-  let eventsFilterRes;
-  if (hasEventsFilters) {
-    const eventsBuilder = eventsExperimentTraceIds(projectId);
-
-    // Create filters from the event filter state using the proper column mappings
-    const cteEventFilters = new FilterList(
-      createFilterFromFilterState(eventFilterState, scoresEventsFilterMapping),
-    );
-    eventsFilterRes = cteEventFilters.apply();
-    if (eventsFilterRes.query) {
-      eventsBuilder.where(eventsFilterRes);
-    }
-
-    const { query: cteQuery, params: cteParams } =
-      eventsBuilder.buildWithParams();
-    eventsCTE = `WITH experiment_events AS (${cteQuery})`;
-    Object.assign(eventsCTEParams, cteParams);
-  }
-
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-
-  const query = `
-    ${eventsCTE}
-    SELECT
-      s.name as name,
-      s.source as source,
-      s.data_type as data_type
-    FROM scores s
-    ${performDatasetRunItemsJoin ? `JOIN dataset_run_items_rmt dri ON s.trace_id = dri.trace_id AND s.project_id = dri.project_id` : ""}
-    ${hasEventsFilters ? `ANY JOIN experiment_events e ON s.trace_id = e.trace_id AND s.project_id = e.project_id` : ""}
-    WHERE s.project_id = {projectId: String}
-    ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-    ${fromTimestamp ? `AND s.timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
-    ${toTimestamp ? `AND s.timestamp <= {toTimestamp: DateTime64(3)}` : ""}
-    AND s.data_type IN ({dataTypes: Array(String)})
-    GROUP BY name, source, data_type
-    ORDER BY count() desc
-    LIMIT ${FILTER_OPTION_SCORE_NAME_LIMIT};
-  `;
-
-  const rows = await queryClickhouse<{
-    name: string;
-    source: string;
-    data_type: string;
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      dataTypes: LISTABLE_SCORE_TYPES,
-      ...(fromTimestamp
-        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
-        : {}),
-      ...(toTimestamp
-        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
-        : {}),
-      ...(scoresFilterRes ? scoresFilterRes.params : {}),
-      ...(eventsFilterRes ? eventsFilterRes.params : {}),
-      ...eventsCTEParams,
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-    preferredClickhouseService: hasEventsFilters
-      ? "EventsReadOnly"
-      : "ReadOnly",
-  });
-
-  return rows.map((row) => ({
-    name: row.name,
-    source: row.source as ScoreSourceType,
-    dataType: row.data_type as ListableScoreDataType,
-  }));
-};
-
-export const getNumericScoresGroupedByName = async (
+export const getNumericScoresGroupedByName = (
   projectId: string,
   filter?: FilterState,
-) => {
-  // Despite the historical name of some callers, this accepts any score-table
-  // compatible filter. Trace tables use this to scope discovery to scores that
-  // roll up into trace aggregates, not just direct trace-level scores.
-  const chFilter = filter
-    ? createFilterFromFilterState(
-        filter,
-        scoresColumnsTableUiColumnDefinitions,
-        scoresTableCols,
-      )
-    : undefined;
+) => greptimeScoreReads.getNumericScoresGroupedByName(projectId, filter);
 
-  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
-
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const query = `
-      select
-        name as name
-      from scores s
-      WHERE s.project_id = {projectId: String}
-      AND has(['NUMERIC', 'BOOLEAN'], s.data_type)
-      ${filterRes?.query ? `AND ${filterRes.query}` : ""}
-      GROUP BY name
-      ORDER BY count() desc
-      LIMIT ${FILTER_OPTION_SCORE_NAME_LIMIT};
-    `;
-
-  const rows = await queryClickhouse<{
-    name: string;
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(filterRes ? filterRes.params : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-    preferredClickhouseService: "ReadOnly",
-  });
-
-  return rows;
-};
-
-export const getCategoricalScoresGroupedByName = async (
+export const getCategoricalScoresGroupedByName = (
   projectId: string,
   filter?: FilterState,
-) => {
-  // Mirrors `getNumericScoresGroupedByName`: callers can provide any score
-  // scope filters, not just timestamp predicates.
-  const chFilter = filter
-    ? createFilterFromFilterState(
-        filter,
-        scoresColumnsTableUiColumnDefinitions,
-        scoresTableCols,
-      )
-    : undefined;
+) => greptimeScoreReads.getCategoricalScoresGroupedByName(projectId, filter);
 
-  const filterRes = chFilter ? new FilterList(chFilter).apply() : undefined;
-
-  const query = `
-    SELECT
-      name AS label,
-      groupUniqArray(${FILTER_OPTION_CATEGORICAL_VALUE_LIMIT})(string_value) AS values
-    FROM scores s
-    WHERE s.project_id = {projectId: String}
-    AND s.data_type = 'CATEGORICAL'
-    ${filterRes?.query ? `AND ${filterRes.query}` : ""}
-    GROUP BY name
-    ORDER BY count() DESC
-    LIMIT ${FILTER_OPTION_SCORE_NAME_LIMIT};
-  `;
-
-  const rows = await queryClickhouse<{
-    label: string;
-    values: string[];
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(filterRes ? filterRes.params : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-    preferredClickhouseService: "ReadOnly",
-  });
-
-  // Get score names from ClickHouse results to query score configs
-  const scoreNames = rows.map((row) => row.label);
-
-  // Query score_configs table for categorical configurations
-  const scoreConfigs =
-    scoreNames.length > 0
-      ? await prisma.scoreConfig.findMany({
-          where: {
-            projectId: projectId,
-            name: {
-              in: scoreNames,
-            },
-            dataType: "CATEGORICAL",
-            isArchived: false,
-          },
-          select: {
-            name: true,
-            categories: true,
-          },
-        })
-      : [];
-
-  // Create a map of score configs for easy lookup
-  const configMap = new Map(
-    scoreConfigs.map((config) => [config.name, config.categories]),
-  );
-
-  // Enhance the results with all possible category values from score configs
-  return rows.map((row) => {
-    const configCategories = configMap.get(row.label);
-
-    if (configCategories && Array.isArray(configCategories)) {
-      // Extract all possible category labels from the score config
-      const allPossibleValues = (
-        configCategories as Array<{ label: string; value: number }>
-      ).map((category) => category.label);
-
-      // Merge actual values from ClickHouse with all possible values from config
-      // Use Set to ensure uniqueness
-      const mergedValues = Array.from(
-        new Set([...row.values, ...allPossibleValues]),
-      ).slice(0, FILTER_OPTION_CATEGORICAL_VALUE_LIMIT);
-
-      return {
-        ...row,
-        values: mergedValues,
-      };
-    }
-
-    // If no config found, return original values
-    return row;
-  });
-};
-
-export const getScoresUiCount = async (props: {
+export const getScoresUiCount = (props: {
   projectId: string;
   filter: FilterState;
   orderBy: OrderByState;
   limit?: number;
   offset?: number;
-}) => {
-  const rows = await getScoresUiGeneric<{ count: string }>({
-    select: "count",
-    excludeMetadata: true,
-    tags: { kind: "count" },
-    ...props,
-  });
-
-  return Number(rows[0].count);
-};
+}) => greptimeScoreReads.getScoresUiCount(props);
 
 export type ScoreUiTableRow = ScoreDomain & {
   traceName: string | null;
@@ -1047,7 +435,7 @@ export type ScoreUiTableRow = ScoreDomain & {
   traceTags: Array<string> | null;
 };
 
-export async function getScoresUiTable<
+export function getScoresUiTable<
   ExcludeMetadata extends boolean,
   IncludeHasMetadata extends boolean,
 >(props: {
@@ -1060,195 +448,22 @@ export async function getScoresUiTable<
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
 }) {
-  const {
-    excludeMetadata = false,
-    includeHasMetadataFlag = false,
-    clickhouseConfigs,
-    ...rest
-  } = props;
-
-  const rows = await getScoresUiGeneric<{
-    id: string;
-    project_id: string;
-    environment: string;
-    name: string;
-    value: number;
-    string_value: string | null;
-    timestamp: string;
-    source: string;
-    data_type: string;
-    comment: string | null;
-    trace_id: string | null;
-    session_id: string | null;
-    dataset_run_id: string | null;
-    metadata: ExcludeMetadata extends true ? never : Record<string, string>;
-    observation_id: string | null;
-    author_user_id: string | null;
-    user_id: string | null;
-    trace_name: string | null;
-    trace_tags: Array<string> | null;
-    job_configuration_id: string | null;
-    author_user_image: string | null;
-    author_user_name: string | null;
-    config_id: string | null;
-    queue_id: string | null;
-    execution_trace_id: string | null;
-    is_deleted: number;
-    event_ts: string;
-    created_at: string;
-    updated_at: string;
-    // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
-    has_metadata: IncludeHasMetadata extends true ? 0 | 1 : never;
-  }>({
-    select: "rows",
-    tags: { kind: "analytic" },
-    excludeMetadata,
-    includeHasMetadataFlag,
-    clickhouseConfigs,
-    ...rest,
-  });
-
-  const includeMetadataPayload = excludeMetadata ? false : true;
-  return rows.map((row) => {
-    const score = convertClickhouseScoreToDomain(
-      {
-        ...row,
-        metadata: excludeMetadata ? {} : row.metadata,
-        // Long string value is never required for scores UI table, so we always return an empty string
-        long_string_value: "",
-      },
-      includeMetadataPayload,
-    );
-    return {
-      ...score,
-      traceUserId: row.user_id,
-      traceName: row.trace_name,
-      traceTags: row.trace_tags,
-      hasMetadata: (includeHasMetadataFlag
-        ? !!row.has_metadata
-        : undefined) as IncludeHasMetadata extends true ? boolean : never,
-    };
-  });
+  return greptimeScoreReads.getScoresUiTable({
+    projectId: props.projectId,
+    filter: props.filter,
+    orderBy: props.orderBy,
+    limit: props.limit,
+    offset: props.offset,
+    excludeMetadata: props.excludeMetadata,
+    includeHasMetadataFlag: props.includeHasMetadataFlag,
+  }) as unknown as Promise<
+    Array<
+      ScoreUiTableRow & {
+        hasMetadata: IncludeHasMetadata extends true ? boolean : never;
+      }
+    >
+  >;
 }
-
-const getScoresUiGeneric = async <T>(props: {
-  select: "count" | "rows";
-  projectId: string;
-  filter: FilterState;
-  orderBy: OrderByState;
-  limit?: number;
-  offset?: number;
-  tags?: Record<string, string>;
-  clickhouseConfigs?: ClickHouseClientConfigOptions;
-  excludeMetadata?: boolean;
-  includeHasMetadataFlag?: boolean;
-}): Promise<T[]> => {
-  const {
-    projectId,
-    filter,
-    orderBy,
-    limit,
-    offset,
-    clickhouseConfigs,
-    excludeMetadata = false,
-    includeHasMetadataFlag = false,
-  } = props;
-
-  const select =
-    props.select === "count"
-      ? "count(*) as count"
-      : `
-        s.id,
-        s.project_id,
-        s.environment,
-        s.name,
-        s.value,
-        s.string_value,
-        s.timestamp,
-        s.source,
-        s.data_type,
-        s.comment,
-        ${excludeMetadata ? "" : "s.metadata,"}
-        s.trace_id,
-        s.session_id,
-        s.observation_id,
-        s.author_user_id,
-        t.user_id,
-        t.name,
-        t.tags,
-        s.created_at,
-        s.updated_at,
-        s.source,
-        s.config_id,
-        s.queue_id,
-        s.execution_trace_id,
-        s.is_deleted,
-        s.event_ts,
-        t.user_id,
-        t.name as trace_name,
-        t.tags as trace_tags
-        ${includeHasMetadataFlag ? ",length(mapKeys(s.metadata)) > 0 AS has_metadata" : ""}
-      `;
-
-  const { scoresFilter } = getProjectIdDefaultFilter(projectId, {
-    tracesPrefix: "t",
-  });
-  scoresFilter.push(
-    ...createFilterFromFilterState(
-      filter,
-      scoresTableUiColumnDefinitions,
-      scoresTableCols,
-    ),
-  );
-  const scoresFilterRes = scoresFilter.apply();
-
-  // Only join traces for rows or if there is a trace filter on counts
-  const performTracesJoin =
-    props.select === "rows" ||
-    scoresFilter.some((f) => f.clickhouseTable === "traces");
-
-  const query = `
-      SELECT
-          ${select}
-      FROM scores s final
-      ${performTracesJoin ? "LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id" : ""}
-      WHERE s.project_id = {projectId: String}
-      AND s.data_type IN ({dataTypes: Array(String)})
-      ${scoresFilterRes?.query ? `AND ${scoresFilterRes.query}` : ""}
-      ${orderByToClickhouseSql(orderBy ?? null, scoresTableUiColumnDefinitions)}
-      ${limit !== undefined && offset !== undefined ? `limit {limit: Int32} offset {offset: Int32}` : ""}
-    `;
-
-  return measureAndReturn({
-    operationName: "getScoresUiGeneric",
-    projectId,
-    input: {
-      params: {
-        projectId: projectId,
-        dataTypes: LISTABLE_SCORE_TYPES,
-        ...(scoresFilterRes ? scoresFilterRes.params : {}),
-        limit: limit,
-        offset: offset,
-      },
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "tracing",
-        type: "score",
-        projectId,
-        select: props.select,
-        operation_name: "getScoresUiGeneric",
-      },
-    },
-    fn: async (input) => {
-      return queryClickhouse<T>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs,
-      });
-    },
-  });
-};
 
 /**
  * Trace column mapping for building WHERE filters inside the flat events CTE.
@@ -1538,110 +753,15 @@ export async function getScoresUiTableFromEvents(props: {
   });
 }
 
-export const getScoreNames = async (
+export const getScoreNames = (
   projectId: string,
   timestampFilter: FilterState,
-) => {
-  const chFilter = new FilterList(
-    createFilterFromFilterState(
-      timestampFilter,
-      scoresTableUiColumnDefinitions,
-      scoresTableCols,
-    ),
-  );
-  const timestampFilterRes = chFilter.apply();
+) => greptimeScoreReads.getScoreNames(projectId, timestampFilter);
 
-  // We mainly use queries like this to retrieve filter options.
-  // Therefore, we can skip final as some inaccuracy in count is acceptable.
-  const query = `
-      select
-        name,
-        count(*) as count
-      from scores s
-      WHERE s.project_id = {projectId: String}
-      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
-      AND s.data_type IN ({dataTypes: Array(String)})
-      GROUP BY name
-      ORDER BY count() desc
-      LIMIT 1000;
-    `;
-
-  const rows = await queryClickhouse<{
-    name: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
-      dataTypes: LISTABLE_SCORE_TYPES,
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-  });
-
-  return rows.map((row) => ({
-    name: row.name,
-    count: Number(row.count),
-  }));
-};
-
-export const getScoreStringValues = async (
+export const getScoreStringValues = (
   projectId: string,
   timestampFilter: FilterState,
-) => {
-  const chFilter = new FilterList(
-    createFilterFromFilterState(
-      timestampFilter,
-      scoresTableUiColumnDefinitions,
-      scoresTableCols,
-    ),
-  );
-  const timestampFilterRes = chFilter.apply();
-
-  // exclude TEXT scores as they are arbitrary by nature and hence have high cardinality
-  // which in turn can lead to performance issues
-  const query = `
-      select
-        string_value,
-        count(*) as count
-      from scores s
-      WHERE s.project_id = {projectId: String}
-      AND string_value IS NOT NULL
-      AND string_value != ''
-      AND s.data_type != 'TEXT'
-      ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
-      GROUP BY string_value
-      ORDER BY count() desc
-      LIMIT 1000;
-    `;
-
-  const rows = await queryClickhouse<{
-    string_value: string;
-    count: string;
-  }>({
-    query: query,
-    params: {
-      projectId: projectId,
-      ...(timestampFilterRes ? timestampFilterRes.params : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-  });
-
-  return rows.map((row) => ({
-    value: row.string_value,
-    count: Number(row.count),
-  }));
-};
+) => greptimeScoreReads.getScoreStringValues(projectId, timestampFilter);
 
 export const deleteScores = async (projectId: string, scoreIds: string[]) => {
   const query = `
@@ -1725,34 +845,8 @@ export const deleteScoresByProjectId = async (
   return true;
 };
 
-export const hasAnyScoreOlderThan = async (
-  projectId: string,
-  beforeDate: Date,
-) => {
-  const query = `
-    SELECT 1
-    FROM scores
-    WHERE project_id = {projectId: String}
-    AND timestamp < {cutoffDate: DateTime64(3)}
-    LIMIT 1
-  `;
-
-  const rows = await queryClickhouse<{ 1: number }>({
-    query,
-    params: {
-      projectId,
-      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "hasAnyOlderThan",
-      projectId,
-    },
-  });
-
-  return rows.length > 0;
-};
+export const hasAnyScoreOlderThan = (projectId: string, beforeDate: Date) =>
+  greptimeScoreReads.hasAnyScoreOlderThan(projectId, beforeDate);
 
 export const deleteScoresOlderThanDays = async (
   projectId: string,
@@ -1788,56 +882,11 @@ export const deleteScoresOlderThanDays = async (
   return true;
 };
 
-export const getNumericScoreHistogram = async (
+export const getNumericScoreHistogram = (
   projectId: string,
   filter: FilterState,
   limit: number,
-) => {
-  const chFilter = new FilterList(
-    createFilterFromFilterState(filter, dashboardColumnDefinitions),
-  );
-  const chFilterRes = chFilter.apply();
-
-  const traceFilter = chFilter.find((f) => f.clickhouseTable === "traces");
-
-  const query = `
-    select s.value
-    from scores s
-    ${traceFilter ? `LEFT JOIN traces t ON s.trace_id = t.id AND t.project_id = s.project_id` : ""}
-    WHERE s.project_id = {projectId: String}
-    ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
-    ${chFilterRes?.query ? `AND ${chFilterRes.query}` : ""}
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id
-    ${limit !== undefined ? `limit {limit: Int32}` : ""}
-  `;
-
-  return measureAndReturn({
-    operationName: "getNumericScoreHistogram",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        limit,
-        ...(chFilterRes ? chFilterRes.params : {}),
-      },
-      tags: {
-        feature: "tracing",
-        type: "score",
-        kind: "analytic",
-        projectId,
-        operation_name: "getNumericScoreHistogram",
-      },
-    },
-    fn: async (input) => {
-      return queryClickhouse<{ value: number }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
-  });
-};
+) => greptimeScoreReads.getNumericScoreHistogram(projectId, filter, limit);
 
 export const getAggregatedScoresForPrompts = async (
   projectId: string,
@@ -1909,128 +958,29 @@ export const getAggregatedScoresForPrompts = async (
   }));
 };
 
-export const getScoreCountsByProjectInCreationInterval = async ({
-  start,
-  end,
-}: {
+export const getScoreCountsByProjectInCreationInterval = (args: {
   start: Date;
   end: Date;
-}) => {
-  const query = `
-    SELECT
-      project_id,
-      count(*) as count
-    FROM scores
-    WHERE created_at >= {start: DateTime64(3)}
-    AND created_at < {end: DateTime64(3)}
-    AND data_type IN ({dataTypes: Array(String)})
-    GROUP BY project_id
-  `;
+}) => greptimeScoreReads.getScoreCountsByProjectInCreationInterval(args);
 
-  const rows = await queryClickhouse<{ project_id: string; count: string }>({
-    query,
-    params: {
-      start: convertDateToClickhouseDateTime(start),
-      end: convertDateToClickhouseDateTime(end),
-      dataTypes: LISTABLE_SCORE_TYPES,
-    },
-    clickhouseConfigs: {
-      request_timeout: 120000, // 2 minutes timeout
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "analytic",
-    },
-  });
-
-  return rows.map((row) => ({
-    projectId: row.project_id,
-    count: Number(row.count),
-  }));
-};
-
-export const getScoreCountOfProjectsSinceCreationDate = async ({
-  projectIds,
-  start,
-}: {
+export const getScoreCountOfProjectsSinceCreationDate = (args: {
   projectIds: string[];
   start: Date;
-}) => {
-  const query = `
-    SELECT
-      count(*) as count
-    FROM scores
-    WHERE project_id IN ({projectIds: Array(String)})
-    AND created_at >= {start: DateTime64(3)}
-  `;
+}) => greptimeScoreReads.getScoreCountOfProjectsSinceCreationDate(args);
 
-  const rows = await queryClickhouse<{ count: string }>({
-    query,
-    params: {
-      projectIds,
-      start: convertDateToClickhouseDateTime(start),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "analytic",
-    },
-  });
-
-  return Number(rows[0]?.count ?? 0);
-};
-
-export const getDistinctScoreNames = async (p: {
+export const getDistinctScoreNames = (p: {
   projectId: string;
   cutoffCreatedAt: Date;
   filter: FilterState;
   isTimestampFilter: (filter: FilterCondition) => filter is TimeFilter;
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
-}) => {
-  const {
-    projectId,
-    cutoffCreatedAt,
-    filter,
-    isTimestampFilter,
-    clickhouseConfigs,
-  } = p;
-  const scoreTimestampFilter = filter?.find(isTimestampFilter);
-
-  const query = `    SELECT DISTINCT
-      name
-    FROM scores s
-    WHERE s.project_id = {projectId: String}
-    AND s.created_at <= {cutoffCreatedAt: DateTime64(3)}
-    ${scoreTimestampFilter ? `AND s.timestamp >= {filterTimestamp: DateTime64(3)}` : ""}
-    AND s.data_type IN ({dataTypes: Array(String)})
-  `;
-
-  const rows = await queryClickhouse<{ name: string }>({
-    query,
-    params: {
-      projectId,
-      cutoffCreatedAt: convertDateToClickhouseDateTime(cutoffCreatedAt),
-      dataTypes: LISTABLE_SCORE_TYPES,
-      ...(scoreTimestampFilter
-        ? {
-            filterTimestamp: convertDateToClickhouseDateTime(
-              scoreTimestampFilter.value,
-            ),
-          }
-        : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "list",
-      projectId,
-    },
-    clickhouseConfigs,
+}) =>
+  greptimeScoreReads.getDistinctScoreNames({
+    projectId: p.projectId,
+    cutoffCreatedAt: p.cutoffCreatedAt,
+    filter: p.filter,
+    isTimestampFilter: p.isTimestampFilter,
   });
-
-  return rows.map((row) => row.name);
-};
 
 export const getScoresForBlobStorageExport = function (
   projectId: string,
@@ -2219,66 +1169,14 @@ export const getScoresForAnalyticsIntegrations = async function* (
   }
 };
 
-export const hasAnyScore = async (projectId: string) => {
-  const query = `    SELECT 1
-    FROM scores
-    WHERE project_id = {projectId: String}
-    LIMIT 1
-  `;
+export const hasAnyScore = (projectId: string) =>
+  greptimeScoreReads.hasAnyScore(projectId);
 
-  const rows = await queryClickhouse<{ 1: number }>({
-    query,
-    params: {
-      projectId,
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "hasAny",
-      projectId,
-    },
-  });
-
-  return rows.length > 0;
-};
-
-export const getScoreMetadataById = async (
+export const getScoreMetadataById = (
   projectId: string,
   id: string,
   source?: ScoreSourceType,
-) => {
-  const query = `    SELECT
-      metadata
-    FROM scores s
-    WHERE s.project_id = {projectId: String}
-    AND s.id = {id: String}
-    ${source ? `AND s.source = {source: String}` : ""}
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id
-    LIMIT 1
-  `;
-
-  const rows = await queryClickhouse<Pick<ScoreRecordReadType, "metadata">>({
-    query,
-    params: {
-      projectId,
-      id,
-      ...(source !== undefined ? { source } : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "getScoreMetadataById",
-      projectId,
-    },
-  });
-
-  return rows
-    .map((row) =>
-      parseMetadataCHRecordToDomain(row.metadata as Record<string, string>),
-    )
-    .shift();
-};
+) => greptimeScoreReads.getScoreMetadataById(projectId, id, source);
 
 /**
  * Get score counts grouped by project and day within a date range.
@@ -2302,50 +1200,10 @@ export const getScoreMetadataById = async (
  * for usage aggregation to be meaningful.
  *
  */
-export const getScoreCountsByProjectAndDay = async ({
-  startDate,
-  endDate,
-}: {
+export const getScoreCountsByProjectAndDay = (args: {
   startDate: Date;
   endDate: Date;
-}) => {
-  const query = `
-    SELECT
-      count(*) as count,
-      project_id,
-      toDate(timestamp) as date
-    FROM scores
-    WHERE timestamp >= {startDate: DateTime64(3)}
-    AND timestamp < {endDate: DateTime64(3)}
-    AND data_type IN ({dataTypes: Array(String)})
-    GROUP BY project_id, toDate(timestamp)
-  `;
-
-  const rows = await queryClickhouse<{
-    count: string;
-    project_id: string;
-    date: string;
-  }>({
-    query,
-    params: {
-      startDate: convertDateToClickhouseDateTime(startDate),
-      endDate: convertDateToClickhouseDateTime(endDate),
-      dataTypes: LISTABLE_SCORE_TYPES,
-    },
-    clickhouseConfigs: { request_timeout: 120_000 },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "analytic",
-    },
-  });
-
-  return rows.map((row) => ({
-    count: Number(row.count),
-    projectId: row.project_id,
-    date: row.date,
-  }));
-};
+}) => greptimeScoreReads.getScoreCountsByProjectAndDay(args);
 
 // ─── Cursor helpers (v3 pagination) ───────────────────────────────────────────
 

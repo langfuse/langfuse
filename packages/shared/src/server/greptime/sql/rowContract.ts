@@ -82,3 +82,31 @@ export const greptimeDecimal = (v: unknown): string | null =>
 /** BIGINT stays a string; callers that need a JS number do the (lossy) conversion explicitly. */
 export const greptimeBigInt = (v: unknown): string | null =>
   v == null ? null : String(v);
+
+/** A nullable STRING column: pass strings through, normalise null/undefined, stringify anything else. */
+export const greptimeString = (v: unknown): string | null =>
+  v == null ? null : typeof v === "string" ? v : String(v);
+
+/**
+ * Required-field guards (04-read-path.md, P1). GreptimeDB is the source of truth, so a projection row
+ * missing a column the domain treats as non-nullable (id / project_id / the entity time index /
+ * created_at / updated_at) is a real corruption, not a value to coerce to null. These throw loudly so
+ * a bad row surfaces in the converter instead of producing a silently-null domain object.
+ */
+export const requireGreptimeString = (v: unknown, field: string): string => {
+  const s = greptimeString(v);
+  if (s == null) {
+    throw new Error(`GreptimeDB row missing required string column '${field}'`);
+  }
+  return s;
+};
+
+export const requireGreptimeDate = (v: unknown, field: string): Date => {
+  const d = greptimeDate(v);
+  if (d == null) {
+    throw new Error(
+      `GreptimeDB row missing required timestamp column '${field}'`,
+    );
+  }
+  return d;
+};

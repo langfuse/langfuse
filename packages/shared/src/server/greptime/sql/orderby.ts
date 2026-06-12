@@ -2,28 +2,22 @@ import z from "zod";
 
 import { InvalidRequestError } from "../../../errors";
 import { OrderByState } from "../../../interfaces/orderBy";
-import {
-  findUiColumnMapping,
-  UiColumnMappings,
-} from "../../../tableDefinitions";
+import { findUiColumnMapping } from "../../../tableDefinitions";
 import { logger } from "../../logger";
 import { quoteIdent } from "../schemaUtils";
+import { type GreptimeColumnMappings } from "./columnMappings";
 
 /**
- * ORDER BY for the GreptimeDB read path (04-read-path.md, P0b) — mirrors
+ * ORDER BY for the GreptimeDB read path (04-read-path.md, P0b/P1) — mirrors
  * `clickhouse-sql/orderby-factory.ts` but:
- *   - quotes bare column identifiers (GreptimeDB reserves timestamp/id/name/level/...); column
- *     mappings whose `clickhouseSelect` is an expression (contains a space/paren/dot) are emitted
- *     verbatim (they are already SQL).
+ *   - resolves columns against a `GreptimeColumnMappings` and emits `greptimeSelect` (a GreptimeDB
+ *     column ref / expression), NOT the CH-dialect `clickhouseSelect` (which carries CH functions and
+ *     old physical table names and would leak into GreptimeDB SQL — the original P1 caution).
+ *   - quotes bare column identifiers (GreptimeDB reserves timestamp/id/name/level/...); an
+ *     expression-valued mapping (contains a space/paren/dot) is emitted verbatim (it is already SQL).
  *   - drops the CH `anyLast(col)` aggregation wrapper: the projection is merged on write
  *     (merge_mode=last_non_null), so a list/detail read selects already-deduped rows and orders on
  *     the plain column. (Genuinely-aggregated queries pass `usedInAggregation` to wrap in `any()`.)
- *
- * CAUTION (P1): `UiColumnMappings.clickhouseSelect` is ClickHouse-dialect — it can hold CH functions
- * and old physical table names (e.g. `dataset_run_items_rmt`). This helper only quotes BARE column
- * names; any expression-valued mapping is emitted verbatim and would leak CH SQL into GreptimeDB. P1
- * must feed this a GreptimeDB-specific column mapping (Greptime column names / Greptime expressions),
- * not the existing CH `tableMappings`. Do not wire it to the CH mappings as-is.
  */
 
 const isBareIdentifier = (s: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(s);
@@ -38,7 +32,7 @@ const emitColumn = (
 
 export function greptimeOrderBySql(
   orderBy: OrderByState | OrderByState[] = [],
-  tableColumns: UiColumnMappings,
+  tableColumns: GreptimeColumnMappings,
   usedInAggregation = false,
 ): string {
   const list = (Array.isArray(orderBy) ? orderBy : [orderBy]).filter(
@@ -56,7 +50,7 @@ export function greptimeOrderBySql(
     if (!order.success) {
       throw new Error("Invalid order: " + ob.order);
     }
-    const column = emitColumn(col.queryPrefix, col.clickhouseSelect);
+    const column = emitColumn(col.queryPrefix, col.greptimeSelect);
     return `${usedInAggregation ? `any(${column})` : column} ${order.data}`;
   });
 

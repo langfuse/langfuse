@@ -1,107 +1,32 @@
 import { ScoreDataTypeType, ScoreDomain, ScoreSourceType } from "../../domain";
 import { PreferredClickhouseService } from "../clickhouse/client";
-import { queryClickhouse } from "./clickhouse";
-import { ScoreRecordReadType } from "./definitions";
-import { convertClickhouseScoreToDomain } from "./scores_converters";
+import * as greptimeScoreReads from "./greptime/scores";
 
 /**
  * @internal
- * Internal utility function for getting scores by ID.
+ * Internal utility for getting a score by ID. Reads the GreptimeDB projection (04-read-path.md, P1);
+ * the `preferredClickhouseService` parameter is retained for signature compatibility and ignored.
  * Do not use directly - use ScoresApiService or repository functions instead.
  */
-export const _handleGetScoreById = async ({
-  projectId,
-  scoreId,
-  source,
-  scoreScope,
-  scoreDataTypes,
-  preferredClickhouseService,
-}: {
+export const _handleGetScoreById = (params: {
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
   scoreDataTypes?: readonly ScoreDataTypeType[];
   preferredClickhouseService?: PreferredClickhouseService;
-}): Promise<ScoreDomain | undefined> => {
-  const query = `
-  SELECT *
-  FROM scores s
-  WHERE s.project_id = {projectId: String}
-  AND s.id = {scoreId: String}
-  ${scoreDataTypes ? `AND s.data_type IN ({scoreDataTypes: Array(String)})` : ""}
-  ${source ? `AND s.source = {source: String}` : ""}
-  ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
-  ORDER BY s.event_ts DESC
-  LIMIT 1 BY s.id, s.project_id
-  LIMIT 1
-`;
-
-  const rows = await queryClickhouse<ScoreRecordReadType>({
-    query,
-    params: {
-      projectId,
-      scoreId,
-      ...(source !== undefined ? { source } : {}),
-      ...(scoreDataTypes
-        ? { scoreDataTypes: scoreDataTypes.map((d) => d.toString()) }
-        : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
-      projectId,
-    },
-    preferredClickhouseService,
-  });
-  return rows.map((row) => convertClickhouseScoreToDomain(row)).shift();
-};
+}): Promise<ScoreDomain | undefined> =>
+  greptimeScoreReads._handleGetScoreById(params);
 
 /**
  * @internal
- * Internal utility function for getting scores by ID.
+ * Internal utility for getting scores by ID. Reads the GreptimeDB projection (04-read-path.md, P1).
  * Do not use directly - use ScoresApiService or repository functions instead.
  */
-export const _handleGetScoresByIds = async ({
-  projectId,
-  scoreId,
-  source,
-  scoreScope,
-  dataTypes,
-}: {
+export const _handleGetScoresByIds = (params: {
   projectId: string;
   scoreId: string[];
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
   dataTypes?: readonly ScoreDataTypeType[];
-}): Promise<ScoreDomain[]> => {
-  const query = `
-  SELECT *
-  FROM scores s
-  WHERE s.project_id = {projectId: String}
-  AND s.id IN ({scoreId: Array(String)})
-  ${source ? `AND s.source = {source: String}` : ""}
-  ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
-  ${dataTypes ? `AND s.data_type IN ({dataTypes: Array(String)})` : ""}
-  ORDER BY s.event_ts DESC
-  LIMIT 1 BY s.id, s.project_id
-`;
-
-  const rows = await queryClickhouse<ScoreRecordReadType>({
-    query,
-    params: {
-      projectId,
-      scoreId,
-      ...(dataTypes ? { dataTypes: dataTypes.map((d) => d.toString()) } : {}),
-      ...(source !== undefined ? { source } : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "byId",
-      projectId,
-    },
-  });
-  return rows.map((row) => convertClickhouseScoreToDomain(row));
-};
+}): Promise<ScoreDomain[]> => greptimeScoreReads._handleGetScoresByIds(params);
