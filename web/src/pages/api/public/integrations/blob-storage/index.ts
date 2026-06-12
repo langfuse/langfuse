@@ -167,15 +167,10 @@ async function handleUpsertBlobStorageIntegration(
       ? toInternalExportSource(validatedData.exportSource)
       : undefined;
 
-  // One read serving both write-time gates (the conditions are disjoint, so at
-  // most one query runs):
-  // - exportSource provided → the legacy upsert gate needs the row's createdAt
-  //   to decide whether the integration is grandfathered for legacy sources.
-  // - exportSource omitted (partial PUT) → the persisted value stays in effect,
-  //   so the enriched gate must consider the existing row too — otherwise a
-  //   stale enriched source left behind by a V4-preview flag rollback keeps
-  //   driving the worker against unpopulated tables. Read only when that gate
-  //   could actually reject (enriched export unavailable).
+  // Single conditional read serving both write-time gates: the legacy upsert
+  // gate needs the row's createdAt when exportSource is provided; the enriched
+  // gate needs the persisted exportSource when it is omitted (partial PUT) and
+  // enriched export is unavailable, so a stale enriched value is rejected.
   const existingIntegration =
     internalExportSource !== undefined ||
     !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
@@ -212,16 +207,13 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
-    // When exportSource is absent, have the service substitute EVENTS on
-    // CREATE inside its own transaction (eliminating the TOCTOU window that a
-    // pre-flight findUnique would create) for every Cloud project: a brand-new
-    // Cloud row counts as a post-cutoff integration, so letting the legacy
-    // Prisma column default through would trip refuseLegacyOnCreate and fail a
-    // partial PUT that never mentioned exportSource.
+    // New Cloud rows default to EVENTS when exportSource is omitted: a
+    // brand-new row is post-cutoff, so the legacy column default would trip
+    // refuseLegacyOnCreate and fail a partial PUT that never mentioned
+    // exportSource. Substituted in-transaction to avoid a TOCTOU window.
     forceEventsOnCreate: validatedData.exportSource == null && isCloud,
-    // In-transaction backstop closing the TOCTOU window: if a concurrent
-    // DELETE flips this upsert to the CREATE branch, refuse a legacy source so
-    // a new (post-cutoff) Cloud row can never be born legacy.
+    // In-transaction backstop: a concurrent DELETE can flip this upsert to
+    // CREATE; never let a new Cloud row be born with a legacy source.
     refuseLegacyOnCreate: isCloud,
     data: {
       type: validatedData.type,

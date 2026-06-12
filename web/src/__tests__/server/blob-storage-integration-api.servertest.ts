@@ -301,9 +301,8 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("should update an existing blob storage integration", async () => {
-      // Create initial integration. Backdated before the integration-level
-      // cutoff: the row keeps the legacy exportSource column default, which the
-      // in-transaction backstop only tolerates on grandfathered rows.
+      // Backdated: the row keeps the legacy exportSource column default,
+      // which only grandfathered (pre-integration-cutoff) rows may carry.
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -603,9 +602,8 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("should preserve exportFieldGroups in DB when updating via REST", async () => {
-      // Seed a row with a custom subset. Backdated: the row keeps the legacy
-      // exportSource column default, which the in-transaction backstop only
-      // tolerates on grandfathered (pre-integration-cutoff) rows.
+      // Seed a custom subset. Backdated: the row keeps the legacy exportSource
+      // column default, which only grandfathered rows may carry.
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -672,11 +670,9 @@ describe("Blob Storage Integrations API", () => {
       });
     });
 
-    // Seed a grandfathered (pre-integration-cutoff) legacy row so a subsequent
-    // legacy-source PUT passes the integration-level cutoff gate — brand-new
-    // Cloud rows can no longer be created with a legacy source, so these tests
-    // exercise the UPDATE path. exportFieldGroups stays at the column default
-    // (all groups) unless overridden.
+    // Pre-integration-cutoff legacy row: lets a legacy-source PUT pass the
+    // integration-level gate (new Cloud rows can no longer be legacy, so these
+    // tests exercise the UPDATE path).
     const seedGrandfatheredLegacyRow = (
       data: { exportFieldGroups?: string[] } = {},
     ) =>
@@ -1529,8 +1525,8 @@ describe("Blob Storage Integrations API", () => {
           where: { id: testProject1Id },
           data: { createdAt: PRE_CUTOFF },
         });
-        // Grandfathered (pre-integration-cutoff) row: the integration-level
-        // gate only allows a legacy source on an existing pre-cutoff row.
+        // Grandfathered row: legacy sources are only allowed on existing
+        // pre-integration-cutoff rows.
         await prisma.blobStorageIntegration.create({
           data: {
             projectId: testProject1Id,
@@ -1716,13 +1712,11 @@ describe("Blob Storage Integrations API", () => {
   });
 
   describe("integration-level legacy exporter cutoff gate", () => {
-    // Cloud mode comes from the server process env — see the note in the
-    // project-level gate suite above. The project is pinned pre-cutoff
-    // throughout, so the project-level gate never rejects: every 400 in this
-    // suite is the integration-level cutoff. The self-hosted bypass (legacy
-    // allowed without an existing row) cannot be exercised over HTTP for the
-    // same frozen-env reason; the tRPC suite covers it in-process through the
-    // same shared gate.
+    // Cloud mode comes from the server process env (see note in the
+    // project-level gate suite). The project is pinned pre-cutoff, so every
+    // 400 here is the integration-level cutoff. The self-hosted bypass cannot
+    // be tested over HTTP (frozen server env); the tRPC suite covers it
+    // through the same shared gate.
     const basePayload = {
       ...validBlobStorageConfig,
       projectId: "", // set per test
@@ -1859,9 +1853,8 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("no existing row + omitted exportSource → 200 and persists EVENTS", async () => {
-      // A brand-new Cloud row must never be born with the legacy Prisma column
-      // default, even on a pre-cutoff project: the handler forces EVENTS on
-      // CREATE when exportSource is omitted.
+      // New Cloud rows must never get the legacy column default, even on a
+      // pre-cutoff project.
       const result = await makeAPICall(
         "PUT",
         "/api/public/integrations/blob-storage",
