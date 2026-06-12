@@ -2500,6 +2500,138 @@ describe("batch export test suite", () => {
       expect(session2Row?.totalTokens).toBeGreaterThan(0n);
     });
 
+    it("should export observations from the events table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const now = Date.now() * 1000; // Events use microseconds
+
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "events-generation",
+          trace_name: "events-trace",
+          user_id: "events-user",
+          tags: ["tag-a", "tag-b"],
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          name: "events-span",
+          start_time: now,
+          end_time: now + 2000000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: events[0].span_id,
+        name: "quality",
+        value: 42,
+      });
+      await createScoresCh([score]);
+
+      const stream = await getObservationStream({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      // Rows keep the legacy observation export field names so the export
+      // schema is stable across the legacy and events read paths.
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: events[0].span_id,
+            name: "events-generation",
+            type: "GENERATION",
+            traceId: traceId,
+            traceName: "events-trace",
+            traceTags: ["tag-a", "tag-b"],
+            userId: "events-user",
+            model: "gpt-3.5-turbo",
+            input: "Hello World",
+            output: "Hello John",
+            metadata: expect.objectContaining({
+              source: "API",
+              server: "Node",
+            }),
+            quality: [score.value],
+            comments: [],
+          }),
+          expect.objectContaining({
+            id: events[1].span_id,
+            name: "events-span",
+            type: "SPAN",
+            latency: 2,
+            quality: null,
+          }),
+        ]),
+      );
+      // Concrete usage check: a regression that silently zeroed the usage
+      // aggregates read from the events table would surface here.
+      const generationRow = rows.find((r) => r.id === events[0].span_id);
+      expect(generationRow?.totalUsage).toBeGreaterThan(0);
+    });
+
+    it("should not read the legacy observations table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      // One row only in the legacy observations table, one only in events
+      const legacyObservation = createObservation({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+      });
+      await createObservationsCh([legacyObservation]);
+
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: randomUUID(),
+        type: "GENERATION",
+        start_time: Date.now() * 1000,
+      });
+      await createEventsCh([event]);
+
+      const streamParams = {
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+      };
+
+      const eventsRows: any[] = [];
+      for await (const chunk of await getObservationStream({
+        ...streamParams,
+        useEventsTable: true,
+      })) {
+        eventsRows.push(chunk);
+      }
+      expect(eventsRows).toHaveLength(1);
+      expect(eventsRows[0].id).toBe(event.span_id);
+
+      const legacyRows: any[] = [];
+      for await (const chunk of await getObservationStream(streamParams)) {
+        legacyRows.push(chunk);
+      }
+      expect(legacyRows).toHaveLength(1);
+      expect(legacyRows[0].id).toBe(legacyObservation.id);
+    });
+
     it("routes events exports through getEventsStream, not the paginated reader", async () => {
       // Path A contract: the events-table export is served by getEventsStream
       // (wired in handleBatchExportJob). The paginated reader intentionally has
