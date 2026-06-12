@@ -12,12 +12,19 @@ import {
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
   LEGACY_BLOB_EXPORT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const PRE_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() - MS_PER_DAY);
 const POST_CUTOFF = new Date(LEGACY_BLOB_EXPORT_CUTOFF.getTime() + MS_PER_DAY);
+const INTEGRATION_PRE_CUTOFF = new Date(
+  LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+);
+const INTEGRATION_POST_CUTOFF = new Date(
+  LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+);
 
 // Schemas based on Fern schema definition
 const BlobStorageIntegrationResponseSchema = z.object({
@@ -294,7 +301,9 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("should update an existing blob storage integration", async () => {
-      // Create initial integration
+      // Create initial integration. Backdated before the integration-level
+      // cutoff: the row keeps the legacy exportSource column default, which the
+      // in-transaction backstop only tolerates on grandfathered rows.
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -309,6 +318,7 @@ describe("Blob Storage Integrations API", () => {
           forcePathStyle: true,
           fileType: "JSON",
           exportMode: "FROM_TODAY",
+          createdAt: INTEGRATION_PRE_CUTOFF,
         },
       });
 
@@ -593,7 +603,9 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("should preserve exportFieldGroups in DB when updating via REST", async () => {
-      // Seed a row with a custom subset
+      // Seed a row with a custom subset. Backdated: the row keeps the legacy
+      // exportSource column default, which the in-transaction backstop only
+      // tolerates on grandfathered (pre-integration-cutoff) rows.
       await prisma.blobStorageIntegration.create({
         data: {
           projectId: testProject1Id,
@@ -609,6 +621,7 @@ describe("Blob Storage Integrations API", () => {
           fileType: "JSONL",
           exportMode: "FULL_HISTORY",
           exportFieldGroups: ["core", "io"],
+          createdAt: INTEGRATION_PRE_CUTOFF,
         },
       });
 
@@ -658,6 +671,34 @@ describe("Blob Storage Integrations API", () => {
         },
       });
     });
+
+    // Seed a grandfathered (pre-integration-cutoff) legacy row so a subsequent
+    // legacy-source PUT passes the integration-level cutoff gate — brand-new
+    // Cloud rows can no longer be created with a legacy source, so these tests
+    // exercise the UPDATE path. exportFieldGroups stays at the column default
+    // (all groups) unless overridden.
+    const seedGrandfatheredLegacyRow = (
+      data: { exportFieldGroups?: string[] } = {},
+    ) =>
+      prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "seed-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "TRACES_OBSERVATIONS",
+          createdAt: INTEGRATION_PRE_CUTOFF,
+          ...data,
+        },
+      });
 
     // ---- OBSERVATIONS_V2 / LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS path ----
 
@@ -792,6 +833,7 @@ describe("Blob Storage Integrations API", () => {
     // ---- LEGACY_TRACES_OBSERVATIONS path ----
 
     it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups omitted -> 200; GET returns all 11 groups", async () => {
+      await seedGrandfatheredLegacyRow();
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -826,6 +868,7 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=null -> 200; GET returns all 11 groups", async () => {
+      await seedGrandfatheredLegacyRow();
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -879,6 +922,7 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("LEGACY_TRACES_OBSERVATIONS + exportFieldGroups=[core,io] -> 200 and GET returns same value", async () => {
+      await seedGrandfatheredLegacyRow();
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -944,25 +988,8 @@ describe("Blob Storage Integrations API", () => {
     });
 
     it("PUT LEGACY_TRACES_OBSERVATIONS preserves existing export_field_groups column in DB", async () => {
-      // Seed with a custom subset
-      await prisma.blobStorageIntegration.create({
-        data: {
-          projectId: testProject1Id,
-          type: "S3",
-          bucketName: "initial-bucket",
-          region: "us-east-1",
-          accessKeyId: "key",
-          secretAccessKey: "secret",
-          prefix: "",
-          exportFrequency: "daily",
-          enabled: true,
-          forcePathStyle: false,
-          fileType: "JSONL",
-          exportMode: "FULL_HISTORY",
-          exportSource: "TRACES_OBSERVATIONS",
-          exportFieldGroups: ["core", "io"],
-        },
-      });
+      // Seed a grandfathered row with a custom subset
+      await seedGrandfatheredLegacyRow({ exportFieldGroups: ["core", "io"] });
 
       await makeZodVerifiedAPICall(
         BlobStorageIntegrationResponseSchema,
@@ -988,6 +1015,7 @@ describe("Blob Storage Integrations API", () => {
     // ---- Response shape ----
 
     it("PUT response includes exportSource and exportFieldGroups for LEGACY_TRACES_OBSERVATIONS", async () => {
+      await seedGrandfatheredLegacyRow();
       const requestBody = {
         ...validBlobStorageConfig,
         projectId: testProject1Id,
@@ -1501,6 +1529,26 @@ describe("Blob Storage Integrations API", () => {
           where: { id: testProject1Id },
           data: { createdAt: PRE_CUTOFF },
         });
+        // Grandfathered (pre-integration-cutoff) row: the integration-level
+        // gate only allows a legacy source on an existing pre-cutoff row.
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId: testProject1Id,
+            type: "S3",
+            bucketName: "seed-bucket",
+            region: "us-east-1",
+            accessKeyId: "key",
+            secretAccessKey: "secret",
+            prefix: "",
+            exportFrequency: "daily",
+            enabled: true,
+            forcePathStyle: false,
+            fileType: "JSONL",
+            exportMode: "FULL_HISTORY",
+            exportSource: "TRACES_OBSERVATIONS",
+            createdAt: INTEGRATION_PRE_CUTOFF,
+          },
+        });
         const result = await makeAPICall(
           "PUT",
           "/api/public/integrations/blob-storage",
@@ -1664,6 +1712,169 @@ describe("Blob Storage Integrations API", () => {
           where: { projectId: testProject1Id },
         });
       }
+    });
+  });
+
+  describe("integration-level legacy exporter cutoff gate", () => {
+    // Cloud mode comes from the server process env — see the note in the
+    // project-level gate suite above. The project is pinned pre-cutoff
+    // throughout, so the project-level gate never rejects: every 400 in this
+    // suite is the integration-level cutoff. The self-hosted bypass (legacy
+    // allowed without an existing row) cannot be exercised over HTTP for the
+    // same frozen-env reason; the tRPC suite covers it in-process through the
+    // same shared gate.
+    const basePayload = {
+      ...validBlobStorageConfig,
+      projectId: "", // set per test
+    };
+
+    const seedIntegration = (createdAt: Date) =>
+      prisma.blobStorageIntegration.create({
+        data: {
+          projectId: testProject1Id,
+          type: "S3",
+          bucketName: "existing-bucket",
+          region: "us-east-1",
+          accessKeyId: "key",
+          secretAccessKey: "secret",
+          prefix: "",
+          exportFrequency: "daily",
+          enabled: true,
+          forcePathStyle: false,
+          fileType: "JSONL",
+          exportMode: "FULL_HISTORY",
+          exportSource: "TRACES_OBSERVATIONS",
+          createdAt,
+        },
+      });
+
+    beforeAll(async () => {
+      await prisma.project.update({
+        where: { id: testProject1Id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.project.update({
+        where: { id: testProject1Id },
+        data: { createdAt: new Date() },
+      });
+    });
+
+    afterEach(async () => {
+      await prisma.blobStorageIntegration.deleteMany({
+        where: { projectId: testProject1Id },
+      });
+    });
+
+    it("no existing row + legacy source → 400 mentioning the integration cutoff", async () => {
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "blob storage integrations created on or after",
+      );
+      expect(result.body.message).toContain(
+        LEGACY_BLOB_EXPORTER_CUTOFF.toISOString(),
+      );
+      expect(result.body.message).toContain("OBSERVATIONS_V2");
+    });
+
+    it("pre-cutoff existing row + legacy source → 200 (grandfathered)", async () => {
+      await seedIntegration(INTEGRATION_PRE_CUTOFF);
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.exportSource).toBe("LEGACY_TRACES_OBSERVATIONS");
+    });
+
+    it("existing row created exactly at the cutoff + legacy source → 400", async () => {
+      // Boundary: only rows created strictly before the cutoff are
+      // grandfathered.
+      await seedIntegration(LEGACY_BLOB_EXPORTER_CUTOFF);
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "blob storage integrations created on or after",
+      );
+    });
+
+    it("post-cutoff existing row + legacy source → 400", async () => {
+      await seedIntegration(INTEGRATION_POST_CUTOFF);
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "LEGACY_TRACES_OBSERVATIONS",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toContain(
+        "blob storage integrations created on or after",
+      );
+    });
+
+    it("no existing row + OBSERVATIONS_V2 → 200", async () => {
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        {
+          ...basePayload,
+          projectId: testProject1Id,
+          exportSource: "OBSERVATIONS_V2",
+        },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+    });
+
+    it("no existing row + omitted exportSource → 200 and persists EVENTS", async () => {
+      // A brand-new Cloud row must never be born with the legacy Prisma column
+      // default, even on a pre-cutoff project: the handler forces EVENTS on
+      // CREATE when exportSource is omitted.
+      const result = await makeAPICall(
+        "PUT",
+        "/api/public/integrations/blob-storage",
+        { ...basePayload, projectId: testProject1Id },
+        createBasicAuthHeader(testApiKey, testApiSecretKey),
+      );
+      expect(result.status).toBe(200);
+      expect(result.body.exportSource).toBe("OBSERVATIONS_V2");
+
+      const saved = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: testProject1Id },
+      });
+      expect(saved?.exportSource).toBe("EVENTS");
     });
   });
 });

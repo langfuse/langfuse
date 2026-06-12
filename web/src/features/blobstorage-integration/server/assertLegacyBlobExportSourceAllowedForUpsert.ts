@@ -8,10 +8,11 @@ import { type AnalyticsIntegrationExportSource } from "@langfuse/shared/src/db";
 import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
 
 /**
- * Write-time gate for blob storage upserts. Composes the project-level
- * post-cutoff gate (`assertLegacyBlobExportSourceAllowed`, still used by REST)
- * with the integration-level cutoff: a row may only keep using a legacy export
- * source if its own `createdAt` predates `LEGACY_BLOB_EXPORTER_CUTOFF`.
+ * Write-time gate for blob storage upserts, shared by the tRPC and REST paths.
+ * Composes the project-level post-cutoff gate
+ * (`assertLegacyBlobExportSourceAllowed`) with the integration-level cutoff: a
+ * row may only keep using a legacy export source if its own `createdAt`
+ * predates `LEGACY_BLOB_EXPORTER_CUTOFF`.
  *
  * `existingIntegration` is `null` for a brand-new integration, which is treated
  * as non-legacy (new-customer rules) by `isLegacyBlobExporter`.
@@ -49,9 +50,9 @@ export function assertLegacyBlobExportSourceAllowedForUpsert({
     return;
 
   // Distinct message from the project-level gate so the two rejection paths can
-  // be counted separately in logs. Not customer-facing: the UI prevents this
-  // state from arising in the form flow. The date is read from the constant so
-  // a NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF override stays accurate.
+  // be counted separately in logs. Customer-facing via the public REST PUT
+  // (the UI prevents this state in the form flow). The date is read from the
+  // constant so a cutoff override stays accurate.
   throw new InvalidRequestError(
     `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`,
   );

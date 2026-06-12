@@ -65,7 +65,7 @@ export async function upsertBlobStorageIntegration(params: {
   // branch refuses a legacy export source (throws). Evaluated in-transaction so
   // a concurrent DELETE between the router's pre-flight read and this upsert
   // cannot slip a new post-cutoff row in with a legacy source. Symmetric with
-  // forceEventsOnCreate; set by the tRPC path (Cloud), never by REST.
+  // forceEventsOnCreate; set by both the tRPC and REST paths on Cloud.
   refuseLegacyOnCreate?: boolean;
 }) {
   const { prisma, projectId, data } = params;

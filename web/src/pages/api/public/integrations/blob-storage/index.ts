@@ -15,11 +15,10 @@ import {
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
-  isLegacyBlobExportAllowed,
   isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { assertLegacyBlobExportSourceAllowedForUpsert } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowedForUpsert";
 import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
@@ -168,27 +167,33 @@ async function handleUpsertBlobStorageIntegration(
       ? toInternalExportSource(validatedData.exportSource)
       : undefined;
 
+  // One read serving both write-time gates (the conditions are disjoint, so at
+  // most one query runs):
+  // - exportSource provided → the legacy upsert gate needs the row's createdAt
+  //   to decide whether the integration is grandfathered for legacy sources.
+  // - exportSource omitted (partial PUT) → the persisted value stays in effect,
+  //   so the enriched gate must consider the existing row too — otherwise a
+  //   stale enriched source left behind by a V4-preview flag rollback keeps
+  //   driving the worker against unpopulated tables. Read only when that gate
+  //   could actually reject (enriched export unavailable).
+  const existingIntegration =
+    internalExportSource !== undefined ||
+    !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
+      ? await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: validatedData.projectId },
+          select: { createdAt: true, exportSource: true },
+        })
+      : null;
+
   if (internalExportSource) {
-    assertLegacyBlobExportSourceAllowed({
+    assertLegacyBlobExportSourceAllowedForUpsert({
       project,
+      existingIntegration,
       nextInternalExportSource: internalExportSource,
       isCloud,
     });
   }
 
-  // Partial PUTs that omit exportSource preserve the persisted value, so the
-  // enriched gate must consider the existing row too — otherwise a stale
-  // enriched source left behind by a V4-preview flag rollback keeps driving
-  // the worker against unpopulated tables. The extra read only happens when
-  // the gate could actually reject (enriched export unavailable).
-  const existingIntegration =
-    internalExportSource === undefined &&
-    !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
-      ? await prisma.blobStorageIntegration.findUnique({
-          where: { projectId: validatedData.projectId },
-          select: { exportSource: true },
-        })
-      : null;
   assertEnrichedBlobExportSourceAllowed({
     nextInternalExportSource: internalExportSource,
     existingExportSource: existingIntegration?.exportSource,
@@ -207,12 +212,17 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
-    // When exportSource is absent and the project is post-cutoff Cloud, have
-    // the service substitute EVENTS on CREATE inside its own transaction —
-    // eliminating the TOCTOU window that a pre-flight findUnique would create.
-    forceEventsOnCreate:
-      validatedData.exportSource == null &&
-      !isLegacyBlobExportAllowed(project.createdAt, isCloud),
+    // When exportSource is absent, have the service substitute EVENTS on
+    // CREATE inside its own transaction (eliminating the TOCTOU window that a
+    // pre-flight findUnique would create) for every Cloud project: a brand-new
+    // Cloud row counts as a post-cutoff integration, so letting the legacy
+    // Prisma column default through would trip refuseLegacyOnCreate and fail a
+    // partial PUT that never mentioned exportSource.
+    forceEventsOnCreate: validatedData.exportSource == null && isCloud,
+    // In-transaction backstop closing the TOCTOU window: if a concurrent
+    // DELETE flips this upsert to the CREATE branch, refuse a legacy source so
+    // a new (post-cutoff) Cloud row can never be born legacy.
+    refuseLegacyOnCreate: isCloud,
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,
