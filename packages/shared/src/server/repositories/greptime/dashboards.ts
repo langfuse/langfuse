@@ -201,7 +201,7 @@ const getObservationDetailByTypeByTime = async (opts: {
 
   const keySums = KNOWN_DETAIL_KEYS.map(
     (k) =>
-      `sum(json_get_float(o.${jsonColumn}, '${k}')) AS ${jsonColumn === "cost_details" ? "cost" : "usage"}_${k}`,
+      `sum(coalesce(json_get_float(o.${jsonColumn}, '${k}'), 0)) AS ${jsonColumn === "cost_details" ? "cost" : "usage"}_${k}`,
   ).join(",\n        ");
   const alias = jsonColumn === "cost_details" ? "cost" : "usage";
 

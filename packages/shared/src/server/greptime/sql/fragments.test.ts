@@ -39,10 +39,12 @@ describe("greptimeAggregatedLevelRank", () => {
 });
 
 describe("greptimeKnownKeySum", () => {
-  it("sums a known JSON key", () => {
+  it("sums a known JSON key with missing keys treated as zero", () => {
     expect(
       greptimeKnownKeySum("cost_details", "input", "o", "cost_input"),
-    ).toBe("sum(json_get_float(o.cost_details, 'input')) AS cost_input");
+    ).toBe(
+      "sum(coalesce(json_get_float(o.cost_details, 'input'), 0)) AS cost_input",
+    );
   });
 });
 

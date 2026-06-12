@@ -384,12 +384,12 @@ const buildSessionResultCte = (compiled: CompiledSession): string => `
       max(t.environment) AS environment,
       count(DISTINCT o.id) AS total_observations,
       CAST(to_unixtime(max(o.end_time)) - to_unixtime(min(o.start_time)) AS BIGINT) AS duration,
-      sum(o.total_cost) AS session_total_cost,
-      sum(json_get_float(o.cost_details, 'input')) AS session_input_cost,
-      sum(json_get_float(o.cost_details, 'output')) AS session_output_cost,
-      sum(json_get_float(o.usage_details, 'input')) AS session_input_usage,
-      sum(json_get_float(o.usage_details, 'output')) AS session_output_usage,
-      sum(json_get_float(o.usage_details, 'total')) AS session_total_usage
+      sum(coalesce(o.total_cost, 0)) AS session_total_cost,
+      sum(coalesce(json_get_float(o.cost_details, 'input'), 0)) AS session_input_cost,
+      sum(coalesce(json_get_float(o.cost_details, 'output'), 0)) AS session_output_cost,
+      sum(coalesce(json_get_float(o.usage_details, 'input'), 0)) AS session_input_usage,
+      sum(coalesce(json_get_float(o.usage_details, 'output'), 0)) AS session_output_usage,
+      sum(coalesce(json_get_float(o.usage_details, 'total'), 0)) AS session_total_usage
     FROM traces t
     LEFT JOIN observations o
       ON o.trace_id = t.id AND o.project_id = t.project_id AND o.is_deleted = false

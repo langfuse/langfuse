@@ -85,7 +85,9 @@ export const greptimeAggregatedLevelString = (
 };
 
 /**
- * SUM of a single known JSON-map key across the group, e.g. `sum(json_get_float(cost_details,'input'))`.
+ * SUM of a single known JSON-map key across the group, e.g.
+ * `sum(coalesce(json_get_float(cost_details,'input'), 0))`.
+ * Missing keys must behave like ClickHouse `sumMap(...)[key]` defaults, not NULL aggregates.
  * Used only on the dashboard time-series path (known-key allowlist); dynamic keys go app-side.
  * GreptimeDB's float JSON accessor is `json_get_float` (there is no `json_get_double`).
  */
@@ -95,7 +97,7 @@ export const greptimeKnownKeySum = (
   prefix: string | undefined,
   alias: string,
 ): string =>
-  `sum(json_get_float(${ref(prefix, jsonCol)}, '${key}')) AS ${alias}`;
+  `sum(coalesce(json_get_float(${ref(prefix, jsonCol)}, '${key}'), 0)) AS ${alias}`;
 
 /**
  * Scores aggregation CTE body grouped by an entity grain (`trace_id` / `session_id` / `observation_id`).

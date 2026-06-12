@@ -725,10 +725,10 @@ export const getUserMetrics = async (
         max(t.environment) AS environment,
         count(distinct o.id) AS obs_count,
         count(distinct t.id) AS trace_count,
-        sum(o.total_cost) AS sum_total_cost,
-        sum(json_get_float(o.usage_details, 'input')) AS input_usage,
-        sum(json_get_float(o.usage_details, 'output')) AS output_usage,
-        sum(json_get_float(o.usage_details, 'total')) AS total_usage,
+        sum(coalesce(o.total_cost, 0)) AS sum_total_cost,
+        sum(coalesce(json_get_float(o.usage_details, 'input'), 0)) AS input_usage,
+        sum(coalesce(json_get_float(o.usage_details, 'output'), 0)) AS output_usage,
+        sum(coalesce(json_get_float(o.usage_details, 'total'), 0)) AS total_usage,
         max(t.timestamp) AS max_timestamp,
         min(t.timestamp) AS min_timestamp
       FROM traces t
