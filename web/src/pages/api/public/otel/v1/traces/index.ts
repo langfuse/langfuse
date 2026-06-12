@@ -95,6 +95,8 @@ export default withMiddlewares({
           resourceSpans =
             $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
               parsed,
+              // OTLP JSON encodes int64 fields as decimal strings.
+              { longs: String },
             ).resourceSpans;
         } catch (e) {
           logger.error(`Failed to parse OTel Protobuf`, e);
