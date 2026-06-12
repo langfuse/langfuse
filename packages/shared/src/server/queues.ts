@@ -23,6 +23,7 @@ export const IngestionEvent = z.object({
     type: z.enum(Object.values(eventTypes)),
     eventBodyId: z.string(),
     fileKey: z.string().optional(),
+    bucketPath: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
   }),

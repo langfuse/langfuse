@@ -143,6 +143,9 @@ Two S3 key formats are supported:
 | OTEL | `otel/{projectId}/{yyyy}/{mm}/{dd}/{hh}/{mm}/{eventId}.json` | `OtelIngestionQueue` |
 
 Keys that don't match either pattern are skipped and logged.
+For standard keys, the `eventBodyId` path segment may be sanitized in newer
+ingestion objects. The worker reads the original object and uses the raw
+`body.id` from the stored event payload when writing the replayed event.
 
 ## 3. Run the replay script
 

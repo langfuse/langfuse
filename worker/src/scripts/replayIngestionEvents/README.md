@@ -10,6 +10,7 @@ the S3 Access Logs via Athena format.
 See [S3 docs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-s3-access-logs-to-identify-requests.html) for more details.
 
 Use the following query to generate a suitable CSV file:
+
 ```sql
 select operation, key
 from mybucket_logs
@@ -21,17 +22,24 @@ AND parse_datetime(requestdatetime,'dd/MMM/yyyy:HH:mm:ss Z')
 ```
 
 Or provide your own file. It is expected that it adheres to the following format:
+
 ```csv
 "operation","key"
 "REST.PUT.OBJECT","projectId/type/eventBodyId/eventId.json"
 ...
 ```
 
+For newer ingestion objects, the path segment in the `eventBodyId` position may
+be a sanitized storage-key segment. The replay job keeps the original S3 key as
+`bucketPath`; the worker reads the file and uses the raw `body.id` from the
+stored event payload when writing the replayed event.
+
 Make sure to place the csv file as `./worker/events.csv` in the langfuse repo.
 
 ## 2. Connect to your Redis instances from your local machine
 
 Create a suitable .env file in your repository root with Redis connection settings, e.g.
+
 ```
 # Relevant
 REDIS_CONNECTION_STRING=redis://:myredissecret@127.0.0.1:6379
