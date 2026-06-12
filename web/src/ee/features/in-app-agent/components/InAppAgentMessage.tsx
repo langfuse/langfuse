@@ -34,10 +34,21 @@ import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
+type InAppAgentRedirectActionContent = {
+  type: "redirectAction";
+  label: string;
+  href: string;
+};
+
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
-  | { type: "text"; text: string; feedback?: InAppAgentMessageFeedback }
-  | { type: "redirectAction"; label: string; href: string }
+  | {
+      type: "text";
+      text: string;
+      feedback?: InAppAgentMessageFeedback;
+      redirectAction?: InAppAgentRedirectActionContent;
+    }
+  | InAppAgentRedirectActionContent
   | {
       type: "toolGroup";
       tools: InAppAgentToolCallContent[];
@@ -73,7 +84,7 @@ export function InAppAgentMessage({
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
   if (content.type === "redirectAction") {
-    return <RedirectAction content={content} isCompact={isCompact} />;
+    return <RedirectActionButton content={content} isCompact={isCompact} />;
   }
 
   if (content.type === "toolGroup") {
@@ -139,7 +150,17 @@ const MessageCard = forwardRef<
       {content.type === "loading" ? (
         <ThinkingIndicator label={content.label} isCompact={isCompact} />
       ) : (
-        <MessageText role={role} text={content.text} isCompact={isCompact} />
+        <>
+          <MessageText role={role} text={content.text} isCompact={isCompact} />
+          {content.redirectAction ? (
+            <div className={cn(isCompact ? "mt-1.5" : "mt-2")}>
+              <RedirectActionButton
+                content={content.redirectAction}
+                isCompact={isCompact}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -416,11 +437,11 @@ function FeedbackButton({
   );
 }
 
-function RedirectAction({
+function RedirectActionButton({
   content,
   isCompact,
 }: {
-  content: Extract<InAppAgentMessageContent, { type: "redirectAction" }>;
+  content: InAppAgentRedirectActionContent;
   isCompact: boolean;
 }) {
   const router = useRouter();

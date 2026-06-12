@@ -6,7 +6,10 @@ import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
 } from "./InAppAgentWindow";
-import type { InAppAgentToolCallContent } from "./InAppAgentMessage";
+import type {
+  InAppAgentMessageContent,
+  InAppAgentToolCallContent,
+} from "./InAppAgentMessage";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import {
   AgUiMessageSchema,
@@ -77,11 +80,35 @@ export function ControlledInAppAgentWindow(
 
     parsedMessages.forEach((message, index) => {
       if (message.role === "tool") {
-        const redirectAction = getRedirectActionMessageFromToolResult(message);
+        const redirectAction = getRedirectActionFromToolResult(message);
 
+        // Redirect actions that come immediately after an assistant message with text content can be merged into that message for a smoother UI experience
         if (redirectAction) {
-          flushPendingTools();
-          mappedMessages.push(redirectAction);
+          const previousRawMessage = parsedMessages[index - 1];
+          const previousMessage = mappedMessages[mappedMessages.length - 1];
+
+          if (
+            pendingTools.length === 0 &&
+            previousRawMessage?.role === "assistant" &&
+            previousMessage?.role === "assistant" &&
+            previousMessage.id === previousRawMessage.id &&
+            previousMessage.content.type === "text"
+          ) {
+            mappedMessages[mappedMessages.length - 1] = {
+              ...previousMessage,
+              content: {
+                ...previousMessage.content,
+                redirectAction,
+              },
+            };
+          } else {
+            flushPendingTools();
+            mappedMessages.push({
+              id: `${message.id}-redirect`,
+              role: "assistant",
+              content: redirectAction,
+            });
+          }
         }
 
         return;
@@ -278,19 +305,13 @@ function getToolResultsByToolCallId(messages: readonly AgUiMessage[]) {
   return results;
 }
 
-function getRedirectActionMessageFromToolResult(
+function getRedirectActionFromToolResult(
   message: Extract<AgUiMessage, { role: "tool" }>,
-): InAppAgentWindowMessage | null {
+): Extract<InAppAgentMessageContent, { type: "redirectAction" }> | null {
   try {
-    const parsed = InAppAgentRedirectActionToolResultSchema.parse(
+    return InAppAgentRedirectActionToolResultSchema.parse(
       JSON.parse(message.content),
     );
-
-    return {
-      id: `${message.id}-redirect`,
-      role: "assistant",
-      content: parsed,
-    };
   } catch {
     return null;
   }

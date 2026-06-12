@@ -69,6 +69,21 @@ export const AssistantTextWithLongFeedbackComment = meta.story({
   },
 });
 
+export const AssistantTextWithRedirectAction = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "I found the members settings page for this project.",
+      redirectAction: {
+        type: "redirectAction",
+        label: "Open members",
+        href: "/project/project-1/settings/members",
+      },
+    },
+  },
+});
+
 export const AssistantMarkdown = meta.story({
   args: {
     role: "assistant",
