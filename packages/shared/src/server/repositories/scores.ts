@@ -2421,6 +2421,7 @@ export const _handleGenerateScoresForPublicApi = async ({
   includeTrace,
   needsTraceJoin,
   pagination,
+  apiVersion,
 }: {
   projectId: string;
   scoresFilter: FilterList;
@@ -2429,6 +2430,7 @@ export const _handleGenerateScoresForPublicApi = async ({
   includeTrace: boolean;
   needsTraceJoin: boolean;
   pagination?: { limit: number; page: number };
+  apiVersion?: "v1" | "v2";
 }) => {
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
@@ -2512,6 +2514,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         scoreScope,
         operation_name: "_handleGenerateScoresForPublicApi",
         includeTrace: includeTrace.toString(),
+        ...(apiVersion ? { api_version: apiVersion } : {}),
       },
     },
     fn: async (input) => {
@@ -2555,6 +2558,7 @@ export const _handleGetScoresCountForPublicApi = async ({
   scoreScope,
   includeTrace,
   needsTraceJoin,
+  apiVersion,
 }: {
   projectId: string;
   scoresFilter: FilterList;
@@ -2562,6 +2566,7 @@ export const _handleGetScoresCountForPublicApi = async ({
   scoreScope: "traces_only" | "all";
   includeTrace: boolean;
   needsTraceJoin: boolean;
+  apiVersion?: "v1" | "v2";
 }) => {
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
@@ -2611,6 +2616,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         scoreScope,
         operation_name: "_handleGetScoresCountForPublicApi",
         includeTrace: includeTrace.toString(),
+        ...(apiVersion ? { api_version: apiVersion } : {}),
       },
     },
     fn: async (input) => {
@@ -2999,6 +3005,7 @@ export async function listScoresV3ForPublicApi(
         type: "score",
         projectId: params.projectId,
         operation_name: "listScoresV3ForPublicApi",
+        api_version: "v3",
       },
     },
     fn: async (input) => {
