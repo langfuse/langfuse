@@ -43,7 +43,7 @@ import {
 } from "@langfuse/shared";
 import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { DeleteAutomationButton } from "./DeleteAutomationButton";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -206,7 +206,7 @@ const EventSourceField = ({
   onSourceChange: (value: TriggerEventSource) => void;
   disabled: boolean;
 }) => {
-  const isMonitorsEnabled = useIsFeatureEnabled("monitors");
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   return (
     <FormField
       control={control}
@@ -228,7 +228,7 @@ const EventSourceField = ({
             </FormControl>
             <SelectContent>
               <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
-              {(isMonitorsEnabled ||
+              {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
                   Monitor
