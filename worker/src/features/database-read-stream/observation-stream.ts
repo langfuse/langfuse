@@ -606,24 +606,30 @@ const getObservationStreamFromEvents = async (
     const observationComments = commentsByObservation.get(bufferedRow.id) ?? [];
 
     // Drop events-only fields so the exported row matches the legacy export
-    // schema exactly: CSV headers are derived from the first row's keys, so
-    // extra fields would diverge v4 exports from legacy ones. Raw trace tags
-    // are exported as traceTags instead, matching the legacy row shape.
+    // schema exactly: CSV headers are derived from the first row's keys in
+    // insertion order, so both the column set and the column order must match
+    // the legacy path. userId and traceName are destructured out here and
+    // re-inserted below at their legacy positions; raw trace tags are exported
+    // as traceTags instead, matching the legacy row shape.
     const {
       tags: _tags,
       sessionId: _sessionId,
       release: _release,
       bookmarked: _bookmarked,
       public: _public,
-      ...convertedLegacyShape
+      userId,
+      traceName,
+      ...observationFields
     } = converted;
 
     return getChunkWithFlattenedScores(
       [
         {
-          ...convertedLegacyShape,
+          ...observationFields,
+          traceName,
           traceTags: converted.tags ?? [],
           traceTimestamp: null,
+          userId,
           toolDefinitionsCount: converted.toolDefinitions
             ? Object.keys(converted.toolDefinitions).length
             : null,

@@ -14,8 +14,13 @@ import {
   createEvent,
   createEventsCh,
   getEventsForBlobStorageExport,
+  streamTransformations,
 } from "@langfuse/shared/src/server";
-import { BatchExportTableName, DatasetStatus } from "@langfuse/shared";
+import {
+  BatchExportFileFormat,
+  BatchExportTableName,
+  DatasetStatus,
+} from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { getDatabaseReadStreamPaginated } from "../features/database-read-stream/getDatabaseReadStream";
 import { getObservationStream } from "../features/database-read-stream/observation-stream";
@@ -2733,11 +2738,58 @@ describe("batch export test suite", () => {
       expect(legacyRows).toHaveLength(1);
       expect(legacyRows[0].id).toBe(legacyObservation.id);
 
-      // Schema parity: both read paths must emit exactly the same column set,
-      // since CSV headers are derived from the first row's keys.
-      expect(Object.keys(eventsRows[0]).sort()).toEqual(
-        Object.keys(legacyRows[0]).sort(),
-      );
+      // Schema parity: both read paths must emit exactly the same columns in
+      // the same order, since CSV headers are derived from the first row's
+      // keys in insertion order. No .sort() here — order is part of the
+      // contract.
+      expect(Object.keys(eventsRows[0])).toEqual(Object.keys(legacyRows[0]));
+    });
+
+    it("should produce byte-identical CSV headers across legacy and events read paths", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      await createObservationsCh([
+        createObservation({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+        }),
+      ]);
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      // End-to-end through the same CSV transform handleBatchExportJob uses:
+      // the header line is built from the first row's key order, and export
+      // consumers pin columns by index, so the two read paths must produce
+      // byte-identical header lines.
+      const readCsvHeader = async (useEventsTable: boolean) => {
+        const stream = await getObservationStream({
+          projectId,
+          cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+          filter: [],
+          fileFormat: BatchExportFileFormat.CSV,
+          useEventsTable,
+        });
+        const csvStream = stream.pipe(
+          streamTransformations[BatchExportFileFormat.CSV](),
+        );
+        let csv = "";
+        for await (const chunk of csvStream) {
+          csv += chunk.toString();
+        }
+        return csv.split("\n")[0];
+      };
+
+      const legacyHeader = await readCsvHeader(false);
+      const eventsHeader = await readCsvHeader(true);
+
+      expect(eventsHeader).toBe(legacyHeader);
     });
 
     it("routes events exports through getEventsStream, not the paginated reader", async () => {
