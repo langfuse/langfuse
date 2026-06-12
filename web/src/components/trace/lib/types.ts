@@ -18,6 +18,8 @@ export type TreeNode = {
   name: string;
   startTime: Date;
   endTime?: Date | null;
+  /** First-token time for streaming generations; drives the timeline TTFT diamond marker */
+  completionStartTime?: Date | null;
   level?: string;
   children: TreeNode[];
   // Token usage
