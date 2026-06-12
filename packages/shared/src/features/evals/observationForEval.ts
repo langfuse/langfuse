@@ -6,6 +6,7 @@ import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
 import { SingleValueOption } from "../../tableDefinitions";
 import { ColumnDefinition } from "../../tableDefinitions";
 import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
+import type { FilterCondition } from "../../types";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -409,6 +410,47 @@ export function experimentEvalFilterColsWithOptions(
   });
 }
 
+function findEventEvalFilterColumn(column: string) {
+  return eventsEvalFilterColumns.find(
+    (c) => c.id === column || c.name === column || c.aliases?.includes(column),
+  );
+}
+
+const normalizeEnumFilterValue = (
+  value: string,
+  column: ObservationEvalColumnDef,
+) => {
+  const options = "options" in column ? column.options : [];
+  const option = options.find(
+    (option) =>
+      "value" in option && option.value.toLowerCase() === value.toLowerCase(),
+  );
+
+  return option && "value" in option ? option.value : value;
+};
+
+export function normalizeEventEvalFilterCondition(
+  filter: FilterCondition,
+): FilterCondition {
+  const column = findEventEvalFilterColumn(filter.column);
+  if (!column) {
+    return filter;
+  }
+
+  if (
+    filter.type !== "stringOptions" ||
+    (column.internal !== "type" && column.internal !== "level")
+  ) {
+    return { ...filter, column: column.id };
+  }
+
+  return {
+    ...filter,
+    column: column.id,
+    value: filter.value.map((value) => normalizeEnumFilterValue(value, column)),
+  };
+}
+
 /**
  * Field mapper for observation eval filters.
  * Maps camelCase filter column IDs to snake_case observation fields.
@@ -422,9 +464,17 @@ export function mapEventEvalFilterColumnIdToField(
   observation: ObservationForEval,
   column: string,
 ) {
-  const columnMapping = eventsEvalFilterColumns.find((c) => c.id === column);
+  const columnMapping = findEventEvalFilterColumn(column);
   if (!columnMapping) {
     return undefined;
   }
-  return observation[columnMapping.internal];
+  const fieldValue = observation[columnMapping.internal];
+  if (
+    typeof fieldValue === "string" &&
+    (columnMapping.internal === "type" || columnMapping.internal === "level")
+  ) {
+    return normalizeEnumFilterValue(fieldValue, columnMapping);
+  }
+
+  return fieldValue;
 }

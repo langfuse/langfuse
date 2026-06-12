@@ -12,6 +12,7 @@ import {
   type JobConfigExecutionMode,
   isJobConfigExecutableForExecutionMode,
   mapEventEvalFilterColumnIdToField,
+  normalizeEventEvalFilterCondition,
 } from "@langfuse/shared";
 import { createW3CTraceId } from "../../utils";
 
@@ -194,12 +195,16 @@ function evaluateFilter(
   const fieldMapper = (obs: ObservationForEval, column: string) =>
     mapEventEvalFilterColumnIdToField(obs, column);
 
+  const normalizedFilterConditions = isEmptyFilter
+    ? []
+    : filterConditions.map(normalizeEventEvalFilterCondition);
+
   // Use InMemoryFilterService to evaluate filter if there are conditions
   const isFilterMatch = isEmptyFilter
     ? true
     : InMemoryFilterService.evaluateFilter(
         observation,
-        filterConditions,
+        normalizedFilterConditions,
         fieldMapper,
       );
 

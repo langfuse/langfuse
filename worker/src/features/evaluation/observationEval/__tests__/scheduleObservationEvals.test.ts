@@ -238,7 +238,7 @@ describe("scheduleObservationEvals", () => {
                 column: "type",
                 type: "stringOptions",
                 operator: "any of",
-                value: ["generation"],
+                value: ["GENERATION"],
               },
             ],
           }),
@@ -253,7 +253,7 @@ describe("scheduleObservationEvals", () => {
 
     it("should process config when filter matches", async () => {
       const schedulerDeps = createMockSchedulerDeps();
-      const observation = createMockObservation({ type: "generation" });
+      const observation = createMockObservation();
 
       await scheduleObservationEvals({
         observation,
@@ -265,6 +265,81 @@ describe("scheduleObservationEvals", () => {
                 type: "stringOptions",
                 operator: "any of",
                 value: ["generation"],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
+    });
+
+    it("should process config when legacy lowercase type filter matches canonical observation type", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ type: "GENERATION" });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            filter: [
+              {
+                column: "type",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["generation"],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
+    });
+
+    it("should process config when type filter uses the display column name", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ type: "GENERATION" });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            filter: [
+              {
+                column: "Type",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["GENERATION"],
+              },
+            ],
+          }),
+        ],
+        schedulerDeps,
+      });
+
+      expect(schedulerDeps.upsertJobExecution).toHaveBeenCalled();
+      expect(schedulerDeps.enqueueEvalJob).toHaveBeenCalled();
+    });
+
+    it("should process config when legacy lowercase level filter matches canonical observation level", async () => {
+      const schedulerDeps = createMockSchedulerDeps();
+      const observation = createMockObservation({ level: "DEFAULT" });
+
+      await scheduleObservationEvals({
+        observation,
+        configs: [
+          createMockConfig({
+            filter: [
+              {
+                column: "level",
+                type: "stringOptions",
+                operator: "any of",
+                value: ["default"],
               },
             ],
           }),
