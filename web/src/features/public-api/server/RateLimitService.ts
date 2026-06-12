@@ -251,6 +251,12 @@ const getPlanBasedRateLimitConfig = (
             points: 1000,
             durationInSec: 60,
           };
+        case "media-upload":
+          return {
+            resource: "media-upload",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "legacy-ingestion":
           return {
             resource: "legacy-ingestion",
@@ -313,6 +319,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "ingestion",
             // points: 4000, // original core limit
             points: 20_000, // temporary: using pro limit
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
+            points: 20_000,
             durationInSec: 60,
           };
         case "legacy-ingestion":
@@ -378,6 +390,12 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
+            points: 20_000,
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
             points: 20_000,
             durationInSec: 60,
           };
