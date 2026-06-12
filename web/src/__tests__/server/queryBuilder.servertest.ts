@@ -566,6 +566,90 @@ describe("queryBuilder", () => {
         expect(Number(result.data[0].count_count)).toBe(1);
       });
 
+      it("should use metadata key as dimension (stringObject) on v2 observations view", async () => {
+        const projectId = randomUUID();
+        const traceA = randomUUID();
+        const traceB = randomUUID();
+        const traceC = randomUUID();
+        const traceD = randomUUID();
+        const events = [
+          createEvent({
+            project_id: projectId,
+            trace_id: traceA,
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent A"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceB,
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent A"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceC,
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent B"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceD,
+            metadata_names: ["other"],
+            metadata_values: ["thing"],
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "metadata", key: "agentName" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+        );
+
+        const buckets = result.reduce<Record<string, number>>((acc, row) => {
+          acc[row.metadata] = Number(row.count_count);
+          return acc;
+        }, {});
+
+        expect(buckets["Agent A"]).toBe(2);
+        expect(buckets["Agent B"]).toBe(1);
+        // Event without 'agentName' indexes to a missing slot, surfacing as ''.
+        expect(buckets[""]).toBe(1);
+      });
+
+      it("should reject stringObject dimension without a key (v2)", async () => {
+        const projectId = randomUUID();
+        await expect(
+          executeQuery(
+            projectId,
+            {
+              view: "observations",
+              dimensions: [{ field: "metadata" }],
+              metrics: [{ measure: "count", aggregation: "count" }],
+              filters: [],
+              timeDimension: null,
+              fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+              toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+              orderBy: null,
+            },
+            "v2",
+          ),
+        ).rejects.toThrow(/requires a 'key'/);
+      });
+
       it("should filter traces by tags using 'any of' operator", async () => {
         // Setup
         const projectId = randomUUID();

@@ -281,12 +281,13 @@ export function WidgetForm({
     measure: string;
     aggregation: z.infer<typeof metricAggregations>;
     dimension: string;
+    dimensionKey?: string;
     filters?: FilterState;
     chartType: DashboardWidgetChartType;
     chartConfig?: ChartConfig;
     // Support for complete widget data (editing mode)
     metrics?: { measure: string; agg: string }[];
-    dimensions?: { field: string }[];
+    dimensions?: { field: string; key?: string }[];
     minVersion?: number;
   };
   projectId: string;
@@ -294,7 +295,7 @@ export function WidgetForm({
     name: string;
     description: string;
     view: string;
-    dimensions: { field: string }[];
+    dimensions: { field: string; key?: string }[];
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;
@@ -378,6 +379,9 @@ export function WidgetForm({
 
   const [selectedDimension, setSelectedDimension] = useState<string>(
     initialValues.dimension,
+  );
+  const [selectedDimensionKey, setSelectedDimensionKey] = useState<string>(
+    initialValues.dimensionKey ?? "",
   );
 
   const selectedViewRef = useRef(selectedView);
@@ -1011,7 +1015,16 @@ export function WidgetForm({
       selectedChartType === "PIVOT_TABLE"
         ? pivotDimensions.map((field) => ({ field }))
         : selectedDimension !== "none"
-          ? [{ field: selectedDimension }]
+          ? [
+              {
+                field: selectedDimension,
+                ...(viewDeclarations.v1[selectedView]?.dimensions?.[
+                  selectedDimension
+                ]?.type === "stringObject" && selectedDimensionKey
+                  ? { key: selectedDimensionKey }
+                  : {}),
+              },
+            ]
           : [];
 
     // Determine metrics based on chart type
@@ -1079,6 +1092,7 @@ export function WidgetForm({
   }, [
     selectedView,
     selectedDimension,
+    selectedDimensionKey,
     selectedAggregation,
     selectedMeasure,
     selectedMetrics,
@@ -1345,11 +1359,34 @@ export function WidgetForm({
       return;
     }
 
+    if (
+      selectedChartType !== "PIVOT_TABLE" &&
+      selectedDimension !== "none" &&
+      viewDeclarations.v1[selectedView]?.dimensions?.[selectedDimension]
+        ?.type === "stringObject" &&
+      !selectedDimensionKey.trim()
+    ) {
+      showErrorToast(
+        "Error",
+        `Breakdown by '${selectedDimension}' requires a key (e.g. 'agentName').`,
+      );
+      return;
+    }
+
     const saveDimensions =
       selectedChartType === "PIVOT_TABLE"
         ? pivotDimensions.map((field) => ({ field }))
         : selectedDimension !== "none"
-          ? [{ field: selectedDimension }]
+          ? [
+              {
+                field: selectedDimension,
+                ...(viewDeclarations.v1[selectedView]?.dimensions?.[
+                  selectedDimension
+                ]?.type === "stringObject" && selectedDimensionKey
+                  ? { key: selectedDimensionKey }
+                  : {}),
+              },
+            ]
           : [];
     const saveMetrics =
       selectedChartType === "PIVOT_TABLE"
@@ -1860,7 +1897,10 @@ export function WidgetForm({
                     </Label>
                     <Select
                       value={selectedDimension}
-                      onValueChange={setSelectedDimension}
+                      onValueChange={(value) => {
+                        setSelectedDimension(value);
+                        setSelectedDimensionKey("");
+                      }}
                     >
                       <SelectTrigger id="dimension-select">
                         <SelectValue placeholder="Select a dimension" />
@@ -1884,6 +1924,19 @@ export function WidgetForm({
                         })}
                       </SelectContent>
                     </Select>
+                    {selectedDimension !== "none" &&
+                      viewDeclarations.v1[selectedView]?.dimensions?.[
+                        selectedDimension
+                      ]?.type === "stringObject" && (
+                        <Input
+                          id="dimension-key"
+                          value={selectedDimensionKey}
+                          onChange={(e) =>
+                            setSelectedDimensionKey(e.target.value)
+                          }
+                          placeholder="Metadata key (e.g. agentName)"
+                        />
+                      )}
                   </div>
                 )}
 

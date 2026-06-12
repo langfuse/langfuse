@@ -32,7 +32,11 @@ type AppliedDimensionType = {
   aggregationFunction?: string;
   explodeArray?: boolean;
   pairExpand?: { valuesSql: string; valueAlias: string };
+  type?: string;
+  key?: string;
 };
+
+const METADATA_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 type AppliedMetricType = {
   sql: string;
@@ -217,7 +221,7 @@ export class QueryBuilder {
   }
 
   private mapDimensions(
-    dimensions: Array<{ field: string }>,
+    dimensions: Array<{ field: string; key?: string }>,
     view: ViewDeclarationType,
   ): AppliedDimensionType[] {
     return dimensions.map((dimension) => {
@@ -227,11 +231,42 @@ export class QueryBuilder {
         );
       }
       const dim = view.dimensions[dimension.field];
+      if (dim.type === "stringObject") {
+        if (!dimension.key) {
+          throw new InvalidRequestError(
+            `Dimension '${dimension.field}' is a stringObject and requires a 'key' (e.g. {"field":"${dimension.field}","key":"agentName"}).`,
+          );
+        }
+        if (!METADATA_KEY_PATTERN.test(dimension.key)) {
+          throw new InvalidRequestError(
+            `Dimension '${dimension.field}' key '${dimension.key}' must match ${METADATA_KEY_PATTERN}.`,
+          );
+        }
+      } else if (dimension.key) {
+        throw new InvalidRequestError(
+          `Dimension '${dimension.field}' does not accept a 'key' (only stringObject dims do).`,
+        );
+      }
+      // stringObject dims declare their SQL with a `{key}` placeholder
+      // (matching the StringObjectFilter pattern). Substitute the
+      // regex-validated key here so downstream render paths see plain SQL.
+      const resolvedSql =
+        dim.type === "stringObject" && dimension.key
+          ? dim.sql.replaceAll("{key}", dimension.key)
+          : dim.sql;
+      const resolvedAggregationFunction =
+        dim.type === "stringObject" && dimension.key && dim.aggregationFunction
+          ? dim.aggregationFunction.replaceAll("{key}", dimension.key)
+          : dim.aggregationFunction;
       return {
         ...dim,
+        sql: resolvedSql,
+        aggregationFunction: resolvedAggregationFunction,
         table: dim.relationTable || view.name,
         explodeArray: dim.explodeArray,
         pairExpand: dim.pairExpand,
+        type: dim.type,
+        key: dimension.key,
       };
     });
   }
