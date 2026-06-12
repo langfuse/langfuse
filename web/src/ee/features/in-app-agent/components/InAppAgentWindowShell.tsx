@@ -78,19 +78,6 @@ export function InAppAgentWindowShell({
   onPositionChange,
   onSizeChange,
 }: InAppAgentWindowShellProps) {
-  if (isExpanded) {
-    return (
-      <div
-        ref={panelRef}
-        data-ignore-outside-interaction
-        className="fixed inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3 origin-top-left"
-        style={{ zIndex }}
-      >
-        {children({ isHeaderDragHandleEnabled: false })}
-      </div>
-    );
-  }
-
   if (!floatingGeometry) {
     return null;
   }
@@ -98,10 +85,19 @@ export function InAppAgentWindowShell({
   return (
     <MovableResizablePanel
       boundsPadding={IN_APP_AGENT_WINDOW_SHELL_BOUNDS_PADDING_PX}
+      className={
+        isExpanded
+          ? "inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3"
+          : undefined
+      }
       dragHandleSelector={IN_APP_AGENT_WINDOW_SHELL_DRAG_HANDLE_SELECTOR}
       ignoreOutsideInteraction
+      isGeometryManaged={!isExpanded}
+      isMovable={!isExpanded}
+      isResizable={!isExpanded}
       maxSize={IN_APP_AGENT_WINDOW_SHELL_MAX_SIZE}
       minSize={IN_APP_AGENT_WINDOW_SHELL_MIN_SIZE}
+      panelRef={panelRef}
       position={floatingGeometry.position}
       size={floatingGeometry.size}
       zIndex={zIndex}
@@ -109,11 +105,10 @@ export function InAppAgentWindowShell({
       onSizeChange={onSizeChange}
     >
       <div
-        ref={panelRef}
         data-ignore-outside-interaction
-        className="h-full w-full"
+        className="h-full w-full origin-top-left"
       >
-        {children({ isHeaderDragHandleEnabled: true })}
+        {children({ isHeaderDragHandleEnabled: !isExpanded })}
       </div>
     </MovableResizablePanel>
   );

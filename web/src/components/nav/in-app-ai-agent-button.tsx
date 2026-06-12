@@ -106,8 +106,10 @@ export const InAppAiAgentButton = () => {
   }
 
   const activeFloatingPanelGeometry =
-    open && portalContainer && !isExpanded
-      ? floatingPanelGeometry.geometry
+    open && portalContainer
+      ? isExpanded
+        ? floatingPanelGeometry.getGeometry()
+        : floatingPanelGeometry.geometry
       : null;
 
   const handleClick = () => {

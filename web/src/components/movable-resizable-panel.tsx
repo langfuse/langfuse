@@ -4,6 +4,7 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type RefObject,
   useEffect,
   useRef,
   useState,
@@ -62,15 +63,19 @@ type PanelSizeConstraints = {
 
 type MovableResizablePanelProps = {
   children: ReactNode;
+  className?: string;
   dragHandleSelector: string;
   maxSize?: MovableResizablePanelSize;
   minSize: MovableResizablePanelSize;
+  panelRef?: RefObject<HTMLDivElement | null>;
   position: MovableResizablePanelPosition;
   size: MovableResizablePanelSize;
   boundsPadding?: number;
   ignoreOutsideInteraction?: boolean;
+  isGeometryManaged?: boolean;
   isMovable?: boolean;
   isResizable?: boolean;
+  style?: CSSProperties;
   zIndex?: number;
   onPositionChange: (position: MovableResizablePanelPosition) => void;
   onSizeChange: (size: MovableResizablePanelSize) => void;
@@ -405,14 +410,18 @@ function getResizeHandleStyle(direction: ResizeDirection): CSSProperties {
 export function MovableResizablePanel({
   boundsPadding = DEFAULT_BOUNDS_PADDING,
   children,
+  className,
   dragHandleSelector,
   ignoreOutsideInteraction = false,
+  isGeometryManaged = true,
   isMovable = true,
   isResizable = true,
   maxSize,
   minSize,
+  panelRef: externalPanelRef,
   position,
   size,
+  style,
   zIndex,
   onPositionChange,
   onSizeChange,
@@ -562,16 +571,27 @@ export function MovableResizablePanel({
 
   return (
     <div
-      ref={panelRef}
-      className="fixed origin-top-left"
+      ref={(node) => {
+        panelRef.current = node;
+
+        if (externalPanelRef) {
+          externalPanelRef.current = node;
+        }
+      }}
+      className={`fixed origin-top-left${className ? ` ${className}` : ""}`}
       data-ignore-outside-interaction={ignoreOutsideInteraction || undefined}
       data-testid="movable-resizable-panel"
       style={{
-        left: livePosition.left,
-        top: livePosition.top,
-        width: liveSize.width,
-        height: liveSize.height,
+        ...(isGeometryManaged
+          ? {
+              left: livePosition.left,
+              top: livePosition.top,
+              width: liveSize.width,
+              height: liveSize.height,
+            }
+          : null),
         zIndex,
+        ...style,
       }}
       onPointerDown={(event) => {
         if (!isMovable || interactionRef.current) {
