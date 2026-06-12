@@ -216,9 +216,6 @@ describe("withMiddlewares error handling", () => {
         ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       );
       expect(jsonData["error"]).toBe("Request timed out");
-      expect(logger.warn).toHaveBeenCalledWith(resourceError);
-      expect(logger.error).not.toHaveBeenCalled();
-      expect(traceException).not.toHaveBeenCalled();
     });
 
     it("should include tags from the error in the warn log", async () => {
@@ -245,6 +242,7 @@ describe("withMiddlewares error handling", () => {
       await handler(req, res);
 
       expect(res._getStatusCode()).toBe(422);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(logger.warn).toHaveBeenCalledWith(
         "ClickHouse resource limit exceeded",
         expect.objectContaining({

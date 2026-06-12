@@ -2,10 +2,10 @@ import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
 import {
   UnauthorizedError,
   LangfuseNotFoundError,
@@ -120,7 +120,7 @@ export default async function handler(
       });
     }
 
-    if (error instanceof z.ZodError) {
+    if (isZodError(error)) {
       logger.warn(`Zod exception`, error.issues);
       return res.status(400).json({
         message: "Invalid request data",
