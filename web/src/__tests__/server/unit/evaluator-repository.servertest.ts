@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { EvalTemplateType, type Prisma } from "@langfuse/shared/src/db";
-import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/defaultModelEvalTemplateRepository";
+import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/evaluatorRepository";
 
 describe("findDefaultModelEvalTemplateIds", () => {
   it("only selects LLM-as-judge templates that depend on the default model", async () => {
