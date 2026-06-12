@@ -2107,8 +2107,7 @@ export const generateTracesForPublicApi = async ({
     includeScores ||
     filter.some(
       (f) =>
-        f.clickhouseTable === "observations" ||
-        f.clickhouseTable === "scores",
+        f.clickhouseTable === "observations" || f.clickhouseTable === "scores",
     );
 
   const { query, params, fromTimeFilter } = await buildTracesBaseQuery(

@@ -1,5 +1,6 @@
 import { prisma } from "../../db";
 import { Readable } from "stream";
+import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type {
   EventsObservation,
   MetadataDomain,
@@ -3678,6 +3679,7 @@ export const hasAnySessionFromEventsTable = async (
 export const getTraceMetadataByIdsFromEvents = async (props: {
   projectId: string;
   traceIds: string[];
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
 }) => {
   if (props.traceIds.length === 0) return [];
 
@@ -3709,6 +3711,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        clickhouseConfigs: props.clickhouseConfigs,
         preferredClickhouseService: "EventsReadOnly",
       }),
   });

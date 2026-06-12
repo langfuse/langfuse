@@ -39,8 +39,13 @@ export function isLegacyBlobExportAllowed(
 
 /**
  * Whether this deployment has the enriched events export path.
- * Today equivalent to `isLangfuseCloud`; flip when self-hosted is provisioned with the migration.
+ * True for Cloud, or for self-hosted instances that have opted into the V4 preview
+ * via LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN (server-side only — pass the flag
+ * from a server-computed context rather than reading it client-side).
  */
-export function isEnrichedBlobExportAvailable(isCloud: boolean): boolean {
-  return isCloud;
+export function isEnrichedBlobExportAvailable(
+  isCloud: boolean,
+  isV4PreviewEnabled?: boolean,
+): boolean {
+  return isCloud || isV4PreviewEnabled === true;
 }
