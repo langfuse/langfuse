@@ -47,6 +47,10 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import {
+  buildPlaygroundConfig,
+  PLAYGROUND_CONFIG_KEYS,
+} from "@/src/features/playground/page/promptConfig";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { useFormPersistence } from "@/src/hooks/useFormPersistence";
@@ -188,6 +192,23 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
     if (shouldLoadPlaygroundCache && playgroundCache) {
       form.setValue("type", PromptType.Chat);
       setInitialMessages(playgroundCache.messages);
+
+      // Persist playground tools/structured output schema onto the prompt config
+      // so they round-trip back into the playground later.
+      const playgroundConfig = buildPlaygroundConfig(playgroundCache);
+      let existingConfig: Record<string, unknown> = {};
+      try {
+        existingConfig = JSON.parse(form.getValues("config"));
+      } catch {
+        // Keep empty object when the current config is not valid JSON.
+      }
+      // Always drop previously persisted playground keys before re-applying, so
+      // tools/schema cleared in the playground are not inherited from the prompt.
+      for (const key of PLAYGROUND_CONFIG_KEYS) delete existingConfig[key];
+      form.setValue(
+        "config",
+        JSON.stringify({ ...existingConfig, ...playgroundConfig }, null, 2),
+      );
     } else if (initialPrompt?.type === PromptType.Chat) {
       setInitialMessages(initialPrompt.prompt);
     }

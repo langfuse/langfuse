@@ -42,6 +42,7 @@ import { convertChatMlToPlayground } from "@/src/utils/chatml/playgroundConverte
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
+import { parsePlaygroundConfig } from "@/src/features/playground/page/promptConfig";
 import {
   type MetadataDomainClient,
   type WithStringifiedMetadata,
@@ -240,6 +241,11 @@ export const JumpToPlaygroundButton: React.FC<JumpToPlaygroundButtonProps> = (
 const parsePrompt = (
   prompt: Prompt & { resolvedPrompt?: Prisma.JsonValue },
 ): PlaygroundCache => {
+  // Tools and structured output schema are persisted on the prompt config.
+  const { tools, structuredOutputSchema } = parsePlaygroundConfig(
+    prompt.config,
+  );
+
   if (prompt.type === PromptType.Chat) {
     try {
       const inResult = normalizeInput(prompt.resolvedPrompt);
@@ -254,7 +260,7 @@ const parsePrompt = (
 
       if (messages.length === 0) return null;
 
-      return { messages };
+      return { messages, tools, structuredOutputSchema };
     } catch {
       return null;
     }
@@ -270,6 +276,8 @@ const parsePrompt = (
           content: typeof promptString === "string" ? promptString : "",
         }),
       ],
+      tools,
+      structuredOutputSchema,
     };
   }
 };

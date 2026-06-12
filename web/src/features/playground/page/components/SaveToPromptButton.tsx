@@ -39,8 +39,14 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   className,
 }) => {
   const [selectedPromptId, setSelectedPromptId] = useState("");
-  const { modelParams, messages, output, promptVariables } =
-    usePlaygroundContext();
+  const {
+    modelParams,
+    messages,
+    output,
+    promptVariables,
+    tools,
+    structuredOutputSchema,
+  } = usePlaygroundContext();
   const capture = usePostHogClientCapture();
   const router = useRouter();
   const projectId = useProjectIdFromURL();
@@ -68,6 +74,8 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
       messages,
       output,
       promptVariables,
+      tools,
+      structuredOutputSchema,
     });
 
     await router.push(
@@ -83,6 +91,8 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
       messages,
       output,
       promptVariables,
+      tools,
+      structuredOutputSchema,
     });
 
     await router.push(
