@@ -2732,6 +2732,12 @@ describe("batch export test suite", () => {
       }
       expect(legacyRows).toHaveLength(1);
       expect(legacyRows[0].id).toBe(legacyObservation.id);
+
+      // Schema parity: both read paths must emit exactly the same column set,
+      // since CSV headers are derived from the first row's keys.
+      expect(Object.keys(eventsRows[0]).sort()).toEqual(
+        Object.keys(legacyRows[0]).sort(),
+      );
     });
 
     it("routes events exports through getEventsStream, not the paginated reader", async () => {
