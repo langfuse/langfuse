@@ -39,6 +39,7 @@ export const tracesTableGreptimeColumnDefinitions: GreptimeColumnMappings = [
   // Alias so a `traceName` filter (evals / v4 beta) resolves on the traces table too.
   { uiTableName: "Trace Name", uiTableId: "traceName", greptimeTableName: "traces", greptimeSelect: "name", queryPrefix: "t" }, // prettier-ignore
   { uiTableName: "Timestamp", uiTableId: "timestamp", greptimeTableName: "traces", greptimeSelect: "timestamp", queryPrefix: "t" }, // prettier-ignore
+  { uiTableName: "Created At", uiTableId: "createdAt", greptimeTableName: "traces", greptimeSelect: "timestamp", queryPrefix: "t" }, // prettier-ignore
   { uiTableName: "User ID", uiTableId: "userId", greptimeTableName: "traces", greptimeSelect: "user_id", queryPrefix: "t" }, // prettier-ignore
   { uiTableName: "Session ID", uiTableId: "sessionId", greptimeTableName: "traces", greptimeSelect: "session_id", queryPrefix: "t" }, // prettier-ignore
   { uiTableName: "Metadata", uiTableId: "metadata", greptimeTableName: "traces", greptimeSelect: "metadata", queryPrefix: "t" }, // prettier-ignore

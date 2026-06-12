@@ -31,7 +31,18 @@ export const greptimeInClause = (
     params[name] = v;
     return `:${name}`;
   });
-  return { sql: `${ref} IN (${placeholders.join(", ")})`, params };
+  return {
+    sql: `${quoteColumnRef(ref)} IN (${placeholders.join(", ")})`,
+    params,
+  };
+};
+
+const quoteColumnRef = (ref: string): string => {
+  const segments = ref.split(".");
+  if (segments.length === 1) return quoteIdent(ref);
+  const column = segments.at(-1);
+  if (!column) return ref;
+  return `${segments.slice(0, -1).join(".")}.${quoteIdent(column)}`;
 };
 
 /** Bind a Date as a ms-precision GreptimeDB timestamp literal (string -> TIMESTAMP coercion). */

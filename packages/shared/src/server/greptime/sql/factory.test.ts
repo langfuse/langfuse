@@ -70,6 +70,18 @@ describe("createGreptimeFilterFromFilterState", () => {
     expect(Object.values(params)).toContain("2026-06-01 12:34:56.789");
   });
 
+  it("maps the sessions Created At filter alias to trace timestamp", () => {
+    const { query } = compile([
+      {
+        type: "datetime",
+        column: "Created At",
+        operator: ">=",
+        value: new Date("2026-06-01T00:00:00.000Z"),
+      },
+    ]);
+    expect(query).toMatch(/^t\.`timestamp` >= :v/);
+  });
+
   it("throws on a column absent from the mapping", () => {
     expect(() =>
       createGreptimeFilterFromFilterState(
