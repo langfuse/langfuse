@@ -7847,21 +7847,28 @@ components:
           nullable: true
           description: >-
             Data to export. When omitted on update, the existing value is
-            preserved. When omitted on create: pre-cutoff Cloud projects and
-            self-hosted deployments fall back to `LEGACY_TRACES_OBSERVATIONS`;
-            post-cutoff Cloud projects (created on or after 2026-05-20)
-            auto-default to `OBSERVATIONS_V2`. Required when `exportFieldGroups`
-            is provided.
+            preserved. When omitted on create: integrations on Langfuse Cloud
+            default to `OBSERVATIONS_V2`; self-hosted deployments fall back to
+            `LEGACY_TRACES_OBSERVATIONS`. Required when `exportFieldGroups` is
+            provided.
 
 
-            **Cloud-only deprecation gate (effective 2026-05-20):** For projects
-            created on or after 2026-05-20 on Langfuse Cloud,
+            **Cloud-only project deprecation gate (effective 2026-05-20):** For
+            projects created on or after 2026-05-20 on Langfuse Cloud,
             `LEGACY_TRACES_OBSERVATIONS` and
             `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP
-            400. Omitting `exportSource` on these projects silently defaults to
-            `OBSERVATIONS_V2` rather than the schema column default. Use
-            `OBSERVATIONS_V2` for all new integrations. Projects created before
-            2026-05-20 and self-hosted deployments are unaffected.
+            400. Use `OBSERVATIONS_V2` for all new integrations. Self-hosted
+            deployments are unaffected.
+
+
+            **Cloud-only integration deprecation gate (effective 2026-06-22):**
+            On Langfuse Cloud, legacy export sources are only accepted for blob
+            storage integrations created before 2026-06-22, regardless of
+            project age. Requests that would create a new integration with
+            `LEGACY_TRACES_OBSERVATIONS` or
+            `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP
+            400. Use `OBSERVATIONS_V2` instead. Self-hosted deployments are
+            unaffected.
         exportFieldGroups:
           type: array
           items:
