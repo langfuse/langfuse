@@ -309,6 +309,7 @@ export const getTracesGroupedByName = async (
       FROM traces t
       WHERE t.project_id = :projectId
         AND t.name IS NOT NULL
+        AND t.name != ''
         AND ${notDeleted("t")}
         ${filter?.query ? `AND ${filter.query}` : ""}
       GROUP BY name
