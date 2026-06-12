@@ -232,8 +232,10 @@ export const ingestionQueueProcessorBuilder = (
         }
       }
 
+      // Number of (deduped) events replayed per rebuild. Renamed from the old
+      // "count_files_distribution" S3-file metric, whose semantics no longer apply.
       recordDistribution(
-        "langfuse.ingestion.count_files_distribution",
+        "langfuse.ingestion.rebuild_event_count_distribution",
         events.length,
         { kind: clickhouseEntityType },
       );

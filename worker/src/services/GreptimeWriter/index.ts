@@ -18,11 +18,14 @@ import { env } from "../../env";
 /**
  * GreptimeWriter (02-write-path.md, step 5) — ports ClickhouseWriter to the GreptimeDB gRPC
  * ingester. A singleton with one in-memory batch queue per physical table, an interval flush, and
- * size-triggered flushes. On failure a batch is requeued with an attempt counter, halving on
- * repeated failure so one oversized row cannot wedge the queue, and dropped after maxAttempts.
+ * size-triggered flushes. On failure the whole flush is requeued with an attempt counter and
+ * dropped after maxAttempts.
  *
  * Logical entities fan out to several physical tables: the projection row plus EAV subtable rows
- * (metadata key/value, tags). All are written through the same gRPC client in one flush cycle.
+ * (metadata key/value, tags). All are written through the same gRPC client in one combined call so
+ * a projection and its EAV rows share fate. The trade-off is no per-row isolation: a single
+ * bad/oversized row fails the whole flush until it is dropped after maxAttempts. Bisect-on-failure
+ * isolation is a known follow-up (it must not break the projection+EAV fate-sharing).
  *
  * Column names are passed verbatim to the gRPC schema (no SQL, no quoting). PRIMARY KEY columns
  * are TAG, the immutable logical time is the TIMESTAMP, everything else is FIELD.
@@ -272,6 +275,7 @@ const metadataRows = (params: {
   projectId: string;
   entityId: string;
   timestamp: number;
+  isDeleted: boolean;
 }): Row[] =>
   Object.entries(params.metadata ?? {}).map(([key, value]) => ({
     project_id: params.projectId,
@@ -279,7 +283,7 @@ const metadataRows = (params: {
     key,
     timestamp: params.timestamp,
     value: value ?? null,
-    is_deleted: false,
+    is_deleted: params.isDeleted,
   }));
 
 const tagRows = (params: {
@@ -287,13 +291,14 @@ const tagRows = (params: {
   projectId: string;
   entityId: string;
   timestamp: number;
+  isDeleted: boolean;
 }): Row[] =>
   (params.tags ?? []).map((tag) => ({
     project_id: params.projectId,
     entity_id: params.entityId,
     tag,
     timestamp: params.timestamp,
-    is_deleted: false,
+    is_deleted: params.isDeleted,
   }));
 
 // ---------------------------------------------------------------------------
@@ -365,6 +370,7 @@ export class GreptimeWriter {
             projectId: r.project_id,
             entityId: r.id,
             timestamp: r.timestamp,
+            isDeleted: Boolean(r.is_deleted),
           }),
         );
         this.pushAll(
@@ -374,6 +380,7 @@ export class GreptimeWriter {
             projectId: r.project_id,
             entityId: r.id,
             timestamp: r.timestamp,
+            isDeleted: Boolean(r.is_deleted),
           }),
         );
         break;
@@ -388,6 +395,7 @@ export class GreptimeWriter {
             projectId: r.project_id,
             entityId: r.id,
             timestamp: r.start_time,
+            isDeleted: Boolean(r.is_deleted),
           }),
         );
         break;
@@ -402,6 +410,7 @@ export class GreptimeWriter {
             projectId: r.project_id,
             entityId: r.id,
             timestamp: r.timestamp,
+            isDeleted: Boolean(r.is_deleted),
           }),
         );
         break;
