@@ -18,7 +18,7 @@ export type ScenarioFlag = {
 
 export type SeedSummary = {
   scenario: string;
-  target: "clickhouse";
+  target: "clickhouse" | "greptime";
   params: Record<string, string | number | boolean>;
   projectId: string;
   environment: string;
@@ -26,7 +26,7 @@ export type SeedSummary = {
   sessionIds: string[];
   /** rows written per logical entity, e.g. { traces: 1, observations: 5000 } */
   counts: Record<string, number>;
-  /** post-write readback counts from ClickHouse; mismatches fail the run */
+  /** post-write readback counts from the target store; mismatches fail the run */
   verified: Record<string, number>;
   /** UI deep links to inspect the seeded state */
   links: string[];

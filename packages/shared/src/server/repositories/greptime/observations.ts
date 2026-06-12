@@ -21,6 +21,7 @@ import {
   convertGreptimeObservationRowToDomain,
   greptimeObservationSelect,
 } from "./converters";
+import { greptimeJson, selectJsonColumn } from "../../greptime/sql/rowContract";
 import {
   greptimeDayBounds,
   greptimeInClause,
@@ -265,6 +266,7 @@ export const getObservationsGroupedByModel = async (
       SELECT o.provided_model_name AS name
       FROM observations o
       WHERE ${applied.query} AND o.type = 'GENERATION' AND ${notDeleted("o")}
+        AND o.provided_model_name IS NOT NULL AND o.provided_model_name != ''
       GROUP BY o.provided_model_name
       ORDER BY count(*) DESC
       LIMIT 1000`,
@@ -288,6 +290,7 @@ export const getObservationsGroupedByModelId = async (
       SELECT o.internal_model_id AS modelId
       FROM observations o
       WHERE ${applied.query} AND o.type = 'GENERATION' AND ${notDeleted("o")}
+        AND o.internal_model_id IS NOT NULL AND o.internal_model_id != ''
       GROUP BY o.internal_model_id
       ORDER BY count(*) DESC
       LIMIT 1000`,
@@ -312,6 +315,7 @@ export const getObservationsGroupedByName = async (
       SELECT o.name AS name
       FROM observations o
       WHERE ${applied.query} ${type ? "AND o.type = :type" : ""} AND ${notDeleted("o")}
+        AND o.name IS NOT NULL AND o.name != ''
       GROUP BY o.name
       ORDER BY count(*) DESC
       LIMIT 1000`,
@@ -436,4 +440,176 @@ export const getTraceIdsForObservations = async (
     readOnly: true,
   });
   return rows.map((row) => ({ id: row.id, traceId: row.trace_id }));
+};
+
+// ---------------------------------------------------------------------------
+// tool groupings (CH arrayJoin(mapKeys/array) → app-side JSON flatten)
+// ---------------------------------------------------------------------------
+
+// GreptimeDB cannot unnest dynamic JSON keys/arrays in SQL, so the matching observations' tool JSON
+// is fetched (bounded by the filter + a scan cap) and flattened app-side. Mirrors the CH result cap
+// of LIMIT 1000 on distinct tool names.
+const TOOL_SCAN_LIMIT = 10000;
+
+const topToolCounts = (counts: Map<string, number>): string[] =>
+  [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 1000)
+    .map(([name]) => name);
+
+export const getObservationsGroupedByToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const applied = projectFilterWithState(
+    projectId,
+    filter,
+    observationsTableGreptimeColumnDefinitions,
+  );
+  const rows = await greptimeQuery<{ tool_definitions: unknown }>({
+    query: `
+      SELECT ${selectJsonColumn("tool_definitions", { tablePrefix: "o" })}
+      FROM observations o
+      WHERE ${applied.query} AND ${notDeleted("o")}
+      LIMIT ${TOOL_SCAN_LIMIT}`,
+    params: applied.params,
+    readOnly: true,
+  });
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const defs = greptimeJson<Record<string, unknown>>(
+      row.tool_definitions,
+      {},
+    );
+    for (const key of Object.keys(defs ?? {})) {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return topToolCounts(counts).map((toolName) => ({ toolName }));
+};
+
+export const getObservationsGroupedByCalledToolName = async (
+  projectId: string,
+  filter: FilterState,
+) => {
+  const applied = projectFilterWithState(
+    projectId,
+    filter,
+    observationsTableGreptimeColumnDefinitions,
+  );
+  const rows = await greptimeQuery<{ tool_call_names: unknown }>({
+    query: `
+      SELECT ${selectJsonColumn("tool_call_names", { tablePrefix: "o" })}
+      FROM observations o
+      WHERE ${applied.query} AND ${notDeleted("o")}
+      LIMIT ${TOOL_SCAN_LIMIT}`,
+    params: applied.params,
+    readOnly: true,
+  });
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const names = greptimeJson<unknown[]>(row.tool_call_names, []);
+    for (const name of names ?? []) {
+      if (typeof name === "string") {
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      }
+    }
+  }
+  return topToolCounts(counts).map((calledToolName) => ({ calledToolName }));
+};
+
+// ---------------------------------------------------------------------------
+// cost / latency rollups (merged projection; sum(total_cost), timestamp-diff latency)
+// ---------------------------------------------------------------------------
+
+export const getCostForTraces = async (
+  projectId: string,
+  timestamp: Date,
+  traceIds: string[],
+): Promise<number | undefined> => {
+  if (traceIds.length === 0) return undefined;
+  const idList = greptimeInClause("trace_id", traceIds, "tid");
+  const rows = await greptimeQuery<{ total_cost: string | null }>({
+    query: `
+      SELECT sum(total_cost) AS total_cost
+      FROM observations
+      WHERE project_id = :projectId AND ${idList.sql}
+        AND start_time >= :lookback AND ${notDeleted()}`,
+    params: {
+      projectId,
+      ...idList.params,
+      // CH used start_time >= timestamp - OBSERVATIONS_TO_TRACE_INTERVAL (2 DAY), applied app-side.
+      lookback: greptimeTsParam(minus(timestamp, 2 * DAY_MS)),
+    },
+    readOnly: true,
+  });
+  const value = rows[0]?.total_cost;
+  return value == null ? undefined : Number(value);
+};
+
+export const getLatencyAndTotalCostForObservations = async (
+  projectId: string,
+  observationIds: string[],
+  timestamp?: Date,
+) => {
+  if (observationIds.length === 0) return [];
+  const idList = greptimeInClause("id", observationIds, "oid");
+  const rows = await greptimeQuery<{
+    id: string;
+    total_cost: string | null;
+    latency_ms: string | number | null;
+  }>({
+    query: `
+      SELECT id,
+        total_cost,
+        CAST((to_unixtime(end_time) - to_unixtime(start_time)) * 1000 AS BIGINT) AS latency_ms
+      FROM observations
+      WHERE project_id = :projectId AND ${idList.sql}
+        ${timestamp ? "AND start_time >= :ts" : ""} AND ${notDeleted()}`,
+    params: {
+      projectId,
+      ...idList.params,
+      ...(timestamp ? { ts: greptimeTsParam(timestamp) } : {}),
+    },
+    readOnly: true,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    totalCost: Number(r.total_cost ?? 0),
+    latency: Number(r.latency_ms ?? 0) / 1000,
+  }));
+};
+
+export const getLatencyAndTotalCostForObservationsByTraces = async (
+  projectId: string,
+  traceIds: string[],
+  timestamp?: Date,
+) => {
+  if (traceIds.length === 0) return [];
+  const idList = greptimeInClause("trace_id", traceIds, "tid");
+  const rows = await greptimeQuery<{
+    trace_id: string;
+    total_cost: string | null;
+    latency_ms: string | number | null;
+  }>({
+    query: `
+      SELECT trace_id,
+        sum(total_cost) AS total_cost,
+        CAST((to_unixtime(max(end_time)) - to_unixtime(min(start_time))) * 1000 AS BIGINT) AS latency_ms
+      FROM observations
+      WHERE project_id = :projectId AND ${idList.sql}
+        ${timestamp ? "AND start_time >= :ts" : ""} AND ${notDeleted()}
+      GROUP BY trace_id`,
+    params: {
+      projectId,
+      ...idList.params,
+      ...(timestamp ? { ts: greptimeTsParam(timestamp) } : {}),
+    },
+    readOnly: true,
+  });
+  return rows.map((r) => ({
+    traceId: r.trace_id,
+    totalCost: Number(r.total_cost ?? 0),
+    latency: Number(r.latency_ms ?? 0) / 1000,
+  }));
 };

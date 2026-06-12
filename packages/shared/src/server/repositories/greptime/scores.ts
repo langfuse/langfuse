@@ -33,6 +33,10 @@ import {
   convertGreptimeScoreRowToDomain,
   greptimeScoreSelect,
 } from "./converters";
+import {
+  convertScoreAggregation,
+  type ScoreAggregation,
+} from "../scores_converters";
 import { greptimeInClause, greptimeTsParam, notDeleted } from "./queryHelpers";
 
 /**
@@ -919,4 +923,71 @@ export const getNumericScoreHistogram = async (
     params: { projectId, ...filterRes.params },
     readOnly: true,
   });
+};
+
+// ---------------------------------------------------------------------------
+// P2: aggregated scores for prompts (scores <-> observations join)
+// ---------------------------------------------------------------------------
+
+/**
+ * Scores attached to GENERATION observations of the given prompts. CH joined `scores FINAL` to
+ * `observations FINAL`; on the merged projection this is a plain JOIN with `is_deleted = false`.
+ * `has_metadata` (CH `length(mapKeys(metadata)) > 0`) is computed from the JSON column.
+ */
+export const getAggregatedScoresForPrompts = async (
+  projectId: string,
+  promptIds: string[],
+  fetchScoreRelation: "observation" | "trace",
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) => {
+  if (promptIds.length === 0) return [];
+  const promptList = inList("o.prompt_id", promptIds, "pid");
+  const dt = inList("s.data_type", LISTABLE_SCORE_TYPES, "dt");
+
+  const rows = await greptimeQuery<
+    ScoreAggregation & { prompt_id: string; has_metadata: unknown }
+  >({
+    query: `
+      SELECT
+        o.prompt_id AS prompt_id,
+        s.id AS id,
+        s.name AS name,
+        s.string_value AS string_value,
+        s.value AS value,
+        s.source AS source,
+        s.data_type AS data_type,
+        s.comment AS comment,
+        s.timestamp AS timestamp,
+        ${HAS_METADATA_EXPR}
+      FROM scores s
+      JOIN observations o
+        ON o.trace_id = s.trace_id AND o.project_id = s.project_id
+        ${fetchScoreRelation === "observation" ? "AND o.id = s.observation_id" : ""}
+      WHERE o.project_id = :projectId AND s.project_id = :projectId
+        AND ${notDeleted("s")} AND ${notDeleted("o")}
+        AND ${promptList.sql}
+        AND o.type = 'GENERATION'
+        ${fromTimestamp ? "AND o.start_time >= :fromTs" : ""}
+        ${toTimestamp ? "AND o.start_time <= :toTs" : ""}
+        AND s.name IS NOT NULL
+        ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
+        AND ${dt.sql}`,
+    params: {
+      projectId,
+      ...promptList.params,
+      ...dt.params,
+      ...(fromTimestamp ? { fromTs: greptimeTsParam(fromTimestamp) } : {}),
+      ...(toTimestamp ? { toTs: greptimeTsParam(toTimestamp) } : {}),
+    },
+    readOnly: true,
+  });
+
+  return rows.map((row) => ({
+    ...convertScoreAggregation<ListableScoreDataType>(row),
+    promptId: row.prompt_id,
+    hasMetadata: greptimeBool(row.has_metadata),
+  }));
 };

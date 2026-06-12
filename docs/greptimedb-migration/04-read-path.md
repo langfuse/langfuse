@@ -4,7 +4,23 @@
 > internals move CH → GreptimeDB in place, keeping public signatures; correctness backed by a
 > CH-vs-GreptimeDB parity harness, not a long-lived product dual-read switch).
 >
-> **Status: P0a — Read Path Inventory (this section). Gating deliverable; no code yet.**
+> **Status (2026-06-13): P0–P2 implemented and merged/in-PR. P3–P4 remaining.**
+>
+> | Phase | Scope | State |
+> |---|---|---|
+> | P0a | Read-path inventory (this doc) | done |
+> | P0b | Dialect + row contract (`greptime/sql/*`, streaming, FTS) | done |
+> | P1 | Core entity reads (traces/observations/scores ~50 fns) | merged (PR #3) |
+> | P2 | UI rollup reads: traces/sessions/observations tables + dashboards + environments | PR #4 |
+> | P3 | events V4 (`*FromEvents`) + `dashboard.executeQuery` (V2 widgets) | TODO |
+> | P4 | dataset-run-items reads, daily-metrics, GAP-INFRA tables | TODO |
+> | P7 | CH-client cutover (delete CH reads per call-site inventory) | TODO |
+>
+> The CH-vs-GreptimeDB parity harness mentioned below was **superseded**: GreptimeDB is the
+> source of truth (fresh install only, no CH upgrade), so verification is seed → assert domain
+> results + unit tests + live smokes (`worker/src/scripts/greptime*Smoke.ts`), not CH parity.
+> **Known narrowing:** dashboard cost/usage **by-type** is limited to the `input/output/total`
+> known keys (GreptimeDB cannot enumerate dynamic JSON map keys in SQL).
 
 ## P0a — Read Path Inventory
 

@@ -98,7 +98,36 @@ describe("createGreptimeFilterFromFilterState", () => {
     ).toThrow(InvalidRequestError);
   });
 
-  it("throws on categoryOptions (rollup filter, P2)", () => {
+  it("routes categoryOptions on a score-grain column to a correlated EXISTS over scores", () => {
+    const { query } = compile([
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "accuracy",
+        operator: "any of",
+        value: ["good"],
+      },
+    ]);
+    expect(query).toContain("EXISTS (SELECT 1 FROM `scores` cs");
+    expect(query).toContain("cs.`trace_id` = t.`id`");
+    expect(query).toContain("cs.`string_value` IN (");
+  });
+
+  it("routes numberObject on a score-grain column to a grouped HAVING-avg EXISTS", () => {
+    const { query } = compile([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "quality",
+        operator: ">=",
+        value: 0.5,
+      },
+    ]);
+    expect(query).toContain("EXISTS (SELECT 1 FROM `scores` cs");
+    expect(query).toContain("HAVING avg(cs.`value`) >= :");
+  });
+
+  it("throws on categoryOptions when the column has no score grain", () => {
     expect(() =>
       createGreptimeFilterFromFilterState(
         [

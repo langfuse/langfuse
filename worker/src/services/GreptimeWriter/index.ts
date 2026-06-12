@@ -1,11 +1,14 @@
 import { backOff } from "exponential-backoff";
-import { DataType, Precision, Table } from "@greptime/ingester";
 
 import {
+  buildGreptimeRowsForRecord,
   DatasetRunItemRecordInsertType,
   getGreptimeIngestClient,
+  GreptimeRow,
+  GreptimeTable,
   logger,
   ObservationRecordInsertType,
+  PHYSICAL_TABLES,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -22,335 +25,26 @@ import { env } from "../../env";
  * size-triggered flushes. On failure the whole flush is requeued with an attempt counter and
  * dropped after maxAttempts.
  *
+ * The pure parts (gRPC table schemas, record->row mapping, projection+EAV fan-out) live in shared
+ * (`greptime/ingest/{tableSchemas,rowBuilders}`) so the seeder and any other shared caller produce
+ * byte-identical rows; this class is only the queue/batch/flush machinery on top of them.
+ *
  * Logical entities fan out to several physical tables: the projection row plus EAV subtable rows
  * (metadata key/value, tags). All are written through the same gRPC client in one combined call so
  * a projection and its EAV rows share fate. The trade-off is no per-row isolation: a single
  * bad/oversized row fails the whole flush until it is dropped after maxAttempts. Bisect-on-failure
  * isolation is a known follow-up (it must not break the projection+EAV fate-sharing).
- *
- * Column names are passed verbatim to the gRPC schema (no SQL, no quoting). PRIMARY KEY columns
- * are TAG, the immutable logical time is the TIMESTAMP, everything else is FIELD.
  */
 
-export enum GreptimeTable {
-  Traces = "traces",
-  Observations = "observations",
-  Scores = "scores",
-  DatasetRunItems = "dataset_run_items",
-}
-
-type Row = Record<string, unknown>;
+// Re-exported so existing `import { GreptimeWriter, GreptimeTable } from ".../GreptimeWriter"`
+// call sites keep working after the enum moved to shared.
+export { GreptimeTable } from "@langfuse/shared/src/server";
 
 interface QueueItem {
   createdAt: number;
   attempts: number;
-  row: Row;
+  row: GreptimeRow;
 }
-
-// ---------------------------------------------------------------------------
-// Physical table schema builders (fresh Table per flush; rows added via addRowObject)
-// ---------------------------------------------------------------------------
-
-const tracesTable = (): Table =>
-  Table.new("traces")
-    .addTagColumn("project_id", DataType.String)
-    .addTagColumn("id", DataType.String)
-    .addTimestampColumn("timestamp", Precision.Millisecond)
-    .addFieldColumn("name", DataType.String)
-    .addFieldColumn("environment", DataType.String)
-    .addFieldColumn("session_id", DataType.String)
-    .addFieldColumn("user_id", DataType.String)
-    .addFieldColumn("release", DataType.String)
-    .addFieldColumn("version", DataType.String)
-    .addFieldColumn("tags", DataType.Json)
-    .addFieldColumn("metadata", DataType.Json)
-    .addFieldColumn("bookmarked", DataType.Bool)
-    .addFieldColumn("public", DataType.Bool)
-    .addFieldColumn("input", DataType.String)
-    .addFieldColumn("output", DataType.String)
-    .addFieldColumn("created_at", DataType.TimestampMillisecond)
-    .addFieldColumn("updated_at", DataType.TimestampMillisecond)
-    .addFieldColumn("is_deleted", DataType.Bool);
-
-const observationsTable = (): Table =>
-  Table.new("observations")
-    .addTagColumn("project_id", DataType.String)
-    .addTagColumn("id", DataType.String)
-    .addTimestampColumn("start_time", Precision.Millisecond)
-    .addFieldColumn("type", DataType.String)
-    .addFieldColumn("trace_id", DataType.String)
-    .addFieldColumn("parent_observation_id", DataType.String)
-    .addFieldColumn("environment", DataType.String)
-    .addFieldColumn("name", DataType.String)
-    .addFieldColumn("level", DataType.String)
-    .addFieldColumn("status_message", DataType.String)
-    .addFieldColumn("version", DataType.String)
-    .addFieldColumn("end_time", DataType.TimestampMillisecond)
-    .addFieldColumn("completion_start_time", DataType.TimestampMillisecond)
-    .addFieldColumn("provided_model_name", DataType.String)
-    .addFieldColumn("internal_model_id", DataType.String)
-    .addFieldColumn("model_parameters", DataType.Json)
-    .addFieldColumn("input", DataType.String)
-    .addFieldColumn("output", DataType.String)
-    .addFieldColumn("metadata", DataType.Json)
-    .addDecimalFieldColumn("input_cost", 38, 12)
-    .addDecimalFieldColumn("output_cost", 38, 12)
-    .addDecimalFieldColumn("total_cost", 38, 12)
-    .addFieldColumn("input_usage", DataType.Int64)
-    .addFieldColumn("output_usage", DataType.Int64)
-    .addFieldColumn("total_usage", DataType.Int64)
-    .addFieldColumn("usage_details", DataType.Json)
-    .addFieldColumn("cost_details", DataType.Json)
-    .addFieldColumn("provided_usage_details", DataType.Json)
-    .addFieldColumn("provided_cost_details", DataType.Json)
-    .addFieldColumn("usage_pricing_tier_id", DataType.String)
-    .addFieldColumn("usage_pricing_tier_name", DataType.String)
-    .addFieldColumn("prompt_id", DataType.String)
-    .addFieldColumn("prompt_name", DataType.String)
-    .addFieldColumn("prompt_version", DataType.Int32)
-    .addFieldColumn("tool_definitions", DataType.Json)
-    .addFieldColumn("tool_calls", DataType.Json)
-    .addFieldColumn("tool_call_names", DataType.Json)
-    .addFieldColumn("created_at", DataType.TimestampMillisecond)
-    .addFieldColumn("updated_at", DataType.TimestampMillisecond)
-    .addFieldColumn("is_deleted", DataType.Bool);
-
-const scoresTable = (): Table =>
-  Table.new("scores")
-    .addTagColumn("project_id", DataType.String)
-    .addTagColumn("id", DataType.String)
-    .addTimestampColumn("timestamp", Precision.Millisecond)
-    .addFieldColumn("name", DataType.String)
-    .addFieldColumn("environment", DataType.String)
-    .addFieldColumn("source", DataType.String)
-    .addFieldColumn("data_type", DataType.String)
-    .addFieldColumn("value", DataType.Float64)
-    .addFieldColumn("string_value", DataType.String)
-    .addFieldColumn("long_string_value", DataType.String)
-    .addFieldColumn("comment", DataType.String)
-    .addFieldColumn("metadata", DataType.Json)
-    .addFieldColumn("trace_id", DataType.String)
-    .addFieldColumn("observation_id", DataType.String)
-    .addFieldColumn("session_id", DataType.String)
-    .addFieldColumn("dataset_run_id", DataType.String)
-    .addFieldColumn("execution_trace_id", DataType.String)
-    .addFieldColumn("author_user_id", DataType.String)
-    .addFieldColumn("config_id", DataType.String)
-    .addFieldColumn("queue_id", DataType.String)
-    .addFieldColumn("created_at", DataType.TimestampMillisecond)
-    .addFieldColumn("updated_at", DataType.TimestampMillisecond)
-    .addFieldColumn("is_deleted", DataType.Bool);
-
-const datasetRunItemsTable = (): Table =>
-  Table.new("dataset_run_items")
-    .addTagColumn("project_id", DataType.String)
-    .addTagColumn("id", DataType.String)
-    .addTimestampColumn("dataset_run_created_at", Precision.Millisecond)
-    .addFieldColumn("dataset_id", DataType.String)
-    .addFieldColumn("dataset_run_id", DataType.String)
-    .addFieldColumn("dataset_item_id", DataType.String)
-    .addFieldColumn("trace_id", DataType.String)
-    .addFieldColumn("observation_id", DataType.String)
-    .addFieldColumn("error", DataType.String)
-    .addFieldColumn("dataset_run_name", DataType.String)
-    .addFieldColumn("dataset_run_description", DataType.String)
-    .addFieldColumn("dataset_run_metadata", DataType.Json)
-    .addFieldColumn("dataset_item_input", DataType.String)
-    .addFieldColumn("dataset_item_expected_output", DataType.String)
-    .addFieldColumn("dataset_item_metadata", DataType.Json)
-    .addFieldColumn("dataset_item_version", DataType.TimestampMillisecond)
-    .addFieldColumn("created_at", DataType.TimestampMillisecond)
-    .addFieldColumn("updated_at", DataType.TimestampMillisecond)
-    .addFieldColumn("is_deleted", DataType.Bool);
-
-const metadataTable = (name: string): Table =>
-  Table.new(name)
-    .addTagColumn("project_id", DataType.String)
-    .addTagColumn("entity_id", DataType.String)
-    .addTagColumn("key", DataType.String)
-    .addTimestampColumn("timestamp", Precision.Millisecond)
-    .addFieldColumn("value", DataType.String)
-    .addFieldColumn("is_deleted", DataType.Bool);
-
-const tagsTable = (name: string): Table =>
-  Table.new(name)
-    .addTagColumn("project_id", DataType.String)
-    .addTagColumn("entity_id", DataType.String)
-    .addTagColumn("tag", DataType.String)
-    .addTimestampColumn("timestamp", Precision.Millisecond)
-    .addFieldColumn("is_deleted", DataType.Bool);
-
-const PHYSICAL_TABLES: Record<string, () => Table> = {
-  traces: tracesTable,
-  observations: observationsTable,
-  scores: scoresTable,
-  dataset_run_items: datasetRunItemsTable,
-  traces_metadata: () => metadataTable("traces_metadata"),
-  observations_metadata: () => metadataTable("observations_metadata"),
-  scores_metadata: () => metadataTable("scores_metadata"),
-  traces_tags: () => tagsTable("traces_tags"),
-};
-
-// ---------------------------------------------------------------------------
-// Record -> row mapping
-// ---------------------------------------------------------------------------
-
-const jsonOrNull = (v: unknown): string | null =>
-  v == null ? null : typeof v === "string" ? v : JSON.stringify(v);
-
-const num = (v: number | null | undefined): number | null => v ?? null;
-
-const traceRow = (r: TraceRecordInsertType): Row => ({
-  project_id: r.project_id,
-  id: r.id,
-  timestamp: r.timestamp,
-  name: r.name ?? null,
-  environment: r.environment,
-  session_id: r.session_id ?? null,
-  user_id: r.user_id ?? null,
-  release: r.release ?? null,
-  version: r.version ?? null,
-  tags: jsonOrNull(r.tags ?? []),
-  metadata: jsonOrNull(r.metadata ?? {}),
-  bookmarked: r.bookmarked ?? null,
-  public: r.public ?? null,
-  input: r.input ?? null,
-  output: r.output ?? null,
-  created_at: r.created_at,
-  updated_at: r.updated_at,
-  is_deleted: Boolean(r.is_deleted),
-});
-
-const observationRow = (r: ObservationRecordInsertType): Row => {
-  const cost = r.cost_details ?? {};
-  const usage = r.usage_details ?? {};
-  return {
-    project_id: r.project_id,
-    id: r.id,
-    start_time: r.start_time,
-    type: r.type ?? null,
-    trace_id: r.trace_id ?? null,
-    parent_observation_id: r.parent_observation_id ?? null,
-    environment: r.environment,
-    name: r.name ?? null,
-    level: r.level ?? null,
-    status_message: r.status_message ?? null,
-    version: r.version ?? null,
-    end_time: num(r.end_time),
-    completion_start_time: num(r.completion_start_time),
-    provided_model_name: r.provided_model_name ?? null,
-    internal_model_id: r.internal_model_id ?? null,
-    model_parameters: jsonOrNull(r.model_parameters),
-    input: r.input ?? null,
-    output: r.output ?? null,
-    metadata: jsonOrNull(r.metadata ?? {}),
-    // Flattened cost/usage columns; full maps preserved in the JSON columns below.
-    input_cost: num(cost["input"]),
-    output_cost: num(cost["output"]),
-    total_cost: num(r.total_cost ?? cost["total"]),
-    input_usage: num(usage["input"]),
-    output_usage: num(usage["output"]),
-    total_usage: num(usage["total"]),
-    usage_details: jsonOrNull(usage),
-    cost_details: jsonOrNull(cost),
-    provided_usage_details: jsonOrNull(r.provided_usage_details ?? {}),
-    provided_cost_details: jsonOrNull(r.provided_cost_details ?? {}),
-    usage_pricing_tier_id: r.usage_pricing_tier_id ?? null,
-    usage_pricing_tier_name: r.usage_pricing_tier_name ?? null,
-    prompt_id: r.prompt_id ?? null,
-    prompt_name: r.prompt_name ?? null,
-    prompt_version: num(r.prompt_version),
-    tool_definitions: jsonOrNull(r.tool_definitions ?? {}),
-    tool_calls: jsonOrNull(r.tool_calls ?? []),
-    tool_call_names: jsonOrNull(r.tool_call_names ?? []),
-    created_at: r.created_at,
-    updated_at: r.updated_at,
-    is_deleted: Boolean(r.is_deleted),
-  };
-};
-
-const scoreRow = (r: ScoreRecordInsertType): Row => ({
-  project_id: r.project_id,
-  id: r.id,
-  timestamp: r.timestamp,
-  name: r.name,
-  environment: r.environment,
-  source: r.source,
-  data_type: r.data_type,
-  value: r.value ?? null,
-  string_value: r.string_value ?? null,
-  long_string_value: r.long_string_value ?? null,
-  comment: r.comment ?? null,
-  metadata: jsonOrNull(r.metadata ?? {}),
-  trace_id: r.trace_id ?? null,
-  observation_id: r.observation_id ?? null,
-  session_id: r.session_id ?? null,
-  dataset_run_id: r.dataset_run_id ?? null,
-  execution_trace_id: r.execution_trace_id ?? null,
-  author_user_id: r.author_user_id ?? null,
-  config_id: r.config_id ?? null,
-  queue_id: r.queue_id ?? null,
-  created_at: r.created_at,
-  updated_at: r.updated_at,
-  is_deleted: Boolean(r.is_deleted),
-});
-
-const datasetRunItemRow = (r: DatasetRunItemRecordInsertType): Row => ({
-  project_id: r.project_id,
-  id: r.id,
-  dataset_run_created_at: r.dataset_run_created_at,
-  dataset_id: r.dataset_id ?? null,
-  dataset_run_id: r.dataset_run_id ?? null,
-  dataset_item_id: r.dataset_item_id ?? null,
-  trace_id: r.trace_id ?? null,
-  observation_id: r.observation_id ?? null,
-  error: r.error ?? null,
-  dataset_run_name: r.dataset_run_name ?? null,
-  dataset_run_description: r.dataset_run_description ?? null,
-  dataset_run_metadata: jsonOrNull(r.dataset_run_metadata ?? {}),
-  dataset_item_input: r.dataset_item_input ?? null,
-  dataset_item_expected_output: r.dataset_item_expected_output ?? null,
-  dataset_item_metadata: jsonOrNull(r.dataset_item_metadata ?? {}),
-  dataset_item_version: num(r.dataset_item_version),
-  created_at: r.created_at,
-  updated_at: r.updated_at,
-  is_deleted: Boolean(r.is_deleted),
-});
-
-const metadataRows = (params: {
-  metadata: Record<string, string> | undefined;
-  projectId: string;
-  entityId: string;
-  timestamp: number;
-  isDeleted: boolean;
-}): Row[] =>
-  Object.entries(params.metadata ?? {}).map(([key, value]) => ({
-    project_id: params.projectId,
-    entity_id: params.entityId,
-    key,
-    timestamp: params.timestamp,
-    value: value ?? null,
-    is_deleted: params.isDeleted,
-  }));
-
-const tagRows = (params: {
-  tags: string[] | undefined;
-  projectId: string;
-  entityId: string;
-  timestamp: number;
-  isDeleted: boolean;
-}): Row[] =>
-  (params.tags ?? []).map((tag) => ({
-    project_id: params.projectId,
-    entity_id: params.entityId,
-    tag,
-    timestamp: params.timestamp,
-    is_deleted: params.isDeleted,
-  }));
-
-// ---------------------------------------------------------------------------
-// Writer
-// ---------------------------------------------------------------------------
 
 export class GreptimeWriter {
   private static instance: GreptimeWriter | null = null;
@@ -407,74 +101,15 @@ export class GreptimeWriter {
       | ScoreRecordInsertType
       | DatasetRunItemRecordInsertType,
   ): void {
-    switch (table) {
-      case GreptimeTable.Traces: {
-        const r = record as TraceRecordInsertType;
-        this.push("traces", traceRow(r));
-        this.pushAll(
-          "traces_metadata",
-          metadataRows({
-            metadata: r.metadata,
-            projectId: r.project_id,
-            entityId: r.id,
-            timestamp: r.timestamp,
-            isDeleted: Boolean(r.is_deleted),
-          }),
-        );
-        this.pushAll(
-          "traces_tags",
-          tagRows({
-            tags: r.tags,
-            projectId: r.project_id,
-            entityId: r.id,
-            timestamp: r.timestamp,
-            isDeleted: Boolean(r.is_deleted),
-          }),
-        );
-        break;
-      }
-      case GreptimeTable.Observations: {
-        const r = record as ObservationRecordInsertType;
-        this.push("observations", observationRow(r));
-        this.pushAll(
-          "observations_metadata",
-          metadataRows({
-            metadata: r.metadata,
-            projectId: r.project_id,
-            entityId: r.id,
-            timestamp: r.start_time,
-            isDeleted: Boolean(r.is_deleted),
-          }),
-        );
-        break;
-      }
-      case GreptimeTable.Scores: {
-        const r = record as ScoreRecordInsertType;
-        this.push("scores", scoreRow(r));
-        this.pushAll(
-          "scores_metadata",
-          metadataRows({
-            metadata: r.metadata,
-            projectId: r.project_id,
-            entityId: r.id,
-            timestamp: r.timestamp,
-            isDeleted: Boolean(r.is_deleted),
-          }),
-        );
-        break;
-      }
-      case GreptimeTable.DatasetRunItems: {
-        // No EAV fan-out: dataset_run_item metadata is display-only JSON (no key-filtered reads).
-        this.push(
-          "dataset_run_items",
-          datasetRunItemRow(record as DatasetRunItemRecordInsertType),
-        );
-        break;
-      }
+    for (const { table: physicalTable, rows } of buildGreptimeRowsForRecord(
+      table,
+      record,
+    )) {
+      this.pushAll(physicalTable, rows);
     }
   }
 
-  private push(table: string, row: Row): void {
+  private push(table: string, row: GreptimeRow): void {
     this.queues[table].push({ createdAt: Date.now(), attempts: 1, row });
     if (
       this.queues[table].length >= this.batchSize &&
@@ -489,7 +124,7 @@ export class GreptimeWriter {
     }
   }
 
-  private pushAll(table: string, rows: Row[]): void {
+  private pushAll(table: string, rows: GreptimeRow[]): void {
     for (const row of rows) this.push(table, row);
   }
 

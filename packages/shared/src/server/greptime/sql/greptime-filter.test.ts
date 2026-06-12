@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   ArrayOptionsFilter,
   BooleanFilter,
+  CategoryOptionsFilter,
   DateTimeFilter,
   FilterList,
   NullFilter,
+  NumberFilter,
   NumberObjectFilter,
+  ScoreNumberObjectFilter,
   StringFilter,
   StringObjectFilter,
   StringOptionsFilter,
@@ -277,5 +280,107 @@ describe("FilterList", () => {
 
   it("empty list yields an empty clause", () => {
     expect(new FilterList().apply()).toEqual({ query: "", params: {} });
+  });
+});
+
+describe("GreptimeFilter expression-valued fields (rollup columns)", () => {
+  it("emits an already-qualified expression verbatim instead of quoting it", () => {
+    const { query } = new NumberFilter({
+      table: "observations",
+      field: "o.latency_milliseconds / 1000",
+      operator: ">=",
+      value: 5,
+    }).apply();
+    expect(norm(query)).toBe("o.latency_milliseconds / 1000 >= :P");
+  });
+
+  it("emits a qualified rollup ref verbatim for IN lists", () => {
+    const { query } = new StringOptionsFilter({
+      table: "observations",
+      field: "o.aggregated_level",
+      operator: "any of",
+      values: ["ERROR", "WARNING"],
+    }).apply();
+    expect(norm(query)).toBe("o.aggregated_level IN (:P, :P)");
+  });
+});
+
+describe("CategoryOptionsFilter (score grain)", () => {
+  const grain = {
+    scoresColumn: "trace_id" as const,
+    outerPrefix: "t",
+    outerColumn: "id",
+  };
+
+  it("builds a project-scoped, soft-delete-aware EXISTS correlated by the grain", () => {
+    const { query, params } = new CategoryOptionsFilter({
+      key: "sentiment",
+      values: ["positive", "negative"],
+      operator: "any of",
+      grain,
+    }).apply();
+    expect(query).toContain("EXISTS (SELECT 1 FROM `scores` cs");
+    expect(query).toContain("cs.`project_id` = t.`project_id`");
+    expect(query).toContain("cs.`trace_id` = t.`id`");
+    expect(query).toContain("cs.`name` = :");
+    expect(query).toContain("cs.`data_type` = 'CATEGORICAL'");
+    expect(query).toContain("cs.`string_value` IN (");
+    expect(query).toContain("cs.`is_deleted` = false");
+    expect(Object.values(params)).toEqual([
+      "sentiment",
+      "positive",
+      "negative",
+    ]);
+  });
+
+  it("negates to NOT EXISTS for 'none of' (missing score matches)", () => {
+    const { query } = new CategoryOptionsFilter({
+      key: "sentiment",
+      values: ["positive"],
+      operator: "none of",
+      grain,
+    }).apply();
+    expect(query.startsWith("NOT EXISTS (")).toBe(true);
+  });
+
+  it("short-circuits on an empty value list", () => {
+    expect(
+      new CategoryOptionsFilter({
+        key: "x",
+        values: [],
+        operator: "any of",
+        grain,
+      }).apply().query,
+    ).toBe("1 = 0");
+    expect(
+      new CategoryOptionsFilter({
+        key: "x",
+        values: [],
+        operator: "none of",
+        grain,
+      }).apply().query,
+    ).toBe("1 = 1");
+  });
+});
+
+describe("ScoreNumberObjectFilter (score grain)", () => {
+  const grain = {
+    scoresColumn: "trace_id" as const,
+    outerPrefix: "t",
+    outerColumn: "id",
+  };
+
+  it("builds a grouped EXISTS with HAVING avg(value) over numeric/boolean scores", () => {
+    const { query, params } = new ScoreNumberObjectFilter({
+      key: "quality",
+      value: 0.8,
+      operator: ">=",
+      grain,
+    }).apply();
+    expect(query).toContain("EXISTS (SELECT 1 FROM `scores` cs");
+    expect(query).toContain("cs.`trace_id` = t.`id`");
+    expect(query).toContain("cs.`data_type` IN ('NUMERIC', 'BOOLEAN')");
+    expect(query).toContain("GROUP BY cs.`name` HAVING avg(cs.`value`) >= :");
+    expect(Object.values(params)).toEqual(["quality", 0.8]);
   });
 });
