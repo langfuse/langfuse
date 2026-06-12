@@ -69,7 +69,41 @@ vi.mock("@mastra/mcp", () => ({
       listToolsetsWithErrors: vi.fn().mockResolvedValue({
         toolsets: {
           langfuse: { search: { server: "langfuse" } },
-          langfuseDocs: { search: { server: "langfuseDocs" } },
+          langfuseDocs: {
+            search: {
+              server: "langfuseDocs",
+              execute: vi.fn().mockResolvedValue({
+                _meta: {
+                  choices: [
+                    {
+                      message: {
+                        content: JSON.stringify({
+                          content: [
+                            {
+                              type: "document",
+                              title: "Invite Co-workers",
+                              url: "https://langfuse.com/faq/all/inviting-in-langfuse",
+                            },
+                            {
+                              type: "document",
+                              title:
+                                "SCIM & Organization-Key Scoped API Routes",
+                              url: "https://langfuse.com/docs/administration/scim-and-org-api",
+                            },
+                            {
+                              type: "document",
+                              title: "Members Router",
+                              url: "https://github.com/langfuse/langfuse/blob/main/web/src/features/rbac/server/membersRouter.ts",
+                            },
+                          ],
+                        }),
+                      },
+                    },
+                  ],
+                },
+              }),
+            },
+          },
         },
         errors: {},
       }),
@@ -185,10 +219,23 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         tools: {
           langfuse_search: { server: "langfuse" },
-          langfuseDocs_search: { server: "langfuseDocs" },
+          langfuseDocs_search: expect.objectContaining({
+            server: "langfuseDocs",
+            execute: expect.any(Function),
+          }),
         },
       }),
     );
+    const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
+    const docsSearchTool = agentConfig?.tools?.langfuseDocs_search;
+    await expect(docsSearchTool?.execute?.({}, {})).resolves.toMatchObject({
+      sources: [
+        {
+          title: "Invite Co-workers",
+          url: "https://langfuse.com/faq/all/inviting-in-langfuse",
+        },
+      ],
+    });
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
