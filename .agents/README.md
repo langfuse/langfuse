@@ -58,6 +58,10 @@ Current shape:
     "linear": {
       "transport": "http",
       "url": "https://mcp.linear.app/mcp"
+    },
+    "storybook": {
+      "transport": "http",
+      "url": "http://localhost:6006/mcp"
     }
   },
   "claude": {

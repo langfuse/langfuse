@@ -182,6 +182,7 @@
     "@repo/typescript-config": "workspace:*",
     "@storybook/addon-a11y": "^10.3.6",
     "@storybook/addon-docs": "^10.3.6",
+    "@storybook/addon-mcp": "0.6.0",
     "@storybook/nextjs-vite": "^10.3.6",
     "@tailwindcss/forms": "^0.5.11",
     "@tailwindcss/postcss": "^4.2.2",

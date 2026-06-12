@@ -46,6 +46,13 @@ Keep the existing component, but update it to use the newly created component fo
 - Use the smallest meaningful data shape needed to render the state.
 - If fixtures are required and may be shared, check whether a reusable helper function exists. Otherwise, create one for defining the fixture.
 
+## Storybook MCP
+
+- Start Storybook with `pnpm --filter web run storybook` before using the `storybook` MCP server.
+- The MCP endpoint is `http://localhost:6006/mcp`, generated into local agent config from `.agents/config.json`.
+- Use the MCP docs tools to find existing documented components before creating new UI primitives.
+- Use the MCP preview and test tools for Storybook-visible component work when Storybook is running.
+
 ## Variant and Design Showcase Stories
 
 If a component has many variants, and the point of the story is to showcase the design of a component rather than its functionality, stories may render the component multiple times.
