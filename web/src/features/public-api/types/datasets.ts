@@ -149,6 +149,38 @@ export const GetDatasetV2Query = z.object({
 });
 export const GetDatasetV2Response = APIDataset.strict();
 
+// GET /v2/dataset-runs/by-dataset-id/{datasetId}
+export const GetDatasetRunsV2ByIdQuery = z.object({
+  datasetId: z.string(),
+  ...publicApiPaginationZod,
+});
+export const GetDatasetRunsV2ByIdResponse = z
+  .object({
+    data: z.array(APIDatasetRun),
+    meta: paginationMetaResponseZod,
+  })
+  .strict();
+
+// GET /v2/dataset-runs/by-dataset-id/{datasetId}/{runId}
+export const GetDatasetRunV2ByIdQuery = z.object({
+  datasetId: z.string(),
+  runId: z.string(),
+});
+export const GetDatasetRunV2ByIdResponse = APIDatasetRun.extend({
+  datasetRunItems: z.array(APIDatasetRunItem),
+}).strict();
+
+// DELETE /v2/dataset-runs/by-dataset-id/{datasetId}/{runId}
+export const DeleteDatasetRunV2ByIdQuery = z.object({
+  datasetId: z.string(),
+  runId: z.string(),
+});
+export const DeleteDatasetRunV2ByIdResponse = z
+  .object({
+    message: z.literal("Dataset run successfully deleted"),
+  })
+  .strict();
+
 // GET /datasets/{name}/runs
 export const GetDatasetRunsV1Query = z.object({
   name: queryStringZod, // dataset name from URL, name as it is v1

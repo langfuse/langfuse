@@ -13,7 +13,9 @@ import {
   GetDatasetItemV1Response,
   GetDatasetItemsV1Response,
   GetDatasetRunV1Response,
+  GetDatasetRunV2ByIdResponse,
   GetDatasetRunsV1Response,
+  GetDatasetRunsV2ByIdResponse,
   GetDatasetV1Response,
   GetDatasetV2Response,
   GetDatasetsV1Response,
@@ -24,6 +26,7 @@ import {
   PostDatasetsV2Response,
   DeleteDatasetItemV1Response,
   DeleteDatasetRunV1Response,
+  DeleteDatasetRunV2ByIdResponse,
   GetDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
 import { v4 as uuidv4 } from "uuid";
@@ -1794,6 +1797,207 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     );
 
     expect(deleteRes.status).toBe(200);
+  }, 90000);
+
+  it("should list, get, and delete dataset runs by id for datasets with slashes in the name", async () => {
+    const datasetName = `folder/subfolder/dataset-by-id-${v4()}`;
+
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: datasetName,
+        description: "Dataset in folder structure for by-id routes",
+      },
+      auth,
+    );
+
+    const datasetItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        input: { value: "test-value" },
+      },
+      auth,
+    );
+
+    const runName = `run/nested/by-id-${v4()}`;
+    const runItem = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: datasetItem.body.id,
+        traceId: traceId,
+      },
+      auth,
+    );
+
+    const dbRun = await prisma.datasetRuns.findFirst({
+      where: {
+        datasetId: dataset.body.id,
+        projectId: dataset.body.projectId,
+        name: runName,
+      },
+    });
+    expect(dbRun).not.toBeNull();
+    expect(runItem.body.datasetRunId).toBe(dbRun!.id);
+
+    const listRuns = await makeZodVerifiedAPICall(
+      GetDatasetRunsV2ByIdResponse,
+      "GET",
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}?page=1&limit=10`,
+      undefined,
+      auth,
+    );
+
+    expect(listRuns.status).toBe(200);
+    expect(listRuns.body.meta).toMatchObject({
+      page: 1,
+      limit: 10,
+      totalItems: 1,
+      totalPages: 1,
+    });
+    expect(listRuns.body.data).toEqual([
+      expect.objectContaining({
+        id: dbRun!.id,
+        name: runName,
+        datasetId: dataset.body.id,
+        datasetName,
+      }),
+    ]);
+
+    const getRun = await makeZodVerifiedAPICall(
+      GetDatasetRunV2ByIdResponse,
+      "GET",
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}/${dbRun!.id}`,
+      undefined,
+      auth,
+    );
+
+    expect(getRun.status).toBe(200);
+    expect(getRun.body).toMatchObject({
+      id: dbRun!.id,
+      name: runName,
+      datasetId: dataset.body.id,
+      datasetName,
+    });
+
+    const deleteRun = await makeZodVerifiedAPICall(
+      DeleteDatasetRunV2ByIdResponse,
+      "DELETE",
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}/${dbRun!.id}`,
+      undefined,
+      auth,
+    );
+
+    expect(deleteRun.status).toBe(200);
+    expect(deleteRun.body).toEqual({
+      message: "Dataset run successfully deleted",
+    });
+
+    const getDeletedRun = await makeAPICall(
+      "GET",
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}/${dbRun!.id}`,
+      undefined,
+      auth,
+    );
+    expect(getDeletedRun.status).toBe(404);
+  }, 90000);
+
+  it("should reject by-id dataset run access across projects or mismatched datasets", async () => {
+    const datasetName = `folder/subfolder/dataset-cross-project-${v4()}`;
+
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: datasetName,
+      },
+      auth,
+    );
+
+    const datasetItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        input: { value: "cross-project" },
+      },
+      auth,
+    );
+
+    const runName = `run-cross-project-${v4()}`;
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: datasetItem.body.id,
+        traceId: traceId,
+      },
+      auth,
+    );
+
+    const dbRun = await prisma.datasetRuns.findFirst({
+      where: {
+        datasetId: dataset.body.id,
+        projectId: dataset.body.projectId,
+        name: runName,
+      },
+    });
+    expect(dbRun).not.toBeNull();
+
+    const otherDataset = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: `other-dataset-${v4()}`,
+      },
+      auth,
+    );
+
+    const { auth: otherAuth } = await createOrgProjectAndApiKey();
+
+    const crossProjectGet = await makeAPICall(
+      "GET",
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}/${dbRun!.id}`,
+      undefined,
+      otherAuth,
+    );
+    expect(crossProjectGet.status).toBe(404);
+
+    const crossProjectList = await makeAPICall(
+      "GET",
+      `/api/public/v2/dataset-runs/by-dataset-id/${dataset.body.id}`,
+      undefined,
+      otherAuth,
+    );
+    expect(crossProjectList.status).toBe(404);
+
+    const mismatchedDataset = await makeAPICall(
+      "GET",
+      `/api/public/v2/dataset-runs/by-dataset-id/${otherDataset.body.id}/${dbRun!.id}`,
+      undefined,
+      auth,
+    );
+    expect(mismatchedDataset.status).toBe(404);
+
+    const mismatchedDelete = await makeAPICall(
+      "DELETE",
+      `/api/public/v2/dataset-runs/by-dataset-id/${otherDataset.body.id}/${dbRun!.id}`,
+      undefined,
+      auth,
+    );
+    expect(mismatchedDelete.status).toBe(404);
   }, 90000);
 
   it("should support dataset versioning via version query parameter", async () => {
