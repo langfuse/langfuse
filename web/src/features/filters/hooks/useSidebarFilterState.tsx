@@ -534,11 +534,6 @@ export function useSidebarFilterState(
     storedFiltersQuery,
   ]);
 
-  const canonicalFiltersQuery = useMemo(
-    () => encodeFiltersGeneric(urlFilterState),
-    [urlFilterState],
-  );
-
   const explicitFilterState: FilterState =
     stateLocationType === "peekContext"
       ? hookOptions.context.tableState.filters
@@ -636,53 +631,6 @@ export function useSidebarFilterState(
       setPendingFiltersQuery(null);
     }
   }, [stateLocationType, pendingFiltersQuery, urlFiltersQuery]);
-
-  // Sanitize stale or outdated filter queries in URL/session state.
-  // TODO(2026-04-15): Remove this entire effect once stale
-  // positionInTrace traces-table URL/session state has aged out.
-  // Remove the canonicalFiltersQuery cleanup path here and the matching
-  // stale-positionInTrace migration tests in sidebarFilterSessionPersistence
-  // / filter-integration when this is no longer needed.
-  useEffect(() => {
-    if (
-      stateLocationType !== "url" &&
-      stateLocationType !== "urlAndSessionStorage"
-    ) {
-      return;
-    }
-
-    if (pendingFiltersQuery !== null) return;
-
-    if (typeof urlFiltersQuery === "string") {
-      if (urlFiltersQuery !== canonicalFiltersQuery) {
-        setPendingFiltersQuery(canonicalFiltersQuery);
-        setUrlFiltersQuery(canonicalFiltersQuery || null);
-      }
-
-      if (
-        stateLocationType === "urlAndSessionStorage" &&
-        storedFiltersQuery !== canonicalFiltersQuery
-      ) {
-        setStoredFiltersQuery(canonicalFiltersQuery);
-      }
-      return;
-    }
-
-    if (
-      stateLocationType === "urlAndSessionStorage" &&
-      storedFiltersQuery !== canonicalFiltersQuery
-    ) {
-      setStoredFiltersQuery(canonicalFiltersQuery);
-    }
-  }, [
-    stateLocationType,
-    pendingFiltersQuery,
-    urlFiltersQuery,
-    storedFiltersQuery,
-    canonicalFiltersQuery,
-    setStoredFiltersQuery,
-    setUrlFiltersQuery,
-  ]);
 
   // Mirror explicit URL filter state into session fallback storage.
   useEffect(() => {
