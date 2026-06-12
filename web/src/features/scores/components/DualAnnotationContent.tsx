@@ -22,6 +22,10 @@ export function DualAnnotationContent({
   observationScores,
   traceScores,
 }: DualAnnotationContentProps) {
+  const hasNonAnnotationScores = [...observationScores, ...traceScores].some(
+    (score) => score.source !== "ANNOTATION",
+  );
+
   return (
     <div className="flex max-h-[95vh] flex-col gap-4 overflow-y-auto">
       {/* Observation-level scores */}
@@ -70,6 +74,13 @@ export function DualAnnotationContent({
           }}
         />
       </div>
+
+      {hasNonAnnotationScores && (
+        <div className="text-muted-foreground text-xs">
+          API and eval scores are hidden from this annotation drawer. Add manual
+          annotations above.
+        </div>
+      )}
     </div>
   );
 }
