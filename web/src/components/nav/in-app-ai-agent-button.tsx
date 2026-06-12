@@ -88,13 +88,26 @@ export const InAppAiAgentButton = () => {
     );
   }, [isExpanded]);
 
+  useLayoutEffect(() => {
+    if (
+      !open ||
+      !portalContainer ||
+      isExpanded ||
+      floatingPanelGeometry.geometry
+    ) {
+      return;
+    }
+
+    floatingPanelGeometry.initializeGeometry();
+  }, [floatingPanelGeometry, isExpanded, open, portalContainer]);
+
   if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
     return null;
   }
 
   const activeFloatingPanelGeometry =
     open && portalContainer && !isExpanded
-      ? floatingPanelGeometry.getGeometry()
+      ? floatingPanelGeometry.geometry
       : null;
 
   const handleClick = () => {

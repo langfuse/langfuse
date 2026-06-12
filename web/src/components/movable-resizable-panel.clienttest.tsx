@@ -13,12 +13,14 @@ type TestPanelProps = {
   initialSize?: MovableResizablePanelSize;
   maxSize?: MovableResizablePanelSize;
   minSize?: MovableResizablePanelSize;
+  ignoreOutsideInteraction?: boolean;
   onActionClick?: () => void;
 };
 
 function TestPanel({
   initialPosition = { left: 100, top: 100 },
   initialSize = { width: 300, height: 240 },
+  ignoreOutsideInteraction,
   maxSize,
   minSize = { width: 200, height: 160 },
   onActionClick,
@@ -30,6 +32,7 @@ function TestPanel({
     <MovableResizablePanel
       boundsPadding={10}
       dragHandleSelector="[data-drag-handle='true']"
+      ignoreOutsideInteraction={ignoreOutsideInteraction}
       maxSize={maxSize}
       minSize={minSize}
       position={position}
@@ -162,6 +165,56 @@ describe("MovableResizablePanel", () => {
     );
   });
 
+  it("keeps the right edge anchored when left resizing hits the min width", () => {
+    render(<TestPanel />);
+
+    const panel = screen.getByTestId("movable-resizable-panel");
+    const resizeHandle = screen.getByTestId(
+      "movable-resizable-panel-resize-left",
+    );
+
+    firePointerEvent(resizeHandle, "pointerdown", {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 220,
+    });
+    firePointerEvent(panel, "pointermove", {
+      pointerId: 1,
+      clientX: 300,
+      clientY: 220,
+    });
+    firePointerEvent(panel, "pointerup", { pointerId: 1 });
+
+    expect(screen.getByTestId("panel-state")).toHaveTextContent(
+      "200,100,200,240",
+    );
+  });
+
+  it("keeps the bottom edge anchored when top resizing hits the min height", () => {
+    render(<TestPanel />);
+
+    const panel = screen.getByTestId("movable-resizable-panel");
+    const resizeHandle = screen.getByTestId(
+      "movable-resizable-panel-resize-top",
+    );
+
+    firePointerEvent(resizeHandle, "pointerdown", {
+      pointerId: 1,
+      clientX: 220,
+      clientY: 100,
+    });
+    firePointerEvent(panel, "pointermove", {
+      pointerId: 1,
+      clientX: 220,
+      clientY: 300,
+    });
+    firePointerEvent(panel, "pointerup", { pointerId: 1 });
+
+    expect(screen.getByTestId("panel-state")).toHaveTextContent(
+      "100,180,300,160",
+    );
+  });
+
   it("clamps movement to viewport bounds", () => {
     render(<TestPanel />);
 
@@ -209,6 +262,14 @@ describe("MovableResizablePanel", () => {
     expect(onActionClick).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("panel-state")).toHaveTextContent(
       "100,100,300,240",
+    );
+  });
+
+  it("can mark the root as ignored for outside interactions", () => {
+    render(<TestPanel ignoreOutsideInteraction />);
+
+    expect(screen.getByTestId("movable-resizable-panel")).toHaveAttribute(
+      "data-ignore-outside-interaction",
     );
   });
 });

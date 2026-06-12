@@ -11,8 +11,7 @@ import {
 const IN_APP_AGENT_WINDOW_SHELL_BOUNDS_PADDING_PX = 8;
 const IN_APP_AGENT_WINDOW_SHELL_DEFAULT_WIDTH_PX = 448;
 const IN_APP_AGENT_WINDOW_SHELL_DEFAULT_MAX_HEIGHT_PX = 672;
-const IN_APP_AGENT_WINDOW_SHELL_FULL_WIDTH_CAP_SCREEN_WIDTH_PX = 1440;
-const IN_APP_AGENT_WINDOW_SHELL_WIDE_SCREEN_WIDTH_PX = 2560;
+const IN_APP_AGENT_WINDOW_SHELL_MAX_WIDTH_PX = 1296;
 const IN_APP_AGENT_WINDOW_SHELL_MAX_HEIGHT_PX = 760;
 const IN_APP_AGENT_WINDOW_SHELL_DRAG_HANDLE_SELECTOR =
   "[data-in-app-agent-window-drag-handle='true']";
@@ -27,30 +26,10 @@ type InitialInAppAgentWindowShellGeometryParams = {
   anchorRect?: Pick<DOMRect, "right"> | null;
 };
 
-function getInAppAgentWindowShellMaxWidth(viewportWidth: number) {
-  const wideScreenProgress = Math.max(
-    0,
-    Math.min(
-      (viewportWidth -
-        IN_APP_AGENT_WINDOW_SHELL_FULL_WIDTH_CAP_SCREEN_WIDTH_PX) /
-        (IN_APP_AGENT_WINDOW_SHELL_WIDE_SCREEN_WIDTH_PX -
-          IN_APP_AGENT_WINDOW_SHELL_FULL_WIDTH_CAP_SCREEN_WIDTH_PX),
-      1,
-    ),
-  );
-  const maxWidthRatio = 0.9 - wideScreenProgress * 0.3;
-
-  return viewportWidth * maxWidthRatio;
-}
-
-function getInAppAgentWindowShellMaxSize(
-  viewportWidth: number,
-): MovableResizablePanelSize {
-  return {
-    width: getInAppAgentWindowShellMaxWidth(viewportWidth),
-    height: IN_APP_AGENT_WINDOW_SHELL_MAX_HEIGHT_PX,
-  };
-}
+const IN_APP_AGENT_WINDOW_SHELL_MAX_SIZE = {
+  width: IN_APP_AGENT_WINDOW_SHELL_MAX_WIDTH_PX,
+  height: IN_APP_AGENT_WINDOW_SHELL_MAX_HEIGHT_PX,
+} satisfies MovableResizablePanelSize;
 
 export function getInitialInAppAgentWindowShellGeometry({
   viewportWidth,
@@ -120,7 +99,8 @@ export function InAppAgentWindowShell({
     <MovableResizablePanel
       boundsPadding={IN_APP_AGENT_WINDOW_SHELL_BOUNDS_PADDING_PX}
       dragHandleSelector={IN_APP_AGENT_WINDOW_SHELL_DRAG_HANDLE_SELECTOR}
-      maxSize={getInAppAgentWindowShellMaxSize(window.innerWidth)}
+      ignoreOutsideInteraction
+      maxSize={IN_APP_AGENT_WINDOW_SHELL_MAX_SIZE}
       minSize={IN_APP_AGENT_WINDOW_SHELL_MIN_SIZE}
       position={floatingGeometry.position}
       size={floatingGeometry.size}

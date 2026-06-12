@@ -53,6 +53,13 @@ type Interaction =
       startSize: MovableResizablePanelSize;
     };
 
+type PanelSizeConstraints = {
+  maxHeight: number;
+  maxWidth: number;
+  minHeight: number;
+  minWidth: number;
+};
+
 type MovableResizablePanelProps = {
   children: ReactNode;
   dragHandleSelector: string;
@@ -61,6 +68,7 @@ type MovableResizablePanelProps = {
   position: MovableResizablePanelPosition;
   size: MovableResizablePanelSize;
   boundsPadding?: number;
+  ignoreOutsideInteraction?: boolean;
   isMovable?: boolean;
   isResizable?: boolean;
   zIndex?: number;
@@ -77,6 +85,9 @@ export function useMovableResizablePanelGeometry({
     useState<MovableResizablePanelGeometry | null>(null);
 
   const getGeometry = () => geometry ?? getInitialGeometry();
+  const initializeGeometry = () => {
+    setGeometry((currentGeometry) => currentGeometry ?? getInitialGeometry());
+  };
   const resetGeometry = () => setGeometry(getInitialGeometry());
   const clearGeometry = () => setGeometry(null);
   const setPosition = (position: MovableResizablePanelPosition) => {
@@ -93,7 +104,9 @@ export function useMovableResizablePanelGeometry({
   };
 
   return {
+    geometry,
     getGeometry,
+    initializeGeometry,
     resetGeometry,
     clearGeometry,
     setPosition,
@@ -143,6 +156,33 @@ function getViewportBounds(boundsPadding: number) {
   };
 }
 
+function getPanelSizeConstraints({
+  boundsPadding,
+  maxSize,
+  minSize,
+}: {
+  boundsPadding: number;
+  maxSize?: MovableResizablePanelSize;
+  minSize: MovableResizablePanelSize;
+}): PanelSizeConstraints {
+  const bounds = getViewportBounds(boundsPadding);
+  const viewportMaxWidth = bounds.maxRight - bounds.minLeft;
+  const viewportMaxHeight = bounds.maxBottom - bounds.minTop;
+
+  return {
+    maxHeight: Math.max(
+      minSize.height,
+      Math.min(maxSize?.height ?? viewportMaxHeight, viewportMaxHeight),
+    ),
+    maxWidth: Math.max(
+      minSize.width,
+      Math.min(maxSize?.width ?? viewportMaxWidth, viewportMaxWidth),
+    ),
+    minHeight: minSize.height,
+    minWidth: minSize.width,
+  };
+}
+
 function clampPanelBounds({
   boundsPadding,
   maxSize,
@@ -157,18 +197,17 @@ function clampPanelBounds({
   size: MovableResizablePanelSize;
 }) {
   const bounds = getViewportBounds(boundsPadding);
-  const viewportMaxWidth = bounds.maxRight - bounds.minLeft;
-  const viewportMaxHeight = bounds.maxBottom - bounds.minTop;
-  const maxWidth = Math.max(
-    minSize.width,
-    Math.min(maxSize?.width ?? viewportMaxWidth, viewportMaxWidth),
+  const constraints = getPanelSizeConstraints({
+    boundsPadding,
+    maxSize,
+    minSize,
+  });
+  const width = clamp(size.width, constraints.minWidth, constraints.maxWidth);
+  const height = clamp(
+    size.height,
+    constraints.minHeight,
+    constraints.maxHeight,
   );
-  const maxHeight = Math.max(
-    minSize.height,
-    Math.min(maxSize?.height ?? viewportMaxHeight, viewportMaxHeight),
-  );
-  const width = clamp(size.width, minSize.width, maxWidth);
-  const height = clamp(size.height, minSize.height, maxHeight);
   const left = clamp(position.left, bounds.minLeft, bounds.maxRight - width);
   const top = clamp(position.top, bounds.minTop, bounds.maxBottom - height);
 
@@ -234,6 +273,7 @@ function getResizedPanel(
   interaction: Extract<Interaction, { type: "resize" }>,
   clientX: number,
   clientY: number,
+  constraints: PanelSizeConstraints,
 ) {
   const deltaX = clientX - interaction.startClientX;
   const deltaY = clientY - interaction.startClientY;
@@ -241,21 +281,43 @@ function getResizedPanel(
   const nextSize = { ...interaction.startSize };
 
   if (interaction.direction.includes("right")) {
-    nextSize.width = interaction.startSize.width + deltaX;
+    nextSize.width = clamp(
+      interaction.startSize.width + deltaX,
+      constraints.minWidth,
+      constraints.maxWidth,
+    );
   }
 
   if (interaction.direction.includes("left")) {
-    nextPosition.left = interaction.startPosition.left + deltaX;
-    nextSize.width = interaction.startSize.width - deltaX;
+    nextSize.width = clamp(
+      interaction.startSize.width - deltaX,
+      constraints.minWidth,
+      constraints.maxWidth,
+    );
+    nextPosition.left =
+      interaction.startPosition.left +
+      interaction.startSize.width -
+      nextSize.width;
   }
 
   if (interaction.direction.includes("bottom")) {
-    nextSize.height = interaction.startSize.height + deltaY;
+    nextSize.height = clamp(
+      interaction.startSize.height + deltaY,
+      constraints.minHeight,
+      constraints.maxHeight,
+    );
   }
 
   if (interaction.direction.includes("top")) {
-    nextPosition.top = interaction.startPosition.top + deltaY;
-    nextSize.height = interaction.startSize.height - deltaY;
+    nextSize.height = clamp(
+      interaction.startSize.height - deltaY,
+      constraints.minHeight,
+      constraints.maxHeight,
+    );
+    nextPosition.top =
+      interaction.startPosition.top +
+      interaction.startSize.height -
+      nextSize.height;
   }
 
   return {
@@ -317,6 +379,7 @@ export function MovableResizablePanel({
   boundsPadding = DEFAULT_BOUNDS_PADDING,
   children,
   dragHandleSelector,
+  ignoreOutsideInteraction = false,
   isMovable = true,
   isResizable = true,
   maxSize,
@@ -442,6 +505,7 @@ export function MovableResizablePanel({
             interaction,
             coordinates.clientX,
             coordinates.clientY,
+            getPanelSizeConstraints({ boundsPadding, maxSize, minSize }),
           )),
     });
 
@@ -468,6 +532,7 @@ export function MovableResizablePanel({
     <div
       ref={panelRef}
       className="fixed origin-top-left"
+      data-ignore-outside-interaction={ignoreOutsideInteraction || undefined}
       data-testid="movable-resizable-panel"
       style={{
         left: livePosition.left,
