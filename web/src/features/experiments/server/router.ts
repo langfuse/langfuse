@@ -698,7 +698,7 @@ export const experimentsRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        experimentIds: z.array(z.string()).min(1).max(10),
+        experimentIds: z.array(z.string()).min(1),
       }),
     )
     .query(async ({ input, ctx }) => {
