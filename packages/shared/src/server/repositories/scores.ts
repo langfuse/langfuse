@@ -2858,8 +2858,12 @@ const buildV3ListQuery = (
   FROM scores s
   WHERE s.project_id = {projectId: String}
   ${
+    // The simple timestamp bound is redundant with the tuple comparison but
+    // required for index pruning: ClickHouse does not decompose tuple
+    // comparisons, so only the simple bound activates the partition key and
+    // the (project_id, toDate(timestamp)) primary-key prefix.
     withCursor
-      ? "AND (s.timestamp, s.id) < ({lastTimestamp: DateTime64(3)}, {lastId: String})"
+      ? "AND (s.timestamp, s.id) < ({lastTimestamp: DateTime64(3)}, {lastId: String}) AND s.timestamp <= {lastTimestamp: DateTime64(3)}"
       : ""
   }
   ${filterClause ? `AND ${filterClause}` : ""}
