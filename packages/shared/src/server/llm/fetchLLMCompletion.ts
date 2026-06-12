@@ -640,10 +640,17 @@ export async function fetchLLMCompletion(
         const originalThinking = anthropicChatModel.thinking;
 
         try {
-          // ChatAnthropic 1.3.26 uses this internal field, before request
-          // serialization, to decide whether structured output should force
-          // tool_choice. Fable/Mythos default to adaptive thinking when the
-          // request field is omitted, so mirror that just for this decision.
+          // Keep LangChain's structured-output decision in sync with
+          // Anthropic's Fable/Mythos semantics. In @langchain/anthropic 1.3.26,
+          // ChatAnthropic defaults this internal field to { type: "disabled" }.
+          // withStructuredOutput() reads that field before request serialization:
+          // disabled thinking makes it force tool_choice, while adaptive
+          // thinking avoids forced tool use. Fable/Mythos treat an omitted
+          // thinking field as always-on adaptive thinking, and Anthropic rejects
+          // adaptive thinking combined with forced tool use. Temporarily mirror
+          // the adaptive state only while constructing the structured-output
+          // runnable; the actual request still omits the thinking field via
+          // anthropicInvocationKwargs above.
           anthropicChatModel.thinking = { type: "adaptive" };
 
           return anthropicChatModel.withStructuredOutput(
