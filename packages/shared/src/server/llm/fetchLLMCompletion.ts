@@ -405,7 +405,10 @@ export async function fetchLLMCompletion(
       callbacks: finalCallbacks,
       clientOptions: {
         maxRetries,
-        defaultHeaders: extraHeaders,
+        defaultHeaders: {
+          "User-Agent": "langfuse",
+          ...extraHeaders,
+        },
         timeout: timeoutMs,
         fetch: secureLlmFetch("Anthropic LLM base URL", [
           ANTHROPIC_API_KEY_HEADER,
