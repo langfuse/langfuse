@@ -3572,7 +3572,7 @@
     "modelName": "gemini-3-pro-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3-pro-preview)$",
     "createdAt": "2025-11-26T13:27:53.545Z",
-    "updatedAt": "2026-03-19T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmig1wmep000404l7fh6q5uog_tier_default",
@@ -3595,7 +3595,11 @@
           "candidatesTokenCount": 12e-6,
           "thoughtsTokenCount": 12e-6,
           "thoughts_token_count": 12e-6,
-          "output_reasoning": 12e-6
+          "output_reasoning": 12e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       },
       {
@@ -3626,7 +3630,11 @@
           "candidatesTokenCount": 18e-6,
           "thoughtsTokenCount": 18e-6,
           "thoughts_token_count": 18e-6,
-          "output_reasoning": 18e-6
+          "output_reasoning": 18e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       }
     ]
@@ -3636,7 +3644,7 @@
     "modelName": "gemini-3.1-pro-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-pro-preview(-customtools)?)$",
     "createdAt": "2026-02-19T00:00:00.000Z",
-    "updatedAt": "2026-03-19T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "55106bba-a5dd-441b-bc0d-5652582b349d_tier_default",
@@ -3659,7 +3667,11 @@
           "candidatesTokenCount": 12e-6,
           "thoughtsTokenCount": 12e-6,
           "thoughts_token_count": 12e-6,
-          "output_reasoning": 12e-6
+          "output_reasoning": 12e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       },
       {
@@ -3690,7 +3702,11 @@
           "candidatesTokenCount": 18e-6,
           "thoughtsTokenCount": 18e-6,
           "thoughts_token_count": 18e-6,
-          "output_reasoning": 18e-6
+          "output_reasoning": 18e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       }
     ]
@@ -4102,7 +4118,7 @@
     "modelName": "gemini-3.5-flash",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.5-flash)$",
     "createdAt": "2026-05-20T00:00:00.000Z",
-    "updatedAt": "2026-05-20T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "6ed696e7-5f3a-4113-a233-019155fb3ff0_tier_default",
@@ -4125,7 +4141,11 @@
           "candidatesTokenCount": 9e-6,
           "thoughtsTokenCount": 9e-6,
           "thoughts_token_count": 9e-6,
-          "output_reasoning": 9e-6
+          "output_reasoning": 9e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       }
     ]
@@ -4135,7 +4155,7 @@
     "modelName": "gemini-3-flash-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3-flash-preview)$",
     "createdAt": "2025-12-21T12:01:42.282Z",
-    "updatedAt": "2026-03-19T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmjfoeykl000004l8ffzra8c7_tier_default",
@@ -4158,7 +4178,11 @@
           "candidatesTokenCount": 3e-6,
           "thoughtsTokenCount": 3e-6,
           "thoughts_token_count": 3e-6,
-          "output_reasoning": 3e-6
+          "output_reasoning": 3e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       }
     ]
@@ -4168,7 +4192,7 @@
     "modelName": "gemini-3.1-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-flash-lite)$",
     "createdAt": "2026-05-20T00:00:00.000Z",
-    "updatedAt": "2026-05-20T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "79f4d62c-22fb-4ec3-82e1-6e56cdd5e23c_tier_default",
@@ -4192,7 +4216,11 @@
           "thoughtsTokenCount": 1.5e-6,
           "thoughts_token_count": 1.5e-6,
           "output_reasoning": 1.5e-6,
-          "input_audio_tokens": 0.5e-6
+          "input_audio_tokens": 0.5e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       }
     ]
@@ -4202,7 +4230,7 @@
     "modelName": "gemini-3.1-flash-lite-preview",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-3.1-flash-lite-preview)$",
     "createdAt": "2026-03-03T00:00:00.000Z",
-    "updatedAt": "2026-03-19T00:00:00.000Z",
+    "updatedAt": "2026-06-10T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "0707bef8-10c8-46e2-a871-0436f05f0b92_tier_default",
@@ -4226,7 +4254,11 @@
           "thoughtsTokenCount": 1.5e-6,
           "thoughts_token_count": 1.5e-6,
           "output_reasoning": 1.5e-6,
-          "input_audio_tokens": 0.5e-6
+          "input_audio_tokens": 0.5e-6,
+          "grounding_queries": 14e-3,
+          "groundingQueries": 14e-3,
+          "web_search_queries": 14e-3,
+          "webSearchQueries": 14e-3
         }
       }
     ]
