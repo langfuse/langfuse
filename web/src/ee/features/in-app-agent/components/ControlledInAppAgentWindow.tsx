@@ -2,8 +2,6 @@
 
 import { useMemo } from "react";
 import { z } from "zod";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
-import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
@@ -13,9 +11,9 @@ import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import {
   AgUiMessageSchema,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  InAppAgentRedirectActionToolResultSchema,
   type AgUiMessage,
 } from "@/src/ee/features/in-app-agent/schema";
-import { getRedirectActionMessage } from "./utils/redirectAction";
 
 type ControlledInAppAgentWindowBaseProps = {
   zIndex?: number;
@@ -53,11 +51,6 @@ export function ControlledInAppAgentWindow(
     submit,
     submitFeedback,
   } = useInAppAiAgent();
-  const projectId = useProjectIdFromURL();
-  const {
-    isBetaEnabled: isV4TracesEnabled,
-    isInitializing: isV4TracesInitializing,
-  } = useV4Beta();
   const isInputDisabled =
     isRunning || isSubmitting || isSelectedConversationHydrating;
 
@@ -83,10 +76,20 @@ export function ControlledInAppAgentWindow(
     };
 
     parsedMessages.forEach((message, index) => {
+      if (message.role === "tool") {
+        const redirectAction = getRedirectActionMessageFromToolResult(message);
+
+        if (redirectAction) {
+          flushPendingTools();
+          mappedMessages.push(redirectAction);
+        }
+
+        return;
+      }
+
       if (
         message.role === "system" ||
         message.role === "developer" ||
-        message.role === "tool" ||
         message.role === "activity"
       ) {
         return;
@@ -125,26 +128,10 @@ export function ControlledInAppAgentWindow(
             : "";
 
       const toolContent: InAppAgentToolCallContent[] = [];
-      const redirectActions: InAppAgentWindowMessage[] = [];
 
       if (message.role === "assistant") {
         for (const toolCall of message.toolCalls ?? []) {
           if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
-            const redirectAction = getRedirectActionMessage({
-              messageId: message.id,
-              toolCallId: toolCall.id,
-              args: toolCall.function.arguments,
-              projectId,
-              tracesRouteOptions: {
-                isV4TracesEnabled,
-                isV4TracesInitializing,
-              },
-            });
-
-            if (redirectAction) {
-              redirectActions.push(redirectAction);
-            }
-
             continue;
           }
 
@@ -162,12 +149,7 @@ export function ControlledInAppAgentWindow(
         }
       }
 
-      if (
-        role === "assistant" &&
-        toolContent.length > 0 &&
-        redirectActions.length === 0 &&
-        !text.trim()
-      ) {
+      if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
         pendingToolGroupId ??= `tools-${message.id}`;
         pendingTools.push(...toolContent);
         return;
@@ -175,12 +157,7 @@ export function ControlledInAppAgentWindow(
 
       flushPendingTools();
 
-      if (
-        role === "assistant" &&
-        !text.trim() &&
-        toolContent.length === 0 &&
-        redirectActions.length === 0
-      ) {
+      if (role === "assistant" && !text.trim() && toolContent.length === 0) {
         return;
       }
 
@@ -208,8 +185,6 @@ export function ControlledInAppAgentWindow(
           content: { type: "toolGroup", tools: toolContent },
         });
       }
-
-      mappedMessages.push(...redirectActions);
     });
 
     flushPendingTools();
@@ -229,7 +204,8 @@ export function ControlledInAppAgentWindow(
       !error &&
       latestUserMessageIndex >= 0 &&
       latestAssistantMessage?.content.type !== "text" &&
-      latestAssistantMessage?.content.type !== "loading"
+      latestAssistantMessage?.content.type !== "loading" &&
+      latestAssistantMessage?.content.type !== "redirectAction"
     ) {
       if (latestAssistantMessage?.content.type === "toolGroup") {
         // Set the tool group message to loading state
@@ -261,14 +237,7 @@ export function ControlledInAppAgentWindow(
     }
 
     return mappedMessages;
-  }, [
-    error,
-    isRunning,
-    isV4TracesEnabled,
-    isV4TracesInitializing,
-    messages,
-    projectId,
-  ]);
+  }, [error, isRunning, messages]);
 
   const closeButtonProps =
     props.showCloseButton === false
@@ -307,4 +276,22 @@ function getToolResultsByToolCallId(messages: readonly AgUiMessage[]) {
   }
 
   return results;
+}
+
+function getRedirectActionMessageFromToolResult(
+  message: Extract<AgUiMessage, { role: "tool" }>,
+): InAppAgentWindowMessage | null {
+  try {
+    const parsed = InAppAgentRedirectActionToolResultSchema.parse(
+      JSON.parse(message.content),
+    );
+
+    return {
+      id: `${message.id}-redirect`,
+      role: "assistant",
+      content: parsed,
+    };
+  } catch {
+    return null;
+  }
 }

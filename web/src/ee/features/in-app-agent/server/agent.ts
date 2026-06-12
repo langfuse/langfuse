@@ -3,17 +3,16 @@ import { MastraAgent } from "@ag-ui/mastra";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
-import { createTool } from "@mastra/core/tools";
 import { MCPClient } from "@mastra/mcp";
 
 import {
   type AgUiEvent,
   type AgUiRunAgentInput,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
-  InAppAgentRedirectToolInputSchema,
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import { createRedirectActionTool } from "@/src/ee/features/in-app-agent/server/tools";
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
@@ -96,6 +95,10 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
+  };
+  redirectAction: {
+    projectId: string;
+    isV4Enabled: boolean;
   };
   langfuseTracing?: InAppAgentTracingConfig;
 };
@@ -548,20 +551,9 @@ async function createMastraAdapter(params: {
     const tools = {
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
       ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
-      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createTool({
-        id: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-        description:
-          "Propose a user-confirmed navigation action to a known Langfuse page. This does not navigate automatically.",
-        inputSchema: InAppAgentRedirectToolInputSchema,
-        execute: async (input) => {
-          const { destination } =
-            InAppAgentRedirectToolInputSchema.parse(input);
-
-          return {
-            status: "proposal_created" as const,
-            destination,
-          };
-        },
+      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+        projectId: params.options.redirectAction.projectId,
+        isV4Enabled: params.options.redirectAction.isV4Enabled,
       }),
     };
 

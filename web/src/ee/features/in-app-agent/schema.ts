@@ -1,5 +1,7 @@
 import type { EventType } from "@ag-ui/core";
+import { ObservationLevelDomain, TracingSearchType } from "@langfuse/shared";
 import { z } from "zod";
+import { TABLE_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 
 // @ag-ui/core@0.0.52 publishes Zod v3-shaped declarations, but this package
 // uses Zod v4, causing its exported z.infer-based types to resolve as unknown.
@@ -39,6 +41,16 @@ export const InAppAgentMessageFeedbackSchema = z.object({
 
 export type InAppAgentMessageFeedback = z.infer<
   typeof InAppAgentMessageFeedbackSchema
+>;
+
+export const InAppAgentRedirectActionToolResultSchema = z.object({
+  type: z.literal("redirectAction"),
+  label: z.string().min(1).max(80),
+  href: z.string().min(1),
+});
+
+export type InAppAgentRedirectActionToolResult = z.infer<
+  typeof InAppAgentRedirectActionToolResultSchema
 >;
 
 const AgUiInputContentSourceSchema = z.discriminatedUnion("type", [
@@ -211,17 +223,7 @@ const InAppAgentRedirectBaseSchema = z.object({
   label: z.string().min(1).max(80),
 });
 
-const InAppAgentTableTimeRangePresetSchema = z.enum([
-  "last30Minutes",
-  "last1Hour",
-  "last6Hours",
-  "last1Day",
-  "last3Days",
-  "last7Days",
-  "last14Days",
-  "last30Days",
-  "last90Days",
-]);
+const InAppAgentTableTimeRangePresetSchema = z.enum(TABLE_AGGREGATION_OPTIONS);
 
 const InAppAgentTableTimeRangeStrictSchema = z.union([
   z.object({
@@ -248,20 +250,10 @@ const InAppAgentTableTimeRangeSchema = z
     }
   }) as z.ZodType<z.infer<typeof InAppAgentTableTimeRangeStrictSchema>>;
 
-const InAppAgentTracingSearchTypeSchema = z.enum([
-  "id",
-  "content",
-  "input",
-  "output",
-]);
-
 const InAppAgentTracingFiltersSchema = z.object({
   bookmarked: z.boolean().optional(),
   environment: z.array(z.string().min(1).max(100)).max(10).optional(),
-  level: z
-    .array(z.enum(["DEFAULT", "DEBUG", "WARNING", "ERROR"]))
-    .max(4)
-    .optional(),
+  level: z.array(ObservationLevelDomain).max(4).optional(),
   metadata: z
     .array(
       z.object({
@@ -271,7 +263,6 @@ const InAppAgentTracingFiltersSchema = z.object({
     )
     .max(5)
     .optional(),
-  release: z.string().min(1).max(200).optional(),
   sessionId: z.array(z.string().min(1).max(200)).max(10).optional(),
   tags: z.array(z.string().min(1).max(100)).max(10).optional(),
   traceId: z.string().min(1).max(200).optional(),
@@ -291,7 +282,7 @@ const InAppAgentTracesParamsSchema = z.object({
   search: z
     .object({
       query: z.string().min(1).max(300),
-      type: z.array(InAppAgentTracingSearchTypeSchema).max(4).optional(),
+      type: z.array(TracingSearchType).max(4).optional(),
     })
     .optional(),
   timeRange: InAppAgentTableTimeRangeSchema.optional(),
@@ -414,23 +405,3 @@ export type InAppAgentTracesRedirectOrderBy = NonNullable<
 export type InAppAgentTracesRedirectTimeRange = NonNullable<
   InAppAgentTracesRedirectParams["timeRange"]
 >;
-
-/* eslint-disable @repo/no-in-source-vitest */
-const vitest = import.meta.vitest;
-
-if (vitest && typeof vitest === "object") {
-  const { describe, expect, it } = vitest;
-
-  describe("InAppAgentRedirectToolInputSchema", () => {
-    it("uses an object-shaped JSON schema", () => {
-      const jsonSchema = z.toJSONSchema(InAppAgentRedirectToolInputSchema, {
-        target: "draft-7",
-        unrepresentable: "any",
-      });
-
-      expect(jsonSchema.type).toBe("object");
-      expect(jsonSchema).not.toHaveProperty("oneOf");
-      expect(jsonSchema).not.toHaveProperty("anyOf");
-    });
-  });
-}

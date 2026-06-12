@@ -4,6 +4,7 @@ import { Agent } from "@mastra/core/agent";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/schema";
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
@@ -166,6 +167,10 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
         },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
         langfuseTracing: {
           environment: "langfuse-in-app-agent",
           metadata: { langfuse_project_id: "project-1" },
@@ -192,6 +197,25 @@ describe("createAgUiStream", () => {
         },
       }),
     );
+    const redirectTool = vi.mocked(Agent).mock.calls[0]?.[0]?.tools?.[
+      IN_APP_AGENT_REDIRECT_TOOL_NAME
+    ] as
+      | {
+          execute?: (input: unknown) => Promise<unknown>;
+        }
+      | undefined;
+
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open trace",
+        destination: "trace",
+        params: { traceId: "trace-1" },
+      }),
+    ).resolves.toEqual({
+      type: "redirectAction",
+      label: "Open trace",
+      href: "/project/project-1/traces/trace-1",
+    });
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
@@ -286,6 +310,10 @@ describe("createAgUiStream", () => {
           url: "https://example.com/api/public/mcp",
           publicKey: "pk",
           secretKey: "sk",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
         },
       },
     });

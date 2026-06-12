@@ -1,9 +1,10 @@
+import { createTool } from "@mastra/core/tools";
 import type { FilterState } from "@langfuse/shared";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { rangeToString } from "@/src/utils/date-range-utils";
 import { assertUnreachable } from "@/src/utils/types";
-import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import {
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
   InAppAgentRedirectToolInputSchema,
   type InAppAgentRedirectToolInput,
   type InAppAgentTracesRedirectFilters,
@@ -12,55 +13,52 @@ import {
   type InAppAgentTracesRedirectTimeRange,
 } from "@/src/ee/features/in-app-agent/schema";
 
-export type TracesRouteOptions = {
-  isV4TracesEnabled: boolean;
-  isV4TracesInitializing: boolean;
-};
-
-export function getRedirectActionMessage({
-  messageId,
-  toolCallId,
-  args,
+export function createRedirectActionTool({
   projectId,
-  tracesRouteOptions,
+  isV4Enabled,
 }: {
-  messageId: string;
-  toolCallId: string;
-  args: string;
-  projectId: string | undefined;
-  tracesRouteOptions: TracesRouteOptions;
-}): InAppAgentWindowMessage | null {
-  if (!projectId) {
-    return null;
-  }
+  projectId: string;
+  isV4Enabled: boolean;
+}) {
+  return createTool({
+    id: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+    description:
+      "Propose a user-confirmed navigation action to a known Langfuse page. This does not navigate automatically.",
+    inputSchema: InAppAgentRedirectToolInputSchema,
+    execute: async (input) => {
+      return getRedirectActionToolResult({
+        input,
+        projectId,
+        isV4Enabled,
+      });
+    },
+  });
+}
 
-  try {
-    const input = InAppAgentRedirectToolInputSchema.parse(JSON.parse(args));
-    const href = getRedirectHref(input, projectId, tracesRouteOptions);
+function getRedirectActionToolResult({
+  input,
+  projectId,
+  isV4Enabled,
+}: {
+  input: unknown;
+  projectId: string;
+  isV4Enabled: boolean;
+}) {
+  const parsedInput = InAppAgentRedirectToolInputSchema.parse(input);
+  const href = getRedirectHref(parsedInput, projectId, isV4Enabled);
 
-    if (!href) {
-      return null;
-    }
-
-    return {
-      id: `${messageId}-redirect-${toolCallId}`,
-      role: "assistant",
-      content: {
-        type: "redirectAction",
-        label: input.label,
-        href,
-      },
-    };
-  } catch {
-    return null;
-  }
+  return {
+    type: "redirectAction" as const,
+    label: parsedInput.label,
+    href,
+  };
 }
 
 function getRedirectHref(
   input: InAppAgentRedirectToolInput,
   projectId: string,
-  tracesRouteOptions: TracesRouteOptions,
-): string | null {
+  isV4Enabled: boolean,
+): string {
   const encodedProjectId = encodeURIComponent(projectId);
   const projectRoute = `/project/${encodedProjectId}`;
 
@@ -133,7 +131,7 @@ function getRedirectHref(
     return getTracesRedirectHref(
       `${projectRoute}/traces`,
       input.params,
-      tracesRouteOptions,
+      isV4Enabled,
     );
   }
 
@@ -143,21 +141,17 @@ function getRedirectHref(
 function getTracesRedirectHref(
   basePath: string,
   params: InAppAgentTracesRedirectInput["params"],
-  { isV4TracesEnabled, isV4TracesInitializing }: TracesRouteOptions,
-): string | null {
+  isV4Enabled: boolean,
+): string {
   if (!params) {
     return basePath;
   }
 
-  if (isV4TracesInitializing) {
-    return null;
-  }
-
   const filters = params.filters
-    ? getTracesFilterState(params.filters, isV4TracesEnabled)
+    ? getTracesFilterState(params.filters, isV4Enabled)
     : [];
   const orderBy = params.orderBy
-    ? normalizeTracesOrderBy(params.orderBy, isV4TracesEnabled)
+    ? normalizeTracesOrderBy(params.orderBy, isV4Enabled)
     : undefined;
 
   return appendQuery(basePath, {
@@ -186,7 +180,7 @@ function getDateRangeQueryValue(timeRange: InAppAgentTracesRedirectTimeRange) {
 
 function getTracesFilterState(
   filters: InAppAgentTracesRedirectFilters,
-  isV4TracesEnabled: boolean,
+  isV4Enabled: boolean,
 ): FilterState {
   const filterState: FilterState = [];
   const addStringOptionsFilter = (
@@ -223,24 +217,15 @@ function getTracesFilterState(
 
   if (filters.traceId) {
     filterState.push({
-      column: isV4TracesEnabled ? "traceId" : "id",
+      column: isV4Enabled ? "traceId" : "id",
       operator: "=",
       type: "string",
       value: filters.traceId,
     });
   }
 
-  if (filters.release && !isV4TracesEnabled) {
-    filterState.push({
-      column: "release",
-      operator: "=",
-      type: "string",
-      value: filters.release,
-    });
-  }
-
   if (filters.version) {
-    if (isV4TracesEnabled) {
+    if (isV4Enabled) {
       filterState.push({
         column: "version",
         operator: "any of",
@@ -272,11 +257,11 @@ function getTracesFilterState(
 
 function normalizeTracesOrderBy(
   orderBy: InAppAgentTracesRedirectOrderBy,
-  isV4TracesEnabled: boolean,
+  isV4Enabled: boolean,
 ) {
   if (orderBy.column === "timestamp" || orderBy.column === "startTime") {
     return {
-      column: isV4TracesEnabled ? "startTime" : "timestamp",
+      column: isV4Enabled ? "startTime" : "timestamp",
       order: orderBy.order,
     };
   }
@@ -309,24 +294,4 @@ function appendQuery(
   const queryString = searchParams.toString();
 
   return queryString ? `${path}?${queryString}` : path;
-}
-
-/* eslint-disable @repo/no-in-source-vitest */
-const vitest = import.meta.vitest;
-
-if (vitest && typeof vitest === "object") {
-  const { describe, expect, it } = vitest;
-
-  describe("appendQuery", () => {
-    it("serializes array query values as repeated params", () => {
-      const href = appendQuery("/project/project-1/traces", {
-        search: "checkout",
-        searchType: ["content", "input"],
-      });
-
-      expect(href).toBe(
-        "/project/project-1/traces?search=checkout&searchType=content&searchType=input",
-      );
-    });
-  });
 }

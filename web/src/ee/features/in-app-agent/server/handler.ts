@@ -45,6 +45,7 @@ const MAX_IN_APP_AGENT_INPUT_BYTES = 1024 * 1024;
 
 export default async function handler(request: Request) {
   try {
+    const requestUrl = new URL(request.url);
     const authOptions = await getAuthOptions();
     const session = await getServerSession(authOptions);
 
@@ -289,6 +290,11 @@ export default async function handler(request: Request) {
                 url: getLangfuseMcpUrl(),
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
+              },
+              redirectAction: {
+                projectId,
+                isV4Enabled:
+                  requestUrl.searchParams.get("v4BetaEnabled") === "true",
               },
               langfuseTracing:
                 project.organization.aiTelemetryEnabled && targetProjectId

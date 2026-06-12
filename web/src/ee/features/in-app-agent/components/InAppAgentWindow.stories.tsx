@@ -454,7 +454,7 @@ export const Conversation = meta.story({
         content: {
           type: "redirectAction",
           label: "Open slow traces",
-          href: "/project/project-1/traces?dateRange=24h&orderBy=column-latency_order-DESC",
+          href: "/project/project-1/traces?dateRange=1d&orderBy=column-latency_order-DESC",
         },
       },
       {
