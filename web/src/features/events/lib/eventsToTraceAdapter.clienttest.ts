@@ -68,6 +68,33 @@ const createEvent = (overrides: Partial<EventInput> = {}) =>
   }) satisfies EventInput;
 
 describe("adaptEventsToTraceFormat", () => {
+  it("keeps trace release separate from version", () => {
+    const root = createEvent({
+      id: "root",
+      name: "Root span",
+      release: "release-2026-06-07",
+      version: "1.2.3",
+      startTime: new Date("2024-01-01T00:00:01.000Z"),
+    });
+    const earlierChild = createEvent({
+      id: "child",
+      name: "Earlier child",
+      parentObservationId: "root",
+      release: "child-release",
+      version: "child-version",
+      startTime: baseDate,
+    });
+
+    const result = adaptEventsToTraceFormat({
+      events: [root, earlierChild],
+      traceId: "trace-1",
+    });
+
+    expect(result.trace.timestamp).toEqual(baseDate);
+    expect(result.trace.release).toBe("release-2026-06-07");
+    expect(result.trace.version).toBe("1.2.3");
+  });
+
   it("does not double-stringify root I/O already stringified for tRPC", () => {
     const input = JSON.stringify({
       prototype: "input",
