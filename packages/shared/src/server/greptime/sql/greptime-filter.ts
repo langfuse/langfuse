@@ -336,13 +336,17 @@ export class StringOptionsFilter implements GreptimeFilter {
       params[name] = val;
       return `:${name}`;
     });
-    const list = placeholders.length ? placeholders.join(", ") : "NULL";
+    const list = placeholders.join(", ");
     const hasEmpty = this.emptyEqualsNull && this.values.includes("");
 
     let query =
-      this.operator === "any of"
-        ? `${ref} IN (${list})`
-        : `${ref} NOT IN (${list})`;
+      this.values.length === 0
+        ? this.operator === "any of"
+          ? "1 = 0"
+          : "1 = 1"
+        : this.operator === "any of"
+          ? `${ref} IN (${list})`
+          : `${ref} NOT IN (${list})`;
 
     if (hasEmpty && this.operator === "any of") {
       query = `(${query} OR ${ref} IS NULL)`;

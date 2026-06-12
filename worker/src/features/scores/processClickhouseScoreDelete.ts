@@ -1,5 +1,6 @@
 import {
   deleteScores,
+  deleteEntitiesFromGreptime,
   logger,
   traceException,
   deleteIngestionEventsFromS3AndClickhouseForScores,
@@ -22,6 +23,11 @@ export const processClickhouseScoreDelete = async (
             scoreIds,
           })
         : Promise.resolve(),
+      deleteEntitiesFromGreptime({
+        projectId,
+        entityType: "score",
+        entityIds: scoreIds,
+      }),
       deleteScores(projectId, scoreIds),
     ]);
   } catch (e) {

@@ -96,6 +96,37 @@ describe("GreptimeFilter scalar columns", () => {
     expect(Object.values(params).sort()).toEqual(["prod", "staging"]);
   });
 
+  it("keeps empty string option sets compatible with set semantics", () => {
+    expect(
+      new StringOptionsFilter({
+        table: "traces",
+        field: "environment",
+        operator: "any of",
+        values: [],
+      }).apply(),
+    ).toEqual({ query: "1 = 0", params: {} });
+
+    expect(
+      new StringOptionsFilter({
+        table: "traces",
+        field: "environment",
+        operator: "none of",
+        values: [],
+      }).apply(),
+    ).toEqual({ query: "1 = 1", params: {} });
+  });
+
+  it("preserves emptyEqualsNull guard for empty none-of string option sets", () => {
+    const { query } = new StringOptionsFilter({
+      table: "traces",
+      field: "user_id",
+      operator: "none of",
+      values: [],
+      emptyEqualsNull: true,
+    }).apply();
+    expect(query).toBe("(1 = 1 AND `user_id` != '')");
+  });
+
   it("maps boolean <> to !=", () => {
     expect(
       norm(

@@ -7,6 +7,7 @@ import {
   deleteScoresByProjectId,
   deleteTracesByProjectId,
   deleteDatasetRunItemsByProjectId,
+  deleteProjectFromGreptime,
   findAllMediaByProjectId,
   getCurrentSpan,
   getS3MediaStorageClient,
@@ -66,6 +67,7 @@ export const projectDeleteProcessor: Processor = async (
           undefined,
         )
       : Promise.resolve(),
+    deleteProjectFromGreptime(projectId),
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
