@@ -1411,8 +1411,10 @@ model DatasetItemMedia {
   datasetItemValidFrom DateTime @map("dataset_item_valid_from")
   // dataset item field containing the reference: input | expected_output | metadata
   field                String   @map("field")
-  // JSONPath of the string holding the media reference within the field, e.g. $.images[0]
+  // JSONPath of the string holding the media reference within the field, e.g. $['images'][0]
   jsonPath             String   @map("json_path")
+  // the original @@@langfuseMedia:...@@@ string, so reads need no JSON parsing
+  referenceString      String   @map("reference_string")
 
   @@unique([projectId, datasetItemId, datasetItemValidFrom, field, jsonPath], map: "dataset_item_media_item_version_field_path_key")
   @@index([projectId, mediaId])

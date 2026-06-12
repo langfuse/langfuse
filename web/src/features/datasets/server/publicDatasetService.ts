@@ -37,6 +37,7 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
+import { resolveDatasetItemMediaReferences } from "@/src/features/media/server/datasetItemMediaReferences";
 import { upsertDataset } from "./actions/createDataset";
 import {
   addToDeleteDatasetQueue,
@@ -495,6 +496,7 @@ export const listDatasetItemsForApi = async ({
   sourceTraceId,
   sourceObservationId,
   version,
+  includeMediaReferences,
   page,
   limit,
 }: ListDatasetItemsInput) => {
@@ -530,8 +532,15 @@ export const listDatasetItemsForApi = async ({
     }),
   ]);
 
+  const mediaReferences = includeMediaReferences
+    ? await resolveDatasetItemMediaReferences({ projectId, items })
+    : null;
+
   return {
-    data: items.map(transformDbDatasetItemDomainToAPIDatasetItem),
+    data: items.map((item, index) => ({
+      ...transformDbDatasetItemDomainToAPIDatasetItem(item),
+      ...(mediaReferences ? { mediaReferences: mediaReferences[index] } : {}),
+    })),
     meta: {
       page,
       limit,
@@ -544,6 +553,7 @@ export const listDatasetItemsForApi = async ({
 export const getDatasetItemForApi = async ({
   projectId,
   datasetItemId,
+  includeMediaReferences,
 }: GetDatasetItemInput) => {
   const datasetItem = await getDatasetItemById({
     projectId,
@@ -569,11 +579,21 @@ export const getDatasetItemForApi = async ({
     throw new LangfuseNotFoundError("Dataset not found");
   }
 
-  return transformDbDatasetItemDomainToAPIDatasetItem({
-    ...datasetItem,
-    status: datasetItem.status ?? "ACTIVE",
-    datasetName: dataset.name,
-  });
+  const mediaReferences = includeMediaReferences
+    ? await resolveDatasetItemMediaReferences({
+        projectId,
+        items: [datasetItem],
+      })
+    : null;
+
+  return {
+    ...transformDbDatasetItemDomainToAPIDatasetItem({
+      ...datasetItem,
+      status: datasetItem.status ?? "ACTIVE",
+      datasetName: dataset.name,
+    }),
+    ...(mediaReferences ? { mediaReferences: mediaReferences[0] } : {}),
+  };
 };
 
 export const createDatasetItemForApi = async ({

@@ -1,5 +1,16 @@
 import { DatasetItem, DatasetStatus } from "../db";
 
+/**
+ * Dataset item fields that can hold media references.
+ * Used as `field` discriminator in dataset_item_media and the public API.
+ */
+export const datasetItemMediaFields = [
+  "input",
+  "expected_output",
+  "metadata",
+] as const;
+export type DatasetItemMediaField = (typeof datasetItemMediaFields)[number];
+
 export type DatasetItemDomain = Pick<
   DatasetItem,
   | "id"

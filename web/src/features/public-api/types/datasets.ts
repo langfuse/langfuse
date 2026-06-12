@@ -10,6 +10,7 @@ import {
   removeObjectKeys,
   type DatasetRunItemDomain,
   type DatasetItemDomain,
+  datasetItemMediaFields,
   stringDateTime,
 } from "@langfuse/shared";
 import { DatasetJSONSchema } from "@langfuse/shared/src/server";
@@ -61,6 +62,26 @@ const APIDatasetRunItem = z
 
 export type APIDatasetRunItem = z.infer<typeof APIDatasetRunItem>;
 
+const APIDatasetItemMediaReference = z
+  .object({
+    field: z.enum(datasetItemMediaFields),
+    referenceString: z.string(),
+    jsonPath: z.string(),
+    media: z
+      .object({
+        mediaId: z.string(),
+        contentType: z.string(),
+        contentLength: z.number(),
+        url: z.string(),
+        urlExpiry: z.string(),
+      })
+      .nullable(),
+  })
+  .strict();
+export type APIDatasetItemMediaReference = z.infer<
+  typeof APIDatasetItemMediaReference
+>;
+
 const APIDatasetItem = z
   .object({
     datasetName: z.string(),
@@ -74,8 +95,16 @@ const APIDatasetItem = z
     datasetId: z.string(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
+    // Only present when requested via includeMediaReferences
+    mediaReferences: z.array(APIDatasetItemMediaReference).optional(),
   })
   .strict();
+
+// Query strings arrive as strings; only "true" enables the flag
+const includeMediaReferencesZod = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true")
+  .optional();
 
 /**
  * Transforms
@@ -195,6 +224,7 @@ export const GetDatasetItemsV1Query = z
     sourceTraceId: z.string().nullish(),
     sourceObservationId: z.string().nullish(),
     version: versionZod.nullish(),
+    includeMediaReferences: includeMediaReferencesZod,
     ...publicApiPaginationZod,
   })
   .refine(
@@ -220,6 +250,7 @@ export const GetDatasetItemsV1Response = z
 // GET /dataset-items/{datasetItemId}
 export const GetDatasetItemV1Query = z.object({
   datasetItemId: z.string(),
+  includeMediaReferences: includeMediaReferencesZod,
 });
 export const GetDatasetItemV1Response = APIDatasetItem.strict();
 

@@ -20,6 +20,7 @@ export default withMiddlewares({
     fn: async ({ query, auth }) =>
       await getDatasetItemForApi({
         datasetItemId: query.datasetItemId,
+        includeMediaReferences: query.includeMediaReferences,
         projectId: auth.scope.projectId,
       }),
   }),

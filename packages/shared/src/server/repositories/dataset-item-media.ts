@@ -1,4 +1,5 @@
 import { prisma } from "../../db";
+import { type DatasetItemMediaField } from "../../domain";
 import { InvalidRequestError } from "../../errors";
 import { findMediaReferences } from "../../utils/mediaReferences";
 
@@ -14,14 +15,17 @@ type DatasetItemMediaSource = DatasetItemMediaValues & {
 };
 
 function collectMediaReferences(item: DatasetItemMediaValues) {
-  return [
+  const fieldValues: { field: DatasetItemMediaField; value: unknown }[] = [
     { field: "input", value: item.input },
     { field: "expected_output", value: item.expectedOutput },
     { field: "metadata", value: item.metadata },
-  ].flatMap(({ field, value }) =>
+  ];
+
+  return fieldValues.flatMap(({ field, value }) =>
     findMediaReferences(value).map((reference) => ({
       field,
       jsonPath: reference.jsonPath,
+      referenceString: reference.referenceString,
       mediaId: reference.id,
     })),
   );
