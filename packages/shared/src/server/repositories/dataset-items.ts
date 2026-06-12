@@ -14,6 +14,10 @@ import {
   OperationType,
 } from "../datasets/executeWithDatasetServiceStrategy";
 import { v4 } from "uuid";
+import {
+  syncDatasetItemMedia,
+  validateDatasetItemMediaReferences,
+} from "./dataset-item-media";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
 import {
@@ -350,6 +354,11 @@ export async function upsertDatasetItem(
     status: mergedItemData.status,
   };
 
+  await validateDatasetItemMediaReferences({
+    projectId: props.projectId,
+    items: [itemData],
+  });
+
   let item: DatasetItem | null = null;
   // 6. Update item
   await executeWithDatasetServiceStrategy(OperationType.WRITE, {
@@ -437,6 +446,23 @@ export async function upsertDatasetItem(
   if (!item) {
     throw new InternalServerError("Failed to upsert dataset item");
   }
+
+  // replaceExisting unlinks references removed by STATEFUL in-place updates;
+  // VERSIONED updates write a new validFrom, so old versions keep their rows
+  const writtenItem: DatasetItem = item;
+  await syncDatasetItemMedia({
+    projectId: props.projectId,
+    items: [
+      {
+        datasetItemId: writtenItem.id,
+        datasetItemValidFrom: writtenItem.validFrom,
+        input: writtenItem.input,
+        expectedOutput: writtenItem.expectedOutput,
+        metadata: writtenItem.metadata,
+      },
+    ],
+    replaceExisting: true,
+  });
 
   return { ...toDomainType(item), datasetName: dataset.name };
 }
@@ -675,10 +701,22 @@ export async function createManyDatasetItems(props: {
 
   // 5. Bulk insert all valid items
   if (preparedItems.length > 0) {
+    await validateDatasetItemMediaReferences({
+      projectId: props.projectId,
+      items: preparedItems,
+    });
+
+    // Set explicitly (instead of the column default) so the media sync below
+    // knows each inserted row's validFrom
+    const newValidFrom = new Date();
+
     await executeWithDatasetServiceStrategy(OperationType.WRITE, {
       [Implementation.STATEFUL]: async () => {
         await prisma.datasetItem.createMany({
-          data: preparedItems,
+          data: preparedItems.map((item) => ({
+            ...item,
+            validFrom: newValidFrom,
+          })),
         });
       },
       [Implementation.VERSIONED]: async () => {
@@ -691,8 +729,6 @@ export async function createManyDatasetItems(props: {
         //
         // Note: This is replace semantics, NOT merge. Existing items are fully overwritten.
         await prisma.$transaction(async (tx) => {
-          const newValidFrom = new Date();
-
           // 1. Get unique IDs from preparedItems
           const itemIds = [...new Set(preparedItems.map((item) => item.id))];
 
@@ -717,6 +753,17 @@ export async function createManyDatasetItems(props: {
           });
         });
       },
+    });
+
+    await syncDatasetItemMedia({
+      projectId: props.projectId,
+      items: preparedItems.map((item) => ({
+        datasetItemId: item.id,
+        datasetItemValidFrom: newValidFrom,
+        input: item.input,
+        expectedOutput: item.expectedOutput,
+        metadata: item.metadata,
+      })),
     });
   }
 

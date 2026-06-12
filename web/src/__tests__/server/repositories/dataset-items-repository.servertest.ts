@@ -3,6 +3,8 @@ process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
+import crypto from "crypto";
+
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createDatasetItem,
@@ -1735,6 +1737,85 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       expect(searchResults[0].expectedOutput).toEqual({
         result: "unique_output_search_keyword",
       });
+    });
+  });
+
+  describe("media associations", () => {
+    const createMediaRow = async () => {
+      const sha256Hash = crypto
+        .createHash("sha256")
+        .update(v4())
+        .digest("base64");
+      const mediaId = sha256Hash
+        .replaceAll("+", "-")
+        .replaceAll("/", "_")
+        .slice(0, 22);
+
+      await prisma.media.create({
+        data: {
+          id: mediaId,
+          projectId,
+          sha256Hash,
+          bucketPath: `media/${mediaId}.png`,
+          bucketName: "test-bucket",
+          contentType: "image/png",
+          contentLength: 1234,
+          uploadHttpStatus: 200,
+        },
+      });
+
+      return {
+        mediaId,
+        referenceString: `@@@langfuseMedia:type=image/png|id=${mediaId}|source=base64@@@`,
+      };
+    };
+
+    it("keeps media rows of old versions and writes fresh rows per new version", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+      const oldMedia = await createMediaRow();
+      const newMedia = await createMediaRow();
+
+      const created = await upsertDatasetItem({
+        projectId,
+        datasetId,
+        input: { image: oldMedia.referenceString },
+        validateOpts: {},
+      });
+
+      await delay(10);
+
+      const updated = await upsertDatasetItem({
+        projectId,
+        datasetId,
+        datasetItemId: created.id,
+        input: { image: newMedia.referenceString },
+        validateOpts: {},
+      });
+      expect(updated.validFrom.getTime()).toBeGreaterThan(
+        created.validFrom.getTime(),
+      );
+
+      const rows = await prisma.datasetItemMedia.findMany({
+        where: { projectId, datasetItemId: created.id },
+        orderBy: { datasetItemValidFrom: "asc" },
+      });
+      expect(rows).toMatchObject([
+        {
+          datasetItemValidFrom: created.validFrom,
+          mediaId: oldMedia.mediaId,
+          field: "input",
+          jsonPath: "$['image']",
+        },
+        {
+          datasetItemValidFrom: updated.validFrom,
+          mediaId: newMedia.mediaId,
+          field: "input",
+          jsonPath: "$['image']",
+        },
+      ]);
     });
   });
 });
