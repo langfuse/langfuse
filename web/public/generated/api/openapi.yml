@@ -9901,7 +9901,8 @@ components:
           nullable: true
           description: >-
             Dataset items are upserted on their id. Id needs to be unique
-            (project-level) and cannot be reused across datasets.
+            (project-level), cannot be reused across datasets, and must be at
+            most 255 characters.
         status:
           $ref: '#/components/schemas/DatasetStatus'
           nullable: true
