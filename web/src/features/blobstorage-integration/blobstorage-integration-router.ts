@@ -12,7 +12,7 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { assertLegacyBlobExportSourceAllowedForUpsert } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowedForUpsert";
 import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
@@ -94,12 +94,19 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         if (input.exportSource) {
           const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-          const project = await ctx.prisma.project.findUniqueOrThrow({
-            where: { id: input.projectId },
-            select: { createdAt: true },
-          });
-          assertLegacyBlobExportSourceAllowed({
+          const [project, existingIntegration] = await Promise.all([
+            ctx.prisma.project.findUniqueOrThrow({
+              where: { id: input.projectId },
+              select: { createdAt: true },
+            }),
+            ctx.prisma.blobStorageIntegration.findUnique({
+              where: { projectId: input.projectId },
+              select: { createdAt: true },
+            }),
+          ]);
+          assertLegacyBlobExportSourceAllowedForUpsert({
             project,
+            existingIntegration,
             nextInternalExportSource: input.exportSource,
             isCloud,
           });
@@ -123,6 +130,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
+          // In-transaction backstop closing the TOCTOU window: if a concurrent
+          // DELETE flips this upsert to the CREATE branch, refuse a legacy
+          // source so a new (post-cutoff) Cloud row can never be born legacy.
+          refuseLegacyOnCreate: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
           data: {
             type: rest.type,
             bucketName: rest.bucketName,
