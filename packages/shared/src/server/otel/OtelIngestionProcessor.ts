@@ -2324,6 +2324,12 @@ export class OtelIngestionProcessor {
               openaiMetadata["rejectedPredictionTokens"];
             usageDetails["output_reasoning_tokens"] ??=
               openaiMetadata["reasoningTokens"];
+            if (
+              (openaiMetadata as Record<string, unknown>)["serviceTier"] ===
+              "priority"
+            ) {
+              usageDetails["service_tier"] = 1;
+            }
           }
 
           // "ai.response.providerMetadata": {"anthropic":{"usage":{"input_tokens":7,"cache_creation_input_tokens":2089,"cache_read_input_tokens":16399,"cache_creation":{"ephemeral_5m_input_tokens":2089,"ephemeral_1h_input_tokens":0},"output_tokens":445,"service_tier":"standard"},"cacheCreationInputTokens":2089,"stopSequence":null,"container":null,"contextManagement":null}}
