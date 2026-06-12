@@ -2551,8 +2551,14 @@ export class OtelIngestionProcessor {
     );
     if (fromAttribute !== null) return fromAttribute;
 
-    if (attributes["gen_ai.usage.cost"]) {
-      return { total: attributes["gen_ai.usage.cost"] };
+    const openTelemetryCost = attributes["gen_ai.usage.cost"];
+    if (openTelemetryCost !== undefined) {
+      return { total: openTelemetryCost };
+    }
+
+    const openInferenceCost = attributes["llm.cost.total"];
+    if (openInferenceCost !== undefined) {
+      return { total: openInferenceCost };
     }
     return {};
   }
