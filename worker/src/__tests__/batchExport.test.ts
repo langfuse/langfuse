@@ -5,6 +5,7 @@ import {
   createObservationsCh,
   createOrgProjectAndApiKey,
   createTraceScore,
+  createDatasetRunScore,
   createScoresCh,
   createTrace,
   createTracesCh,
@@ -2358,6 +2359,163 @@ describe("batch export test suite", () => {
   // ==================== EVENTS TABLE EXPORT TESTS ====================
 
   maybeDescribe("events table export tests", () => {
+    it("should export scores with trace metadata from the events table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const score = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        name: "accuracy",
+        value: 0.95,
+        data_type: "NUMERIC",
+        metadata: { reason: "test-metadata" },
+      });
+      const runScore = createDatasetRunScore({
+        project_id: projectId,
+        name: "run-accuracy",
+        value: 0.5,
+        data_type: "NUMERIC",
+      });
+      await createScoresCh([score, runScore]);
+
+      // The trace exists only in the events table (v4 world) — no row is
+      // written to the legacy traces table, so the legacy traces JOIN would
+      // return empty trace metadata.
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          is_app_root: true,
+          trace_name: "events-trace",
+          user_id: "events-user",
+          tags: ["events-tag"],
+        }),
+      ]);
+
+      const stream = await getDatabaseReadStreamPaginated({
+        projectId,
+        tableName: BatchExportTableName.Scores,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        orderBy: { column: "timestamp", order: "DESC" },
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      const traceScoreRow = rows.find((r) => r.id === score.id);
+      expect(traceScoreRow).toMatchObject({
+        traceId,
+        name: "accuracy",
+        value: 0.95,
+        traceName: "events-trace",
+        userId: "events-user",
+        traceTags: ["events-tag"],
+        metadata: { reason: "test-metadata" },
+      });
+      // Dataset run scores have no trace; the export must keep the run id.
+      const runScoreRow = rows.find((r) => r.id === runScore.id);
+      expect(runScoreRow).toMatchObject({
+        traceId: null,
+        datasetRunId: runScore.dataset_run_id,
+        name: "run-accuracy",
+        value: 0.5,
+      });
+    });
+
+    it("should export sessions from the events table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const sessionId = randomUUID();
+      const sessionId2 = randomUUID();
+
+      await prisma.traceSession.createMany({
+        data: [
+          { id: sessionId, projectId },
+          { id: sessionId2, projectId },
+        ],
+      });
+
+      const now = Date.now() * 1000; // Events use microseconds
+
+      // session 1: one trace; session 2: two traces
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId2,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId2,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const stream = await getDatabaseReadStreamPaginated({
+        projectId,
+        tableName: BatchExportTableName.Sessions,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: sessionId, countTraces: 1 }),
+          expect.objectContaining({ id: sessionId2, countTraces: 2 }),
+        ]),
+      );
+      // Concrete metric check: usage aggregates from the events table, so a
+      // regression that silently zeroed metrics would surface here.
+      const session2Row = rows.find((r) => r.id === sessionId2);
+      expect(session2Row?.totalTokens).toBeGreaterThan(0n);
+    });
+
+    it("routes events exports through getEventsStream, not the paginated reader", async () => {
+      // Path A contract: the events-table export is served by getEventsStream
+      // (wired in handleBatchExportJob). The paginated reader intentionally has
+      // no "events" case, so a regression that drops the getEventsStream route
+      // would surface as this throw rather than silently exporting nothing.
+      await expect(
+        getDatabaseReadStreamPaginated({
+          projectId: randomUUID(),
+          tableName: BatchExportTableName.Events,
+          cutoffCreatedAt: new Date(),
+          filter: [],
+          orderBy: { column: "startTime", order: "DESC" },
+        }),
+      ).rejects.toThrow("Unhandled table case: events");
+    });
+
     it("should export events from events table", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
