@@ -1,7 +1,11 @@
 import { prisma } from "../../../db";
 import { type FilterState } from "../../../types";
-import { type ColumnDefinition } from "../../../tableDefinitions";
+import {
+  type ColumnDefinition,
+  findUiColumnMapping,
+} from "../../../tableDefinitions";
 import { tracesTableCols } from "../../../tableDefinitions/tracesTable";
+import { tracesTableUiColumnDefinitions } from "../../tableMappings/mapTracesTable";
 import { greptimeQuery } from "../../greptime/client";
 import { measureAndReturn } from "../../clickhouse/measureAndReturn";
 import { recordDistribution, traceException } from "../../instrumentation";
@@ -554,5 +558,202 @@ export const getTraceCountsByProjectAndDay = async ({
       row.date instanceof Date
         ? row.date.toISOString().slice(0, 10)
         : String(row.date).slice(0, 10),
+  }));
+};
+
+// ---------------------------------------------------------------------------
+// P2 rollup: trace existence (eval path) + per-user metrics
+// ---------------------------------------------------------------------------
+
+/**
+ * Existence probe used by the eval/dataset trigger path. The CH version aggregated observation
+ * levels in a CTE but never selected those columns — the observation side only gated the trace via
+ * an INNER JOIN (a trace must have >=1 observation in the lookback window when the filter targets
+ * observations). Here: apply the trace-level filter on the merged `traces` projection within the
+ * timestamp window, and when the filter targets observations, require an EXISTS observation.
+ */
+export const checkTraceExistsAndGetTimestamp = async ({
+  projectId,
+  traceId,
+  timestamp,
+  filter,
+  maxTimeStamp,
+  exactTimestamp,
+}: {
+  projectId: string;
+  traceId: string;
+  timestamp: Date;
+  filter: FilterState;
+  maxTimeStamp: Date | undefined;
+  exactTimestamp?: Date;
+}): Promise<{ exists: boolean; timestamp?: Date }> => {
+  const isTraceLevel = (column: string): boolean => {
+    const mapping = findUiColumnMapping(tracesTableUiColumnDefinitions, column);
+    return !mapping || mapping.clickhouseTableName === "traces";
+  };
+  const traceLevelFilter = filter.filter((f) => isTraceLevel(f.column));
+  const requiresObservation = filter.some((f) => !isTraceLevel(f.column));
+
+  const filterRes = new FilterList(
+    createGreptimeFilterFromFilterState(
+      traceLevelFilter,
+      tracesTableGreptimeColumnDefinitions,
+      tracesTableCols,
+    ),
+  ).apply();
+
+  // CH lookback bounds applied app-side as absolute timestamps.
+  const TWO_DAY_MS = 2 * 24 * 60 * 60 * 1000;
+  const HOUR_MS = 60 * 60 * 1000;
+  const params: Record<string, unknown> = {
+    projectId,
+    traceId,
+    lowerBound: greptimeTsParam(new Date(timestamp.getTime() - HOUR_MS)),
+    ...filterRes.params,
+  };
+  let upperClause: string;
+  if (maxTimeStamp) {
+    params.upperBound = greptimeTsParam(maxTimeStamp);
+    upperClause = "AND t.timestamp <= :upperBound";
+  } else {
+    params.upperBound = greptimeTsParam(
+      new Date(timestamp.getTime() + TWO_DAY_MS),
+    );
+    upperClause = "AND t.timestamp <= :upperBound";
+  }
+  let exactClause = "";
+  if (exactTimestamp) {
+    const { start, end } = greptimeDayBounds(exactTimestamp);
+    params.dayStart = start;
+    params.dayEnd = end;
+    exactClause = "AND t.timestamp >= :dayStart AND t.timestamp < :dayEnd";
+  }
+
+  const obsLookback = greptimeTsParam(
+    new Date(timestamp.getTime() - TWO_DAY_MS),
+  );
+  let existsClause = "";
+  if (requiresObservation) {
+    params.obsLookback = obsLookback;
+    existsClause = `AND EXISTS (
+      SELECT 1 FROM observations o
+      WHERE o.project_id = t.project_id AND o.trace_id = t.id
+        AND o.start_time >= :obsLookback AND ${notDeleted("o")}
+    )`;
+  }
+
+  const rows = await greptimeQuery<{ timestamp: Date | string }>({
+    query: `
+      SELECT t.timestamp AS timestamp
+      FROM traces t
+      WHERE t.project_id = :projectId AND t.id = :traceId AND ${notDeleted("t")}
+        AND t.timestamp >= :lowerBound
+        ${upperClause}
+        ${exactClause}
+        ${filterRes.query ? `AND ${filterRes.query}` : ""}
+        ${existsClause}
+      LIMIT 1`,
+    params,
+    readOnly: true,
+  });
+
+  if (rows.length === 0) return { exists: false };
+  const ts = rows[0].timestamp;
+  return {
+    exists: true,
+    timestamp: ts instanceof Date ? ts : new Date(ts),
+  };
+};
+
+/**
+ * Per-user usage/cost/trace metrics. CH used ROW_NUMBER dedup + sumMap + positionCaseInsensitive
+ * map filtering; on the merged projection this collapses to a traces<->observations JOIN grouped by
+ * user_id. Input/output/total usage use the known-key JSON sums (input/output/total) — the dynamic
+ * long-tail of usage keys is not broken out here (documented narrowing vs the CH substring match).
+ */
+export const getUserMetrics = async (
+  projectId: string,
+  userIds: string[],
+  filter: FilterState,
+) => {
+  if (userIds.length === 0) return [];
+
+  const filterRes = new FilterList(
+    createGreptimeFilterFromFilterState(
+      filter,
+      tracesTableGreptimeColumnDefinitions,
+      tracesTableCols,
+    ),
+  ).apply();
+  const userList = greptimeInClause("user_id", userIds, "uid");
+
+  // Optional observation lookback (CH used start_time >= traceTimestamp - 2 DAY when a timestamp
+  // filter is present). Derive the absolute lower bound from the trace timestamp filter if any.
+  const tsFilter = filter.find(
+    (f) => f.type === "datetime" && (f.operator === ">=" || f.operator === ">"),
+  );
+  const params: Record<string, unknown> = {
+    projectId,
+    ...userList.params,
+    ...filterRes.params,
+  };
+  let obsLookbackClause = "";
+  if (tsFilter && tsFilter.type === "datetime") {
+    const TWO_DAY_MS = 2 * 24 * 60 * 60 * 1000;
+    params.obsLookback = greptimeTsParam(
+      new Date(new Date(tsFilter.value).getTime() - TWO_DAY_MS),
+    );
+    obsLookbackClause = "AND o.start_time >= :obsLookback";
+  }
+
+  const rows = await greptimeQuery<{
+    user_id: string;
+    environment: string | null;
+    obs_count: string | number;
+    trace_count: string | number;
+    sum_total_cost: string | null;
+    input_usage: string | null;
+    output_usage: string | null;
+    total_usage: string | null;
+    max_timestamp: Date | string;
+    min_timestamp: Date | string;
+  }>({
+    query: `
+      SELECT
+        t.user_id AS user_id,
+        max(t.environment) AS environment,
+        count(distinct o.id) AS obs_count,
+        count(distinct t.id) AS trace_count,
+        sum(o.total_cost) AS sum_total_cost,
+        sum(json_get_float(o.usage_details, 'input')) AS input_usage,
+        sum(json_get_float(o.usage_details, 'output')) AS output_usage,
+        sum(json_get_float(o.usage_details, 'total')) AS total_usage,
+        max(t.timestamp) AS max_timestamp,
+        min(t.timestamp) AS min_timestamp
+      FROM traces t
+      JOIN observations o ON o.trace_id = t.id AND o.project_id = t.project_id
+      WHERE t.project_id = :projectId
+        AND ${userList.sql}
+        AND ${notDeleted("t")} AND ${notDeleted("o")}
+        ${obsLookbackClause}
+        ${filterRes.query ? `AND ${filterRes.query}` : ""}
+      GROUP BY t.user_id`,
+    params,
+    readOnly: true,
+  });
+
+  const toDate = (v: Date | string): Date =>
+    v instanceof Date ? v : new Date(v);
+  return rows.map((row) => ({
+    userId: row.user_id,
+    environment: row.environment ?? "",
+    maxTimestamp: toDate(row.max_timestamp),
+    minTimestamp: toDate(row.min_timestamp),
+    inputUsage: Number(row.input_usage ?? 0),
+    outputUsage: Number(row.output_usage ?? 0),
+    totalUsage: Number(row.total_usage ?? 0),
+    observationCount: Number(row.obs_count ?? 0),
+    traceCount: Number(row.trace_count ?? 0),
+    totalCost: Number(row.sum_total_cost ?? 0),
   }));
 };

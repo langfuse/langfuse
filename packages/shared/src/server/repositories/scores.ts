@@ -7,7 +7,6 @@ import {
   AggregatableScoreDataType,
   ScoreByDataType,
   LISTABLE_SCORE_TYPES,
-  ListableScoreDataType,
   ScoreDataTypeEnum,
 } from "../../domain/scores";
 import { InvalidRequestError, InternalServerError } from "../../errors";
@@ -36,11 +35,7 @@ import {
 } from "../queries/clickhouse-sql/factory";
 import { OrderByState } from "../../interfaces/orderBy";
 import { scoresTableUiColumnDefinitionsFromEvents } from "../tableMappings";
-import {
-  convertScoreAggregation,
-  convertClickhouseScoreToDomain,
-  ScoreAggregation,
-} from "./scores_converters";
+import { convertClickhouseScoreToDomain } from "./scores_converters";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -888,75 +883,18 @@ export const getNumericScoreHistogram = (
   limit: number,
 ) => greptimeScoreReads.getNumericScoreHistogram(projectId, filter, limit);
 
-export const getAggregatedScoresForPrompts = async (
+export const getAggregatedScoresForPrompts = (
   projectId: string,
   promptIds: string[],
   fetchScoreRelation: "observation" | "trace",
-  {
-    fromTimestamp,
-    toTimestamp,
-  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
-) => {
-  const query = `
-    SELECT
-      prompt_id,
-      s.id,
-      s.name,
-      s.string_value,
-      s.value,
-      s.source,
-      s.data_type,
-      s.comment,
-      s.timestamp,
-      length(mapKeys(s.metadata)) > 0 AS has_metadata
-    FROM scores s FINAL LEFT JOIN observations o FINAL
-      ON o.trace_id = s.trace_id
-      AND o.project_id = s.project_id
-      ${fetchScoreRelation === "observation" ? "AND o.id = s.observation_id" : ""}
-    WHERE o.project_id = {projectId: String}
-    AND s.project_id = {projectId: String}
-    AND o.prompt_id IN ({promptIds: Array(String)})
-    AND o.type = 'GENERATION'
-    ${fromTimestamp ? "AND o.start_time >= {fromTimestamp: DateTime64(3)}" : ""}
-    ${toTimestamp ? "AND o.start_time <= {toTimestamp: DateTime64(3)}" : ""}
-    AND s.name IS NOT NULL
-    ${fetchScoreRelation === "trace" ? "AND s.observation_id IS NULL" : ""}
-    AND s.data_type IN ({dataTypes: Array(String)})
-  `;
-
-  const rows = await queryClickhouse<
-    ScoreAggregation & {
-      prompt_id: string;
-      // has_metadata is 0 or 1 from ClickHouse, later converted to a boolean
-      has_metadata: 0 | 1;
-    }
-  >({
-    query,
-    params: {
-      projectId,
-      promptIds,
-      dataTypes: LISTABLE_SCORE_TYPES,
-      ...(fromTimestamp
-        ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
-        : {}),
-      ...(toTimestamp
-        ? { toTimestamp: convertDateToClickhouseDateTime(toTimestamp) }
-        : {}),
-    },
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "analytic",
-      projectId,
-    },
-  });
-
-  return rows.map((row) => ({
-    ...convertScoreAggregation<ListableScoreDataType>(row),
-    promptId: row.prompt_id,
-    hasMetadata: !!row.has_metadata,
-  }));
-};
+  timestampWindow: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+) =>
+  greptimeScoreReads.getAggregatedScoresForPrompts(
+    projectId,
+    promptIds,
+    fetchScoreRelation,
+    timestampWindow,
+  );
 
 export const getScoreCountsByProjectInCreationInterval = (args: {
   start: Date;

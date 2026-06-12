@@ -1,14 +1,9 @@
 import {
   commandClickhouse,
-  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
-import {
-  createFilterFromFilterState,
-  getProjectIdDefaultFilter,
-} from "../queries/clickhouse-sql/factory";
 import { orderByToClickhouseSql } from "../queries";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
@@ -18,12 +13,10 @@ import { FilterState } from "../../types";
 import {
   DateTimeFilter,
   FilterList,
-  StringFilter,
 } from "../queries/clickhouse-sql/clickhouse-filter";
 import { TraceRecordReadType } from "./definitions";
 import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
 import { UiColumnMappings, ColumnDefinition } from "../../tableDefinitions";
-import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -63,150 +56,16 @@ import * as greptimeTraceReads from "./greptime/traces";
  * • Filters within ±2 day window
  * • Used for validating trace references before eval job creation
  */
-export const checkTraceExistsAndGetTimestamp = async ({
-  projectId,
-  traceId,
-  timestamp,
-  filter,
-  maxTimeStamp,
-  exactTimestamp,
-}: {
+export const checkTraceExistsAndGetTimestamp = (args: {
   projectId: string;
   traceId: string;
   timestamp: Date;
   filter: FilterState;
   maxTimeStamp: Date | undefined;
   exactTimestamp?: Date;
-}): Promise<{ exists: boolean; timestamp?: Date }> => {
-  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
-    tracesPrefix: "t",
-  });
+}): Promise<{ exists: boolean; timestamp?: Date }> =>
+  greptimeTraceReads.checkTraceExistsAndGetTimestamp(args);
 
-  const timeStampFilter = tracesFilter.find(
-    (f) =>
-      f.field === "timestamp" && (f.operator === ">=" || f.operator === ">"),
-  ) as DateTimeFilter | undefined;
-
-  tracesFilter.push(
-    ...createFilterFromFilterState(
-      filter,
-      tracesTableUiColumnDefinitions,
-      tracesTableCols,
-    ),
-    new StringFilter({
-      clickhouseTable: "t",
-      field: "id",
-      operator: "=",
-      value: traceId,
-    }),
-  );
-
-  const observationFilter = tracesFilter.find(
-    (f) => f.clickhouseTable === "observations",
-  );
-  const tracesFilterRes = tracesFilter.apply();
-  const observationFilterRes = observationFilter?.apply();
-
-  const observations_cte = `
-    WITH observations_agg AS (
-      SELECT
-        multiIf(
-          arrayExists(x -> x = 'ERROR', groupArray(level)), 'ERROR',
-          arrayExists(x -> x = 'WARNING', groupArray(level)), 'WARNING',
-          arrayExists(x -> x = 'DEFAULT', groupArray(level)), 'DEFAULT',
-          'DEBUG'
-        ) AS aggregated_level,
-        countIf(level = 'ERROR') as error_count,
-        countIf(level = 'WARNING') as warning_count,
-        countIf(level = 'DEFAULT') as default_count,
-        countIf(level = 'DEBUG') as debug_count,
-        -- Remove those columns as this should only be used within the evalService and doesn't use them
-        -- date_diff('millisecond', least(min(start_time), min(end_time)), greatest(max(start_time), max(end_time))) as latency_milliseconds,
-        -- sumMap(usage_details) as usage_details,
-        -- sumMap(cost_details) as cost_details,
-        trace_id,
-        project_id
-      FROM observations o
-      WHERE o.project_id = {projectId: String}
-        ${timeStampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-        AND o.start_time >= {timestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}
-      GROUP BY trace_id, project_id
-    )
-  `;
-
-  return measureAndReturn({
-    operationName: "checkTraceExistsAndGetTimestamp",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        ...tracesFilterRes.params,
-        ...(observationFilterRes ? observationFilterRes.params : {}),
-        ...(timestamp
-          ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
-          : {}),
-        ...(maxTimeStamp
-          ? { maxTimeStamp: convertDateToClickhouseDateTime(maxTimeStamp) }
-          : {}),
-        ...(exactTimestamp
-          ? { exactTimestamp: convertDateToClickhouseDateTime(exactTimestamp) }
-          : {}),
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "exists",
-        projectId,
-        operation_name: "checkTraceExistsAndGetTimestamp",
-      },
-      timestamp: timestamp ?? exactTimestamp,
-    },
-    fn: async (input) => {
-      const query = `
-        ${observations_cte}
-        SELECT
-          t.id as id,
-          t.project_id as project_id,
-          t.timestamp as timestamp
-        -- We skip FINAL here. If one trace exists that matches the conditions, we consider this truthy
-        -- even if the trace got updated in the meantime to a non-matching state.
-        -- As updates are usually addittive, this is deemed acceptable given the performance benefits.
-        FROM traces t
-        ${observationFilterRes ? `INNER JOIN observations_agg o ON t.id = o.trace_id AND t.project_id = o.project_id` : ""}
-        WHERE ${tracesFilterRes.query}
-        AND t.project_id = {projectId: String}
-        AND t.timestamp >= {timestamp: DateTime64(3)} - ${TRACE_TO_OBSERVATIONS_INTERVAL}
-        ${maxTimeStamp ? `AND t.timestamp <= {maxTimeStamp: DateTime64(3)}` : ""}
-        ${!maxTimeStamp ? `AND t.timestamp <= {timestamp: DateTime64(3)} + INTERVAL 2 DAY` : ""}
-        ${exactTimestamp ? `AND toDate(t.timestamp) = toDate({exactTimestamp: DateTime64(3)})` : ""}
-        GROUP BY t.id, t.project_id, t.timestamp
-      `;
-
-      const rows = await queryClickhouse<{
-        id: string;
-        project_id: string;
-        timestamp: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-
-      return {
-        exists: rows.length > 0,
-        timestamp:
-          rows.length > 0
-            ? parseClickhouseUTCDateTimeFormat(rows[0].timestamp)
-            : undefined,
-      };
-    },
-  });
-};
-
-/**
- * Accepts a trace in a Clickhouse-ready format.
- * id, project_id, and timestamp must always be provided.
- */
 export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
   if (!["id", "project_id", "timestamp"].every((key) => key in trace)) {
     throw new Error("Identifier fields must be provided to upsert Trace.");
@@ -541,157 +400,11 @@ export const getTotalUserCount = (
 ): Promise<{ totalCount: bigint }[]> =>
   greptimeTraceReads.getTotalUserCount(projectId, filter, searchQuery);
 
-export const getUserMetrics = async (
+export const getUserMetrics = (
   projectId: string,
   userIds: string[],
   filter: FilterState,
-) => {
-  if (userIds.length === 0) {
-    return [];
-  }
-
-  // filter state contains date range filter for traces so far.
-  const chFilter = new FilterList(
-    createFilterFromFilterState(
-      filter,
-      tracesTableUiColumnDefinitions,
-      tracesTableCols,
-    ),
-  );
-  const chFilterRes = chFilter.apply();
-
-  const timestampFilter = chFilter.find(
-    (f) => f.field === "timestamp" && f.operator === ">=",
-  );
-
-  // this query uses window functions on observations + traces to always get only the first row and thereby remove deduplicates
-  // we filter wherever possible by project id and user id
-  const query = `
-      WITH stats as (
-        SELECT
-            t.user_id as user_id,
-            anyLast(t.environment) as environment,
-            count(distinct o.id) as obs_count,
-            sumMap(usage_details) as sum_usage_details,
-            sum(total_cost) as sum_total_cost,
-            max(t.timestamp) as max_timestamp,
-            min(t.timestamp) as min_timestamp,
-            count(distinct t.id) as trace_count
-        FROM
-            (
-                SELECT
-                    o.project_id,
-                    o.trace_id,
-                    o.usage_details,
-                    o.total_cost,
-                    id,
-                    ROW_NUMBER() OVER (
-                        PARTITION BY id
-                        ORDER BY
-                            event_ts DESC
-                    ) AS rn
-                FROM
-                    observations o
-                WHERE
-                    o.project_id = {projectId: String }
-                    ${timestampFilter ? `AND o.start_time >= {traceTimestamp: DateTime64(3)} - ${OBSERVATIONS_TO_TRACE_INTERVAL}` : ""}
-                    AND o.trace_id in (
-                        SELECT distinct id
-                        from __TRACE_TABLE__ t
-                        where
-                            user_id IN ({userIds: Array(String) })
-                            AND project_id = {projectId: String }
-                            ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
-                    )
-            ) as o
-            JOIN (
-                SELECT
-                    t.id,
-                    t.user_id,
-                    t.project_id,
-                    t.timestamp,
-                    t.environment
-                FROM
-                    __TRACE_TABLE__ t FINAL
-                WHERE
-                    t.user_id IN ({userIds: Array(String) })
-                    AND t.project_id = {projectId: String }
-                    ${filter.length > 0 ? `AND ${chFilterRes.query}` : ""}
-            ) as t on t.id = o.trace_id
-            and t.project_id = o.project_id
-        WHERE o.rn = 1
-        group by t.user_id
-    )
-    SELECT
-        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sum_usage_details))) as input_usage,
-        arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sum_usage_details))) as output_usage,
-        sum_usage_details [ 'total' ] as total_usage,
-        obs_count,
-        trace_count,
-        user_id,
-        environment,
-        sum_total_cost,
-        max_timestamp,
-        min_timestamp
-    FROM stats`;
-
-  return measureAndReturn({
-    operationName: "getUserMetrics",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        userIds,
-        ...chFilterRes.params,
-        ...(timestampFilter
-          ? {
-              traceTimestamp: convertDateToClickhouseDateTime(
-                (timestampFilter as DateTimeFilter).value,
-              ),
-            }
-          : {}),
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        projectId,
-        operation_name: "getUserMetrics",
-      },
-    },
-    fn: async (input) => {
-      const rows = await queryClickhouse<{
-        user_id: string;
-        environment: string;
-        max_timestamp: string;
-        min_timestamp: string;
-        input_usage: string;
-        output_usage: string;
-        total_usage: string;
-        obs_count: string;
-        trace_count: string;
-        sum_total_cost: string;
-      }>({
-        query: query.replaceAll("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-      });
-
-      return rows.map((row) => ({
-        userId: row.user_id,
-        environment: row.environment,
-        maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
-        minTimestamp: parseClickhouseUTCDateTimeFormat(row.min_timestamp),
-        inputUsage: Number(row.input_usage),
-        outputUsage: Number(row.output_usage),
-        totalUsage: Number(row.total_usage),
-        observationCount: Number(row.obs_count),
-        traceCount: Number(row.trace_count),
-        totalCost: Number(row.sum_total_cost),
-      }));
-    },
-  });
-};
+) => greptimeTraceReads.getUserMetrics(projectId, userIds, filter);
 
 export const getTracesForBlobStorageExport = function (
   projectId: string,
