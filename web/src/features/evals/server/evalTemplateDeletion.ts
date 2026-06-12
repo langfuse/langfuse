@@ -66,6 +66,7 @@ export async function deleteEvalTemplateFamily({
   projectId,
   evalTemplateId,
   auditScope,
+  referencingEntityName = "running evaluator",
 }: {
   prisma: PrismaClient;
   projectId: string;
@@ -73,6 +74,9 @@ export async function deleteEvalTemplateFamily({
   // for API-key callers (public API, MCP); tRPC logs with the user session
   // at the router level instead, like its sibling mutations
   auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+  // job configs are "running evaluators" in the UI but "evaluation rules" in
+  // the public API contract; the conflict message must match the surface
+  referencingEntityName?: string;
 }) {
   const template = await findEvalTemplateById({
     tx: prisma,
@@ -107,7 +111,11 @@ export async function deleteEvalTemplateFamily({
 
     if (referencingConfigs.length > 0) {
       throw new LangfuseConflictError(
-        buildInUseErrorMessage(template.name, referencingConfigs),
+        buildInUseErrorMessage(
+          template.name,
+          referencingConfigs,
+          referencingEntityName,
+        ),
       );
     }
 
@@ -142,6 +150,7 @@ export async function deleteEvalTemplateFamily({
 function buildInUseErrorMessage(
   templateName: string,
   referencingConfigs: { scoreName: string }[],
+  referencingEntityName: string,
 ) {
   const scoreNames = [
     ...new Set(referencingConfigs.map((config) => config.scoreName)),
@@ -155,5 +164,5 @@ function buildInUseErrorMessage(
       ? ` and ${scoreNames.length - MAX_REFERENCING_EVALUATORS_IN_ERROR} more`
       : "";
 
-  return `Evaluator "${templateName}" is in use by ${referencingConfigs.length} running evaluator(s): ${shownNames}${overflow}. Delete those running evaluators first.`;
+  return `Evaluator "${templateName}" is in use by ${referencingConfigs.length} ${referencingEntityName}(s): ${shownNames}${overflow}. Delete those ${referencingEntityName}s first.`;
 }

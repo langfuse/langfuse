@@ -478,6 +478,8 @@ export function DeleteEvalTemplateButton(
     // usage count from already-loaded table data; lets the blocked state
     // render instantly while the usage query is in flight
     initialUsageCount?: number;
+    // the template name; doubles as the type-to-confirm string
+    deleteConfirmation: string;
   },
 ) {
   const utils = api.useUtils();
@@ -487,28 +489,39 @@ export function DeleteEvalTemplateButton(
     scope = "evalTemplate:CUD",
     invalidateFunc = () => utils.evals.invalidate(),
     initialUsageCount,
+    deleteConfirmation: templateName,
   } = props;
-
-  // only fetch usage once the user actually opens the delete popover
-  const [hasOpenedPopover, setHasOpenedPopover] = useState(false);
-  const usage = api.evals.evalTemplateUsage.useQuery(
-    { projectId, evalTemplateId: itemId },
-    { enabled: hasOpenedPopover },
-  );
-  const referencingEvaluators = usage.data;
-  const usageCount = referencingEvaluators?.length ?? initialUsageCount ?? 0;
 
   const templateMutation = api.evals.deleteEvalTemplate.useMutation({
     onSuccess: () => {
       showSuccessToast({
         title: "Evaluator deleted",
-        description: "All versions of the evaluator have been deleted.",
+        description: `Evaluator "${templateName}" was deleted.`,
       });
       utils.evals.invalidate();
     },
     onError: (error) =>
       showErrorToast("Failed to delete evaluator", error.message),
   });
+
+  // only fetch usage once the user actually opens the delete popover; once
+  // the delete starts the query must go inactive, otherwise the post-delete
+  // cache invalidation refetches it and surfaces a NOT_FOUND. Gating on
+  // isPending (not just isSuccess) matters: the mutation's onSuccess — and
+  // its invalidate — runs before the success state is dispatched, so the
+  // query must already be disabled by then.
+  const [hasOpenedPopover, setHasOpenedPopover] = useState(false);
+  const usage = api.evals.evalTemplateUsage.useQuery(
+    { projectId, evalTemplateId: itemId },
+    {
+      enabled:
+        hasOpenedPopover &&
+        !templateMutation.isPending &&
+        !templateMutation.isSuccess,
+    },
+  );
+  const referencingEvaluators = usage.data;
+  const usageCount = referencingEvaluators?.length ?? initialUsageCount ?? 0;
 
   const executeDeleteMutation = async (onSuccess: () => void) => {
     try {

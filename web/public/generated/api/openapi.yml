@@ -7525,6 +7525,85 @@ paths:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security:
         - BasicAuth: []
+    delete:
+      description: >-
+        Delete an evaluator.
+
+
+        Important behavior:
+
+        - This deletes the evaluator including all of its stored versions;
+        `evaluatorId` may reference any version.
+
+        - The API returns `409` while evaluation rules still reference the
+        evaluator. Delete those evaluation rules first.
+
+        - Langfuse-managed evaluators (`scope=managed`) cannot be deleted; the
+        API returns `403`.
+
+        - Scores already produced by the evaluator are not deleted.
+      operationId: unstable_evaluators_delete
+      tags:
+        - UnstableEvaluators
+      parameters:
+        - name: evaluatorId
+          in: path
+          description: Evaluator identifier returned by the evaluator endpoints.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableDeleteEvaluatorResponse'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security:
+        - BasicAuth: []
 components:
   schemas:
     AnnotationQueueStatus:
@@ -14417,6 +14496,16 @@ components:
         - name
         - scope
         - type
+    unstableDeleteEvaluatorResponse:
+      title: unstableDeleteEvaluatorResponse
+      type: object
+      description: Confirmation response returned after successful deletion.
+      properties:
+        message:
+          type: string
+          description: Always `Evaluator successfully deleted`.
+      required:
+        - message
     unstableEvaluator:
       title: unstableEvaluator
       oneOf:

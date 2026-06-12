@@ -58,6 +58,14 @@ export const GetUnstableEvaluatorQuery = z.object({
 
 export const GetUnstableEvaluatorResponse = APIEvaluator;
 
+export const DeleteUnstableEvaluatorQuery = GetUnstableEvaluatorQuery;
+
+export const DeleteUnstableEvaluatorResponse = z
+  .object({
+    message: z.literal("Evaluator successfully deleted"),
+  })
+  .strict();
+
 // Fields shared by every create body, regardless of evaluator type. Exported so
 // non-route consumers (e.g. the MCP tool layer) reuse the same definition.
 export const EvaluatorCreateBase = {
