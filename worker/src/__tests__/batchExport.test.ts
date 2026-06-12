@@ -2589,6 +2589,108 @@ describe("batch export test suite", () => {
       expect(generationRow?.totalUsage).toBeGreaterThan(0);
     });
 
+    it("should apply observation-level score filters and ignore trace-level score filters when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const traceId = randomUUID();
+      const now = Date.now() * 1000;
+
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "high-accuracy",
+          start_time: now,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "medium-accuracy",
+          start_time: now,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "low-accuracy",
+          start_time: now,
+        }),
+      ];
+      await createEventsCh(events);
+
+      const scores = [
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: events[0].span_id,
+          name: "accuracy",
+          value: 0.95,
+          data_type: "NUMERIC",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: events[1].span_id,
+          name: "accuracy",
+          value: 0.75,
+          data_type: "NUMERIC",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: events[2].span_id,
+          name: "accuracy",
+          value: 0.45,
+          data_type: "NUMERIC",
+        }),
+      ];
+      await createScoresCh(scores);
+
+      // Observation-level score filter applies (accuracy >= 0.7); the
+      // trace-level score filter references the trace_scores_agg CTE that the
+      // export does not join, so it is dropped rather than failing the export.
+      const stream = await getObservationStream({
+        projectId,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [
+          {
+            type: "numberObject",
+            column: "Scores",
+            key: "accuracy",
+            operator: ">=",
+            value: 0.7,
+          },
+          {
+            type: "numberObject",
+            column: "Trace Scores (numeric)",
+            key: "accuracy",
+            operator: "<",
+            value: 0,
+          },
+        ],
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      expect(rows.map((row) => row.name).sort()).toEqual([
+        "high-accuracy",
+        "medium-accuracy",
+      ]);
+      expect(rows.find((r) => r.name === "high-accuracy")?.accuracy).toEqual([
+        0.95,
+      ]);
+      expect(rows.find((r) => r.name === "medium-accuracy")?.accuracy).toEqual([
+        0.75,
+      ]);
+    });
+
     it("should not read the legacy observations table when useEventsTable is true", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 

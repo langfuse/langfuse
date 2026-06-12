@@ -451,24 +451,30 @@ const getObservationStreamFromEvents = async (
     },
   };
 
-  // Filter out score and comment filters since they require special handling
-  // (scores come from the scores_agg CTE, comments are fetched per batch).
   // Trace-level filters are kept: the events table carries trace fields
-  // denormalized, so they apply directly.
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
+  // denormalized, so they apply directly. Observation-level score filters are
+  // kept too — they map to the scores_agg CTE (s.*) joined below, matching the
+  // legacy export. Dropped are trace-level score filters (they reference a
+  // trace_scores_agg CTE this query does not join) and comment filters
+  // (comments live in Postgres and are resolved before the stream via
+  // applyCommentFilters).
+  const exportableFilters = (filter ?? []).filter((f) => {
     const columnDef = eventsTableUiColumnDefinitions.find(
       (col) => col.uiTableName === f.column || col.uiTableId === f.column,
     );
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
+    if (columnDef?.clickhouseTableName === "comments") return false;
+    if (columnDef?.clickhouseTableName === "scores") {
+      // Observation-level score columns select from the "s." alias,
+      // trace-level ones from "ts.".
+      return columnDef.clickhouseSelect.startsWith("s.");
+    }
+    return true;
   });
 
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: eventOnlyFilters,
+    filter: exportableFilters,
     isTimestampFilter: (
       filterItem: FilterCondition,
     ): filterItem is TimeFilter =>
@@ -484,7 +490,7 @@ const getObservationStreamFromEvents = async (
   const eventsFilter = new FilterList(
     createFilterFromFilterState(
       [
-        ...eventOnlyFilters,
+        ...exportableFilters,
         {
           column: "startTime",
           operator: "<" as const,
