@@ -31,6 +31,9 @@ export type DeleteButtonProps = {
   variant?: ButtonProps["variant"];
   title?: string;
   className?: string;
+  // forwarded explicitly because the base component does not spread unknown
+  // props onto the rendered button
+  "aria-label"?: string;
 };
 
 type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
@@ -76,6 +79,7 @@ export function DeleteButton({
   customDeletePrompt,
   deleteBlocker,
   onPopoverOpenChange,
+  "aria-label": ariaLabel,
 }: BaseDeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
@@ -108,6 +112,7 @@ export function DeleteButton({
           variant={variant ?? (icon ? "outline-solid" : "ghost")}
           size={icon ? "icon" : "default"}
           title={title}
+          aria-label={ariaLabel}
           className={className}
           disabled={!hasAccess || !enabled}
           onClick={(e) => {

@@ -1,4 +1,4 @@
-import { EvalTemplateType, type Prisma } from "@langfuse/shared/src/db";
+import { EvalTemplateType, Prisma } from "@langfuse/shared/src/db";
 
 /**
  * Data access for eval templates ("evaluators" in the public naming).
@@ -57,6 +57,36 @@ export async function findEvalTemplateFamilyVersions({
   return tx.evalTemplate.findMany({
     where: { projectId, name, type },
   });
+}
+
+/**
+ * Locks all versions of a template family (FOR UPDATE) for the rest of the
+ * transaction. Concurrent job-configuration inserts take FOR KEY SHARE on the
+ * referenced template row via the FK, which conflicts with this lock — so a
+ * rule created concurrently is either visible to a subsequent reference check
+ * or fails its FK once the delete commits.
+ */
+export async function lockEvalTemplateFamilyVersions({
+  tx,
+  projectId,
+  name,
+  type,
+}: {
+  tx: Prisma.TransactionClient;
+  projectId: string;
+  name: string;
+  type: EvalTemplateType;
+}) {
+  await tx.$queryRaw(
+    Prisma.sql`
+      SELECT id
+      FROM eval_templates
+      WHERE project_id = ${projectId}
+        AND name = ${name}
+        AND type = ${type}::"EvalTemplateType"
+      FOR UPDATE
+    `,
+  );
 }
 
 export async function findJobConfigurationsReferencingEvalTemplates({

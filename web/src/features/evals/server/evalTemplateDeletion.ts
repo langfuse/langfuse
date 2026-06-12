@@ -12,6 +12,7 @@ import {
   findEvalTemplateById,
   findEvalTemplateFamilyVersions,
   findJobConfigurationsReferencingEvalTemplates,
+  lockEvalTemplateFamilyVersions,
 } from "@/src/features/evals/server/evaluatorRepository";
 
 const MAX_REFERENCING_EVALUATORS_IN_ERROR = 5;
@@ -94,6 +95,15 @@ export async function deleteEvalTemplateFamily({
   // Resolve versions and check references inside one transaction so the
   // reference check and the delete see a consistent snapshot.
   const deletedVersions = await prisma.$transaction(async (tx) => {
+    // lock first: blocks concurrent rule creation (FK takes FOR KEY SHARE on
+    // the template row) from slipping in between the check and the delete
+    await lockEvalTemplateFamilyVersions({
+      tx,
+      projectId,
+      name: template.name,
+      type: template.type,
+    });
+
     const versions = await findEvalTemplateFamilyVersions({
       tx,
       projectId,
@@ -164,5 +174,7 @@ function buildInUseErrorMessage(
       ? ` and ${scoreNames.length - MAX_REFERENCING_EVALUATORS_IN_ERROR} more`
       : "";
 
-  return `Evaluator "${templateName}" is in use by ${referencingConfigs.length} ${referencingEntityName}(s): ${shownNames}${overflow}. Delete those ${referencingEntityName}s first.`;
+  // count unique score names, not raw configs: several configs can share a
+  // score name and the count must match the listed names
+  return `Evaluator "${templateName}" is in use by ${scoreNames.length} ${referencingEntityName}(s): ${shownNames}${overflow}. Delete those ${referencingEntityName}s first.`;
 }
