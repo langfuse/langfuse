@@ -1569,8 +1569,6 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       projectId,
       builder,
       undefined,
-      // Lands in the JSON log_comment via queryClickhouse tags; used to
-      // compare the two query paths in query logs while the flag soaks.
       { queryPath },
     );
 

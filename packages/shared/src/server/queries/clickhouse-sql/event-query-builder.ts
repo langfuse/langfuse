@@ -2061,9 +2061,6 @@ export function buildEventsFullTableSubqueryQuery(opts: {
     ...innerParams,
   };
 
-  // No SETTINGS clause here: a query-level `SETTINGS log_comment` would
-  // override the JSON tags queryClickhouse passes via clickhouse_settings.
-  // The rewrite is marked through those tags instead.
   const tuple = `(${SUBQUERY_IDENTITY_TUPLE.join(", ")})`;
   const queryParts: string[] = [];
   queryParts.push(
