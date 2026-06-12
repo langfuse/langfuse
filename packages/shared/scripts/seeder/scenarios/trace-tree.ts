@@ -2,25 +2,23 @@ import {
   createTrace,
   createObservation,
   createTraceScore,
-  createTracesCh,
-  createObservationsCh,
-  createScoresCh,
-  createEventsCh,
   ObservationRecordInsertType,
   ScoreRecordInsertType,
 } from "../../../src/server";
 import { ObservationType } from "../../../src/domain";
-import { observationToEvent, traceToEvent } from "./event-mirror";
 import { buildPayload, PayloadStyle, PAYLOAD_STYLES } from "./payload";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
-  chunk,
   ScenarioContext,
   ScenarioDefinition,
   SeedError,
   SeedSummary,
 } from "./types";
-import { countRows, traceLink } from "./verify";
+import { traceLink } from "./verify";
+import {
+  greptimeCountRows,
+  writeRecordsToGreptime,
+} from "../utils/greptime-writer";
 
 const ALL_KINDS: ObservationType[] = [
   "AGENT",
@@ -166,7 +164,7 @@ const run = async (
     // counts are derivable from the flags — skip payload/array generation
     return {
       scenario: "trace-tree",
-      target: "clickhouse",
+      target: "greptime",
       params,
       projectId: ctx.projectId,
       environment: ctx.environment,
@@ -176,7 +174,7 @@ const run = async (
         traces: 1,
         observations: observationCount,
         scores: 3 + (observationCount >= 7 ? 1 : 0),
-        events: withV4 ? observationCount + 1 : 0,
+        events: 0,
       },
       verified: {},
       links: [traceLink(ctx, traceId, traceTimestamp)],
@@ -448,68 +446,52 @@ const run = async (
     successScore.string_value = successScore.value === 1 ? "True" : "False";
   }
 
-  const events = withV4
-    ? [
-        traceToEvent(trace),
-        ...observations.map((obs) => observationToEvent(obs, trace)),
-      ]
-    : [];
+  if (withV4) {
+    ctx.log(
+      "note: --v4 events are not seeded on GreptimeDB (no events table; P3 scope); writing projection only",
+    );
+  }
 
   const counts: Record<string, number> = {
     traces: 1,
     observations: observations.length,
     scores: scores.length,
-    events: events.length,
+    events: 0,
   };
 
   ctx.log(
-    `writing 1 trace, ${observations.length} observations, ${scores.length} scores${withV4 ? `, ${events.length} events` : ""}`,
+    `writing 1 trace, ${observations.length} observations, ${scores.length} scores`,
   );
-  await createTracesCh([trace]);
-  for (const batch of chunk(observations, 1000)) {
-    await createObservationsCh(batch);
-  }
-  await createScoresCh(scores);
-  for (const batch of chunk(events, 500)) {
-    await createEventsCh(batch);
-  }
+  await writeRecordsToGreptime({ traces: [trace], observations, scores });
 
-  // uniqExact(id): count() would see pre-merge ReplacingMergeTree duplicates
-  // after re-runs with the same id prefix.
+  // Merged projection: one row per id, so count(distinct id) is exact even after
+  // same-prefix re-runs. Always exclude soft-deleted tombstones.
   const verified: Record<string, number> = {
-    traces: await countRows(
+    traces: await greptimeCountRows(
       "traces",
-      `project_id = {projectId: String} AND id = {traceId: String}`,
+      `project_id = :projectId AND id = :traceId AND is_deleted = false`,
       { projectId: ctx.projectId, traceId },
-      "uniqExact(id)",
+      "count(distinct id)",
     ),
-    observations: await countRows(
+    observations: await greptimeCountRows(
       "observations",
-      `project_id = {projectId: String} AND trace_id = {traceId: String}`,
+      `project_id = :projectId AND trace_id = :traceId AND is_deleted = false`,
       { projectId: ctx.projectId, traceId },
-      "uniqExact(id)",
+      "count(distinct id)",
     ),
-    observationKinds: await countRows(
+    observationKinds: await greptimeCountRows(
       "observations",
-      `project_id = {projectId: String} AND trace_id = {traceId: String}`,
+      `project_id = :projectId AND trace_id = :traceId AND is_deleted = false`,
       { projectId: ctx.projectId, traceId },
-      "uniqExact(type)",
+      "count(distinct type)",
     ),
-    scores: await countRows(
+    scores: await greptimeCountRows(
       "scores",
-      `project_id = {projectId: String} AND trace_id = {traceId: String}`,
+      `project_id = :projectId AND trace_id = :traceId AND is_deleted = false`,
       { projectId: ctx.projectId, traceId },
-      "uniqExact(id)",
+      "count(distinct id)",
     ),
   };
-  if (withV4) {
-    verified.events = await countRows(
-      "events_full",
-      `project_id = {projectId: String} AND trace_id = {traceId: String}`,
-      { projectId: ctx.projectId, traceId },
-      "uniqExact(span_id)",
-    );
-  }
 
   if (verified.traces < 1) {
     throw new SeedError(
@@ -532,15 +514,9 @@ const run = async (
       `Readback mismatch: expected ${scores.length} scores, found ${verified.scores}`,
     );
   }
-  if (withV4 && verified.events < events.length) {
-    throw new SeedError(
-      `Readback mismatch: expected ${events.length} events_full rows, found ${verified.events}`,
-    );
-  }
-
   return {
     scenario: "trace-tree",
-    target: "clickhouse",
+    target: "greptime",
     params,
     projectId: ctx.projectId,
     environment: ctx.environment,

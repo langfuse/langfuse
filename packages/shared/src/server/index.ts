@@ -64,6 +64,8 @@ export * from "./greptime/schemaUtils";
 export * from "./greptime/rawEvents";
 export * from "./greptime/converters";
 export * from "./greptime/deletion";
+export * from "./greptime/ingest/tableSchemas";
+export * from "./greptime/ingest/rowBuilders";
 export {
   getClickHouseCompatibilitySettings,
   initializeClickhouseCompatibility,

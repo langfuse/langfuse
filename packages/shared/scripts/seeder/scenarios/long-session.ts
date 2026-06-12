@@ -4,26 +4,24 @@ import {
   createObservation,
   createTraceScore,
   createSessionScore,
-  createTracesCh,
-  createObservationsCh,
-  createScoresCh,
-  createEventsCh,
-  EventRecordInsertType,
   ObservationRecordInsertType,
   ScoreRecordInsertType,
   TraceRecordInsertType,
 } from "../../../src/server";
-import { observationToEvent, traceToEvent } from "./event-mirror";
 import { buildPayload, PayloadStyle } from "./payload";
 import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
-  chunk,
   ScenarioContext,
   ScenarioDefinition,
   SeedError,
   SeedSummary,
 } from "./types";
-import { countRows, sessionLink, traceLink } from "./verify";
+import { sessionLink, traceLink } from "./verify";
+import {
+  greptimeCountRows,
+  greptimeInList,
+  writeRecordsToGreptime,
+} from "../utils/greptime-writer";
 
 const TRACE_NAMES = [
   "answer-support-question",
@@ -78,7 +76,7 @@ const run = async (
       utcDayStartMs() - windowMinutes * 60 * 1000 + jitter(ctx.seed, 0, 500);
     return {
       scenario: "long-session",
-      target: "clickhouse",
+      target: "greptime",
       params,
       projectId: ctx.projectId,
       environment: ctx.environment,
@@ -92,7 +90,7 @@ const run = async (
         traces: traceCount,
         observations: traceCount * observationsPerTrace,
         scores: Math.ceil(traceCount / 3) + Math.ceil(traceCount / 5) + 1,
-        events: withV4 ? traceCount + traceCount * observationsPerTrace : 0,
+        events: 0,
       },
       verified: {},
       links: [
@@ -115,7 +113,6 @@ const run = async (
   const traces: TraceRecordInsertType[] = [];
   const observations: ObservationRecordInsertType[] = [];
   const scores: ScoreRecordInsertType[] = [];
-  const events: EventRecordInsertType[] = [];
 
   for (let t = 0; t < traceCount; t++) {
     const traceId = `${ctx.idPrefix}-t${t}`;
@@ -330,14 +327,9 @@ const run = async (
   );
 
   if (withV4) {
-    const tracesById = new Map(traces.map((tr) => [tr.id, tr]));
-    for (const trace of traces) {
-      events.push(traceToEvent(trace));
-    }
-    for (const obs of observations) {
-      const trace = obs.trace_id ? tracesById.get(obs.trace_id) : undefined;
-      if (trace) events.push(observationToEvent(obs, trace));
-    }
+    ctx.log(
+      "note: --v4 events are not seeded on GreptimeDB (no events table; P3 scope); writing projection only",
+    );
   }
 
   const counts: Record<string, number> = {
@@ -345,7 +337,7 @@ const run = async (
     traces: traces.length,
     observations: observations.length,
     scores: scores.length,
-    events: events.length,
+    events: 0,
   };
 
   const links = [
@@ -366,53 +358,46 @@ const run = async (
   });
 
   ctx.log(
-    `writing 1 session, ${traces.length} traces, ${observations.length} observations, ${scores.length} scores${withV4 ? `, ${events.length} events` : ""}`,
+    `writing 1 session, ${traces.length} traces, ${observations.length} observations, ${scores.length} scores`,
   );
-  for (const batch of chunk(traces, 1000)) {
-    await createTracesCh(batch);
-  }
-  for (const batch of chunk(observations, 1000)) {
-    await createObservationsCh(batch);
-  }
-  await createScoresCh(scores);
-  for (const batch of chunk(events, 500)) {
-    await createEventsCh(batch);
-  }
+  await writeRecordsToGreptime({ traces, observations, scores });
 
-  // uniqExact(id): count() would see pre-merge ReplacingMergeTree duplicates
-  // after re-runs with the same id prefix.
+  // Merged projection: count(distinct id) is exact across same-prefix re-runs; exclude tombstones.
+  const traceIdParams: Record<string, unknown> = { projectId: ctx.projectId };
+  const traceIdList = greptimeInList(
+    traces.map((tr) => tr.id),
+    "tid",
+    traceIdParams,
+  );
+  const scoreParams: Record<string, unknown> = {
+    projectId: ctx.projectId,
+    sessionId,
+  };
+  const scoreTraceIdList = greptimeInList(
+    traces.map((tr) => tr.id),
+    "stid",
+    scoreParams,
+  );
   const verified: Record<string, number> = {
-    traces: await countRows(
+    traces: await greptimeCountRows(
       "traces",
-      `project_id = {projectId: String} AND session_id = {sessionId: String}`,
+      `project_id = :projectId AND session_id = :sessionId AND is_deleted = false`,
       { projectId: ctx.projectId, sessionId },
-      "uniqExact(id)",
+      "count(distinct id)",
     ),
-    observations: await countRows(
+    observations: await greptimeCountRows(
       "observations",
-      `project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}`,
-      { projectId: ctx.projectId, traceIds: traces.map((tr) => tr.id) },
-      "uniqExact(id)",
+      `project_id = :projectId AND trace_id IN (${traceIdList}) AND is_deleted = false`,
+      traceIdParams,
+      "count(distinct id)",
     ),
-    scores: await countRows(
+    scores: await greptimeCountRows(
       "scores",
-      `project_id = {projectId: String} AND (trace_id IN {traceIds: Array(String)} OR session_id = {sessionId: String})`,
-      {
-        projectId: ctx.projectId,
-        traceIds: traces.map((tr) => tr.id),
-        sessionId,
-      },
-      "uniqExact(id)",
+      `project_id = :projectId AND (trace_id IN (${scoreTraceIdList}) OR session_id = :sessionId) AND is_deleted = false`,
+      scoreParams,
+      "count(distinct id)",
     ),
   };
-  if (withV4) {
-    verified.events = await countRows(
-      "events_full",
-      `project_id = {projectId: String} AND session_id = {sessionId: String}`,
-      { projectId: ctx.projectId, sessionId },
-      "uniqExact(span_id)",
-    );
-  }
 
   if (verified.traces < traces.length) {
     throw new SeedError(
@@ -429,15 +414,9 @@ const run = async (
       `Readback mismatch: expected ${scores.length} scores, found ${verified.scores}`,
     );
   }
-  if (withV4 && verified.events < events.length) {
-    throw new SeedError(
-      `Readback mismatch: expected ${events.length} events_full rows, found ${verified.events}`,
-    );
-  }
-
   return {
     scenario: "long-session",
-    target: "clickhouse",
+    target: "greptime",
     params,
     projectId: ctx.projectId,
     environment: ctx.environment,

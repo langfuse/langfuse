@@ -1,5 +1,5 @@
 import { prisma } from "../../src/db";
-import { clickhouseClient, redis } from "../../src/server";
+import { greptimeQuery, redis } from "../../src/server";
 import { SeedError } from "./scenarios/types";
 
 export type CheckStatus = "pass" | "warn" | "fail";
@@ -14,8 +14,8 @@ export type CheckResult = {
 const FIX = {
   envFile: "cp .env.dev.example .env  (then review required values)",
   infraUp: "pnpm run infra:dev:up",
-  chMigrate: "pnpm --filter=shared run ch:up",
-  chDevTables: "pnpm --filter=shared run ch:dev-tables",
+  greptimeMigrate:
+    "apply packages/shared/greptime/migrations/*.sql to the GREPTIME_DB database",
   dbMigrate: "pnpm --filter=shared run db:migrate",
   dbSeed:
     "pnpm --filter=shared run db:seed  (creates the default seed projects)",
@@ -137,131 +137,60 @@ const checkProject = async (projectId: string): Promise<CheckResult> => {
   }
 };
 
-const fetchClickhouseTables = async (): Promise<Set<string>> => {
-  const result = await withTimeout(
-    clickhouseClient().query({
-      query: `SELECT name FROM system.tables WHERE database = currentDatabase() AND name IN ('traces', 'observations', 'scores', 'events_full', 'events_core')`,
-      format: "JSONEachRow",
-    }),
-    4000,
-  );
-  const rows = await result.json<{ name: string }>();
-  return new Set(rows.map((row) => row.name));
-};
+const REQUIRED_GREPTIME_TABLES = ["traces", "observations", "scores"];
 
-const checkClickhouse = async (): Promise<{
+const checkGreptime = async (): Promise<{
   connectivity: CheckResult;
-  legacyTables: CheckResult;
-  v4Tables: CheckResult;
+  tables: CheckResult;
 }> => {
-  let tables: Set<string>;
+  let names: Set<string>;
   try {
-    tables = await fetchClickhouseTables();
+    const rows = await withTimeout(
+      greptimeQuery<{ table_name: string }>({
+        query: `SELECT table_name FROM information_schema.tables
+          WHERE table_schema = DATABASE()
+            AND table_name IN ('traces', 'observations', 'scores',
+              'traces_metadata', 'observations_metadata', 'scores_metadata', 'traces_tags')`,
+        readOnly: true,
+      }),
+      4000,
+    );
+    names = new Set(rows.map((row) => row.table_name));
   } catch (error) {
     const fail: CheckResult = {
-      name: "clickhouse",
+      name: "greptime",
       status: "fail",
-      detail: `cannot reach ClickHouse: ${(error as Error).message}`,
+      detail: `cannot reach GreptimeDB: ${(error as Error).message}`,
       fix: FIX.infraUp,
     };
     return {
       connectivity: fail,
-      legacyTables: {
-        name: "clickhouse-tables",
+      tables: {
+        name: "greptime-tables",
         status: "fail",
-        detail: "skipped (no connection)",
-        // migration commands need a reachable ClickHouse; fix the root cause
-        fix: FIX.infraUp,
-      },
-      v4Tables: {
-        name: "clickhouse-v4-tables",
-        status: "warn",
         detail: "skipped (no connection)",
         fix: FIX.infraUp,
       },
     };
   }
 
-  const legacyMissing = ["traces", "observations", "scores"].filter(
-    (table) => !tables.has(table),
-  );
-  const v4Missing = ["events_full", "events_core"].filter(
-    (table) => !tables.has(table),
-  );
-
+  const missing = REQUIRED_GREPTIME_TABLES.filter((table) => !names.has(table));
   return {
-    connectivity: { name: "clickhouse", status: "pass", detail: "reachable" },
-    legacyTables:
-      legacyMissing.length === 0
+    connectivity: { name: "greptime", status: "pass", detail: "reachable" },
+    tables:
+      missing.length === 0
         ? {
-            name: "clickhouse-tables",
+            name: "greptime-tables",
             status: "pass",
             detail: "traces/observations/scores present",
           }
         : {
-            name: "clickhouse-tables",
+            name: "greptime-tables",
             status: "fail",
-            detail: `missing tables: ${legacyMissing.join(", ")} — migrations not applied`,
-            fix: FIX.chMigrate,
-          },
-    v4Tables:
-      v4Missing.length === 0
-        ? {
-            name: "clickhouse-v4-tables",
-            status: "pass",
-            detail: "events_full/events_core present",
-          }
-        : {
-            name: "clickhouse-v4-tables",
-            status: "warn",
-            detail: `missing v4 dev tables: ${v4Missing.join(", ")} — --v4 scenarios unavailable`,
-            fix: FIX.chDevTables,
+            detail: `missing tables: ${missing.join(", ")} — migrations not applied`,
+            fix: FIX.greptimeMigrate,
           },
   };
-};
-
-const checkClickhouseMemory = async (): Promise<CheckResult> => {
-  try {
-    const result = await withTimeout(
-      clickhouseClient().query({
-        query: `SELECT
-          anyIf(value, metric = 'MemoryResident') AS resident,
-          greatest(anyIf(value, metric = 'CGroupMemoryTotal'), anyIf(value, metric = 'OSMemoryTotal')) AS total
-        FROM system.asynchronous_metrics
-        WHERE metric IN ('MemoryResident', 'CGroupMemoryTotal', 'OSMemoryTotal')`,
-        format: "JSONEachRow",
-      }),
-      4000,
-    );
-    const rows = await result.json<{ resident: number; total: number }>();
-    const resident = Number(rows[0]?.resident ?? 0);
-    const total = Number(rows[0]?.total ?? 0);
-    if (total <= 0) {
-      return {
-        name: "clickhouse-memory",
-        status: "pass",
-        detail: "memory metrics unavailable (skipped)",
-      };
-    }
-    const ratio = resident / total;
-    const summary = `${(resident / 1024 ** 3).toFixed(1)} GiB of ${(total / 1024 ** 3).toFixed(1)} GiB`;
-    // Long-running local servers accumulate memory and large seeds then die
-    // with MEMORY_LIMIT_EXCEEDED even though connectivity checks pass.
-    return ratio < 0.7
-      ? { name: "clickhouse-memory", status: "pass", detail: summary }
-      : {
-          name: "clickhouse-memory",
-          status: "warn",
-          detail: `${summary} — large seeds may hit MEMORY_LIMIT_EXCEEDED`,
-          fix: "docker restart langfuse-clickhouse  (frees memory; data persists on the volume)",
-        };
-  } catch {
-    return {
-      name: "clickhouse-memory",
-      status: "pass",
-      detail: "memory metrics unavailable (skipped)",
-    };
-  }
 };
 
 const checkRedis = async (): Promise<CheckResult> => {
@@ -339,40 +268,29 @@ export const runDoctor = async (
     return { ok: false, checks: [env] };
   }
 
-  const [
-    postgres,
-    migrations,
-    project,
-    clickhouse,
-    clickhouseMemory,
-    redisCheck,
-    minio,
-    web,
-  ] = await Promise.all([
-    checkPostgres(),
-    checkMigrations(),
-    checkProject(projectId),
-    checkClickhouse(),
-    checkClickhouseMemory(),
-    checkRedis(),
-    checkMinio(),
-    checkHttp(
-      "web-app",
-      `${baseUrl}/api/public/health`,
-      FIX.devWeb,
-      `responding at ${baseUrl} (deep links will work)`,
-    ),
-  ]);
+  const [postgres, migrations, project, greptime, redisCheck, minio, web] =
+    await Promise.all([
+      checkPostgres(),
+      checkMigrations(),
+      checkProject(projectId),
+      checkGreptime(),
+      checkRedis(),
+      checkMinio(),
+      checkHttp(
+        "web-app",
+        `${baseUrl}/api/public/health`,
+        FIX.devWeb,
+        `responding at ${baseUrl} (deep links will work)`,
+      ),
+    ]);
 
   const checks = [
     env,
     postgres,
     migrations,
     project,
-    clickhouse.connectivity,
-    clickhouse.legacyTables,
-    clickhouse.v4Tables,
-    clickhouseMemory,
+    greptime.connectivity,
+    greptime.tables,
     redisCheck,
     minio,
     web,
@@ -394,27 +312,20 @@ export const preflight = async (opts: {
     throw new SeedError(env.detail, env.fix);
   }
 
-  const [postgres, project, clickhouse] = await Promise.all([
+  const [postgres, project, greptime] = await Promise.all([
     checkPostgres(),
     checkProject(opts.projectId),
-    checkClickhouse(),
+    checkGreptime(),
   ]);
 
+  // v4 events are not seeded on GreptimeDB (no events table; P3 scope), so needV4
+  // no longer gates a table check — scenarios log a note and write the projection only.
   const required: CheckResult[] = [
     postgres,
     project,
-    clickhouse.connectivity,
-    clickhouse.legacyTables,
+    greptime.connectivity,
+    greptime.tables,
   ];
-  if (opts.needV4) {
-    required.push({
-      ...clickhouse.v4Tables,
-      status:
-        clickhouse.v4Tables.status === "warn"
-          ? "fail"
-          : clickhouse.v4Tables.status,
-    });
-  }
 
   const failed = required.find((check) => check.status === "fail");
   if (failed) {
@@ -423,5 +334,5 @@ export const preflight = async (opts: {
       failed.fix,
     );
   }
-  opts.log("preflight ok (postgres, project, clickhouse)");
+  opts.log("preflight ok (postgres, project, greptime)");
 };
