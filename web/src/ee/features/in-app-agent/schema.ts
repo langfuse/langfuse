@@ -1,3 +1,9 @@
+// This module should contained ag-ui base schemas OR shared schemas,
+// do not add any one-off schemas here.
+// This module is shared by browser and server in-app-agent code. Keep it
+// runtime-neutral: Zod schemas and TypeScript types only, with no React,
+// browser-only, server-only, database, or Mastra imports.
+
 import type { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
@@ -132,6 +138,82 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
 ]);
 
 export type AgUiMessage = z.infer<typeof AgUiMessageSchema>;
+
+export const InAppAgentDocsSourceSchema = z.object({
+  title: z.string(),
+  url: z.string().trim().min(1),
+});
+
+export type InAppAgentDocsSource = z.infer<typeof InAppAgentDocsSourceSchema>;
+
+const AbsoluteHttpUrlSchema = z.string().transform((value, ctx) => {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(value);
+  } catch {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL must be absolute",
+    });
+    return z.NEVER;
+  }
+
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL protocol must be http or https",
+    });
+    return z.NEVER;
+  }
+
+  return parsedUrl.href;
+});
+
+export const InAppAgentMessageSourceSchema = z.object({
+  title: z.string(),
+  url: AbsoluteHttpUrlSchema,
+  faviconUrl: AbsoluteHttpUrlSchema,
+});
+
+export type InAppAgentMessageSource = z.infer<
+  typeof InAppAgentMessageSourceSchema
+>;
+
+export const InAppAgentDocsSourceWithDisplayFieldsSchema =
+  InAppAgentDocsSourceSchema.transform((source, ctx) => {
+    let parsedUrl: URL;
+
+    try {
+      parsedUrl = new URL(source.url);
+    } catch {
+      ctx.addIssue({
+        code: "custom",
+        message: "Source URL must be absolute",
+        path: ["url"],
+      });
+      return z.NEVER;
+    }
+
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      ctx.addIssue({
+        code: "custom",
+        message: "Source URL protocol must be http or https",
+        path: ["url"],
+      });
+      return z.NEVER;
+    }
+
+    return {
+      title: source.title,
+      url: parsedUrl.href,
+      faviconUrl: new URL("/favicon.ico", parsedUrl).toString(),
+    };
+  }).pipe(InAppAgentMessageSourceSchema);
+
+export const InAppAgentDocsToolResultSchema = z.object({
+  sources: z.array(InAppAgentMessageSourceSchema),
+});
 
 const AgUiToolSchema = z.object({
   name: z.string(),

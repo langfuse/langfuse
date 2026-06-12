@@ -3,6 +3,7 @@
 import {
   Check,
   Copy,
+  BookOpenText,
   Loader2,
   ThumbsDown,
   ThumbsUp,
@@ -22,11 +23,13 @@ import {
 import type {
   InAppAgentMessageFeedback,
   InAppAgentMessageFeedbackValue,
+  InAppAgentMessageSource,
 } from "@/src/ee/features/in-app-agent/schema";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
@@ -37,7 +40,12 @@ export type InAppAgentMessageRole = "assistant" | "user";
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
-  | { type: "text"; text: string; feedback?: InAppAgentMessageFeedback }
+  | {
+      type: "text";
+      text: string;
+      feedback?: InAppAgentMessageFeedback;
+      sources?: InAppAgentMessageSource[];
+    }
   | {
       type: "toolGroup";
       tools: InAppAgentToolCallContent[];
@@ -170,6 +178,7 @@ function AssistantMessageWithFeedback({
         isFeedbackDisabled={isFeedbackDisabled}
         windowZIndex={windowZIndex}
         maxWidth={messageCardSize?.width}
+        sources={content.sources}
         onSubmitFeedback={onSubmitFeedback}
       />
     </div>
@@ -182,6 +191,7 @@ function MessageFeedbackControls({
   isFeedbackDisabled,
   windowZIndex,
   maxWidth,
+  sources,
   onSubmitFeedback,
 }: {
   feedback?: InAppAgentMessageFeedback;
@@ -189,6 +199,7 @@ function MessageFeedbackControls({
   isFeedbackDisabled: boolean;
   windowZIndex?: number;
   maxWidth?: number;
+  sources?: InAppAgentMessageSource[];
   onSubmitFeedback: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -309,6 +320,13 @@ function MessageFeedbackControls({
               )}
             />
           </FeedbackButton>
+          {sources && sources.length > 0 ? (
+            <SourcesPopover
+              sources={sources}
+              isCompact={isCompact}
+              windowZIndex={windowZIndex}
+            />
+          ) : null}
           {committedComment ? (
             <button
               type="button"
@@ -358,6 +376,64 @@ function MessageFeedbackControls({
         ) : null}
       </Popover>
     </div>
+  );
+}
+
+function SourcesPopover({
+  sources,
+  isCompact,
+  windowZIndex,
+}: {
+  sources: InAppAgentMessageSource[];
+  isCompact: boolean;
+  windowZIndex?: number;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium",
+            isCompact && "py-0.5",
+          )}
+        >
+          <BookOpenText className={cn(isCompact ? "size-3" : "size-3.5")} />
+          Sources
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="top"
+        className="w-72 p-1.5"
+        style={
+          typeof windowZIndex === "number"
+            ? { zIndex: windowZIndex + 1 }
+            : undefined
+        }
+      >
+        <div className="space-y-0.5">
+          {sources.map((source) => (
+            <a
+              key={source.url}
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:bg-muted flex min-w-0 items-center gap-1.5 rounded-md px-1 py-1 no-underline"
+            >
+              <span
+                aria-hidden="true"
+                className="bg-muted size-3.5 shrink-0 rounded-sm bg-cover bg-center"
+                style={{ backgroundImage: `url(${source.faviconUrl})` }}
+              />
+              <span className="text-foreground min-w-0 flex-1 truncate text-xs">
+                {source.title}
+              </span>
+            </a>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

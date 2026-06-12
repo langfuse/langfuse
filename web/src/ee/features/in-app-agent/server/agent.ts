@@ -11,6 +11,7 @@ import type {
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import { prefixLangfuseDocsTools } from "@/src/ee/features/in-app-agent/server/tools";
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
@@ -35,6 +36,7 @@ If you cannot provide an answer to the user, spare the user the details of faile
 If you think it would be helpful, ask the user for clarification or follow up questions to guide them.
 Be concise, factual, and useful. Unless asked for a detailed explanation, keep your answers short and to the point.
 Use markdown in your responses when appropriate, especially for tables and lists.
+When you answer using Langfuse documentation tool results, answer normally. The product will attach source links automatically.
 IMPORTANT: You should minimize output tokens as much as possible while maintaining helpfulness, quality, and accuracy. Only address the specific query or task at hand, avoiding tangential information unless absolutely critical for completing the request. If you can answer in 1-3 sentences or a short paragraph, please do.
 IMPORTANT: You should NOT answer with unnecessary preamble or postamble (such as explaining your code or summarizing your action), unless the user asks you to.
 </behavioral_rules>
@@ -541,7 +543,7 @@ async function createMastraAdapter(params: {
 
     const tools = {
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
-      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+      ...prefixLangfuseDocsTools(toolsets.langfuseDocs),
     };
 
     const agent = new Agent({
