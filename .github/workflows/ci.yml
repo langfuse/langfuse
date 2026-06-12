@@ -1,0 +1,51 @@
+# Lean CI for the GreptimeDB fork (work in progress).
+#
+# The upstream Langfuse workflows live in .github/workflows-disabled/ — they need upstream
+# secrets / deploy infra / the full ClickHouse stack and are re-enabled one at a time as the
+# migration progresses. This workflow only covers what is green today: install (which builds the
+# git-hosted @greptime/ingester SDK), codegen, build, typecheck, and the GreptimeDB unit tests.
+# Smoke/integration tests that need a live GreptimeDB + Postgres/Redis are added later.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  write-path:
+    name: build + typecheck + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # version comes from "packageManager" in package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # Dummy env just to satisfy import-time env validation; no service is contacted here.
+      - run: cp .env.dev.example .env
+
+      # Installs deps and builds the git-hosted SDK via its prepare script (allowBuilds gates it).
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm run db:generate
+
+      - run: pnpm --filter @langfuse/shared run build
+
+      - name: Typecheck (shared)
+        run: pnpm --filter @langfuse/shared run typecheck
+
+      - name: Typecheck (worker)
+        run: pnpm --filter worker run typecheck
+
+      - name: Unit tests (GreptimeDB converters)
+        run: pnpm --filter @langfuse/shared run test src/server/greptime/converters.test.ts

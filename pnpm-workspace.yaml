@@ -29,6 +29,9 @@ allowBuilds:
   protobufjs: false
   "@datadog/pprof": false
   "@scarf/scarf": false
+  "@mongodb-js/zstd": false
+  # Git-hosted SDK (Decimal128 branch) needs its build (tshy) to run on install to produce dist/.
+  "@greptime/ingester": true
 overrides:
   zod: 4.3.6
   nanoid: ^3.3.8

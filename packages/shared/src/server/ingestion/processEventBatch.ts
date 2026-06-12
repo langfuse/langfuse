@@ -28,6 +28,8 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { writeRawEvents } from "../greptime/rawEvents";
+import { ingestionEventToRawEvent } from "../greptime/converters";
 import { isTraceIdInSample } from "./sampling";
 import {
   isS3SlowDownError,
@@ -270,6 +272,9 @@ export const processEventBatch = async (
     );
   }
 
+  // One batch id for the whole request — scopes the worker's Redis seen-cache at batch level.
+  const batchId = randomUUID();
+
   if (!redis) {
     throw new Error("Redis not initialized, aborting event processing");
   }
@@ -317,6 +322,25 @@ export const processEventBatch = async (
         });
       }
 
+      // Write to GreptimeDB raw_events only after sampling accepts this entity. raw_events is the
+      // worker replay source of truth; writing sampled-out events would let a later sampled update
+      // resurrect data that the ClickHouse path intentionally never processed.
+      await instrumentAsync({ name: "greptime-raw-events-write" }, async () => {
+        // Offset ingested_at by the deterministically sorted entity-local index so same-request
+        // updates keep request order as the raw_events read tie-break (ingested_at, event_id).
+        const ingestedAt = Date.now();
+        const rawEvents = eventData.data
+          .map((event, index) =>
+            ingestionEventToRawEvent(
+              event,
+              authCheck.scope.projectId!,
+              ingestedAt + index,
+            ),
+          )
+          .filter((row): row is NonNullable<typeof row> => row !== null);
+        await writeRawEvents(rawEvents);
+      });
+
       return queue
         ? queue.add(
             QueueJobs.IngestionJob,
@@ -328,6 +352,8 @@ export const processEventBatch = async (
                 data: {
                   type: eventData.type,
                   eventBodyId: eventData.eventBodyId,
+                  entityType: getClickhouseEntityType(eventData.type),
+                  batchId,
                   fileKey: eventData.key,
                   skipS3List: shouldSkipS3List,
                   forwardToEventsTable,

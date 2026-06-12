@@ -22,6 +22,11 @@ export const IngestionEvent = z.object({
   data: z.object({
     type: z.enum(Object.values(eventTypes)),
     eventBodyId: z.string(),
+    // GreptimeDB primary path (02-write-path.md): entityType lets the worker read raw_events
+    // without re-deriving it; batchId scopes the Redis seen-cache at batch level. Both optional
+    // for backward compatibility with in-flight S3-era jobs.
+    entityType: z.string().optional(),
+    batchId: z.string().optional(),
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),

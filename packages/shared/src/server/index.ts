@@ -49,6 +49,11 @@ export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
+export * from "./greptime/client";
+export * from "./greptime/schemaUtils";
+export * from "./greptime/rawEvents";
+export * from "./greptime/converters";
+export * from "./greptime/deletion";
 export {
   getClickHouseCompatibilitySettings,
   initializeClickhouseCompatibility,

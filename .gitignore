@@ -116,3 +116,6 @@ web/test-results/*
 
 # Superset config
 .superset/
+
+# Local-only Chinese working copies of migration design docs (English committed versions live alongside)
+docs/greptimedb-migration/zh/
