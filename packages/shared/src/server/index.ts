@@ -53,6 +53,8 @@ export * from "./greptime/client";
 // Namespaced: greptime-filter intentionally mirrors clickhouse-filter's class names
 // (StringFilter/FilterList/...), so it cannot be flat re-exported alongside ./queries.
 export * as greptimeFilters from "./greptime/sql/greptime-filter";
+export * from "./greptime/sql/columnMappings";
+export * from "./greptime/sql/factory";
 export * from "./greptime/sql/time-bucket";
 export * from "./greptime/sql/quantile";
 export * from "./greptime/sql/rowContract";

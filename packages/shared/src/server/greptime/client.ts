@@ -86,10 +86,14 @@ export const getGreptimeReadOnlySqlPool = (): mysql.Pool => {
   return readOnlySqlPool;
 };
 
-/** Bind values for a parameterized GreptimeDB query (positional array or named object). */
+/**
+ * Bind values for a parameterized GreptimeDB query (positional array or named object). Values are
+ * `unknown` because compiled filters bind a mix mysql2 serializes natively (string / number /
+ * boolean / Date / null); narrowing here only forces casts at every call site.
+ */
 export type GreptimeQueryParams =
-  | ReadonlyArray<string | number | null>
-  | Record<string, string | number | null>;
+  | ReadonlyArray<unknown>
+  | Record<string, unknown>;
 
 /**
  * Run a read query against GreptimeDB over the MySQL wire. `readOnly` routes to the replica pool

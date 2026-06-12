@@ -11,6 +11,8 @@ minimumReleaseAge: 7200
 minimumReleaseAgeExclude:
   - ai@5.0.195
   - "@ai-sdk/gateway@2.0.96"
+  - "@greptime/ingester@0.2.0"
+  - console-table-printer@2.16.1
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
@@ -30,7 +32,7 @@ allowBuilds:
   "@datadog/pprof": false
   "@scarf/scarf": false
   "@mongodb-js/zstd": false
-  # Git-hosted SDK (Decimal128 branch) needs its build (tshy) to run on install to produce dist/.
+  # Published SDK (npm @greptime/ingester) ships its build, but keep build allowed for safety.
   "@greptime/ingester": true
 overrides:
   zod: 4.3.6

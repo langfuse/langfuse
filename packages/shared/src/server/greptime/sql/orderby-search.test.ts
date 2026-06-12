@@ -1,30 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import type { UiColumnMappings } from "../../../tableDefinitions";
+import type { GreptimeColumnMappings } from "./columnMappings";
 import { greptimeOrderBySql } from "./orderby";
 import { greptimeSearchCondition } from "./search";
 
-const cols: UiColumnMappings = [
+const cols: GreptimeColumnMappings = [
   {
     uiTableName: "Timestamp",
     uiTableId: "timestamp",
-    clickhouseSelect: "timestamp",
+    greptimeSelect: "timestamp",
     queryPrefix: "t",
-    clickhouseTableName: "traces",
+    greptimeTableName: "traces",
   },
   {
     uiTableName: "Name",
     uiTableId: "name",
-    clickhouseSelect: "name",
+    greptimeSelect: "name",
     queryPrefix: "t",
-    clickhouseTableName: "traces",
+    greptimeTableName: "traces",
   },
   {
     uiTableName: "Date",
     uiTableId: "ts_date",
-    clickhouseSelect: "date_trunc('day', t.timestamp)",
+    greptimeSelect: "date_trunc('day', t.timestamp)",
     queryPrefix: undefined,
-    clickhouseTableName: "traces",
+    greptimeTableName: "traces",
   },
 ];
 

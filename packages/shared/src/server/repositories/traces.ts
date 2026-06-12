@@ -32,20 +32,17 @@ import {
   convertClickhouseToDomain,
   convertClickhouseTracesListToDomain,
 } from "./traces_converters";
-import { clickhouseSearchCondition } from "../queries/clickhouse-sql/search";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
 } from "./constants";
 import { env } from "../../env";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { recordDistribution } from "../instrumentation";
 import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
-import { traceException } from "../instrumentation";
-import { prisma } from "../../db";
+import * as greptimeTraceReads from "./greptime/traces";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -232,278 +229,27 @@ export const getTracesByIds = async (
   traceIds: string[],
   projectId: string,
   timestamp?: Date,
-  clickhouseConfigs?: ClickHouseClientConfigOptions | undefined,
-) => {
-  const records = await measureAndReturn({
-    operationName: "getTracesByIds",
-    projectId,
-    input: {
-      params: {
-        traceIds,
-        projectId,
-        timestamp: timestamp
-          ? convertDateToClickhouseDateTime(timestamp)
-          : null,
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "byId",
-        projectId,
-        operation_name: "getTracesByIds",
-      },
-      clickhouseConfigs,
-    },
-    fn: (input) => {
-      const query = `
-        SELECT *
-        FROM traces
-        WHERE id IN ({traceIds: Array(String)})
-        AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""}
-        ORDER BY event_ts DESC
-        LIMIT 1 by id, project_id;
-      `;
-      return queryClickhouse<TraceRecordReadType>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        clickhouseConfigs: input.clickhouseConfigs,
-      });
-    },
-  });
+  _clickhouseConfigs?: ClickHouseClientConfigOptions | undefined,
+) => greptimeTraceReads.getTracesByIds(traceIds, projectId, timestamp);
 
-  return records.map((record) =>
-    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
-  );
-};
-
-export const getTracesBySessionId = async (
+export const getTracesBySessionId = (
   projectId: string,
   sessionIds: string[],
   timestamp?: Date,
-) => {
-  const records = await measureAndReturn({
-    operationName: "getTracesBySessionId",
-    projectId,
-    input: {
-      params: {
-        sessionIds,
-        projectId,
-        timestamp: timestamp
-          ? convertDateToClickhouseDateTime(timestamp)
-          : null,
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "list",
-        projectId,
-        operation_name: "getTracesBySessionId",
-      },
-      timestamp,
-    },
-    fn: (input) => {
-      const query = `
-        SELECT *
-        FROM traces
-        WHERE session_id IN ({sessionIds: Array(String)})
-        AND project_id = {projectId: String}
-        ${timestamp ? `AND timestamp >= {timestamp: DateTime64(3)}` : ""}
-        ORDER BY event_ts DESC
-        LIMIT 1 by id, project_id;
-      `;
-      return queryClickhouse<TraceRecordReadType>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
-  });
+) => greptimeTraceReads.getTracesBySessionId(projectId, sessionIds, timestamp);
 
-  const traces = records.map((record) =>
-    convertClickhouseToDomain(record, DEFAULT_RENDERING_PROPS),
-  );
+export const hasAnyTrace = (projectId: string) =>
+  greptimeTraceReads.hasAnyTrace(projectId);
 
-  traces.forEach((trace) => {
-    recordDistribution(
-      "langfuse.traces_by_session_id_age",
-      new Date().getTime() - trace.timestamp.getTime(),
-    );
-  });
-
-  return traces;
-};
-
-export const hasAnyTrace = async (projectId: string) => {
-  // Check PostgreSQL flag first — once set, it's never reverted
-  try {
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
-      select: { hasTraces: true },
-    });
-    if (project?.hasTraces) {
-      return true;
-    }
-  } catch (error) {
-    traceException(error);
-    logger.error("Failed to read hasTraces flag from PostgreSQL", {
-      projectId,
-      error,
-    });
-  }
-
-  const result = await measureAndReturn({
-    operationName: "hasAnyTrace",
-    projectId,
-    input: {
-      projectId,
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "hasAny",
-        projectId,
-        operation_name: "hasAnyTrace",
-      },
-    },
-    fn: async (input) => {
-      const query = `
-        SELECT 1
-        FROM traces
-        WHERE project_id = {projectId: String}
-        LIMIT 1
-      `;
-
-      const rows = await queryClickhouse<{ 1: number }>({
-        query,
-        params: {
-          projectId: input.projectId,
-        },
-        tags: input.tags,
-        clickhouseSettings: {
-          max_threads: 1,
-        },
-      });
-
-      return rows.length > 0;
-    },
-  });
-
-  // Persist positive result in PostgreSQL — once a project has traces, it stays true
-  // Only update if not already set to avoid unnecessary writes
-  if (result) {
-    try {
-      await prisma.project.updateMany({
-        where: { id: projectId, hasTraces: false },
-        data: { hasTraces: true },
-      });
-    } catch (error) {
-      traceException(error);
-      logger.error("Failed to persist hasTraces flag to PostgreSQL", {
-        projectId,
-        error,
-      });
-    }
-  }
-
-  return result;
-};
-
-export const getTraceCountsByProjectInCreationInterval = async ({
-  start,
-  end,
-}: {
+export const getTraceCountsByProjectInCreationInterval = (args: {
   start: Date;
   end: Date;
-}) => {
-  return measureAndReturn({
-    operationName: "getTraceCountsByProjectInCreationInterval",
-    projectId: "__CROSS_PROJECT__",
-    input: {
-      params: {
-        start: convertDateToClickhouseDateTime(start),
-        end: convertDateToClickhouseDateTime(end),
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        operation_name: "getTraceCountsByProjectInCreationInterval",
-      },
-      timestamp: start,
-    },
-    fn: async (input) => {
-      const query = `
-        SELECT
-          project_id,
-          count(*) as count
-        FROM traces
-        WHERE created_at >= {start: DateTime64(3)}
-        AND created_at < {end: DateTime64(3)}
-        GROUP BY project_id
-      `;
+}) => greptimeTraceReads.getTraceCountsByProjectInCreationInterval(args);
 
-      const rows = await queryClickhouse<{ project_id: string; count: string }>(
-        {
-          query,
-          params: input.params,
-          clickhouseConfigs: {
-            request_timeout: 120000, // 2 minutes timeout
-          },
-          tags: input.tags,
-        },
-      );
-
-      return rows.map((row) => ({
-        projectId: row.project_id,
-        count: Number(row.count),
-      }));
-    },
-  });
-};
-
-export const getTraceCountOfProjectsSinceCreationDate = async ({
-  projectIds,
-  start,
-}: {
+export const getTraceCountOfProjectsSinceCreationDate = (args: {
   projectIds: string[];
   start: Date;
-}) => {
-  return measureAndReturn({
-    operationName: "getTraceCountOfProjectsSinceCreationDate",
-    projectId: "__CROSS_PROJECT__",
-    input: {
-      params: {
-        projectIds,
-        start: convertDateToClickhouseDateTime(start),
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        operation_name: "getTraceCountOfProjectsSinceCreationDate",
-      },
-      timestamp: start,
-    },
-    fn: async (input) => {
-      const query = `
-        SELECT
-          count(*) as count
-        FROM traces
-        WHERE project_id IN ({projectIds: Array(String)})
-        AND created_at >= {start: DateTime64(3)}
-      `;
-
-      const rows = await queryClickhouse<{ count: string }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-
-      return Number(rows[0]?.count ?? 0);
-    },
-  });
-};
+}) => greptimeTraceReads.getTraceCountOfProjectsSinceCreationDate(args);
 
 /**
  * Retrieves a trace record by its ID and associated project ID from the legacy
@@ -520,8 +266,6 @@ export const getTraceByIdFromTracesTable = async ({
   timestamp,
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
-  clickhouseFeatureTag = "tracing",
-  preferredClickhouseService,
   excludeInputOutput = false,
   excludeMetadata = false,
 }: {
@@ -536,308 +280,65 @@ export const getTraceByIdFromTracesTable = async ({
   excludeInputOutput?: boolean;
   /** When true, sets metadata column to empty in the query to reduce database load */
   excludeMetadata?: boolean;
-}) => {
-  const records = await measureAndReturn({
-    operationName: "getTraceById",
+}) =>
+  greptimeTraceReads.getTraceByIdFromTracesTable({
+    traceId,
     projectId,
-    input: {
-      params: {
-        traceId,
-        projectId,
-        ...(timestamp
-          ? { timestamp: convertDateToClickhouseDateTime(timestamp) }
-          : {}),
-        ...(fromTimestamp
-          ? { fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp) }
-          : {}),
-      },
-      tags: {
-        feature: clickhouseFeatureTag,
-        type: "trace",
-        kind: "byId",
-        projectId,
-        operation_name: "getTraceById",
-      },
-    },
-    fn: (input) => {
-      const inputColumn = excludeInputOutput
-        ? "''"
-        : renderingProps.truncated
-          ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
-          : "input";
-      const outputColumn = excludeInputOutput
-        ? "''"
-        : renderingProps.truncated
-          ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
-          : "output";
-      const metadataColumn = excludeMetadata ? "'{}'" : "metadata";
-
-      const query = `
-        SELECT
-          id,
-          name as name,
-          user_id as user_id,
-          ${metadataColumn} as metadata,
-          release as release,
-          version as version,
-          project_id,
-          environment,
-          public as public,
-          bookmarked as bookmarked,
-          tags,
-          ${inputColumn} as input,
-          ${outputColumn} as output,
-          session_id as session_id,
-          0 as is_deleted,
-          timestamp,
-          created_at,
-          updated_at
-        FROM traces
-        WHERE id = {traceId: String}
-        AND project_id = {projectId: String}
-        ${timestamp ? `AND toDate(timestamp) = toDate({timestamp: DateTime64(3)})` : ""}
-        ${fromTimestamp ? `AND timestamp >= {fromTimestamp: DateTime64(3)}` : ""}
-        ORDER BY event_ts DESC
-        LIMIT 1
-      `;
-
-      return queryClickhouse<TraceRecordReadType>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService,
-      });
-    },
+    timestamp,
+    fromTimestamp,
+    renderingProps,
+    excludeInputOutput,
+    excludeMetadata,
   });
 
-  const res = records.map((record) =>
-    convertClickhouseToDomain(record, renderingProps),
-  );
-
-  res.forEach((trace) => {
-    recordDistribution(
-      "langfuse.query_by_id_age",
-      new Date().getTime() - trace.timestamp.getTime(),
-      {
-        table: "traces",
-      },
-    );
-  });
-
-  return res.shift();
-};
-
-export const getTracesGroupedByName = async (
+export const getTracesGroupedByName = (
   projectId: string,
-  tableDefinitions: UiColumnMappings = tracesTableUiColumnDefinitions,
+  _tableDefinitions: UiColumnMappings = tracesTableUiColumnDefinitions,
   timestampFilter?: FilterState,
-) => {
-  const chFilter = timestampFilter
-    ? createFilterFromFilterState(timestampFilter, tableDefinitions)
-    : undefined;
-
-  const timestampFilterRes = chFilter
-    ? new FilterList(chFilter).apply()
-    : undefined;
-
-  return measureAndReturn({
-    operationName: "getTracesGroupedByName",
+) =>
+  greptimeTraceReads.getTracesGroupedByName(
     projectId,
-    input: {
-      params: {
-        projectId,
-        ...(timestampFilterRes ? timestampFilterRes.params : {}),
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        projectId,
-        operation_name: "getTracesGroupedByName",
-      },
-    },
-    fn: async (input) => {
-      // We mainly use queries like this to retrieve filter options.
-      // Therefore, we can skip final as some inaccuracy in count is acceptable.
-      const query = `
-        select
-          name as name,
-          count(*) as count
-        from traces t
-        WHERE t.project_id = {projectId: String}
-        AND t.name IS NOT NULL
-        ${timestampFilterRes?.query ? `AND ${timestampFilterRes.query}` : ""}
-        GROUP BY name
-        ORDER BY count(*) desc
-        LIMIT 1000;
-      `;
+    undefined,
+    timestampFilter,
+  );
 
-      return queryClickhouse<{
-        name: string;
-        count: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-    },
-  });
-};
-
-export const getTracesGroupedBySessionId = async (
+export const getTracesGroupedBySessionId = (
   projectId: string,
   filter: FilterState,
   searchQuery?: string,
   limit?: number,
   offset?: number,
-  columns?: UiColumnMappings,
+  _columns?: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
-) => {
-  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
-    tracesPrefix: "t",
-  });
-
-  tracesFilter.push(
-    ...createFilterFromFilterState(
-      filter,
-      columns ?? tracesTableUiColumnDefinitions,
-      columnDefinitions ?? tracesTableCols,
-    ),
+) =>
+  greptimeTraceReads.getTracesGroupedBySessionId(
+    projectId,
+    filter,
+    searchQuery,
+    limit,
+    offset,
+    undefined,
+    columnDefinitions,
   );
 
-  const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition({
-    query: searchQuery,
-    tablePrefix: "t",
-  });
-
-  return measureAndReturn({
-    operationName: "getTracesGroupedBySessionId",
-    projectId,
-    input: {
-      params: {
-        limit,
-        offset,
-        projectId,
-        ...(tracesFilterRes ? tracesFilterRes.params : {}),
-        ...(searchQuery ? search.params : {}),
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        projectId,
-        operation_name: "getTracesGroupedBySessionId",
-      },
-    },
-    fn: async (input) => {
-      // We mainly use queries like this to retrieve filter options.
-      // Therefore, we can skip final as some inaccuracy in count is acceptable.
-      const query = `
-        select
-          session_id as session_id,
-          count(*) as count
-        from traces t
-        WHERE t.project_id = {projectId: String}
-        AND t.session_id IS NOT NULL
-        AND t.session_id != ''
-        ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
-        ${search.query}
-        GROUP BY session_id
-        ORDER BY count desc
-        ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-      `;
-
-      return queryClickhouse<{
-        session_id: string;
-        count: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-    },
-  });
-};
-
-export const getTracesGroupedByUsers = async (
+export const getTracesGroupedByUsers = (
   projectId: string,
   filter: FilterState,
   searchQuery?: string,
   limit?: number,
   offset?: number,
-  columns?: UiColumnMappings,
+  _columns?: UiColumnMappings,
   columnDefinitions?: ColumnDefinition[],
-) => {
-  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
-    tracesPrefix: "t",
-  });
-
-  tracesFilter.push(
-    ...createFilterFromFilterState(
-      filter,
-      columns ?? tracesTableUiColumnDefinitions,
-      columnDefinitions ?? tracesTableCols,
-    ),
-  );
-
-  const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition({
-    query: searchQuery,
-    tablePrefix: "t",
-  });
-
-  return measureAndReturn({
-    operationName: "getTracesGroupedByUsers",
+) =>
+  greptimeTraceReads.getTracesGroupedByUsers(
     projectId,
-    input: {
-      params: {
-        limit,
-        offset,
-        projectId,
-        ...(tracesFilterRes ? tracesFilterRes.params : {}),
-        ...(searchQuery ? search.params : {}),
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        projectId,
-        operation_name: "getTracesGroupedByUsers",
-      },
-    },
-    fn: async (input) => {
-      // We mainly use queries like this to retrieve filter options.
-      // Therefore, we can skip final as some inaccuracy in count is acceptable.
-      const query = `
-        select
-          user_id as user,
-          count(*) as count
-        from traces t
-        WHERE t.project_id = {projectId: String}
-        AND t.user_id IS NOT NULL
-        AND t.user_id != ''
-        ${tracesFilterRes?.query ? `AND ${tracesFilterRes.query}` : ""}
-        ${search.query}
-        GROUP BY user
-        ORDER BY count desc
-        ${limit !== undefined && offset !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
-      `;
-
-      return queryClickhouse<{
-        user: string;
-        count: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-    },
-  });
-};
+    filter,
+    searchQuery,
+    limit,
+    offset,
+    undefined,
+    columnDefinitions,
+  );
 
 export type GroupedTracesQueryProp = {
   projectId: string;
@@ -846,53 +347,13 @@ export type GroupedTracesQueryProp = {
   columnDefinitions?: ColumnDefinition[];
 };
 
-export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
-  const { projectId, filter, columns, columnDefinitions } = props;
-
-  const chFilter = createFilterFromFilterState(
-    filter,
-    columns ?? tracesTableUiColumnDefinitions,
-    columnDefinitions ?? tracesTableCols,
-  );
-
-  const filterRes = new FilterList(chFilter).apply();
-
-  return measureAndReturn({
-    operationName: "getTracesGroupedByTags",
-    projectId,
-    input: {
-      params: {
-        projectId,
-        ...(filterRes ? filterRes.params : {}),
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        projectId,
-        operation_name: "getTracesGroupedByTags",
-      },
-    },
-    fn: async (input) => {
-      const query = `
-        select distinct(arrayJoin(tags)) as value
-        from traces t
-        WHERE t.project_id = {projectId: String}
-        ${filterRes?.query ? `AND ${filterRes.query}` : ""}
-        LIMIT 1000;
-      `;
-
-      return queryClickhouse<{
-        value: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-    },
+export const getTracesGroupedByTags = (props: GroupedTracesQueryProp) =>
+  greptimeTraceReads.getTracesGroupedByTags({
+    projectId: props.projectId,
+    filter: props.filter,
+    columns: undefined,
+    columnDefinitions: props.columnDefinitions,
   });
-};
 
 /**
  * Retrieves identifier rows for the traces referencing a session from the
@@ -904,64 +365,14 @@ export const getTracesGroupedByTags = async (props: GroupedTracesQueryProp) => {
  * directly only when you specifically need the legacy table (e.g. backfills,
  * migration tooling).
  */
-export const getTracesIdentifierForSessionFromTracesTable = async (
+export const getTracesIdentifierForSessionFromTracesTable = (
   projectId: string,
   sessionId: string,
-) => {
-  const rows = await measureAndReturn({
-    operationName: "getTracesIdentifierForSession",
+) =>
+  greptimeTraceReads.getTracesIdentifierForSessionFromTracesTable(
     projectId,
-    input: {
-      params: {
-        projectId,
-        sessionId,
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "list",
-        projectId,
-        operation_name: "getTracesIdentifierForSession",
-      },
-    },
-    fn: (input) => {
-      const query = `
-        SELECT
-          id,
-          user_id,
-          name,
-          timestamp,
-          project_id,
-          environment
-        FROM traces
-        WHERE (project_id = {projectId: String})
-        AND (session_id = {sessionId: String})
-        ORDER BY timestamp ASC
-        LIMIT 1 BY id, project_id;
-      `;
-
-      return queryClickhouse<{
-        id: string;
-        user_id: string;
-        name: string;
-        timestamp: string;
-        environment: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
-  });
-
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.user_id,
-    name: row.name,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-    environment: row.environment,
-  }));
-};
+    sessionId,
+  );
 
 export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   await measureAndReturn({
@@ -1031,34 +442,8 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   });
 };
 
-export const hasAnyTraceOlderThan = async (
-  projectId: string,
-  beforeDate: Date,
-) => {
-  const query = `
-    SELECT 1
-    FROM traces
-    WHERE project_id = {projectId: String}
-    AND timestamp < {cutoffDate: DateTime64(3)}
-    LIMIT 1
-  `;
-
-  const rows = await queryClickhouse<{ 1: number }>({
-    query,
-    params: {
-      projectId,
-      cutoffDate: convertDateToClickhouseDateTime(beforeDate),
-    },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "hasAnyOlderThan",
-      projectId,
-    },
-  });
-
-  return rows.length > 0;
-};
+export const hasAnyTraceOlderThan = (projectId: string, beforeDate: Date) =>
+  greptimeTraceReads.hasAnyTraceOlderThan(projectId, beforeDate);
 
 export const deleteTracesOlderThanDays = async (
   projectId: string,
@@ -1146,100 +531,15 @@ export const deleteTracesByProjectId = async (
   return true;
 };
 
-export const hasAnyUser = async (projectId: string) => {
-  return measureAndReturn({
-    operationName: "hasAnyUser",
-    projectId,
-    input: {
-      projectId,
-      tags: {
-        feature: "tracing",
-        type: "user",
-        kind: "hasAny",
-        projectId,
-        operation_name: "hasAnyUser",
-      },
-    },
-    fn: async (input) => {
-      const query = `
-        SELECT 1
-        FROM traces
-        WHERE project_id = {projectId: String}
-        AND user_id IS NOT NULL
-        AND user_id != ''
-        LIMIT 1
-      `;
+export const hasAnyUser = (projectId: string) =>
+  greptimeTraceReads.hasAnyUser(projectId);
 
-      const rows = await queryClickhouse<{ 1: number }>({
-        query,
-        params: {
-          projectId: input.projectId,
-        },
-        tags: input.tags,
-      });
-
-      return rows.length > 0;
-    },
-  });
-};
-
-export const getTotalUserCount = async (
+export const getTotalUserCount = (
   projectId: string,
   filter: FilterState,
   searchQuery?: string,
-): Promise<{ totalCount: bigint }[]> => {
-  const { tracesFilter } = getProjectIdDefaultFilter(projectId, {
-    tracesPrefix: "t",
-  });
-
-  tracesFilter.push(
-    ...createFilterFromFilterState(
-      filter,
-      tracesTableUiColumnDefinitions,
-      tracesTableCols,
-    ),
-  );
-
-  const tracesFilterRes = tracesFilter.apply();
-  const search = clickhouseSearchCondition({
-    query: searchQuery,
-    tablePrefix: "t",
-  });
-
-  return measureAndReturn({
-    operationName: "getTotalUserCount",
-    projectId,
-    input: {
-      params: {
-        ...tracesFilterRes.params,
-        ...search.params,
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "analytic",
-        projectId,
-        operation_name: "getTotalUserCount",
-      },
-    },
-    fn: async (input) => {
-      const query = `
-        SELECT COUNT(DISTINCT t.user_id) AS totalCount
-        FROM traces t
-        WHERE ${tracesFilterRes.query}
-        ${search.query}
-        AND t.user_id IS NOT NULL
-        AND t.user_id != ''
-      `;
-
-      return queryClickhouse({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
-  });
-};
+): Promise<{ totalCount: bigint }[]> =>
+  greptimeTraceReads.getTotalUserCount(projectId, filter, searchQuery);
 
 export const getUserMetrics = async (
   projectId: string,
@@ -1655,48 +955,10 @@ export async function getAgentGraphData(params: {
  * for usage aggregation to be meaningful.
  *
  */
-export const getTraceCountsByProjectAndDay = async ({
-  startDate,
-  endDate,
-}: {
+export const getTraceCountsByProjectAndDay = (args: {
   startDate: Date;
   endDate: Date;
-}) => {
-  const query = `
-    SELECT
-      count(*) as count,
-      project_id,
-      toDate(timestamp) as date
-    FROM traces
-    WHERE timestamp >= {startDate: DateTime64(3)}
-    AND timestamp < {endDate: DateTime64(3)}
-    GROUP BY project_id, toDate(timestamp)
-  `;
-
-  const rows = await queryClickhouse<{
-    count: string;
-    project_id: string;
-    date: string;
-  }>({
-    query,
-    params: {
-      startDate: convertDateToClickhouseDateTime(startDate),
-      endDate: convertDateToClickhouseDateTime(endDate),
-    },
-    clickhouseConfigs: { request_timeout: 120_000 },
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "analytic",
-    },
-  });
-
-  return rows.map((row) => ({
-    count: Number(row.count),
-    projectId: row.project_id,
-    date: row.date,
-  }));
-};
+}) => greptimeTraceReads.getTraceCountsByProjectAndDay(args);
 
 // ─── TRACE_FIELD_GROUPS (public-API field selection) ─────────────────────────
 
