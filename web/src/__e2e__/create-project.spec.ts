@@ -50,15 +50,6 @@ test.describe("Create project", () => {
       'button[data-testid="submit-email-password-sign-in-form"]',
     );
 
-    await page.waitForTimeout(2000);
-
-    const errorElement = page.locator(".text-destructive");
-    const hasError = await errorElement.isVisible().catch(() => false);
-    if (hasError) {
-      const errorText = await errorElement.textContent();
-      throw new Error(`Sign-in failed with error: ${errorText}`);
-    }
-
     await expect(page).toHaveURL("/");
 
     // Start create org flow
@@ -93,9 +84,9 @@ test.describe("Create project", () => {
     await page.goto("/project/" + projectId);
     await expect(page).toHaveURL(new RegExp(`/project/${projectId}`));
 
-    await page.waitForTimeout(10000);
-    const headings = await page.locator("h2").allTextContents();
-    expect(headings).toContain("Home");
+    await expect(
+      page.getByRole("heading", { level: 2, name: /^Home$/ }),
+    ).toBeVisible({ timeout: 15000 });
 
     // Check for console errors
     // expect(errors).toHaveLength(0);
@@ -147,15 +138,6 @@ const signin = async (page: Page) => {
   ).toBeEnabled();
 
   await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
 
   await expect(page).toHaveURL("/");
 };
