@@ -41,7 +41,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -51,13 +51,18 @@ import {
   BlobStorageExportMode,
   AnalyticsIntegrationExportSource,
   type BlobStorageIntegration,
-  EXPORT_SOURCE_OPTIONS,
   EXPORT_FIELD_GROUP_OPTIONS,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
+  isEnrichedBlobExportSource,
   isLegacyBlobExportAllowed,
   isLegacyBlobExporter,
 } from "@langfuse/shared";
+import {
+  getExportSourceFormValue,
+  getExportSourceOptions,
+  isExportSourceSelectable,
+} from "@/src/features/blobstorage-integration/exportSource";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { Info, ExternalLink } from "lucide-react";
@@ -249,31 +254,50 @@ const BlobStorageIntegrationSettingsForm = ({
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
 
-  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS). The
-  // Export Source field is hidden in that case; the form value is pinned to
-  // EVENTS via the default below.
+  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS); the
+  // Export Source picker is rendered disabled in that case.
   const isPostCutoffCloud =
     project?.createdAt != null &&
     !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
   const eventsExportAvailable = isEnrichedExportAvailable;
   // Integration-level cutoff (Cloud only): an existing row created before
-  // LEGACY_BLOB_EXPORTER_CUTOFF stays legacy (picker visible); a new row (no
-  // state yet) or a post-cutoff row is not legacy (picker hidden, pinned to
-  // EVENTS). Stable across revisits because the row's createdAt is immutable.
+  // LEGACY_BLOB_EXPORTER_CUTOFF stays legacy (legacy options selectable); a
+  // new row (no state yet) or a post-cutoff row is not legacy (picker locked
+  // to EVENTS). Stable across revisits because the row's createdAt is
+  // immutable.
   const isLegacyExporter = isLegacyBlobExporter(
     state?.createdAt ? new Date(state.createdAt) : null,
     isLangfuseCloud,
   );
+  // Legacy sources are not selectable when either Cloud cutoff applies.
   const forceEventsExport =
     isPostCutoffCloud || (eventsExportAvailable && !isLegacyExporter);
-  // The picker only exists where the enriched events export is available
-  // (Cloud, or self-hosted with the V4 preview opt-in — server-computed flag).
-  // Where it isn't, the picker stays hidden and the form defaults to
-  // TRACES_OBSERVATIONS, since EVENTS is not provisioned there.
-  const showExportSourceField = eventsExportAvailable && !forceEventsExport;
+  const availability = useMemo(
+    () => ({ eventsExportAvailable, forceEventsExport }),
+    [eventsExportAvailable, forceEventsExport],
+  );
+
+  // The persisted export source is kept in the form even when it is not
+  // selectable on this deployment (e.g. an enriched source after a V4-preview
+  // rollback); this refine blocks the save until the user resolves the
+  // conflict, instead of silently rewriting the persisted value (LFE-10296).
+  const formSchema = useMemo(
+    () =>
+      blobStorageIntegrationFormSchema.superRefine((data, ctx) => {
+        if (!isExportSourceSelectable(data.exportSource, availability)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["exportSource"],
+            message:
+              "This export source is not available on this deployment. Select an available export source to save.",
+          });
+        }
+      }),
+    [availability],
+  );
 
   const blobStorageForm = useForm({
-    resolver: zodResolver(blobStorageIntegrationFormSchema),
+    resolver: zodResolver(formSchema),
     defaultValues: {
       type: state?.type || BlobStorageIntegrationType.S3,
       bucketName: state?.bucketName || "",
@@ -292,20 +316,7 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource: forceEventsExport
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : (() => {
-            const persisted = state?.exportSource;
-            const isEnriched =
-              persisted === AnalyticsIntegrationExportSource.EVENTS ||
-              persisted ===
-                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
-            if (persisted && (!isEnriched || eventsExportAvailable))
-              return persisted;
-            return eventsExportAvailable
-              ? AnalyticsIntegrationExportSource.EVENTS
-              : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
-          })(),
+      exportSource: getExportSourceFormValue(state?.exportSource, availability),
       // Empty array in the DB means "export everything" (the worker falls back
       // to all groups), so surface it as the full selection in the form.
       exportFieldGroups: state?.exportFieldGroups?.length
@@ -336,20 +347,7 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource: forceEventsExport
-        ? AnalyticsIntegrationExportSource.EVENTS
-        : (() => {
-            const persisted = state?.exportSource;
-            const isEnriched =
-              persisted === AnalyticsIntegrationExportSource.EVENTS ||
-              persisted ===
-                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
-            if (persisted && (!isEnriched || eventsExportAvailable))
-              return persisted;
-            return eventsExportAvailable
-              ? AnalyticsIntegrationExportSource.EVENTS
-              : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
-          })(),
+      exportSource: getExportSourceFormValue(state?.exportSource, availability),
       // Empty array in the DB means "export everything" (the worker falls back
       // to all groups), so surface it as the full selection in the form.
       exportFieldGroups: state?.exportFieldGroups?.length
@@ -358,10 +356,20 @@ const BlobStorageIntegrationSettingsForm = ({
       compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, isEnrichedExportAvailable, isPostCutoffCloud]);
+  }, [state, availability]);
 
   const watchedExportMode = blobStorageForm.watch("exportMode");
   const watchedExportSource = blobStorageForm.watch("exportSource");
+  const exportSourceOptions = getExportSourceOptions(
+    state?.exportSource,
+    availability,
+  );
+  // With a single selectable option there is no choice to make; the picker
+  // stays visible (so the configured source is always legible) but locked.
+  const exportSourceLocked = exportSourceOptions.length === 1;
+  const exportSourceUnavailable =
+    watchedExportSource != null &&
+    !isExportSourceSelectable(watchedExportSource, availability);
   // The legacy observations table contains fewer columns than the enriched
   // observations, so the per-group field lists differ for legacy-only exports.
   const isLegacyOnlyExport =
@@ -734,66 +742,87 @@ const BlobStorageIntegrationSettingsForm = ({
           )}
         />
 
-        {showExportSourceField && (
-          <FormField
-            control={blobStorageForm.control}
-            name="exportSource"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-1.5 pt-2">
-                  Export Source
-                  <Tooltip>
-                    <TooltipTrigger>
-                      <Info className="text-muted-foreground h-3.5 w-3.5" />
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="bottom"
-                      className="max-w-[350px] space-y-2 p-3"
-                    >
-                      {EXPORT_SOURCE_OPTIONS.map((option) => (
-                        <div key={option.value} className="space-y-0.5">
-                          <div className="font-medium">{option.label}</div>
-                          <div className="text-muted-foreground text-xs">
-                            {option.description}
-                          </div>
+        <FormField
+          control={blobStorageForm.control}
+          name="exportSource"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center gap-1.5 pt-2">
+                Export Source
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="text-muted-foreground h-3.5 w-3.5" />
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="bottom"
+                    className="max-w-[350px] space-y-2 p-3"
+                  >
+                    {exportSourceOptions.map((option) => (
+                      <div key={option.value} className="space-y-0.5">
+                        <div className="font-medium">{option.label}</div>
+                        <div className="text-muted-foreground text-xs">
+                          {option.description}
                         </div>
-                      ))}
-                      <div className="border-t pt-2">
-                        <a
-                          href="https://langfuse.com/docs/integrations/export-sources"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                        >
-                          For further information see
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
                       </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select data to export" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {EXPORT_SOURCE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-                <FormDescription>
-                  Choose which data sources to export to blob storage. Scores
-                  are always included.
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+                    <div className="border-t pt-2">
+                      <a
+                        href="https://langfuse.com/docs/integrations/export-sources"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                      >
+                        For further information see
+                        <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </FormLabel>
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+                disabled={exportSourceLocked}
+              >
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select data to export" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {exportSourceOptions.map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value}
+                      disabled={option.unavailable}
+                    >
+                      {option.unavailable
+                        ? `${option.label} (not available on this deployment)`
+                        : option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Choose which data sources to export to blob storage. Scores are
+                always included.
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        {exportSourceUnavailable && (
+          <Alert variant="destructive">
+            <AlertTitle>Saved export source is no longer available</AlertTitle>
+            <AlertDescription>
+              {/* The picker can hold an unavailable value for two distinct
+                  reasons; the guidance differs. */}
+              {isEnrichedBlobExportSource(watchedExportSource)
+                ? "This integration is configured to export enriched observations, but enriched export is not available on this deployment. Saving is blocked until you select an available export source above. To keep the current configuration instead, re-enable enriched export (V4 preview opt-in) on your deployment."
+                : "This integration is configured to export the legacy traces and observations, which is not available for this project. Saving is blocked until you select an available export source above."}
+            </AlertDescription>
+          </Alert>
         )}
 
         <FormField

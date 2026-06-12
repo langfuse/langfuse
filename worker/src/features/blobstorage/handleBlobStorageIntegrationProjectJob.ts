@@ -30,10 +30,12 @@ import {
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
+  isEnrichedBlobExportAvailable,
+  isEnrichedBlobExportSource,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
-import { env } from "../../env";
+import { env, v4AllowPreviewOptIn } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
@@ -427,6 +429,23 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   try {
+    // A persisted enriched export source on a deployment without the enriched
+    // export path (e.g. left behind by a V4-preview rollback on self-hosted)
+    // would silently export from unpopulated tables. Fail the job instead —
+    // the catch below persists lastError (surfaced in the settings UI) and
+    // notifies the project admins (LFE-10296).
+    if (
+      isEnrichedBlobExportSource(blobStorageIntegration.exportSource) &&
+      !isEnrichedBlobExportAvailable(
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+        v4AllowPreviewOptIn(env),
+      )
+    ) {
+      throw new Error(
+        "The configured export source includes enriched observations, but enriched export is not available on this deployment. Select a different export source in the blob storage integration settings, or re-enable enriched export (V4 preview opt-in) on this deployment.",
+      );
+    }
+
     // Preflight the persisted integration endpoint once per job inside the
     // export error path. StorageService connection-time validation remains the
     // DNS-rebinding defense for each SDK connection.
