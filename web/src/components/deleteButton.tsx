@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import {
   Popover,
@@ -6,7 +7,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { LockIcon, TrashIcon } from "lucide-react";
+import { ExternalLinkIcon, LockIcon, TrashIcon } from "lucide-react";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
@@ -14,6 +15,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 
 export type DeleteButtonProps = {
@@ -29,6 +31,9 @@ export type DeleteButtonProps = {
   variant?: ButtonProps["variant"];
   title?: string;
   className?: string;
+  // forwarded explicitly because the base component does not spread unknown
+  // props onto the rendered button
+  "aria-label"?: string;
 };
 
 type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
@@ -48,6 +53,9 @@ type BaseDeleteButtonProps = Omit<DeleteButtonProps, "itemId"> & {
   executeDeleteMutation: (onSuccess: () => void) => Promise<void>;
   isDeleteMutationLoading: boolean;
   itemId?: string;
+  // when set, the popover explains why deletion is blocked instead of asking for confirmation
+  deleteBlocker?: React.ReactNode;
+  onPopoverOpenChange?: (open: boolean) => void;
 };
 
 export function DeleteButton({
@@ -69,6 +77,9 @@ export function DeleteButton({
   executeDeleteMutation,
   isDeleteMutationLoading,
   customDeletePrompt,
+  deleteBlocker,
+  onPopoverOpenChange,
+  "aria-label": ariaLabel,
 }: BaseDeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
   const router = useRouter();
@@ -95,12 +106,13 @@ export function DeleteButton({
   ]);
 
   return (
-    <Popover key={itemId ?? "delete-action"}>
+    <Popover key={itemId ?? "delete-action"} onOpenChange={onPopoverOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant={variant ?? (icon ? "outline-solid" : "ghost")}
           size={icon ? "icon" : "default"}
           title={title}
+          aria-label={ariaLabel}
           className={className}
           disabled={!hasAccess || !enabled}
           onClick={(e) => {
@@ -123,43 +135,47 @@ export function DeleteButton({
         </Button>
       </PopoverTrigger>
       <PopoverContent onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
-        <p className="mb-3 max-w-72 text-sm">
-          {customDeletePrompt ??
-            `This action cannot be undone. It removes all the data associated with
+        {deleteBlocker ?? (
+          <>
+            <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+            <p className="mb-3 max-w-72 text-sm">
+              {customDeletePrompt ??
+                `This action cannot be undone. It removes all the data associated with
             this ${entityToDeleteName}. If this is the project default, it will be deleted for all users.`}
-        </p>
-        {deleteConfirmation && (
-          <div className="mb-4 grid w-full gap-1.5">
-            <Label htmlFor="delete-confirmation">
-              Type &quot;{deleteConfirmation}&quot; to confirm
-            </Label>
-            <Input
-              id="delete-confirmation"
-              value={deleteConfirmationInput}
-              onChange={(e) => setDeleteConfirmationInput(e.target.value)}
-            />
-          </div>
+            </p>
+            {deleteConfirmation && (
+              <div className="mb-4 grid w-full gap-1.5">
+                <Label htmlFor="delete-confirmation">
+                  Type &quot;{deleteConfirmation}&quot; to confirm
+                </Label>
+                <Input
+                  id="delete-confirmation"
+                  value={deleteConfirmationInput}
+                  onChange={(e) => setDeleteConfirmationInput(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="flex justify-end space-x-4">
+              <Button
+                type="button"
+                variant="destructive"
+                loading={isDeleteMutationLoading || isDeleted}
+                onClick={() => {
+                  if (
+                    deleteConfirmation &&
+                    deleteConfirmationInput !== deleteConfirmation
+                  ) {
+                    alert("Please type the correct confirmation");
+                    return;
+                  }
+                  executeDeleteMutation(onDeleteSuccess);
+                }}
+              >
+                Delete {entityToDeleteName}
+              </Button>
+            </div>
+          </>
         )}
-        <div className="flex justify-end space-x-4">
-          <Button
-            type="button"
-            variant="destructive"
-            loading={isDeleteMutationLoading || isDeleted}
-            onClick={() => {
-              if (
-                deleteConfirmation &&
-                deleteConfirmationInput !== deleteConfirmation
-              ) {
-                alert("Please type the correct confirmation");
-                return;
-              }
-              executeDeleteMutation(onDeleteSuccess);
-            }}
-          >
-            Delete {entityToDeleteName}
-          </Button>
-        </div>
       </PopoverContent>
     </Popover>
   );
@@ -462,47 +478,130 @@ export function DeleteEvaluationModelButton(
   );
 }
 
-// TODO: Moved to LFE-4573
-// export function DeleteEvaluatorTemplateButton(props: DeleteButtonProps) {
-//   const utils = api.useUtils();
-//   const { itemId, projectId,
-//     scope = "evalTemplate:CUD",
-//     invalidateFunc = () => void utils.evals.invalidate(),
-//   } = props;
-//   const templateMutation = api.evals.deleteEvalTemplate.useMutation();
-//   const executeDeleteMutation = async (onSuccess: () => void) => {
-//     try {
-//       await templateMutation.mutateAsync({
-//         evalTemplateId: itemId,
-//         projectId,
-//       });
-//     } catch (error) {
-//       return Promise.reject(error);
-//     }
-//     onSuccess();
-//   };
-//   const hasModelBasedEvaluationEntitlement = useHasEntitlement(
-//     "model-based-evaluations",
-//   );
-//   return (
-//     <DeleteButton
-//       {...props}
-//       scope={scope}
-//       invalidateFunc={invalidateFunc}
-//       captureDeleteOpen={(capture, isTableAction) =>
-//         capture("eval_templates:delete_form_open", {
-//           source: isTableAction ? "table-single-row" : "template",
-//         })
-//       }
-//       captureDeleteSuccess={(capture, isTableAction) =>
-//         capture("eval_templates:delete_template_button_click", {
-//           source: isTableAction ? "table-single-row" : "template",
-//         })
-//       }
-//       entityToDeleteName="template"
-//       executeDeleteMutation={executeDeleteMutation}
-//       isDeleteMutationLoading={templateMutation.isLoading}
-//       enabled={hasModelBasedEvaluationEntitlement}
-//     />
-//   );
-// }
+export function DeleteEvalTemplateButton(
+  props: DeleteButtonProps & {
+    // usage count from already-loaded table data; lets the blocked state
+    // render instantly while the usage query is in flight
+    initialUsageCount?: number;
+    // the template name; doubles as the type-to-confirm string
+    deleteConfirmation: string;
+  },
+) {
+  const utils = api.useUtils();
+  const {
+    itemId,
+    projectId,
+    scope = "evalTemplate:CUD",
+    invalidateFunc = () => utils.evals.invalidate(),
+    initialUsageCount,
+    deleteConfirmation: templateName,
+  } = props;
+
+  const templateMutation = api.evals.deleteEvalTemplate.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Evaluator deleted",
+        description: `Evaluator "${templateName}" was deleted.`,
+      });
+      utils.evals.invalidate();
+    },
+    onError: (error) =>
+      showErrorToast("Failed to delete evaluator", error.message),
+  });
+
+  // only fetch usage once the user actually opens the delete popover; once
+  // the delete starts the query must go inactive, otherwise the post-delete
+  // cache invalidation refetches it and surfaces a NOT_FOUND. Gating on
+  // isPending (not just isSuccess) matters: the mutation's onSuccess — and
+  // its invalidate — runs before the success state is dispatched, so the
+  // query must already be disabled by then.
+  const [hasOpenedPopover, setHasOpenedPopover] = useState(false);
+  const usage = api.evals.evalTemplateUsage.useQuery(
+    { projectId, evalTemplateId: itemId },
+    {
+      enabled:
+        hasOpenedPopover &&
+        !templateMutation.isPending &&
+        !templateMutation.isSuccess,
+    },
+  );
+  const referencingEvaluators = usage.data;
+  const usageCount = referencingEvaluators?.length ?? initialUsageCount ?? 0;
+
+  const executeDeleteMutation = async (onSuccess: () => void) => {
+    try {
+      await templateMutation.mutateAsync({
+        evalTemplateId: itemId,
+        projectId,
+      });
+      onSuccess();
+    } catch {
+      // surfaced via the mutation's onError toast (e.g. evaluator still in use)
+    }
+  };
+
+  const renderEvaluatorLink = (evaluator: {
+    id: string;
+    scoreName: string;
+  }) => (
+    <Link
+      href={`/project/${projectId}/evals?peek=${evaluator.id}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 text-blue-600 hover:underline"
+    >
+      {evaluator.scoreName}
+      <ExternalLinkIcon className="h-3 w-3" />
+    </Link>
+  );
+
+  const deleteBlocker =
+    usageCount > 0 ? (
+      <>
+        <h2 className="text-md mb-3 font-semibold">Cannot delete</h2>
+        <p className="mb-3 max-w-72 text-sm">
+          This evaluator is used by {usageCount} running evaluator
+          {usageCount === 1 ? "" : "s"}. Delete those running evaluators first.
+        </p>
+        {referencingEvaluators && referencingEvaluators.length > 0 ? (
+          referencingEvaluators.length === 1 ? (
+            <div className="max-w-72 text-sm">
+              {renderEvaluatorLink(referencingEvaluators[0])}
+            </div>
+          ) : (
+            <ul className="max-h-40 max-w-72 list-inside list-disc overflow-y-auto text-sm">
+              {referencingEvaluators.map((evaluator) => (
+                <li key={evaluator.id}>{renderEvaluatorLink(evaluator)}</li>
+              ))}
+            </ul>
+          )
+        ) : null}
+      </>
+    ) : undefined;
+
+  return (
+    <DeleteButton
+      {...props}
+      scope={scope}
+      invalidateFunc={invalidateFunc}
+      captureDeleteOpen={(capture, isTableAction) =>
+        capture("eval_templates:delete_form_open", {
+          source: isTableAction ? "table-single-row" : "template",
+        })
+      }
+      captureDeleteSuccess={(capture, isTableAction) =>
+        capture("eval_templates:delete_template_button_click", {
+          source: isTableAction ? "table-single-row" : "template",
+        })
+      }
+      entityToDeleteName="evaluator"
+      customDeletePrompt="This action cannot be undone. It permanently deletes all versions of this evaluator. Scores already produced by it will not be deleted."
+      executeDeleteMutation={executeDeleteMutation}
+      isDeleteMutationLoading={templateMutation.isPending}
+      deleteBlocker={deleteBlocker}
+      onPopoverOpenChange={(open) => {
+        if (open) setHasOpenedPopover(true);
+      }}
+    />
+  );
+}

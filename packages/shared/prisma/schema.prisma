@@ -1117,6 +1117,8 @@ model JobExecution {
   @@index([projectId, jobConfigurationId, jobInputTraceId])
   @@index([projectId, jobOutputScoreId])
   @@index([jobConfigurationId])
+  // required so the FK's ON DELETE SET NULL does not seq-scan this (huge) table on eval template deletion
+  @@index([jobTemplateId])
   @@map("job_executions")
 }
 
