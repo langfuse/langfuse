@@ -4255,5 +4255,152 @@
         }
       }
     ]
+  },
+  {
+    "id": "f0281c6e-f7a5-447a-92d4-11fab8eabd3e",
+    "modelName": "gpt-image-2",
+    "matchPattern": "(?i)^(openai/)?(gpt-image-2)$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "f0281c6e-f7a5-447a-92d4-11fab8eabd3e_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_text_tokens": 5e-6,
+          "input_image": 8e-6,
+          "input_image_tokens": 8e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cached_text_tokens": 1.25e-6,
+          "input_cached_image_tokens": 2e-6,
+          "output": 30e-6,
+          "output_image_tokens": 30e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "ec6c31c8-8d79-456b-9f98-b18332a00055",
+    "modelName": "gpt-image-1.5",
+    "matchPattern": "(?i)^(openai/)?(gpt-image-1\\.5)$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "ec6c31c8-8d79-456b-9f98-b18332a00055_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_text_tokens": 5e-6,
+          "input_image": 8e-6,
+          "input_image_tokens": 8e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cached_text_tokens": 1.25e-6,
+          "input_cached_image_tokens": 2e-6,
+          "output": 32e-6,
+          "output_image_tokens": 32e-6,
+          "output_text_tokens": 10e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "a4518c9e-2043-454a-bb41-79094abbe113",
+    "modelName": "gpt-image-1-mini",
+    "matchPattern": "(?i)^(openai/)?(gpt-image-1-mini)$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "a4518c9e-2043-454a-bb41-79094abbe113_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2e-6,
+          "input_text_tokens": 2e-6,
+          "input_image": 2.5e-6,
+          "input_image_tokens": 2.5e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cached_text_tokens": 0.2e-6,
+          "input_cached_image_tokens": 0.25e-6,
+          "output": 8e-6,
+          "output_image_tokens": 8e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "ec9b9289-e913-4452-86bd-e1f1461779f9",
+    "modelName": "gpt-image-1",
+    "matchPattern": "(?i)^(openai/)?(gpt-image-1)$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "ec9b9289-e913-4452-86bd-e1f1461779f9_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_text_tokens": 5e-6,
+          "input_image": 10e-6,
+          "input_image_tokens": 10e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cached_text_tokens": 1.25e-6,
+          "input_cached_image_tokens": 2.5e-6,
+          "output": 40e-6,
+          "output_image_tokens": 40e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "6c84a813-bf20-407e-92d5-0b789d50b4a5",
+    "modelName": "chatgpt-image-latest",
+    "matchPattern": "(?i)^(openai/)?(chatgpt-image-latest)$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "6c84a813-bf20-407e-92d5-0b789d50b4a5_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 5e-6,
+          "input_text_tokens": 5e-6,
+          "input_image": 8e-6,
+          "input_image_tokens": 8e-6,
+          "input_cached_tokens": 1.25e-6,
+          "input_cached_text_tokens": 1.25e-6,
+          "input_cached_image_tokens": 2e-6,
+          "output": 32e-6,
+          "output_image_tokens": 32e-6,
+          "output_text_tokens": 10e-6
+        }
+      }
+    ]
   }
 ]
