@@ -10,6 +10,7 @@ import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { parseOtelJsonTrace } from "@/src/features/otel/parseOtelJsonTrace";
 
 /** Read a Langfuse header that may arrive with hyphens or underscores. */
 function getLangfuseHeader(
@@ -103,13 +104,15 @@ export default withMiddlewares({
         }
       }
       if (contentType.includes("application/json")) {
-        try {
-          resourceSpans = JSON.parse(body.toString()).resourceSpans;
-        } catch (e) {
-          logger.error(`Failed to parse OTel JSON`, e);
+        const parsed = parseOtelJsonTrace(body);
+
+        if (!parsed.success) {
+          logger.error(parsed.error);
           res.status(400);
-          return { error: "Failed to parse OTel JSON Trace" };
+          return { error: parsed.error };
         }
+
+        resourceSpans = parsed.resourceSpans;
       }
 
       if (!resourceSpans || resourceSpans.length === 0) {
