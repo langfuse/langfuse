@@ -2,24 +2,29 @@ import {
   type Observation,
   type EventsObservation,
   ObservationLevel,
+  eventsTableSingleFilter,
   paginationMetaResponseZod,
   publicApiPaginationZod,
   singleFilter,
   InvalidRequestError,
 } from "@langfuse/shared";
-
 import {
   reduceUsageOrCostDetails,
   stringDateTime,
   type ObservationPriceFields,
-  OBSERVATION_FIELD_GROUPS,
-  type ObservationFieldGroup,
 } from "@langfuse/shared/src/server";
+import {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  type ObservationFieldGroupPublicApi,
+} from "@langfuse/shared";
 import { z } from "zod";
-import { useEventsTableSchema } from "../../query/types";
+import { useEventsTableSchema } from "@langfuse/shared/query";
 
 // Re-export for convenience
-export { OBSERVATION_FIELD_GROUPS, type ObservationFieldGroup };
+export {
+  OBSERVATION_FIELD_GROUPS_PUBLIC_API,
+  type ObservationFieldGroupPublicApi,
+};
 
 /**
  * Objects
@@ -127,6 +132,7 @@ export const transformDbToApiObservation = (
   const totalTokens = reducedUsageDetails.total ?? 0;
 
   const {
+    providedUsageDetails,
     providedCostDetails,
 
     internalModelId,
@@ -150,6 +156,9 @@ export const transformDbToApiObservation = (
 
     // exclude trace name, this will only be available on events api
     traceName,
+
+    // exclude release, this will only be available on events api
+    release,
 
     // Exclude tags
     tags,
@@ -315,11 +324,13 @@ export const GetObservationsV2Query = z.object({
       return v
         .split(",")
         .map((f) => f.trim())
-        .filter((f): f is ObservationFieldGroup =>
-          OBSERVATION_FIELD_GROUPS.includes(f as ObservationFieldGroup),
+        .filter((f): f is ObservationFieldGroupPublicApi =>
+          OBSERVATION_FIELD_GROUPS_PUBLIC_API.includes(
+            f as ObservationFieldGroupPublicApi,
+          ),
         );
     })
-    .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS)).nullable()),
+    .pipe(z.array(z.enum(OBSERVATION_FIELD_GROUPS_PUBLIC_API)).nullable()),
   // Metadata expansion keys (optional)
   // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
   expandMetadata: z
@@ -369,7 +380,7 @@ export const GetObservationsV2Query = z.object({
         throw new InvalidRequestError("Invalid JSON in filter parameter");
       }
     })
-    .pipe(z.array(singleFilter).optional()),
+    .pipe(z.array(eventsTableSingleFilter).optional()),
 });
 
 /**
@@ -420,6 +431,7 @@ const APIObservationV2 = z
     usageDetails: z.record(z.string(), z.number().nonnegative()).optional(),
     costDetails: z.record(z.string(), z.number().nonnegative()).optional(),
     totalCost: z.number().nullable().optional(),
+    usagePricingTierName: z.string().nullable().optional(),
 
     // Prompt fields (field group: prompt)
     promptId: z.string().nullable().optional(),
@@ -430,8 +442,19 @@ const APIObservationV2 = z
     latency: z.number().nullable().optional(),
     timeToFirstToken: z.number().nullable().optional(),
 
-    // Enrichment fields
-    modelId: z.string().nullable().optional(),
+    // Enrichment fields (always present on v2 responses).
+    // Populated only when "model" is in the `fields` query param; otherwise null.
+    // Prices are strings (serialized from Prisma Decimal) to preserve backward compatibility
+    // with callers who built typed schemas against the initial v2 wire format.
+    modelId: z.string().nullable(),
+    inputPrice: z.string().nullable(),
+    outputPrice: z.string().nullable(),
+    totalPrice: z.string().nullable(),
+
+    // Trace context fields (field group: trace_context)
+    traceName: z.string().nullable().optional(),
+    tags: z.array(z.string()).nullable().optional(),
+    release: z.string().nullable().optional(),
   })
   .loose();
 

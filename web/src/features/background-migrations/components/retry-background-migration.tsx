@@ -26,7 +26,7 @@ export function RetryBackgroundMigration({
   const mutRetryBackgroundMigration =
     api.backgroundMigrations.retry.useMutation({
       onSuccess: () => {
-        void utils.backgroundMigrations.invalidate();
+        utils.backgroundMigrations.invalidate();
         toast.success("Migration scheduled for retry");
         setIsOpen(false);
         setAdminApiKey("");

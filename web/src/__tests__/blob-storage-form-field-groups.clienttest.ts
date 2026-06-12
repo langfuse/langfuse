@@ -7,7 +7,7 @@ import {
 } from "@/src/features/blobstorage-integration/types";
 import {
   AnalyticsIntegrationExportSource,
-  BLOB_EXPORT_FIELD_GROUPS,
+  OBSERVATION_FIELD_GROUPS_FULL,
   BlobStorageExportMode,
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
@@ -23,7 +23,7 @@ const VALID_BASE: BlobStorageIntegrationFormSchema = {
   fileType: BlobStorageIntegrationFileType.JSONL,
   exportMode: BlobStorageExportMode.FULL_HISTORY,
   exportSource: AnalyticsIntegrationExportSource.EVENTS,
-  exportFieldGroups: [...BLOB_EXPORT_FIELD_GROUPS],
+  exportFieldGroups: [...OBSERVATION_FIELD_GROUPS_FULL],
   compressed: true,
   endpoint: null,
   accessKeyId: "",
@@ -41,6 +41,8 @@ describe("blob storage form — exportFieldGroups validation", () => {
       AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
       ["basic", "io"],
     ],
+    [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS, []],
+    [AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS, ["basic", "io"]],
   ] as const)(
     "blocks submission when exportSource is %s and core is absent (groups: %s)",
     async (source, exportFieldGroups) => {
@@ -64,14 +66,14 @@ describe("blob storage form — exportFieldGroups validation", () => {
     },
   );
 
-  it("allows submission when exportSource is TRACES_OBSERVATIONS regardless of exportFieldGroups", async () => {
+  it("allows submission when exportSource is TRACES_OBSERVATIONS and core is included", async () => {
     const { result } = renderHook(() =>
       useForm({
         resolver: zodResolver(blobStorageIntegrationFormSchema),
         defaultValues: {
           ...VALID_BASE,
           exportSource: AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
-          exportFieldGroups: [],
+          exportFieldGroups: ["core", "io"],
         },
       }),
     );

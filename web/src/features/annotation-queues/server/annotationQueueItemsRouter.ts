@@ -59,7 +59,10 @@ const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
   },
   [AnnotationQueueObjectType.OBSERVATION]: {
     actionId: ActionId.ObservationAddToAnnotationQueue,
-    tableName: BatchExportTableName.Observations,
+    tableName:
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+        ? BatchExportTableName.Events
+        : BatchExportTableName.Observations,
   },
 };
 
@@ -135,12 +138,13 @@ export const queueItemRouter = createTRPCRouter({
 
       if (item.objectType === AnnotationQueueObjectType.OBSERVATION) {
         const clickhouseObservation =
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
             ? await getObservationByIdFromEventsTable({
                 id: item.objectId,
                 projectId: input.projectId,
               })
-            : await getObservationById({
+            : // eslint-disable-next-line @typescript-eslint/no-deprecated
+              await getObservationById({
                 id: item.objectId,
                 projectId: input.projectId,
               });
@@ -227,7 +231,7 @@ export const queueItemRouter = createTRPCRouter({
 
       if (hasQueueItemsReferencingObservations) {
         traceIds =
-          env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true"
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
             ? await getObservationsTraceIdsFromEventsTable({
                 projectId: input.projectId,
                 observationIds,
@@ -296,10 +300,7 @@ export const queueItemRouter = createTRPCRouter({
       let createdCount = 0;
 
       if (input.isBatchAction && input.query) {
-        const actionProps =
-          MAP_OBJECT_TYPE_TO_ACTION_PROPS[
-            input.objectType as "TRACE" | "SESSION"
-          ];
+        const actionProps = MAP_OBJECT_TYPE_TO_ACTION_PROPS[input.objectType];
         if (!actionProps) {
           throw new TRPCError({
             code: "BAD_REQUEST",

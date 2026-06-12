@@ -95,6 +95,50 @@ export const userAccountRouter = createTRPCRouter({
       };
     }),
 
+  setInAppAgentPreviewEnabled: authenticatedProcedure
+    .input(
+      z.object({
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const currentUser = await ctx.prisma.user.findUnique({
+        where: { id: userId },
+        select: { featureFlags: true },
+      });
+
+      if (!currentUser) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      if (input.enabled) {
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Assistant is not available in self-hosted deployments.",
+          });
+        }
+      }
+
+      const nextFeatureFlags = input.enabled
+        ? Array.from(new Set([...currentUser.featureFlags, "inAppAgent"]))
+        : currentUser.featureFlags.filter((flag) => flag !== "inAppAgent");
+
+      await ctx.prisma.user.update({
+        where: { id: userId },
+        data: { featureFlags: { set: nextFeatureFlags } },
+      });
+
+      return {
+        success: true,
+        inAppAgentPreviewEnabled: input.enabled,
+      };
+    }),
+
   delete: authenticatedProcedure.mutation(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 
@@ -131,16 +175,58 @@ export const userAccountRouter = createTRPCRouter({
   setV4BetaEnabled: authenticatedProcedure
     .input(z.object({ enabled: z.boolean() }))
     .mutation(async ({ input, ctx }) => {
-      const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+      // Mirror the V4 preview gating in the auth.ts session callback so the
+      // write path agrees with what the session reports. Availability is
+      // driven by the write mode.
+      const v4WriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+      const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-      if (
-        !isCloudDeployment &&
-        process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
-      ) {
+      // In events_only mode the preview is mandatory and cannot be toggled off:
+      // the legacy tables it would fall back to are no longer written. Ignore
+      // the requested value so a stale client can't flip a user into broken
+      // reads, and keep the returned session shape consistent with auth.ts.
+      if (v4WriteMode === "events_only") {
+        return {
+          success: true,
+          v4BetaEnabled: true,
+          canToggleV4: false,
+        };
+      }
+
+      // In legacy mode the events tables are not written, so the preview has
+      // nothing correct to read — it stays off and cannot be toggled.
+      if (v4WriteMode === "legacy") {
         return {
           success: true,
           v4BetaEnabled: false,
           canToggleV4: false,
+        };
+      }
+
+      // dual mode. On Cloud the date-based rollout applies (handled below) —
+      // users auto-enabled by the rollout are locked on and cannot toggle off.
+      // Self-hosted deployments are opt-in, but only once they have also set
+      // ALLOW_PREVIEW_OPT_IN=true; otherwise feature paths still gated on that
+      // flag would fall back to legacy tables while the core UI reads events,
+      // so the toggle is not offered (mirrors the auth.ts session callback).
+      if (!isLangfuseCloud) {
+        if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
+          return {
+            success: true,
+            v4BetaEnabled: false,
+            canToggleV4: false,
+          };
+        }
+
+        await ctx.prisma.user.update({
+          where: { id: ctx.session.user.id },
+          data: { v4BetaEnabled: input.enabled },
+        });
+
+        return {
+          success: true,
+          v4BetaEnabled: input.enabled,
+          canToggleV4: true,
         };
       }
 

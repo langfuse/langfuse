@@ -11,6 +11,7 @@ migrate
 /coverage
 **/coverage/
 /certs/
+.playwright-mcp/*
 
 # database
 /prisma/db.sqlite
@@ -24,6 +25,9 @@ next-env.d.ts
 
 # production
 /build
+
+# claude worktrees
+.claude/worktrees
 
 # idea
 .idea
@@ -55,6 +59,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 
+# python
+__pycache__/
+*.py[cod]
+
 /generated
 
 # openapi spec that is copied during build
@@ -74,11 +82,15 @@ node_modules
 .turbo
 
 web/test-results/*
-.playwright-mcp/*
 .codex-artifacts/
+
+# Local DeepSec workspace and generated scan state
+.deepsec/
+
 .mcp.json
 .claude/settings.json
 .claude/skills/
+.claude/launch.json
 .cursor/mcp.json
 .cursor/environment.json
 .vscode/mcp.json
@@ -90,6 +102,7 @@ web/test-results/*
 
 # claude meta files
 .claude/tsc-cache
+.claude/worktrees
 
 # Refactoring planning files (local only)
 **/.refactor/
@@ -97,3 +110,9 @@ web/test-results/*
 
 # Serena MCP server config (local only)
 .serena/
+
+# Local overrides for AGENTS.md
+**/AGENTS.override.md
+
+# Superset config
+.superset/

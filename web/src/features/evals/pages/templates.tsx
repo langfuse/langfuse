@@ -33,7 +33,7 @@ export default function TemplatesPage() {
   return (
     <Page
       headerProps={{
-        title: "LLM-as-a-Judge Evaluators",
+        title: "Evaluators",
         help: {
           description: "View all langfuse managed and custom evaluators.",
           href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",

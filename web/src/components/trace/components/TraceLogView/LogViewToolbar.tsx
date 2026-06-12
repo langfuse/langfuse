@@ -47,12 +47,14 @@ export interface LogViewToolbarProps {
   onToggleExpandAll?: () => void;
   /** Whether all rows are expanded */
   allRowsExpanded?: boolean;
+  /** Whether copy/download action is currently loading */
+  isCopyOrDownloadLoading?: boolean;
+  /** Whether copy/download uses cached I/O only (doesn't load all) */
+  isCopyOrDownloadCacheOnly?: boolean;
   /** Callback to copy JSON */
   onCopyJson?: () => void;
   /** Callback to download JSON */
   onDownloadJson?: () => void;
-  /** Whether download/copy uses cached I/O only (doesn't load all) */
-  isDownloadCacheOnly?: boolean;
   /** Current view type (pretty/json/json-beta) */
   currentView?: "pretty" | "json" | "json-beta";
   /** Whether indent visualization is enabled */
@@ -65,8 +67,6 @@ export interface LogViewToolbarProps {
   showMilliseconds?: boolean;
   /** Callback to toggle milliseconds display */
   onToggleMilliseconds?: () => void;
-  /** Whether download/copy is currently loading */
-  isDownloadLoading?: boolean;
 }
 
 /**
@@ -81,19 +81,21 @@ export const LogViewToolbar = memo(function LogViewToolbar({
   onToggleExpandAll,
   allRowsExpanded,
   onCopyJson,
+  isCopyOrDownloadLoading = false,
   onDownloadJson,
-  isDownloadCacheOnly = false,
+  isCopyOrDownloadCacheOnly = false,
   currentView = "pretty",
   indentEnabled = false,
   indentDisabled = false,
   onToggleIndent,
   showMilliseconds = false,
   onToggleMilliseconds,
-  isDownloadLoading = false,
 }: LogViewToolbarProps) {
   const [isCopied, setIsCopied] = useState(false);
 
   const handleCopyClick = () => {
+    if (isCopyOrDownloadLoading) return;
+
     setIsCopied(true);
     onCopyJson?.();
     setTimeout(() => setIsCopied(false), 1000);
@@ -240,10 +242,12 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={isDownloadLoading ? undefined : handleCopyClick}
-                    disabled={isDownloadLoading}
+                    onClick={
+                      isCopyOrDownloadLoading ? undefined : handleCopyClick
+                    }
+                    disabled={isCopyOrDownloadLoading}
                   >
-                    {isDownloadLoading ? (
+                    {isCopyOrDownloadLoading ? (
                       <Spinner size="xs" />
                     ) : isCopied ? (
                       <Check className="h-3.5 w-3.5" />
@@ -253,15 +257,15 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isDownloadLoading
+                  {isCopyOrDownloadLoading
                     ? "Loading data..."
-                    : isDownloadCacheOnly
+                    : isCopyOrDownloadCacheOnly
                       ? "Copy as JSON (cache only)"
                       : "Copy as JSON"}
                 </TooltipContent>
               </Tooltip>
             </HoverCardTrigger>
-            {isDownloadCacheOnly && !isDownloadLoading && (
+            {isCopyOrDownloadCacheOnly && !isCopyOrDownloadLoading && (
               <HoverCardContent className="w-64 text-sm" sideOffset={8}>
                 <p className="font-medium">Cache-only mode</p>
                 <p className="text-muted-foreground mt-1">
@@ -292,10 +296,12 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7"
-                    onClick={isDownloadLoading ? undefined : onDownloadJson}
-                    disabled={isDownloadLoading}
+                    onClick={
+                      isCopyOrDownloadLoading ? undefined : onDownloadJson
+                    }
+                    disabled={isCopyOrDownloadLoading}
                   >
-                    {isDownloadLoading ? (
+                    {isCopyOrDownloadLoading ? (
                       <Spinner size="xs" />
                     ) : (
                       <Download className="h-3.5 w-3.5" />
@@ -303,15 +309,15 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isDownloadLoading
+                  {isCopyOrDownloadLoading
                     ? "Loading data..."
-                    : isDownloadCacheOnly
+                    : isCopyOrDownloadCacheOnly
                       ? "Download as JSON (cache only)"
                       : "Download as JSON"}
                 </TooltipContent>
               </Tooltip>
             </HoverCardTrigger>
-            {isDownloadCacheOnly && !isDownloadLoading && (
+            {isCopyOrDownloadCacheOnly && !isCopyOrDownloadLoading && (
               <HoverCardContent className="w-64 text-sm" sideOffset={8}>
                 <p className="font-medium">Cache-only mode</p>
                 <p className="text-muted-foreground mt-1">

@@ -108,7 +108,7 @@ export class ClickhouseWriter {
     logger.info("ClickhouseWriter shutdown complete.");
   }
 
-  private async flushAll(fullQueue = false) {
+  public async flushAll(fullQueue = false) {
     return instrumentAsync(
       {
         name: "write-to-clickhouse",
@@ -520,6 +520,12 @@ export class ClickhouseWriter {
       });
 
       if (droppedCount > 0) {
+        recordIncrement(
+          "langfuse.queue.clickhouse_writer.rows_dropped",
+          droppedCount,
+          { entity_type: tableName },
+        );
+
         const droppedIds = queueItems
           .filter((item) => item.attempts >= this.maxAttempts)
           .map((item) => {

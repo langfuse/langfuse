@@ -18,6 +18,7 @@ import {
   DEFAULT_RENDERING_PROPS,
   applyInputOutputRendering,
 } from "../utils/rendering";
+import { parseJsonPrioritised } from "../../utils/json";
 import { logger } from "../logger";
 import { prisma } from "../../db";
 import type { Model, Price } from "@prisma/client";
@@ -65,7 +66,7 @@ export const createModelCache = (projectId: string) => {
  * @param record - The record to convert (can be null/undefined)
  * @returns A new object with all values converted to numbers, or empty object if input is null/undefined
  */
-function convertNumericRecord(
+export function convertNumericRecord(
   record: Record<string, number> | null | undefined,
 ): Record<string, number> {
   if (!record) return {};
@@ -244,9 +245,12 @@ export function convertObservationPartial(
       internalModelId: record.internal_model_id ?? null,
     }),
     ...(record.model_parameters !== undefined && {
+      // ClickHouse stores model_parameters as a free-form string; SDKs can
+      // write non-JSON sentinels here, so fall back to the raw value instead
+      // of throwing for the whole row.
       modelParameters: record.model_parameters
         ? ((typeof record.model_parameters === "string"
-            ? JSON.parse(record.model_parameters)
+            ? parseJsonPrioritised(record.model_parameters)
             : record.model_parameters) ?? null)
         : null,
     }),
@@ -263,6 +267,9 @@ export function convertObservationPartial(
       inputCost: reducedCostDetails.input,
       outputCost: reducedCostDetails.output,
       totalCost: reducedCostDetails.total,
+    }),
+    ...(record.provided_usage_details !== undefined && {
+      providedUsageDetails: convertNumericRecord(record.provided_usage_details),
     }),
     ...(record.provided_cost_details !== undefined && {
       providedCostDetails: convertNumericRecord(record.provided_cost_details),
@@ -354,6 +361,7 @@ export function convertObservationPartial(
     promptVersion: partial.promptVersion ?? null,
     latency: partial.latency ?? null,
     timeToFirstToken: partial.timeToFirstToken ?? null,
+    providedUsageDetails: partial.providedUsageDetails ?? {},
     usageDetails: partial.usageDetails ?? {},
     costDetails: partial.costDetails ?? {},
     providedCostDetails: partial.providedCostDetails ?? {},
@@ -397,24 +405,38 @@ export function convertEventsObservation(
   renderingProps: RenderingProps = DEFAULT_RENDERING_PROPS,
   complete: boolean,
 ): EventsObservation | PartialEventsObservation {
-  // Branch based on complete flag to use correct overload
-  const baseObservation = complete
-    ? convertObservationPartial(
-        record as ObservationRecordReadType,
-        renderingProps,
-        true,
-      )
-    : convertObservationPartial(record, renderingProps, false);
+  if (complete) {
+    const baseObservation = convertObservationPartial(
+      record as ObservationRecordReadType,
+      renderingProps,
+      true,
+    );
+    return {
+      ...baseObservation,
+      userId: record.user_id ?? null,
+      sessionId: record.session_id ?? null,
+      traceName: record.trace_name ?? null,
+      release: record.release ?? null,
+      tags: record.tags ?? null,
+      bookmarked: record.bookmarked!,
+      public: record.public!,
+    };
+  }
 
+  const baseObservation = convertObservationPartial(
+    record,
+    renderingProps,
+    false,
+  );
   return {
     ...baseObservation,
-    userId: record.user_id ?? null,
-    sessionId: record.session_id ?? null,
-    traceName: record.trace_name ?? null,
-    release: record.release ?? null,
-    tags: record.tags ?? [],
-    bookmarked: record.bookmarked,
-    public: record.public,
+    ...(record.user_id !== undefined && { userId: record.user_id }),
+    ...(record.session_id !== undefined && { sessionId: record.session_id }),
+    ...(record.trace_name !== undefined && { traceName: record.trace_name }),
+    ...(record.release !== undefined && { release: record.release }),
+    ...(record.tags !== undefined && { tags: record.tags }),
+    ...(record.bookmarked !== undefined && { bookmarked: record.bookmarked }),
+    ...(record.public !== undefined && { public: record.public }),
   };
 }
 

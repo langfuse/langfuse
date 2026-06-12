@@ -294,8 +294,6 @@ export default function SessionsTable({
     projectId,
     filter: backendFilterState,
     orderBy: null,
-    page: 0,
-    limit: 1,
   };
 
   const payloadGetAll = {

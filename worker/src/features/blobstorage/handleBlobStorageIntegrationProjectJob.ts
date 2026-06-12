@@ -13,8 +13,6 @@ import {
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
-  OBSERVATION_FIELD_GROUPS,
-  type ObservationFieldGroup,
   getCurrentSpan,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -23,11 +21,15 @@ import {
   getProjectAdminEmails,
   enrichObservationWithModelData,
   createModelCache,
+  blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
@@ -40,33 +42,22 @@ export async function* enrichObservationStream(
   projectId: string,
   modelIdField: string,
   convertLatencyToSeconds: boolean,
-  fieldGroups?: ObservationFieldGroup[],
+  fieldGroups?: ObservationFieldGroupFull[],
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
-  const includePricing = !fieldGroups || fieldGroups.includes("usage");
   const includeModelId = !fieldGroups || fieldGroups.includes("model");
 
   for await (const row of stream) {
     const enriched: Record<string, unknown> = { ...row };
 
-    if (includePricing) {
+    if (includeModelId) {
       const modelId = row[modelIdField] as string | null | undefined;
       const model = await getModel(modelId);
       const pricing = enrichObservationWithModelData(model);
       enriched.input_price = pricing.inputPrice;
       enriched.output_price = pricing.outputPrice;
       enriched.total_price = pricing.totalPrice;
-    }
-
-    // model_export (provided_model_name, model_id, model_parameters) is fetched
-    // whenever usage OR model is requested — usage needs model_id for the
-    // pricing lookup. Drop all three when the model group was not requested so
-    // they don't leak into a usage-only export.
-    if (!includeModelId) {
-      delete enriched[modelIdField];
-      delete enriched.provided_model_name;
-      delete enriched.model_parameters;
     }
 
     // ClickHouse returns {} for Map columns even when not SELECTed — drop it
@@ -225,7 +216,7 @@ const processBlobStorageExport = async (config: {
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
-  exportFieldGroups?: ObservationFieldGroup[];
+  exportFieldGroups?: ObservationFieldGroupFull[];
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -243,6 +234,9 @@ const processBlobStorageExport = async (config: {
     awsSse: undefined,
     awsSseKmsKeyId: undefined,
     useAzureBlob: config.type === BlobStorageIntegrationType.AZURE_BLOB_STORAGE,
+    useGoogleCloudStorage: false, // Not supported in blob storage integration
+    useOCIObjectStorage: false, // Not supported in blob storage integration
+    connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
 
   try {
@@ -265,7 +259,7 @@ const processBlobStorageExport = async (config: {
     const exportFieldGroups =
       config.exportFieldGroups && config.exportFieldGroups.length > 0
         ? config.exportFieldGroups
-        : [...OBSERVATION_FIELD_GROUPS];
+        : [...OBSERVATION_FIELD_GROUPS_FULL];
 
     let dataStream: AsyncGenerator<Record<string, unknown>>;
 
@@ -283,10 +277,12 @@ const processBlobStorageExport = async (config: {
             config.projectId,
             config.minTimestamp,
             config.maxTimestamp,
+            exportFieldGroups,
           ),
           config.projectId,
           "model_id",
           false, // v3 query already returns latency in seconds
+          exportFieldGroups,
         );
         break;
       case "scores":
@@ -431,6 +427,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   try {
+    // Preflight the persisted integration endpoint once per job inside the
+    // export error path. StorageService connection-time validation remains the
+    // DNS-rebinding defense for each SDK connection.
+    if (blobStorageIntegration.endpoint) {
+      await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
+    }
+
     // Process the export based on the integration configuration
     // Convert v4 (events table) latency/time_to_first_token from ms to seconds
     // for integrations created on or after 2026-04-01. Before this date, v4 blob
@@ -457,7 +460,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       compressed: blobStorageIntegration.compressed,
       convertV4LatencyToSeconds,
       exportFieldGroups:
-        blobStorageIntegration.exportFieldGroups as ObservationFieldGroup[],
+        blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
     };
 
     // Check if this project should only export traces (legacy behavior via env var)
@@ -587,16 +590,23 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     notifyBlobStorageExportFailedInBackground(projectId);
 
+    const chain = formatErrorChain(error);
     logger.error(
-      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}`,
-      error,
+      `[BLOB INTEGRATION] Error processing blob storage integration for project ${projectId}: ${chain}`,
+      error instanceof Error ? { stack: error.stack } : {},
     );
-    throw error; // Rethrow to trigger retries
+    const rethrown = new Error(chain, { cause: error });
+    // Copy the original stack so BullMQ and the queue processor see the real
+    // failure site rather than this rethrow line. rethrown.stack starts with
+    // the original error's message, which won't match rethrown.message (the
+    // full chain), but structured loggers record them as separate fields.
+    if (error instanceof Error) rethrown.stack = error.stack;
+    throw rethrown;
   }
 };
 
 function notifyBlobStorageExportFailedInBackground(projectId: string): void {
-  void (async () => {
+  (async () => {
     try {
       const cooldownMs =
         env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *
@@ -686,4 +696,15 @@ function extractStorageErrorMessage(error: unknown): string {
 
   // Fallback: ClickHouse errors or other non-wrapped errors
   return error.message.slice(0, 1000);
+}
+
+function formatErrorChain(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const parts: string[] = [];
+  let current: unknown = error;
+  while (current instanceof Error) {
+    parts.push(current.message);
+    current = current.cause;
+  }
+  return parts.join(" caused by ");
 }

@@ -18,7 +18,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 });
 
 import { enrichObservationStream } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
-import type { ObservationFieldGroup } from "@langfuse/shared/src/server";
+import type { ObservationFieldGroupFull } from "@langfuse/shared";
 
 async function* rowStream(
   rows: Record<string, unknown>[],
@@ -64,18 +64,18 @@ describe("enrichObservationStream field group filtering", () => {
     const rows = [{ id: "obs-1", metadata: {} }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core" as ObservationFieldGroup,
+        "core" as ObservationFieldGroupFull,
       ]),
     );
 
     expect(results[0]).not.toHaveProperty("metadata");
   });
 
-  it("does not add pricing fields when usage group is not selected", async () => {
+  it("does not add pricing fields when model group is not selected", async () => {
     const rows = [{ id: "obs-1" }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core" as ObservationFieldGroup,
+        "core" as ObservationFieldGroupFull,
       ]),
     );
 
@@ -85,10 +85,26 @@ describe("enrichObservationStream field group filtering", () => {
     expect(results[0]).not.toHaveProperty("total_price");
   });
 
-  it("adds pricing fields but drops all model_export columns when usage is selected without model", async () => {
-    // ClickHouse fetches model_export (model_id, provided_model_name,
-    // model_parameters) whenever usage is requested so the pricing lookup has
-    // data. All three must be removed from the output when model is not selected.
+  it("does not add pricing fields when usage is selected without model", async () => {
+    // model_export columns are not fetched when only usage is requested,
+    // so there is no model_id to look up and no pricing to enrich.
+    const rows = [{ id: "obs-1" }];
+    const results = await collect(
+      enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
+        "core" as ObservationFieldGroupFull,
+        "usage" as ObservationFieldGroupFull,
+      ]),
+    );
+
+    expect(results[0]).not.toHaveProperty("model_id");
+    expect(results[0]).not.toHaveProperty("provided_model_name");
+    expect(results[0]).not.toHaveProperty("model_parameters");
+    expect(results[0]).not.toHaveProperty("input_price");
+    expect(results[0]).not.toHaveProperty("output_price");
+    expect(results[0]).not.toHaveProperty("total_price");
+  });
+
+  it("adds pricing fields and preserves model_export columns when model group is selected", async () => {
     const rows = [
       {
         id: "obs-1",
@@ -99,26 +115,26 @@ describe("enrichObservationStream field group filtering", () => {
     ];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core" as ObservationFieldGroup,
-        "usage" as ObservationFieldGroup,
+        "core" as ObservationFieldGroupFull,
+        "model" as ObservationFieldGroupFull,
       ]),
     );
 
-    expect(results[0]).not.toHaveProperty("model_id");
-    expect(results[0]).not.toHaveProperty("provided_model_name");
-    expect(results[0]).not.toHaveProperty("model_parameters");
+    expect(results[0]).toHaveProperty("model_id");
+    expect(results[0]).toHaveProperty("provided_model_name");
+    expect(results[0]).toHaveProperty("model_parameters");
     expect(results[0]).toHaveProperty("input_price");
     expect(results[0]).toHaveProperty("output_price");
     expect(results[0]).toHaveProperty("total_price");
   });
 
-  it("preserves model_id when both model and usage groups are selected", async () => {
+  it("adds pricing fields when both model and usage groups are selected", async () => {
     const rows = [{ id: "obs-1", model_id: "gpt-4" }];
     const results = await collect(
       enrichObservationStream(rowStream(rows), "project-1", "model_id", false, [
-        "core" as ObservationFieldGroup,
-        "model" as ObservationFieldGroup,
-        "usage" as ObservationFieldGroup,
+        "core" as ObservationFieldGroupFull,
+        "model" as ObservationFieldGroupFull,
+        "usage" as ObservationFieldGroupFull,
       ]),
     );
 

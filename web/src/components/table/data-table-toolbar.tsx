@@ -2,6 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import React, { type Dispatch, type SetStateAction, useState } from "react";
 import { Input } from "@/src/components/ui/input";
 import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import {
   type FilterState,
@@ -21,13 +22,7 @@ import {
   DataTableRowHeightSwitch,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import {
-  Search,
-  ChevronDown,
-  PanelLeftClose,
-  PanelLeftOpen,
-} from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
+import { Search, ChevronDown } from "lucide-react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
@@ -51,7 +46,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
-import { useDataTableControls } from "@/src/components/table/data-table-controls";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/multi-select";
 import {
   DataTableRefreshButton,
@@ -60,6 +54,7 @@ import {
 import {
   getSearchButtonLabel,
   getSearchMode,
+  hasFullTextSearchType,
   searchModeToType,
 } from "@/src/components/table/utils/searchUtils";
 
@@ -212,34 +207,26 @@ export function DataTableToolbar<TData, TValue>({
   );
 
   const capture = usePostHogClientCapture();
-  const { open: controlsPanelOpen, setOpen: setControlsPanelOpen } =
-    useDataTableControls();
+  const showSearchTypeSelector = Boolean(
+    searchConfig?.setSearchType && searchConfig.tableAllowsFullTextSearch,
+  );
+  const submitSearch = (query: string) => {
+    if (
+      searchConfig?.setSearchType &&
+      !searchConfig.tableAllowsFullTextSearch &&
+      hasFullTextSearchType(searchConfig.searchType)
+    ) {
+      searchConfig.setSearchType(["id"]);
+    }
+    searchConfig?.updateQuery(query);
+  };
 
   // Only show the toggle button when we're using the new sidebar
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
       <div className="@container my-2 flex flex-wrap items-center gap-2">
-        {hasNewSidebar && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setControlsPanelOpen(!controlsPanelOpen)}
-            className="flex h-8 items-center gap-2 text-sm"
-          >
-            {controlsPanelOpen ? (
-              <PanelLeftClose className="h-4 w-4" />
-            ) : (
-              <PanelLeftOpen className="h-4 w-4" />
-            )}
-            <span>{controlsPanelOpen ? "Hide" : "Show"} filters</span>
-            {filterState && filterState.length > 0 && (
-              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                {filterState.length}
-              </Badge>
-            )}
-          </Button>
-        )}
+        {hasNewSidebar && <FilterToggleButton filterState={filterState} />}
         {!!columnVisibility && !!columnOrder && !!viewConfig && (
           <TableViewPresetsDrawer
             viewConfig={viewConfig}
@@ -258,7 +245,7 @@ export function DataTableToolbar<TData, TValue>({
             <div
               className={cn(
                 "border-input bg-background flex h-8 flex-1 items-center border pl-2",
-                searchConfig.setSearchType
+                showSearchTypeSelector
                   ? "rounded-l-md rounded-r-none border-r-0"
                   : "rounded-l-md rounded-r-md",
               )}
@@ -269,7 +256,7 @@ export function DataTableToolbar<TData, TValue>({
                 className="mr-1"
                 onClick={() => {
                   capture("table:search_submit");
-                  searchConfig.updateQuery(searchString);
+                  submitSearch(searchString);
                 }}
               >
                 <Search className="h-4 w-4" />
@@ -287,19 +274,19 @@ export function DataTableToolbar<TData, TValue>({
                   setSearchString(newValue);
                   // If user cleared the search, update URL immediately
                   if (newValue === "") {
-                    searchConfig.updateQuery("");
+                    submitSearch("");
                   }
                 }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     capture("table:search_submit");
-                    searchConfig.updateQuery(searchString);
+                    submitSearch(searchString);
                   }
                 }}
                 className="w-full border-none bg-transparent px-0 py-2 text-sm focus-visible:ring-0 focus-visible:outline-hidden"
               />
             </div>
-            {searchConfig.setSearchType && (
+            {showSearchTypeSelector && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

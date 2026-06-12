@@ -70,6 +70,12 @@ export function mockServerContext(
   };
 }
 
+export const mcpEvalOutputDefinition = {
+  dataType: "NUMERIC" as const,
+  reasoning: { description: "Why the score was assigned" },
+  score: { description: "A score between 0 and 1" },
+};
+
 /**
  * Verifies that a response follows the MCP content block format.
  * MCP tools return { content: [{ type: "text", text: "..." }] }

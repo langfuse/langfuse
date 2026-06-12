@@ -10,6 +10,13 @@ import { EventActionSchema } from "../domain";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
+import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
+import {
+  type MonitorQueueEvent,
+  MonitorWebhookQueueEventSchema,
+} from "../features/monitors/scheduler/types";
+
+export type { MonitorQueueEvent };
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -99,11 +106,12 @@ export const EvalExecutionEvent = z.object({
   delay: z.number().nullish(),
 });
 
-// LLM-as-a-Judge execution for observation-based evals
-export const LLMAsJudgeExecutionEventSchema = z.object({
+// Observation-based eval execution payload shared by LLM-as-judge and code eval queues.
+export const ObservationEvalExecutionEventSchema = z.object({
   projectId: z.string(),
   jobExecutionId: z.string(),
   observationS3Path: z.string(),
+  executionMode: JobConfigExecutionMode.optional(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
@@ -230,10 +238,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
-export const WebhookOutboundEnvelopeSchema = z.object({
+export const promptVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  type: z.literal("prompt-version"),
   user: z
     .object({
       id: z.string(),
@@ -242,6 +250,12 @@ export const WebhookOutboundEnvelopeSchema = z.object({
     })
     .optional(),
 });
+
+/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert variant is the unified envelope (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
+export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
+  promptVersionWebhookEnvelopeSchema,
+  MonitorWebhookQueueEventSchema,
+]);
 
 export const WebhookInputSchema = z.object({
   projectId: z.string(),
@@ -284,8 +298,8 @@ export type DatasetRunItemUpsertEventType = z.infer<
   typeof DatasetRunItemUpsertEventSchema
 >;
 export type EvalExecutionEventType = z.infer<typeof EvalExecutionEvent>;
-export type LLMAsJudgeExecutionEventType = z.infer<
-  typeof LLMAsJudgeExecutionEventSchema
+export type ObservationEvalExecutionEventType = z.infer<
+  typeof ObservationEvalExecutionEventSchema
 >;
 export type IngestionEventQueueType = z.infer<typeof IngestionEvent>;
 export type OtelIngestionEventQueueType = z.infer<typeof OtelIngestionEvent>;
@@ -325,7 +339,8 @@ export enum QueueName {
   ProjectDelete = "project-delete",
   EvaluationExecution = "evaluation-execution-queue", // Worker executes Evals
   EvaluationExecutionSecondaryQueue = "secondary-evaluation-execution-queue", // Separates high-throughput eval projects from other projects.
-  LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based eval execution
+  LLMAsJudgeExecution = "llm-as-a-judge-execution-queue", // Observation-based LLM-as-judge eval execution
+  CodeEvalExecution = "code-eval-execution-queue", // Observation-based code eval execution
   DatasetRunItemUpsert = "dataset-run-item-upsert-queue",
   BatchExport = "batch-export-queue",
   OtelIngestionQueue = "otel-ingestion-queue",
@@ -355,6 +370,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  MonitorQueue = "monitor-queue",
 }
 
 export enum QueueJobs {
@@ -364,6 +380,7 @@ export enum QueueJobs {
   DatasetRunItemUpsert = "dataset-run-item-upsert",
   EvaluationExecution = "evaluation-execution-job",
   LLMAsJudgeExecution = "llm-as-a-judge-execution-job",
+  CodeEvalExecution = "code-eval-execution-job",
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",
@@ -390,6 +407,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  MonitorJob = "monitor-job",
 }
 
 export type TQueueJobTypes = {
@@ -447,8 +465,15 @@ export type TQueueJobTypes = {
   [QueueName.LLMAsJudgeExecution]: {
     timestamp: Date;
     id: string;
-    payload: LLMAsJudgeExecutionEventType;
+    payload: ObservationEvalExecutionEventType;
     name: QueueJobs.LLMAsJudgeExecution;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.CodeEvalExecution]: {
+    timestamp: Date;
+    id: string;
+    payload: ObservationEvalExecutionEventType;
+    name: QueueJobs.CodeEvalExecution;
     retryBaggage?: RetryBaggage;
   };
   [QueueName.BatchExport]: {
@@ -563,5 +588,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.MonitorQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MonitorQueueEvent;
+    name: QueueJobs.MonitorJob;
   };
 };

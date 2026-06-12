@@ -130,7 +130,7 @@ export function MembersTable({
 
   const mutDeleteMember = api.members.deleteMembership.useMutation({
     onSuccess: (data) => {
-      if (data.userId === session.data?.user?.id) void session.update();
+      if (data.userId === session.data?.user?.id) session.update();
       utils.members.invalidate();
     },
   });
@@ -233,7 +233,7 @@ export function MembersTable({
                     side="right"
                   >
                     <p className="text-xs">
-                      The organization-level role can to be edited in the{" "}
+                      The organization-level role can be edited in the{" "}
                       <Link
                         href={`/organization/${orgId}/settings/members`}
                         className="underline"
@@ -485,7 +485,7 @@ const OrgRoleDropdown = ({
   const mut = api.members.updateOrgMembership.useMutation({
     onSuccess: (data) => {
       utils.members.invalidate();
-      if (data.userId === session.data?.user?.id) void session.update();
+      if (data.userId === session.data?.user?.id) session.update();
       showSuccessToast({
         title: "Saved",
         description: "Organization role updated successfully",
@@ -545,7 +545,7 @@ const ProjectRoleDropdown = ({
   const mut = api.members.updateProjectRole.useMutation({
     onSuccess: (data) => {
       utils.members.invalidate();
-      if (data.userId === session.data?.user?.id) void session.update();
+      if (data.userId === session.data?.user?.id) session.update();
       showSuccessToast({
         title: "Saved",
         description: "Project role updated successfully",

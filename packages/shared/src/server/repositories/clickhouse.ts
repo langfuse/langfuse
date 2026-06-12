@@ -49,18 +49,27 @@ export class ClickHouseResourceError extends Error {
   static ERROR_ADVICE_MESSAGE = RESOURCE_LIMIT_ERROR_MESSAGE;
 
   public readonly errorType: ErrorType;
+  public readonly tags?: Record<string, string>;
 
-  constructor(errType: ErrorType, originalError: Error) {
+  constructor(
+    errType: ErrorType,
+    originalError: Error,
+    tags?: Record<string, string>,
+  ) {
     super(originalError.message, { cause: originalError });
     this.name = "ClickHouseResourceError";
     this.errorType = errType;
+    this.tags = tags;
     // Preserve the original stack trace if available
     if (originalError.stack) {
       this.stack = originalError.stack;
     }
   }
 
-  static wrapIfResourceError(originalError: Error): Error {
+  static wrapIfResourceError(
+    originalError: Error,
+    tags?: Record<string, string>,
+  ): Error {
     const errorMessage = originalError.message || "";
 
     for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
@@ -74,7 +83,7 @@ export class ClickHouseResourceError extends Error {
       );
 
       if (hasDiscriminator) {
-        return new ClickHouseResourceError(type, originalError);
+        return new ClickHouseResourceError(type, originalError, tags);
       }
     }
 
@@ -231,6 +240,8 @@ export async function* queryClickhouseStream<T>(
     kind: SpanKind.CLIENT,
   });
 
+  let queryId: string | undefined;
+
   try {
     setSpanQueryAttributes(span, opts.query);
 
@@ -239,8 +250,14 @@ export async function* queryClickhouseStream<T>(
         sendClickhouseQuery({ ...opts, format: "JSONEachRow", span }),
       )
       .catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+        throw ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          opts.tags,
+        );
       });
+
+    queryId = res.query_id;
+    span.setAttribute("ch.queryId", queryId);
 
     for await (const rows of res.stream<T>()) {
       for (const row of rows) {
@@ -248,11 +265,28 @@ export async function* queryClickhouseStream<T>(
       }
     }
   } catch (error) {
-    if (error instanceof ClickHouseResourceError) throw error;
-    throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+    if (error instanceof ClickHouseResourceError) {
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(error.errorType, enriched, error.tags);
+    }
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      opts.tags,
+    );
   } finally {
     span.end();
   }
+}
+
+function enrichWithQueryId(error: Error, queryId: string | undefined): Error {
+  if (!queryId) return error;
+  const enriched = new Error(`${error.message} [query_id: ${queryId}]`, {
+    cause: error,
+  });
+  enriched.stack = error.stack;
+  return enriched;
 }
 
 /**
@@ -441,7 +475,10 @@ export async function queryClickhouse<T>(
           maxDelay: 100,
         },
       ).catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+        throw ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          opts.tags,
+        );
       });
     },
   );
@@ -474,7 +511,10 @@ export async function* queryClickhouseWithProgress<T>(
         }),
       )
       .catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+        throw ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          opts.tags,
+        );
       });
 
     for await (const rows of res.stream()) {
@@ -484,7 +524,10 @@ export async function* queryClickhouseWithProgress<T>(
     }
   } catch (error) {
     if (error instanceof ClickHouseResourceError) throw error;
-    throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+    throw ClickHouseResourceError.wrapIfResourceError(
+      error as Error,
+      opts.tags,
+    );
   } finally {
     span.end();
   }

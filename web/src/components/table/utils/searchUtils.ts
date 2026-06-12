@@ -24,6 +24,16 @@ export function getSearchButtonLabel(
   return metadataLabel ?? "IDs / Names";
 }
 
+export function hasFullTextSearchType(
+  searchType: TracingSearchType[] | undefined,
+): boolean {
+  return Boolean(
+    searchType?.some(
+      (type) => type === "content" || type === "input" || type === "output",
+    ),
+  );
+}
+
 // Helper function to convert search mode value to search type array
 export function searchModeToType(mode: string): TracingSearchType[] {
   switch (mode) {

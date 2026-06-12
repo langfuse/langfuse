@@ -12,18 +12,24 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 import {
   logger,
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   StorageServiceFactory,
+  blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   BlobStorageIntegrationType,
   InvalidRequestError,
+  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 
 const getAuditLogErrorType = (error: unknown) =>
@@ -46,6 +52,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
       try {
+        const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+        const isEnrichedExportAvailable = isEnrichedBlobExportAvailable(
+          isCloud,
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+        );
+
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
@@ -55,11 +67,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
 
-        if (!config) {
-          return null;
-        }
-
-        return config;
+        return { config: config ?? null, isEnrichedExportAvailable };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
         throw new TRPCError({
@@ -83,6 +91,26 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "integrations:CRUD",
         });
+
+        if (input.exportSource) {
+          const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+          const project = await ctx.prisma.project.findUniqueOrThrow({
+            where: { id: input.projectId },
+            select: { createdAt: true },
+          });
+          assertLegacyBlobExportSourceAllowed({
+            project,
+            nextInternalExportSource: input.exportSource,
+            isCloud,
+          });
+          assertEnrichedBlobExportSourceAllowed({
+            nextInternalExportSource: input.exportSource,
+            isCloud,
+            isV4PreviewEnabled:
+              env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+          });
+        }
+
         await auditLog({
           session: ctx.session,
           action: "update",
@@ -310,6 +338,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           ? decrypt(encryptedSecretAccessKey)
           : undefined;
 
+        if (endpoint) {
+          await validateBlobStorageEndpoint(endpoint);
+        }
+
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
           accessKeyId: accessKeyId || undefined,
@@ -325,6 +357,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           awsSse: undefined,
           awsSseKmsKeyId: undefined,
           externalEndpoint: undefined,
+          connectionValidation:
+            blobStorageEndpointConnectionValidationOptions(),
         });
 
         // Create a test file

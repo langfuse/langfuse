@@ -116,3 +116,20 @@ jobs:
     with:
       service: ${{ matrix.service }}
       environment: ${{ matrix.environment }}
+
+  notify-slack-on-failure:
+    needs: [affected-services, affected-environments, ecs-deploy]
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          title: "❌ Deploy Failed"
+          message: "❌ Deploy failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

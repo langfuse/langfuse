@@ -1,11 +1,7 @@
 import { Queue } from "bullmq";
 import { logger } from "../logger";
 import { TQueueJobTypes, QueueName } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { getShardIndex } from "./sharding";
 import { env } from "../../env";
 
@@ -59,16 +55,11 @@ export class EvalExecutionQueue {
       return EvalExecutionQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
     const name = `${QueueName.EvaluationExecution}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
-    const queueInstance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(name);
+    const queueInstance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.EvaluationExecution]>(name, {
-          connection: newRedis,
-          prefix: getQueuePrefix(name),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 10_000,
@@ -149,18 +140,13 @@ export class SecondaryEvalExecutionQueue {
       return SecondaryEvalExecutionQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
     const name = `${QueueName.EvaluationExecutionSecondaryQueue}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
-    const queueInstance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(name);
+    const queueInstance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.EvaluationExecutionSecondaryQueue]>(
           name,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(name),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 10_000,

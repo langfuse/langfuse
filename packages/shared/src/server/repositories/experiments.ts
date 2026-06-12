@@ -1,4 +1,5 @@
 import { env } from "../../env";
+import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
@@ -13,6 +14,7 @@ import {
 } from "../queries";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
+  buildScoreRowsCTE,
   buildScoresCTE,
   eventsExperimentsRootSpans,
   eventsExperiments,
@@ -199,6 +201,7 @@ export const getExperimentMetricsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -362,6 +365,7 @@ const getExperimentsFromEventsGeneric = async <T>(
         query: finalQuery,
         params: input.params,
         tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
       });
     },
   });
@@ -468,9 +472,338 @@ export const getExperimentItemsCountFromEvents = async (
       type: "experiment-items-count",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
+};
+
+type ExperimentItemsFilterOptionsInput = {
+  projectId: string;
+  experimentIds: string[];
+};
+
+type ExperimentScoreOptionsInput = ExperimentItemsFilterOptionsInput;
+
+// Whitelist of score data types to include
+const ALLOWED_SCORE_DATA_TYPES = ["NUMERIC", "CATEGORICAL", "BOOLEAN"] as const;
+type ExperimentChartableScoreDataType =
+  (typeof ALLOWED_SCORE_DATA_TYPES)[number];
+
+type ScoreFilterOptionsRow = {
+  name: string;
+  source: ScoreSourceType;
+  data_type: ExperimentChartableScoreDataType;
+  values: string[];
+};
+
+const SCORE_FILTER_OPTIONS_LIMIT = 1000;
+const SCORE_CATEGORICAL_VALUE_LIMIT = 20;
+
+/**
+ * Build query for experiment-run-level scores (scores with dataset_run_id matching experiment IDs).
+ * These are scores directly attached to the experiment/dataset run, not to traces or observations.
+ */
+const buildExperimentRunScoreFilterOptionsQuery = (params: {
+  projectId: string;
+  experimentIds: string[];
+}): { query: string; params: Record<string, unknown> } => {
+  const { projectId, experimentIds } = params;
+
+  // Simple query on scores table filtering by dataset_run_id
+  const query = `
+    SELECT
+      name AS name,
+      source AS source,
+      data_type AS data_type,
+      groupUniqArrayIf(${SCORE_CATEGORICAL_VALUE_LIMIT})(string_value, data_type = 'CATEGORICAL' AND notEmpty(string_value)) AS values
+    FROM scores
+    WHERE project_id = {projectId: String}
+      AND dataset_run_id IN ({experimentIds: Array(String)})
+      AND data_type IN ({allowedDataTypes: Array(String)})
+    GROUP BY name, data_type, source
+    ORDER BY name ASC
+    LIMIT ${SCORE_FILTER_OPTIONS_LIMIT}
+  `;
+
+  return {
+    query,
+    params: {
+      projectId,
+      experimentIds,
+      allowedDataTypes: ALLOWED_SCORE_DATA_TYPES,
+    },
+  };
+};
+
+const buildScoreFilterOptionsQuery = (params: {
+  projectId: string;
+  experimentIds: string[];
+  level: "observation" | "trace";
+}): { query: string; params: Record<string, unknown> } => {
+  const { projectId, experimentIds, level } = params;
+
+  // Build experiment events CTE using existing fragment
+  const experimentEventsCTE = eventsExperimentsRootSpans({
+    projectId,
+    experimentIds,
+  })
+    .selectRaw("e.project_id", "e.trace_id", "e.span_id")
+    .limitBy("e.project_id", "e.trace_id", "e.span_id")
+    .buildWithParams();
+
+  // Build unaggregated score rows so the experiment join happens before grouping
+  const scoreRowsCTE = buildScoreRowsCTE({
+    projectId,
+    level,
+  });
+
+  // Build the join condition based on level
+  const joinCondition =
+    level === "trace"
+      ? "ON s.project_id = ee.project_id AND s.trace_id = ee.trace_id"
+      : "ON s.project_id = ee.project_id AND s.trace_id = ee.trace_id AND s.observation_id = ee.span_id";
+
+  // Compose the full query using CTEQueryBuilder
+  // Excludes CORRECTION scores by whitelisting allowed data types
+  const queryBuilder = new CTEQueryBuilder()
+    .withCTE("experiment_events", {
+      ...experimentEventsCTE,
+      schema: ["project_id", "trace_id", "span_id"],
+    })
+    .withCTE("score_rows", scoreRowsCTE)
+    .from("score_rows", "s")
+    .innerJoin("experiment_events", "ee", joinCondition)
+    .select(
+      "s.name AS name",
+      "s.data_type AS data_type",
+      "s.source AS source",
+      `groupUniqArrayIf(${SCORE_CATEGORICAL_VALUE_LIMIT})(s.string_value, s.data_type = 'CATEGORICAL' AND notEmpty(s.string_value)) AS values`,
+    )
+    .groupBy("s.name", "s.data_type", "s.source")
+    .orderBy("ORDER BY s.name ASC")
+    .limit(SCORE_FILTER_OPTIONS_LIMIT);
+
+  return queryBuilder.buildWithParams();
+};
+
+export type ScoreColumnDefinition = {
+  name: string;
+  dataType: "NUMERIC" | "BOOLEAN" | "CATEGORICAL";
+  source: string;
+};
+
+type ProcessedScoreFilterOptions = {
+  numeric: string[];
+  categorical: Array<{ label: string; values: string[] }>;
+  scoreColumns: ScoreColumnDefinition[];
+};
+
+const processScoreFilterOptionsResults = (
+  rows: ScoreFilterOptionsRow[],
+): ProcessedScoreFilterOptions => {
+  const numeric = new Set<string>();
+  const categorical = new Map<string, Set<string>>();
+  const scoreColumns: ScoreColumnDefinition[] = [];
+
+  for (const row of rows) {
+    // Always add to scoreColumns (unique by name+source+data_type combination)
+    scoreColumns.push({
+      name: row.name,
+      dataType: row.data_type as "NUMERIC" | "BOOLEAN" | "CATEGORICAL",
+      source: row.source,
+    });
+
+    if (row.data_type === "NUMERIC" || row.data_type === "BOOLEAN") {
+      numeric.add(row.name);
+    } else if (row.data_type === "CATEGORICAL") {
+      const existingValues = categorical.get(row.name) ?? new Set<string>();
+      row.values.forEach((value) => existingValues.add(value));
+      categorical.set(row.name, existingValues);
+    }
+  }
+
+  return {
+    numeric: Array.from(numeric),
+    categorical: Array.from(categorical.entries()).map(([label, values]) => ({
+      label,
+      values: Array.from(values),
+    })),
+    scoreColumns,
+  };
+};
+
+const emptyScoreFilterOptions = (): ProcessedScoreFilterOptions => ({
+  numeric: [],
+  categorical: [],
+  scoreColumns: [],
+});
+
+type ExperimentItemScoreOptionsByLevel = {
+  observation: ProcessedScoreFilterOptions;
+  trace: ProcessedScoreFilterOptions;
+};
+
+type ExperimentScoreOptionsByLevel = {
+  observation: ProcessedScoreFilterOptions;
+  experiment: ProcessedScoreFilterOptions;
+};
+
+const getExperimentItemScoreOptionsByLevel = async ({
+  projectId,
+  experimentIds,
+}: ExperimentItemsFilterOptionsInput): Promise<ExperimentItemScoreOptionsByLevel> => {
+  const uniqueExperimentIds = Array.from(new Set(experimentIds));
+
+  if (uniqueExperimentIds.length === 0) {
+    return {
+      observation: emptyScoreFilterOptions(),
+      trace: emptyScoreFilterOptions(),
+    };
+  }
+
+  const traceQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds: uniqueExperimentIds,
+    level: "trace",
+  });
+
+  const obsQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds: uniqueExperimentIds,
+    level: "observation",
+  });
+
+  const [traceResults, obsResults] = await Promise.all([
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: traceQuery.query,
+      params: traceQuery.params,
+      tags: {
+        feature: "experiments",
+        type: "filter-options",
+        kind: "trace-scores",
+        projectId,
+      },
+      preferredClickhouseService: "ReadOnly",
+    }),
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: obsQuery.query,
+      params: obsQuery.params,
+      tags: {
+        feature: "experiments",
+        type: "filter-options",
+        kind: "observation-scores",
+        projectId,
+      },
+      preferredClickhouseService: "ReadOnly",
+    }),
+  ]);
+
+  return {
+    observation: processScoreFilterOptionsResults(obsResults),
+    trace: processScoreFilterOptionsResults(traceResults),
+  };
+};
+
+export const getExperimentItemsFilterOptions = async (
+  props: ExperimentItemsFilterOptionsInput,
+): Promise<{
+  obs_scores_avg: string[];
+  obs_score_categories: Array<{ label: string; values: string[] }>;
+  obs_score_columns: ScoreColumnDefinition[];
+  trace_scores_avg: string[];
+  trace_score_categories: Array<{ label: string; values: string[] }>;
+  trace_score_columns: ScoreColumnDefinition[];
+}> => {
+  const { observation, trace } =
+    await getExperimentItemScoreOptionsByLevel(props);
+
+  return {
+    obs_scores_avg: observation.numeric,
+    obs_score_categories: observation.categorical,
+    obs_score_columns: observation.scoreColumns,
+    trace_scores_avg: trace.numeric,
+    trace_score_categories: trace.categorical,
+    trace_score_columns: trace.scoreColumns,
+  };
+};
+
+const getExperimentScoreOptionsByLevel = async ({
+  projectId,
+  experimentIds,
+}: ExperimentScoreOptionsInput): Promise<ExperimentScoreOptionsByLevel> => {
+  const uniqueExperimentIds = Array.from(new Set(experimentIds));
+
+  if (uniqueExperimentIds.length === 0) {
+    return {
+      observation: emptyScoreFilterOptions(),
+      experiment: emptyScoreFilterOptions(),
+    };
+  }
+
+  const obsQuery = buildScoreFilterOptionsQuery({
+    projectId,
+    experimentIds: uniqueExperimentIds,
+    level: "observation",
+  });
+
+  const runQuery = buildExperimentRunScoreFilterOptionsQuery({
+    projectId,
+    experimentIds: uniqueExperimentIds,
+  });
+
+  const [obsResults, runResults] = await Promise.all([
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: obsQuery.query,
+      params: obsQuery.params,
+      tags: {
+        feature: "experiments",
+        type: "filter-options",
+        kind: "observation-scores",
+        projectId,
+      },
+      preferredClickhouseService: "ReadOnly",
+    }),
+    queryClickhouse<ScoreFilterOptionsRow>({
+      query: runQuery.query,
+      params: runQuery.params,
+      tags: {
+        feature: "experiments",
+        type: "filter-options",
+        kind: "run-scores",
+        projectId,
+      },
+      preferredClickhouseService: "ReadOnly",
+    }),
+  ]);
+
+  return {
+    observation: processScoreFilterOptionsResults(obsResults),
+    experiment: processScoreFilterOptionsResults(runResults),
+  };
+};
+
+export const getExperimentScoreOptions = async (
+  props: ExperimentScoreOptionsInput,
+): Promise<{
+  obs_scores_avg: string[];
+  obs_score_categories: Array<{ label: string; values: string[] }>;
+  obs_score_columns: ScoreColumnDefinition[];
+  experiment_scores_avg: string[];
+  experiment_score_categories: Array<{ label: string; values: string[] }>;
+  experiment_score_columns: ScoreColumnDefinition[];
+}> => {
+  const { observation, experiment } =
+    await getExperimentScoreOptionsByLevel(props);
+
+  return {
+    obs_scores_avg: observation.numeric,
+    obs_score_categories: observation.categorical,
+    obs_score_columns: observation.scoreColumns,
+    experiment_scores_avg: experiment.numeric,
+    experiment_score_categories: experiment.categorical,
+    experiment_score_columns: experiment.scoreColumns,
+  };
 };
 
 type FilterByExperiment = {
@@ -730,6 +1063,7 @@ export const getExperimentItemsFromEvents = async (
       type: "experiment-items-filter",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   const itemIds = itemIdsResult.map((r) => r.item_id);
@@ -774,6 +1108,7 @@ export const getExperimentItemsFromEvents = async (
       type: "experiment-items-data",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Group by item_id, preserving pagination order
@@ -881,6 +1216,7 @@ export const getExperimentItemsBatchIO = async (props: {
       type: "experiment-items-batch-io",
       projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Group by item_id
@@ -964,6 +1300,7 @@ export const getExperimentNamesFromEvents = async (props: {
       kind: "analytic",
       projectId: props.projectId,
     },
+    preferredClickhouseService: "EventsReadOnly",
   });
 
   return res;

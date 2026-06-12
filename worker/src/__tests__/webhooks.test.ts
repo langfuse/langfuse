@@ -6,6 +6,7 @@ import {
   beforeAll,
   afterAll,
   afterEach,
+  vi,
 } from "vitest";
 import { v4 } from "uuid";
 import {
@@ -18,6 +19,7 @@ import {
   WebhookInput,
   createOrgProjectAndApiKey,
   getActionByIdWithSecrets,
+  redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -108,6 +110,9 @@ class WebhookTestServer {
 }
 
 const webhookServer = new WebhookTestServer();
+const GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER =
+  "[TRUNCATED: GitHub repository_dispatch payload exceeded size limit]";
+const GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES = 64 * 1024;
 
 describe("Webhook Integration Tests", () => {
   let projectId: string;
@@ -640,6 +645,133 @@ describe("Webhook Integration Tests", () => {
       expect(decrypt(config.requestHeaders["x-secret-api-key"].value)).toBe(
         secretHeaderValue,
       );
+    });
+
+    it("clears the monitor-alert failure counter when auto-disabling the trigger", async () => {
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          projectId,
+          type: "WEBHOOK",
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-error.example.com/test",
+          },
+        },
+      });
+
+      const failureKey = `automation-failures:${projectId}:${automationId}`;
+      await redis!.del(failureKey);
+
+      for (let i = 0; i < 5; i++) {
+        const webhookInput: WebhookInput = {
+          projectId,
+          automationId,
+          executionId: v4(),
+          payload: {
+            id: v4(),
+            timestamp: new Date(),
+            type: "monitor-alert",
+            apiVersion: "v1",
+            payload: {
+              monitorId: v4(),
+              projectId,
+              severity: "ALERT",
+              permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
+              timestamp: new Date(),
+              fromTimestamp: new Date(Date.now() - 5 * 60_000),
+              toTimestamp: new Date(),
+              message: { title: "High error rate", body: "errors > 100" },
+              view: "observations",
+              filters: [],
+              window: "5m",
+            },
+          },
+        };
+
+        await executeWebhook(webhookInput, { skipValidation: true });
+      }
+
+      const trigger = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(trigger?.status).toBe(JobConfigState.INACTIVE);
+
+      expect(await redis!.get(failureKey)).toBeNull();
+    });
+
+    it("auto-disables despite a redis.del failure on the failure-side reset", async () => {
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          projectId,
+          type: "WEBHOOK",
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-error.example.com/test",
+          },
+        },
+      });
+
+      const failureKey = `automation-failures:${projectId}:${automationId}`;
+      await redis!.del(failureKey);
+
+      const buildInput = (): WebhookInput => ({
+        projectId,
+        automationId,
+        executionId: v4(),
+        payload: {
+          id: v4(),
+          timestamp: new Date(),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: v4(),
+            projectId,
+            severity: "ALERT",
+            permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
+            timestamp: new Date(),
+            fromTimestamp: new Date(Date.now() - 5 * 60_000),
+            toTimestamp: new Date(),
+            message: { title: "High error rate", body: "errors > 100" },
+            view: "observations",
+            filters: [],
+            window: "5m",
+          },
+        },
+      });
+
+      for (let i = 0; i < 4; i++) {
+        await executeWebhook(buildInput(), { skipValidation: true });
+      }
+
+      const delSpy = vi
+        .spyOn(redis!, "del")
+        .mockRejectedValue(new Error("READONLY during failover"));
+      try {
+        await executeWebhook(buildInput(), { skipValidation: true });
+      } finally {
+        delSpy.mockRestore();
+      }
+
+      const trigger = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(trigger?.status).toBe(JobConfigState.INACTIVE);
     });
 
     it("should execute webhook with secret headers correctly", async () => {
@@ -1492,6 +1624,204 @@ describe("Webhook Integration Tests", () => {
       // Verify prompt is still the last field in client_payload
       const clientPayloadKeys = Object.keys(payload.client_payload);
       expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
+    });
+
+    it("should truncate oversized GitHub dispatch prompt fields", async () => {
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+      if (!fullPrompt) {
+        throw new Error("Prompt not found");
+      }
+
+      const testUser = {
+        id: "user-456",
+        name: "GitHub User",
+        email: "github@example.com",
+      };
+
+      const ghActionId = v4();
+      await prisma.action.create({
+        data: {
+          id: ghActionId,
+          projectId,
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://webhook.example.com/dispatches",
+            eventType: "prompt-update",
+            githubToken: encrypt("ghp_test_token"),
+            displayGitHubToken: "ghp_...n",
+          },
+        },
+      });
+
+      const ghAutomationId = v4();
+      await prisma.automation.create({
+        data: {
+          id: ghAutomationId,
+          projectId,
+          triggerId,
+          actionId: ghActionId,
+          name: "GitHub Dispatch Automation",
+        },
+      });
+
+      const ghExecutionId = v4();
+      await prisma.automationExecution.create({
+        data: {
+          id: ghExecutionId,
+          projectId,
+          triggerId,
+          automationId: ghAutomationId,
+          actionId: ghActionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: promptId,
+          input: {},
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: ghAutomationId,
+        executionId: ghExecutionId,
+        payload: {
+          prompt: PromptDomainSchema.parse({
+            ...fullPrompt,
+            prompt: {
+              content: "a".repeat(GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES),
+            },
+            config: {
+              schema: {
+                content: "b".repeat(
+                  GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES,
+                ),
+              },
+            },
+          }),
+          action: "created",
+          type: "prompt-version",
+          user: testUser,
+        },
+      };
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+      expect(Buffer.byteLength(requests[0].body, "utf8")).toBeLessThan(
+        GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES,
+      );
+
+      const payload = JSON.parse(requests[0].body);
+      expect(payload.event_type).toBe("prompt-update");
+      expect(Object.keys(payload.client_payload)).toHaveLength(8);
+      expect(payload.client_payload.truncation).toEqual({
+        payloadTruncated: true,
+        truncatedFields: ["prompt.prompt", "prompt.config"],
+      });
+      expect(payload.client_payload.prompt.prompt).toBe(
+        GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER,
+      );
+      expect(payload.client_payload.prompt.config).toEqual({});
+
+      const clientPayloadKeys = Object.keys(payload.client_payload);
+      expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
+    });
+
+    it("should truncate oversized GitHub dispatch monitor-alert filters", async () => {
+      const ghActionId = v4();
+      await prisma.action.create({
+        data: {
+          id: ghActionId,
+          projectId,
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://webhook.example.com/dispatches",
+            eventType: "monitor-alert",
+            githubToken: encrypt("ghp_test_token"),
+            displayGitHubToken: "ghp_...n",
+          },
+        },
+      });
+
+      const ghAutomationId = v4();
+      await prisma.automation.create({
+        data: {
+          id: ghAutomationId,
+          projectId,
+          triggerId,
+          actionId: ghActionId,
+          name: "GitHub Dispatch Monitor Automation",
+        },
+      });
+
+      const ghExecutionId = v4();
+      await prisma.automationExecution.create({
+        data: {
+          id: ghExecutionId,
+          projectId,
+          triggerId,
+          automationId: ghAutomationId,
+          actionId: ghActionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {},
+        },
+      });
+
+      const webhookInput: WebhookInput = {
+        projectId,
+        automationId: ghAutomationId,
+        executionId: ghExecutionId,
+        payload: {
+          id: v4(),
+          timestamp: new Date(),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: v4(),
+            projectId,
+            severity: "ALERT",
+            permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
+            timestamp: new Date(),
+            fromTimestamp: new Date(Date.now() - 5 * 60_000),
+            toTimestamp: new Date(),
+            message: { title: "High error rate", body: "errors > 100" },
+            view: "observations",
+            filters: [
+              {
+                column: "metadata.user_id",
+                operator: "any of",
+                value: [
+                  "x".repeat(
+                    GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES + 1000,
+                  ),
+                ],
+                type: "stringOptions",
+              },
+            ],
+            window: "5m",
+          },
+        },
+      };
+
+      await executeWebhook(webhookInput, { skipValidation: true });
+
+      const requests = webhookServer.getReceivedRequests();
+      expect(requests).toHaveLength(1);
+      expect(Buffer.byteLength(requests[0].body, "utf8")).toBeLessThan(
+        GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES,
+      );
+
+      const payload = JSON.parse(requests[0].body);
+      expect(payload.event_type).toBe("monitor-alert");
+      expect(payload.client_payload.payload.filters).toEqual([]);
+      expect(payload.client_payload.truncation).toEqual({
+        payloadTruncated: true,
+        truncatedFields: ["payload.filters", "payload.message.body"],
+      });
     });
   });
 });

@@ -464,7 +464,7 @@ export async function createDefaultSpendAlerts({
   }
 }
 
-async function handleSubscriptionChanged(
+export async function handleSubscriptionChanged(
   subscription: Stripe.Subscription,
   action: "created" | "deleted" | "updated",
 ) {
@@ -632,12 +632,21 @@ async function handleSubscriptionChanged(
       },
     };
 
+    // Only clear free-tier suspension when payment is credibly current.
+    // Stripe fires subscription.created/updated for non-paying states too
+    // (incomplete, past_due, unpaid, ...); unblocking on those would let a
+    // failed-payment org resume ingestion. The worker's hourly threshold job
+    // remains the fallback that reconciles this column from usage + plan.
+    const isPaidAndCurrent =
+      subscription.status === "active" || subscription.status === "trialing";
+
     await prisma.organization.update({
       where: {
         id: parsedOrg.id,
       },
       data: {
         cloudConfig: updatedCloudConfig,
+        ...(isPaidAndCurrent ? { cloudFreeTierUsageThresholdState: null } : {}),
       },
     });
 
@@ -667,7 +676,7 @@ async function handleSubscriptionChanged(
     // Invalidate API keys in Redis for it to be updated
     await invalidateCachedOrgApiKeys(parsedOrg.id);
 
-    void auditLog({
+    auditLog({
       session: {
         user: { id: "stripe-webhook" },
         orgId: parsedOrg.id,
@@ -705,7 +714,7 @@ async function handleSubscriptionChanged(
     await updateOrgBillingCycleAnchor(parsedOrg.id);
     await invalidateCachedOrgApiKeys(parsedOrg.id);
 
-    void auditLog({
+    auditLog({
       session: {
         user: { id: "stripe-webhook" },
         orgId: parsedOrg.id,

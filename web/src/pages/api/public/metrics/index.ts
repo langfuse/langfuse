@@ -8,8 +8,7 @@ import {
   GetMetricsV1Query,
   GetMetricsV1Response,
 } from "@/src/features/public-api/types/metrics";
-import { executeQuery } from "@/src/features/query/server/queryExecutor";
-
+import { executeQuery } from "@langfuse/shared/query/server";
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
@@ -17,6 +16,9 @@ export default withMiddlewares(
       rateLimitResource: "public-api-metrics",
       querySchema: GetMetricsV1Query,
       responseSchema: GetMetricsV1Response,
+      // v1 metrics executes QueryBuilder against the legacy traces/observations
+      // tables; the v2 endpoint at /api/public/v2/metrics targets events_full.
+      rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         try {
           // Extract the parsed query object

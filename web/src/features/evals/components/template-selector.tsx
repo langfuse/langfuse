@@ -38,6 +38,8 @@ import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingl
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { env } from "@/src/env.mjs";
+import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
+import { shouldShowEvalTemplate } from "@/src/features/evals/utils/code-eval-template-utils";
 
 type TemplateSelectorProps = {
   projectId: string;
@@ -68,6 +70,10 @@ export const TemplateSelector = ({
 }: TemplateSelectorProps) => {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const visibleEvalTemplates = evalTemplates.filter((template) =>
+    shouldShowEvalTemplate(template, codeEvalCapabilities),
+  );
   const {
     activeTemplates,
     isTemplateActive,
@@ -89,7 +95,7 @@ export const TemplateSelector = ({
   });
 
   // Group templates by name and whether they are managed by Langfuse
-  const groupedTemplates = evalTemplates.reduce(
+  const groupedTemplates = visibleEvalTemplates.reduce(
     (acc, template) => {
       const group = template.projectId ? "custom" : "langfuse";
       if (!acc[group][template.name]) {

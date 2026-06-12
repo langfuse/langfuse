@@ -6,15 +6,23 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateBlobStorageIntegrationRequest,
+  toInternalExportSource,
+  toPublicExportSource,
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
+  type ObservationFieldGroupFull,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
+  isLegacyBlobExportAllowed,
+  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -87,6 +95,9 @@ async function handleGetBlobStorageIntegrations(
       exportMode: integration.exportMode,
       exportStartDate: integration.exportStartDate,
       compressed: integration.compressed,
+      exportSource: toPublicExportSource(integration.exportSource),
+      exportFieldGroups:
+        integration.exportFieldGroups as ObservationFieldGroupFull[],
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -142,11 +153,48 @@ async function handleUpsertBlobStorageIntegration(
   // Check if the project exists and belongs to the organization
   const project = await prisma.project.findUnique({
     where: { id: validatedData.projectId },
-    select: { id: true, orgId: true },
+    select: { id: true, orgId: true, createdAt: true },
   });
   if (!project || project.orgId !== authCheck.scope.orgId) {
     throw new LangfuseNotFoundError("Project not found");
   }
+
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+  const isV4PreviewEnabled =
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+  const internalExportSource =
+    validatedData.exportSource != null
+      ? toInternalExportSource(validatedData.exportSource)
+      : undefined;
+
+  if (internalExportSource) {
+    assertLegacyBlobExportSourceAllowed({
+      project,
+      nextInternalExportSource: internalExportSource,
+      isCloud,
+    });
+  }
+
+  // Partial PUTs that omit exportSource preserve the persisted value, so the
+  // enriched gate must consider the existing row too — otherwise a stale
+  // enriched source left behind by a V4-preview flag rollback keeps driving
+  // the worker against unpopulated tables. The extra read only happens when
+  // the gate could actually reject (enriched export unavailable).
+  const existingIntegration =
+    internalExportSource === undefined &&
+    !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
+      ? await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: validatedData.projectId },
+          select: { exportSource: true },
+        })
+      : null;
+  assertEnrichedBlobExportSourceAllowed({
+    nextInternalExportSource: internalExportSource,
+    existingExportSource: existingIntegration?.exportSource,
+    isCloud,
+    isV4PreviewEnabled,
+  });
 
   await auditLog({
     action: "update",
@@ -159,6 +207,12 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
+    // When exportSource is absent and the project is post-cutoff Cloud, have
+    // the service substitute EVENTS on CREATE inside its own transaction —
+    // eliminating the TOCTOU window that a pre-flight findUnique would create.
+    forceEventsOnCreate:
+      validatedData.exportSource == null &&
+      !isLegacyBlobExportAllowed(project.createdAt, isCloud),
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,
@@ -174,6 +228,8 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
+      exportSource: internalExportSource,
+      exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
 
@@ -194,6 +250,9 @@ async function handleUpsertBlobStorageIntegration(
     exportMode: integration.exportMode,
     exportStartDate: integration.exportStartDate,
     compressed: integration.compressed,
+    exportSource: toPublicExportSource(integration.exportSource),
+    exportFieldGroups:
+      integration.exportFieldGroups as ObservationFieldGroupFull[],
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

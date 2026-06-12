@@ -1,27 +1,17 @@
-import path from "node:path";
 import teardown from "@/src/__tests__/teardown";
-import { ensureTestDatabaseExists } from "@/src/__tests__/test-utils";
 
-function shouldSkipDatabaseBootstrap() {
-  const testPath = expect.getState().testPath;
-
-  if (!testPath) {
-    return false;
-  }
-
-  return testPath.includes(
-    `${path.sep}src${path.sep}__tests__${path.sep}server${path.sep}unit${path.sep}`,
-  );
-}
-
-beforeAll(async () => {
-  if (shouldSkipDatabaseBootstrap()) {
+afterAll(async () => {
+  // In the shared-context "server" project (isolate: false) workers are
+  // reused across test files, so disconnecting the shared redis/ClickHouse
+  // singletons here would break later files in the same worker. The forked
+  // workers are terminated at the end of the run, which closes the
+  // connections instead.
+  if (process.env.VITEST_SHARED_CONTEXT === "1") {
     return;
   }
 
-  await ensureTestDatabaseExists();
-});
-
-afterAll(async () => {
   await teardown();
-});
+  // The teardown dynamically imports the heavy @langfuse/shared server module
+  // graph; under a fully loaded CI runner that alone can exceed the default
+  // 10s hook timeout.
+}, 30_000);

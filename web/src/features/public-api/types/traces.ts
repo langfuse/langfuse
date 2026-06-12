@@ -7,22 +7,18 @@ import {
   singleFilter,
   InvalidRequestError,
 } from "@langfuse/shared";
-import { stringDateTime, TraceBody } from "@langfuse/shared/src/server";
+import {
+  stringDateTime,
+  TraceBody,
+  TRACE_FIELD_GROUPS,
+  type TraceFieldGroup,
+} from "@langfuse/shared/src/server";
 import { z } from "zod";
-import { useEventsTableSchema } from "../../query";
-
-/**
- * Field groups for selective field fetching
- */
-export const TRACE_FIELD_GROUPS = [
-  "core",
-  "io",
-  "scores",
-  "observations",
-  "metrics",
-] as const;
-
-export type TraceFieldGroup = (typeof TRACE_FIELD_GROUPS)[number];
+import { useEventsTableSchema } from "@langfuse/shared/query";
+export {
+  TRACE_FIELD_GROUPS,
+  type TraceFieldGroup,
+} from "@langfuse/shared/src/server";
 
 /**
  * Objects

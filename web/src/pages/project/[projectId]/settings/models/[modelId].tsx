@@ -147,9 +147,7 @@ export default function ModelDetailPage() {
                       projectId={projectId}
                       modelData={model}
                       onSuccess={() => {
-                        void router.push(
-                          `/project/${projectId}/settings/models`,
-                        );
+                        router.push(`/project/${projectId}/settings/models`);
                       }}
                     />
                   </>
