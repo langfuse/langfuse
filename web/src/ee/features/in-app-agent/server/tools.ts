@@ -183,6 +183,7 @@ function getTracesFilterState(
   isV4Enabled: boolean,
 ): FilterState {
   const filterState: FilterState = [];
+
   const addStringOptionsFilter = (
     column: string,
     value: string[] | undefined,
@@ -199,12 +200,28 @@ function getTracesFilterState(
     });
   };
 
+  const addArrayOptionsFilter = (
+    column: string,
+    value: string[] | undefined,
+  ) => {
+    if (!value || value.length === 0) {
+      return;
+    }
+
+    filterState.push({
+      column,
+      operator: "any of",
+      type: "arrayOptions",
+      value,
+    });
+  };
+
   addStringOptionsFilter("environment", filters.environment);
   addStringOptionsFilter("level", filters.level);
   addStringOptionsFilter("sessionId", filters.sessionId);
   addStringOptionsFilter("traceName", filters.traceName);
-  addStringOptionsFilter("traceTags", filters.tags);
   addStringOptionsFilter("userId", filters.userId);
+  addArrayOptionsFilter("traceTags", filters.tags);
 
   if (filters.bookmarked !== undefined) {
     filterState.push({
