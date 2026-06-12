@@ -564,4 +564,105 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     },
     30_000,
   );
+
+  it("should keep small spans and reject oversized ones in a mixed batch", async () => {
+    const smallTraceId = randomBytes(16);
+    const smallSpanId = randomBytes(8);
+    const bigTraceId = randomBytes(16);
+    const bigSpanId = randomBytes(8);
+    const oversizedValue = "x".repeat(10_000_000);
+
+    const payload = {
+      resourceSpans: [
+        {
+          resource: { attributes: [] },
+          scopeSpans: [
+            {
+              scope: {
+                name: "langfuse-sdk",
+                version: "2.60.3",
+                attributes: [
+                  {
+                    key: "public_key",
+                    value: { stringValue: "pk-lf-1234567890" },
+                  },
+                ],
+              },
+              spans: [
+                {
+                  traceId: smallTraceId,
+                  spanId: smallSpanId,
+                  name: "small-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 466848096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 467248096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [],
+                  status: {},
+                },
+                {
+                  traceId: bigTraceId,
+                  spanId: bigSpanId,
+                  name: "oversized-span",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 466848096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 467248096,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: [
+                    {
+                      key: "langfuse.observation.input",
+                      value: { stringValue: oversizedValue },
+                    },
+                  ],
+                  status: {},
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const response = await makeAPICall<{
+      partialSuccess?: {
+        rejectedSpans: number;
+        errorMessage: string;
+      };
+    }>("POST", "/api/public/otel/v1/traces", payload);
+
+    expect(response.status).toBe(200);
+    expect(response.body.partialSuccess).toBeDefined();
+    expect(response.body.partialSuccess!.rejectedSpans).toBe(1);
+
+    // The small span should still be processed
+    await waitForExpect(async () => {
+      const trace = await getTraceById({
+        projectId,
+        traceId: smallTraceId.toString("hex"),
+      });
+      expect(trace).toBeDefined();
+      expect(trace!.id).toBe(smallTraceId.toString("hex"));
+
+      const observation = await getObservationById({
+        projectId,
+        id: smallSpanId.toString("hex"),
+      });
+      expect(observation).toBeDefined();
+      expect(observation!.name).toBe("small-span");
+    }, 25_000);
+  }, 30_000);
 });

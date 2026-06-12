@@ -62,7 +62,8 @@ service:
                               stringValue: "generation"
                         status: {}
           response:
-            body: {}
+            body:
+              partialSuccess: null
 
 types:
   OtelResourceSpan:
@@ -163,5 +164,21 @@ types:
         docs: Boolean value
 
   OtelTraceResponse:
-    docs: Response from trace export request. Empty object indicates success.
-    properties: {}
+    docs: |
+      Response from trace export request. An empty object indicates full success.
+      When some spans are rejected (e.g., for exceeding size limits), the response
+      includes a partialSuccess field per the OTLP specification.
+    properties:
+      partialSuccess:
+        type: optional<OtelTracePartialSuccess>
+        docs: Present when one or more spans were rejected. Absent on full success.
+
+  OtelTracePartialSuccess:
+    docs: Indicates partial acceptance of a trace export request per the OTLP specification.
+    properties:
+      rejectedSpans:
+        type: optional<integer>
+        docs: Number of spans that were rejected.
+      errorMessage:
+        type: optional<string>
+        docs: Human-readable description of why spans were rejected.
