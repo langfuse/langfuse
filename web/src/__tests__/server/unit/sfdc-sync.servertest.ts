@@ -136,34 +136,23 @@ beforeEach(() => {
 });
 
 describe("SfdcService — factory gating", () => {
-  it("returns null when NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is not set", () => {
-    envMock.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+  // Each required env var is individually a kill switch.
+  it.each([
+    "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION",
+    "MULESOFT_SFDC_USER_URL",
+    "MULESOFT_SFDC_ORG_URL",
+    "MULESOFT_SFDC_BASIC_AUTH_USER",
+    "MULESOFT_SFDC_BASIC_AUTH_PASSWORD",
+    "MULESOFT_SFDC_CAMPAIGN_ID",
+  ] as const)("returns null when %s is missing", (key) => {
+    envMock[key] = undefined;
     expect(SfdcService.tryCreate()).toBeNull();
-  });
-
-  it("returns null when any URL env var is missing", () => {
-    envMock.MULESOFT_SFDC_USER_URL = undefined;
-    expect(SfdcService.tryCreate()).toBeNull();
-  });
-
-  it("returns null when any auth env var is missing", () => {
-    envMock.MULESOFT_SFDC_BASIC_AUTH_PASSWORD = undefined;
-    expect(SfdcService.tryCreate()).toBeNull();
-  });
-
-  it("returns null when the campaign ID env var is missing", () => {
-    envMock.MULESOFT_SFDC_CAMPAIGN_ID = undefined;
-    expect(SfdcService.tryCreate()).toBeNull();
-  });
-
-  it("returns a service instance when all env vars are set on Cloud", () => {
-    expect(SfdcService.tryCreate()).toBeInstanceOf(SfdcService);
   });
 
   it("caches the instance across getSfdcService() calls", () => {
     const a = getSfdcService();
     const b = getSfdcService();
-    expect(a).not.toBeNull();
+    expect(a).toBeInstanceOf(SfdcService);
     expect(a).toBe(b);
   });
 });
@@ -244,18 +233,18 @@ describe("SfdcService.upsertUser", () => {
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
-  it("does not throw on non-2xx; logs a warn instead", async () => {
+  it("does not throw on non-2xx; logs an error instead", async () => {
     fetchMock.mockResolvedValueOnce(nonOkResponse(500));
     await SfdcService.tryCreate()!.upsertUser({
       userId: "user-42",
       email: "u@example.com",
       name: "U",
     });
-    expect(loggerMock.warn).toHaveBeenCalled();
+    expect(loggerMock.error).toHaveBeenCalled();
     expect(prismaMock.user.update).not.toHaveBeenCalled();
   });
 
-  it("does not throw on fetch network error", async () => {
+  it("does not throw on fetch network error; logs an error instead", async () => {
     fetchMock.mockRejectedValueOnce(new Error("ECONNRESET"));
     await expect(
       SfdcService.tryCreate()!.upsertUser({
@@ -264,7 +253,7 @@ describe("SfdcService.upsertUser", () => {
         name: "U",
       }),
     ).resolves.toBeUndefined();
-    expect(loggerMock.warn).toHaveBeenCalled();
+    expect(loggerMock.error).toHaveBeenCalled();
   });
 
   it("never rejects on invalid email — logs warn and skips fetch", async () => {
@@ -375,7 +364,7 @@ describe("SfdcService.upsertOrg", () => {
         role: "OWNER",
       }),
     ).resolves.toBeUndefined();
-    expect(loggerMock.warn).toHaveBeenCalled();
+    expect(loggerMock.error).toHaveBeenCalled();
   });
 });
 
@@ -434,6 +423,18 @@ describe("SfdcService.setUserRole — Langfuse roles map onto the SFDC picklist"
     });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(loggerMock.warn).toHaveBeenCalled();
+  });
+
+  it("ignores the response body — only upsertOrg persists sfdcOrgId", async () => {
+    fetchMock.mockResolvedValueOnce(okJsonResponse({ sfdcOrgId: "sfdc-o-9" }));
+    await SfdcService.tryCreate()!.setUserRole({
+      orgId: "org-1",
+      userId: "user-1",
+      email: "u@example.com",
+      role: "ADMIN",
+    });
+    expect(prismaMock.organization.update).not.toHaveBeenCalled();
+    expect(loggerMock.error).not.toHaveBeenCalled();
   });
 });
 
