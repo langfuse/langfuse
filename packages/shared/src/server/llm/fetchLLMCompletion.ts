@@ -128,6 +128,14 @@ function shouldOmitChatAnthropicDefaultDisabledThinking(
   );
 }
 
+function shouldNormalizeContentBlocks(modelParams: ModelParams): boolean {
+  return (
+    adapterSupportsReasoning(modelParams.adapter) ||
+    (modelParams.adapter === LLMAdapter.Anthropic &&
+      shouldOmitChatAnthropicDefaultDisabledThinking(modelParams.model))
+  );
+}
+
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
 ): BaseMessage[] => {
@@ -601,8 +609,10 @@ export async function fetchLLMCompletion(
     : runConfig;
 
   const supportsReasoning = adapterSupportsReasoning(modelParams.adapter);
+  const shouldNormalizeModelContentBlocks =
+    shouldNormalizeContentBlocks(modelParams);
   const shouldNormalizeStreamingContentBlocks =
-    supportsReasoning || usesOpenAIResponsesApi;
+    shouldNormalizeModelContentBlocks || usesOpenAIResponsesApi;
 
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
@@ -677,7 +687,7 @@ export async function fetchLLMCompletion(
 
     // content with thinking blocks can't be handled by StringOutputParser
     // Invoke model directly and extract text + reasoning separately.
-    if (supportsReasoning) {
+    if (shouldNormalizeModelContentBlocks) {
       const aiMessage = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
         timeoutMs,
