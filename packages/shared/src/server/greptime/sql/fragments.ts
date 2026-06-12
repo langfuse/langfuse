@@ -65,6 +65,26 @@ export const greptimeAggregatedLevelRank = (
 };
 
 /**
+ * Highest-severity level across the group as a STRING (ERROR > WARNING > DEFAULT > DEBUG), for
+ * filtering / ordering / display on the rollup `level` column. The CH path produced this with
+ * `multiIf(arrayExists(...))`; here a nested CASE over the same max-rank yields the label. (The
+ * integer-rank variant `greptimeAggregatedLevelRank` is kept for callers that prefer the rank.)
+ */
+export const greptimeAggregatedLevelString = (
+  prefix?: string,
+  alias = "aggregated_level",
+): string => {
+  const level = ref(prefix, "level");
+  const rank =
+    `max(CASE ${level} ` +
+    `WHEN 'ERROR' THEN 3 WHEN 'WARNING' THEN 2 WHEN 'DEFAULT' THEN 1 ELSE 0 END)`;
+  return (
+    `CASE ${rank} ` +
+    `WHEN 3 THEN 'ERROR' WHEN 2 THEN 'WARNING' WHEN 1 THEN 'DEFAULT' ELSE 'DEBUG' END AS ${alias}`
+  );
+};
+
+/**
  * SUM of a single known JSON-map key across the group, e.g. `sum(json_get_float(cost_details,'input'))`.
  * Used only on the dashboard time-series path (known-key allowlist); dynamic keys go app-side.
  * GreptimeDB's float JSON accessor is `json_get_float` (there is no `json_get_double`).

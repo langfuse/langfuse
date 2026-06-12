@@ -46,9 +46,17 @@ export interface GreptimeFilter {
 
 const uid = () => clickhouseCompliantRandomCharacters();
 
-/** Qualified, quoted column reference: `t`.`name` (prefix is an alias, left unquoted). */
+const isBareIdentifier = (s: string) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(s);
+
+/**
+ * Qualified, quoted column reference: `t`.`name` (prefix is an alias, left unquoted).
+ * A non-bare `field` is an already-qualified SQL expression (e.g. a rollup column ref like
+ * `o.latency_milliseconds / 1000`) and is emitted verbatim — quoting it would corrupt the SQL.
+ */
 const col = (tablePrefix: string | undefined, field: string): string =>
-  `${tablePrefix ? `${tablePrefix}.` : ""}${quoteIdent(field)}`;
+  isBareIdentifier(field)
+    ? `${tablePrefix ? `${tablePrefix}.` : ""}${quoteIdent(field)}`
+    : field;
 
 const likeContains = (v: string) => `%${escapeSqlLikePattern(v)}%`;
 const likeStarts = (v: string) => `${escapeSqlLikePattern(v)}%`;
@@ -558,6 +566,152 @@ export class ArrayOptionsFilter implements GreptimeFilter {
       default:
         throw new Error(`Unsupported tags operator: ${this.operator}`);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// score-grain filters (rollup score columns: scores_avg / score_categories)
+// ---------------------------------------------------------------------------
+
+/**
+ * How a rollup score filter correlates the `scores` table to the outer projection row. The CH read
+ * path materialised a `scores_avg` / `score_categories` array in a CTE and filtered it; on the merged
+ * projection we instead emit a correlated EXISTS over `scores` per the entity grain. `outerColumn` is
+ * the outer projection column (e.g. `id` for traces/observations, `session_id` for sessions) and
+ * `scoresColumn` is the `scores` column that links to it.
+ */
+export type ScoreGrain = {
+  scoresColumn: "trace_id" | "session_id" | "observation_id";
+  outerPrefix: string;
+  outerColumn: string;
+};
+
+const SCORE_GRAIN_ALIAS = "cs";
+
+/** Project-scoped, soft-delete-aware correlated EXISTS over `scores` for a score-grain filter. */
+const scoreGrainExists = (opts: {
+  grain: ScoreGrain;
+  innerPredicate: string;
+  groupHaving?: string;
+  negate?: boolean;
+}): string => {
+  const cs = SCORE_GRAIN_ALIAS;
+  const { grain } = opts;
+  const sub =
+    `SELECT 1 FROM ${quoteIdent("scores")} ${cs} ` +
+    `WHERE ${cs}.${quoteIdent("project_id")} = ${grain.outerPrefix}.${quoteIdent("project_id")} ` +
+    `AND ${cs}.${quoteIdent(grain.scoresColumn)} = ${grain.outerPrefix}.${quoteIdent(grain.outerColumn)} ` +
+    `AND ${opts.innerPredicate} ` +
+    `AND ${cs}.${quoteIdent("is_deleted")} = false` +
+    (opts.groupHaving ? ` ${opts.groupHaving}` : "");
+  return `${opts.negate ? "NOT EXISTS" : "EXISTS"} (${sub})`;
+};
+
+/**
+ * Categorical score filter (`score_categories`). Replaces CH `hasAny(score_categories, ['key:value'])`:
+ * a trace/session/observation matches when it has a CATEGORICAL score named `key` whose `string_value`
+ * is one of `values`. `none of` is the negated EXISTS (missing score also matches). An empty value
+ * list short-circuits (`any of` -> nothing, `none of` -> everything).
+ */
+export class CategoryOptionsFilter implements GreptimeFilter {
+  public table = "scores";
+  public field: string;
+  public key: string;
+  public values: string[];
+  public operator: (typeof filterOperators.categoryOptions)[number];
+  public tablePrefix?: string;
+  public grain: ScoreGrain;
+
+  constructor(opts: {
+    key: string;
+    values: string[];
+    operator: (typeof filterOperators.categoryOptions)[number];
+    grain: ScoreGrain;
+  }) {
+    this.key = opts.key;
+    this.values = opts.values;
+    this.operator = opts.operator;
+    this.grain = opts.grain;
+    this.field = opts.grain.scoresColumn;
+    this.tablePrefix = opts.grain.outerPrefix;
+  }
+
+  apply(): CompiledFilter {
+    if (this.values.length === 0) {
+      return {
+        query: this.operator === "any of" ? "1 = 0" : "1 = 1",
+        params: {},
+      };
+    }
+    const cs = SCORE_GRAIN_ALIAS;
+    const k = `k${uid()}`;
+    const params: Record<string, unknown> = { [k]: this.key };
+    const placeholders = this.values.map((val) => {
+      const name = `v${uid()}`;
+      params[name] = val;
+      return `:${name}`;
+    });
+    const inner =
+      `${cs}.${quoteIdent("name")} = :${k} AND ` +
+      `${cs}.${quoteIdent("string_value")} IN (${placeholders.join(", ")})`;
+    return {
+      query: scoreGrainExists({
+        grain: this.grain,
+        innerPredicate: inner,
+        negate: this.operator === "none of",
+      }),
+      params,
+    };
+  }
+}
+
+/**
+ * Numeric score filter (`scores_avg`). Replaces CH `arrayFilter(x -> x.1 = key AND x.2 OP v, scores_avg)`:
+ * a trace/session/observation matches when its NUMERIC/BOOLEAN score named `key` has a grouped average
+ * value satisfying the operator (`GROUP BY name HAVING avg(value) OP v`), mirroring the CH CTE's
+ * per-name `avg(value)`.
+ */
+export class ScoreNumberObjectFilter implements GreptimeFilter {
+  public table = "scores";
+  public field: string;
+  public key: string;
+  public value: number;
+  public operator: (typeof filterOperators)["numberObject"][number] | "!=";
+  public tablePrefix?: string;
+  public grain: ScoreGrain;
+
+  constructor(opts: {
+    key: string;
+    value: number;
+    operator: (typeof filterOperators)["numberObject"][number] | "!=";
+    grain: ScoreGrain;
+  }) {
+    this.key = opts.key;
+    this.value = opts.value;
+    this.operator = opts.operator;
+    this.grain = opts.grain;
+    this.field = opts.grain.scoresColumn;
+    this.tablePrefix = opts.grain.outerPrefix;
+  }
+
+  apply(): CompiledFilter {
+    const cs = SCORE_GRAIN_ALIAS;
+    const k = `k${uid()}`;
+    const v = `v${uid()}`;
+    const inner =
+      `${cs}.${quoteIdent("name")} = :${k} AND ` +
+      `${cs}.${quoteIdent("data_type")} IN ('NUMERIC', 'BOOLEAN')`;
+    const having =
+      `GROUP BY ${cs}.${quoteIdent("name")} ` +
+      `HAVING avg(${cs}.${quoteIdent("value")}) ${this.operator} :${v}`;
+    return {
+      query: scoreGrainExists({
+        grain: this.grain,
+        innerPredicate: inner,
+        groupHaving: having,
+      }),
+      params: { [k]: this.key, [v]: this.value },
+    };
   }
 }
 

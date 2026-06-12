@@ -1,4 +1,5 @@
 import { type UiColumnMatchable } from "../../../tableDefinitions/types";
+import { type ScoreGrain } from "./greptime-filter";
 
 /**
  * GreptimeDB column mapping (04-read-path.md, P1). The dialect-agnostic match keys
@@ -25,6 +26,12 @@ export type GreptimeColumnMapping = UiColumnMatchable &
     greptimeTypeOverwrite?: string;
     queryPrefix?: string;
     emptyEqualsNull?: boolean;
+    /**
+     * Present on rollup score columns (`scores_avg` / `score_categories`): routes
+     * `categoryOptions` / `numberObject` filters to a correlated score-grain EXISTS (the merged
+     * projection has no per-row score array to filter). `greptimeSelect` is unused for these.
+     */
+    scoreGrain?: ScoreGrain;
   }>;
 
 export type GreptimeColumnMappings = readonly GreptimeColumnMapping[];
@@ -49,6 +56,25 @@ export const tracesTableGreptimeColumnDefinitions: GreptimeColumnMappings = [
   { uiTableName: "Tags", uiTableId: "tags", greptimeTableName: "traces", greptimeSelect: "tags", queryPrefix: "t" }, // prettier-ignore
   { uiTableName: "Trace Tags", uiTableId: "traceTags", greptimeTableName: "traces", greptimeSelect: "tags", queryPrefix: "t" }, // prettier-ignore
   { uiTableName: "⭐️", uiTableId: "bookmarked", greptimeTableName: "traces", greptimeSelect: "bookmarked", queryPrefix: "t" }, // prettier-ignore
+  // Rollup columns (P2): reference the `observations_stats` CTE aliases (prefix `o`, baked into the
+  // expression — the filter/orderby emitters pass these through verbatim). Only reachable when the
+  // CTE is joined (metrics select, or a filter/orderby targets one of these → requiresObservationsJoin).
+  { uiTableName: "Level", uiTableId: "level", greptimeTableName: "observations", greptimeSelect: "o.aggregated_level" }, // prettier-ignore
+  { uiTableName: "Error Level Count", uiTableId: "errorCount", greptimeTableName: "observations", greptimeSelect: "o.error_count" }, // prettier-ignore
+  { uiTableName: "Warning Level Count", uiTableId: "warningCount", greptimeTableName: "observations", greptimeSelect: "o.warning_count" }, // prettier-ignore
+  { uiTableName: "Default Level Count", uiTableId: "defaultCount", greptimeTableName: "observations", greptimeSelect: "o.default_count" }, // prettier-ignore
+  { uiTableName: "Debug Level Count", uiTableId: "debugCount", greptimeTableName: "observations", greptimeSelect: "o.debug_count" }, // prettier-ignore
+  { uiTableName: "Input Tokens", uiTableId: "inputTokens", greptimeTableName: "observations", greptimeSelect: "o.usage_input" }, // prettier-ignore
+  { uiTableName: "Output Tokens", uiTableId: "outputTokens", greptimeTableName: "observations", greptimeSelect: "o.usage_output" }, // prettier-ignore
+  { uiTableName: "Total Tokens", uiTableId: "totalTokens", greptimeTableName: "observations", greptimeSelect: "o.usage_total" }, // prettier-ignore
+  { uiTableName: "Tokens", uiTableId: "tokens", greptimeTableName: "observations", greptimeSelect: "o.usage_total" }, // prettier-ignore
+  { uiTableName: "Latency (s)", uiTableId: "latency", greptimeTableName: "observations", greptimeSelect: "o.latency_milliseconds / 1000" }, // prettier-ignore
+  { uiTableName: "Input Cost ($)", uiTableId: "inputCost", greptimeTableName: "observations", greptimeSelect: "o.cost_input" }, // prettier-ignore
+  { uiTableName: "Output Cost ($)", uiTableId: "outputCost", greptimeTableName: "observations", greptimeSelect: "o.cost_output" }, // prettier-ignore
+  { uiTableName: "Total Cost ($)", uiTableId: "totalCost", greptimeTableName: "observations", greptimeSelect: "o.cost_total" }, // prettier-ignore
+  // Score-grain rollup columns (P2): filters route to a correlated EXISTS over `scores` by trace_id.
+  { uiTableName: "Scores (numeric)", uiTableId: "scores_avg", greptimeTableName: "scores", greptimeSelect: "trace_id", scoreGrain: { scoresColumn: "trace_id", outerPrefix: "t", outerColumn: "id" } }, // prettier-ignore
+  { uiTableName: "Scores (categorical)", uiTableId: "score_categories", greptimeTableName: "scores", greptimeSelect: "trace_id", scoreGrain: { scoresColumn: "trace_id", outerPrefix: "t", outerColumn: "id" } }, // prettier-ignore
 ];
 
 // ---------------------------------------------------------------------------

@@ -17,6 +17,8 @@ import {
   NumberObjectFilter,
   StringObjectFilter,
   NullFilter,
+  CategoryOptionsFilter,
+  ScoreNumberObjectFilter,
   type GreptimeFilter,
 } from "./greptime-filter";
 import { type GreptimeColumnMappings } from "./columnMappings";
@@ -128,6 +130,16 @@ export const createGreptimeFilterFromFilterState = (
           tablePrefix,
         });
       case "numberObject":
+        // Rollup numeric-score column (`scores_avg`) -> correlated score-grain EXISTS; a plain
+        // metadata key/value column -> EAV EXISTS over `<table>_metadata`.
+        if (column.scoreGrain) {
+          return new ScoreNumberObjectFilter({
+            key: frontEndFilter.key,
+            operator: frontEndFilter.operator,
+            value: frontEndFilter.value,
+            grain: column.scoreGrain,
+          });
+        }
         return new NumberObjectFilter({
           table,
           field,
@@ -154,10 +166,18 @@ export const createGreptimeFilterFromFilterState = (
           emptyEqualsNull: column.emptyEqualsNull,
         });
       case "categoryOptions":
-        // score-category rollup filter — lives on the traces/observations rollup mappings (P2).
-        throw new InvalidRequestError(
-          `categoryOptions filter is not supported on the GreptimeDB read path yet (P2): ${frontEndFilter.column}`,
-        );
+        // score-category rollup filter -> correlated score-grain EXISTS over `scores`.
+        if (!column.scoreGrain) {
+          throw new InvalidRequestError(
+            `categoryOptions filter requires a score-grain column mapping: ${frontEndFilter.column}`,
+          );
+        }
+        return new CategoryOptionsFilter({
+          key: frontEndFilter.key,
+          values: frontEndFilter.value,
+          operator: frontEndFilter.operator,
+          grain: column.scoreGrain,
+        });
       default:
         // eslint-disable-next-line no-case-declarations
         const exhaustiveCheck: never = frontEndFilter;
