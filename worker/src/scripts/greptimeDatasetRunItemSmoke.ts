@@ -14,6 +14,7 @@
 import {
   greptimeQuery,
   closeGreptimeConnections,
+  selectJsonColumn,
   type DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { GreptimeWriter, GreptimeTable } from "../services/GreptimeWriter";
@@ -77,7 +78,8 @@ async function main() {
   const rows = await greptimeQuery<Record<string, unknown>>({
     query: `SELECT \`id\`, \`project_id\`, \`dataset_id\`, \`dataset_run_id\`, \`dataset_item_id\`,
               \`trace_id\`, \`observation_id\`, \`error\`, \`dataset_run_name\`,
-              \`dataset_run_metadata\`, \`dataset_item_input\`, \`dataset_item_metadata\`,
+              ${selectJsonColumn("dataset_run_metadata")}, \`dataset_item_input\`,
+              ${selectJsonColumn("dataset_item_metadata")},
               \`dataset_item_version\`, \`dataset_run_created_at\`, \`is_deleted\`
             FROM \`dataset_run_items\`
             WHERE \`project_id\` = ? AND \`id\` = ?`,

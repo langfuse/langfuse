@@ -34,6 +34,12 @@ describe("keysetCursorPredicate", () => {
     expect(sql).toContain("`id`");
   });
 
+  it("throws on an empty cursor column list", () => {
+    expect(() => keysetCursorPredicate([], "ASC")).toThrow(
+      /at least one cursor column/,
+    );
+  });
+
   it("quotes only the column under a table alias (dri.col -> dri.`col`)", () => {
     expect(
       keysetCursorPredicate(["dri.dataset_run_created_at", "dri.id"], "ASC"),

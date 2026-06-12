@@ -50,6 +50,13 @@ describe("greptimeJson", () => {
     const o = { a: 1 };
     expect(greptimeJson(o, {})).toBe(o);
   });
+
+  it("falls back on raw jsonb bytes (contract violated: bare JSON select)", () => {
+    expect(greptimeJson(Buffer.from([0x40, 0x00, 0x01]), { d: 1 })).toEqual({
+      d: 1,
+    });
+    expect(greptimeJson(new Uint8Array([1, 2, 3]), [])).toEqual([]);
+  });
 });
 
 describe("greptimeDate / greptimeDecimal", () => {

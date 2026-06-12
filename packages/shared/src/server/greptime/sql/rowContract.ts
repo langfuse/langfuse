@@ -47,6 +47,10 @@ export const greptimeBool = (v: unknown): boolean => {
 /** Parse a `json_to_string`-projected column into a value; tolerant of already-parsed / null. */
 export const greptimeJson = <T = unknown>(v: unknown, fallback: T): T => {
   if (v == null) return fallback;
+  // A JSON column selected WITHOUT json_to_string() comes back as raw jsonb bytes
+  // (Buffer/Uint8Array). That violates the row contract (see selectJsonColumn), so fall back rather
+  // than silently return binary that an `instanceof object` check would otherwise pass through.
+  if (Buffer.isBuffer(v) || v instanceof Uint8Array) return fallback;
   if (typeof v === "object") return v as T;
   if (typeof v === "string") {
     if (v === "") return fallback;

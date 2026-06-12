@@ -59,6 +59,11 @@ const buildSqlPool = (host: string): mysql.Pool =>
     supportBigNumbers: true,
     bigNumberStrings: true,
     namedPlaceholders: true,
+    // GreptimeDB sends TIMESTAMP over the MySQL wire as a naive UTC string. Without pinning the
+    // session timezone, mysql2 parses it in the host's local zone, skewing every Date by the local
+    // offset (e.g. UTC+8 turned 14:00 into a 06:00Z Date) — which corrupts DateTime filters and
+    // keyset cursors that round-trip a Date back into SQL. Pin to UTC so reads are offset-correct.
+    timezone: "Z",
   });
 
 /** Read/write MySQL-wire pool (used for DDL-free reads + full-history replay). */
@@ -166,6 +171,11 @@ export const keysetCursorPredicate = (
   columns: string[],
   direction: "ASC" | "DESC",
 ): string => {
+  if (columns.length === 0) {
+    throw new Error(
+      "keysetCursorPredicate requires at least one cursor column (time + tiebreaks)",
+    );
+  }
   const cmp = direction === "ASC" ? ">" : "<";
   // Quote a possibly-qualified ref: `dri.dataset_run_created_at` -> dri.`dataset_run_created_at`.
   const quoteRef = (ref: string): string => {

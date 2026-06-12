@@ -15,6 +15,7 @@ import {
   greptimeQuery,
   greptimeQueryStream,
   greptimeKeysetScan,
+  greptimeFilters,
   closeGreptimeConnections,
   type DatasetRunItemRecordInsertType,
 } from "@langfuse/shared/src/server";
@@ -96,7 +97,15 @@ async function main() {
     id: string;
   }>({
     cursorColumns: ["dataset_run_created_at", "project_id", "id"],
-    cursorOf: (r) => [r.dataset_run_created_at as string, r.project_id, r.id],
+    cursorOf: (r) => [
+      // mysql2 returns TIMESTAMP as a Date; bind it back as a ms-precision literal so the cursor
+      // comparison does not lose milliseconds (which would skip/duplicate rows at ms boundaries).
+      greptimeFilters.greptimeTimestampLiteral(
+        new Date(r.dataset_run_created_at as string | number | Date),
+      ),
+      r.project_id,
+      r.id,
+    ],
     pageSize: 2,
     readOnly: true,
     buildPage: (seek) => ({
