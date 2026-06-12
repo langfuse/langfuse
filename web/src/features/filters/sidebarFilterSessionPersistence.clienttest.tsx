@@ -1,7 +1,17 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import type { FilterState } from "@langfuse/shared";
-import { useSidebarFilterState } from "./hooks/useSidebarFilterState";
-import type { FilterConfig } from "./lib/filter-config";
+import {
+  eventsTableSingleFilter,
+  type EventsTableFilterState,
+  type FilterState,
+} from "@langfuse/shared";
+import {
+  useSchemaSidebarFilterState,
+  useSidebarFilterState,
+} from "./hooks/useSidebarFilterState";
+import type {
+  FilterConfig,
+  SchemaBackedFilterConfig,
+} from "./lib/filter-config";
 import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
 
@@ -98,6 +108,39 @@ const FILTER_B: FilterState = [
   },
 ];
 
+const EVENTS_FILTER_CONFIG: SchemaBackedFilterConfig<
+  EventsTableFilterState[number]
+> = {
+  tableName: "observations-events",
+  filterSchema: eventsTableSingleFilter,
+  columnDefinitions: [
+    {
+      id: "metadata",
+      name: "Metadata",
+      type: "stringObject",
+      options: [],
+      internal: "metadata",
+    },
+  ],
+  facets: [
+    {
+      type: "stringKeyValue",
+      column: "metadata",
+      label: "Metadata",
+    },
+  ],
+};
+
+const EVENTS_METADATA_MATCH_FILTERS = [
+  {
+    column: "metadata",
+    type: "stringObject",
+    key: "topic",
+    operator: "matches",
+    value: "alpha",
+  },
+] satisfies EventsTableFilterState;
+
 function SessionPersistenceHarness(props: { contextId?: string | null }) {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
     stateLocation: "urlAndSessionStorage",
@@ -122,6 +165,22 @@ function SessionPersistenceHarness(props: { contextId?: string | null }) {
         Clear
       </button>
     </div>
+  );
+}
+
+function SchemaPersistenceHarness() {
+  const queryFilter = useSchemaSidebarFilterState(
+    EVENTS_FILTER_CONFIG,
+    {},
+    {
+      stateLocation: "url",
+    },
+  );
+
+  return (
+    <pre data-testid="explicit-state">
+      {JSON.stringify(queryFilter.explicitFilterState)}
+    </pre>
   );
 }
 
@@ -212,6 +271,19 @@ describe("useSidebarFilterState session persistence", () => {
       expect(queryParamStore.has("filter")).toBe(false);
     });
     expect(sessionStorage.getItem(sessionKey)).toBe(encodeStoredState(""));
+  });
+
+  it("uses the supplied schema for URL state", async () => {
+    queryParamStore.set(
+      "filter",
+      encodeFiltersGeneric(EVENTS_METADATA_MATCH_FILTERS),
+    );
+
+    render(<SchemaPersistenceHarness />);
+
+    await waitFor(() => {
+      expect(getExplicitState()).toEqual(EVENTS_METADATA_MATCH_FILTERS);
+    });
   });
 
   it("resets persisted query when session context changes", async () => {

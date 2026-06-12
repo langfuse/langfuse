@@ -42,6 +42,7 @@ import {
 import { DataTableAIFilters } from "@/src/components/table/data-table-ai-filters";
 import { type FilterState } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import type { StringKeyValueOperator } from "@/src/features/filters/lib/filter-config";
 
 interface ControlsContextType {
   open: boolean;
@@ -318,6 +319,8 @@ export function DataTableControls({
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
                   value={filter.value}
+                  operators={filter.operators}
+                  defaultOperator={filter.defaultOperator}
                   onChange={filter.onChange}
                   isActive={filter.isActive}
                   onReset={filter.onReset}
@@ -400,6 +403,8 @@ interface NumericKeyValueFacetProps extends BaseFacetProps {
 interface StringKeyValueFacetProps extends BaseFacetProps {
   keyOptions?: string[];
   value: StringKeyValueFilterEntry[];
+  operators: readonly StringKeyValueOperator[];
+  defaultOperator: StringKeyValueOperator;
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
   keyPlaceholder?: string;
 }
@@ -1205,6 +1210,8 @@ export function StringKeyValueFacet({
   loading,
   keyOptions,
   value,
+  operators,
+  defaultOperator,
   onChange,
   isActive,
   isDisabled,
@@ -1232,6 +1239,8 @@ export function StringKeyValueFacet({
           mode="string"
           keyOptions={keyOptions}
           activeFilters={value}
+          operators={operators}
+          defaultOperator={defaultOperator}
           onChange={onChange}
           keyPlaceholder={keyPlaceholder}
         />

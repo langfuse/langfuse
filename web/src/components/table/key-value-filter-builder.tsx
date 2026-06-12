@@ -29,6 +29,10 @@ import type {
   NumericKeyValueFilterEntry,
   StringKeyValueFilterEntry,
 } from "@/src/features/filters/hooks/useSidebarFilterState";
+import {
+  DEFAULT_STRING_KEY_VALUE_OPERATORS,
+  type StringKeyValueOperator,
+} from "@/src/features/filters/lib/filter-config";
 
 type KeyValueFilterBuilderProps =
   | {
@@ -50,6 +54,8 @@ type KeyValueFilterBuilderProps =
       mode: "string";
       keyOptions?: string[];
       activeFilters: StringKeyValueFilterEntry[];
+      operators?: readonly StringKeyValueOperator[];
+      defaultOperator?: StringKeyValueOperator;
       onChange: (filters: StringKeyValueFilterEntry[]) => void;
       keyPlaceholder?: string;
     };
@@ -64,9 +70,12 @@ const NUMERIC_OPERATOR_LABELS = {
 } as const;
 
 const STRING_OPERATOR_LABELS = {
+  matches: "matches",
   "=": "equals",
   contains: "contains",
   "does not contain": "does not contain",
+  "starts with": "starts with",
+  "ends with": "ends with",
 } as const;
 
 export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
@@ -78,6 +87,16 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     keyPlaceholder = "Key",
   } = props;
   const availableValues = mode === "categorical" ? props.availableValues : {};
+  const stringOperators =
+    mode === "string" && props.operators?.length
+      ? props.operators
+      : DEFAULT_STRING_KEY_VALUE_OPERATORS;
+  const defaultStringOperator =
+    mode === "string"
+      ? (props.defaultOperator ??
+        stringOperators[0] ??
+        DEFAULT_STRING_KEY_VALUE_OPERATORS[0])
+      : DEFAULT_STRING_KEY_VALUE_OPERATORS[0];
 
   // Track which popover is open (by index)
   const [openPopoverIndex, setOpenPopoverIndex] = useState<number | null>(null);
@@ -151,7 +170,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
     } else {
       const newFilter: StringKeyValueFilterEntry = {
         key: "",
-        operator: "=" as const,
+        operator: defaultStringOperator,
         value: "",
       };
       const filters = localFilters as StringKeyValueFilterEntry[];
@@ -365,7 +384,7 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                   value={filter.operator}
                   onValueChange={(value) =>
                     handleFilterChange(index, {
-                      operator: value as "=" | "contains" | "does not contain",
+                      operator: value as StringKeyValueOperator,
                     })
                   }
                 >
@@ -373,13 +392,11 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(STRING_OPERATOR_LABELS).map(
-                      ([op, label]) => (
-                        <SelectItem key={op} value={op}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
+                    {stringOperators.map((op) => (
+                      <SelectItem key={op} value={op}>
+                        {STRING_OPERATOR_LABELS[op]}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
 

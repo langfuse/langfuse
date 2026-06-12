@@ -28,7 +28,19 @@ import {
 import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import type { FilterConfig, FilterStateMigration } from "../lib/filter-config";
+import {
+  getStringDefaultOperator,
+  getStringKeyValueDefaultOperator,
+  getStringKeyValueOperators,
+  type FilterConfig,
+  type FilterStateMigration,
+  type SchemaBackedFilterConfig,
+  type SidebarFilterCondition,
+  type SidebarFilterState,
+  type SidebarSingleFilterSchema,
+  type StringFilterOperator,
+  type StringKeyValueOperator,
+} from "../lib/filter-config";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 /**
@@ -39,13 +51,16 @@ import type { PeekTableStateContextValue } from "@/src/components/table/peek/con
  * @param columnDefinitions - Column definitions for validation and normalization
  * @returns Normalized and validated FilterState
  */
-export function decodeAndNormalizeFilters(
+const decodeAndNormalizeFiltersWithSchema = <
+  TFilter extends SidebarFilterCondition,
+>(
   filtersQuery: string,
   columnDefinitions: ColumnDefinition[],
-  migrateFilterState?: FilterStateMigration,
-): FilterState {
+  filterSchema: SidebarSingleFilterSchema<TFilter>,
+  migrateFilterState?: FilterStateMigration<TFilter>,
+): SidebarFilterState<TFilter> => {
   try {
-    const filters = decodeFiltersGeneric(filtersQuery);
+    const filters = decodeFiltersGeneric(filtersQuery, filterSchema);
     const knownColumns = new Map<string, string>();
     for (const columnDefinition of columnDefinitions) {
       knownColumns.set(columnDefinition.id, columnDefinition.id);
@@ -65,22 +80,19 @@ export function decodeAndNormalizeFilters(
       : normalized;
 
     // Validate normalized filters
-    const result: FilterState = [];
+    const result: SidebarFilterState<TFilter> = [];
     for (const filter of migrated) {
-      const validationResult = singleFilter.safeParse(filter);
+      const validationResult = filterSchema.safeParse(filter);
       if (validationResult.success) {
-        const canonicalColumnId = knownColumns.get(
-          validationResult.data.column,
-        );
+        const parsedFilter = validationResult.data;
+        const canonicalColumnId = knownColumns.get(parsedFilter.column);
         if (!canonicalColumnId) {
           // Gracefully ignore stale filters from old URLs or saved state.
           continue;
         }
 
-        result.push({
-          ...validationResult.data,
-          column: canonicalColumnId,
-        });
+        parsedFilter.column = canonicalColumnId;
+        result.push(parsedFilter);
       } else {
         console.warn(`Invalid filter skipped:`, filter, validationResult.error);
       }
@@ -90,11 +102,40 @@ export function decodeAndNormalizeFilters(
     console.error("Error decoding filters:", error);
     return [];
   }
+};
+
+export function decodeAndNormalizeFilters(
+  filtersQuery: string,
+  columnDefinitions: ColumnDefinition[],
+  migrateFilterState?: FilterStateMigration<FilterState[number]>,
+): FilterState {
+  return decodeAndNormalizeFiltersWithSchema(
+    filtersQuery,
+    columnDefinitions,
+    singleFilter,
+    migrateFilterState,
+  );
 }
 
-function computeNumericRange(
+const parseFiltersWithSchema = <TFilter extends SidebarFilterCondition>(
+  filters: readonly SidebarFilterCondition[],
+  filterSchema: SidebarSingleFilterSchema<TFilter>,
+): SidebarFilterState<TFilter> => {
+  const parsedFilters: SidebarFilterState<TFilter> = [];
+
+  for (const filter of filters) {
+    const parsed = filterSchema.safeParse(filter);
+    if (parsed.success) {
+      parsedFilters.push(parsed.data);
+    }
+  }
+
+  return parsedFilters;
+};
+
+function computeNumericRange<TFilter extends SidebarFilterCondition>(
   column: string,
-  filterState: FilterState,
+  filterState: SidebarFilterState<TFilter>,
   defaultMin: number,
   defaultMax: number,
 ): [number, number] {
@@ -217,7 +258,7 @@ export type NumericKeyValueFilterEntry = {
 // Example: key="environment", operator="=", value="production"
 export type StringKeyValueFilterEntry = {
   key: string;
-  operator: "=" | "contains" | "does not contain";
+  operator: StringKeyValueOperator;
   value: string;
 };
 
@@ -240,6 +281,8 @@ export interface StringKeyValueUIFilter extends BaseUIFilter {
   type: "stringKeyValue";
   value: StringKeyValueFilterEntry[]; // Array of active filter rows
   keyOptions?: string[];
+  operators: readonly StringKeyValueOperator[];
+  defaultOperator: StringKeyValueOperator;
   onChange: (filters: StringKeyValueFilterEntry[]) => void;
 }
 
@@ -364,6 +407,26 @@ const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
   stateLocation: "urlAndSessionStorage",
 };
 
+export type UseSidebarFilterStateResult<
+  TFilter extends SidebarFilterCondition = FilterState[number],
+> = {
+  filterState: SidebarFilterState<TFilter>;
+  effectiveFilterState: SidebarFilterState<TFilter>;
+  explicitFilterState: SidebarFilterState<TFilter>;
+  setFilterState: (newFilters: SidebarFilterState<TFilter>) => void;
+  updateFilter: UpdateFilter;
+  updateFilterOnly: (column: string, value: string) => void;
+  updateOperator: (
+    column: string,
+    newOperator: "any of" | "all of" | "none of",
+  ) => void;
+  clearAll: () => void;
+  isFiltered: boolean;
+  filters: UIFilter[];
+  expanded: string[];
+  onExpandedChange: (value: string[]) => void;
+};
+
 /**
  * Pure function that determines the operator and values for checkbox-based
  * filter interactions. Extracted for testability.
@@ -384,7 +447,7 @@ const DEFAULT_HOOK_OPTIONS: UseSidebarFilterStateOptions = {
  */
 export function resolveCheckboxOperator(params: {
   colType: string | undefined;
-  existingFilter: FilterState[number] | undefined;
+  existingFilter: SidebarFilterCondition | undefined;
   values: string[];
   availableValues: string[];
 }): { finalOperator: "any of" | "none of" | "all of"; finalValues: string[] } {
@@ -422,13 +485,48 @@ export function resolveCheckboxOperator(params: {
 }
 
 export function useSidebarFilterState(
-  config: FilterConfig,
+  config: FilterConfig<FilterState[number]>,
   options: Record<
     string,
     (string | SingleValueOption)[] | Record<string, string[]> | undefined
   >,
-  hookOptions: UseSidebarFilterStateOptions = DEFAULT_HOOK_OPTIONS,
-) {
+  hookOptions?: UseSidebarFilterStateOptions,
+): UseSidebarFilterStateResult<FilterState[number]> {
+  return useSidebarFilterStateCore(
+    config,
+    options,
+    hookOptions ?? DEFAULT_HOOK_OPTIONS,
+    singleFilter,
+  );
+}
+
+export function useSchemaSidebarFilterState<
+  TFilter extends SidebarFilterCondition,
+>(
+  config: SchemaBackedFilterConfig<TFilter>,
+  options: Record<
+    string,
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
+  >,
+  hookOptions?: UseSidebarFilterStateOptions,
+): UseSidebarFilterStateResult<TFilter> {
+  return useSidebarFilterStateCore(
+    config,
+    options,
+    hookOptions ?? DEFAULT_HOOK_OPTIONS,
+    config.filterSchema,
+  );
+}
+
+function useSidebarFilterStateCore<TFilter extends SidebarFilterCondition>(
+  config: FilterConfig<TFilter>,
+  options: Record<
+    string,
+    (string | SingleValueOption)[] | Record<string, string[]> | undefined
+  >,
+  hookOptions: UseSidebarFilterStateOptions,
+  filterSchema: SidebarSingleFilterSchema<TFilter>,
+): UseSidebarFilterStateResult<TFilter> {
   const { loading, implicitDefaultConfig } = hookOptions;
   const stateLocationType = hookOptions.stateLocation;
   const peekContext =
@@ -494,9 +592,17 @@ export function useSidebarFilterState(
   const [pendingFiltersQuery, setPendingFiltersQuery] = useState<string | null>(
     null,
   );
-  const [memoryFilterState, setMemoryFilterState] = useState<FilterState>([]);
+  const [memoryFilterState, setMemoryFilterState] = useState<
+    SidebarFilterState<TFilter>
+  >([]);
 
-  const urlFilterState: FilterState = useMemo(() => {
+  const parseFilterCandidates = useCallback(
+    (filters: readonly SidebarFilterCondition[]): SidebarFilterState<TFilter> =>
+      parseFiltersWithSchema(filters, filterSchema),
+    [filterSchema],
+  );
+
+  const urlFilterState: SidebarFilterState<TFilter> = useMemo(() => {
     if (
       stateLocationType !== "url" &&
       stateLocationType !== "urlAndSessionStorage"
@@ -520,14 +626,16 @@ export function useSidebarFilterState(
       return "";
     })();
 
-    return decodeAndNormalizeFilters(
+    return decodeAndNormalizeFiltersWithSchema(
       rawQuery,
       config.columnDefinitions,
+      filterSchema,
       config.migrateFilterState,
     );
   }, [
     config.columnDefinitions,
     config.migrateFilterState,
+    filterSchema,
     stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
@@ -539,9 +647,9 @@ export function useSidebarFilterState(
     [urlFilterState],
   );
 
-  const explicitFilterState: FilterState =
+  const explicitFilterState: SidebarFilterState<TFilter> =
     stateLocationType === "peekContext"
-      ? hookOptions.context.tableState.filters
+      ? parseFilterCandidates(hookOptions.context.tableState.filters)
       : stateLocationType === "memory"
         ? memoryFilterState
         : urlFilterState;
@@ -562,16 +670,27 @@ export function useSidebarFilterState(
     );
   }, [options, managedEnvironmentColumn]);
 
-  const effectiveEnvironmentFilterState: FilterState = useMemo(
-    () =>
-      buildEffectiveEnvironmentFilter({
-        explicitFilters: explicitFilterState,
-        config: managedEnvironmentPolicyConfig,
-      }),
-    [explicitFilterState, managedEnvironmentPolicyConfig],
+  const legacyExplicitFilterState = useMemo(
+    () => parseFiltersWithSchema(explicitFilterState, singleFilter),
+    [explicitFilterState],
   );
 
-  const filterState: FilterState = useMemo(
+  const effectiveEnvironmentFilterState: SidebarFilterState<TFilter> = useMemo(
+    () =>
+      parseFilterCandidates(
+        buildEffectiveEnvironmentFilter({
+          explicitFilters: legacyExplicitFilterState,
+          config: managedEnvironmentPolicyConfig,
+        }),
+      ),
+    [
+      legacyExplicitFilterState,
+      managedEnvironmentPolicyConfig,
+      parseFilterCandidates,
+    ],
+  );
+
+  const filterState: SidebarFilterState<TFilter> = useMemo(
     () =>
       explicitFilterState
         .filter((filter) => filter.column !== managedEnvironmentColumn)
@@ -584,7 +703,7 @@ export function useSidebarFilterState(
   );
 
   const setFilterState = useCallback(
-    (newFilters: FilterState) => {
+    (newFilters: SidebarFilterState<TFilter>) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: newFilters,
         availableEnvironmentValues,
@@ -594,7 +713,7 @@ export function useSidebarFilterState(
       if (stateLocationType === "peekContext" && setPeekTableState) {
         setPeekTableState((current) => ({
           ...current,
-          filters: explicitFilters,
+          filters: parseFiltersWithSchema(explicitFilters, singleFilter),
         }));
         return;
       }
@@ -710,11 +829,11 @@ export function useSidebarFilterState(
   // Generic apply selection logic
   const applySelection = useCallback(
     (
-      current: FilterState,
+      current: SidebarFilterState<TFilter>,
       column: string,
       values: string[],
       operator?: "any of" | "none of" | "all of",
-    ): FilterState => {
+    ): SidebarFilterState<TFilter> => {
       const other = current.filter((f) => f.column !== column);
 
       const facet = config.facets.find((f) => f.column === column);
@@ -733,7 +852,7 @@ export function useSidebarFilterState(
 
         if (values.length === 0 || values.length === 2) return other;
         if (values.includes(trueLabel)) {
-          return [
+          return parseFilterCandidates([
             ...other,
             {
               column,
@@ -741,10 +860,10 @@ export function useSidebarFilterState(
               operator: "=" as const,
               value: invert ? false : true,
             },
-          ];
+          ]);
         }
         if (values.includes(falseLabel)) {
-          return [
+          return parseFilterCandidates([
             ...other,
             {
               column,
@@ -752,7 +871,7 @@ export function useSidebarFilterState(
               operator: "=" as const,
               value: invert ? true : false,
             },
-          ];
+          ]);
         }
         return other;
       }
@@ -803,7 +922,7 @@ export function useSidebarFilterState(
 
           // Keep explicit override when user intentionally enables all environments.
           if (isManagedEnvironmentColumn && values.length > 0) {
-            return [
+            return parseFilterCandidates([
               ...other,
               {
                 column,
@@ -811,7 +930,7 @@ export function useSidebarFilterState(
                 operator: "any of" as const,
                 value: values,
               },
-            ];
+            ]);
           }
           return other;
         }
@@ -828,7 +947,7 @@ export function useSidebarFilterState(
         colType === "arrayOptions" ? "arrayOptions" : "stringOptions";
 
       if (filterType === "arrayOptions") {
-        return [
+        return parseFilterCandidates([
           ...other,
           {
             column,
@@ -836,7 +955,7 @@ export function useSidebarFilterState(
             operator: finalOperator,
             value: finalValues,
           },
-        ];
+        ]);
       }
 
       // stringOptions only supports "any of" | "none of", not "all of"
@@ -846,7 +965,7 @@ export function useSidebarFilterState(
       const stringOperator: "any of" | "none of" =
         finalOperator === "all of" ? "any of" : finalOperator;
 
-      return [
+      return parseFilterCandidates([
         ...other,
         {
           column,
@@ -854,9 +973,15 @@ export function useSidebarFilterState(
           operator: stringOperator,
           value: finalValues,
         },
-      ];
+      ]);
     },
-    [config, options, managedEnvironmentColumn, managedEnvironmentPolicyConfig],
+    [
+      config,
+      options,
+      managedEnvironmentColumn,
+      managedEnvironmentPolicyConfig,
+      parseFilterCandidates,
+    ],
   );
 
   const updateFilter: UpdateFilter = useCallback(
@@ -978,7 +1103,7 @@ export function useSidebarFilterState(
 
       // Always add both filters when user interacts (even at min/max bounds)
       // This ensures the filter is marked as "active" and UI shows values
-      const filters: FilterState = [
+      const filters = parseFilterCandidates([
         {
           column,
           type: "number" as const,
@@ -991,16 +1116,20 @@ export function useSidebarFilterState(
           operator: "<=" as const,
           value: value[1],
         },
-      ];
+      ]);
 
-      const next: FilterState = [...withoutNumeric, ...filters];
+      const next = parseFilterCandidates([...withoutNumeric, ...filters]);
       setFilterState(next);
     },
-    [filterState, setFilterState],
+    [filterState, parseFilterCandidates, setFilterState],
   );
 
   const updateStringFilter = useCallback(
-    (column: string, value: string) => {
+    (
+      column: string,
+      value: string,
+      operator: StringFilterOperator = "contains",
+    ) => {
       const withoutString = filterState.filter((f) => f.column !== column);
 
       if (value.trim() === "") {
@@ -1008,19 +1137,19 @@ export function useSidebarFilterState(
         setFilterState(withoutString);
       } else {
         // Add string filter with contains operator
-        const next: FilterState = [
+        const next = parseFilterCandidates([
           ...withoutString,
           {
             column,
             type: "string" as const,
-            operator: "contains" as const,
+            operator,
             value,
           },
-        ];
+        ]);
         setFilterState(next);
       }
     },
-    [filterState, setFilterState],
+    [filterState, parseFilterCandidates, setFilterState],
   );
 
   // Text filter management for categorical filters
@@ -1045,17 +1174,20 @@ export function useSidebarFilterState(
       );
 
       // Add the new text filter
-      const newFilter: FilterState[number] = {
+      const newFilter: SidebarFilterCondition = {
         column,
         type: "string",
         operator,
         value: value.trim(),
       };
 
-      const next: FilterState = [...withoutCheckboxFilters, newFilter];
+      const next = parseFilterCandidates([
+        ...withoutCheckboxFilters,
+        newFilter,
+      ]);
       setFilterState(next);
     },
-    [filterState, setFilterState],
+    [filterState, parseFilterCandidates, setFilterState],
   );
 
   const removeTextFilter = useCallback(
@@ -1146,6 +1278,7 @@ export function useSidebarFilterState(
 
         // Handle string filters
         if (facet.type === "string") {
+          const defaultOperator = getStringDefaultOperator(facet);
           const filterEntry = filterByColumn.get(facet.column);
           const currentValue =
             filterEntry?.type === "string" &&
@@ -1168,7 +1301,7 @@ export function useSidebarFilterState(
             isDisabled: disableState.isDisabled,
             disabledReason: disableState.reason,
             onChange: (value: string) =>
-              updateStringFilter(facet.column, value),
+              updateStringFilter(facet.column, value, defaultOperator),
             onReset: () => updateStringFilter(facet.column, ""),
           };
         }
@@ -1177,14 +1310,9 @@ export function useSidebarFilterState(
         if (facet.type === "keyValue") {
           // Extract all categoryOptions filters for this column from filterState
           const categoryFilters = filterState.filter(
-            (f) => f.column === facet.column && f.type === "categoryOptions",
-          ) as Array<{
-            column: string;
-            type: "categoryOptions";
-            operator: "any of" | "none of";
-            key: string;
-            value: string[];
-          }>;
+            (f): f is Extract<TFilter, { type: "categoryOptions" }> =>
+              f.column === facet.column && f.type === "categoryOptions",
+          );
 
           // Convert to KeyValueFilterEntry array
           const activeFilters: KeyValueFilterEntry[] = categoryFilters.map(
@@ -1244,7 +1372,7 @@ export function useSidebarFilterState(
                 (entry) => entry.key && entry.value.length > 0,
               );
 
-              const newFilters: FilterState = [
+              const newFilters = parseFilterCandidates([
                 ...withoutCategory,
                 ...validFilters.map((entry) => ({
                   column: facet.column,
@@ -1253,7 +1381,7 @@ export function useSidebarFilterState(
                   key: entry.key,
                   value: entry.value,
                 })),
-              ];
+              ]);
 
               setFilterState(newFilters);
             },
@@ -1272,14 +1400,9 @@ export function useSidebarFilterState(
         if (facet.type === "numericKeyValue") {
           // Extract all numberObject filters for this column from filterState
           const numericFilters = filterState.filter(
-            (f) => f.column === facet.column && f.type === "numberObject",
-          ) as Array<{
-            column: string;
-            type: "numberObject";
-            operator: "=" | ">" | "<" | ">=" | "<=";
-            key: string;
-            value: number;
-          }>;
+            (f): f is Extract<TFilter, { type: "numberObject" }> =>
+              f.column === facet.column && f.type === "numberObject",
+          );
 
           // Convert to NumericKeyValueFilterEntry array
           const activeFilters: NumericKeyValueFilterEntry[] =
@@ -1322,19 +1445,22 @@ export function useSidebarFilterState(
 
               // Only add filters that have key and valid numeric value
               const validFilters = filters.filter(
-                (entry) => entry.key && entry.value !== "",
+                (
+                  entry,
+                ): entry is NumericKeyValueFilterEntry & { value: number } =>
+                  Boolean(entry.key) && typeof entry.value === "number",
               );
 
-              const newFilters: FilterState = [
+              const newFilters = parseFilterCandidates([
                 ...withoutNumeric,
                 ...validFilters.map((entry) => ({
                   column: facet.column,
                   type: "numberObject" as const,
                   operator: entry.operator,
                   key: entry.key,
-                  value: entry.value as number,
+                  value: entry.value,
                 })),
-              ];
+              ]);
 
               setFilterState(newFilters);
             },
@@ -1353,14 +1479,9 @@ export function useSidebarFilterState(
         if (facet.type === "stringKeyValue") {
           // Extract all stringObject filters for this column from filterState
           const stringFilters = filterState.filter(
-            (f) => f.column === facet.column && f.type === "stringObject",
-          ) as Array<{
-            column: string;
-            type: "stringObject";
-            operator: "=" | "contains" | "does not contain";
-            key: string;
-            value: string;
-          }>;
+            (f): f is Extract<TFilter, { type: "stringObject" }> =>
+              f.column === facet.column && f.type === "stringObject",
+          );
 
           // Convert to StringKeyValueFilterEntry array
           const activeFilters: StringKeyValueFilterEntry[] = stringFilters.map(
@@ -1381,6 +1502,8 @@ export function useSidebarFilterState(
             availableKeys,
             activeFilters.map((filter) => filter.key),
           );
+          const operators = getStringKeyValueOperators(facet);
+          const defaultOperator = getStringKeyValueDefaultOperator(facet);
 
           return {
             type: "stringKeyValue",
@@ -1390,6 +1513,8 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
+            operators,
+            defaultOperator,
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1407,7 +1532,7 @@ export function useSidebarFilterState(
                 (entry) => entry.key && entry.value.trim() !== "",
               );
 
-              const newFilters: FilterState = [
+              const newFilters = parseFilterCandidates([
                 ...withoutString,
                 ...validFilters.map((entry) => ({
                   column: facet.column,
@@ -1416,7 +1541,7 @@ export function useSidebarFilterState(
                   key: entry.key,
                   value: entry.value,
                 })),
-              ];
+              ]);
 
               setFilterState(newFilters);
             },
@@ -1440,8 +1565,8 @@ export function useSidebarFilterState(
           const filterEntry = filterByColumn.get(facet.column);
 
           let selectedOptions = availableOptions;
-          if (filterEntry) {
-            const boolValue = filterEntry.value as boolean;
+          if (filterEntry?.type === "boolean") {
+            const boolValue = filterEntry.value;
             if (invert) {
               // Inverted: filter value=true means falseLabel selected, value=false means trueLabel selected
               selectedOptions = boolValue === true ? [falseLabel] : [trueLabel];
@@ -1581,13 +1706,17 @@ export function useSidebarFilterState(
         // Extract text filters for this column (contains/does not contain)
         const textFilters: TextFilterEntry[] = filterState
           .filter(
-            (f): f is Extract<typeof f, { type: "string" }> =>
+            (
+              f,
+            ): f is Extract<TFilter, { type: "string" }> & {
+              operator: TextFilterEntry["operator"];
+            } =>
               f.column === facet.column &&
               f.type === "string" &&
               (f.operator === "contains" || f.operator === "does not contain"),
           )
           .map((f) => ({
-            operator: f.operator as "contains" | "does not contain",
+            operator: f.operator,
             value: f.value,
           }));
 
@@ -1714,6 +1843,7 @@ export function useSidebarFilterState(
     updateStringFilter,
     addTextFilter,
     removeTextFilter,
+    parseFilterCandidates,
     expandedState,
     setFilterState,
     managedEnvironmentColumn,

@@ -20,10 +20,10 @@ export type ColumnToBackendKeyMap = Record<string, string>;
  * @param columnDefinitions - Column definitions for lookup
  * @returns FilterState with all column names normalized to IDs
  */
-export function normalizeFilterColumnNames(
-  filters: FilterState,
+export function normalizeFilterColumnNames<TFilter extends { column: string }>(
+  filters: TFilter[],
   columnDefinitions: ColumnDefinition[],
-): FilterState {
+): TFilter[] {
   return filters.map((filter) => {
     const colDef = columnDefinitions.find(
       (c) =>
@@ -32,7 +32,7 @@ export function normalizeFilterColumnNames(
         c.aliases?.includes(filter.column),
     );
     if (colDef && colDef.id !== filter.column) {
-      return { ...filter, column: colDef.id };
+      return { ...filter, column: colDef.id } as TFilter;
     }
     return filter;
   });

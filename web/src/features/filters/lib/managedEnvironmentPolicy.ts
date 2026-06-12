@@ -1,11 +1,23 @@
-import type { FilterState } from "@langfuse/shared";
+import type {
+  EventsTableFilterCondition,
+  FilterCondition,
+  FilterState,
+} from "@langfuse/shared";
 import { computeSelectedValues } from "./filter-query-encoding";
 import { areStringSetsEqual } from "./stringSetUtils";
 
+type ManagedEnvironmentFilterCondition =
+  | FilterCondition
+  | EventsTableFilterCondition;
+
 type EnvironmentFilter = Extract<
-  FilterState[number],
+  ManagedEnvironmentFilterCondition,
   { type: "stringOptions" }
 >;
+
+const isEnvironmentFilter = (
+  filter: ManagedEnvironmentFilterCondition | undefined,
+): filter is EnvironmentFilter => filter?.type === "stringOptions";
 
 export type ManagedEnvironmentPolicyInput = {
   hiddenEnvironments?: readonly string[];
@@ -55,11 +67,13 @@ function isEquivalentToImplicitEnvironmentDefault(params: {
   return areStringSetsEqual(selectedFromFilter, selectedFromDefault);
 }
 
-export function stripImplicitEnvironmentFilterFromExplicitState(params: {
-  explicitFilters: FilterState;
+export function stripImplicitEnvironmentFilterFromExplicitState<
+  TFilter extends ManagedEnvironmentFilterCondition = FilterCondition,
+>(params: {
+  explicitFilters: TFilter[];
   availableEnvironmentValues: string[];
   config: ManagedEnvironmentPolicyConfig;
-}): FilterState {
+}): TFilter[] {
   const { explicitFilters, availableEnvironmentValues, config } = params;
   const { managedEnvironmentColumn, hiddenEnvironments } = config;
 
@@ -72,12 +86,12 @@ export function stripImplicitEnvironmentFilterFromExplicitState(params: {
   // Only canonicalize the standard environment checkbox filter shape.
   if (
     managedColumnFilters.length !== 1 ||
-    managedColumnFilters[0]?.type !== "stringOptions"
+    !isEnvironmentFilter(managedColumnFilters[0])
   ) {
     return explicitFilters;
   }
 
-  const envFilter = managedColumnFilters[0] as EnvironmentFilter;
+  const envFilter = managedColumnFilters[0];
   const otherFilters = explicitFilters.filter((filter) => filter !== envFilter);
 
   if (
