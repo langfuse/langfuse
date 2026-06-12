@@ -1,0 +1,467 @@
+{
+  "trace": {
+    "id": "a3b7c9d1e5f2a8b4c6d0e2f4a6b8c0d2",
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "name": "conversation user_proxy",
+    "timestamp": "2026-03-09T10:15:00.000Z",
+    "environment": "default",
+    "tags": [
+      "ag2",
+      "multi-agent",
+      "tool-use"
+    ],
+    "bookmarked": false,
+    "release": null,
+    "version": "0.11.2",
+    "userId": "user_demo",
+    "sessionId": "session_ag2_demo",
+    "public": true,
+    "input": "\"What is the weather in San Francisco? Use the weather tool.\"",
+    "output": "\"The current weather in San Francisco is 62°F (17°C) with partly cloudy skies and a light breeze from the west at 12 mph.\"",
+    "metadata": "{\"resourceAttributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"ag2-demo\"},\"scope\":{\"name\":\"autogen.opentelemetry\",\"version\":\"0.11.2\"},\"attributes\":{\"ag2.span.type\":\"conversation\",\"gen_ai.usage.input_tokens\":186,\"gen_ai.usage.output_tokens\":74,\"gen_ai.usage.cost\":0.000389}}",
+    "createdAt": "2026-03-09T10:15:08.000Z",
+    "updatedAt": "2026-03-09T10:15:08.500Z",
+    "scores": [],
+    "latency": 7.832
+  },
+  "observations": [
+    {
+      "id": "c0a1b2c3d4e5f6a7",
+      "traceId": "a3b7c9d1e5f2a8b4c6d0e2f4a6b8c0d2",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": null,
+      "startTime": "2026-03-09T10:15:00.000Z",
+      "endTime": "2026-03-09T10:15:07.832Z",
+      "name": "conversation user_proxy",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.40.0",
+          "service.name": "ag2-demo"
+        },
+        "scope": {
+          "name": "autogen.opentelemetry",
+          "version": "0.11.2"
+        },
+        "attributes": {
+          "ag2.span.type": "conversation",
+          "gen_ai.usage.input_tokens": 186,
+          "gen_ai.usage.output_tokens": 74,
+          "gen_ai.usage.cost": 0.000389
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2026-03-09T10:15:08.000Z",
+      "updatedAt": "2026-03-09T10:15:08.500Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 7832,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0.000389,
+      "inputUsage": 186,
+      "outputUsage": 74,
+      "totalUsage": 260,
+      "input": [
+        {"role": "user", "content": "What is the weather in San Francisco? Use the weather tool."}
+      ],
+      "output": [
+        {"role": "assistant", "content": "The current weather in San Francisco is 62°F (17°C) with partly cloudy skies and a light breeze from the west at 12 mph."}
+      ]
+    },
+    {
+      "id": "d1b2c3d4e5f6a7b8",
+      "traceId": "a3b7c9d1e5f2a8b4c6d0e2f4a6b8c0d2",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "c0a1b2c3d4e5f6a7",
+      "startTime": "2026-03-09T10:15:00.050Z",
+      "endTime": "2026-03-09T10:15:03.200Z",
+      "name": "invoke_agent assistant",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.40.0",
+          "service.name": "ag2-demo"
+        },
+        "scope": {
+          "name": "autogen.opentelemetry",
+          "version": "0.11.2"
+        },
+        "attributes": {
+          "ag2.span.type": "agent",
+          "ag2.agent.name": "assistant"
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2026-03-09T10:15:03.300Z",
+      "updatedAt": "2026-03-09T10:15:03.400Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 3150,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": [
+        {"role": "system", "content": "You are a helpful weather assistant. Use the get_weather tool to answer weather questions."},
+        {"role": "user", "content": "What is the weather in San Francisco? Use the weather tool."}
+      ],
+      "output": [
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "call_abc123", "function": {"name": "get_weather", "arguments": "{\"location\": \"San Francisco, CA\"}"}, "type": "function"}]}
+      ]
+    },
+    {
+      "id": "e2c3d4e5f6a7b8c9",
+      "traceId": "a3b7c9d1e5f2a8b4c6d0e2f4a6b8c0d2",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "d1b2c3d4e5f6a7b8",
+      "startTime": "2026-03-09T10:15:00.100Z",
+      "endTime": "2026-03-09T10:15:02.850Z",
+      "name": "chat gpt-4o-mini",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.40.0",
+          "service.name": "ag2-demo"
+        },
+        "scope": {
+          "name": "autogen.opentelemetry",
+          "version": "0.11.2"
+        },
+        "attributes": {
+          "ag2.span.type": "llm",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o-mini",
+          "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+          "gen_ai.response.finish_reasons": ["tool_calls"],
+          "gen_ai.usage.input_tokens": 82,
+          "gen_ai.usage.output_tokens": 24
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "temperature": 1,
+        "top_p": 1,
+        "frequency_penalty": 0,
+        "presence_penalty": 0,
+        "is_stream": false
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2026-03-09T10:15:02.900Z",
+      "updatedAt": "2026-03-09T10:15:02.950Z",
+      "usageDetails": {
+        "input": 82,
+        "output": 24,
+        "total": 106
+      },
+      "costDetails": {
+        "total": 0.0000195
+      },
+      "providedCostDetails": {
+        "total": 0.0000195
+      },
+      "model": "gpt-4o-mini",
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 2750,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0.0000195,
+      "inputUsage": 82,
+      "outputUsage": 24,
+      "totalUsage": 106,
+      "input": [
+        {"role": "system", "content": "You are a helpful weather assistant. Use the get_weather tool to answer weather questions."},
+        {"role": "user", "content": "What is the weather in San Francisco? Use the weather tool."}
+      ],
+      "output": [
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "call_abc123", "function": {"name": "get_weather", "arguments": "{\"location\": \"San Francisco, CA\"}"}, "type": "function"}]}
+      ]
+    },
+    {
+      "id": "f3d4e5f6a7b8c9d0",
+      "traceId": "a3b7c9d1e5f2a8b4c6d0e2f4a6b8c0d2",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "c0a1b2c3d4e5f6a7",
+      "startTime": "2026-03-09T10:15:03.250Z",
+      "endTime": "2026-03-09T10:15:03.800Z",
+      "name": "invoke_agent user_proxy",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.40.0",
+          "service.name": "ag2-demo"
+        },
+        "scope": {
+          "name": "autogen.opentelemetry",
+          "version": "0.11.2"
+        },
+        "attributes": {
+          "ag2.span.type": "agent",
+          "ag2.agent.name": "user_proxy"
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2026-03-09T10:15:03.900Z",
+      "updatedAt": "2026-03-09T10:15:03.950Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 550,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": [
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "call_abc123", "function": {"name": "get_weather", "arguments": "{\"location\": \"San Francisco, CA\"}"}, "type": "function"}]}
+      ],
+      "output": [
+        {"role": "tool", "tool_call_id": "call_abc123", "content": "{\"location\": \"San Francisco, CA\", \"temperature_f\": 62, \"temperature_c\": 17, \"condition\": \"Partly Cloudy\", \"wind\": \"W 12 mph\", \"humidity\": \"68%\"}"}
+      ]
+    },
+    {
+      "id": "a4e5f6a7b8c9d0e1",
+      "traceId": "a3b7c9d1e5f2a8b4c6d0e2f4a6b8c0d2",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "f3d4e5f6a7b8c9d0",
+      "startTime": "2026-03-09T10:15:03.300Z",
+      "endTime": "2026-03-09T10:15:03.750Z",
+      "name": "execute_tool get_weather",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.40.0",
+          "service.name": "ag2-demo"
+        },
+        "scope": {
+          "name": "autogen.opentelemetry",
+          "version": "0.11.2"
+        },
+        "attributes": {
+          "ag2.span.type": "tool",
+          "gen_ai.tool.name": "get_weather",
+          "gen_ai.tool.call.id": "call_abc123",
+          "gen_ai.tool.description": "Get current weather for a location"
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2026-03-09T10:15:03.800Z",
+      "updatedAt": "2026-03-09T10:15:03.850Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 450,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": "{\"location\": \"San Francisco, CA\"}",
+      "output": "{\"location\": \"San Francisco, CA\", \"temperature_f\": 62, \"temperature_c\": 17, \"condition\": \"Partly Cloudy\", \"wind\": \"W 12 mph\", \"humidity\": \"68%\"}"
+    },
+    {
+      "id": "b5f6a7b8c9d0e1f2",
+      "traceId": "a3b7c9d1e5f2a8b4c6d0e2f4a6b8c0d2",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "SPAN",
+      "environment": "default",
+      "parentObservationId": "c0a1b2c3d4e5f6a7",
+      "startTime": "2026-03-09T10:15:03.850Z",
+      "endTime": "2026-03-09T10:15:07.800Z",
+      "name": "invoke_agent assistant",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.40.0",
+          "service.name": "ag2-demo"
+        },
+        "scope": {
+          "name": "autogen.opentelemetry",
+          "version": "0.11.2"
+        },
+        "attributes": {
+          "ag2.span.type": "agent",
+          "ag2.agent.name": "assistant"
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": null,
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2026-03-09T10:15:07.850Z",
+      "updatedAt": "2026-03-09T10:15:07.900Z",
+      "usageDetails": {},
+      "costDetails": {},
+      "providedCostDetails": {},
+      "model": null,
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 3950,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0,
+      "inputUsage": 0,
+      "outputUsage": 0,
+      "totalUsage": 0,
+      "input": [
+        {"role": "system", "content": "You are a helpful weather assistant. Use the get_weather tool to answer weather questions."},
+        {"role": "user", "content": "What is the weather in San Francisco? Use the weather tool."},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "call_abc123", "function": {"name": "get_weather", "arguments": "{\"location\": \"San Francisco, CA\"}"}, "type": "function"}]},
+        {"role": "tool", "tool_call_id": "call_abc123", "content": "{\"location\": \"San Francisco, CA\", \"temperature_f\": 62, \"temperature_c\": 17, \"condition\": \"Partly Cloudy\", \"wind\": \"W 12 mph\", \"humidity\": \"68%\"}"}
+      ],
+      "output": [
+        {"role": "assistant", "content": "The current weather in San Francisco is 62°F (17°C) with partly cloudy skies and a light breeze from the west at 12 mph."}
+      ]
+    },
+    {
+      "id": "c6a7b8c9d0e1f2a3",
+      "traceId": "a3b7c9d1e5f2a8b4c6d0e2f4a6b8c0d2",
+      "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+      "type": "GENERATION",
+      "environment": "default",
+      "parentObservationId": "b5f6a7b8c9d0e1f2",
+      "startTime": "2026-03-09T10:15:03.900Z",
+      "endTime": "2026-03-09T10:15:07.750Z",
+      "name": "chat gpt-4o-mini",
+      "metadata": {
+        "resourceAttributes": {
+          "telemetry.sdk.language": "python",
+          "telemetry.sdk.name": "opentelemetry",
+          "telemetry.sdk.version": "1.40.0",
+          "service.name": "ag2-demo"
+        },
+        "scope": {
+          "name": "autogen.opentelemetry",
+          "version": "0.11.2"
+        },
+        "attributes": {
+          "ag2.span.type": "llm",
+          "gen_ai.system": "openai",
+          "gen_ai.request.model": "gpt-4o-mini",
+          "gen_ai.response.model": "gpt-4o-mini-2024-07-18",
+          "gen_ai.response.finish_reasons": ["stop"],
+          "gen_ai.usage.input_tokens": 104,
+          "gen_ai.usage.output_tokens": 50
+        }
+      },
+      "level": "DEFAULT",
+      "statusMessage": null,
+      "version": null,
+      "modelParameters": {
+        "temperature": 1,
+        "top_p": 1,
+        "frequency_penalty": 0,
+        "presence_penalty": 0,
+        "is_stream": false
+      },
+      "completionStartTime": null,
+      "promptId": null,
+      "createdAt": "2026-03-09T10:15:07.800Z",
+      "updatedAt": "2026-03-09T10:15:07.850Z",
+      "usageDetails": {
+        "input": 104,
+        "output": 50,
+        "total": 154
+      },
+      "costDetails": {
+        "total": 0.0000369
+      },
+      "providedCostDetails": {
+        "total": 0.0000369
+      },
+      "model": "gpt-4o-mini",
+      "internalModelId": null,
+      "promptName": null,
+      "promptVersion": null,
+      "latency": 3850,
+      "timeToFirstToken": null,
+      "inputCost": null,
+      "outputCost": null,
+      "totalCost": 0.0000369,
+      "inputUsage": 104,
+      "outputUsage": 50,
+      "totalUsage": 154,
+      "input": [
+        {"role": "system", "content": "You are a helpful weather assistant. Use the get_weather tool to answer weather questions."},
+        {"role": "user", "content": "What is the weather in San Francisco? Use the weather tool."},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "call_abc123", "function": {"name": "get_weather", "arguments": "{\"location\": \"San Francisco, CA\"}"}, "type": "function"}]},
+        {"role": "tool", "tool_call_id": "call_abc123", "content": "{\"location\": \"San Francisco, CA\", \"temperature_f\": 62, \"temperature_c\": 17, \"condition\": \"Partly Cloudy\", \"wind\": \"W 12 mph\", \"humidity\": \"68%\"}"}
+      ],
+      "output": [
+        {"role": "assistant", "content": "The current weather in San Francisco is 62°F (17°C) with partly cloudy skies and a light breeze from the west at 12 mph."}
+      ]
+    }
+  ]
+}
