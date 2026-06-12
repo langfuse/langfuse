@@ -2,6 +2,7 @@ import {
   deleteEventsByTraceIds,
   deleteObservationsByTraceIds,
   deleteScoresByTraceIds,
+  deleteTracesFromGreptime,
   deleteTraces,
   getS3MediaStorageClient,
   logger,
@@ -141,6 +142,7 @@ export const processClickhouseTraceDelete = async (
             traceIds,
           })
         : Promise.resolve(),
+      deleteTracesFromGreptime({ projectId, traceIds }),
       deleteTraces(projectId, traceIds),
       deleteObservationsByTraceIds(projectId, traceIds),
       deleteScoresByTraceIds(projectId, traceIds),

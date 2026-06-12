@@ -57,6 +57,32 @@ const deleteProjectionRows = async (
   }
 };
 
+const bindInList = (values: string[]): { sql: string; params: string[] } => ({
+  sql: values.map(() => "?").join(", "),
+  params: values,
+});
+
+const readProjectionIdsByTraceIds = async (params: {
+  projectId: string;
+  table: "observations" | "scores";
+  traceIds: string[];
+}): Promise<string[]> => {
+  if (params.traceIds.length === 0) return [];
+  const traceIdList = bindInList(params.traceIds);
+  const rows = await greptimeQuery<{ id: string }>({
+    query: `
+      SELECT ${quoteIdent("id")}
+      FROM ${quoteIdent(params.table)}
+      WHERE ${quoteIdent("project_id")} = ?
+        AND ${quoteIdent("trace_id")} IN (${traceIdList.sql})
+        AND ${quoteIdent("is_deleted")} = false
+    `,
+    params: [params.projectId, ...traceIdList.params],
+    readOnly: true,
+  });
+  return rows.map((row) => row.id);
+};
+
 /**
  * Delete a single entity: append a tombstone to raw_events (so a later replay rebuilds it as
  * soft-deleted instead of resurrecting it) and delete its current projection + EAV rows.
@@ -100,6 +126,47 @@ export const deleteEntitiesFromGreptime = async (params: {
 };
 
 /**
+ * Delete traces and all child observations/scores visible in GreptimeDB projections. The child ids
+ * must be resolved before deleting projections because EAV rows are keyed by entity_id, not trace_id.
+ */
+export const deleteTracesFromGreptime = async (params: {
+  projectId: string;
+  traceIds: string[];
+}): Promise<void> => {
+  if (params.traceIds.length === 0) return;
+  const [observationIds, scoreIds] = await Promise.all([
+    readProjectionIdsByTraceIds({
+      projectId: params.projectId,
+      table: "observations",
+      traceIds: params.traceIds,
+    }),
+    readProjectionIdsByTraceIds({
+      projectId: params.projectId,
+      table: "scores",
+      traceIds: params.traceIds,
+    }),
+  ]);
+
+  await Promise.all([
+    deleteEntitiesFromGreptime({
+      projectId: params.projectId,
+      entityType: "trace",
+      entityIds: params.traceIds,
+    }),
+    deleteEntitiesFromGreptime({
+      projectId: params.projectId,
+      entityType: "observation",
+      entityIds: observationIds,
+    }),
+    deleteEntitiesFromGreptime({
+      projectId: params.projectId,
+      entityType: "score",
+      entityIds: scoreIds,
+    }),
+  ]);
+};
+
+/**
  * Delete every projection + EAV row for a project. raw_events is left to TTL and NOT tombstoned
  * per-entity (the entity id list isn't enumerated here), so a bulk reprocess-all during the TTL
  * window could resurrect a deleted project's projections. Acceptable because a deleted project is
@@ -118,4 +185,10 @@ export const deleteProjectFromGreptime = async (
       });
     }
   }
+  // dataset_run_items has no EAV subtables and is not a GreptimeEntityType (no tombstone/replay
+  // path), so it is deleted directly here. Per-entity dataset_run_item deletion is a follow-up.
+  await greptimeQuery({
+    query: `DELETE FROM ${quoteIdent("dataset_run_items")} WHERE ${quoteIdent("project_id")} = ?`,
+    params: [projectId],
+  });
 };
