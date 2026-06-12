@@ -272,27 +272,6 @@ export const processEventBatch = async (
     );
   }
 
-  // Write to GreptimeDB raw_events — the source of truth the worker replays from
-  // (02-write-path.md step 2). Fail-closed: if the SoT was not durably written, abort the batch
-  // so the producer retries rather than silently losing events.
-  await instrumentAsync({ name: "greptime-raw-events-write" }, async () => {
-    // Offset ingested_at by the (deterministically sorted) batch index so events written in the
-    // same request keep their request order as the raw_events read tie-break (ingested_at,
-    // event_id). Without this, same-timestamp updates to one entity would merge in event_id order
-    // instead of request order, diverging from the original last-write-wins-by-request semantics.
-    const ingestedAt = Date.now();
-    const rawEvents = sortedBatch
-      .map((event, index) =>
-        ingestionEventToRawEvent(
-          event,
-          authCheck.scope.projectId!,
-          ingestedAt + index,
-        ),
-      )
-      .filter((row): row is NonNullable<typeof row> => row !== null);
-    await writeRawEvents(rawEvents);
-  });
-
   // One batch id for the whole request — scopes the worker's Redis seen-cache at batch level.
   const batchId = randomUUID();
 
@@ -342,6 +321,25 @@ export const processEventBatch = async (
           sampling_decision: "in",
         });
       }
+
+      // Write to GreptimeDB raw_events only after sampling accepts this entity. raw_events is the
+      // worker replay source of truth; writing sampled-out events would let a later sampled update
+      // resurrect data that the ClickHouse path intentionally never processed.
+      await instrumentAsync({ name: "greptime-raw-events-write" }, async () => {
+        // Offset ingested_at by the deterministically sorted entity-local index so same-request
+        // updates keep request order as the raw_events read tie-break (ingested_at, event_id).
+        const ingestedAt = Date.now();
+        const rawEvents = eventData.data
+          .map((event, index) =>
+            ingestionEventToRawEvent(
+              event,
+              authCheck.scope.projectId!,
+              ingestedAt + index,
+            ),
+          )
+          .filter((row): row is NonNullable<typeof row> => row !== null);
+        await writeRawEvents(rawEvents);
+      });
 
       return queue
         ? queue.add(
