@@ -121,7 +121,7 @@ export default async function handler(
     }
 
     if (isZodError(error)) {
-      logger.warn(`Zod exception`, error.issues);
+      logger.warn(`Zod exception`, { issues: error.issues });
       return res.status(400).json({
         message: "Invalid request data",
         error: error.issues,

@@ -76,9 +76,13 @@ describe("tRPC error formatting", () => {
     expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
     expect(formatted.data["stack"]).toBeNull();
     expect(formatted.data["zodError"]).toBeNull();
+    expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn).toHaveBeenCalledWith(
-      "middleware intercepted error with code UNPROCESSABLE_CONTENT",
-      { error: expect.any(TRPCError) },
+      "ClickHouse resource limit exceeded",
+      expect.objectContaining({
+        errorType: "MEMORY_LIMIT",
+        message: "Memory limit exceeded",
+      }),
     );
     expect(logger.error).not.toHaveBeenCalled();
   });

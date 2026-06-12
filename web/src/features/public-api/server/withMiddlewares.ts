@@ -142,23 +142,11 @@ export function withMiddlewares(
             logger.error(error);
           }
 
-          if (
-            error instanceof BaseError &&
-            error.httpCode >= 500 &&
-            error.httpCode < 600
-          ) {
-            traceException(error);
-          }
-
-          if (isPrismaException(error)) {
-            traceException(error);
-          }
-
-          if (
-            !(error instanceof BaseError) &&
-            !(error instanceof ClickHouseResourceError) &&
-            !isZodError(error)
-          ) {
+          if (error instanceof BaseError) {
+            if (error.httpCode >= 500 && error.httpCode < 600) {
+              traceException(error);
+            }
+          } else if (!isZodError(error)) {
             traceException(error);
           }
 

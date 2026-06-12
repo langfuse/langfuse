@@ -184,11 +184,6 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         message: res.error.cause.message,
         tags: res.error.cause.tags,
       });
-      logErrorByStatus({
-        errorCode: "UNPROCESSABLE_CONTENT",
-        httpStatus: 422,
-        error: res.error,
-      });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
