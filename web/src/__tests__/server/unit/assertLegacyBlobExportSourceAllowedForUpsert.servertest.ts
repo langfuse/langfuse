@@ -22,7 +22,7 @@ const INTEGRATION_PRE_CUTOFF = new Date(
 const INTEGRATION_AT_CUTOFF = LEGACY_BLOB_EXPORTER_CUTOFF;
 
 describe("assertLegacyBlobExportSourceAllowedForUpsert", () => {
-  it("1. Cloud + pre-cutoff project + no row + legacy → throws", () => {
+  it("Cloud + pre-cutoff project + no row + legacy → throws", () => {
     expect(() =>
       assertLegacyBlobExportSourceAllowedForUpsert({
         project: { createdAt: PROJECT_PRE_CUTOFF },
@@ -33,7 +33,7 @@ describe("assertLegacyBlobExportSourceAllowedForUpsert", () => {
     ).toThrow();
   });
 
-  it("2. Cloud + pre-cutoff project + row (createdAt < CUTOFF) + legacy → allows", () => {
+  it("Cloud + pre-cutoff project + row (createdAt < CUTOFF) + legacy → allows", () => {
     expect(() =>
       assertLegacyBlobExportSourceAllowedForUpsert({
         project: { createdAt: PROJECT_PRE_CUTOFF },
@@ -44,7 +44,7 @@ describe("assertLegacyBlobExportSourceAllowedForUpsert", () => {
     ).not.toThrow();
   });
 
-  it("3. Cloud + post-cutoff project + no row + legacy → throws (delegate)", () => {
+  it("Cloud + post-cutoff project + no row + legacy → throws (delegate)", () => {
     expect(() =>
       assertLegacyBlobExportSourceAllowedForUpsert({
         project: { createdAt: PROJECT_POST_CUTOFF },
@@ -55,7 +55,7 @@ describe("assertLegacyBlobExportSourceAllowedForUpsert", () => {
     ).toThrow();
   });
 
-  it("4. Cloud + post-cutoff project + row (createdAt < CUTOFF) + legacy → throws (delegate wins)", () => {
+  it("Cloud + post-cutoff project + row (createdAt < CUTOFF) + legacy → throws (delegate wins)", () => {
     expect(() =>
       assertLegacyBlobExportSourceAllowedForUpsert({
         project: { createdAt: PROJECT_POST_CUTOFF },
@@ -66,7 +66,7 @@ describe("assertLegacyBlobExportSourceAllowedForUpsert", () => {
     ).toThrow();
   });
 
-  it("5. Cloud + any + EVENTS → allows", () => {
+  it("Cloud + any + EVENTS → allows", () => {
     expect(() =>
       assertLegacyBlobExportSourceAllowedForUpsert({
         project: { createdAt: PROJECT_POST_CUTOFF },
@@ -77,7 +77,7 @@ describe("assertLegacyBlobExportSourceAllowedForUpsert", () => {
     ).not.toThrow();
   });
 
-  it("6. self-hosted + post-cutoff project + no row + legacy → allows (short-circuit)", () => {
+  it("self-hosted + post-cutoff project + no row + legacy → allows (short-circuit)", () => {
     expect(() =>
       assertLegacyBlobExportSourceAllowedForUpsert({
         project: { createdAt: PROJECT_POST_CUTOFF },
@@ -88,7 +88,7 @@ describe("assertLegacyBlobExportSourceAllowedForUpsert", () => {
     ).not.toThrow();
   });
 
-  it("7. Cloud + pre-cutoff project + no row + TRACES_OBSERVATIONS_EVENTS → throws", () => {
+  it("Cloud + pre-cutoff project + no row + TRACES_OBSERVATIONS_EVENTS → throws", () => {
     expect(() =>
       assertLegacyBlobExportSourceAllowedForUpsert({
         project: { createdAt: PROJECT_PRE_CUTOFF },
@@ -99,7 +99,7 @@ describe("assertLegacyBlobExportSourceAllowedForUpsert", () => {
     ).toThrow();
   });
 
-  it("8. Cloud + pre-cutoff project + row (createdAt >= CUTOFF, reset-recreated) + legacy → throws", () => {
+  it("Cloud + pre-cutoff project + row (createdAt >= CUTOFF, reset-recreated) + legacy → throws", () => {
     expect(() =>
       assertLegacyBlobExportSourceAllowedForUpsert({
         project: { createdAt: PROJECT_PRE_CUTOFF },
