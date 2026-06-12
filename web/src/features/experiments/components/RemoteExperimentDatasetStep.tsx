@@ -155,10 +155,7 @@ export const RemoteExperimentDatasetStep = ({
       </DialogBody>
 
       <DialogFooter>
-        <div className="flex w-full justify-between">
-          <Button type="button" variant="outline" onClick={onBack}>
-            Cancel
-          </Button>
+        <div className="flex w-full justify-end">
           <Button
             type="button"
             disabled={!selectedDataset}

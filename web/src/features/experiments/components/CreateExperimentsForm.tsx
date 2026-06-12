@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Code2, Wand2, Cog, Zap } from "lucide-react";
+import { CheckIcon, ChevronDown, Code2, Cog, Wand2 } from "lucide-react";
 import { api } from "@/src/utils/api";
 import {
   Card,
@@ -17,14 +17,27 @@ import {
   DialogDescription,
   DialogBody,
 } from "@/src/components/ui/dialog";
+import {
+  InputCommand,
+  InputCommandEmpty,
+  InputCommandGroup,
+  InputCommandInput,
+  InputCommandItem,
+  InputCommandList,
+} from "@/src/components/ui/input-command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/src/components/ui/popover";
 import Link from "next/link";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type CreateExperiment } from "@/src/features/experiments/types";
 import { MultiStepExperimentForm } from "@/src/features/experiments/components/MultiStepExperimentForm";
-import { RemoteExperimentDatasetStep } from "@/src/features/experiments/components/RemoteExperimentDatasetStep";
 import { RemoteExperimentUpsertForm } from "@/src/features/experiments/components/RemoteExperimentUpsertForm";
 import { RemoteExperimentTriggerModal } from "@/src/features/experiments/components/RemoteExperimentTriggerModal";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import { cn } from "@/src/utils/tailwind";
 
 export const CreateExperimentsForm = ({
   projectId,
@@ -58,14 +71,13 @@ export const CreateExperimentsForm = ({
 }) => {
   const capture = usePostHogClientCapture();
   const [showPromptForm, setShowPromptForm] = useState(false);
-  const [showRemoteExperimentDatasetStep, setShowRemoteExperimentDatasetStep] =
-    useState(false);
   const [showRemoteExperimentUpsertForm, setShowRemoteExperimentUpsertForm] =
     useState(false);
   const [
     showRemoteExperimentTriggerModal,
     setShowRemoteExperimentTriggerModal,
   ] = useState(false);
+  const [datasetPopoverOpen, setDatasetPopoverOpen] = useState(false);
 
   const hasExperimentWriteAccess = useHasProjectAccess({
     projectId,
@@ -76,6 +88,25 @@ export const CreateExperimentsForm = ({
     { id: string; name?: string } | undefined
   >(fixedDatasetId ? { id: fixedDatasetId } : undefined);
   const datasetId = fixedDatasetId ?? remoteExperimentDataset?.id;
+  const remoteExperimentDatasets = api.datasets.allDatasetMeta.useQuery(
+    { projectId },
+    {
+      enabled:
+        showSDKRunInfoPage && !fixedDatasetId && hasExperimentWriteAccess,
+      trpc: {
+        context: {
+          skipBatch: true,
+        },
+      },
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      staleTime: Infinity,
+    },
+  );
+  const selectedRemoteExperimentDataset = remoteExperimentDatasets.data?.find(
+    (dataset) => dataset.id === remoteExperimentDataset?.id,
+  );
 
   const existingRemoteExperiment = api.datasets.getRemoteExperiment.useQuery(
     {
@@ -86,19 +117,33 @@ export const CreateExperimentsForm = ({
       enabled: !!datasetId,
     },
   );
+  const isRemoteExperimentLoading =
+    !!datasetId &&
+    (existingRemoteExperiment.isLoading || existingRemoteExperiment.isFetching);
+  const hasRemoteExperiment = !!existingRemoteExperiment.data;
+  const isRemoteExperimentEnabled =
+    existingRemoteExperiment.data?.enabled !== false;
+  const webhookActionLabel = isRemoteExperimentLoading
+    ? "Loading..."
+    : hasRemoteExperiment
+      ? "Run"
+      : "Configure";
 
   if (!hasExperimentWriteAccess) {
     return null;
   }
 
-  if (existingRemoteExperiment.isLoading && !!datasetId) {
+  if (
+    existingRemoteExperiment.isLoading &&
+    !!datasetId &&
+    !showSDKRunInfoPage
+  ) {
     return <Skeleton className="h-48 w-full" />;
   }
 
   if (
     showSDKRunInfoPage &&
     !showPromptForm &&
-    !showRemoteExperimentDatasetStep &&
     !showRemoteExperimentUpsertForm &&
     !showRemoteExperimentTriggerModal
   ) {
@@ -143,7 +188,6 @@ export const CreateExperimentsForm = ({
                   className="w-full"
                   onClick={() => {
                     setShowPromptForm(true);
-                    setShowRemoteExperimentDatasetStep(false);
                     setShowRemoteExperimentUpsertForm(false);
                     setShowRemoteExperimentTriggerModal(false);
                   }}
@@ -169,56 +213,132 @@ export const CreateExperimentsForm = ({
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Code2 className="size-4" />
-                  via SDK / API
+                  via Webhook
                 </CardTitle>
                 <CardDescription>
-                  Start any dataset run via the Langfuse SDKs. To configure runs
-                  via webhook, use the button below.
+                  Set up an experiment webhook to start remote experiments from
+                  Langfuse. Your service receives the selected dataset and run
+                  config, executes the experiment, and posts results back.
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <ul className="text-muted-foreground list-disc space-y-2 pl-4 text-sm">
-                  <li>Full control over dataset run execution</li>
-                  <li>Custom evaluation logic</li>
-                  <li>Integration with your codebase</li>
+                  <li>Run custom evaluation logic in your service</li>
+                  <li>Keep experiment results in Langfuse</li>
                 </ul>
-                {!fixedDatasetId && remoteExperimentDataset?.name ? (
-                  <p className="text-muted-foreground mt-4 text-xs">
-                    Selected dataset: {remoteExperimentDataset.name}
-                  </p>
+                {!fixedDatasetId ? (
+                  <div className="mt-4 space-y-2">
+                    <div className="text-sm font-medium">Dataset</div>
+                    <Popover
+                      open={datasetPopoverOpen}
+                      onOpenChange={setDatasetPopoverOpen}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={datasetPopoverOpen}
+                          disabled={
+                            remoteExperimentDatasets.isPending ||
+                            remoteExperimentDatasets.data?.length === 0
+                          }
+                          className="w-full justify-between px-2 font-normal"
+                        >
+                          {remoteExperimentDatasets.isPending
+                            ? "Loading datasets"
+                            : (selectedRemoteExperimentDataset?.name ??
+                              remoteExperimentDataset?.name ??
+                              "Select a dataset")}
+                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-(--radix-popover-trigger-width) overflow-auto p-0"
+                        align="start"
+                      >
+                        <InputCommand>
+                          <InputCommandInput
+                            placeholder="Search datasets..."
+                            className="h-9"
+                            variant="bottom"
+                          />
+                          <InputCommandList>
+                            <InputCommandEmpty>
+                              No dataset found.
+                            </InputCommandEmpty>
+                            <InputCommandGroup>
+                              {remoteExperimentDatasets.data?.map((dataset) => (
+                                <InputCommandItem
+                                  key={dataset.id}
+                                  value={dataset.name}
+                                  onSelect={() => {
+                                    setRemoteExperimentDataset({
+                                      id: dataset.id,
+                                      name: dataset.name,
+                                    });
+                                    setDatasetPopoverOpen(false);
+                                  }}
+                                >
+                                  {dataset.name}
+                                  <CheckIcon
+                                    className={cn(
+                                      "ml-auto h-4 w-4",
+                                      dataset.id === datasetId
+                                        ? "opacity-100"
+                                        : "opacity-0",
+                                    )}
+                                  />
+                                </InputCommandItem>
+                              ))}
+                            </InputCommandGroup>
+                          </InputCommandList>
+                        </InputCommand>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 ) : null}
               </CardContent>
               <CardFooter className="mt-auto flex flex-row gap-2">
-                {!!existingRemoteExperiment.data && datasetId && (
-                  <div className="flex items-start">
+                {hasRemoteExperiment && !isRemoteExperimentLoading ? (
+                  <div className="flex w-full items-start">
                     <Button
-                      className="rounded-r-none"
-                      disabled={existingRemoteExperiment.data.enabled === false}
+                      className="w-full rounded-r-none"
+                      disabled={!datasetId || !isRemoteExperimentEnabled}
                       title={
-                        existingRemoteExperiment.data.enabled === false
-                          ? "Enable in settings to run"
-                          : undefined
+                        isRemoteExperimentEnabled
+                          ? undefined
+                          : "please edit and enable webhook"
                       }
-                      onClick={() => setShowRemoteExperimentTriggerModal(true)}
+                      onClick={() => {
+                        if (!datasetId || !isRemoteExperimentEnabled) return;
+                        setShowRemoteExperimentTriggerModal(true);
+                      }}
                     >
                       Run
                     </Button>
                     <Button
+                      aria-label="Edit remote trigger settings"
                       className="rounded-l-none rounded-r-md border-l-2 px-2"
                       title="Edit remote trigger settings"
-                      onClick={() => {
-                        setShowRemoteExperimentDatasetStep(false);
-                        setShowRemoteExperimentUpsertForm(true);
-                      }}
+                      onClick={() => setShowRemoteExperimentUpsertForm(true)}
                     >
-                      <span className="relative mr-1 text-xs">
-                        <Cog className="h-3 w-3" />
-                      </span>
+                      <Cog className="h-3 w-3" />
                     </Button>
                   </div>
+                ) : (
+                  <Button
+                    className="w-full"
+                    disabled={!datasetId || isRemoteExperimentLoading}
+                    onClick={() => {
+                      if (!datasetId || isRemoteExperimentLoading) return;
+                      setShowRemoteExperimentUpsertForm(true);
+                    }}
+                  >
+                    {webhookActionLabel}
+                  </Button>
                 )}
                 <Button
-                  className="flex-1"
+                  className="w-full"
                   variant="outline"
                   asChild
                   onClick={() =>
@@ -232,43 +352,11 @@ export const CreateExperimentsForm = ({
                     View Docs
                   </Link>
                 </Button>
-                {!existingRemoteExperiment.data && (
-                  <Button
-                    variant="outline"
-                    title="Set up remote dataset run in UI trigger"
-                    className="h-8 w-8 shrink-0"
-                    size="icon"
-                    onClick={() => {
-                      if (fixedDatasetId) {
-                        setShowRemoteExperimentUpsertForm(true);
-                      } else {
-                        setShowRemoteExperimentDatasetStep(true);
-                      }
-                    }}
-                  >
-                    <Zap className="h-4 w-4" />
-                  </Button>
-                )}
               </CardFooter>
             </Card>
           </div>
         </DialogBody>
       </>
-    );
-  }
-
-  if (showRemoteExperimentDatasetStep) {
-    return (
-      <RemoteExperimentDatasetStep
-        projectId={projectId}
-        initialDatasetId={remoteExperimentDataset?.id}
-        onBack={() => setShowRemoteExperimentDatasetStep(false)}
-        onContinue={(dataset) => {
-          setRemoteExperimentDataset(dataset);
-          setShowRemoteExperimentDatasetStep(false);
-          setShowRemoteExperimentUpsertForm(true);
-        }}
-      />
     );
   }
 
@@ -294,14 +382,6 @@ export const CreateExperimentsForm = ({
         datasetId={datasetId}
         existingRemoteExperiment={existingRemoteExperiment.data}
         setShowRemoteExperimentUpsertForm={setShowRemoteExperimentUpsertForm}
-        onBack={
-          fixedDatasetId
-            ? undefined
-            : () => {
-                setShowRemoteExperimentUpsertForm(false);
-                setShowRemoteExperimentDatasetStep(true);
-              }
-        }
       />
     );
   }
