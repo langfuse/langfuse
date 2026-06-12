@@ -139,9 +139,14 @@ async function testLLMConnection(
       parsedConfig = OpenAIConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
       const vertexAIConfig = VertexAIConfigSchema.parse(params.config);
-      parsedConfig = vertexAIConfig.location
-        ? { location: vertexAIConfig.location }
-        : null;
+      const vertexConfig: Record<string, string> = {};
+      if (vertexAIConfig.location) {
+        vertexConfig.location = vertexAIConfig.location;
+      }
+      if (vertexAIConfig.projectId) {
+        vertexConfig.projectId = vertexAIConfig.projectId;
+      }
+      parsedConfig = Object.keys(vertexConfig).length > 0 ? vertexConfig : null;
     }
 
     await fetchLLMCompletion({
