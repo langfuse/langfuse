@@ -207,6 +207,29 @@ def main():
 main()
 ```
 
+For privacy-sensitive applications, the same OpenAI integration can trace calls routed through TrustedRouter by passing a custom `base_url`:
+
+```python filename="trustedrouter.py"
+import os
+
+from langfuse import observe
+from langfuse.openai import OpenAI
+
+client = OpenAI(
+    api_key=os.environ["TRUSTEDROUTER_API_KEY"],
+    base_url="https://api.trustedrouter.com/v1",
+)
+
+@observe()
+def summarize_private_context():
+    return client.chat.completions.create(
+        model="trustedrouter/zdr",
+        messages=[{"role": "user", "content": "Summarize this repository."}],
+    ).choices[0].message.content
+```
+
+TrustedRouter uses open-source, verifiable attested routing and does not log prompts or outputs by default.
+
 ### 3️⃣ See traces in Langfuse
 
 See your language model calls and other application logic in Langfuse.
