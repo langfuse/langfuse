@@ -41,9 +41,7 @@ import {
 const LangfuseRole = z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]);
 export type LangfuseRole = z.infer<typeof LangfuseRole>;
 
-/**
- * The SFDC org-member role picklist allows only ADMIN and DEVELOPER.
- */
+// The SFDC org-member role picklist allows only ADMIN and DEVELOPER.
 const LANGFUSE_TO_SFDC_ROLE = {
   OWNER: "ADMIN",
   ADMIN: "ADMIN",
@@ -125,8 +123,8 @@ interface SfdcConfig {
   orgUrl: string;
   basicAuthHeader: string;
   /**
-   * Salesforce Campaign that incoming Langfuse leads / orgs are attached to
-   * (see LF-2174). Per-deployment, hence env-provided rather than hard-coded.
+   * Salesforce Campaign that incoming Langfuse leads / orgs are attached to.
+   * Per-deployment, hence env-provided rather than hard-coded.
    */
   campaignId: string;
 }
@@ -267,7 +265,7 @@ export class SfdcService {
           });
           return;
         }
-        const response = await this.post({
+        await this.post({
           url: this.config.orgUrl,
           payload: {
             isLangfuse: true,
@@ -280,10 +278,8 @@ export class SfdcService {
             orgId: parsed.data.orgId,
             userId: parsed.data.userId,
           },
+          expectJsonResponse: false,
         });
-        if (response?.sfdcOrgId) {
-          await this.persistSfdcOrgId(parsed.data.orgId, response.sfdcOrgId);
-        }
       },
     );
   }
@@ -322,6 +318,7 @@ export class SfdcService {
             orgId: parsed.data.orgId,
             userId: parsed.data.userId,
           },
+          expectJsonResponse: false,
         });
       },
     );
@@ -395,7 +392,7 @@ export class SfdcService {
       if (!response.ok) {
         const responseBody = await response.text().catch(() => "");
         traceException(new Error(`Mulesoft returned ${response.status}`));
-        logger.warn("[SFDC] Mulesoft returned non-2xx", {
+        logger.error("[SFDC] Mulesoft returned non-2xx", {
           ...context,
           url,
           status: response.status,
@@ -421,7 +418,7 @@ export class SfdcService {
       try {
         parsed = JSON.parse(responseText);
       } catch {
-        logger.info("[SFDC] Mulesoft returned non-JSON body", {
+        logger.warn("[SFDC] Mulesoft returned non-JSON body", {
           ...context,
           responseBody: responseText.slice(0, 500),
         });
@@ -440,7 +437,7 @@ export class SfdcService {
     } catch (err) {
       const isAbort = err instanceof Error && err.name === "AbortError";
       traceException(err);
-      logger.warn(
+      logger.error(
         isAbort
           ? "[SFDC] Mulesoft request timed out"
           : "[SFDC] Mulesoft request failed",
@@ -489,7 +486,7 @@ export class SfdcService {
         });
       }
     } catch (err) {
-      logger.warn("[SFDC] failed to persist sfdcOrgId", {
+      logger.error("[SFDC] failed to persist sfdcOrgId", {
         orgId,
         error: err instanceof Error ? err.message : String(err),
       });
