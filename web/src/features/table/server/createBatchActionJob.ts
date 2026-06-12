@@ -28,6 +28,7 @@ type CreateBatchActionJob = {
   session: {
     user: {
       id: string;
+      v4BetaEnabled?: boolean | null;
     };
     orgId: string;
     orgRole: Role;
@@ -55,6 +56,13 @@ export const createBatchActionJob = async ({
     searchType: query.searchType,
     tableName,
   });
+
+  // Snapshot the user's v4 beta flag so the worker reads from the same data
+  // source as the UI table; overrides any client-sent value.
+  const queryWithSnapshot: BatchActionQuery = {
+    ...query,
+    useEventsTable: session.user.v4BetaEnabled ?? false,
+  };
 
   const batchActionId = generateBatchActionId(projectId, actionId, tableName);
 
@@ -88,7 +96,7 @@ export const createBatchActionJob = async ({
         actionId,
         tableName,
         cutoffCreatedAt: new Date(),
-        query,
+        query: queryWithSnapshot,
         targetId: targetId,
         type: actionType,
       },
