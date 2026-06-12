@@ -120,9 +120,7 @@ const ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS = [
   "claude-mythos-5",
 ] as const;
 
-function shouldOmitChatAnthropicDefaultDisabledThinking(
-  modelName: string,
-): boolean {
+function isAnthropicAlwaysAdaptiveThinkingModel(modelName: string): boolean {
   return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
     modelName.includes(model),
   );
@@ -132,7 +130,7 @@ function shouldNormalizeContentBlocks(modelParams: ModelParams): boolean {
   return (
     adapterSupportsReasoning(modelParams.adapter) ||
     (modelParams.adapter === LLMAdapter.Anthropic &&
-      shouldOmitChatAnthropicDefaultDisabledThinking(modelParams.model))
+      isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model))
   );
 }
 
@@ -382,20 +380,22 @@ export async function fetchLLMCompletion(
       modelParams.model?.includes("claude-opus-4-5") ||
       modelParams.model?.includes("claude-opus-4-6") ||
       modelParams.model?.includes("claude-haiku-4-5");
-    const anthropicInvocationKwargs =
-      shouldOmitChatAnthropicDefaultDisabledThinking(modelParams.model)
-        ? {
-            // @langchain/anthropic currently defaults ChatAnthropic.thinking to
-            // { type: "disabled" } and serializes it into every request.
-            // Claude Fable 5 and Claude Mythos 5 reject that explicit disabled
-            // mode because thinking defaults to adaptive when the field is
-            // omitted. Newer ChatAnthropic versions might fix this default, but
-            // remove this guard only after a developer has verified that the
-            // pinned/newer version no longer sends thinking.disabled by default.
-            thinking: undefined,
-            ...modelParams.providerOptions,
-          }
-        : modelParams.providerOptions;
+    const shouldUseAdaptiveThinking = isAnthropicAlwaysAdaptiveThinkingModel(
+      modelParams.model,
+    );
+    const anthropicInvocationKwargs = shouldUseAdaptiveThinking
+      ? {
+          // @langchain/anthropic currently defaults ChatAnthropic.thinking to
+          // { type: "disabled" } and serializes it into every request.
+          // Claude Fable 5 and Claude Mythos 5 reject that explicit disabled
+          // mode because thinking defaults to adaptive when the field is
+          // omitted. Newer ChatAnthropic versions might fix this default, but
+          // remove this guard only after a developer has verified that the
+          // pinned/newer version no longer sends thinking.disabled by default.
+          thinking: undefined,
+          ...modelParams.providerOptions,
+        }
+      : modelParams.providerOptions;
 
     const chatOptions: ChatAnthropicInput = {
       anthropicApiKey: apiKey,
@@ -623,18 +623,45 @@ export async function fetchLLMCompletion(
       const structuredOutputConfig = supportsReasoning
         ? { method: "functionCalling" as const }
         : undefined;
+      const createStructuredOutputModel = () => {
+        if (
+          modelParams.adapter !== LLMAdapter.Anthropic ||
+          !isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model)
+        ) {
+          return (chatModel as ChatOpenAI).withStructuredOutput(
+            structuredOutputSchema,
+            structuredOutputConfig,
+          );
+        }
+
+        const anthropicChatModel = chatModel as ChatAnthropic & {
+          thinking: ChatAnthropicInput["thinking"];
+        };
+        const originalThinking = anthropicChatModel.thinking;
+
+        try {
+          // ChatAnthropic 1.3.26 uses this internal field, before request
+          // serialization, to decide whether structured output should force
+          // tool_choice. Fable/Mythos default to adaptive thinking when the
+          // request field is omitted, so mirror that just for this decision.
+          anthropicChatModel.thinking = { type: "adaptive" };
+
+          return anthropicChatModel.withStructuredOutput(
+            structuredOutputSchema,
+            structuredOutputConfig,
+          );
+        } finally {
+          anthropicChatModel.thinking = originalThinking;
+        }
+      };
+      const structuredOutputModel = createStructuredOutputModel();
 
       const structuredOutput = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
         timeoutMs,
         abortController: runtimeTimeoutController,
         operation: () =>
-          (chatModel as ChatOpenAI)
-            .withStructuredOutput(
-              structuredOutputSchema,
-              structuredOutputConfig,
-            )
-            .invoke(finalMessages, runConfigWithTimeout),
+          structuredOutputModel.invoke(finalMessages, runConfigWithTimeout),
       });
 
       return structuredOutput;
