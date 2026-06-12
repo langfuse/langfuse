@@ -11,6 +11,7 @@ import type {
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import { prefixLangfuseDocsTools } from "@/src/ee/features/in-app-agent/server/tools";
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
@@ -43,6 +44,7 @@ If the user asks you to perform an action, you have two options:
 <style_rules>
 Be concise, factual, and useful. Unless asked for a detailed explanation, keep your answers short and to the point.
 Use markdown in your responses when appropriate, especially for tables and lists.
+When you answer using Langfuse documentation tool results, answer normally. The product will attach source links automatically.
 </style_rules>
 
 <world_knowledge>
@@ -536,7 +538,7 @@ async function createMastraAdapter(params: {
 
     const tools = {
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
-      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+      ...prefixLangfuseDocsTools(toolsets.langfuseDocs),
     };
 
     const agent = new Agent({
