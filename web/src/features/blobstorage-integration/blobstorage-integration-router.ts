@@ -27,6 +27,7 @@ import {
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
+  AnalyticsIntegrationExportSource,
   BlobStorageIntegrationType,
   InvalidRequestError,
   isEnrichedBlobExportAvailable,
@@ -80,7 +81,13 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
   update: protectedProjectProcedure
     .input(
       blobStorageIntegrationFormSchemaBase
-        .extend({ projectId: z.string() })
+        .extend({
+          projectId: z.string(),
+          // Override the base schema's default: an omitted exportSource must
+          // preserve the persisted value (parity with the public REST
+          // handler), not silently rewrite it to the legacy default.
+          exportSource: z.enum(AnalyticsIntegrationExportSource).optional(),
+        })
         .superRefine(validateAzureContainerName)
         .superRefine(validateExportFieldGroups),
     )
@@ -92,31 +99,48 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           scope: "integrations:CRUD",
         });
 
+        const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+        const isV4PreviewEnabled =
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+
+        // Single conditional read serving both write-time gates (mirrors the
+        // public REST handler): the legacy upsert gate needs the row's
+        // createdAt when exportSource is provided; the enriched gate needs the
+        // persisted exportSource when it is omitted (the persisted value stays
+        // in effect) and enriched export is unavailable, so a stale enriched
+        // value left behind by a V4-preview rollback is rejected instead of
+        // silently driving the worker against unpopulated tables.
+        const existingIntegration =
+          input.exportSource !== undefined ||
+          !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
+            ? await ctx.prisma.blobStorageIntegration.findUnique({
+                where: { projectId: input.projectId },
+                select: { createdAt: true, exportSource: true },
+              })
+            : null;
+
+        // Like the public REST handler, the legacy gate only checks explicit
+        // values: an omitted exportSource preserves a persisted legacy row,
+        // while CREATE is covered by forceEventsOnCreate below.
         if (input.exportSource) {
-          const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
-          const [project, existingIntegration] = await Promise.all([
-            ctx.prisma.project.findUniqueOrThrow({
-              where: { id: input.projectId },
-              select: { createdAt: true },
-            }),
-            ctx.prisma.blobStorageIntegration.findUnique({
-              where: { projectId: input.projectId },
-              select: { createdAt: true },
-            }),
-          ]);
+          const project = await ctx.prisma.project.findUniqueOrThrow({
+            where: { id: input.projectId },
+            select: { createdAt: true },
+          });
           assertLegacyBlobExportSourceAllowedForUpsert({
             project,
             existingIntegration,
             nextInternalExportSource: input.exportSource,
             isCloud,
           });
-          assertEnrichedBlobExportSourceAllowed({
-            nextInternalExportSource: input.exportSource,
-            isCloud,
-            isV4PreviewEnabled:
-              env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
-          });
         }
+
+        assertEnrichedBlobExportSourceAllowed({
+          nextInternalExportSource: input.exportSource,
+          existingExportSource: existingIntegration?.exportSource,
+          isCloud,
+          isV4PreviewEnabled,
+        });
 
         await auditLog({
           session: ctx.session,
@@ -130,10 +154,15 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
-          // In-transaction backstop closing the TOCTOU window: if a concurrent
-          // DELETE flips this upsert to the CREATE branch, refuse a legacy
-          // source so a new (post-cutoff) Cloud row can never be born legacy.
-          refuseLegacyOnCreate: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+          // New Cloud rows default to EVENTS when exportSource is omitted: a
+          // brand-new row follows new-customer rules, so the legacy Prisma
+          // column default would trip refuseLegacyOnCreate. Substituted
+          // in-transaction (no TOCTOU window). Mirrors the public REST handler.
+          forceEventsOnCreate: input.exportSource === undefined && isCloud,
+          // In-transaction backstop: a concurrent DELETE can flip this upsert
+          // to the CREATE branch; never let a new Cloud row be born with a
+          // legacy source.
+          refuseLegacyOnCreate: isCloud,
           data: {
             type: rest.type,
             bucketName: rest.bucketName,
