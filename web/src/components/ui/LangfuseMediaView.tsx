@@ -14,6 +14,7 @@ import {
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
+import { getFileExtensionLabel } from "@/src/features/media/getFileExtensionLabel";
 import {
   ExternalLink,
   File,
@@ -121,7 +122,7 @@ function FileViewer({
 
   const fileName = src.split("/").pop()?.split("?")[0] || "";
   const fileType = mimeType.split("/")[0];
-  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
+  const fileExtension = getFileExtensionLabel(mimeType);
   const isImage = fileType === "image";
   const isAudio = fileType === "audio";
   const isVideo = fileType === "video";
