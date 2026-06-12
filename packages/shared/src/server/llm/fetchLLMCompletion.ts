@@ -115,6 +115,19 @@ const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.Bedrock,
 ];
 
+const ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS = [
+  "claude-fable-5",
+  "claude-mythos-5",
+] as const;
+
+function shouldOmitChatAnthropicDefaultDisabledThinking(
+  modelName: string,
+): boolean {
+  return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
+    modelName.includes(model),
+  );
+}
+
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
 ): BaseMessage[] => {
@@ -361,6 +374,20 @@ export async function fetchLLMCompletion(
       modelParams.model?.includes("claude-opus-4-5") ||
       modelParams.model?.includes("claude-opus-4-6") ||
       modelParams.model?.includes("claude-haiku-4-5");
+    const anthropicInvocationKwargs =
+      shouldOmitChatAnthropicDefaultDisabledThinking(modelParams.model)
+        ? {
+            // @langchain/anthropic currently defaults ChatAnthropic.thinking to
+            // { type: "disabled" } and serializes it into every request.
+            // Claude Fable 5 and Claude Mythos 5 reject that explicit disabled
+            // mode because thinking defaults to adaptive when the field is
+            // omitted. Newer ChatAnthropic versions might fix this default, but
+            // remove this guard only after a developer has verified that the
+            // pinned/newer version no longer sends thinking.disabled by default.
+            thinking: undefined,
+            ...modelParams.providerOptions,
+          }
+        : modelParams.providerOptions;
 
     const chatOptions: ChatAnthropicInput = {
       anthropicApiKey: apiKey,
@@ -378,7 +405,7 @@ export async function fetchLLMCompletion(
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
-      invocationKwargs: modelParams.providerOptions,
+      invocationKwargs: anthropicInvocationKwargs,
     };
 
     chatModel = new ChatAnthropic(chatOptions);
