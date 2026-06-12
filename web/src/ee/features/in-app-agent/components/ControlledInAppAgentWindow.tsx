@@ -14,6 +14,7 @@ import {
 } from "@/src/ee/features/in-app-agent/schema";
 
 type ControlledInAppAgentWindowBaseProps = {
+  isHeaderDragHandleEnabled?: boolean;
   zIndex?: number;
   isExpanded: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
@@ -229,6 +230,7 @@ export function ControlledInAppAgentWindow(
   return (
     <InAppAgentWindow
       error={error}
+      isHeaderDragHandleEnabled={props.isHeaderDragHandleEnabled}
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}

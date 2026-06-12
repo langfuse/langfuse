@@ -1,14 +1,9 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import { BotMessageSquare } from "lucide-react";
 
+import { useMovableResizablePanelGeometry } from "@/src/components/movable-resizable-panel";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -20,12 +15,15 @@ import {
 } from "@/src/components/ui/dialog";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
+import {
+  getInitialInAppAgentWindowShellGeometry,
+  InAppAgentWindowShell,
+} from "@/src/ee/features/in-app-agent/components/InAppAgentWindowShell";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { cn } from "@/src/utils/tailwind";
 
 const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
 
@@ -41,25 +39,24 @@ export const InAppAiAgentButton = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
-  const [anchorStyle, setAnchorStyle] = useState<CSSProperties>();
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
     null,
   );
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
 
-  const updateAnchorStyle = () => {
+  const getInitialFloatingPanelGeometry = () => {
     const button = buttonRef.current;
 
-    if (!button) {
-      return;
-    }
-
-    const rect = button.getBoundingClientRect();
-
-    setAnchorStyle({
-      left: rect.right - 6,
+    return getInitialInAppAgentWindowShellGeometry({
+      anchorRect: button?.getBoundingClientRect(),
+      viewportHeight: window.innerHeight,
+      viewportWidth: window.innerWidth,
     });
   };
+
+  const floatingPanelGeometry = useMovableResizablePanelGeometry({
+    getInitialGeometry: getInitialFloatingPanelGeometry,
+  });
 
   useEffect(() => {
     setPortalContainer(document.body);
@@ -91,25 +88,29 @@ export const InAppAiAgentButton = () => {
     );
   }, [isExpanded]);
 
-  useEffect(() => {
-    if (!open || isExpanded) {
+  useLayoutEffect(() => {
+    if (
+      !open ||
+      !portalContainer ||
+      isExpanded ||
+      floatingPanelGeometry.geometry
+    ) {
       return;
     }
 
-    updateAnchorStyle();
-
-    window.addEventListener("resize", updateAnchorStyle);
-    window.addEventListener("scroll", updateAnchorStyle, true);
-
-    return () => {
-      window.removeEventListener("resize", updateAnchorStyle);
-      window.removeEventListener("scroll", updateAnchorStyle, true);
-    };
-  }, [isExpanded, open]);
+    floatingPanelGeometry.initializeGeometry();
+  }, [floatingPanelGeometry, isExpanded, open, portalContainer]);
 
   if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
     return null;
   }
+
+  const activeFloatingPanelGeometry =
+    open && portalContainer
+      ? isExpanded
+        ? floatingPanelGeometry.getGeometry()
+        : floatingPanelGeometry.geometry
+      : null;
 
   const handleClick = () => {
     if (organization && !organization.aiFeaturesEnabled) {
@@ -118,9 +119,16 @@ export const InAppAiAgentButton = () => {
       return;
     }
 
-    updateAnchorStyle();
     setSupportDrawerOpen(false);
-    setOpen((currentOpen) => !currentOpen);
+    setOpen((currentOpen) => {
+      const nextOpen = !currentOpen;
+
+      if (nextOpen) {
+        floatingPanelGeometry.resetGeometry();
+      }
+
+      return nextOpen;
+    });
   };
 
   return (
@@ -131,32 +139,31 @@ export const InAppAiAgentButton = () => {
       </SidebarMenuButton>
       {open && portalContainer
         ? createPortal(
-            <div
-              ref={panelRef}
-              data-ignore-outside-interaction
-              className={cn(
-                "fixed origin-top-left",
-                isExpanded
-                  ? "inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3"
-                  : "bottom-2",
-              )}
-              style={
-                isExpanded
-                  ? { zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
-                  : { ...anchorStyle, zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
-              }
+            <InAppAgentWindowShell
+              floatingGeometry={activeFloatingPanelGeometry}
+              isExpanded={isExpanded}
+              panelRef={panelRef}
+              zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
+              onPositionChange={floatingPanelGeometry.setPosition}
+              onSizeChange={floatingPanelGeometry.setSize}
             >
-              <ControlledInAppAgentWindow
-                zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
-                isExpanded={isExpanded}
-                onExpandedChange={(nextIsExpanded) => {
-                  previousPanelRectRef.current =
-                    panelRef.current?.getBoundingClientRect() ?? null;
-                  setIsExpanded(nextIsExpanded);
-                }}
-                onClose={() => setOpen(false)}
-              />
-            </div>,
+              {({ isHeaderDragHandleEnabled }) => (
+                <ControlledInAppAgentWindow
+                  isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+                  zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
+                  isExpanded={isExpanded}
+                  onExpandedChange={(nextIsExpanded) => {
+                    previousPanelRectRef.current =
+                      panelRef.current?.getBoundingClientRect() ?? null;
+                    setIsExpanded(nextIsExpanded);
+                  }}
+                  onClose={() => {
+                    floatingPanelGeometry.clearGeometry();
+                    setOpen(false);
+                  }}
+                />
+              )}
+            </InAppAgentWindowShell>,
             portalContainer,
           )
         : null}
