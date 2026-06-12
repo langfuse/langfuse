@@ -1171,6 +1171,7 @@ const getScoresUiGeneric = async <T>(props: {
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
+        s.dataset_run_id,
         s.observation_id,
         s.author_user_id,
         t.user_id,
@@ -1398,6 +1399,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
+        s.dataset_run_id,
         s.observation_id,
         s.author_user_id,
         s.created_at,
@@ -1486,8 +1488,11 @@ export async function getScoresUiTableFromEvents(props: {
   limit?: number;
   offset?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions;
+  // Defaults to true: the scores UI table only needs the hasMetadata flag.
+  // Batch exports pass false to include the full metadata payload.
+  excludeMetadata?: boolean;
 }) {
-  const { clickhouseConfigs, ...rest } = props;
+  const { clickhouseConfigs, excludeMetadata = true, ...rest } = props;
 
   const rows = await getScoresUiGenericFromEvents<{
     id: string;
@@ -1503,6 +1508,7 @@ export async function getScoresUiTableFromEvents(props: {
     trace_id: string | null;
     session_id: string | null;
     dataset_run_id: string | null;
+    metadata?: Record<string, string>;
     observation_id: string | null;
     author_user_id: string | null;
     config_id: string | null;
@@ -1516,7 +1522,7 @@ export async function getScoresUiTableFromEvents(props: {
   }>({
     select: "rows",
     tags: { kind: "analytic" },
-    excludeMetadata: true,
+    excludeMetadata,
     includeHasMetadataFlag: true,
     clickhouseConfigs,
     ...rest,
@@ -1526,10 +1532,10 @@ export async function getScoresUiTableFromEvents(props: {
     const score = convertClickhouseScoreToDomain(
       {
         ...row,
-        metadata: {},
+        metadata: excludeMetadata ? {} : (row.metadata ?? {}),
         long_string_value: "",
       },
-      false,
+      !excludeMetadata,
     );
     return {
       ...score,

@@ -56,7 +56,6 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
   isLegacyBlobExportAllowed,
-  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
@@ -81,16 +80,16 @@ export default function BlobStorageIntegrationSettings() {
   );
 
   const syncStatus =
-    state.isLoading || !hasAccess || !state.data
+    state.isLoading || !hasAccess || !state.data?.config
       ? undefined
       : deriveSyncStatus({
-          enabled: state.data.enabled,
-          lastError: state.data.lastError,
-          lastSyncAt: state.data.lastSyncAt
-            ? new Date(state.data.lastSyncAt)
+          enabled: state.data.config.enabled,
+          lastError: state.data.config.lastError,
+          lastSyncAt: state.data.config.lastSyncAt
+            ? new Date(state.data.config.lastSyncAt)
             : null,
-          nextSyncAt: state.data.nextSyncAt
-            ? new Date(state.data.nextSyncAt)
+          nextSyncAt: state.data.config.nextSyncAt
+            ? new Date(state.data.config.nextSyncAt)
             : null,
         });
 
@@ -140,19 +139,19 @@ export default function BlobStorageIntegrationSettings() {
           reach out to your project admin or owner.
         </p>
       )}
-      {state.data && (
+      {state.data?.config && (
         <>
           <Header title="Status" />
-          {state.data.lastError && (
+          {state.data.config.lastError && (
             <Alert variant="destructive" className="mb-4">
               <AlertTitle>Last export failed</AlertTitle>
               <AlertDescription>
-                {state.data.lastError}
-                {state.data.lastErrorAt && (
+                {state.data.config.lastError}
+                {state.data.config.lastErrorAt && (
                   <>
                     <br />
                     <span className="text-xs opacity-70">
-                      {new Date(state.data.lastErrorAt).toLocaleString()}
+                      {new Date(state.data.config.lastErrorAt).toLocaleString()}
                     </span>
                   </>
                 )}
@@ -163,42 +162,45 @@ export default function BlobStorageIntegrationSettings() {
             <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">
               <span className="text-muted-foreground">Data exported up to</span>
               <span>
-                {state.data.lastSyncAt
-                  ? new Date(state.data.lastSyncAt).toLocaleString()
+                {state.data.config.lastSyncAt
+                  ? new Date(state.data.config.lastSyncAt).toLocaleString()
                   : "Never (pending)"}
               </span>
-              {state.data.nextSyncAt && (
+              {state.data.config.nextSyncAt && (
                 <>
                   <span className="text-muted-foreground">
                     Next export scheduled
                   </span>
                   <span>
-                    {new Date(state.data.nextSyncAt).toLocaleString()}
+                    {new Date(state.data.config.nextSyncAt).toLocaleString()}
                   </span>
                 </>
               )}
               <span className="text-muted-foreground">Export mode</span>
               <span>
-                {state.data.exportMode === BlobStorageExportMode.FULL_HISTORY
+                {state.data.config.exportMode ===
+                BlobStorageExportMode.FULL_HISTORY
                   ? "Full history"
-                  : state.data.exportMode === BlobStorageExportMode.FROM_TODAY
+                  : state.data.config.exportMode ===
+                      BlobStorageExportMode.FROM_TODAY
                     ? "From setup date"
-                    : state.data.exportMode ===
+                    : state.data.config.exportMode ===
                         BlobStorageExportMode.FROM_CUSTOM_DATE
                       ? "From custom date"
                       : "Unknown"}
               </span>
-              {(state.data.exportMode ===
+              {(state.data.config.exportMode ===
                 BlobStorageExportMode.FROM_CUSTOM_DATE ||
-                state.data.exportMode === BlobStorageExportMode.FROM_TODAY) &&
-                state.data.exportStartDate && (
+                state.data.config.exportMode ===
+                  BlobStorageExportMode.FROM_TODAY) &&
+                state.data.config.exportStartDate && (
                   <>
                     <span className="text-muted-foreground">
                       Export start date
                     </span>
                     <span>
                       {new Date(
-                        state.data.exportStartDate,
+                        state.data.config.exportStartDate,
                       ).toLocaleDateString()}
                     </span>
                   </>
@@ -212,9 +214,12 @@ export default function BlobStorageIntegrationSettings() {
           <Header title="Configuration" className="mt-8" />
           <Card className="p-3">
             <BlobStorageIntegrationSettingsForm
-              state={state.data || undefined}
+              state={state.data?.config || undefined}
               projectId={projectId}
               isLoading={state.isLoading}
+              isEnrichedExportAvailable={
+                state.data?.isEnrichedExportAvailable ?? false
+              }
             />
           </Card>
         </>
@@ -227,10 +232,12 @@ const BlobStorageIntegrationSettingsForm = ({
   state,
   projectId,
   isLoading,
+  isEnrichedExportAvailable,
 }: {
   state?: Partial<BlobStorageIntegration>;
   projectId: string;
   isLoading: boolean;
+  isEnrichedExportAvailable: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -247,7 +254,7 @@ const BlobStorageIntegrationSettingsForm = ({
   const isPostCutoffCloud =
     project?.createdAt != null &&
     !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
-  const eventsExportAvailable = isEnrichedBlobExportAvailable(isLangfuseCloud);
+  const eventsExportAvailable = isEnrichedExportAvailable;
   const showExportSourceField = eventsExportAvailable && !isPostCutoffCloud;
 
   const blobStorageForm = useForm({
@@ -272,10 +279,18 @@ const BlobStorageIntegrationSettingsForm = ({
       exportStartDate: state?.exportStartDate || null,
       exportSource: isPostCutoffCloud
         ? AnalyticsIntegrationExportSource.EVENTS
-        : state?.exportSource ||
-          (eventsExportAvailable
-            ? AnalyticsIntegrationExportSource.EVENTS
-            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+        : (() => {
+            const persisted = state?.exportSource;
+            const isEnriched =
+              persisted === AnalyticsIntegrationExportSource.EVENTS ||
+              persisted ===
+                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
+            if (persisted && (!isEnriched || eventsExportAvailable))
+              return persisted;
+            return eventsExportAvailable
+              ? AnalyticsIntegrationExportSource.EVENTS
+              : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+          })(),
       // Empty array in the DB means "export everything" (the worker falls back
       // to all groups), so surface it as the full selection in the form.
       exportFieldGroups: state?.exportFieldGroups?.length
@@ -308,10 +323,18 @@ const BlobStorageIntegrationSettingsForm = ({
       exportStartDate: state?.exportStartDate || null,
       exportSource: isPostCutoffCloud
         ? AnalyticsIntegrationExportSource.EVENTS
-        : state?.exportSource ||
-          (eventsExportAvailable
-            ? AnalyticsIntegrationExportSource.EVENTS
-            : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+        : (() => {
+            const persisted = state?.exportSource;
+            const isEnriched =
+              persisted === AnalyticsIntegrationExportSource.EVENTS ||
+              persisted ===
+                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
+            if (persisted && (!isEnriched || eventsExportAvailable))
+              return persisted;
+            return eventsExportAvailable
+              ? AnalyticsIntegrationExportSource.EVENTS
+              : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+          })(),
       // Empty array in the DB means "export everything" (the worker falls back
       // to all groups), so surface it as the full selection in the form.
       exportFieldGroups: state?.exportFieldGroups?.length
@@ -320,7 +343,7 @@ const BlobStorageIntegrationSettingsForm = ({
       compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, [state, isEnrichedExportAvailable, isPostCutoffCloud]);
 
   const watchedExportMode = blobStorageForm.watch("exportMode");
   const watchedExportSource = blobStorageForm.watch("exportSource");
