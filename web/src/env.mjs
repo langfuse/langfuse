@@ -110,6 +110,16 @@ export const env = createEnv({
       .default("false"),
     // Telemetry
     TELEMETRY_ENABLED: z.enum(["true", "false"]).optional(),
+    // Mulesoft SFDC sync (Langfuse Cloud only). All must be set for the
+    // SfdcService factory to return a non-null instance; otherwise the
+    // integration is a no-op.
+    MULESOFT_SFDC_USER_URL: z.url().optional(),
+    MULESOFT_SFDC_ORG_URL: z.url().optional(),
+    MULESOFT_SFDC_BASIC_AUTH_USER: z.string().optional(),
+    MULESOFT_SFDC_BASIC_AUTH_PASSWORD: z.string().optional(),
+    MULESOFT_SFDC_CAMPAIGN_ID: z.string().optional(),
+    MULESOFT_SFDC_DEFAULT_COMPANY_NAME: z.string().default("[not provided]"),
+    MULESOFT_SFDC_REQUEST_TIMEOUT_MS: z.coerce.number().int().default(10_000),
     // AUTH
     AUTH_GOOGLE_CLIENT_ID: z.string().optional(),
     AUTH_GOOGLE_CLIENT_SECRET: z.string().optional(),
@@ -512,6 +522,16 @@ export const env = createEnv({
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: process.env.LANGFUSE_ADMIN_ACCESS_WEBHOOK,
+    MULESOFT_SFDC_USER_URL: process.env.MULESOFT_SFDC_USER_URL,
+    MULESOFT_SFDC_ORG_URL: process.env.MULESOFT_SFDC_ORG_URL,
+    MULESOFT_SFDC_BASIC_AUTH_USER: process.env.MULESOFT_SFDC_BASIC_AUTH_USER,
+    MULESOFT_SFDC_BASIC_AUTH_PASSWORD:
+      process.env.MULESOFT_SFDC_BASIC_AUTH_PASSWORD,
+    MULESOFT_SFDC_CAMPAIGN_ID: process.env.MULESOFT_SFDC_CAMPAIGN_ID,
+    MULESOFT_SFDC_DEFAULT_COMPANY_NAME:
+      process.env.MULESOFT_SFDC_DEFAULT_COMPANY_NAME,
+    MULESOFT_SFDC_REQUEST_TIMEOUT_MS:
+      process.env.MULESOFT_SFDC_REQUEST_TIMEOUT_MS,
     SALT: process.env.SALT,
     LANGFUSE_CSP_ENFORCE_HTTPS: process.env.LANGFUSE_CSP_ENFORCE_HTTPS,
     TELEMETRY_ENABLED: process.env.TELEMETRY_ENABLED,

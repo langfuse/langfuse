@@ -5,6 +5,7 @@ import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 // Parse the first valid role from a SCIM `roles` array. Returns undefined when
 // the attribute is absent, empty, or unparsable, which the provisioning logic
@@ -34,8 +35,9 @@ type ProvisionOutcome =
 //   a periodic IdP full-sync (which omits roles) from resetting a member's role
 //   back to NONE.
 //
-// Writes an audit log entry only when state actually changes (create/update),
-// never for a no-op.
+// Writes an audit log entry and fires the SFDC membership sync only when state
+// actually changes (create/update), never for a no-op — so a periodic IdP
+// full-sync that re-PUTs every member does not ping SFDC on every cycle.
 // Returns the provisioning outcome, or null when the request was rejected and
 // the response has already been written (e.g. last-OWNER demotion → 403).
 async function provisionMembership({
@@ -43,12 +45,14 @@ async function provisionMembership({
   userId,
   orgId,
   apiKeyId,
+  email,
   role,
 }: {
   res: NextApiResponse;
   userId: string;
   orgId: string;
   apiKeyId: string;
+  email: string | null;
   role?: Role;
 }): Promise<ProvisionOutcome | null> {
   // Apply an explicit role to an existing membership. The membership is
@@ -123,6 +127,12 @@ async function provisionMembership({
         apiKeyId,
         orgId,
       });
+      await getSfdcService()?.setUserRole({
+        orgId,
+        userId,
+        email,
+        role: targetRole,
+      });
       return { kind: "updated", role: targetRole };
     } catch (error) {
       // Serialization failure (P2034) from a concurrent membership change;
@@ -175,6 +185,12 @@ async function provisionMembership({
       after: created,
       apiKeyId,
       orgId,
+    });
+    await getSfdcService()?.setUserRole({
+      orgId,
+      userId,
+      email,
+      role: roleToCreate,
     });
     return { kind: "created", role: roleToCreate };
   } catch (error) {
@@ -229,13 +245,17 @@ function logScimProvision(
 // Mirrors the tRPC `deleteMembership` invariant. Wraps the owner-count check
 // and the membership delete in a single Serializable transaction so two
 // concurrent SCIM deprovision requests cannot both pass the guard and orphan
-// the org. Returns false (with the response already written) when the caller
-// must stop; returns true after the membership has been removed.
+// the org.
+// Audits and syncs the removal to SFDC only when a membership was
+// actually deleted, never for a no-op (already absent). Returns false (with
+// the response already written) when the caller must stop; returns true after
+// the membership has been removed.
 async function deprovisionOrReject(
   res: NextApiResponse,
   userId: string,
   orgId: string,
   apiKeyId: string,
+  email: string | null,
 ): Promise<boolean> {
   try {
     const outcome = await prisma.$transaction(
@@ -282,7 +302,7 @@ async function deprovisionOrReject(
       return false;
     }
 
-    // Only audit when a membership was actually removed.
+    // Only audit and sync when a membership was actually removed.
     if (outcome.result === "deleted") {
       await auditLog({
         resourceType: "orgMembership",
@@ -292,6 +312,7 @@ async function deprovisionOrReject(
         apiKeyId,
         orgId,
       });
+      await getSfdcService()?.removeUser({ orgId, userId, email });
     }
     return true;
   } catch (error) {
@@ -548,6 +569,7 @@ async function handlePatch(
           userId: user.id,
           orgId,
           apiKeyId,
+          email: user.email,
         });
         if (!outcome) {
           return;
@@ -555,7 +577,15 @@ async function handlePatch(
         logScimProvision(outcome, user.id, orgId, "PATCH");
       } else {
         // Deprovision atomically: check + delete in one Serializable txn.
-        if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId))) {
+        if (
+          !(await deprovisionOrReject(
+            res,
+            user.id,
+            orgId,
+            apiKeyId,
+            user.email,
+          ))
+        ) {
           return;
         }
         logger.info(
@@ -635,6 +665,7 @@ async function handlePut(
         userId: user.id,
         orgId,
         apiKeyId,
+        email: user.email,
         role: parseScimRole(body.roles),
       });
       // null → request rejected (e.g. last-OWNER demotion); response written.
@@ -644,7 +675,9 @@ async function handlePut(
       logScimProvision(outcome, user.id, orgId, "PUT");
     } else {
       // Deprovision atomically: check + delete in one Serializable txn.
-      if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId))) {
+      if (
+        !(await deprovisionOrReject(res, user.id, orgId, apiKeyId, user.email))
+      ) {
         return;
       }
       logger.info(
@@ -680,7 +713,7 @@ async function handleDelete(
   apiKeyId: string,
 ) {
   // Deprovision atomically: check + delete in one Serializable txn.
-  if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId))) {
+  if (!(await deprovisionOrReject(res, user.id, orgId, apiKeyId, user.email))) {
     return;
   }
   logger.info(`[SCIM] Removed user ${user.id} from org ${orgId} via DELETE`);
