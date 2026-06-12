@@ -167,7 +167,7 @@ export function CorrectedOutputField({
                   compact ? "text-xs" : "text-sm",
                 )}
               >
-                {compact ? "" : "Corrected Output (Beta)"}
+                {compact ? "" : "Corrected Output"}
               </span>
               <HoverCard>
                 <HoverCardTrigger asChild>

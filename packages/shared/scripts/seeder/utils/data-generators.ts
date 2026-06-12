@@ -617,7 +617,7 @@ export class DataGenerator {
             break;
           case "BOOLEAN":
             value = this.randomBoolean() ? 1 : 0;
-            stringValue = value === 1 ? "true" : "false";
+            stringValue = value === 1 ? "True" : "False";
             break;
         }
 
@@ -1275,7 +1275,7 @@ export class DataGenerator {
           author_user_id: null,
           config_id: null,
           data_type: "BOOLEAN",
-          string_value: safeVal === 1 ? "true" : "false",
+          string_value: safeVal === 1 ? "True" : "False",
           queue_id: null,
           created_at: baseTs + 10,
           updated_at: baseTs + 10,
@@ -1304,7 +1304,7 @@ export class DataGenerator {
               author_user_id: null,
               config_id: null,
               data_type: "BOOLEAN",
-              string_value: "true",
+              string_value: "True",
               queue_id: null,
               created_at: baseTs + 20,
               updated_at: baseTs + 20,
