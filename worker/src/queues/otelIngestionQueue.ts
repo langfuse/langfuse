@@ -6,9 +6,11 @@ import {
   getCurrentSpan,
   getS3EventStorageClient,
   type IngestionEventType,
+  ingestionEventToRawEvent,
   logger,
   OtelIngestionProcessor,
   processEventBatch,
+  writeRawEvents,
   QueueName,
   recordDistribution,
   recordHistogram,
@@ -33,6 +35,7 @@ import {
 import { IngestionService } from "../services/IngestionService";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
+import { GreptimeWriter } from "../services/GreptimeWriter";
 import {
   ForbiddenError,
   convertEventRecordToObservationForEval,
@@ -352,6 +355,7 @@ export const otelIngestionQueueProcessorBuilder = (
         prisma,
         ClickhouseWriter.getInstance(),
         clickhouseClient(),
+        GreptimeWriter.getInstance(),
       );
 
       // Decide whether observations should be processed via new flow (directly to events table)
@@ -417,6 +421,28 @@ export const otelIngestionQueueProcessorBuilder = (
       // observations and traces don't need the mergeAndWrite / IngestionQueue
       // detour that would otherwise populate the legacy tables.
       const skipLegacyWrites = !v4WritesToLegacyTables(env);
+
+      // GreptimeDB SoT completeness (02-write-path.md): write raw_events for otel traces AND
+      // observations regardless of legacy/direct mode, so events-only batches still land in the
+      // source of truth. Observations are merged directly (never via processEventBatch), so always
+      // write theirs; traces go through processEventBatch (which writes raw_events) only in the
+      // dual path, so write trace raw_events here when that path is skipped. Index-offset
+      // ingested_at preserves request order (same tie-break as the public path). Fail-closed.
+      const otelIngestedAt = Date.now();
+      const rawEventSources = skipLegacyWrites
+        ? [...traces, ...observations]
+        : observations;
+      await writeRawEvents(
+        rawEventSources
+          .map((event, index) =>
+            ingestionEventToRawEvent(
+              event,
+              auth.scope.projectId,
+              otelIngestedAt + index,
+            ),
+          )
+          .filter((row): row is NonNullable<typeof row> => row !== null),
+      );
 
       if (skipLegacyWrites) {
         span?.setAttribute(

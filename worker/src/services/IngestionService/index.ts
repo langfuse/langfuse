@@ -54,6 +54,7 @@ import {
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { tokenCount } from "../../features/tokenisation/usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import { GreptimeWriter, GreptimeTable } from "../GreptimeWriter";
 import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
@@ -141,6 +142,14 @@ export class IngestionService {
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType,
+    // Dual-write target during the GreptimeDB migration (02-write-path.md). Optional so existing
+    // call sites/tests keep working; when present, every merged projection record is also written
+    // to GreptimeDB alongside ClickHouse.
+    private greptimeWriter?: GreptimeWriter,
+    // When true, the merge skips the ClickHouse baseline read and rebuilds the entity snapshot
+    // purely from the events passed in (the entity's full raw_events history). Out-of-order
+    // delivery resolves naturally; created_at must be supplied as min(ingested_at).
+    private rebuildFromHistory: boolean = false,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -152,6 +161,9 @@ export class IngestionService {
     createdAtTimestamp: Date,
     events: IngestionEventType[],
     forwardToEventsTable: boolean,
+    // True when the entity was deleted (raw_events tombstone seen). The merged projection is marked
+    // is_deleted=true so a replay rebuilds it soft-deleted instead of resurrecting live data.
+    deleted: boolean = false,
   ): Promise<void> {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
@@ -165,6 +177,7 @@ export class IngestionService {
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
           createEventTraceRecord: forwardToEventsTable,
+          deleted,
         });
       case "observation":
         return await this.processObservationEventList({
@@ -173,6 +186,7 @@ export class IngestionService {
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
           writeToStagingTables: forwardToEventsTable,
+          deleted,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -180,6 +194,7 @@ export class IngestionService {
           entityId: eventBodyId,
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
+          deleted,
         });
       }
       case "dataset_run_item": {
@@ -491,8 +506,10 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
+    deleted?: boolean;
   }) {
-    const { projectId, entityId, createdAtTimestamp, scoreEventList } = params;
+    const { projectId, entityId, createdAtTimestamp, scoreEventList, deleted } =
+      params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -586,7 +603,11 @@ export class IngestionService {
     finalScoreRecord.created_at =
       clickhouseScoreRecord?.created_at ?? createdAtTimestamp.getTime();
 
+    // Tombstoned entity: mark soft-deleted so a replay rebuilds it deleted, not resurrected.
+    if (deleted) finalScoreRecord.is_deleted = 1;
+
     this.clickHouseWriter.addToQueue(TableName.Scores, finalScoreRecord);
+    this.greptimeWriter?.addToQueue(GreptimeTable.Scores, finalScoreRecord);
   }
 
   private async processTraceEventList(params: {
@@ -595,6 +616,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
     createEventTraceRecord: boolean;
+    deleted?: boolean;
   }) {
     const {
       projectId,
@@ -602,6 +624,7 @@ export class IngestionService {
       createdAtTimestamp,
       traceEventList,
       createEventTraceRecord,
+      deleted,
     } = params;
     if (traceEventList.length === 0) return;
 
@@ -664,7 +687,11 @@ export class IngestionService {
     finalTraceRecord.input = finalIO.input ?? clickhouseTraceRecord?.input;
     finalTraceRecord.output = finalIO.output ?? clickhouseTraceRecord?.output;
 
+    // Tombstoned entity: mark soft-deleted so a replay rebuilds it deleted, not resurrected.
+    if (deleted) finalTraceRecord.is_deleted = 1;
+
     this.clickHouseWriter.addToQueue(TableName.Traces, finalTraceRecord);
+    this.greptimeWriter?.addToQueue(GreptimeTable.Traces, finalTraceRecord);
 
     // If the trace has a sessionId, we upsert the corresponding session into Postgres.
     const traceRecordWithSession = traceRecords
@@ -740,6 +767,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
     writeToStagingTables: boolean;
+    deleted?: boolean;
   }) {
     const {
       projectId,
@@ -747,6 +775,7 @@ export class IngestionService {
       createdAtTimestamp,
       observationEventList,
       writeToStagingTables,
+      deleted,
     } = params;
     if (observationEventList.length === 0) return;
 
@@ -867,11 +896,19 @@ export class IngestionService {
       };
 
       this.clickHouseWriter.addToQueue(TableName.Traces, wrapperTraceRecord);
+      this.greptimeWriter?.addToQueue(GreptimeTable.Traces, wrapperTraceRecord);
       finalObservationRecord.trace_id = finalObservationRecord.id;
     }
 
+    // Tombstoned entity: mark soft-deleted so a replay rebuilds it deleted, not resurrected.
+    if (deleted) finalObservationRecord.is_deleted = 1;
+
     this.clickHouseWriter.addToQueue(
       TableName.Observations,
+      finalObservationRecord,
+    );
+    this.greptimeWriter?.addToQueue(
+      GreptimeTable.Observations,
       finalObservationRecord,
     );
 
@@ -1003,18 +1040,29 @@ export class IngestionService {
     return result;
   }
 
+  /**
+   * Deterministic replay ordering (02-write-path.md, invariant 8):
+   *   event_ts ASC -> create-before-update -> ingested_at -> event_id.
+   *
+   * The first two keys are compared here; the remaining two are inherited from the input order.
+   * `Array.prototype.sort` is stable, and the full-history rebuild feeds events ordered by
+   * `(ingested_at ASC, event_id ASC)` from `readRawEventsForEntity`, so returning 0 for a full tie
+   * preserves exactly that `ingested_at -> event_id` order. (Other callers that don't pre-sort
+   * keep their own input order on ties — same as before.)
+   */
   private static toTimeSortedEventList<
     T extends TraceEventType | ScoreEventType | ObservationEvent,
   >(eventList: T[]): T[] {
     return eventList.slice().sort((a, b) => {
       const aTimestamp = new Date(a.timestamp).getTime();
       const bTimestamp = new Date(b.timestamp).getTime();
+      if (aTimestamp !== bTimestamp) return aTimestamp - bTimestamp;
 
-      if (aTimestamp === bTimestamp) {
-        return a.type.includes("create") ? -1 : 1; // create events should come first
-      }
+      const aIsCreate = a.type.includes("create");
+      const bIsCreate = b.type.includes("create");
+      if (aIsCreate !== bIsCreate) return aIsCreate ? -1 : 1; // create events first
 
-      return aTimestamp - bTimestamp;
+      return 0; // stable sort preserves the (ingested_at, event_id) order of the input
     });
   }
 
@@ -1392,6 +1440,11 @@ export class IngestionService {
       params: Record<string, unknown>;
     };
   }) {
+    // Full-history rebuild path: never read the ClickHouse baseline — the passed events already
+    // represent the entity's complete history, so the merge starts from an empty snapshot.
+    if (this.rebuildFromHistory) {
+      return null;
+    }
     if (
       await ClickhouseReadSkipCache.getInstance(
         this.prisma,

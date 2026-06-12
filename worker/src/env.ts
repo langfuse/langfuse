@@ -108,6 +108,16 @@ const EnvSchema = z.object({
   CLICKHOUSE_DB: z.string().default("default"),
   CLICKHOUSE_PASSWORD: z.string(),
   CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
+  // GreptimeDB write path (02-write-path.md). See packages/shared/src/env.ts for semantics.
+  GREPTIME_GRPC_URL: z.string().default("localhost:4001"),
+  GREPTIME_SQL_HOST: z.string().default("localhost"),
+  GREPTIME_SQL_PORT: z.coerce.number().int().positive().default(4002),
+  GREPTIME_SQL_READ_ONLY_HOST: z.string().optional(),
+  GREPTIME_DB: z.string().default("openfuse"),
+  GREPTIME_USER: z.string().default(""),
+  GREPTIME_PASSWORD: z.string().default(""),
+  GREPTIME_SQL_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  GREPTIME_RAW_EVENTS_TABLE: z.string().default("raw_events"),
   LANGFUSE_EVAL_CREATOR_LIMITER_DURATION: z.coerce
     .number()
     .positive()

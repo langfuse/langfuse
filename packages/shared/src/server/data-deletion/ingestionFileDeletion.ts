@@ -9,6 +9,10 @@ import { logger } from "../logger";
 import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
 import { getS3EventStorageClient } from "../s3";
+import {
+  deleteEntitiesFromGreptime,
+  deleteProjectFromGreptime,
+} from "../greptime/deletion";
 
 export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
   projectId: string;
@@ -19,6 +23,13 @@ export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
     "score",
     p.scoreIds,
   );
+
+  // GreptimeDB: hard-delete the score projection + EAV rows (raw_events is append-only -> TTL).
+  await deleteEntitiesFromGreptime({
+    projectId: p.projectId,
+    entityType: "score",
+    entityIds: p.scoreIds,
+  });
 
   return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
     projectId: p.projectId,
@@ -33,25 +44,37 @@ export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
       p.traceIds,
     );
 
+    // GreptimeDB: hard-delete the trace projection + EAV rows (raw_events is append-only -> TTL).
+    // Observations under these traces are cleaned by their own deletion path.
+    await deleteEntitiesFromGreptime({
+      projectId: p.projectId,
+      entityType: "trace",
+      entityIds: p.traceIds,
+    });
+
     return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
       projectId: p.projectId,
       stream: stream,
     });
   };
 
-export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject = (
-  projectId: string,
-  cutOffDate: Date | undefined,
-) => {
-  const stream = cutOffDate
-    ? getBlobStorageByProjectIdBeforeDate(projectId, cutOffDate)
-    : getBlobStorageByProjectId(projectId);
+export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject =
+  async (projectId: string, cutOffDate: Date | undefined) => {
+    const stream = cutOffDate
+      ? getBlobStorageByProjectIdBeforeDate(projectId, cutOffDate)
+      : getBlobStorageByProjectId(projectId);
 
-  return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
-    projectId: projectId,
-    stream: stream,
-  });
-};
+    // GreptimeDB: a cut-off date is time-based retention handled by TTL; only the full project
+    // delete (no cutoff) maps to a GreptimeDB projection+EAV wipe.
+    if (!cutOffDate) {
+      await deleteProjectFromGreptime(projectId);
+    }
+
+    return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
+      projectId: projectId,
+      stream: stream,
+    });
+  };
 
 async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
   projectId: string;

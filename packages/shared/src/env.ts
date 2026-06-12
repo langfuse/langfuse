@@ -118,6 +118,19 @@ const EnvSchema = z.object({
   CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
     .enum(["true", "false"])
     .default("false"),
+  // GreptimeDB write path (02-write-path.md). gRPC endpoint for the ingester (writes);
+  // MySQL-wire endpoint for the full-history read + read path. Local dev defaults match a
+  // single-node GreptimeDB (gRPC 4001, MySQL 4002, no auth).
+  GREPTIME_GRPC_URL: z.string().default("localhost:4001"),
+  GREPTIME_SQL_HOST: z.string().default("localhost"),
+  GREPTIME_SQL_PORT: z.coerce.number().int().positive().default(4002),
+  // Optional dedicated read-only MySQL host; falls back to GREPTIME_SQL_HOST.
+  GREPTIME_SQL_READ_ONLY_HOST: z.string().optional(),
+  GREPTIME_DB: z.string().default("openfuse"),
+  GREPTIME_USER: z.string().default(""),
+  GREPTIME_PASSWORD: z.string().default(""),
+  GREPTIME_SQL_MAX_OPEN_CONNECTIONS: z.coerce.number().int().default(25),
+  GREPTIME_RAW_EVENTS_TABLE: z.string().default("raw_events"),
   LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
     .enum(["true", "false"])
     .default("false"),
