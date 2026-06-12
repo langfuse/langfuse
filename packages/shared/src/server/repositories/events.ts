@@ -1361,6 +1361,7 @@ async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
   operationName: string = "getObservationsFromEventsTableForPublicApi_rows",
+  extraTags: Record<string, string> = {},
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1374,6 +1375,7 @@ async function getObservationsRowsFromBuilder<T>(
         type: "events",
         kind: "publicApiRows",
         projectId,
+        ...extraTags,
       },
     },
     fn: async (input) => {
@@ -1553,6 +1555,16 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
     await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
       projectId,
       builder,
+      undefined,
+      // Lands in the JSON log_comment via queryClickhouse tags; used to
+      // compare the two query paths in query logs while the flag soaks.
+      {
+        queryPath: useSubqueryRewrite
+          ? "subquery-rewrite"
+          : needsIOCTE
+            ? "cte-join"
+            : "simple",
+      },
     );
 
   return await enrichObservationsWithModelData(
