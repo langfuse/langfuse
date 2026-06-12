@@ -1,8 +1,10 @@
 import { Client } from "@greptime/ingester";
 import mysql from "mysql2/promise";
+import type { Connection as CoreConnection } from "mysql2";
 
 import { env } from "../../env";
 import { logger } from "../logger";
+import { quoteIdent } from "./schemaUtils";
 
 /**
  * GreptimeDB connection layer (02-write-path.md, step 1).
@@ -102,6 +104,132 @@ export const greptimeQuery = async <T = Record<string, unknown>>(params: {
   );
   return rows as T[];
 };
+
+/**
+ * Stream rows from GreptimeDB over the MySQL wire without buffering the whole result set in JS.
+ *
+ * GreptimeDB's MySQL protocol has no server-side cursor, so the server still produces the full
+ * result; but mysql2's row-by-row streaming parses rows incrementally off the socket with
+ * backpressure, so peak client memory is bounded by the consumer's pace, not the result size.
+ * Replaces `queryClickhouseStream` for exports / analytics streams.
+ *
+ * For unbounded scans that must checkpoint/resume (very large exports, full-history replay) prefer
+ * `greptimeKeysetScan`, which pages by a stable composite cursor instead of holding one result open.
+ *
+ * On early abandonment (a consumer `break`) or error, the underlying connection is destroyed rather
+ * than returned to the pool, so a half-drained query never corrupts a pooled connection.
+ */
+export async function* greptimeQueryStream<
+  T = Record<string, unknown>,
+>(params: {
+  query: string;
+  params?: GreptimeQueryParams;
+  readOnly?: boolean;
+}): AsyncGenerator<T> {
+  const pool = params.readOnly
+    ? getGreptimeReadOnlySqlPool()
+    : getGreptimeSqlPool();
+  const conn = await pool.getConnection();
+  let drained = false;
+  try {
+    // mysql2/promise types `.connection` as a promise connection; the callback connection exposes
+    // the row-by-row `.stream()` (the promise wrapper buffers). Cast to reach it.
+    const core = conn.connection as unknown as CoreConnection;
+    const stream = core
+      .query(
+        params.query,
+        params.params as string[] | Record<string, string> | undefined,
+      )
+      .stream();
+    for await (const row of stream) {
+      yield row as T;
+    }
+    drained = true;
+  } finally {
+    if (drained) conn.release();
+    else conn.destroy();
+  }
+}
+
+/**
+ * Build a keyset (seek) predicate for a stable composite cursor `(timeColumn, ...tiebreakColumns)`.
+ *
+ * A bare `WHERE timeColumn > :last` silently drops rows that share `last`'s timestamp. The cursor
+ * must therefore extend the time column with enough tiebreak columns to be unique per row (e.g.
+ * `(timestamp, project_id, id)`). The predicate is expanded explicitly (no SQL tuple comparison,
+ * whose GreptimeDB support is unverified) into the lexicographic seek condition. Param names are
+ * `cursor_0..cursor_n` matching `[timeColumn, ...tiebreakColumns]` order.
+ *
+ * Pure + exported for unit tests.
+ */
+export const keysetCursorPredicate = (
+  columns: string[],
+  direction: "ASC" | "DESC",
+): string => {
+  const cmp = direction === "ASC" ? ">" : "<";
+  // Quote a possibly-qualified ref: `dri.dataset_run_created_at` -> dri.`dataset_run_created_at`.
+  const quoteRef = (ref: string): string => {
+    const i = ref.lastIndexOf(".");
+    return i === -1
+      ? quoteIdent(ref)
+      : `${ref.slice(0, i)}.${quoteIdent(ref.slice(i + 1))}`;
+  };
+  // (c0 cmp :cursor_0) OR (c0 = :cursor_0 AND (c1 cmp :cursor_1) OR (c1 = :cursor_1 AND ...))
+  const build = (i: number): string => {
+    const col = quoteRef(columns[i]);
+    const gt = `${col} ${cmp} :cursor_${i}`;
+    if (i === columns.length - 1) return gt;
+    return `(${gt} OR (${col} = :cursor_${i} AND ${build(i + 1)}))`;
+  };
+  return build(0);
+};
+
+/**
+ * Page through a large result by a stable composite cursor, yielding rows across pages. Memory stays
+ * bounded by `pageSize`, and the last-seen cursor can be persisted for resume. The caller supplies a
+ * page builder so any projection/filter/join shape is supported; the cursor columns must appear in
+ * the SELECT and define a strict total order (time + tiebreaks).
+ */
+export async function* greptimeKeysetScan<T = Record<string, unknown>>(params: {
+  /** Columns forming the cursor, in order: `[timeColumn, ...tiebreakColumns]`. */
+  cursorColumns: string[];
+  /** Reads `cursorColumns` out of a row, in the same order, for the next page's seek. */
+  cursorOf: (row: T) => Array<string | number | null>;
+  /**
+   * Build one page. `seekPredicate` is the keyset condition to AND into WHERE (empty on the first
+   * page); `cursor` holds the bound values for params `cursor_0..cursor_n` (empty on the first page).
+   */
+  buildPage: (
+    seekPredicate: string,
+    cursor: Record<string, string | number | null>,
+    limit: number,
+  ) => { query: string; params?: Record<string, string | number | null> };
+  pageSize?: number;
+  direction?: "ASC" | "DESC";
+  readOnly?: boolean;
+}): AsyncGenerator<T> {
+  const pageSize = params.pageSize ?? 1000;
+  const direction = params.direction ?? "ASC";
+  const predicate = keysetCursorPredicate(params.cursorColumns, direction);
+  let cursor: Array<string | number | null> | null = null;
+
+  while (true) {
+    const seek = cursor ? predicate : "";
+    const cursorParams: Record<string, string | number | null> = {};
+    if (cursor) cursor.forEach((v, i) => (cursorParams[`cursor_${i}`] = v));
+
+    const page = params.buildPage(seek, cursorParams, pageSize);
+    const rows = await greptimeQuery<T>({
+      query: page.query,
+      params: { ...(page.params ?? {}), ...cursorParams },
+      readOnly: params.readOnly,
+    });
+    if (rows.length === 0) return;
+    for (const row of rows) yield row;
+    if (rows.length < pageSize) return;
+    cursor = params.cursorOf(rows[rows.length - 1]);
+  }
+}
 
 /** Liveness probe for the GreptimeDB SQL endpoint. */
 export const greptimeHealthCheck = async (): Promise<boolean> => {

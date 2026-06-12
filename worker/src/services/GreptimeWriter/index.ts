@@ -2,6 +2,7 @@ import { backOff } from "exponential-backoff";
 import { DataType, Precision, Table } from "@greptime/ingester";
 
 import {
+  DatasetRunItemRecordInsertType,
   getGreptimeIngestClient,
   logger,
   ObservationRecordInsertType,
@@ -35,6 +36,7 @@ export enum GreptimeTable {
   Traces = "traces",
   Observations = "observations",
   Scores = "scores",
+  DatasetRunItems = "dataset_run_items",
 }
 
 type Row = Record<string, unknown>;
@@ -139,6 +141,28 @@ const scoresTable = (): Table =>
     .addFieldColumn("updated_at", DataType.TimestampMillisecond)
     .addFieldColumn("is_deleted", DataType.Bool);
 
+const datasetRunItemsTable = (): Table =>
+  Table.new("dataset_run_items")
+    .addTagColumn("project_id", DataType.String)
+    .addTagColumn("id", DataType.String)
+    .addTimestampColumn("dataset_run_created_at", Precision.Millisecond)
+    .addFieldColumn("dataset_id", DataType.String)
+    .addFieldColumn("dataset_run_id", DataType.String)
+    .addFieldColumn("dataset_item_id", DataType.String)
+    .addFieldColumn("trace_id", DataType.String)
+    .addFieldColumn("observation_id", DataType.String)
+    .addFieldColumn("error", DataType.String)
+    .addFieldColumn("dataset_run_name", DataType.String)
+    .addFieldColumn("dataset_run_description", DataType.String)
+    .addFieldColumn("dataset_run_metadata", DataType.Json)
+    .addFieldColumn("dataset_item_input", DataType.String)
+    .addFieldColumn("dataset_item_expected_output", DataType.String)
+    .addFieldColumn("dataset_item_metadata", DataType.Json)
+    .addFieldColumn("dataset_item_version", DataType.TimestampMillisecond)
+    .addFieldColumn("created_at", DataType.TimestampMillisecond)
+    .addFieldColumn("updated_at", DataType.TimestampMillisecond)
+    .addFieldColumn("is_deleted", DataType.Bool);
+
 const metadataTable = (name: string): Table =>
   Table.new(name)
     .addTagColumn("project_id", DataType.String)
@@ -160,6 +184,7 @@ const PHYSICAL_TABLES: Record<string, () => Table> = {
   traces: tracesTable,
   observations: observationsTable,
   scores: scoresTable,
+  dataset_run_items: datasetRunItemsTable,
   traces_metadata: () => metadataTable("traces_metadata"),
   observations_metadata: () => metadataTable("observations_metadata"),
   scores_metadata: () => metadataTable("scores_metadata"),
@@ -270,6 +295,28 @@ const scoreRow = (r: ScoreRecordInsertType): Row => ({
   is_deleted: Boolean(r.is_deleted),
 });
 
+const datasetRunItemRow = (r: DatasetRunItemRecordInsertType): Row => ({
+  project_id: r.project_id,
+  id: r.id,
+  dataset_run_created_at: r.dataset_run_created_at,
+  dataset_id: r.dataset_id ?? null,
+  dataset_run_id: r.dataset_run_id ?? null,
+  dataset_item_id: r.dataset_item_id ?? null,
+  trace_id: r.trace_id ?? null,
+  observation_id: r.observation_id ?? null,
+  error: r.error ?? null,
+  dataset_run_name: r.dataset_run_name ?? null,
+  dataset_run_description: r.dataset_run_description ?? null,
+  dataset_run_metadata: jsonOrNull(r.dataset_run_metadata ?? {}),
+  dataset_item_input: r.dataset_item_input ?? null,
+  dataset_item_expected_output: r.dataset_item_expected_output ?? null,
+  dataset_item_metadata: jsonOrNull(r.dataset_item_metadata ?? {}),
+  dataset_item_version: num(r.dataset_item_version),
+  created_at: r.created_at,
+  updated_at: r.updated_at,
+  is_deleted: Boolean(r.is_deleted),
+});
+
 const metadataRows = (params: {
   metadata: Record<string, string> | undefined;
   projectId: string;
@@ -357,7 +404,8 @@ export class GreptimeWriter {
     record:
       | TraceRecordInsertType
       | ObservationRecordInsertType
-      | ScoreRecordInsertType,
+      | ScoreRecordInsertType
+      | DatasetRunItemRecordInsertType,
   ): void {
     switch (table) {
       case GreptimeTable.Traces: {
@@ -412,6 +460,14 @@ export class GreptimeWriter {
             timestamp: r.timestamp,
             isDeleted: Boolean(r.is_deleted),
           }),
+        );
+        break;
+      }
+      case GreptimeTable.DatasetRunItems: {
+        // No EAV fan-out: dataset_run_item metadata is display-only JSON (no key-filtered reads).
+        this.push(
+          "dataset_run_items",
+          datasetRunItemRow(record as DatasetRunItemRecordInsertType),
         );
         break;
       }

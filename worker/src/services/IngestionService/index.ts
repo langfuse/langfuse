@@ -497,6 +497,7 @@ export class IngestionService {
     finalDatasetRunItemRecords.forEach((record) => {
       if (record) {
         this.clickHouseWriter.addToQueue(TableName.DatasetRunItems, record);
+        this.greptimeWriter?.addToQueue(GreptimeTable.DatasetRunItems, record);
       }
     });
   }

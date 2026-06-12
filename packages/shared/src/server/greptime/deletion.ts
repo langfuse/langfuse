@@ -118,4 +118,10 @@ export const deleteProjectFromGreptime = async (
       });
     }
   }
+  // dataset_run_items has no EAV subtables and is not a GreptimeEntityType (no tombstone/replay
+  // path), so it is deleted directly here. Per-entity dataset_run_item deletion is a follow-up.
+  await greptimeQuery({
+    query: `DELETE FROM ${quoteIdent("dataset_run_items")} WHERE ${quoteIdent("project_id")} = ?`,
+    params: [projectId],
+  });
 };
