@@ -69,6 +69,21 @@ export const AssistantTextWithLongFeedbackComment = meta.story({
   },
 });
 
+export const AssistantTextWithRedirectAction = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "I found the members settings page for this project.",
+      redirectAction: {
+        type: "redirectAction",
+        label: "Open members",
+        href: "/project/project-1/settings/members",
+      },
+    },
+  },
+});
+
 export const AssistantMarkdown = meta.story({
   args: {
     role: "assistant",
@@ -186,6 +201,28 @@ export const SingleToolCallGroup = meta.story({
           }),
         },
       ],
+    },
+  },
+});
+
+export const RedirectAction = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "redirectAction",
+      label: "Open members",
+      href: "/project/project-1/settings/members",
+    },
+  },
+});
+
+export const RedirectActionWithParams = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "redirectAction",
+      label: "Open error traces",
+      href: "/project/project-1/traces?dateRange=1d&search=checkout&searchType=content&filter=level%3BstringOptions%3B%3Bany+of%3BERROR",
     },
   },
 });

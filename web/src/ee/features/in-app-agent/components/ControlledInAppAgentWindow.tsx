@@ -6,10 +6,15 @@ import {
   InAppAgentWindow,
   type InAppAgentWindowMessage,
 } from "./InAppAgentWindow";
-import type { InAppAgentToolCallContent } from "./InAppAgentMessage";
+import type {
+  InAppAgentMessageContent,
+  InAppAgentToolCallContent,
+} from "./InAppAgentMessage";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import {
   AgUiMessageSchema,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  InAppAgentRedirectActionToolResultSchema,
   type AgUiMessage,
 } from "@/src/ee/features/in-app-agent/schema";
 
@@ -74,10 +79,44 @@ export function ControlledInAppAgentWindow(
     };
 
     parsedMessages.forEach((message, index) => {
+      if (message.role === "tool") {
+        const redirectAction = getRedirectActionFromToolResult(message);
+
+        // Redirect actions that come immediately after an assistant message with text content can be merged into that message for a smoother UI experience
+        if (redirectAction) {
+          const previousRawMessage = parsedMessages[index - 1];
+          const previousMessage = mappedMessages[mappedMessages.length - 1];
+
+          if (
+            pendingTools.length === 0 &&
+            previousRawMessage?.role === "assistant" &&
+            previousMessage?.role === "assistant" &&
+            previousMessage.id === previousRawMessage.id &&
+            previousMessage.content.type === "text"
+          ) {
+            mappedMessages[mappedMessages.length - 1] = {
+              ...previousMessage,
+              content: {
+                ...previousMessage.content,
+                redirectAction,
+              },
+            };
+          } else {
+            flushPendingTools();
+            mappedMessages.push({
+              id: `${message.id}-redirect`,
+              role: "assistant",
+              content: redirectAction,
+            });
+          }
+        }
+
+        return;
+      }
+
       if (
         message.role === "system" ||
         message.role === "developer" ||
-        message.role === "tool" ||
         message.role === "activity"
       ) {
         return;
@@ -115,22 +154,27 @@ export function ControlledInAppAgentWindow(
                 .join("")
             : "";
 
-      const toolContent =
-        message.role === "assistant"
-          ? (message.toolCalls?.map((toolCall): InAppAgentToolCallContent => {
-              const result = toolResults.get(toolCall.id);
+      const toolContent: InAppAgentToolCallContent[] = [];
 
-              return {
-                type: "tool",
-                name: toolCall.function.name,
-                args: toolCall.function.arguments,
-                ...(result?.content !== undefined
-                  ? { result: result.content }
-                  : {}),
-                ...(result?.error !== undefined ? { error: result.error } : {}),
-              };
-            }) ?? [])
-          : [];
+      if (message.role === "assistant") {
+        for (const toolCall of message.toolCalls ?? []) {
+          if (toolCall.function.name === IN_APP_AGENT_REDIRECT_TOOL_NAME) {
+            continue;
+          }
+
+          const result = toolResults.get(toolCall.id);
+
+          toolContent.push({
+            type: "tool",
+            name: toolCall.function.name,
+            args: toolCall.function.arguments,
+            ...(result?.content !== undefined
+              ? { result: result.content }
+              : {}),
+            ...(result?.error !== undefined ? { error: result.error } : {}),
+          });
+        }
+      }
 
       if (role === "assistant" && toolContent.length > 0 && !text.trim()) {
         pendingToolGroupId ??= `tools-${message.id}`;
@@ -187,7 +231,8 @@ export function ControlledInAppAgentWindow(
       !error &&
       latestUserMessageIndex >= 0 &&
       latestAssistantMessage?.content.type !== "text" &&
-      latestAssistantMessage?.content.type !== "loading"
+      latestAssistantMessage?.content.type !== "loading" &&
+      latestAssistantMessage?.content.type !== "redirectAction"
     ) {
       if (latestAssistantMessage?.content.type === "toolGroup") {
         // Set the tool group message to loading state
@@ -258,4 +303,16 @@ function getToolResultsByToolCallId(messages: readonly AgUiMessage[]) {
   }
 
   return results;
+}
+
+function getRedirectActionFromToolResult(
+  message: Extract<AgUiMessage, { role: "tool" }>,
+): Extract<InAppAgentMessageContent, { type: "redirectAction" }> | null {
+  try {
+    return InAppAgentRedirectActionToolResultSchema.parse(
+      JSON.parse(message.content),
+    );
+  } catch {
+    return null;
+  }
 }

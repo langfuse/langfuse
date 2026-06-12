@@ -1,5 +1,7 @@
 import type { EventType } from "@ag-ui/core";
+import { ObservationLevelDomain, TracingSearchType } from "@langfuse/shared";
 import { z } from "zod";
+import { TABLE_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 
 // @ag-ui/core@0.0.52 publishes Zod v3-shaped declarations, but this package
 // uses Zod v4, causing its exported z.infer-based types to resolve as unknown.
@@ -39,6 +41,16 @@ export const InAppAgentMessageFeedbackSchema = z.object({
 
 export type InAppAgentMessageFeedback = z.infer<
   typeof InAppAgentMessageFeedbackSchema
+>;
+
+export const InAppAgentRedirectActionToolResultSchema = z.object({
+  type: z.literal("redirectAction"),
+  label: z.string().min(1).max(80),
+  href: z.string().min(1),
+});
+
+export type InAppAgentRedirectActionToolResult = z.infer<
+  typeof InAppAgentRedirectActionToolResultSchema
 >;
 
 const AgUiInputContentSourceSchema = z.discriminatedUnion("type", [
@@ -185,4 +197,211 @@ export const InAppAgentRuntimeStateSchema = z.discriminatedUnion("type", [
 
 export type InAppAgentRuntimeState = z.infer<
   typeof InAppAgentRuntimeStateSchema
+>;
+
+export const IN_APP_AGENT_REDIRECT_TOOL_NAME = "langfuse_proposeRedirect";
+
+const InAppAgentRedirectDestinationSchema = z.enum([
+  "dashboards",
+  "datasets",
+  "evals",
+  "experiments",
+  "models",
+  "monitors",
+  "playground",
+  "projectMembers",
+  "projectSettings",
+  "prompts",
+  "scores",
+  "session",
+  "sessions",
+  "trace",
+  "traces",
+]);
+
+const InAppAgentRedirectBaseSchema = z.object({
+  label: z.string().min(1).max(80),
+});
+
+const InAppAgentTableTimeRangePresetSchema = z.enum(TABLE_AGGREGATION_OPTIONS);
+
+const InAppAgentTableTimeRangeStrictSchema = z.union([
+  z.object({
+    preset: InAppAgentTableTimeRangePresetSchema,
+  }),
+  z.object({
+    from: z.iso.datetime(),
+    to: z.iso.datetime(),
+  }),
+]);
+
+const InAppAgentTableTimeRangeSchema = z
+  .object({
+    preset: InAppAgentTableTimeRangePresetSchema.optional(),
+    from: z.iso.datetime().optional(),
+    to: z.iso.datetime().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!InAppAgentTableTimeRangeStrictSchema.safeParse(value).success) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Provide either a preset or both from and to.",
+      });
+    }
+  }) as z.ZodType<z.infer<typeof InAppAgentTableTimeRangeStrictSchema>>;
+
+const InAppAgentTracingFiltersSchema = z.object({
+  bookmarked: z.boolean().optional(),
+  environment: z.array(z.string().min(1).max(100)).max(10).optional(),
+  level: z.array(ObservationLevelDomain).max(4).optional(),
+  metadata: z
+    .array(
+      z.object({
+        key: z.string().min(1).max(100),
+        value: z.string().max(200),
+      }),
+    )
+    .max(5)
+    .optional(),
+  sessionId: z.array(z.string().min(1).max(200)).max(10).optional(),
+  tags: z.array(z.string().min(1).max(100)).max(10).optional(),
+  traceId: z.string().min(1).max(200).optional(),
+  traceName: z.array(z.string().min(1).max(200)).max(10).optional(),
+  userId: z.array(z.string().min(1).max(200)).max(10).optional(),
+  version: z.string().min(1).max(200).optional(),
+});
+
+const InAppAgentTracesParamsSchema = z.object({
+  filters: InAppAgentTracingFiltersSchema.optional(),
+  orderBy: z
+    .object({
+      column: z.enum(["timestamp", "startTime", "traceName", "latency"]),
+      order: z.enum(["ASC", "DESC"]),
+    })
+    .optional(),
+  search: z
+    .object({
+      query: z.string().min(1).max(300),
+      type: z.array(TracingSearchType).max(4).optional(),
+    })
+    .optional(),
+  timeRange: InAppAgentTableTimeRangeSchema.optional(),
+});
+
+const InAppAgentProjectSettingsPageSchema = z.enum([
+  "index",
+  "api-keys",
+  "developer-tools",
+  "llm-connections",
+  "models",
+  "scores",
+  "members",
+  "integrations",
+  "exports",
+  "batch-actions",
+  "audit-logs",
+  "notifications",
+]);
+
+const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
+  "destination",
+  [
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("dashboards"),
+    }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("datasets"),
+      params: z
+        .object({ folder: z.string().min(1).max(200).optional() })
+        .optional(),
+    }),
+    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("evals") }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("experiments"),
+    }),
+    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("models") }),
+    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("monitors") }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("playground"),
+    }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("projectMembers"),
+    }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("projectSettings"),
+      params: z
+        .object({ page: InAppAgentProjectSettingsPageSchema.optional() })
+        .optional(),
+    }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("prompts"),
+      params: z
+        .object({ folder: z.string().min(1).max(200).optional() })
+        .optional(),
+    }),
+    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("scores") }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("session"),
+      params: z.object({ sessionId: z.string().min(1).max(200) }),
+    }),
+    InAppAgentRedirectBaseSchema.extend({ destination: z.literal("sessions") }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("trace"),
+      params: z.object({
+        timestamp: z.iso.datetime().optional(),
+        traceId: z.string().min(1).max(200),
+      }),
+    }),
+    InAppAgentRedirectBaseSchema.extend({
+      destination: z.literal("traces"),
+      params: InAppAgentTracesParamsSchema.optional(),
+    }),
+  ],
+);
+
+const InAppAgentRedirectParamsSchema = z.object({
+  folder: z.string().min(1).max(200).optional(),
+  page: InAppAgentProjectSettingsPageSchema.optional(),
+  sessionId: z.string().min(1).max(200).optional(),
+  timestamp: z.iso.datetime().optional(),
+  traceId: z.string().min(1).max(200).optional(),
+  filters: InAppAgentTracingFiltersSchema.optional(),
+  orderBy: InAppAgentTracesParamsSchema.shape.orderBy,
+  search: InAppAgentTracesParamsSchema.shape.search,
+  timeRange: InAppAgentTableTimeRangeSchema.optional(),
+});
+
+export const InAppAgentRedirectToolInputSchema =
+  InAppAgentRedirectBaseSchema.extend({
+    destination: InAppAgentRedirectDestinationSchema,
+    params: InAppAgentRedirectParamsSchema.optional(),
+  }).superRefine((value, ctx) => {
+    const result = InAppAgentRedirectToolInputStrictSchema.safeParse(value);
+
+    if (!result.success) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Invalid redirect destination parameters.",
+      });
+    }
+  }) as z.ZodType<z.infer<typeof InAppAgentRedirectToolInputStrictSchema>>;
+
+export type InAppAgentRedirectToolInput = z.infer<
+  typeof InAppAgentRedirectToolInputStrictSchema
+>;
+export type InAppAgentTracesRedirectInput = Extract<
+  InAppAgentRedirectToolInput,
+  { destination: "traces" }
+>;
+type InAppAgentTracesRedirectParams = NonNullable<
+  InAppAgentTracesRedirectInput["params"]
+>;
+export type InAppAgentTracesRedirectFilters = NonNullable<
+  InAppAgentTracesRedirectParams["filters"]
+>;
+export type InAppAgentTracesRedirectOrderBy = NonNullable<
+  InAppAgentTracesRedirectParams["orderBy"]
+>;
+export type InAppAgentTracesRedirectTimeRange = NonNullable<
+  InAppAgentTracesRedirectParams["timeRange"]
 >;

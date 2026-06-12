@@ -11,6 +11,8 @@ import type {
 
 import {
   AgUiMessageSchema,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  InAppAgentRedirectActionToolResultSchema,
   type AgUiEvent,
   type AgUiMessage,
 } from "@/src/ee/features/in-app-agent/schema";
@@ -326,8 +328,11 @@ function getMessagesFromPersistedEvents(
 function sanitizeConversationMessagesForReplay(
   messages: readonly AgUiMessage[],
 ): readonly AgUiMessage[] {
-  const messagesWithoutOrphanToolCalls =
-    dropUnpairedAssistantToolCalls(messages);
+  const messagesWithoutRedirectActions =
+    dropRedirectActionToolResults(messages);
+  const messagesWithoutOrphanToolCalls = dropUnpairedAssistantToolCalls(
+    messagesWithoutRedirectActions,
+  );
   return stripAssistantRunIds(
     dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
   );
@@ -740,7 +745,55 @@ function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
 }
 
 function compactPersistedEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
-  return compactEvents(compactTextMessageChunks(events)) as AgUiEvent[];
+  return dropRedirectToolCallEvents(
+    compactEvents(compactTextMessageChunks(events)) as AgUiEvent[],
+  );
+}
+
+// Redirect actions are rendered from the server-generated href payload. Drop the
+// redirect tool call scaffolding and args so persisted history does not depend
+// on the redirect input schema, which may evolve over time.
+function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
+  const redirectToolCallIds = new Set<string>();
+
+  for (const event of events) {
+    if (
+      event.type === EventType.TOOL_CALL_START &&
+      getString(event, "toolCallName") === IN_APP_AGENT_REDIRECT_TOOL_NAME
+    ) {
+      const toolCallId = getString(event, "toolCallId");
+      if (toolCallId) {
+        redirectToolCallIds.add(toolCallId);
+      }
+    }
+
+    if (event.type === EventType.TOOL_CALL_RESULT) {
+      const toolCallId = getString(event, "toolCallId");
+      if (
+        toolCallId &&
+        isRedirectActionToolResult(getString(event, "content"))
+      ) {
+        redirectToolCallIds.add(toolCallId);
+      }
+    }
+  }
+
+  if (redirectToolCallIds.size === 0) {
+    return [...events];
+  }
+
+  return events.filter((event) => {
+    if (
+      event.type !== EventType.TOOL_CALL_START &&
+      event.type !== EventType.TOOL_CALL_ARGS &&
+      event.type !== EventType.TOOL_CALL_END
+    ) {
+      return true;
+    }
+
+    const toolCallId = getString(event, "toolCallId");
+    return !toolCallId || !redirectToolCallIds.has(toolCallId);
+  });
 }
 
 function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
@@ -773,6 +826,19 @@ function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
     }
 
     return { ...message, toolCalls: pairedToolCalls };
+  });
+
+  return changed ? sanitizedMessages : messages;
+}
+
+function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
+  let changed = false;
+  const sanitizedMessages = messages.filter((message) => {
+    const keep =
+      message.role !== "tool" || !isRedirectActionToolResult(message.content);
+
+    changed = changed || !keep;
+    return keep;
   });
 
   return changed ? sanitizedMessages : messages;
@@ -836,6 +902,20 @@ function getString(event: unknown, key: string): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRedirectActionToolResult(content: string | undefined) {
+  if (!content) {
+    return false;
+  }
+
+  try {
+    return InAppAgentRedirectActionToolResultSchema.safeParse(
+      JSON.parse(content),
+    ).success;
+  } catch {
+    return false;
+  }
 }
 
 function compactObject<T extends Record<string, unknown>>(value: T): T {

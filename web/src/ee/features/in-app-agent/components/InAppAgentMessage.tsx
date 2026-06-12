@@ -1,7 +1,15 @@
 "use client";
 
-import { Loader2, ThumbsDown, ThumbsUp, Wrench } from "lucide-react";
+import {
+  ArrowRight,
+  Loader2,
+  ThumbsDown,
+  ThumbsUp,
+  Wrench,
+} from "lucide-react";
+import { useRouter } from "next/router";
 import { Streamdown } from "streamdown";
+import { Button } from "@/src/components/ui/button";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -26,9 +34,21 @@ import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
+type InAppAgentRedirectActionContent = {
+  type: "redirectAction";
+  label: string;
+  href: string;
+};
+
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
-  | { type: "text"; text: string; feedback?: InAppAgentMessageFeedback }
+  | {
+      type: "text";
+      text: string;
+      feedback?: InAppAgentMessageFeedback;
+      redirectAction?: InAppAgentRedirectActionContent;
+    }
+  | InAppAgentRedirectActionContent
   | {
       type: "toolGroup";
       tools: InAppAgentToolCallContent[];
@@ -63,6 +83,10 @@ export function InAppAgentMessage({
   windowZIndex,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
+  if (content.type === "redirectAction") {
+    return <RedirectActionButton content={content} isCompact={isCompact} />;
+  }
+
   if (content.type === "toolGroup") {
     return (
       <div
@@ -101,7 +125,10 @@ const MessageCard = forwardRef<
   HTMLDivElement,
   {
     role: InAppAgentMessageRole;
-    content: Exclude<InAppAgentMessageContent, { type: "toolGroup" }>;
+    content: Exclude<
+      InAppAgentMessageContent,
+      { type: "toolGroup" | "redirectAction" }
+    >;
     isCompact: boolean;
   }
 >(function MessageCard({ role, content, isCompact }, ref) {
@@ -123,7 +150,17 @@ const MessageCard = forwardRef<
       {content.type === "loading" ? (
         <ThinkingIndicator label={content.label} isCompact={isCompact} />
       ) : (
-        <MessageText role={role} text={content.text} isCompact={isCompact} />
+        <>
+          <MessageText role={role} text={content.text} isCompact={isCompact} />
+          {content.redirectAction ? (
+            <div className={cn(isCompact ? "mt-3 mb-1" : "mt-2.5 mb-0.5")}>
+              <RedirectActionButton
+                content={content.redirectAction}
+                isCompact={isCompact}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -397,6 +434,31 @@ function FeedbackButton({
     >
       {children}
     </button>
+  );
+}
+
+function RedirectActionButton({
+  content,
+  isCompact,
+}: {
+  content: InAppAgentRedirectActionContent;
+  isCompact: boolean;
+}) {
+  const router = useRouter();
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className={cn("shrink-0", isCompact ? "h-6 px-2 text-xs" : "h-7")}
+      onClick={() => {
+        router.push(content.href).catch(() => undefined);
+      }}
+    >
+      {content.label}
+      <ArrowRight className="ml-1 size-3" />
+    </Button>
   );
 }
 
