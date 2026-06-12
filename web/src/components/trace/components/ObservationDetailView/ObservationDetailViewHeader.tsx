@@ -162,7 +162,7 @@ export const ObservationDetailViewHeader = memo(
             {!isAnnotationMode && (
               <div className="flex items-start">
                 {isV4Enabled ? (
-                  <Drawer>
+                  <Drawer key={"annotation-drawer-" + observation.id}>
                     <DrawerTrigger asChild>
                       <Button
                         variant="secondary"

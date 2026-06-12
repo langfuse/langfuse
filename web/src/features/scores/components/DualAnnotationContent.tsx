@@ -40,6 +40,10 @@ export function DualAnnotationContent({
             projectId,
             environment: observationEnvironment,
           }}
+          analyticsData={{
+            type: "trace",
+            source: "TraceDetail",
+          }}
         />
       </div>
 
@@ -59,6 +63,10 @@ export function DualAnnotationContent({
           scoreMetadata={{
             projectId,
             environment: traceEnvironment,
+          }}
+          analyticsData={{
+            type: "trace",
+            source: "TraceDetail",
           }}
         />
       </div>
