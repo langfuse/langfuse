@@ -7203,6 +7203,230 @@ describe("OTel Resource Span Mapping", () => {
         observationEvent?.body.usageDetails.input_cache_creation_1h,
       ).toBeUndefined();
     });
+
+    it("should extract Anthropic cache tokens from provider metadata for non-AI instrumentations (Google ADK + LiteLLM)", async () => {
+      // This test covers the scenario where Google ADK uses LiteLLM as the LLM
+      // gateway and the Anthropic cache tokens arrive via
+      // ai.response.providerMetadata but the instrumentation scope is NOT "ai".
+      const traceId = "abcdef1234567890abcdef1234567893";
+      const spanId = "1234567890abcde2";
+
+      const googleADKAnthropicSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-adk-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.google_adk",
+              version: "0.1.6",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "adk-anthropic-call",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 5000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 200, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        anthropic: {
+                          usage: {
+                            input_tokens: 5000,
+                            cache_creation_input_tokens: 2000,
+                            cache_read_input_tokens: 1500,
+                            cache_creation: {
+                              ephemeral_5m_input_tokens: 1000,
+                              ephemeral_1h_input_tokens: 500,
+                            },
+                            output_tokens: 200,
+                            service_tier: "standard",
+                          },
+                        },
+                      }),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        googleADKAnthropicSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // Cache read tokens should be extracted
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        1500,
+      );
+
+      // Cache creation: total 2000 - 5m(1000) - 1h(500) = 500 remainder
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(500);
+      expect(observationEvent?.body.usageDetails.input_cache_creation_5m).toBe(
+        1000,
+      );
+      expect(observationEvent?.body.usageDetails.input_cache_creation_1h).toBe(
+        500,
+      );
+
+      // input = 5000 - 1500 (cached) - 500 (creation remainder) - 1000 (5m) - 500 (1h) = 1500
+      expect(observationEvent?.body.usageDetails.input).toBe(1500);
+      expect(observationEvent?.body.usageDetails.output).toBe(200);
+    });
+
+    it("should not double-subtract when both gen_ai.usage and providerMetadata carry cache tokens", async () => {
+      // This is the edge case the reviewer flagged: cache info arrives from
+      // BOTH the generic gen_ai.usage.* attributes AND ai.response.providerMetadata.
+      // The generic path already subtracts cache from input; the provider-metadata
+      // path must detect the existing fields and skip re-subtraction.
+      const traceId = "abcdef1234567890abcdef1234567894";
+      const spanId = "1234567890abcde3";
+
+      const dualSourceSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-dual-source" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "openinference.instrumentation.google_adk",
+              version: "0.1.6",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from(spanId, "hex"),
+                name: "adk-dual-cache-source",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  // Source 1: generic gen_ai.usage.* attributes
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 8000, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.output_tokens",
+                    value: {
+                      intValue: { low: 300, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_read.input_tokens",
+                    value: {
+                      intValue: { low: 3000, high: 0, unsigned: false },
+                    },
+                  },
+                  // Source 2: Anthropic provider metadata (same cache values)
+                  {
+                    key: "ai.response.providerMetadata",
+                    value: {
+                      stringValue: JSON.stringify({
+                        anthropic: {
+                          usage: {
+                            input_tokens: 8000,
+                            cache_read_input_tokens: 3000,
+                            cache_creation_input_tokens: 1000,
+                            output_tokens: 300,
+                          },
+                        },
+                      }),
+                    },
+                  },
+                ],
+                events: [],
+                status: { code: 1 },
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        dualSourceSpan,
+        new Set(),
+      );
+
+      const observationEvent = events.find(
+        (e) => e.type === "generation-create" || e.type === "span-create",
+      );
+
+      expect(observationEvent).toBeDefined();
+
+      // Cache read: gen_ai.usage.cache_read.input_tokens=3000 set first,
+      // providerMetadata cache_read_input_tokens=3000 skipped (already defined).
+      expect(observationEvent?.body.usageDetails.input_cached_tokens).toBe(
+        3000,
+      );
+
+      // Cache creation: only from providerMetadata (no gen_ai.usage equivalent).
+      expect(observationEvent?.body.usageDetails.input_cache_creation).toBe(
+        1000,
+      );
+
+      // input must be subtracted exactly once:
+      // 8000 - 3000 (cache_read) - 1000 (cache_creation) = 4000
+      // NOT 8000 - 3000 - 3000 - 1000 - 1000 = 0 (the double-subtraction bug)
+      expect(observationEvent?.body.usageDetails.input).toBe(4000);
+      expect(observationEvent?.body.usageDetails.output).toBe(300);
+    });
+
     it("should extract all Bedrock cache token types from Vercel AI SDK provider metadata", async () => {
       const traceId = "abcdef1234567890abcdef1234567890";
       const spanId = "1234567890abcdef";

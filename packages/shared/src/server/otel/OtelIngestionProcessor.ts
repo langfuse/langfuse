@@ -2537,7 +2537,131 @@ export class OtelIngestionProcessor {
       normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
     }
 
+    // Also extract Anthropic cache tokens from provider metadata if present.
+    // This handles non-Vercel-AI-SDK instrumentations (e.g. Google ADK + LiteLLM)
+    // that forward Anthropic usage through ai.response.providerMetadata.
+    this.extractAnthropicCacheFromProviderMetadata(
+      attributes,
+      normalizedUsageDetails,
+    );
+
     return normalizedUsageDetails;
+  }
+
+  /**
+   * Extract Anthropic cache tokens from `ai.response.providerMetadata` and
+   * merge them into `usageDetails`.  Skipped when the caller already populated
+   * these fields (e.g. the `ai` instrumentation-scope path handles its own
+   * provider-metadata extraction).
+   */
+  private extractAnthropicCacheFromProviderMetadata(
+    attributes: Record<string, unknown>,
+    usageDetails: Record<string, number>,
+  ): void {
+    const providerMetadata = attributes["ai.response.providerMetadata"];
+    if (!providerMetadata) return;
+
+    try {
+      const parsed =
+        typeof providerMetadata === "string"
+          ? JSON.parse(providerMetadata)
+          : providerMetadata;
+
+      if (!("anthropic" in parsed) || !("usage" in parsed["anthropic"])) {
+        return;
+      }
+
+      const anthropicUsage = parsed["anthropic"]["usage"] as Record<
+        string,
+        unknown
+      >;
+
+      // Track which cache fields this function freshly populates so we only
+      // re-derive `input` for fields we actually added (avoids double-subtracting
+      // when extractGenericGenAiUsageDetails already computed input as
+      // inputTokens − cacheReadTokens − cacheCreationTokens).
+      let addedCacheRead = false;
+      let addedCacheCreation = false;
+      let addedCacheCreation5m = false;
+      let addedCacheCreation1h = false;
+
+      // cache_read_input_tokens → input_cached_tokens
+      if (
+        anthropicUsage["cache_read_input_tokens"] !== undefined &&
+        usageDetails["input_cached_tokens"] === undefined
+      ) {
+        usageDetails["input_cached_tokens"] = Number(
+          anthropicUsage["cache_read_input_tokens"],
+        );
+        addedCacheRead = true;
+      }
+
+      // cache_creation_input_tokens → input_cache_creation
+      if (
+        anthropicUsage["cache_creation_input_tokens"] !== undefined &&
+        usageDetails["input_cache_creation"] === undefined
+      ) {
+        usageDetails["input_cache_creation"] = Number(
+          anthropicUsage["cache_creation_input_tokens"],
+        );
+        addedCacheCreation = true;
+      }
+
+      // Duration-specific cache creation breakdown (5m / 1h TTLs)
+      if (
+        typeof anthropicUsage["cache_creation"] === "object" &&
+        anthropicUsage["cache_creation"] !== null
+      ) {
+        const cacheCreation = anthropicUsage["cache_creation"] as Record<
+          string,
+          number
+        >;
+
+        if (
+          typeof cacheCreation["ephemeral_5m_input_tokens"] === "number" &&
+          usageDetails["input_cache_creation_5m"] === undefined
+        ) {
+          usageDetails["input_cache_creation_5m"] =
+            cacheCreation["ephemeral_5m_input_tokens"];
+          addedCacheCreation5m = true;
+        }
+        if (
+          typeof cacheCreation["ephemeral_1h_input_tokens"] === "number" &&
+          usageDetails["input_cache_creation_1h"] === undefined
+        ) {
+          usageDetails["input_cache_creation_1h"] =
+            cacheCreation["ephemeral_1h_input_tokens"];
+          addedCacheCreation1h = true;
+        }
+
+        // Subtract duration-specific counts from total to avoid double counting
+        if (addedCacheCreation) {
+          usageDetails["input_cache_creation"] = Math.max(
+            usageDetails["input_cache_creation"] -
+              (usageDetails["input_cache_creation_5m"] ?? 0) -
+              (usageDetails["input_cache_creation_1h"] ?? 0),
+            0,
+          );
+        }
+      }
+
+      // Re-derive `input` as uncached remainder for fields this function added
+      if (
+        usageDetails["input"] !== undefined &&
+        (addedCacheRead || addedCacheCreation || addedCacheCreation5m || addedCacheCreation1h)
+      ) {
+        usageDetails["input"] = Math.max(
+          usageDetails["input"] -
+            (addedCacheRead ? (usageDetails["input_cached_tokens"] ?? 0) : 0) -
+            (addedCacheCreation ? (usageDetails["input_cache_creation"] ?? 0) : 0) -
+            (addedCacheCreation5m ? (usageDetails["input_cache_creation_5m"] ?? 0) : 0) -
+            (addedCacheCreation1h ? (usageDetails["input_cache_creation_1h"] ?? 0) : 0),
+          0,
+        );
+      }
+    } catch {
+      // Ignore parse errors — provider metadata is optional
+    }
   }
 
   private extractCostDetails(
