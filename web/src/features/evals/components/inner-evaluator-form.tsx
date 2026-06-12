@@ -362,7 +362,7 @@ export const InnerEvaluatorForm = (props: {
   existingEvaluator?: PartialConfig;
   onFormSuccess?: () => void;
   shouldWrapVariables?: boolean;
-  mode?: "create" | "edit";
+  mode?: "create" | "edit" | "clone";
   hideTargetSection?: boolean;
   preventRedirect?: boolean;
   preprocessFormValues?: (values: any) => any;
@@ -490,9 +490,12 @@ export const InnerEvaluatorForm = (props: {
         (option): option is "NEW" | "EXISTING" =>
           ["NEW", "EXISTING"].includes(option),
       ),
-      runOnLive: props.existingEvaluator
-        ? props.existingEvaluator.status === "ACTIVE"
-        : (props.defaultRunOnLive ?? true),
+      runOnLive:
+        props.mode === "clone"
+          ? false
+          : props.existingEvaluator
+            ? props.existingEvaluator.status === "ACTIVE"
+            : (props.defaultRunOnLive ?? true),
     },
   }) as UseFormReturn<EvalFormType>;
 
@@ -611,7 +614,9 @@ export const InnerEvaluatorForm = (props: {
     capture(
       props.mode === "edit"
         ? "eval_config:update"
-        : "eval_config:new_form_submit",
+        : props.mode === "clone"
+          ? "eval_config:clone_form_submit"
+          : "eval_config:new_form_submit",
     );
 
     // Apply preprocessFormValues if it exists
@@ -704,11 +709,14 @@ export const InnerEvaluatorForm = (props: {
 
     // For modern targets, derive status from runOnLive
     const isModern = !isLegacyEvalTarget(values.target);
-    const status = isModern
-      ? values.runOnLive
-        ? JobConfigState.ACTIVE
-        : JobConfigState.INACTIVE
-      : undefined;
+    const status =
+      props.mode === "clone"
+        ? JobConfigState.INACTIVE
+        : isModern
+          ? values.runOnLive
+            ? JobConfigState.ACTIVE
+            : JobConfigState.INACTIVE
+          : undefined;
 
     (props.mode === "edit" && props.existingEvaluator?.id
       ? updateJobMutation.mutateAsync({
@@ -740,7 +748,11 @@ export const InnerEvaluatorForm = (props: {
       .then(() => {
         props.onFormSuccess?.();
 
-        if (props.mode !== "edit" && !props.preventRedirect) {
+        if (
+          props.mode !== "edit" &&
+          props.mode !== "clone" &&
+          !props.preventRedirect
+        ) {
           router.push(`/project/${props.projectId}/evals`);
           // Don't reset form when redirecting - it will unmount anyway
         } else {
@@ -828,6 +840,22 @@ export const InnerEvaluatorForm = (props: {
     isExperimentTarget(watchedTarget) &&
     !isBetaEnabled;
 
+  const scoreNameField = (
+    <FormField
+      control={form.control}
+      name="scoreName"
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>Generated Score Name</FormLabel>
+          <FormControl>
+            <Input {...field} />
+          </FormControl>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+
   const formBody = (
     <div
       className={cn(
@@ -836,23 +864,14 @@ export const InnerEvaluatorForm = (props: {
           "xl:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)] xl:items-start",
       )}
     >
-      <div className={cn(shouldShowCodeEvalTestPanel && "xl:col-span-2")}>
-        <FormField
-          control={form.control}
-          name="scoreName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Generated Score Name</FormLabel>
-              <FormControl>
-                <Input {...field} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+      {!props.useDialog && (
+        <div className={cn(shouldShowCodeEvalTestPanel && "xl:col-span-2")}>
+          {scoreNameField}
+        </div>
+      )}
       {!props.hideTargetSection && (
-        <Card className="flex max-w-full flex-col gap-2 overflow-y-auto p-4">
+        <Card className="flex max-w-full flex-col gap-4 overflow-y-auto p-4">
+          {props.useDialog ? scoreNameField : null}
           {hasInvalidTraceFilters && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
@@ -1393,7 +1412,11 @@ export const InnerEvaluatorForm = (props: {
           loading={mutationIsLoading}
           className="mt-3 max-w-fit"
         >
-          {props.mode === "edit" ? "Update" : "Execute"}
+          {props.mode === "edit"
+            ? "Update"
+            : props.mode === "clone"
+              ? "Clone"
+              : "Execute"}
         </Button>
       ) : null}
       {formError ? (

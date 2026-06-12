@@ -24,7 +24,7 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { MoreVertical, ExternalLinkIcon, Edit, Info } from "lucide-react";
+import { MoreVertical, ExternalLinkIcon, Edit, Info, Copy } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
@@ -44,6 +44,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { EvaluatorForm } from "@/src/features/evals/components/evaluator-form";
+import { EvaluatorTemplateCombobox } from "@/src/features/evals/components/evaluator-template-combobox";
 import { useRouter } from "next/router";
 import { DeleteEvalConfigButton } from "@/src/components/deleteButton";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
@@ -62,6 +63,8 @@ import {
   type EvaluatorDataRow,
   useEvaluatorTableData,
 } from "@/src/features/evals/hooks/useEvaluatorTableData";
+import { buildClonedEvaluatorConfig } from "@/src/features/evals/utils/clone-evaluator-config";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import {
   TableBadgeLoadingCell,
@@ -121,7 +124,10 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     withDefault(StringParam, null),
   );
   const [editConfigId, setEditConfigId] = useState<string | null>(null);
+  const [cloneConfigId, setCloneConfigId] = useState<string | null>(null);
+  const [cloneTemplateId, setCloneTemplateId] = useState<string | null>(null);
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
 
   const [orderByState, setOrderByState] = useOrderByState({
     column: "status",
@@ -163,9 +169,40 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     },
   );
 
+  const cloneSourceEvaluator = api.evals.configById.useQuery(
+    {
+      id: cloneConfigId as string,
+      projectId,
+    },
+    {
+      enabled: !!cloneConfigId,
+    },
+  );
+
   const hasAccess = useHasProjectAccess({ projectId, scope: "evalJob:CUD" });
+  const hasTemplateReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evalTemplate:read",
+  });
+
+  const cloneEvalTemplates = api.evals.allTemplates.useQuery(
+    {
+      projectId,
+      limit: 500,
+      page: 0,
+    },
+    {
+      enabled: !!cloneConfigId && hasTemplateReadAccess,
+    },
+  );
 
   const datasets = api.datasets.allDatasetMeta.useQuery({ projectId });
+
+  useEffect(() => {
+    if (cloneSourceEvaluator.data?.evalTemplateId) {
+      setCloneTemplateId(cloneSourceEvaluator.data.evalTemplateId);
+    }
+  }, [cloneSourceEvaluator.data?.evalTemplateId, cloneConfigId]);
 
   useEffect(() => {
     if (evaluators.isSuccess) {
@@ -396,6 +433,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 <Edit className="mr-2 h-4 w-4" />
                 Edit
               </DropdownMenuItem>
+              <DropdownMenuItem
+                aria-label="clone"
+                disabled={!hasAccess}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (id) {
+                    capture("eval_config:clone_form_open");
+                    setCloneConfigId(id);
+                  }
+                }}
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Clone
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <DeleteEvalConfigButton
                   aria-label="delete"
@@ -426,7 +477,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       detailNavigationKey: "evals",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+          "[aria-label='edit'], [aria-label='clone'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
         ],
       },
       ...peekNavigationProps,
@@ -533,7 +584,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         />
       </div>
       <Dialog
-        open={!!editConfigId && existingEvaluator.isSuccess}
+        open={!!editConfigId}
         onOpenChange={(open) => {
           if (!open) setEditConfigId(null);
         }}
@@ -546,20 +597,20 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             <div className="flex items-center justify-center p-4">
               <Spinner size="lg" />
             </div>
-          ) : (
+          ) : existingEvaluator.isError ? (
+            <p className="text-destructive text-sm">
+              {existingEvaluator.error.message}
+            </p>
+          ) : existingEvaluator.data?.evalTemplate ? (
             <EvaluatorForm
               projectId={projectId}
               evalTemplates={[]}
-              existingEvaluator={
-                existingEvaluator.data && existingEvaluator.data.evalTemplate
-                  ? {
-                      ...existingEvaluator.data,
-                      evalTemplate: {
-                        ...existingEvaluator.data.evalTemplate,
-                      },
-                    }
-                  : undefined
-              }
+              existingEvaluator={{
+                ...existingEvaluator.data,
+                evalTemplate: {
+                  ...existingEvaluator.data.evalTemplate,
+                },
+              }}
               shouldWrapVariables={true}
               useDialog={true}
               mode="edit"
@@ -573,6 +624,81 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 });
               }}
             />
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Evaluator not found.
+            </p>
+          )}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!cloneConfigId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setCloneConfigId(null);
+            setCloneTemplateId(null);
+          }
+        }}
+      >
+        <DialogContent className="max-h-[90vh] max-w-(--breakpoint-xl) overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Clone evaluator</DialogTitle>
+          </DialogHeader>
+          {cloneSourceEvaluator.isLoading || cloneEvalTemplates.isLoading ? (
+            <div className="flex items-center justify-center p-4">
+              <Spinner size="lg" />
+            </div>
+          ) : cloneSourceEvaluator.isError ? (
+            <p className="text-destructive text-sm">
+              {cloneSourceEvaluator.error.message}
+            </p>
+          ) : cloneEvalTemplates.isError ? (
+            <p className="text-destructive text-sm">
+              {cloneEvalTemplates.error.message}
+            </p>
+          ) : cloneSourceEvaluator.data?.evalTemplate && cloneTemplateId ? (
+            <>
+              <div className="flex flex-col gap-2 px-4 pt-2">
+                <p className="text-sm font-medium">Referenced evaluator</p>
+                <p className="text-muted-foreground text-sm">
+                  Choose which evaluator template the clone should use. Other
+                  settings are copied from the source configuration.
+                </p>
+                <EvaluatorTemplateCombobox
+                  projectId={projectId}
+                  evalTemplates={cloneEvalTemplates.data?.templates ?? []}
+                  selectedTemplateId={cloneTemplateId}
+                  onTemplateSelect={setCloneTemplateId}
+                />
+              </div>
+              <EvaluatorForm
+                key={`${cloneConfigId}-${cloneTemplateId}`}
+                projectId={projectId}
+                evalTemplates={cloneEvalTemplates.data?.templates ?? []}
+                templateId={cloneTemplateId}
+                existingEvaluator={buildClonedEvaluatorConfig(
+                  cloneSourceEvaluator.data,
+                )}
+                shouldWrapVariables={true}
+                useDialog={true}
+                mode="clone"
+                defaultRunOnLive={false}
+                onFormSuccess={() => {
+                  setCloneConfigId(null);
+                  setCloneTemplateId(null);
+                  void utils.evals.allConfigs.invalidate();
+                  showSuccessToast({
+                    title: "Evaluator cloned successfully",
+                    description:
+                      "The cloned evaluator was created as inactive. Activate it when you are ready to run evaluations.",
+                  });
+                }}
+              />
+            </>
+          ) : (
+            <p className="text-muted-foreground text-sm">
+              Evaluator not found.
+            </p>
           )}
         </DialogContent>
       </Dialog>
