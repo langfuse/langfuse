@@ -1,7 +1,17 @@
+vi.mock("@langfuse/shared/src/server", async () => ({
+  ...(await vi.importActual("@langfuse/shared/src/server")),
+  logger: {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
+
 import type { Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
 import * as z from "zod";
-import { ClickHouseResourceError } from "@langfuse/shared/src/server";
+import { ClickHouseResourceError, logger } from "@langfuse/shared/src/server";
 import {
   createInnerTRPCContext,
   createTRPCRouter,
@@ -9,6 +19,10 @@ import {
 } from "@/src/server/api/trpc";
 
 describe("tRPC error formatting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it("ClickHouseResourceError", async () => {
     const session = {
       user: {
@@ -62,6 +76,11 @@ describe("tRPC error formatting", () => {
     expect(formatted.data["errorName"]).toBe("ClickHouseResourceError");
     expect(formatted.data["stack"]).toBeNull();
     expect(formatted.data["zodError"]).toBeNull();
+    expect(logger.warn).toHaveBeenCalledWith(
+      "middleware intercepted error with code UNPROCESSABLE_CONTENT",
+      { error: expect.any(TRPCError) },
+    );
+    expect(logger.error).not.toHaveBeenCalled();
   });
 
   it("preserves the default stack behavior for non-ClickHouse errors", () => {

@@ -147,12 +147,20 @@ const resolveError = (error: TRPCError) => {
   return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
 };
 
-const logErrorByCode = (errorCode: TRPCError["code"], error: TRPCError) => {
+const logErrorByStatus = ({
+  errorCode,
+  httpStatus,
+  error,
+}: {
+  errorCode: TRPCError["code"];
+  httpStatus: number;
+  error: TRPCError;
+}) => {
   if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
-  } else if (errorCode === "UNPROCESSABLE_CONTENT") {
+  } else if (httpStatus >= 400 && httpStatus < 500) {
     logger.warn(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
@@ -176,7 +184,11 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         message: res.error.cause.message,
         tags: res.error.cause.tags,
       });
-      logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
+      logErrorByStatus({
+        errorCode: "UNPROCESSABLE_CONTENT",
+        httpStatus: 422,
+        error: res.error,
+      });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
@@ -193,7 +205,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         ? "We have been notified and are working on it."
         : "Please check error logs in your self-hosted deployment.";
 
-      logErrorByCode(code, res.error);
+      logErrorByStatus({ errorCode: code, httpStatus, error: res.error });
       res.error = new TRPCError({
         code,
         cause: null, // do not expose stack traces

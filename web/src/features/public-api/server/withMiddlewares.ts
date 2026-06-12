@@ -62,6 +62,27 @@ type MiddlewareOptions = {
   clickHouseResourceErrorMessage?: string;
 };
 
+const logApiError = (error: unknown) => {
+  if (
+    error instanceof LangfuseNotFoundError ||
+    error instanceof UnauthorizedError
+  ) {
+    logger.info(error);
+    return;
+  }
+
+  if (
+    (error instanceof BaseError && error.isUserError()) ||
+    error instanceof ClickHouseResourceError ||
+    isZodError(error)
+  ) {
+    logger.warn(error);
+    return;
+  }
+
+  logger.error(error);
+};
+
 export function withMiddlewares(
   handlers: Handlers,
   options?: MiddlewareOptions,
@@ -91,14 +112,7 @@ export function withMiddlewares(
 
         return await finalHandlers[method](req, res);
       } catch (error) {
-        if (
-          error instanceof LangfuseNotFoundError ||
-          error instanceof UnauthorizedError
-        ) {
-          logger.info(error);
-        } else {
-          logger.error(error);
-        }
+        logApiError(error);
 
         if (options?.errorContract === unstablePublicEvalsErrorContract) {
           if (

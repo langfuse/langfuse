@@ -60,6 +60,9 @@ describe("withMiddlewares error handling", () => {
         message: "Bad Request",
         error: "BadRequest",
       });
+      expect(logger.warn).toHaveBeenCalledWith(error);
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
 
     it("should handle BaseError with 5xx status code and trace exception", async () => {
@@ -213,6 +216,9 @@ describe("withMiddlewares error handling", () => {
         ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
       );
       expect(jsonData["error"]).toBe("Request timed out");
+      expect(logger.warn).toHaveBeenCalledWith(resourceError);
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
 
     it("should include tags from the error in the warn log", async () => {
@@ -355,6 +361,9 @@ describe("withMiddlewares error handling", () => {
           }),
         ]),
       });
+      expect(logger.warn).toHaveBeenCalledWith(expect.any(z.ZodError));
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
   });
 
