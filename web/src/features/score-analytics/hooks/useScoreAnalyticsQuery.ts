@@ -270,6 +270,18 @@ export function useScoreAnalyticsQuery(
       return null;
     };
 
+    // Normalize boolean category values in a time series to "True"/"False".
+    // The DB can store boolean values in various forms ("true", "false", "1", "0")
+    // which would otherwise cause a case-mismatch with the color map keys and
+    // make all series fall back to the same fallback color.
+    const normalizeBooleanTimeSeries = (
+      series: Array<{ timestamp: Date; category: string; count: number }>,
+    ): Array<{ timestamp: Date; category: string; count: number }> =>
+      series.flatMap((item) => {
+        const normalized = normalizeBooleanCategory(item.category);
+        return normalized !== null ? [{ ...item, category: normalized }] : [];
+      });
+
     const buildBooleanDistribution = (
       timeSeries: Array<{ category: string; count: number }>,
       distributionCategories: string[],
@@ -533,33 +545,45 @@ export function useScoreAnalyticsQuery(
       });
     }
 
-    const categoricalTimeSeries1 = fillCategoricalTimeSeriesGaps(
+    const rawCategoricalTimeSeries1 = fillCategoricalTimeSeriesGaps(
       apiData.timeSeriesCategorical1,
       fromTimestamp,
       toTimestamp,
       interval,
     );
+    const categoricalTimeSeries1 = isBoolean
+      ? normalizeBooleanTimeSeries(rawCategoricalTimeSeries1)
+      : rawCategoricalTimeSeries1;
 
-    const categoricalTimeSeries2 = fillCategoricalTimeSeriesGaps(
+    const rawCategoricalTimeSeries2 = fillCategoricalTimeSeriesGaps(
       apiData.timeSeriesCategorical2,
       fromTimestamp,
       toTimestamp,
       interval,
     );
+    const categoricalTimeSeries2 = isBoolean
+      ? normalizeBooleanTimeSeries(rawCategoricalTimeSeries2)
+      : rawCategoricalTimeSeries2;
 
-    const categoricalTimeSeries1Matched = fillCategoricalTimeSeriesGaps(
+    const rawCategoricalTimeSeries1Matched = fillCategoricalTimeSeriesGaps(
       apiData.timeSeriesCategorical1Matched,
       fromTimestamp,
       toTimestamp,
       interval,
     );
+    const categoricalTimeSeries1Matched = isBoolean
+      ? normalizeBooleanTimeSeries(rawCategoricalTimeSeries1Matched)
+      : rawCategoricalTimeSeries1Matched;
 
-    const categoricalTimeSeries2Matched = fillCategoricalTimeSeriesGaps(
+    const rawCategoricalTimeSeries2Matched = fillCategoricalTimeSeriesGaps(
       apiData.timeSeriesCategorical2Matched,
       fromTimestamp,
       toTimestamp,
       interval,
     );
+    const categoricalTimeSeries2Matched = isBoolean
+      ? normalizeBooleanTimeSeries(rawCategoricalTimeSeries2Matched)
+      : rawCategoricalTimeSeries2Matched;
 
     // If same score selected twice, populate categorical2 with categorical1 data
     // This ensures UI can show data in "Score 2" tab when comparing a score to itself
