@@ -2560,9 +2560,9 @@ export const _handleGetScoresCountForPublicApi = async ({
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
 
-  const query = `
+  const scoreIdsQuery = `
       SELECT
-        count() as count
+        s.id as id
       FROM
         scores s
           ${needsTraceJoin ? "LEFT JOIN __TRACE_TABLE__ t ON s.trace_id = t.id AND s.project_id = t.project_id" : ""}
@@ -2578,15 +2578,27 @@ export const _handleGetScoresCountForPublicApi = async ({
           WHERE
             s.project_id = {projectId: String}
             ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
-            ${scoreScope === "traces_only" ? "AND s.session_id IS NULL" : ""}
+            ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
           ORDER BY
             s.timestamp desc
           LIMIT
             1 BY s.id, s.project_id
         ))
       )
+      ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
       ${appliedScoresFilter.query ? `AND ${appliedScoresFilter.query}` : ""}
       ${tracesFilter.length() > 0 ? `AND ${appliedTracesFilter.query}` : ""}
+      ORDER BY
+        s.timestamp desc, s.event_ts desc
+      LIMIT
+        1 BY s.id, s.project_id
+      `;
+
+  const query = `
+      SELECT
+        count() as count
+      FROM
+        (${scoreIdsQuery})
       `;
 
   return measureAndReturn({
