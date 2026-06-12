@@ -38,9 +38,9 @@ export default withMiddlewares({
         { name: "media-create-upload-url" },
         async (span) => {
           span.setAttribute("projectId", projectId);
-          span.setAttribute("traceId", traceId);
+          span.setAttribute("traceId", traceId ?? "");
           span.setAttribute("observationId", observationId ?? "");
-          span.setAttribute("field", field);
+          span.setAttribute("field", field ?? "");
           span.setAttribute("sha256Hash", sha256Hash);
 
           const result = await createMediaUploadUrl({ projectId, body });

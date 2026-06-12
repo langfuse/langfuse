@@ -834,7 +834,126 @@ describe("Media Upload API", () => {
     });
   });
 
+  describeIfNotAzureBlobStorage("Trace-less uploads (dataset media)", () => {
+    it("should upload media without a trace context and not link it", async () => {
+      const getUploadUrlResponse = await makeZodVerifiedAPICallSilent(
+        GetMediaUploadUrlResponseSchema,
+        "POST",
+        "api/public/media",
+        {
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+        },
+      );
+
+      expect(getUploadUrlResponse.status).toBe(201);
+      expect(getUploadUrlResponse.body.uploadUrl).toBeDefined();
+      const mediaId = getUploadUrlResponse.body.mediaId;
+
+      const uploadFileResponse = await fetch(
+        getUploadUrlResponse.body.uploadUrl!,
+        {
+          method: "PUT",
+          body: validPNG.fileBytes,
+          headers: {
+            "Content-Type": validPNG.contentType,
+            "X-Amz-Checksum-Sha256": validPNG.sha256Hash,
+          },
+        },
+      );
+      expect(uploadFileResponse.status).toBe(200);
+
+      const updateMediaResponse = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "PATCH",
+        `api/public/media/${mediaId}`,
+        {
+          uploadedAt: new Date().toISOString(),
+          uploadHttpStatus: uploadFileResponse.status,
+        },
+      );
+      expect(updateMediaResponse.status).toBe(200);
+
+      const mediaRecord = await prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: mediaId } },
+      });
+      expect(mediaRecord).toMatchObject({
+        sha256Hash: validPNG.sha256Hash,
+        contentType: validPNG.contentType,
+        uploadHttpStatus: 200,
+      });
+
+      await expect(
+        prisma.traceMedia.count({ where: { projectId, mediaId } }),
+      ).resolves.toBe(0);
+      await expect(
+        prisma.observationMedia.count({ where: { projectId, mediaId } }),
+      ).resolves.toBe(0);
+    }, 10_000);
+
+    it("should dedupe a trace-less upload against existing trace-uploaded media", async () => {
+      const traceResult = await runMediaUploadEndToEndTest({
+        ...validPNG,
+        traceId: "test",
+        field: "input",
+      });
+      expect(traceResult.getUploadUrlResponse?.status).toBe(201);
+      expect(traceResult.mediaRecord?.uploadHttpStatus).toBe(200);
+
+      const getUploadUrlResponse = await makeZodVerifiedAPICallSilent(
+        GetMediaUploadUrlResponseSchema,
+        "POST",
+        "api/public/media",
+        {
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+        },
+      );
+
+      expect(getUploadUrlResponse.status).toBe(201);
+      expect(getUploadUrlResponse.body.uploadUrl).toBeNull();
+      expect(getUploadUrlResponse.body.mediaId).toBe(
+        traceResult.mediaRecord?.id,
+      );
+    }, 10_000);
+  });
+
   describe("Request Validation", () => {
+    it("should reject observationId without traceId", async () => {
+      const response = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "POST",
+        "api/public/media",
+        {
+          observationId: "test-observation",
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+          field: "input",
+        },
+      );
+
+      expect(response.status).toBe(400);
+    }, 10_000);
+
+    it("should reject traceId without field", async () => {
+      const response = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "POST",
+        "api/public/media",
+        {
+          traceId: "test",
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+        },
+      );
+
+      expect(response.status).toBe(400);
+    }, 10_000);
+
     it("should reject invalid content types", async () => {
       const traceId = "test";
       const field = "input";

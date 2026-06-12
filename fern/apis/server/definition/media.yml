@@ -73,11 +73,11 @@ types:
   GetMediaUploadUrlRequest:
     properties:
       traceId:
-        type: string
-        docs: The trace ID associated with the media record
+        type: optional<string>
+        docs: The trace ID associated with the media record. If null, the media record is not associated with a trace, e.g. when uploading media for dataset items.
       observationId:
         type: optional<string>
-        docs: The observation ID associated with the media record. If the media record is associated directly with a trace, this will be null.
+        docs: The observation ID associated with the media record. If provided, traceId must be provided as well. If the media record is associated directly with a trace, this will be null.
       contentType: MediaContentType
       contentLength:
         type: integer
@@ -86,8 +86,8 @@ types:
         type: string
         docs: The SHA-256 hash of the media record
       field:
-        type: string
-        docs: The trace / observation field the media record is associated with. This can be one of `input`, `output`, `metadata`
+        type: optional<string>
+        docs: The trace / observation field the media record is associated with. This can be one of `input`, `output`, `metadata`. Required if traceId is provided, ignored otherwise.
 
   GetMediaUploadUrlResponse:
     properties:

@@ -119,8 +119,9 @@ export enum MediaFileExtension {
   SEVEN_Z = "7z",
 }
 
-export const GetMediaUploadUrlQuerySchema = z.object({
-  traceId: z.string(),
+const GetMediaUploadUrlBaseSchema = z.object({
+  // Media for dataset items has neither traceId nor observationId set
+  traceId: z.string().nullish(),
   observationId: z.string().nullish(),
   contentType: z.enum(MediaContentType, {
     message: `Invalid content type. Only supporting ${Object.values(
@@ -134,12 +135,32 @@ export const GetMediaUploadUrlQuerySchema = z.object({
       /^[A-Za-z0-9+/=]{44}$/,
       "Must be a 44 character base64 encoded SHA-256 hash",
     ),
-  field: z.enum(MediaEnabledFields, {
-    message: `Invalid field. Only supporting ${Object.values(
-      MediaEnabledFields,
-    ).join(", ")}`,
-  }),
+  field: z
+    .enum(MediaEnabledFields, {
+      message: `Invalid field. Only supporting ${Object.values(
+        MediaEnabledFields,
+      ).join(", ")}`,
+    })
+    .nullish(),
 });
+
+export const GetMediaUploadUrlQuerySchema =
+  GetMediaUploadUrlBaseSchema.superRefine((value, ctx) => {
+    if (value.observationId && !value.traceId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "traceId is required when observationId is provided",
+        path: ["traceId"],
+      });
+    }
+    if (value.traceId && !value.field) {
+      ctx.addIssue({
+        code: "custom",
+        message: "field is required when traceId is provided",
+        path: ["field"],
+      });
+    }
+  });
 
 export type GetMediaUploadUrlQuery = z.infer<
   typeof GetMediaUploadUrlQuerySchema
