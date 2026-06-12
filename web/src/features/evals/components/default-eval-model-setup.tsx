@@ -11,7 +11,12 @@ import { useEvaluationModel } from "@/src/features/evals/hooks/useEvaluationMode
 import { DeleteEvaluationModelButton } from "@/src/components/deleteButton";
 import { ManageDefaultEvalModel } from "@/src/features/evals/components/manage-default-eval-model";
 import { useState } from "react";
-import { DialogContent, DialogTrigger } from "@/src/components/ui/dialog";
+import {
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/src/components/ui/dialog";
 import { getFinalModelParams } from "@/src/utils/getFinalModelParams";
 import { Dialog } from "@/src/components/ui/dialog";
 import { Pencil } from "lucide-react";
@@ -139,6 +144,9 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
             </Button>
           </DialogTrigger>
           <DialogContent className="px-3 py-10">
+            <DialogHeader className="sr-only">
+              <DialogTitle>Default model configuration</DialogTitle>
+            </DialogHeader>
             <ModelParameters
               customHeader={
                 <p className="leading-none font-medium">
