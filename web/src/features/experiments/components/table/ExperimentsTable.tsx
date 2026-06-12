@@ -571,12 +571,12 @@ export default function ExperimentsTable({
     );
   }, [selectedExperimentIds, projectId, router]);
 
-  // Build table actions - Compare is disabled (not hidden) when >5 rows selected
+  // Build table actions - Compare is disabled (not hidden) when >10 rows selected
   const tableActions: TableAction[] = useMemo(() => {
     const actions: TableAction[] = [];
 
-    // Compare action: disabled when >5 experiments selected
-    const tooManySelected = selectedExperimentIds.length > 5;
+    // Compare action: disabled when >10 experiments selected
+    const tooManySelected = selectedExperimentIds.length > 10;
     actions.push({
       id: ActionId.ExperimentCompare,
       type: BatchActionType.Create,
@@ -586,7 +586,7 @@ export default function ExperimentsTable({
       customDialog: true,
       disabled: tooManySelected,
       disabledReason: tooManySelected
-        ? "Select only up to 5 experiments to compare"
+        ? "Select only up to 10 experiments to compare"
         : undefined,
       accessCheck: {
         scope: "project:read",

@@ -5,7 +5,7 @@ import {
   StringParam,
 } from "use-query-params";
 
-const MAX_COMPARISONS = 4;
+const MAX_COMPARISONS = 9;
 
 export function useExperimentResultsState() {
   const [state, setState] = useQueryParams({
