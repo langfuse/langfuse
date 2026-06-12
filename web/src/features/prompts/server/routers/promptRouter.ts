@@ -1488,6 +1488,140 @@ export const promptRouter = createTRPCRouter({
 
       return { success: true };
     }),
+
+  exportAll: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        includeAllVersions: z.boolean().default(false),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:read",
+      });
+
+      const prompts = await ctx.prisma.prompt.findMany({
+        where: { projectId: input.projectId },
+        orderBy: [{ name: "asc" }, { version: "asc" }],
+        // Cap at 10 000 rows to avoid unbounded memory growth for very large projects
+        take: 10_000,
+        select: {
+          name: true,
+          version: true,
+          type: true,
+          prompt: true,
+          config: true,
+          tags: true,
+          labels: true,
+          commitMessage: true,
+        },
+      });
+
+      if (input.includeAllVersions) {
+        return prompts;
+      }
+
+      // Return only latest version per prompt name
+      const latestByName = new Map<string, (typeof prompts)[number]>();
+      for (const p of prompts) {
+        const existing = latestByName.get(p.name);
+        if (!existing || p.version > existing.version) {
+          latestByName.set(p.name, p);
+        }
+      }
+      return Array.from(latestByName.values());
+    }),
+
+  importBulk: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        prompts: z
+          .array(
+            z.object({
+              name: z.string(),
+              type: z.enum(["text", "chat"]).optional(),
+              prompt: z.union([z.string(), z.array(z.any())]),
+              config: z.any().optional(),
+              tags: z.array(z.string()).optional(),
+              labels: z.array(z.string()).optional(),
+              commitMessage: z.string().nullish(),
+            }),
+          )
+          .max(500),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "prompts:CUD",
+      });
+
+      const results: Array<{
+        name: string;
+        success: boolean;
+        error?: string;
+      }> = [];
+
+      for (const item of input.prompts) {
+        try {
+          const sharedParams = {
+            projectId: input.projectId,
+            name: item.name,
+            config: item.config ?? {},
+            tags: item.tags ?? [],
+            labels: (item.labels ?? []).filter(
+              (l) => l !== "latest" && l !== "production",
+            ),
+            commitMessage: item.commitMessage ?? null,
+            createdBy: ctx.session.user.id,
+            prisma: ctx.prisma,
+            user: {
+              id: ctx.session.user.id,
+              name: ctx.session.user.name ?? null,
+              email: ctx.session.user.email ?? null,
+            },
+          };
+          let createdPrompt;
+          if (item.type === "chat") {
+            createdPrompt = await createPrompt({
+              ...sharedParams,
+              type: PromptType.Chat,
+              prompt: item.prompt as Array<{ role: string; content: string }>,
+            });
+          } else {
+            createdPrompt = await createPrompt({
+              ...sharedParams,
+              type: PromptType.Text,
+              prompt: item.prompt as string,
+            });
+          }
+          await auditLog(
+            {
+              session: ctx.session,
+              resourceType: "prompt",
+              resourceId: createdPrompt.id,
+              action: "create",
+              after: createdPrompt,
+            },
+            ctx.prisma,
+          );
+          results.push({ name: item.name, success: true });
+        } catch (e) {
+          results.push({
+            name: item.name,
+            success: false,
+            error: e instanceof Error ? e.message : "Unknown error",
+          });
+        }
+      }
+
+      return { results };
+    }),
 });
 
 const getScoresForPromptIds = async (

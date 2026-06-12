@@ -75,6 +75,8 @@ export const events = {
     "new_form_open",
     "update_form_open",
     "update_form_submit",
+    "bulk_export",
+    "bulk_import_submit",
   ],
   prompt_detail: [
     "test_in_playground_button_click",
