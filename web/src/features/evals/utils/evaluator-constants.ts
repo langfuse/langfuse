@@ -1,6 +1,7 @@
 import {
   LangfuseInternalTraceEnvironment,
   observationEvalVariableColumns,
+  type SingleValueOption,
 } from "@langfuse/shared";
 
 /**
@@ -47,6 +48,13 @@ export const INTERNAL_ENVIRONMENTS = [
   "sdk-experiment",
 ] as const;
 
+export const isHiddenEvalEnvironment = (environment: string) =>
+  environment.startsWith("langfuse-") || environment === "sdk-experiment";
+
+export const filterSelectableEvalEnvironmentOptions = (
+  options?: Array<SingleValueOption>,
+) => options?.filter((option) => !isHiddenEvalEnvironment(option.value));
+
 // Default filter for new trace evaluators - excludes internal Langfuse environments
 // to prevent evaluators from running on their own traces
 export const DEFAULT_TRACE_FILTER = [
@@ -65,12 +73,6 @@ export const DEFAULT_OBSERVATION_FILTER = [
     column: "type",
     operator: "any of" as const,
     value: ["GENERATION"],
-    type: "stringOptions" as const,
-  },
-  {
-    column: "environment",
-    operator: "none of" as const,
-    value: [...INTERNAL_ENVIRONMENTS],
     type: "stringOptions" as const,
   },
 ];
