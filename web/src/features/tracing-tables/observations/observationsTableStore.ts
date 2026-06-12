@@ -69,6 +69,20 @@ export function createObservationsTableStore({
       onSelectAllChange(false);
     };
 
+    const toggleRows = (rowIds: string[], nextSelected: boolean) => {
+      const nextRowSelection = { ...get().rowSelection };
+      for (const rowId of rowIds) {
+        if (nextSelected) {
+          nextRowSelection[rowId] = true;
+        } else {
+          delete nextRowSelection[rowId];
+        }
+      }
+
+      updateSelection(nextRowSelection, nextSelected ? get().selectAll : false);
+      if (!nextSelected) onSelectAllChange(false);
+    };
+
     return {
       rowSelection: {},
       selectAll: initialSelectAll,
@@ -82,19 +96,9 @@ export function createObservationsTableStore({
         },
         setSelectAll,
         toggleRow: (rowId: string, nextSelected: boolean) => {
-          const nextRowSelection = { ...get().rowSelection };
-          if (nextSelected) {
-            nextRowSelection[rowId] = true;
-          } else {
-            delete nextRowSelection[rowId];
-          }
-
-          updateSelection(
-            nextRowSelection,
-            nextSelected ? get().selectAll : false,
-          );
-          if (!nextSelected) onSelectAllChange(false);
+          toggleRows([rowId], nextSelected);
         },
+        toggleRows,
         togglePageRows: (rowIds: string[], nextSelected: boolean) => {
           if (!nextSelected) {
             clearSelection();

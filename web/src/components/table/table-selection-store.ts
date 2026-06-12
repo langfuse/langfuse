@@ -14,6 +14,7 @@ export interface TableSelectionStoreState {
     setRowSelection: (updater: RowSelectionUpdater) => void;
     setSelectAll: (updater: BooleanUpdater) => void;
     toggleRow: (rowId: string, nextSelected: boolean) => void;
+    toggleRows: (rowIds: string[], nextSelected: boolean) => void;
     togglePageRows: (rowIds: string[], nextSelected: boolean) => void;
     clearSelection: () => void;
   };

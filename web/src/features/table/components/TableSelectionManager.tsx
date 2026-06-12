@@ -1,3 +1,4 @@
+import { useRef, type RefObject } from "react";
 import { TableCheckboxLoadingCell } from "@/src/components/table/loading-cells";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
@@ -21,11 +22,13 @@ interface TableSelectionManagerProps {
 }
 
 function SelectionHeaderCheckbox<TData>({
+  anchorRowIdRef,
   selectionStore,
   setSelectedRows,
   setSelectAll,
   table,
 }: {
+  anchorRowIdRef: RefObject<string | null>;
   selectionStore?: TableSelectionStoreLike;
   setSelectedRows: (rows: RowSelectionState) => void;
   setSelectAll: (value: boolean) => void;
@@ -59,6 +62,7 @@ function SelectionHeaderCheckbox<TData>({
         }
         onCheckedChange={(value) => {
           const nextChecked = !!value;
+          anchorRowIdRef.current = null;
 
           if (selectionStore) {
             if (nextChecked) {
@@ -86,29 +90,91 @@ function SelectionHeaderCheckbox<TData>({
 
 function SelectionRowCheckbox<TData>({
   row,
+  table,
+  anchorRowIdRef,
   selectionStore,
   setSelectAll,
 }: {
   row: Row<TData>;
+  table: Table<TData>;
+  anchorRowIdRef: RefObject<string | null>;
   selectionStore?: TableSelectionStoreLike;
   setSelectAll: (value: boolean) => void;
 }) {
+  const shiftKeyRef = useRef(false);
   const rowIsSelected = useTableRowIsSelected(
     selectionStore,
     row.id,
     row.getIsSelected(),
   );
 
+  const applyToRows = (rowIds: string[], nextSelected: boolean) => {
+    if (selectionStore) {
+      selectionStore.getState().actions.toggleRows(rowIds, nextSelected);
+      return;
+    }
+
+    table.setRowSelection((previous) => {
+      const next = { ...previous };
+      for (const rowId of rowIds) {
+        if (nextSelected) {
+          next[rowId] = true;
+        } else {
+          delete next[rowId];
+        }
+      }
+      return next;
+    });
+    if (!nextSelected) setSelectAll(false);
+  };
+
   return (
     <div
       onClick={(e) => {
         e.stopPropagation();
+      }}
+      onClickCapture={(e) => {
+        shiftKeyRef.current = e.shiftKey;
+      }}
+      onMouseDown={(e) => {
+        // prevent text selection between rows on shift-click
+        if (e.shiftKey) e.preventDefault();
       }}
     >
       <Checkbox
         checked={rowIsSelected}
         onCheckedChange={(value) => {
           const nextChecked = !!value;
+          const pageRows = table.getRowModel().rows;
+          const currentIndex = pageRows.findIndex(
+            (pageRow) => pageRow.id === row.id,
+          );
+          // a range needs a live anchor: global clears (banner, action menu,
+          // dialog close) empty the selection, which invalidates the anchor
+          const currentRowSelection = selectionStore
+            ? selectionStore.getState().rowSelection
+            : (table.getState().rowSelection ?? {});
+          const anchorIsLive =
+            shiftKeyRef.current && Object.keys(currentRowSelection).length > 0;
+          const anchorIndex = anchorIsLive
+            ? pageRows.findIndex(
+                (pageRow) => pageRow.id === anchorRowIdRef.current,
+              )
+            : -1;
+          shiftKeyRef.current = false;
+          anchorRowIdRef.current = row.id;
+
+          if (anchorIndex !== -1 && currentIndex !== -1) {
+            const [from, to] =
+              anchorIndex < currentIndex
+                ? [anchorIndex, currentIndex]
+                : [currentIndex, anchorIndex];
+            applyToRows(
+              pageRows.slice(from, to + 1).map((pageRow) => pageRow.id),
+              nextChecked,
+            );
+            return;
+          }
 
           if (selectionStore) {
             selectionStore.getState().actions.toggleRow(row.id, nextChecked);
@@ -132,6 +198,9 @@ export function TableSelectionManager<TData>({
   setSelectAll,
   selectionStore,
 }: TableSelectionManagerProps) {
+  // last explicitly clicked row; shift-click selects the range from it
+  const anchorRowIdRef = useRef<string | null>(null);
+
   return {
     selectActionColumn: {
       id: "select",
@@ -143,14 +212,17 @@ export function TableSelectionManager<TData>({
       header: ({ table }: { table: Table<TData> }) => (
         <SelectionHeaderCheckbox
           table={table}
+          anchorRowIdRef={anchorRowIdRef}
           selectionStore={selectionStore}
           setSelectedRows={setSelectedRows}
           setSelectAll={setSelectAll}
         />
       ),
-      cell: ({ row }: { row: Row<TData> }) => (
+      cell: ({ row, table }: { row: Row<TData>; table: Table<TData> }) => (
         <SelectionRowCheckbox
           row={row}
+          table={table}
+          anchorRowIdRef={anchorRowIdRef}
           selectionStore={selectionStore}
           setSelectAll={setSelectAll}
         />

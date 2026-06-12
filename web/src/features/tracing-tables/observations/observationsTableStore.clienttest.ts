@@ -42,6 +42,42 @@ describe("createObservationsTableStore", () => {
     expect(onSelectAllChange).toHaveBeenCalledWith(false);
   });
 
+  it("toggleRows selects a range without touching other rows", () => {
+    const { store } = createTestStore();
+    store.getState().actions.syncPageRows({
+      pageRowIds: ["a", "b", "c", "d"],
+      totalCount: 4,
+    });
+    store.getState().actions.toggleRow("a", true);
+
+    store.getState().actions.toggleRows(["b", "c"], true);
+
+    expect(store.getState().rowSelection).toEqual({
+      a: true,
+      b: true,
+      c: true,
+    });
+    expect(store.getState().selectedPageRowIds).toEqual(["a", "b", "c"]);
+  });
+
+  it("toggleRows deselect drops selectAll and notifies the bridge", () => {
+    const { store, onSelectAllChange } = createTestStore({
+      initialSelectAll: true,
+    });
+    store.getState().actions.syncPageRows({
+      pageRowIds: ["a", "b", "c"],
+      totalCount: 3,
+    });
+    store.getState().actions.toggleRows(["a", "b", "c"], true);
+    onSelectAllChange.mockClear();
+
+    store.getState().actions.toggleRows(["b", "c"], false);
+
+    expect(store.getState().rowSelection).toEqual({ a: true });
+    expect(store.getState().selectAll).toBe(false);
+    expect(onSelectAllChange).toHaveBeenCalledWith(false);
+  });
+
   it("togglePageRows selects all page rows and preserves other-page selection", () => {
     const { store } = createTestStore();
     store.getState().actions.syncPageRows({
