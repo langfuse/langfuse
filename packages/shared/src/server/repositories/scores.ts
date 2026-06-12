@@ -2125,6 +2125,8 @@ export const getScoresForAnalyticsIntegrations = async function* (
       s.name as name,
       s.value as value,
       s.string_value as string_value,
+      s.author_user_id as author_user_id,
+      s.metadata as metadata,
       s.data_type as data_type,
       s.comment as comment,
       s.environment as environment,
