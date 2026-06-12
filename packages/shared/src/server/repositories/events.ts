@@ -24,6 +24,10 @@ import {
   convertClickhouseTracesListToDomain,
 } from "./traces_converters";
 import {
+  getTraceByIdFromTracesTable,
+  getTracesIdentifierForSessionFromTracesTable,
+} from "./traces";
+import {
   DateTimeFilter,
   type Filter,
   FilterList,
@@ -83,6 +87,7 @@ import {
 } from "./definitions";
 import type { AnalyticsObservationEvent } from "../analytics-integrations/types";
 import {
+  getObservationByIdFromObservationsTable,
   ObservationsTableQueryResult,
   ObservationTableQuery,
 } from "./observations";
@@ -978,6 +983,9 @@ async function getObservationByIdFromEventsTableInternal({
 /**
  * Get a trace by ID from the events table.
  * Compatible with getTraceById but queries the events table instead.
+ *
+ * Avoid using the `excludeInputOutput` and `excludeMetadata` fields as they
+ * are only for backwards compatibility with the existing `getTraceById` interface.
  */
 export const getTraceByIdFromEventsTable = async ({
   traceId,
@@ -987,6 +995,8 @@ export const getTraceByIdFromEventsTable = async ({
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
   preferredClickhouseService,
+  excludeInputOutput = false,
+  excludeMetadata = false,
 }: {
   traceId: string;
   projectId: string;
@@ -995,6 +1005,10 @@ export const getTraceByIdFromEventsTable = async ({
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
   preferredClickhouseService?: PreferredClickhouseService;
+  /** When true, sets input/output columns to empty in the query to reduce database load */
+  excludeInputOutput?: boolean;
+  /** When true, sets metadata column to empty in the query to reduce database load */
+  excludeMetadata?: boolean;
 }) => {
   // Build traces CTE using eventsTracesAggregation
   // Pass truncated flag to select events_core (truncated) or events_full (full I/O)
@@ -1015,7 +1029,6 @@ export const getTraceByIdFromEventsTable = async ({
       "t.id",
       "t.name",
       "t.user_id",
-      "t.metadata",
       "t.release",
       "t.version",
       "t.project_id",
@@ -1028,6 +1041,7 @@ export const getTraceByIdFromEventsTable = async ({
       "t.created_at",
       "t.updated_at",
     )
+    .select(excludeMetadata ? "map() as metadata" : "t.metadata")
     .select("0 as is_deleted");
 
   if (timestamp) {
@@ -1041,7 +1055,9 @@ export const getTraceByIdFromEventsTable = async ({
 
   // Handle input/output with truncation
   // Note: eventsTracesAggregation above is responsible for choosing events_core/events_full
-  if (renderingProps.truncated) {
+  if (excludeInputOutput) {
+    queryBuilder.select("'' as input").select("'' as output");
+  } else if (renderingProps.truncated) {
     queryBuilder
       .select(
         `leftUTF8(t.input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT}) as input`,
@@ -1095,6 +1111,64 @@ export const getTraceByIdFromEventsTable = async ({
   });
 
   return res.shift();
+};
+
+/**
+ * Routing wrapper for "trace by id" reads.
+ *
+ * If data is only written into the events tables, we look there and go to
+ * traces otherwise.
+ *
+ * @deprecated Please prefer `getTraceByIdFromEventsTable` for new use-cases.
+ * This should be exclusively used for backwards compatibility if the write mode
+ * is events_only.
+ */
+export const getTraceById = async (
+  params: Parameters<typeof getTraceByIdFromTracesTable>[0],
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getTraceByIdFromTracesTable(params);
+  }
+  return getTraceByIdFromEventsTable(params);
+};
+
+/**
+ * Routing wrapper for "observation by id" reads.
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy observations table otherwise.
+ *
+ * @deprecated Please prefer `getObservationByIdFromEventsTable` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+export const getObservationById = async (
+  params: Parameters<typeof getObservationByIdFromObservationsTable>[0],
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getObservationByIdFromObservationsTable(params);
+  }
+  return getObservationByIdFromEventsTable(params);
+};
+
+/**
+ * Routing wrapper for "trace identifiers for session" reads.
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise.
+ *
+ * @deprecated Please prefer `getTracesIdentifierForSessionFromEvents` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+export const getTracesIdentifierForSession = async (
+  projectId: string,
+  sessionId: string,
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getTracesIdentifierForSessionFromTracesTable(projectId, sessionId);
+  }
+  return getTracesIdentifierForSessionFromEvents(projectId, sessionId);
 };
 
 type PublicApiObservationsQuery = {

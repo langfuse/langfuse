@@ -1,4 +1,5 @@
 import { VERSION } from "@/src/constants";
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
@@ -45,58 +46,95 @@ export const runHealthCheck = async ({
         const now = new Date();
         const clickhouseNow = convertDateToClickhouseDateTime(now);
 
-        const traces = await measureAndReturn({
-          operationName: "healthCheckTraces",
-          projectId: "__CROSS_PROJECT__",
-          input: {
-            now: clickhouseNow,
-          },
-          fn: async (params: { now: string }) =>
-            queryClickhouse<{ id: string }>({
-              query: `
-                SELECT id
-                FROM traces
-                WHERE timestamp <= {now: DateTime64(3)}
-                AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
-                LIMIT 1
-              `,
-              params,
-              tags: {
-                feature: "health-check",
-                query: "health.traces.recent",
-                operation: "lookup",
-                project_id: "none",
-                table: "traces",
-              },
-            }),
-        });
+        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
+          const events = await measureAndReturn({
+            operationName: "healthCheckEvents",
+            projectId: "__CROSS_PROJECT__",
+            input: {
+              now: clickhouseNow,
+            },
+            fn: async (params: { now: string }) =>
+              queryClickhouse<{ span_id: string }>({
+                query: `
+                  SELECT span_id
+                  FROM events_core
+                  WHERE start_time <= {now: DateTime64(3)}
+                  AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+                  LIMIT 1
+                `,
+                params,
+                tags: {
+                  feature: "health-check",
+                  query: "health.events.recent",
+                  operation: "lookup",
+                  project_id: "none",
+                  table: "events_core",
+                },
+                preferredClickhouseService: "EventsReadOnly",
+              }),
+          });
 
-        const observations = await queryClickhouse<{ id: string }>({
-          query: `
-            SELECT id
-            FROM observations
-            WHERE start_time <= {now: DateTime64(3)}
-            AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
-            LIMIT 1
-          `,
-          params: {
-            now: clickhouseNow,
-          },
-          tags: {
-            feature: "health-check",
-            query: "health.observations.recent",
-            operation: "lookup",
-            project_id: "none",
-            table: "observations",
-          },
-        });
+          if (events.length === 0) {
+            return {
+              isHealthy: false,
+              status: "No events within the last 3 minutes",
+              version,
+            };
+          }
+        } else {
+          const traces = await measureAndReturn({
+            operationName: "healthCheckTraces",
+            projectId: "__CROSS_PROJECT__",
+            input: {
+              now: clickhouseNow,
+            },
+            fn: async (params: { now: string }) =>
+              queryClickhouse<{ id: string }>({
+                query: `
+                  SELECT id
+                  FROM traces
+                  WHERE timestamp <= {now: DateTime64(3)}
+                  AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+                  LIMIT 1
+                `,
+                params,
+                tags: {
+                  feature: "health-check",
+                  query: "health.traces.recent",
+                  operation: "lookup",
+                  project_id: "none",
+                  table: "traces",
+                },
+              }),
+          });
 
-        if (traces.length === 0 || observations.length === 0) {
-          return {
-            isHealthy: false,
-            status: `No ${traces.length === 0 ? "traces" : "observations"} within the last 3 minutes`,
-            version,
-          };
+          const observations = await queryClickhouse<{ id: string }>({
+            query: `
+              SELECT id
+              FROM observations
+              WHERE start_time <= {now: DateTime64(3)}
+              AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+              LIMIT 1
+            `,
+            params: {
+              now: clickhouseNow,
+            },
+            tags: {
+              feature: "health-check",
+              query: "health.observations.recent",
+              operation: "lookup",
+              project_id: "none",
+              table: "observations",
+            },
+          });
+
+          if (traces.length === 0 || observations.length === 0) {
+            return {
+              isHealthy: false,
+              status: `No ${traces.length === 0 ? "traces" : "observations"} within the last 3 minutes`,
+              version,
+            };
+          }
         }
       }
     } catch (error) {

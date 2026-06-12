@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { BrainCircuit, Code2 } from "lucide-react";
+import { Bot, Code2 } from "lucide-react";
 import { EvaluatorSelector } from "./evaluator-selector";
 import { EvalTemplateForm } from "./template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -104,7 +104,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 handleOpenCreateEvaluator(EvalTemplateType.LLM_AS_JUDGE)
               }
             >
-              <BrainCircuit className="h-5 w-5 shrink-0" />
+              <Bot className="h-5 w-5 shrink-0" />
               <span className="flex flex-col gap-1">
                 <span className="font-medium">LLM as a judge evaluator</span>
                 <span className="text-muted-foreground text-sm font-normal">

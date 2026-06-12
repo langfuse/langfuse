@@ -717,6 +717,7 @@ export const createDatasetRunItemForApi = async ({
 
   // Backwards compatibility: dataset run items were historically linked to observations, not traces.
   if (!traceId && observationId) {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     const observation = await getObservationById({
       id: observationId,
       projectId,

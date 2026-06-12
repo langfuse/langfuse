@@ -32,7 +32,15 @@ export const batchExportRouter = createTRPCRouter({
           scope: "batchExports:create",
         });
 
-        const { projectId, query, format, name } = input;
+        const { projectId, format, name } = input;
+
+        // Snapshot the user's v4 beta flag into the persisted query so the
+        // worker reads events-aware data sources from the dispatch-time
+        // snapshot, never the live user record. Overrides any client-sent value.
+        const query = {
+          ...input.query,
+          useEventsTable: ctx.session.user.v4BetaEnabled ?? false,
+        };
 
         if (query.tableName === BatchExportTableName.AuditLogs) {
           throwIfNoEntitlement({

@@ -223,7 +223,7 @@ const SingleOrganizationProjectOverviewTile = ({
   }
 
   return (
-    <div key={orgId} className="mb-10">
+    <div key={orgId}>
       <Header
         title={org.name}
         className="truncate"
@@ -310,30 +310,31 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      <div className="mb-4">
-        <AgentToolsBanner />
-      </div>
+      <AgentToolsBanner />
       {showOnboarding && <Onboarding />}
       {organizations
-        .sort((a, b) => {
-          // sort demo org to the bottom
-          const isDemoA = env.NEXT_PUBLIC_DEMO_ORG_ID === a.id;
-          const isDemoB = env.NEXT_PUBLIC_DEMO_ORG_ID === b.id;
+        .map((org) => {
+          const isDemo = env.NEXT_PUBLIC_DEMO_ORG_ID === org.id;
+          return [org, isDemo] as const;
+        })
+        .sort(([, isDemoA], [, isDemoB]) => {
           if (isDemoA) return 1;
           if (isDemoB) return -1;
           return 0;
         })
-        .map((org) => (
-          <Fragment key={org.id}>
-            {!queryOrgId && org.id === env.NEXT_PUBLIC_DEMO_ORG_ID && (
-              <Separator className="my-4" />
-            )}
-            <SingleOrganizationProjectOverviewTile
-              orgId={org.id}
-              search={search ?? undefined}
-            />
-          </Fragment>
-        ))}
+        .map(([org, isDemo], index) => {
+          return (
+            <Fragment key={org.id}>
+              {!queryOrgId && isDemo && <Separator className="my-8" />}
+              <div key={org.id} className={index > 0 && !isDemo ? "mt-8" : ""}>
+                <SingleOrganizationProjectOverviewTile
+                  orgId={org.id}
+                  search={search ?? undefined}
+                />
+              </div>
+            </Fragment>
+          );
+        })}
     </ContainerPage>
   );
 };

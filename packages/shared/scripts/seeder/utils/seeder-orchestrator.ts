@@ -285,7 +285,7 @@ export class SeederOrchestrator {
           tracesPerProject,
           scoresPerTrace,
           "default",
-          { numberOfDays: opts.numberOfDays },
+          { numberOfDays: opts.numberOfDays, observationsPerTrace },
         );
 
         await this.executeQuery(traceQuery);

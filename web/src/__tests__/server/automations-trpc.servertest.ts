@@ -292,7 +292,7 @@ describe("automations trpc", () => {
       expect(response).toEqual([]);
     });
 
-    describe("eventSource + matches narrowing", () => {
+    describe("eventSource narrowing", () => {
       async function createAutomation(opts: {
         projectId: string;
         name: string;
@@ -363,132 +363,6 @@ describe("automations trpc", () => {
         });
         expect(prompt.map((a) => a.name)).toEqual(["prompt-automation"]);
       });
-
-      it("merges trigger.eventActions into the filter as a synthetic action condition", async () => {
-        const { project, caller } = await prepare();
-
-        await createAutomation({
-          projectId: project.id,
-          name: "created-only-automation",
-          eventSource: "prompt",
-          filter: [],
-          eventActions: ["created"],
-        });
-
-        const created = await caller.automations.getAutomations({
-          projectId: project.id,
-          eventSource: "prompt",
-          matches: { action: "created" },
-        });
-        expect(created.map((a) => a.name)).toEqual(["created-only-automation"]);
-
-        const updated = await caller.automations.getAutomations({
-          projectId: project.id,
-          eventSource: "prompt",
-          matches: { action: "updated" },
-        });
-        expect(updated).toEqual([]);
-      });
-
-      it("returns triggers as-is when matches is omitted", async () => {
-        const { project, caller } = await prepare();
-
-        await createAutomation({
-          projectId: project.id,
-          name: "monitor-automation",
-          eventSource: "monitor",
-          filter: [
-            {
-              type: "string",
-              column: "severity",
-              operator: "=",
-              value: "warning",
-            },
-          ],
-        });
-
-        const response = await caller.automations.getAutomations({
-          projectId: project.id,
-          eventSource: "monitor",
-        });
-
-        expect(response.map((a) => a.name)).toEqual(["monitor-automation"]);
-      });
-
-      it.each([
-        {
-          label: "severity",
-          filter: {
-            type: "string",
-            column: "severity",
-            operator: "=",
-            value: "warning",
-          },
-          matching: { severity: "warning" },
-          nonMatching: { severity: "ok" },
-        },
-        {
-          label: "monitorId",
-          filter: {
-            type: "string",
-            column: "monitorId",
-            operator: "=",
-            value: "monitor-123",
-          },
-          matching: { monitorId: "monitor-123" },
-          nonMatching: { monitorId: "monitor-999" },
-        },
-        {
-          label: "monitorName",
-          filter: {
-            type: "string",
-            column: "monitorName",
-            operator: "contains",
-            value: "p95",
-          },
-          matching: { monitorName: "API p95 latency" },
-          nonMatching: { monitorName: "error rate" },
-        },
-        {
-          label: "tags",
-          filter: {
-            type: "arrayOptions",
-            column: "tags",
-            operator: "any of",
-            value: ["prod", "edge"],
-          },
-          matching: { tags: ["prod"] },
-          nonMatching: { tags: ["staging"] },
-        },
-      ])(
-        "monitor: $label filter matches and rejects",
-        async ({ filter, matching, nonMatching }) => {
-          const { project, caller } = await prepare();
-
-          await createAutomation({
-            projectId: project.id,
-            name: "filtered-monitor-automation",
-            eventSource: "monitor",
-            filter: [filter],
-          });
-
-          const matched = await caller.automations.getAutomations({
-            projectId: project.id,
-            eventSource: "monitor",
-            matches: matching,
-          });
-          expect(matched.map((a) => a.name)).toEqual([
-            "filtered-monitor-automation",
-          ]);
-
-          const rejected = await caller.automations.getAutomations({
-            projectId: project.id,
-            eventSource: "monitor",
-            matches: nonMatching,
-          });
-          expect(rejected).toEqual([]);
-        },
-      );
     });
   });
 

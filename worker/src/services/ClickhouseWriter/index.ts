@@ -109,7 +109,7 @@ export class ClickhouseWriter {
     logger.info("ClickhouseWriter shutdown complete.");
   }
 
-  private async flushAll(fullQueue = false) {
+  public async flushAll(fullQueue = false) {
     return instrumentAsync(
       {
         name: "write-to-clickhouse",

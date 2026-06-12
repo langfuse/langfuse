@@ -12,6 +12,8 @@ import {
   LISTABLE_SCORE_TYPES,
   type ScoreSourceType,
   type PostScoresBodyV1,
+  scoresTableCols,
+  type ScoreDataTypeType,
 } from "@langfuse/shared";
 import {
   _handleGetScoreById,
@@ -20,8 +22,199 @@ import {
   QueueJobs,
   ScoreDeleteQueue,
   type AuthHeaderValidVerificationResultIngestion,
+  StringFilter,
+  StringOptionsFilter,
+  type FilterList,
+  deriveFilters,
+  convertApiProvidedFilterToClickhouseFilter,
+  scoresTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import type { z } from "zod";
+
+const secureScoreFilterOptions = [
+  {
+    id: "traceId",
+    clickhouseSelect: "trace_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "observationId",
+    clickhouseSelect: "observation_id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "name",
+    clickhouseSelect: "name",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "source",
+    clickhouseSelect: "source",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "fromTimestamp",
+    clickhouseSelect: "timestamp",
+    operator: ">=" as const,
+    clickhouseTable: "scores",
+    filterType: "DateTimeFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "toTimestamp",
+    clickhouseSelect: "timestamp",
+    operator: "<" as const,
+    clickhouseTable: "scores",
+    filterType: "DateTimeFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "value",
+    clickhouseSelect: "value",
+    clickhouseTable: "scores",
+    filterType: "NumberFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "scoreIds",
+    clickhouseSelect: "id",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "configId",
+    clickhouseSelect: "config_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "sessionId",
+    clickhouseSelect: "session_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "datasetRunId",
+    clickhouseSelect: "dataset_run_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "queueId",
+    clickhouseSelect: "queue_id",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "environment",
+    clickhouseSelect: "environment",
+    clickhouseTable: "scores",
+    filterType: "StringOptionsFilter",
+    clickhousePrefix: "s",
+  },
+  {
+    id: "dataType",
+    clickhouseSelect: "data_type",
+    clickhouseTable: "scores",
+    filterType: "StringFilter",
+    clickhousePrefix: "s",
+  },
+];
+
+const secureTraceFilterOptions = [
+  {
+    id: "traceTags",
+    clickhouseSelect: "tags",
+    clickhouseTable: "traces",
+    filterType: "ArrayOptionsFilter",
+    clickhousePrefix: "t",
+  },
+  {
+    id: "userId",
+    clickhouseSelect: "user_id",
+    clickhouseTable: "traces",
+    filterType: "StringFilter",
+    clickhousePrefix: "t",
+  },
+];
+
+function buildScoreFilters(
+  props: ScoreQueryType,
+  scoreDataTypes?: readonly ScoreDataTypeType[],
+): { scoresFilter: FilterList; tracesFilter: FilterList } {
+  const scoresFilter = deriveFilters(
+    props,
+    secureScoreFilterOptions,
+    props.advancedFilters,
+    scoresTableUiColumnDefinitions,
+    scoresTableCols,
+  );
+  scoresFilter.push(
+    new StringFilter({
+      clickhouseTable: "scores",
+      field: "project_id",
+      operator: "=",
+      value: props.projectId,
+    }),
+  );
+
+  if (scoreDataTypes) {
+    scoresFilter.push(
+      new StringOptionsFilter({
+        clickhouseTable: "scores",
+        field: "data_type",
+        operator: "any of",
+        values: [...scoreDataTypes],
+        tablePrefix: "s",
+      }),
+    );
+  }
+
+  const tracesFilter = convertApiProvidedFilterToClickhouseFilter(
+    props,
+    secureTraceFilterOptions,
+  );
+
+  if (props.environment && tracesFilter.length() > 0) {
+    const envValues = Array.isArray(props.environment)
+      ? props.environment
+      : [props.environment];
+    tracesFilter.push(
+      new StringOptionsFilter({
+        clickhouseTable: "traces",
+        field: "environment",
+        operator: "any of",
+        values: envValues,
+        tablePrefix: "t",
+      }),
+    );
+  }
+
+  return { scoresFilter, tracesFilter };
+}
+
+function determineTraceJoinRequirement(
+  fields: string[] | null | undefined,
+  tracesFilterLength: number,
+) {
+  const requestedFields = fields ?? ["score", "trace"];
+  const includeTrace = requestedFields.includes("trace");
+  const needsTraceJoin = includeTrace || tracesFilterLength > 0;
+  return { includeTrace, needsTraceJoin };
+}
 
 export class ScoresApiService {
   constructor(private readonly apiVersion: "v1" | "v2") {}
@@ -157,12 +350,33 @@ export class ScoresApiService {
    * v2: Returns all score types including CORRECTION and TEXT
    */
   async generateScoresForPublicApi(props: ScoreQueryType) {
-    return _handleGenerateScoresForPublicApi({
+    const scoreDataTypes =
+      this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined;
+    const { scoresFilter, tracesFilter } = buildScoreFilters(
       props,
+      scoreDataTypes,
+    );
+    const { includeTrace, needsTraceJoin } = determineTraceJoinRequirement(
+      props.fields,
+      tracesFilter.length(),
+    );
+    const results = await _handleGenerateScoresForPublicApi({
+      projectId: props.projectId,
+      scoresFilter,
+      tracesFilter,
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
-      scoreDataTypes:
-        this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
+      includeTrace,
+      needsTraceJoin,
+      pagination: { limit: props.limit, page: props.page },
     });
+    // Apply API-shape transformation (moves longStringValue→stringValue for
+    // CORRECTION, strips longStringValue for others). Must happen here because
+    // convertScoreToPublicApi is a web-layer concern that the shared repository
+    // function deliberately does not call.
+    return results.map(({ trace, ...rest }) => ({
+      ...convertScoreToPublicApi(rest),
+      trace,
+    }));
   }
 
   /**
@@ -171,11 +385,23 @@ export class ScoresApiService {
    * v2: Counts all score types including CORRECTION and TEXT
    */
   async getScoresCountForPublicApi(props: ScoreQueryType) {
-    return _handleGetScoresCountForPublicApi({
+    const scoreDataTypes =
+      this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined;
+    const { scoresFilter, tracesFilter } = buildScoreFilters(
       props,
+      scoreDataTypes,
+    );
+    const { includeTrace, needsTraceJoin } = determineTraceJoinRequirement(
+      props.fields,
+      tracesFilter.length(),
+    );
+    return _handleGetScoresCountForPublicApi({
+      projectId: props.projectId,
+      scoresFilter,
+      tracesFilter,
       scoreScope: this.apiVersion === "v1" ? "traces_only" : "all",
-      scoreDataTypes:
-        this.apiVersion === "v1" ? LISTABLE_SCORE_TYPES : undefined,
+      includeTrace,
+      needsTraceJoin,
     });
   }
 }

@@ -276,10 +276,11 @@ const BlobStorageIntegrationSettingsForm = ({
           (eventsExportAvailable
             ? AnalyticsIntegrationExportSource.EVENTS
             : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
-      exportFieldGroups:
-        (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
-          ...OBSERVATION_FIELD_GROUPS_FULL,
-        ],
+      // Empty array in the DB means "export everything" (the worker falls back
+      // to all groups), so surface it as the full selection in the form.
+      exportFieldGroups: state?.exportFieldGroups?.length
+        ? (state.exportFieldGroups as ObservationFieldGroupFull[])
+        : [...OBSERVATION_FIELD_GROUPS_FULL],
       compressed: state?.compressed ?? true,
     },
     disabled: isLoading,
@@ -311,17 +312,30 @@ const BlobStorageIntegrationSettingsForm = ({
           (eventsExportAvailable
             ? AnalyticsIntegrationExportSource.EVENTS
             : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
-      exportFieldGroups:
-        (state?.exportFieldGroups as ObservationFieldGroupFull[]) ?? [
-          ...OBSERVATION_FIELD_GROUPS_FULL,
-        ],
+      // Empty array in the DB means "export everything" (the worker falls back
+      // to all groups), so surface it as the full selection in the form.
+      exportFieldGroups: state?.exportFieldGroups?.length
+        ? (state.exportFieldGroups as ObservationFieldGroupFull[])
+        : [...OBSERVATION_FIELD_GROUPS_FULL],
       compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
-  const watchedExportSource = blobStorageForm.watch("exportSource");
   const watchedExportMode = blobStorageForm.watch("exportMode");
+  const watchedExportSource = blobStorageForm.watch("exportSource");
+  // The legacy observations table contains fewer columns than the enriched
+  // observations, so the per-group field lists differ for legacy-only exports.
+  const isLegacyOnlyExport =
+    watchedExportSource ===
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+  // Traces and legacy observations are only exported for the legacy and mixed
+  // sources; an EVENTS-only export produces scores and enriched observations.
+  const includesLegacyExport =
+    watchedExportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS ||
+    watchedExportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
@@ -744,94 +758,82 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
-        {eventsExportAvailable &&
-          (watchedExportSource === AnalyticsIntegrationExportSource.EVENTS ||
-            watchedExportSource ===
-              AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS) && (
-            <FormField
-              control={blobStorageForm.control}
-              name="exportFieldGroups"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Export Field Groups</FormLabel>
-                  <FormDescription>
-                    Choose which field groups to include in the enriched
-                    observations export. Deselect large groups (e.g. Input /
-                    Output) to reduce export size, or privacy-sensitive groups
-                    (e.g. Metadata) to avoid storing user data. Scores are
-                    always exported.
-                    {watchedExportSource ===
-                      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS &&
-                      " Traces and legacy observations are also exported in full."}
-                  </FormDescription>
-                  <div className="mt-2 space-y-2">
-                    {EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
-                      const isCore = option.value === "core";
-                      return (
-                        <div
-                          key={option.value}
-                          className="flex items-start gap-2"
-                        >
-                          <Checkbox
-                            id={`field-group-${option.value}`}
-                            checked={
-                              isCore
-                                ? true
-                                : (field.value ?? []).includes(option.value)
-                            }
-                            disabled={isCore}
-                            onCheckedChange={
-                              isCore
-                                ? undefined
-                                : (checked) => {
-                                    const current = field.value ?? [];
-                                    const next =
-                                      checked === true
-                                        ? current.includes(option.value)
-                                          ? current
-                                          : [...current, option.value]
-                                        : current.filter(
-                                            (v: ObservationFieldGroupFull) =>
-                                              v !== option.value,
-                                          );
-                                    field.onChange(next);
-                                  }
-                            }
-                          />
-                          <label
-                            htmlFor={`field-group-${option.value}`}
-                            className={
-                              isCore
-                                ? "space-y-0.5"
-                                : "cursor-pointer space-y-0.5"
-                            }
-                          >
-                            <div className="text-sm leading-none font-medium">
-                              {option.label}
-                              {isCore && (
-                                <span className="text-muted-foreground ml-1 font-normal">
-                                  (required)
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-muted-foreground text-xs">
-                              {option.description}
-                            </div>
-                          </label>
+        <FormField
+          control={blobStorageForm.control}
+          name="exportFieldGroups"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Export Field Groups</FormLabel>
+              <FormDescription>
+                Choose which field groups to include in the observation exports.
+                Deselect large groups (e.g. Input / Output) to reduce export
+                size, or privacy-sensitive groups (e.g. Metadata) to avoid
+                storing user data.
+                {includesLegacyExport
+                  ? " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
+                  : " Scores are always exported in full."}
+              </FormDescription>
+              <div className="mt-2 space-y-2">
+                {EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
+                  const isCore = option.value === "core";
+                  return (
+                    <div key={option.value} className="flex items-start gap-2">
+                      <Checkbox
+                        id={`field-group-${option.value}`}
+                        checked={
+                          isCore
+                            ? true
+                            : (field.value ?? []).includes(option.value)
+                        }
+                        disabled={isCore}
+                        onCheckedChange={
+                          isCore
+                            ? undefined
+                            : (checked) => {
+                                const current = field.value ?? [];
+                                const next =
+                                  checked === true
+                                    ? current.includes(option.value)
+                                      ? current
+                                      : [...current, option.value]
+                                    : current.filter(
+                                        (v: ObservationFieldGroupFull) =>
+                                          v !== option.value,
+                                      );
+                                field.onChange(next);
+                              }
+                        }
+                      />
+                      <label
+                        htmlFor={`field-group-${option.value}`}
+                        className={
+                          isCore ? "space-y-0.5" : "cursor-pointer space-y-0.5"
+                        }
+                      >
+                        <div className="text-sm leading-none font-medium">
+                          {option.label}
+                          {isCore && (
+                            <span className="text-muted-foreground ml-1 font-normal">
+                              (required)
+                            </span>
+                          )}
                         </div>
-                      );
-                    })}
-                  </div>
-                  <FormMessage>
-                    {
-                      blobStorageForm.formState.errors.exportFieldGroups
-                        ?.message
-                    }
-                  </FormMessage>
-                </FormItem>
-              )}
-            />
+                        <div className="text-muted-foreground text-xs">
+                          {isLegacyOnlyExport
+                            ? option.legacyDescription
+                            : option.description}
+                        </div>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              <FormMessage>
+                {blobStorageForm.formState.errors.exportFieldGroups?.message}
+              </FormMessage>
+            </FormItem>
           )}
+        />
 
         {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
           <FormField

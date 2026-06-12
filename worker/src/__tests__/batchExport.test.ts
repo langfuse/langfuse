@@ -26,7 +26,7 @@ process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 const maybeDescribe =
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -2358,6 +2358,94 @@ describe("batch export test suite", () => {
   // ==================== EVENTS TABLE EXPORT TESTS ====================
 
   maybeDescribe("events table export tests", () => {
+    it("should export sessions from the events table when useEventsTable is true", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+
+      const sessionId = randomUUID();
+      const sessionId2 = randomUUID();
+
+      await prisma.traceSession.createMany({
+        data: [
+          { id: sessionId, projectId },
+          { id: sessionId2, projectId },
+        ],
+      });
+
+      const now = Date.now() * 1000; // Events use microseconds
+
+      // session 1: one trace; session 2: two traces
+      const events = [
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId2,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: randomUUID(),
+          session_id: sessionId2,
+          type: "GENERATION",
+          start_time: now,
+          end_time: now + 1000000,
+        }),
+      ];
+
+      await createEventsCh(events);
+
+      const stream = await getDatabaseReadStreamPaginated({
+        projectId,
+        tableName: BatchExportTableName.Sessions,
+        cutoffCreatedAt: new Date(Date.now() + 1000 * 60 * 60 * 24),
+        filter: [],
+        orderBy: { column: "createdAt", order: "DESC" },
+        useEventsTable: true,
+      });
+
+      const rows: any[] = [];
+      for await (const chunk of stream) {
+        rows.push(chunk);
+      }
+
+      expect(rows).toHaveLength(2);
+      expect(rows).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: sessionId, countTraces: 1 }),
+          expect.objectContaining({ id: sessionId2, countTraces: 2 }),
+        ]),
+      );
+      // Concrete metric check: usage aggregates from the events table, so a
+      // regression that silently zeroed metrics would surface here.
+      const session2Row = rows.find((r) => r.id === sessionId2);
+      expect(session2Row?.totalTokens).toBeGreaterThan(0n);
+    });
+
+    it("routes events exports through getEventsStream, not the paginated reader", async () => {
+      // Path A contract: the events-table export is served by getEventsStream
+      // (wired in handleBatchExportJob). The paginated reader intentionally has
+      // no "events" case, so a regression that drops the getEventsStream route
+      // would surface as this throw rather than silently exporting nothing.
+      await expect(
+        getDatabaseReadStreamPaginated({
+          projectId: randomUUID(),
+          tableName: BatchExportTableName.Events,
+          cutoffCreatedAt: new Date(),
+          filter: [],
+          orderBy: { column: "startTime", order: "DESC" },
+        }),
+      ).rejects.toThrow("Unhandled table case: events");
+    });
+
     it("should export events from events table", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 

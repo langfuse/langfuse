@@ -1,10 +1,11 @@
-import { createClient } from "@clickhouse/client";
+import { createClient, type ClickHouseSettings } from "@clickhouse/client";
 import { env } from "../../env";
 import { VERSION } from "../../constants/VERSION";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { getCurrentSpan } from "../instrumentation";
 import { propagation, context } from "@opentelemetry/api";
 import { ClickHouseLogger, mapLogLevel } from "./clickhouse-logger";
+import { getClickHouseCompatibilitySettings } from "./compatibility";
 
 export type ClickhouseClientType = ReturnType<typeof createClient>;
 
@@ -13,7 +14,7 @@ export type PreferredClickhouseService =
   | "ReadOnly"
   | "EventsReadOnly";
 
-type ServiceClickhouseSettings = {
+type ServiceClickhouseSettings = ClickHouseSettings & {
   enable_full_text_index?: 1;
 };
 
@@ -25,6 +26,7 @@ const EVENTS_TABLE_READ_PATH_ENV_KEYS = [
   "LANGFUSE_ENABLE_EVENTS_TABLE_UI",
   "LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS",
   "LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS",
+  "LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN",
 ] as const;
 
 /**
@@ -82,16 +84,25 @@ export class ClickHouseClientManager {
 
       // Include any other relevant config options
     };
-    return { settings: keyParams, serviceClickhouseSettings };
+    return {
+      settings: keyParams,
+      serviceClickhouseSettings,
+    };
   }
 
   private getServiceClickhouseSettings(
     preferredClickhouseService: PreferredClickhouseService,
   ): ServiceClickhouseSettings {
-    return preferredClickhouseService === "EventsReadOnly" &&
+    const eventROSettings: ServiceClickhouseSettings =
+      preferredClickhouseService === "EventsReadOnly" &&
       this.isEventsTableReadPathEnabled()
-      ? { enable_full_text_index: 1 }
-      : {};
+        ? { enable_full_text_index: 1 }
+        : {};
+
+    return {
+      ...getClickHouseCompatibilitySettings(),
+      ...eventROSettings,
+    };
   }
 
   private isEventsTableReadPathEnabled(): boolean {
@@ -190,12 +201,6 @@ export class ClickHouseClientManager {
                 lightweight_delete_mode: env.CLICKHOUSE_LIGHTWEIGHT_DELETE_MODE,
                 update_parallel_mode: env.CLICKHOUSE_UPDATE_PARALLEL_MODE,
               }
-            : {}),
-          // Workaround for a 25.12 bug where lightweight updates/deletes
-          // interact incorrectly with lazy materialization. Remove after
-          // ClickHouse 26.4, or earlier if the fix is backported.
-          ...(env.CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION === "true"
-            ? { query_plan_optimize_lazy_materialization: 0 }
             : {}),
           ...cloudOptions,
           ...serviceClickhouseSettings,
