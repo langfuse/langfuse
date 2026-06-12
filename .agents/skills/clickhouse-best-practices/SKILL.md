@@ -32,6 +32,15 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
   you first confirm the query builder cannot express the query.
 - Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
   required and the keyword hurts performance.
+- The `is_deleted` column on the tracing tables (`traces`, `observations`,
+  `scores`, `events`) is declared in the `ReplacingMergeTree` engine but never
+  set to `1`: ingestion always writes `is_deleted: 0`, and deletion goes
+  through lightweight `DELETE FROM` mutations, not delete-marker rows. Do not
+  add `is_deleted` filters to queries on these tables for correctness, and do
+  not expect delete-marker semantics when reasoning about dedup or `FINAL`
+  behavior. (The `events` query builder emits a defensive `is_deleted = 0`;
+  keep it.) The only table that really uses `is_deleted = 1` marker rows is
+  `blob_storage_file_log` (see `worker/src/features/batch-project-blob-cleaner`).
 - Any migration in `packages/shared/clickhouse/migrations/clustered/**` with
   more than one `ALTER` on the same table must end every metadata `ALTER`
   (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with `SETTINGS alter_sync = 2`,
