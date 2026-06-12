@@ -12,7 +12,7 @@ x-redis-cluster-healthcheck: &redis-cluster-healthcheck
 
 services:
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:24.3
+    image: docker.io/clickhouse/clickhouse-server:26.5
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
