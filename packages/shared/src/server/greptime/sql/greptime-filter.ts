@@ -653,6 +653,7 @@ export class CategoryOptionsFilter implements GreptimeFilter {
     });
     const inner =
       `${cs}.${quoteIdent("name")} = :${k} AND ` +
+      `${cs}.${quoteIdent("data_type")} = 'CATEGORICAL' AND ` +
       `${cs}.${quoteIdent("string_value")} IN (${placeholders.join(", ")})`;
     return {
       query: scoreGrainExists({

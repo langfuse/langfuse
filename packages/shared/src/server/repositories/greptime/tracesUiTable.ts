@@ -139,17 +139,20 @@ const buildShared = (props: GreptimeTracesTableProps): AssembledQuery => {
   const traceIdFilter = tracesFilter.find(
     (f) => f.table === "traces" && f.field === "id",
   );
-  if (traceIdFilter) {
-    const values =
-      traceIdFilter instanceof StringFilter
-        ? [traceIdFilter.value]
-        : (traceIdFilter as StringOptionsFilter).values;
+  const traceIdValues =
+    traceIdFilter instanceof StringFilter && traceIdFilter.operator === "="
+      ? [traceIdFilter.value]
+      : traceIdFilter instanceof StringOptionsFilter &&
+          traceIdFilter.operator === "any of"
+        ? traceIdFilter.values
+        : null;
+  if (traceIdValues) {
     observationsFilter.push(
       new StringOptionsFilter({
         table: "observations",
         field: "trace_id",
         operator: "any of",
-        values,
+        values: traceIdValues,
       }),
     );
   }

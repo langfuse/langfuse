@@ -323,6 +323,7 @@ describe("CategoryOptionsFilter (score grain)", () => {
     expect(query).toContain("cs.`project_id` = t.`project_id`");
     expect(query).toContain("cs.`trace_id` = t.`id`");
     expect(query).toContain("cs.`name` = :");
+    expect(query).toContain("cs.`data_type` = 'CATEGORICAL'");
     expect(query).toContain("cs.`string_value` IN (");
     expect(query).toContain("cs.`is_deleted` = false");
     expect(Object.values(params)).toEqual([

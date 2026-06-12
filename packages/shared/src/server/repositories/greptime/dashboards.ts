@@ -210,7 +210,7 @@ const getObservationDetailByTypeByTime = async (opts: {
       SELECT date_bin(INTERVAL '${bucketSizeSeconds}' second, o.start_time) AS bucket,
         ${keySums}
       FROM observations o
-      ${hasTraceFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id" : ""}
+      ${hasTraceFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id AND " + notDeleted("t") : ""}
       WHERE o.project_id = :projectId AND ${notDeleted("o")}
         ${restRes.query ? `AND ${restRes.query}` : ""}
         ${env.query ? `AND ${env.query}` : ""}
