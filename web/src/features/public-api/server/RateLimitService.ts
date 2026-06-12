@@ -324,7 +324,7 @@ const getPlanBasedRateLimitConfig = (
         case "media-upload":
           return {
             resource: "media-upload",
-            points: 20_000,
+            points: 4_000,
             durationInSec: 60,
           };
         case "legacy-ingestion":
