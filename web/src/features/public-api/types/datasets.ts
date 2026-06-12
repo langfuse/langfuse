@@ -170,7 +170,7 @@ export const GetDatasetRunV1Response = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
 }).strict();
 
-const publicApiIdSchema = z
+export const publicApiIdSchema = z
   .string()
   .min(1, "ID must not be empty")
   .max(255, "ID must be at most 255 characters");
