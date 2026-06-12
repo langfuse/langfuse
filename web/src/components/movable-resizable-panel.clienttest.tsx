@@ -9,36 +9,48 @@ import {
 } from "./movable-resizable-panel";
 
 type TestPanelProps = {
+  boundsPadding?: number;
   initialPosition?: MovableResizablePanelPosition;
   initialSize?: MovableResizablePanelSize;
   maxSize?: MovableResizablePanelSize;
   minSize?: MovableResizablePanelSize;
   ignoreOutsideInteraction?: boolean;
   onActionClick?: () => void;
+  onPositionChange?: (position: MovableResizablePanelPosition) => void;
+  onSizeChange?: (size: MovableResizablePanelSize) => void;
 };
 
 function TestPanel({
+  boundsPadding = 10,
   initialPosition = { left: 100, top: 100 },
   initialSize = { width: 300, height: 240 },
   ignoreOutsideInteraction,
   maxSize,
   minSize = { width: 200, height: 160 },
   onActionClick,
+  onPositionChange,
+  onSizeChange,
 }: TestPanelProps) {
   const [position, setPosition] = useState(initialPosition);
   const [size, setSize] = useState(initialSize);
 
   return (
     <MovableResizablePanel
-      boundsPadding={10}
+      boundsPadding={boundsPadding}
       dragHandleSelector="[data-drag-handle='true']"
       ignoreOutsideInteraction={ignoreOutsideInteraction}
       maxSize={maxSize}
       minSize={minSize}
       position={position}
       size={size}
-      onPositionChange={setPosition}
-      onSizeChange={setSize}
+      onPositionChange={(nextPosition) => {
+        setPosition(nextPosition);
+        onPositionChange?.(nextPosition);
+      }}
+      onSizeChange={(nextSize) => {
+        setSize(nextSize);
+        onSizeChange?.(nextSize);
+      }}
     >
       <div className="h-full w-full">
         <div data-drag-handle="true" data-testid="drag-handle">
@@ -190,6 +202,37 @@ describe("MovableResizablePanel", () => {
     );
   });
 
+  it("keeps the right edge anchored when left resizing hits the viewport", () => {
+    render(
+      <TestPanel
+        boundsPadding={8}
+        initialPosition={{ left: 20, top: 100 }}
+        initialSize={{ width: 200, height: 240 }}
+      />,
+    );
+
+    const panel = screen.getByTestId("movable-resizable-panel");
+    const resizeHandle = screen.getByTestId(
+      "movable-resizable-panel-resize-left",
+    );
+
+    firePointerEvent(resizeHandle, "pointerdown", {
+      pointerId: 1,
+      clientX: 20,
+      clientY: 220,
+    });
+    firePointerEvent(panel, "pointermove", {
+      pointerId: 1,
+      clientX: -80,
+      clientY: 220,
+    });
+    firePointerEvent(panel, "pointerup", { pointerId: 1 });
+
+    expect(screen.getByTestId("panel-state")).toHaveTextContent(
+      "8,100,212,240",
+    );
+  });
+
   it("keeps the bottom edge anchored when top resizing hits the min height", () => {
     render(<TestPanel />);
 
@@ -213,6 +256,83 @@ describe("MovableResizablePanel", () => {
     expect(screen.getByTestId("panel-state")).toHaveTextContent(
       "100,180,300,160",
     );
+  });
+
+  it("keeps the bottom edge anchored when top resizing hits the viewport", () => {
+    render(
+      <TestPanel
+        boundsPadding={8}
+        initialPosition={{ left: 100, top: 20 }}
+        initialSize={{ width: 300, height: 240 }}
+      />,
+    );
+
+    const panel = screen.getByTestId("movable-resizable-panel");
+    const resizeHandle = screen.getByTestId(
+      "movable-resizable-panel-resize-top",
+    );
+
+    firePointerEvent(resizeHandle, "pointerdown", {
+      pointerId: 1,
+      clientX: 220,
+      clientY: 20,
+    });
+    firePointerEvent(panel, "pointermove", {
+      pointerId: 1,
+      clientX: 220,
+      clientY: -80,
+    });
+    firePointerEvent(panel, "pointerup", { pointerId: 1 });
+
+    expect(screen.getByTestId("panel-state")).toHaveTextContent(
+      "100,8,300,252",
+    );
+  });
+
+  it("ignores window resize while an interaction is in flight", () => {
+    const onPositionChange = vi.fn();
+    const onSizeChange = vi.fn();
+
+    render(
+      <TestPanel
+        initialPosition={{ left: 700, top: 100 }}
+        initialSize={{ width: 300, height: 240 }}
+        onPositionChange={onPositionChange}
+        onSizeChange={onSizeChange}
+      />,
+    );
+
+    const handle = screen.getByTestId("drag-handle");
+
+    firePointerEvent(handle, "pointerdown", {
+      pointerId: 1,
+      clientX: 740,
+      clientY: 150,
+    });
+
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: 900,
+    });
+    fireEvent.resize(window);
+
+    expect(onPositionChange).not.toHaveBeenCalled();
+    expect(onSizeChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("panel-state")).toHaveTextContent(
+      "700,100,300,240",
+    );
+  });
+
+  it("does not leave gaps between corner and edge resize handles", () => {
+    render(<TestPanel />);
+
+    expect(
+      screen.getByTestId("movable-resizable-panel-resize-top"),
+    ).toHaveStyle({ left: "5px", right: "5px" });
+    expect(
+      screen.getByTestId("movable-resizable-panel-resize-left"),
+    ).toHaveStyle({ top: "5px", bottom: "5px" });
   });
 
   it("clamps movement to viewport bounds", () => {

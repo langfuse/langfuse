@@ -195,7 +195,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         }
         className={cn(
           "bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
-          isHeaderDragHandleEnabled && "cursor-move select-none",
+          isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
         )}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">

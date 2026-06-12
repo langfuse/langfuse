@@ -274,17 +274,44 @@ function getResizedPanel(
   clientX: number,
   clientY: number,
   constraints: PanelSizeConstraints,
+  bounds: ReturnType<typeof getViewportBounds>,
 ) {
   const deltaX = clientX - interaction.startClientX;
   const deltaY = clientY - interaction.startClientY;
   const nextPosition = { ...interaction.startPosition };
   const nextSize = { ...interaction.startSize };
+  const maxWidth = interaction.direction.includes("left")
+    ? Math.min(
+        constraints.maxWidth,
+        interaction.startPosition.left +
+          interaction.startSize.width -
+          bounds.minLeft,
+      )
+    : interaction.direction.includes("right")
+      ? Math.min(
+          constraints.maxWidth,
+          bounds.maxRight - interaction.startPosition.left,
+        )
+      : constraints.maxWidth;
+  const maxHeight = interaction.direction.includes("top")
+    ? Math.min(
+        constraints.maxHeight,
+        interaction.startPosition.top +
+          interaction.startSize.height -
+          bounds.minTop,
+      )
+    : interaction.direction.includes("bottom")
+      ? Math.min(
+          constraints.maxHeight,
+          bounds.maxBottom - interaction.startPosition.top,
+        )
+      : constraints.maxHeight;
 
   if (interaction.direction.includes("right")) {
     nextSize.width = clamp(
       interaction.startSize.width + deltaX,
       constraints.minWidth,
-      constraints.maxWidth,
+      maxWidth,
     );
   }
 
@@ -292,7 +319,7 @@ function getResizedPanel(
     nextSize.width = clamp(
       interaction.startSize.width - deltaX,
       constraints.minWidth,
-      constraints.maxWidth,
+      maxWidth,
     );
     nextPosition.left =
       interaction.startPosition.left +
@@ -304,7 +331,7 @@ function getResizedPanel(
     nextSize.height = clamp(
       interaction.startSize.height + deltaY,
       constraints.minHeight,
-      constraints.maxHeight,
+      maxHeight,
     );
   }
 
@@ -312,7 +339,7 @@ function getResizedPanel(
     nextSize.height = clamp(
       interaction.startSize.height - deltaY,
       constraints.minHeight,
-      constraints.maxHeight,
+      maxHeight,
     );
     nextPosition.top =
       interaction.startPosition.top +
@@ -353,14 +380,14 @@ function getResizeHandleStyle(direction: ResizeDirection): CSSProperties {
   }
 
   if (direction === "top" || direction === "bottom") {
-    style.left = RESIZE_HANDLE_SIZE_PX;
-    style.right = RESIZE_HANDLE_SIZE_PX;
+    style.left = RESIZE_HANDLE_SIZE_PX / 2;
+    style.right = RESIZE_HANDLE_SIZE_PX / 2;
     style.cursor = "ns-resize";
   }
 
   if (direction === "left" || direction === "right") {
-    style.top = RESIZE_HANDLE_SIZE_PX;
-    style.bottom = RESIZE_HANDLE_SIZE_PX;
+    style.top = RESIZE_HANDLE_SIZE_PX / 2;
+    style.bottom = RESIZE_HANDLE_SIZE_PX / 2;
     style.cursor = "ew-resize";
   }
 
@@ -445,6 +472,10 @@ export function MovableResizablePanel({
 
   useEffect(() => {
     const handleResize = () => {
+      if (interactionRef.current) {
+        return;
+      }
+
       const nextPanel = clampPanelBounds({
         boundsPadding,
         maxSize:
@@ -506,6 +537,7 @@ export function MovableResizablePanel({
             coordinates.clientX,
             coordinates.clientY,
             getPanelSizeConstraints({ boundsPadding, maxSize, minSize }),
+            getViewportBounds(boundsPadding),
           )),
     });
 
