@@ -153,7 +153,7 @@ const MessageCard = forwardRef<
         <>
           <MessageText role={role} text={content.text} isCompact={isCompact} />
           {content.redirectAction ? (
-            <div className={cn(isCompact ? "mt-1.5" : "mt-2")}>
+            <div className={cn(isCompact ? "mt-3 mb-1" : "mt-2.5 mb-0.5")}>
               <RedirectActionButton
                 content={content.redirectAction}
                 isCompact={isCompact}
@@ -450,7 +450,7 @@ function RedirectActionButton({
     <Button
       type="button"
       size="sm"
-      variant="secondary"
+      variant="outline"
       className={cn("shrink-0", isCompact ? "h-6 px-2 text-xs" : "h-7")}
       onClick={() => {
         router.push(content.href).catch(() => undefined);
