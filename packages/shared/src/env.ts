@@ -56,6 +56,7 @@ const EnvSchema = z.object({
     .positive()
     .default(5000),
   REDIS_SENTINEL_ENABLED: z.enum(["true", "false"]).default("false"),
+  REDIS_SENTINEL_TLS_ENABLED: z.enum(["true", "false"]).default("false"),
   REDIS_SENTINEL_NODES: z.string().optional(),
   REDIS_SENTINEL_MASTER_NAME: z.string().optional(),
   REDIS_SENTINEL_USERNAME: z.string().optional(),
