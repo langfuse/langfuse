@@ -45,6 +45,8 @@ import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderB
 import { cn } from "@/src/utils/tailwind";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
+import { useI18n } from "@/src/features/i18n/I18nProvider";
+import { LanguageSwitcher } from "@/src/features/i18n/LanguageSwitcher";
 
 const credentialAuthForm = z.object({
   email: z.email(),
@@ -537,6 +539,7 @@ export default function SignIn({
   runningOnHuggingFaceSpaces,
 }: PageProps) {
   const router = useRouter();
+  const { t } = useI18n();
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
@@ -722,13 +725,16 @@ export default function SignIn({
   return (
     <>
       <Head>
-        <title>Sign in | Langfuse</title>
+        <title>{t("auth.signIn.pageTitle")}</title>
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <LangfuseIcon className="mx-auto" />
+          <div className="mt-4 flex justify-center">
+            <LanguageSwitcher />
+          </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
-            Sign in to your account
+            {t("auth.signIn.heading")}
           </h2>
         </div>
 
@@ -770,7 +776,7 @@ export default function SignIn({
                       name="email"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Email</FormLabel>
+                          <FormLabel>{t("auth.signIn.emailLabel")}</FormLabel>
                           <FormControl>
                             <Input
                               placeholder="jsdoe@example.com"
@@ -792,14 +798,14 @@ export default function SignIn({
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel>
-                              Password{" "}
+                              {t("auth.signIn.passwordLabel")}{" "}
                               <Link
                                 href="/auth/reset-password"
                                 className="text-primary-accent hover:text-hover-primary-accent ml-1 text-xs"
                                 tabIndex={-1}
                                 title="What is this?"
                               >
-                                (forgot password?)
+                                {t("auth.signIn.forgotPassword")}
                               </Link>
                             </FormLabel>
                             <FormControl>
@@ -827,7 +833,9 @@ export default function SignIn({
                       }
                       data-testid="submit-email-password-sign-in-form"
                     >
-                      {showPasswordStep ? "Sign in" : "Continue"}
+                      {showPasswordStep
+                        ? t("auth.signIn.submit")
+                        : t("auth.signIn.continue")}
                     </Button>
                   </form>
                 </Form>
@@ -840,7 +848,7 @@ export default function SignIn({
                       : "hidden",
                   )}
                 >
-                  Last used
+                  {t("auth.signIn.lastUsed")}
                 </div>
               </div>
             )}
@@ -848,9 +856,8 @@ export default function SignIn({
               <div className="text-destructive text-center text-sm font-medium">
                 {credentialsFormError}
                 <br />
-                Contact support if this error is unexpected.{" "}
-                {isLangfuseCloud &&
-                  "Make sure you are using the correct cloud data region."}
+                {t("auth.signIn.contactSupport")}{" "}
+                {isLangfuseCloud && t("auth.signIn.cloudRegionHint")}
               </div>
             ) : null}
             <SSOButtons
@@ -864,17 +871,17 @@ export default function SignIn({
           env.NEXT_PUBLIC_SIGN_UP_DISABLED !== "true" &&
           authProviders.credentials ? (
             <p className="text-muted-foreground mt-10 text-center text-sm">
-              No account yet?{" "}
+              {t("auth.signIn.noAccount")}{" "}
               <Link
                 href={`/auth/sign-up${router.asPath.includes("?") ? router.asPath.substring(router.asPath.indexOf("?")) : ""}`}
                 className="text-primary-accent hover:text-hover-primary-accent leading-6 font-semibold"
               >
-                Sign up
+                {t("auth.signIn.signUp")}
               </Link>
             </p>
           ) : null}
         </div>
-        <CloudPrivacyNotice action="signing in" />
+        <CloudPrivacyNotice action={t("auth.cloudPrivacyNotice.signingIn")} />
       </div>
     </>
   );

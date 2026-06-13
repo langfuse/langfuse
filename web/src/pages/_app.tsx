@@ -80,6 +80,7 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
 import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { I18nProvider } from "@/src/features/i18n/I18nProvider";
 
 // Check that PostHog is client-side (used to handle Next.js SSR) and that env vars are set
 if (
@@ -153,10 +154,12 @@ const MyApp: AppType<{ session: Session | null }> = ({
                       <CorrectionCacheProvider>
                         <SupportDrawerProvider defaultOpen={false}>
                           <InAppAiAgentProvider defaultOpen={false}>
-                            <AppLayout>
-                              <Component {...pageProps} />
-                              <UserTracking />
-                            </AppLayout>
+                            <I18nProvider>
+                              <AppLayout>
+                                <Component {...pageProps} />
+                                <UserTracking />
+                              </AppLayout>
+                            </I18nProvider>
                           </InAppAiAgentProvider>
                         </SupportDrawerProvider>
                       </CorrectionCacheProvider>
