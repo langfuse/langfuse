@@ -76,6 +76,11 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
         return negate(filterNode(id, "=", filter.value));
       }
       if (filter.operator === "all of") {
+        // A single-value all-of has no distinct grammar form — `(a)` reparses
+        // as any-of, so emitting it would silently flip the operator shape on
+        // the next commit. Skip it (preserved via skippedFilters) rather than
+        // rewrite; multi-value all-of serializes to the `(a AND b)` group.
+        if (filter.value.length < 2) return null;
         return filterNode(id, "=", filter.value, "and");
       }
       return filterNode(id, "=", filter.value);

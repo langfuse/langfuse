@@ -477,6 +477,27 @@ describe("filterStateToQueryText", () => {
     expect(skippedFilters).toEqual([positionFilter]);
   });
 
+  it("skips a single-value array all-of instead of flipping it to any-of", () => {
+    // `all of [a]` has no distinct grammar form (it equals any-of, and `(a)`
+    // reparses as any-of). Preserve it via skippedFilters rather than silently
+    // rewrite the operator shape on commit.
+    const allOfOne: FilterState[number] = {
+      type: "arrayOptions",
+      column: "traceTags",
+      operator: "all of",
+      value: ["a"],
+    };
+    const r = filterStateToQueryText([allOfOne]);
+    expect(r.text).toBe("");
+    expect(r.skippedFilters).toEqual([allOfOne]);
+    // Multi-value all-of still round-trips faithfully through the AND group.
+    const multi: FilterState[number] = { ...allOfOne, value: ["a", "b"] };
+    const back = astToFilterState(
+      parse(filterStateToQueryText([multi]).text).ast,
+    );
+    expect(back.filters).toEqual([multi]);
+  });
+
   it("skips keyed filters whose key carries grammar chars (would mis-parse)", () => {
     // `metadata.foo:bar` would reparse as key `metadata.foo` value `bar:…` and
     // silently corrupt the filter — so a key with a colon (or any NEEDS_QUOTES
