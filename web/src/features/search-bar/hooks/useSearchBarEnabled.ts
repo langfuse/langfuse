@@ -4,8 +4,7 @@ import { useCallback } from "react";
 import { api } from "@/src/utils/api";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-
-export const SEARCH_BAR_PROJECT_METADATA_KEY = "searchBarEnabled";
+import { SEARCH_BAR_PROJECT_METADATA_KEY } from "@/src/features/search-bar/constants";
 
 /**
  * Project-level toggle for the grammar search bar on the observations (v4
