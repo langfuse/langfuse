@@ -174,4 +174,14 @@ describe("GreptimeQueryBuilder", () => {
       }),
     ).toThrow(/not valid for measure/i);
   });
+
+  it("normalizes a bare measure name in orderBy to its aggregated alias", () => {
+    const { query } = build({
+      view: "traces",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      orderBy: [{ field: "totalCost", direction: "desc" }],
+    });
+    expect(query).toMatch(/ORDER BY `sum_totalCost` DESC/);
+  });
 });

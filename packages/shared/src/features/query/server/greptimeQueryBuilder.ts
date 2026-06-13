@@ -657,16 +657,26 @@ export class GreptimeQueryBuilder {
       ...(measures.length === 0 ? ["count"] : []),
     ]);
 
+    // Bare measure names (e.g. `totalCost`, `count`) are accepted as orderBy fields by
+    // `validateQuery.findMeasureInOrderByField`; normalize them to the aggregated output alias
+    // `<agg>_<measure>` here so a query that passes validation does not throw at execution.
+    const bareMeasureAlias = new Map<string, string>();
+    for (const m of measures) {
+      const out = `${m.aggregation}_${m.alias}`;
+      bareMeasureAlias.set(m.measure, out);
+      bareMeasureAlias.set(m.alias, out);
+    }
+
     let order: Array<{ field: string; direction: string }> = [];
     if (query.orderBy && query.orderBy.length > 0) {
-      for (const o of query.orderBy) {
-        if (!validAliases.has(o.field)) {
-          throw new InvalidRequestError(
-            `Invalid orderBy field '${o.field}'. Must be one of ${[...validAliases].join(", ")}`,
-          );
-        }
-      }
-      order = query.orderBy;
+      order = query.orderBy.map((o) => {
+        if (validAliases.has(o.field)) return o;
+        const normalized = bareMeasureAlias.get(o.field);
+        if (normalized) return { field: normalized, direction: o.direction };
+        throw new InvalidRequestError(
+          `Invalid orderBy field '${o.field}'. Must be one of ${[...validAliases].join(", ")}`,
+        );
+      });
     } else if (bucket) {
       order = [{ field: "time_dimension", direction: "asc" }];
     } else if (measures.length > 0) {
