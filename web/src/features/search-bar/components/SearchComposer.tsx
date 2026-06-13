@@ -1099,7 +1099,7 @@ export function SearchComposer({
           <div
             ref={rootRef as React.RefObject<HTMLDivElement>}
             role="combobox"
-            aria-label="Search observations"
+            aria-label="Search"
             aria-expanded={plan !== null}
             aria-controls={plan !== null ? LISTBOX_ID : undefined}
             aria-autocomplete="list"
@@ -1136,7 +1136,7 @@ export function SearchComposer({
           <span
             ref={rootRef as React.RefObject<HTMLSpanElement>}
             role="textbox"
-            aria-label="Search observations"
+            aria-label="Search"
             aria-multiline="false"
             aria-describedby={describedBy}
             contentEditable

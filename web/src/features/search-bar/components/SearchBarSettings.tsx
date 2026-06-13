@@ -17,7 +17,7 @@ export function SearchBarSettings() {
       <Card className="flex items-center justify-between gap-4 p-4">
         <div className="flex flex-col gap-1">
           <span className="text-sm font-medium">
-            Enable the query search bar on the observations table
+            Enable the query search bar on the Observations and Traces tables
           </span>
           <span className="text-muted-foreground text-sm">
             Adds a keyboard-driven query bar (e.g.{" "}
