@@ -274,14 +274,19 @@ const dedupSubquery = (opts: {
     .join(", ")}, ROW_NUMBER() OVER (` +
   `PARTITION BY ${quoteIdent("project_id")}, ${quoteIdent("dataset_id")}, ` +
   `${quoteIdent("dataset_run_id")}, ${quoteIdent("dataset_item_id")} ` +
-  `ORDER BY ${quoteIdent("created_at")} DESC) AS rn ` +
+  // Stable tiebreakers (updated_at, id) so dedup is deterministic when two rows share created_at.
+  `ORDER BY ${quoteIdent("created_at")} DESC, ${quoteIdent("updated_at")} DESC, ${quoteIdent("id")} DESC) AS rn ` +
   // Aliased `dri` so `dri.`-prefixed user filters resolve; unqualified base/partition columns still
   // resolve on the single table.
   `FROM ${quoteIdent("dataset_run_items")} dri WHERE ${opts.whereSql}`;
 
+// Unit-separator delimiter: the logical-key columns are ids (cuid/uuid) that may contain '-', so a
+// printable separator would not be injective (e.g. ('a-b','c') vs ('a','b-c')); 0x1F cannot appear in
+// an id, making the concatenation a faithful single-column stand-in for count(DISTINCT tuple).
+const LOGICAL_KEY_SEP = String.fromCharCode(31);
 const LOGICAL_KEY_CONCAT =
-  `concat(CAST(project_id AS STRING), '-', CAST(dataset_id AS STRING), '-', ` +
-  `CAST(dataset_run_id AS STRING), '-', CAST(dataset_item_id AS STRING))`;
+  `concat(CAST(project_id AS STRING), '${LOGICAL_KEY_SEP}', CAST(dataset_id AS STRING), '${LOGICAL_KEY_SEP}', ` +
+  `CAST(dataset_run_id AS STRING), '${LOGICAL_KEY_SEP}', CAST(dataset_item_id AS STRING))`;
 
 // ---------------------------------------------------------------------------
 // dataset run ITEMS reads (row-grain; score filters via standard trace-grain EXISTS)
@@ -338,7 +343,8 @@ const getDatasetRunItemsTableInternalGreptime = async <T>(
 
   if (opts.select === "count") {
     const rows = await greptimeQuery<{ count: string | number }>({
-      query: `SELECT count(DISTINCT ${LOGICAL_KEY_CONCAT}) AS count FROM (${dedup}) dri WHERE dri.rn = 1`,
+      // Each logical key has exactly one row at rn = 1, so count(*) is the exact distinct-key count.
+      query: `SELECT count(*) AS count FROM (${dedup}) dri WHERE dri.rn = 1`,
       params,
       readOnly: true,
     });
@@ -995,7 +1001,7 @@ export const getDatasetRunsTableRowsGreptime = async (
         ${selectJsonColumn("dataset_run_metadata", { tablePrefix: "drm" })}
       FROM (
         SELECT ${cols.map(q).join(", ")}, ROW_NUMBER() OVER (
-          PARTITION BY ${q("dataset_run_id")} ORDER BY ${q("created_at")} DESC) AS rrn
+          PARTITION BY ${q("dataset_run_id")} ORDER BY ${q("created_at")} DESC, ${q("updated_at")} DESC, ${q("id")} DESC) AS rrn
         FROM ${q("dataset_run_items")} WHERE ${scope.sql}
       ) drm
       WHERE drm.rrn = 1 ${userScore.sql ? `AND ${userScore.sql}` : ""}

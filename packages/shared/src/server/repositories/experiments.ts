@@ -394,13 +394,16 @@ export const getExperimentItemsFromEvents = async (
     experimentIds: allExperimentIds,
   });
 
-  // Group by item_id, preserving pagination order
+  // Group by item_id, preserving pagination order. A null start_time means the item's root
+  // observation is absent for that experiment (left join miss) — the CH events path omits those
+  // rows, so we skip them rather than manufacturing sentinel values (no epoch-0 / empty level).
   const itemMap = new Map<string, ExperimentItemData[]>();
   for (const row of rows) {
+    if (row.start_time === null) continue;
     const data: ExperimentItemData = {
       experimentId: row.experiment_id,
       level: row.level ?? "",
-      startTime: row.start_time ?? new Date(0),
+      startTime: row.start_time,
       totalCost: row.total_cost,
       latencyMs: row.latency_ms,
       observationId: row.observation_id,

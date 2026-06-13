@@ -347,7 +347,7 @@ async function main() {
     sum_totalcost: string | number;
   }>({
     query: `
-      SELECT dri.experiment_name AS entity_dimension, sum(o.total_cost) AS sum_totalCost
+      SELECT dri.experiment_name AS entity_dimension, sum(o.total_cost) AS sum_totalcost
       FROM observations o
       INNER JOIN (SELECT DISTINCT project_id, trace_id, dataset_run_id AS experiment_id,
         dataset_run_name AS experiment_name, dataset_id AS experiment_dataset_id

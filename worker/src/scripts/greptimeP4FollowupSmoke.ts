@@ -578,23 +578,18 @@ async function main() {
   const it1 = items.find((i) => i.itemId === "item-1");
   const it2 = items.find((i) => i.itemId === "item-2");
   check(
-    "getExperimentItemsFromEvents: item-1 (RUN1+RUN2) + item-2 (RUN1 only)",
+    // C6: rows with no root observation are omitted (no epoch-0 sentinel) — RUN2 item-1 (t3, no obs)
+    // and RUN1 item-2 (t2, no root obs) both drop out, matching the CH events root-span semantics.
+    "getExperimentItemsFromEvents: item-1 has only RUN1 (root op1); item-2 has no root-obs experiments",
     items.length === 2 &&
       !!it1 &&
-      it1.experiments.length === 2 &&
-      it1.experiments.some(
-        (e) =>
-          e.experimentId === RUN1 &&
-          e.level === "DEFAULT" &&
-          Math.abs((e.totalCost ?? 0) - 0.3) < 1e-6 &&
-          Math.abs((e.latencyMs ?? 0) - 1000) < 1,
-      ) &&
-      it1.experiments.some(
-        (e) => e.experimentId === RUN2 && e.totalCost == null,
-      ) &&
+      it1.experiments.length === 1 &&
+      it1.experiments[0].experimentId === RUN1 &&
+      it1.experiments[0].level === "DEFAULT" &&
+      Math.abs((it1.experiments[0].totalCost ?? 0) - 0.3) < 1e-6 &&
+      Math.abs((it1.experiments[0].latencyMs ?? 0) - 1000) < 1 &&
       !!it2 &&
-      it2.experiments.length === 1 &&
-      it2.experiments[0].experimentId === RUN1,
+      it2.experiments.length === 0,
     items.map(
       (i) =>
         `${i.itemId}:[${i.experiments.map((e) => e.experimentId).join(",")}]`,

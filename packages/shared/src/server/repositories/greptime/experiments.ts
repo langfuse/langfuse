@@ -26,7 +26,8 @@ const driDedupCte = (cols: readonly string[], whereSql: string): string =>
   `SELECT ${cols.map((c) => quoteIdent(c)).join(", ")}, ROW_NUMBER() OVER (` +
   `PARTITION BY ${quoteIdent("project_id")}, ${quoteIdent("dataset_id")}, ` +
   `${quoteIdent("dataset_run_id")}, ${quoteIdent("dataset_item_id")} ` +
-  `ORDER BY ${quoteIdent("created_at")} DESC) AS rn ` +
+  // Stable tiebreakers so dedup is deterministic when two rows share created_at.
+  `ORDER BY ${quoteIdent("created_at")} DESC, ${quoteIdent("updated_at")} DESC, ${quoteIdent("id")} DESC) AS rn ` +
   `FROM ${quoteIdent("dataset_run_items")} WHERE ${whereSql}) d WHERE d.rn = 1`;
 
 // Unit-separator delimiter for array_to_string(array_agg(...)) (mysql2 returns array_agg
@@ -166,7 +167,7 @@ export const getExperimentMetricsGreptime = async (props: {
           SELECT dataset_run_id, trace_id, observation_id,
             ROW_NUMBER() OVER (PARTITION BY ${quoteIdent("project_id")}, ${quoteIdent("dataset_id")},
               ${quoteIdent("dataset_run_id")}, ${quoteIdent("dataset_item_id")}
-              ORDER BY ${quoteIdent("created_at")} DESC) AS rn
+              ORDER BY ${quoteIdent("created_at")} DESC, ${quoteIdent("updated_at")} DESC, ${quoteIdent("id")} DESC) AS rn
           FROM ${quoteIdent("dataset_run_items")}
           WHERE project_id = :projectId AND ${runs.sql} AND ${notDeleted()}
         ) d WHERE d.rn = 1
