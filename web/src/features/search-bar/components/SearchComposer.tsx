@@ -695,7 +695,13 @@ export function SearchComposer({
         keepOpen = currentPlan.keepOpenOnPick ?? false;
       } else {
         insert = option.insert;
-        keepOpen = option.insert.endsWith(":") || option.insert.endsWith(" ");
+        // A trailing `:`, ` `, or `(` drops the caret into an interactive
+        // context (value stage, next field, or an open array group like
+        // `tags:(`) — keep the popover open so the next pick is immediate.
+        keepOpen =
+          option.insert.endsWith(":") ||
+          option.insert.endsWith(" ") ||
+          option.insert.endsWith("(");
       }
 
       // Picking a terminal value completes the filter: advance to "append
@@ -1045,7 +1051,7 @@ export function SearchComposer({
     top: number;
   } | null>(null);
   const removeTargetIdActual = removeTarget?.id ?? null;
-  React.useLayoutEffect(() => {
+  const measureRemovePosition = React.useCallback(() => {
     const root = rootRef.current;
     const container = containerRef.current;
     if (root === null || container === null || removeTargetIdActual === null) {
@@ -1067,7 +1073,25 @@ export function SearchComposer({
       left: rect.right - containerRect.left - 6,
       top: rect.top - containerRect.top - 8,
     });
-  }, [removeTargetIdActual, draft, mode]);
+  }, [removeTargetIdActual]);
+
+  // Re-measure when the target, draft text, or mode changes.
+  React.useLayoutEffect(() => {
+    measureRemovePosition();
+  }, [measureRemovePosition, draft, mode]);
+
+  // Those deps miss layout reflows that don't change React state — window
+  // resize, browser zoom, sidebar collapse — which re-wrap the full-width bar
+  // and move the token. Observe the composer surface so the absolutely-
+  // positioned X re-anchors to its token instead of leaving a stale ghost X.
+  React.useEffect(() => {
+    if (removeTargetIdActual === null) return;
+    const container = containerRef.current;
+    if (container === null || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => measureRemovePosition());
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [measureRemovePosition, removeTargetIdActual]);
 
   return (
     <div
