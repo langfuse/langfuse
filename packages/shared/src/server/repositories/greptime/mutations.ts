@@ -13,7 +13,6 @@ import {
 } from "../../greptime/ingest/tableSchemas";
 import { recordIncrement } from "../../instrumentation";
 import { parseClickhouseUTCDateTimeFormat } from "../clickhouse";
-import { convertClickhouseToDomain } from "../traces_converters";
 import {
   type ScoreRecordInsertType,
   type ScoreRecordReadType,
@@ -136,12 +135,28 @@ export const upsertTraceToGreptime = async (
   const full = normalizeTraceRecord(record);
 
   // 1. Append the synthetic create event first (source of truth), mirroring the legacy
-  //    "S3 event-store append then CH insert" ordering. `convertClickhouseToDomain` is UTC-safe and
-  //    carries `bookmarked`/`public`, which the worker `mapTraceEventsToRecords` reads back on replay.
-  const body = convertClickhouseToDomain(full);
+  //    "S3 event-store append then CH insert" ordering. Build a MINIMAL trace-create body matching a
+  //    normal ingestion body's shape (explicit ISO timestamp), carrying `bookmarked`/`public` which
+  //    the worker `mapTraceEventsToRecords` reads back verbatim on replay. projectId/createdAt/
+  //    updatedAt/input/output are intentionally omitted: replay does not read them from the body
+  //    (project comes from the envelope, timestamps from ingestion, IO from the real ingestion events).
+  const body = {
+    id: full.id,
+    timestamp: parseClickhouseUTCDateTimeFormat(full.timestamp).toISOString(),
+    name: full.name ?? undefined,
+    userId: full.user_id ?? undefined,
+    metadata: full.metadata ?? undefined,
+    release: full.release ?? undefined,
+    version: full.version ?? undefined,
+    environment: full.environment,
+    sessionId: full.session_id ?? undefined,
+    tags: full.tags ?? undefined,
+    public: full.public,
+    bookmarked: full.bookmarked,
+  };
   const event = {
     id: randomUUID(),
-    timestamp: body.timestamp.toISOString(),
+    timestamp: body.timestamp,
     type: eventTypes.TRACE_CREATE,
     body,
   } as unknown as IngestionEventType;
