@@ -562,6 +562,27 @@ export const getTraceCountsByProjectAndDay = async ({
   }));
 };
 
+/**
+ * Cross-project trace lookup by id (legacy redirect support, no projectId). The merged projection is
+ * unique per (project_id, id), so a plain SELECT replaces the CH `ORDER BY event_ts DESC LIMIT 1 by
+ * id, project_id`; one (id, projectId) pair is returned per project that holds the id.
+ */
+export const getTracesByIdsForAnyProject = async (
+  traceIds: string[],
+): Promise<Array<{ id: string; projectId: string }>> => {
+  if (traceIds.length === 0) return [];
+  const idList = greptimeInClause("id", traceIds, "tid");
+  const rows = await greptimeQuery<{ id: string; project_id: string }>({
+    query: `
+      SELECT id, project_id
+      FROM traces
+      WHERE ${idList.sql} AND ${notDeleted()}`,
+    params: idList.params,
+    readOnly: true,
+  });
+  return rows.map((r) => ({ id: r.id, projectId: r.project_id }));
+};
+
 // ---------------------------------------------------------------------------
 // P2 rollup: trace existence (eval path) + per-user metrics
 // ---------------------------------------------------------------------------

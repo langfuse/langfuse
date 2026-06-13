@@ -832,3 +832,71 @@ export const getCostByEvaluatorIds = async (
       totalCost: Number(r.total_cost ?? 0),
     }));
 };
+
+// ---------------------------------------------------------------------------
+// P5 scattered small reads
+// ---------------------------------------------------------------------------
+
+/**
+ * Observation counts grouped by project and UTC day over a half-open [startDate, endDate) window
+ * (telemetry / usage-thresholds cron). Mirrors `getTraceCountsByProjectAndDay` on `start_time`.
+ */
+export const getObservationCountsByProjectAndDay = async ({
+  startDate,
+  endDate,
+}: {
+  startDate: Date;
+  endDate: Date;
+}): Promise<Array<{ count: number; projectId: string; date: string }>> => {
+  const rows = await greptimeQuery<{
+    count: string;
+    project_id: string;
+    date: Date | string;
+  }>({
+    query: `
+      SELECT count(*) AS count, project_id, date_trunc('day', start_time) AS date
+      FROM observations
+      WHERE start_time >= :start AND start_time < :end AND ${notDeleted()}
+      GROUP BY project_id, date_trunc('day', start_time)`,
+    params: {
+      start: greptimeTsParam(startDate),
+      end: greptimeTsParam(endDate),
+    },
+    readOnly: true,
+  });
+  return rows.map((row) => ({
+    count: Number(row.count),
+    projectId: row.project_id,
+    // CH returned toDate() as 'YYYY-MM-DD'; keep that contract.
+    date:
+      row.date instanceof Date
+        ? row.date.toISOString().slice(0, 10)
+        : String(row.date).slice(0, 10),
+  }));
+};
+
+/**
+ * Last-used timestamp per internal model id within a project (model table UI). CH:
+ * `MAX(start_time) GROUP BY internal_model_id` over GENERATION observations. camelCase aliases are
+ * backticked (GreptimeDB case-folds unquoted aliases to lowercase).
+ */
+export const getModelLastUsedByIds = async ({
+  projectId,
+  modelIds,
+}: {
+  projectId: string;
+  modelIds: string[];
+}): Promise<Array<{ modelId: string; lastUsed: Date }>> => {
+  if (modelIds.length === 0) return [];
+  const idList = greptimeInClause("internal_model_id", modelIds, "mid");
+  return greptimeQuery<{ modelId: string; lastUsed: Date }>({
+    query: `
+      SELECT internal_model_id AS \`modelId\`, max(start_time) AS \`lastUsed\`
+      FROM observations
+      WHERE project_id = :projectId AND type = 'GENERATION'
+        AND ${idList.sql} AND ${notDeleted()}
+      GROUP BY internal_model_id`,
+    params: { projectId, ...idList.params },
+    readOnly: true,
+  });
+};

@@ -550,44 +550,8 @@ export const getTracesForAnalyticsIntegrations = async function* (
  * We don't have an index on the traceId so it will be a full table scan.
  * We expect at most 10s of calls per day, so this is acceptable.
  */
-export const getTracesByIdsForAnyProject = async (traceIds: string[]) => {
-  return measureAndReturn({
-    operationName: "getTracesByIdsForAnyProject",
-    projectId: "__CROSS_PROJECT__",
-    input: {
-      params: {
-        traceIds,
-      },
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "list",
-        operation_name: "getTracesByIdsForAnyProject",
-      },
-    },
-    fn: async (input) => {
-      const query = `
-          SELECT id, project_id
-          FROM traces
-          WHERE id IN ({traceIds: Array(String)})
-          ORDER BY event_ts DESC
-          LIMIT 1 by id, project_id;`;
-      const records = await queryClickhouse<{
-        id: string;
-        project_id: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-      });
-
-      return records.map((record) => ({
-        id: record.id,
-        projectId: record.project_id,
-      }));
-    },
-  });
-};
+export const getTracesByIdsForAnyProject = (traceIds: string[]) =>
+  greptimeTraceReads.getTracesByIdsForAnyProject(traceIds);
 
 export const getAgentGraphData = (params: {
   projectId: string;

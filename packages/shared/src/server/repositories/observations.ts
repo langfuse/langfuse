@@ -734,48 +734,10 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
  * queries against clickhouse. Generous 4x overcompensation before blocking allows
  * for usage aggregation to be meaningful.
  */
-export const getObservationCountsByProjectAndDay = async ({
-  startDate,
-  endDate,
-}: {
+export const getObservationCountsByProjectAndDay = (args: {
   startDate: Date;
   endDate: Date;
-}) => {
-  const query = `
-    SELECT
-      count(*) as count,
-      project_id,
-      toDate(start_time) as date
-    FROM observations
-    WHERE start_time >= {startDate: DateTime64(3)}
-    AND start_time < {endDate: DateTime64(3)}
-    GROUP BY project_id, toDate(start_time)
-  `;
-
-  const rows = await queryClickhouse<{
-    count: string;
-    project_id: string;
-    date: string;
-  }>({
-    query,
-    params: {
-      startDate: convertDateToClickhouseDateTime(startDate),
-      endDate: convertDateToClickhouseDateTime(endDate),
-    },
-    clickhouseConfigs: { request_timeout: 120_000 },
-    tags: {
-      feature: "tracing",
-      type: "observation",
-      kind: "analytic",
-    },
-  });
-
-  return rows.map((row) => ({
-    count: Number(row.count),
-    projectId: row.project_id,
-    date: row.date,
-  }));
-};
+}) => greptimeObservationReads.getObservationCountsByProjectAndDay(args);
 
 /**
  * Get total cost grouped by evaluator ID (job_configuration_id) for the last week.

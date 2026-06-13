@@ -1,23 +1,10 @@
 import { greptimeQuery } from "../../greptime/client";
 import {
-  ArrayOptionsFilter,
-  DateTimeFilter,
-  FilterList,
-  type GreptimeFilter,
-  NumberFilter,
-  StringFilter,
-  StringOptionsFilter,
-} from "../../greptime/sql/greptime-filter";
-import {
-  ArrayOptionsFilter as ChArrayOptionsFilter,
   DateTimeFilter as ChDateTimeFilter,
   type FilterList as ChFilterList,
-  type Filter as ChFilter,
-  NumberFilter as ChNumberFilter,
-  StringFilter as ChStringFilter,
-  StringOptionsFilter as ChStringOptionsFilter,
 } from "../../queries";
 import { greptimeTsParam, notDeleted } from "./queryHelpers";
+import { translateChFilterList } from "./translateChFilter";
 
 /**
  * GreptimeDB daily-metrics reads (04-read-path.md, P4). Replaces the ClickHouse `daily-metrics`
@@ -58,66 +45,6 @@ type DailyMetricsResult = {
   }>;
 };
 
-/** Map a compiled ClickHouse filter object onto the equivalent GreptimeDB filter (same column names). */
-const chToGreptimeFilter = (f: ChFilter): GreptimeFilter => {
-  const table = f.clickhouseTable;
-  const tablePrefix = f.tablePrefix;
-  if (f instanceof ChStringFilter) {
-    return new StringFilter({
-      table,
-      field: f.field,
-      operator: f.operator,
-      value: f.value,
-      tablePrefix,
-    });
-  }
-  if (f instanceof ChStringOptionsFilter) {
-    return new StringOptionsFilter({
-      table,
-      field: f.field,
-      operator: f.operator,
-      values: f.values,
-      tablePrefix,
-    });
-  }
-  if (f instanceof ChArrayOptionsFilter) {
-    return new ArrayOptionsFilter({
-      table,
-      field: f.field,
-      operator: f.operator,
-      values: f.values,
-      tablePrefix,
-    });
-  }
-  if (f instanceof ChDateTimeFilter) {
-    return new DateTimeFilter({
-      table,
-      field: f.field,
-      operator: f.operator,
-      value: f.value,
-      tablePrefix,
-    });
-  }
-  if (f instanceof ChNumberFilter) {
-    return new NumberFilter({
-      table,
-      field: f.field,
-      operator: f.operator,
-      value: f.value,
-      tablePrefix,
-    });
-  }
-  throw new Error(
-    `Unsupported daily-metrics filter for GreptimeDB: ${f.constructor.name}`,
-  );
-};
-
-const translateFilters = (list: ChFilterList): FilterList => {
-  const out = new FilterList();
-  list.forEach((f) => out.push(chToGreptimeFilter(f)));
-  return out;
-};
-
 const findTimeFilter = (filter: ChFilterList): ChDateTimeFilter | undefined =>
   filter.find(
     (f) =>
@@ -143,8 +70,8 @@ export const generateDailyMetrics = async ({
     (Boolean(timeFilter) && filter.length() > 1) ||
     (!timeFilter && filter.length() > 0);
 
-  const appliedAll = translateFilters(filter).apply();
-  const appliedTraces = translateFilters(tracesFilter).apply();
+  const appliedAll = translateChFilterList(filter).apply();
+  const appliedTraces = translateChFilterList(tracesFilter).apply();
   const obsLowerBound = timeFilter
     ? greptimeTsParam(
         new Date(
@@ -291,7 +218,7 @@ export const getDailyMetricsCount = async ({
   filter: ChFilterList;
 }): Promise<number | undefined> => {
   const tracesFilter = filter.filter((f) => f.clickhouseTable === "traces");
-  const applied = translateFilters(tracesFilter).apply();
+  const applied = translateChFilterList(tracesFilter).apply();
 
   const rows = await greptimeQuery<{ count: string | number }>({
     query: `
