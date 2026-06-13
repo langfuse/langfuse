@@ -160,6 +160,10 @@ export type FilterStateToQueryResult = {
   text: string;
   /** Human-readable descriptions of filters that have no grammar form. */
   skipped: string[];
+  /** The actual filter objects that have no grammar form. The container
+   *  preserves these across a bar commit so they are never silently dropped
+   *  (the bar can't display them, but it must not wipe them either). */
+  skippedFilters: FilterState;
 };
 
 export type FilterStateToQueryOptions = {
@@ -191,10 +195,12 @@ export function filterStateToQueryText(
 ): FilterStateToQueryResult {
   const nodes: ASTNode[] = [];
   const skipped: string[] = [];
+  const skippedFilters: FilterState = [];
   for (const filter of filters) {
     const node = lowerSingle(filter);
     if (node === null) {
       skipped.push(`${filter.column} (${filter.type} ${filter.operator})`);
+      skippedFilters.push(filter);
       continue;
     }
     nodes.push(node);
@@ -225,5 +231,5 @@ export function filterStateToQueryText(
       : nodes.length === 1
         ? nodes[0]!
         : { kind: "and", children: nodes };
-  return { text: serialize(ast), skipped };
+  return { text: serialize(ast), skipped, skippedFilters };
 }

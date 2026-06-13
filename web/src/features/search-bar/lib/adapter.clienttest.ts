@@ -406,18 +406,34 @@ describe("filterStateToQueryText", () => {
     ]);
   });
 
-  it("reports unrepresentable filters in skipped", () => {
-    const filters: FilterState = [
-      {
-        type: "positionInTrace",
-        column: "positionInTrace",
-        operator: "=",
-        key: "root",
-      },
-    ];
-    const { text, skipped } = filterStateToQueryText(filters);
+  it("reports unrepresentable filters in skipped (descriptions + objects)", () => {
+    const positionFilter: FilterState[number] = {
+      type: "positionInTrace",
+      column: "positionInTrace",
+      operator: "=",
+      key: "root",
+    };
+    const { text, skipped, skippedFilters } = filterStateToQueryText([
+      positionFilter,
+    ]);
     expect(text).toBe("");
     expect(skipped).toHaveLength(1);
+    // The actual objects are surfaced so the container can preserve them
+    // across a commit (no silent drop).
+    expect(skippedFilters).toEqual([positionFilter]);
+  });
+
+  it("round-trips bare boolean keywords and leading-hyphen free text", () => {
+    // serialize() must quote AND/OR/NOT and -foo so they reparse as free text
+    // rather than as operators/negation (otherwise the bar lands invalid).
+    for (const searchQuery of ["OR", "AND", "NOT", "-foo", "OR AND -x"]) {
+      const { text } = filterStateToQueryText([], { searchQuery });
+      const v = validateQuery(text);
+      expect(v.valid, `${searchQuery} -> ${text}`).toBe(true);
+      const r = astToFilterState(v.ast);
+      expect(r.errors).toEqual([]);
+      expect(r.searchQuery).toBe(searchQuery);
+    }
   });
 
   it("encodes free text and non-default search scopes; round-trips them", () => {

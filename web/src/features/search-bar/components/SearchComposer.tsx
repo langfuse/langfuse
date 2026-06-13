@@ -647,13 +647,23 @@ export function SearchComposer({
     }
   }, [storeApi, commitToFilterState]);
 
+  // Structured edits (autocomplete picks, chip removal) apply immediately, but
+  // a pick can leave the draft mid-completion (e.g. "level:" after a field
+  // pick). Commit only when valid so an intermediate invalid draft never
+  // reveals the red diagnostics state — that is reserved for an explicit Enter
+  // (the `commit` path above) or blur. writeDraft ran synchronously, so the
+  // freshly-set draftValid is current here.
+  const commitStructuredEdit = React.useCallback(() => {
+    if (storeApi.getState().draftValid) commitToFilterState();
+  }, [storeApi, commitToFilterState]);
+
   const pickOption = React.useCallback(
     (option: CompletionOption) => {
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
       if (option.kind === "recent") {
         setDraftWithSelection(option.query, option.query.length);
-        commitToFilterState();
+        commitStructuredEdit();
         setAppendIntent(false);
         setAutocompleteOpen(false);
         return;
@@ -719,31 +729,30 @@ export function SearchComposer({
         setAutocompleteOpen(keepOpen);
       }
       setHighlightedOptionId(null);
-      // Structured picks apply immediately; the container only writes when the
-      // draft is valid, so a partial draft is a no-op. Typing still commits
-      // explicitly via Enter.
-      commitToFilterState();
+      // Apply when the pick produced a valid query; a partial draft (e.g. a
+      // bare `level:` field pick) commits nothing and shows no error.
+      commitStructuredEdit();
     },
     [
       appendIntent,
       draftRef,
       planRef,
       setDraftWithSelection,
-      commitToFilterState,
+      commitStructuredEdit,
     ],
   );
 
   const removeSegment = React.useCallback(
     (segment: ComposerSegment) => {
-      // removeChipSpan edits the draft; commit applies it to the filter state.
+      // removeChipSpan edits the draft; commit applies it when still valid.
       storeApi.getState().actions.removeChipSpan(segment.from, segment.to);
-      commitToFilterState();
+      commitStructuredEdit();
       setHoveredTokenId(null);
       setAppendIntent(false);
       setAutocompleteOpen(false);
       setHighlightedOptionId(null);
     },
-    [storeApi, commitToFilterState],
+    [storeApi, commitStructuredEdit],
   );
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {

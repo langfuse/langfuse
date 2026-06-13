@@ -708,11 +708,13 @@ export function termAt(
 // ---- serializer ----
 
 const NEEDS_QUOTES = /[\s:,()"\\]/;
-// A value that STARTS with an operator prefix would otherwise be reparsed as
-// that operator (`name:>5` → comparison, `name:~x` → contains), so it must be
-// quoted. Only the leading position matters — mid-value `-`/`>` (e.g.
-// "gpt-4-turbo") is fine and must NOT force quoting.
-const LEADING_OPERATOR = /^[~^$*=><]/;
+// A value/term that STARTS with an operator prefix would otherwise be reparsed
+// as that operator (`name:>5` → comparison, `name:~x` → contains), and a
+// leading `-` would be read as negation when the term is free text (`-foo`).
+// Only the leading position matters — mid-value `-`/`>` (e.g. "gpt-4-turbo") is
+// fine and must NOT force quoting. ( `-` is placed first in the class so it is
+// a literal, not a range.)
+const LEADING_OPERATOR = /^[-~^$*=><]/;
 
 export function serializeValue(value: string): string {
   if (
@@ -789,9 +791,9 @@ export function serialize(ast: ASTNode | null): string {
     case "filter":
       return serializeFilter(ast);
     case "text":
-      return ast.quoted || NEEDS_QUOTES.test(ast.value)
-        ? serializeValue(ast.value)
-        : ast.value;
+      // Always route through serializeValue so bare keywords (AND/OR/NOT) and
+      // leading-operator/hyphen free text get quoted and reparse as text.
+      return serializeValue(ast.value);
     case "not": {
       const child = ast.child;
       if (child.kind === "filter") return `-${serializeFilter(child)}`;
