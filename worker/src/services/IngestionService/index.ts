@@ -1565,7 +1565,11 @@ export class IngestionService {
         project_id: projectId,
         environment: trace.body.environment,
         public: trace.body.public ?? false,
-        bookmarked: false,
+        // `bookmarked` is UI-only and absent from the public TraceBody schema, so SDK ingestion
+        // events never carry it (defaults to false). UI mutations (traces.bookmark) append a
+        // synthetic trace-create whose body sets it, so a full-history rebuild restores the toggle.
+        bookmarked:
+          (trace.body as { bookmarked?: boolean | null }).bookmarked ?? false,
         tags: trace.body.tags ?? [],
         // We skip the processing here as stringifying is an expensive operation on large objects.
         // Instead, we only take the last truthy value and apply it on the merge step.

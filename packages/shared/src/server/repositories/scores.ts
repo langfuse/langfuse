@@ -17,7 +17,6 @@ import {
   commandClickhouse,
   queryClickhouse,
   queryClickhouseStream,
-  upsertClickhouse,
   parseClickhouseUTCDateTimeFormat,
   clickhouseCompliantRandomCharacters,
 } from "./clickhouse";
@@ -57,6 +56,7 @@ import {
   matchesUiColumnMapping,
 } from "../../tableDefinitions";
 import * as greptimeScoreReads from "./greptime/scores";
+import { upsertScoreToGreptime } from "./greptime/mutations";
 
 export const searchExistingAnnotationScore = (
   projectId: string,
@@ -116,17 +116,7 @@ export const upsertScore = async (score: Partial<ScoreRecordReadType>) => {
   if (!["id", "project_id", "name", "timestamp"].every((key) => key in score)) {
     throw new Error("Identifier fields must be provided to upsert Score.");
   }
-  await upsertClickhouse({
-    table: "scores",
-    records: [score as ScoreRecordReadType],
-    eventBodyMapper: convertClickhouseScoreToDomain,
-    tags: {
-      feature: "tracing",
-      type: "score",
-      kind: "upsert",
-      projectId: score.project_id ?? "",
-    },
-  });
+  await upsertScoreToGreptime(score);
 };
 
 export type GetScoresForTracesProps<

@@ -188,6 +188,8 @@ const getObservationDetailByTypeByTime = async (opts: {
 
   const params: Record<string, unknown> = {
     projectId,
+    winFrom: greptimeTsParam(new Date(fromTime)),
+    winTo: greptimeTsParam(new Date(toTime)),
     ...restRes.params,
     ...env.params,
   };
@@ -212,6 +214,7 @@ const getObservationDetailByTypeByTime = async (opts: {
       FROM observations o
       ${hasTraceFilter ? "LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id AND " + notDeleted("t") : ""}
       WHERE o.project_id = :projectId AND ${notDeleted("o")}
+        AND o.start_time >= :winFrom AND o.start_time < :winTo
         ${restRes.query ? `AND ${restRes.query}` : ""}
         ${env.query ? `AND ${env.query}` : ""}
         ${useLookback ? "AND t.timestamp >= :traceTimestamp" : ""}

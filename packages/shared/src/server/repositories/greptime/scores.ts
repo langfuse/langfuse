@@ -62,6 +62,14 @@ const scoresColumnsGreptimeColumnDefinitions: GreptimeColumnMappings = [
 const inList = (column: string, values: readonly string[], prefix: string) =>
   greptimeInClause(column, values, prefix);
 
+/**
+ * Legacy CH `SCORE_TO_TRACE_OBSERVATIONS_INTERVAL` (1 HOUR). A trace/observation timestamp is only a
+ * scan lower bound for its scores; a score can land slightly before its parent's timestamp, so the
+ * bound is relaxed by this slack to avoid dropping near-boundary scores (mirrors the CH path and the
+ * dashboards reader).
+ */
+const SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS = 60 * 60 * 1000;
+
 /** `has_metadata` (length(mapKeys(metadata)) > 0 in CH) computed from the JSON column. */
 const HAS_METADATA_EXPR =
   "(json_to_string(s.`metadata`) IS NOT NULL AND json_to_string(s.`metadata`) != '{}' AND json_to_string(s.`metadata`) != '') AS has_metadata";
@@ -232,6 +240,17 @@ const paginate = (limit?: number, offset?: number) =>
     ? `LIMIT ${Number(limit)} OFFSET ${Number(offset)}`
     : "";
 
+/**
+ * Deterministic pagination for the score-list readers. The merged projection has no implicit row
+ * order, so LIMIT/OFFSET without an ORDER BY can return different rows per page. Order by recency
+ * (newest first, id as a stable tiebreak) before paginating. `timestamp`/`id` are reserved words,
+ * hence the backtick-quoted column segment.
+ */
+const paginateOrdered = (prefix: string, limit?: number, offset?: number) =>
+  limit !== undefined && offset !== undefined
+    ? `ORDER BY ${prefix}.\`timestamp\` DESC, ${prefix}.\`id\` LIMIT ${Number(limit)} OFFSET ${Number(offset)}`
+    : "";
+
 const mapScoreRows = (
   rows: Row[],
   excludeMetadata: boolean,
@@ -264,7 +283,7 @@ export const getScoresForSessions = async (
       SELECT ${scoreListSelect(excludeMetadata, includeHasMetadata)}
       FROM scores s
       WHERE s.project_id = :projectId AND ${ids.sql} AND ${dt.sql} AND ${notDeleted("s")}
-      ${paginate(limit, offset)}`,
+      ${paginateOrdered("s", limit, offset)}`,
     params: { projectId, ...ids.params, ...dt.params },
     readOnly: true,
   });
@@ -290,7 +309,7 @@ export const getScoresForExperiments = async (
       SELECT ${scoreListSelect(excludeMetadata, includeHasMetadata)}
       FROM scores s
       WHERE s.project_id = :projectId AND ${ids.sql} AND ${dt.sql} AND ${notDeleted("s")}
-      ${paginate(limit, offset)}`,
+      ${paginateOrdered("s", limit, offset)}`,
     params: { projectId, ...ids.params, ...dt.params },
     readOnly: true,
   });
@@ -319,12 +338,21 @@ export const getScoresForObservations = async (
       WHERE s.project_id = :projectId AND ${ids.sql} AND ${dt.sql}
         ${minTimestamp ? "AND s.timestamp >= :minTs" : ""}
         AND ${notDeleted("s")}
-      ${paginate(limit, offset)}`,
+      ${paginateOrdered("s", limit, offset)}`,
     params: {
       projectId,
       ...ids.params,
       ...dt.params,
-      ...(minTimestamp ? { minTs: greptimeTsParam(minTimestamp) } : {}),
+      ...(minTimestamp
+        ? {
+            minTs: greptimeTsParam(
+              new Date(
+                minTimestamp.getTime() -
+                  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS,
+              ),
+            ),
+          }
+        : {}),
     },
     readOnly: true,
   });
@@ -370,12 +398,20 @@ const getScoresForTracesInternal = async (
         ${timestamp ? "AND s.timestamp >= :traceTs" : ""}
         ${levelFilter}
         AND ${notDeleted("s")}
-      ${paginate(limit, offset)}`,
+      ${paginateOrdered("s", limit, offset)}`,
     params: {
       projectId,
       ...ids.params,
       ...(dt ? dt.params : {}),
-      ...(timestamp ? { traceTs: greptimeTsParam(timestamp) } : {}),
+      ...(timestamp
+        ? {
+            traceTs: greptimeTsParam(
+              new Date(
+                timestamp.getTime() - SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS,
+              ),
+            ),
+          }
+        : {}),
     },
     readOnly: true,
   });

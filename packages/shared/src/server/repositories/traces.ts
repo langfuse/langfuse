@@ -2,7 +2,6 @@ import {
   commandClickhouse,
   queryClickhouse,
   queryClickhouseStream,
-  upsertClickhouse,
 } from "./clickhouse";
 import { orderByToClickhouseSql } from "../queries";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
@@ -21,10 +20,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import {
-  convertClickhouseToDomain,
-  convertClickhouseTracesListToDomain,
-} from "./traces_converters";
+import { convertClickhouseTracesListToDomain } from "./traces_converters";
 import {
   OBSERVATIONS_TO_TRACE_INTERVAL,
   TRACE_TO_OBSERVATIONS_INTERVAL,
@@ -36,6 +32,7 @@ import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
 import * as greptimeTraceReads from "./greptime/traces";
+import { upsertTraceToGreptime } from "./greptime/mutations";
 
 /**
  * Checks if trace exists in clickhouse.
@@ -71,17 +68,7 @@ export const upsertTrace = async (trace: Partial<TraceRecordReadType>) => {
     throw new Error("Identifier fields must be provided to upsert Trace.");
   }
 
-  await upsertClickhouse({
-    table: "traces",
-    records: [trace as TraceRecordReadType],
-    eventBodyMapper: convertClickhouseToDomain,
-    tags: {
-      feature: "tracing",
-      type: "trace",
-      kind: "upsert",
-      projectId: trace.project_id ?? "",
-    },
-  });
+  await upsertTraceToGreptime(trace);
 };
 
 export const getTracesByIds = async (
