@@ -185,10 +185,43 @@ export const deleteProjectFromGreptime = async (
       });
     }
   }
-  // dataset_run_items has no EAV subtables and is not a GreptimeEntityType (no tombstone/replay
-  // path), so it is deleted directly here. Per-entity dataset_run_item deletion is a follow-up.
+  await deleteDatasetRunItemsByProjectIdFromGreptime(projectId);
+};
+
+/**
+ * Per-entity dataset_run_items deletion (04-read-path.md, P4). The projection has no EAV subtables
+ * and is not a GreptimeEntityType (no tombstone/replay), so these are direct hard DELETEs — matching
+ * the legacy ClickHouse `commandClickhouse` deletes. They drive the dataset-deletion worker
+ * (`processClickhouseDatasetDelete`) and project deletion above.
+ */
+export const deleteDatasetRunItemsByProjectIdFromGreptime = async (
+  projectId: string,
+): Promise<void> => {
   await greptimeQuery({
     query: `DELETE FROM ${quoteIdent("dataset_run_items")} WHERE ${quoteIdent("project_id")} = ?`,
     params: [projectId],
+  });
+};
+
+export const deleteDatasetRunItemsByDatasetIdFromGreptime = async (params: {
+  projectId: string;
+  datasetId: string;
+}): Promise<void> => {
+  await greptimeQuery({
+    query: `DELETE FROM ${quoteIdent("dataset_run_items")} WHERE ${quoteIdent("project_id")} = ? AND ${quoteIdent("dataset_id")} = ?`,
+    params: [params.projectId, params.datasetId],
+  });
+};
+
+export const deleteDatasetRunItemsByDatasetRunIdsFromGreptime = async (params: {
+  projectId: string;
+  datasetId: string;
+  datasetRunIds: string[];
+}): Promise<void> => {
+  if (params.datasetRunIds.length === 0) return;
+  const inList = bindInList(params.datasetRunIds);
+  await greptimeQuery({
+    query: `DELETE FROM ${quoteIdent("dataset_run_items")} WHERE ${quoteIdent("project_id")} = ? AND ${quoteIdent("dataset_id")} = ? AND ${quoteIdent("dataset_run_id")} IN (${inList.sql})`,
+    params: [params.projectId, params.datasetId, ...inList.params],
   });
 };

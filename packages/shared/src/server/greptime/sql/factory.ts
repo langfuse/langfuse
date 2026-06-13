@@ -39,6 +39,7 @@ const PHYSICAL_PROJECTION_TABLES = new Set([
   "traces",
   "observations",
   "scores",
+  "dataset_run_items",
 ]);
 
 // Columns carrying a FULLTEXT index (migration 0004): the FTS match operator can use matches_term.
