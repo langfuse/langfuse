@@ -32,6 +32,8 @@ import {
   getExperimentItemsBatchIO,
   getExperimentsFromEvents,
   getExperimentsCountFromEvents,
+  getExperimentItemsFromEvents,
+  getExperimentItemsCountFromEvents,
   type DatasetRunItemRecordInsertType,
   type ScoreRecordInsertType,
   type ObservationRecordInsertType,
@@ -563,6 +565,103 @@ async function main() {
     "experiments LIST datasetId filter (none): empty",
     filteredNone.length === 0,
     filteredNone,
+  );
+
+  // --- A2: experiment items (qualification + per-(item,experiment) data) ---
+  const items = await getExperimentItemsFromEvents({
+    projectId: SMOKE_PROJECT,
+    baseExperimentId: RUN1,
+    compExperimentIds: [RUN2],
+    filterByExperiment: [],
+    config: { requireBaselinePresence: false },
+  });
+  const it1 = items.find((i) => i.itemId === "item-1");
+  const it2 = items.find((i) => i.itemId === "item-2");
+  check(
+    "getExperimentItemsFromEvents: item-1 (RUN1+RUN2) + item-2 (RUN1 only)",
+    items.length === 2 &&
+      !!it1 &&
+      it1.experiments.length === 2 &&
+      it1.experiments.some(
+        (e) =>
+          e.experimentId === RUN1 &&
+          e.level === "DEFAULT" &&
+          Math.abs((e.totalCost ?? 0) - 0.3) < 1e-6 &&
+          Math.abs((e.latencyMs ?? 0) - 1000) < 1,
+      ) &&
+      it1.experiments.some(
+        (e) => e.experimentId === RUN2 && e.totalCost == null,
+      ) &&
+      !!it2 &&
+      it2.experiments.length === 1 &&
+      it2.experiments[0].experimentId === RUN1,
+    items.map(
+      (i) =>
+        `${i.itemId}:[${i.experiments.map((e) => e.experimentId).join(",")}]`,
+    ),
+  );
+
+  const itemsCount = await getExperimentItemsCountFromEvents({
+    projectId: SMOKE_PROJECT,
+    baseExperimentId: RUN1,
+    compExperimentIds: [RUN2],
+    filterByExperiment: [],
+    config: { requireBaselinePresence: false },
+  });
+  check("getExperimentItemsCountFromEvents: 2", itemsCount === 2, itemsCount);
+
+  // baseline-only + trace-score filter on RUN1 (quality >= 0.85) -> only item-1 (t1 quality 0.9).
+  const filteredItems = await getExperimentItemsFromEvents({
+    projectId: SMOKE_PROJECT,
+    baseExperimentId: RUN1,
+    compExperimentIds: [RUN2],
+    filterByExperiment: [
+      {
+        experimentId: RUN1,
+        filters: [
+          {
+            column: "trace_scores_avg",
+            key: "quality",
+            operator: ">=",
+            value: 0.85,
+            type: "numberObject",
+          },
+        ],
+      },
+    ],
+    config: { requireBaselinePresence: true },
+  });
+  check(
+    "getExperimentItems trace-score filter quality>=0.85 (baseline): only item-1",
+    filteredItems.length === 1 && filteredItems[0].itemId === "item-1",
+    filteredItems.map((i) => i.itemId),
+  );
+
+  // baseline-only + obs-score filter on RUN1 (helpfulness on root op1) -> only item-1.
+  const filteredObs = await getExperimentItemsFromEvents({
+    projectId: SMOKE_PROJECT,
+    baseExperimentId: RUN1,
+    compExperimentIds: [],
+    filterByExperiment: [
+      {
+        experimentId: RUN1,
+        filters: [
+          {
+            column: "obs_score_categories",
+            key: "helpfulness",
+            operator: "any of",
+            value: ["high"],
+            type: "categoryOptions",
+          },
+        ],
+      },
+    ],
+    config: { requireBaselinePresence: true },
+  });
+  check(
+    "getExperimentItems obs-score categoryOptions helpfulness=high: only item-1 (root op1)",
+    filteredObs.length === 1 && filteredObs[0].itemId === "item-1",
+    filteredObs.map((i) => i.itemId),
   );
 
   await cleanup();

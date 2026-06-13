@@ -50,3 +50,18 @@ export const experimentsListGreptimeColumnDefinitions: GreptimeColumnMappings =
     { uiTableName: "Dataset ID", uiTableId: "experimentDatasetId", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_id" }, // prettier-ignore
     { uiTableName: "Start Time", uiTableId: "startTime", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_run_created_at" }, // prettier-ignore
   ];
+
+/**
+ * Experiment ITEMS qualification score-filter columns (per-item, over the `item_dedup` CTE alias
+ * `dd`). obs-level scores correlate to the item's ROOT observation (`observation_id`), trace-level to
+ * the item's `trace_id` — both as self-contained score-grain EXISTS. `itemMetadata` (dataset item
+ * metadata, JSON) and `eventMetadata` (root observation metadata EAV) are handled outside the factory
+ * by the items reader, not here.
+ */
+export const experimentItemsGreptimeColumnDefinitions: GreptimeColumnMappings =
+  [
+    { uiTableName: "Scores (numeric)", uiTableId: "obs_scores_avg", greptimeTableName: "scores", greptimeSelect: "observation_id", scoreGrain: { scoresColumn: "observation_id", outerPrefix: "dd", outerColumn: "observation_id" } }, // prettier-ignore
+    { uiTableName: "Scores (categorical)", uiTableId: "obs_score_categories", greptimeTableName: "scores", greptimeSelect: "observation_id", scoreGrain: { scoresColumn: "observation_id", outerPrefix: "dd", outerColumn: "observation_id" } }, // prettier-ignore
+    { uiTableName: "Trace Scores (numeric)", uiTableId: "trace_scores_avg", greptimeTableName: "scores", greptimeSelect: "trace_id", scoreGrain: { scoresColumn: "trace_id", outerPrefix: "dd", outerColumn: "trace_id" } }, // prettier-ignore
+    { uiTableName: "Trace Scores (categorical)", uiTableId: "trace_score_categories", greptimeTableName: "scores", greptimeSelect: "trace_id", scoreGrain: { scoresColumn: "trace_id", outerPrefix: "dd", outerColumn: "trace_id" } }, // prettier-ignore
+  ];

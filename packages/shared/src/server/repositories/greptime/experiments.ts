@@ -7,7 +7,10 @@ import { greptimeInClause, greptimeTsParam, notDeleted } from "./queryHelpers";
 import { greptimeDate } from "../../greptime/sql/rowContract";
 import { FilterList } from "../../greptime/sql/greptime-filter";
 import { createGreptimeFilterFromFilterState } from "../../greptime/sql/factory";
-import { experimentsListGreptimeColumnDefinitions } from "../../greptime/sql/datasetColumnMappings";
+import {
+  experimentsListGreptimeColumnDefinitions,
+  experimentItemsGreptimeColumnDefinitions,
+} from "../../greptime/sql/datasetColumnMappings";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import { parseMetadataCHRecordToDomain } from "../../utils/metadata_conversion";
 
@@ -722,4 +725,329 @@ export const getExperimentsListCountGreptime = async (props: {
     readOnly: true,
   });
   return Number(rows[0]?.count ?? 0);
+};
+
+// ---------------------------------------------------------------------------
+// experiment items (qualification + per-(item,experiment) data)
+// ---------------------------------------------------------------------------
+
+const ITEM_SCORE_COLUMNS = new Set([
+  "obs_scores_avg",
+  "obs_score_categories",
+  "trace_scores_avg",
+  "trace_score_categories",
+]);
+
+type ExperimentItemInput = {
+  projectId: string;
+  baseExperimentId?: string;
+  compExperimentIds: string[];
+  filterByExperiment: { experimentId: string; filters: FilterState }[];
+  config?: { requireBaselinePresence?: boolean };
+};
+
+/** Per-item-grain filter for one experiment (score-grain EXISTS + item/event metadata predicates). */
+const buildItemGrainFilter = (
+  filters: FilterState,
+  alias: string,
+  projectId: string,
+  tag: string,
+): { sql: string; params: Record<string, unknown> } => {
+  const clauses: string[] = [];
+  const params: Record<string, unknown> = {};
+
+  const scoreFilters = filters.filter((f) => ITEM_SCORE_COLUMNS.has(f.column));
+  if (scoreFilters.length > 0) {
+    const compiled = new FilterList(
+      createGreptimeFilterFromFilterState(
+        scoreFilters,
+        experimentItemsGreptimeColumnDefinitions,
+      ),
+    ).apply();
+    if (compiled.query) {
+      clauses.push(compiled.query);
+      Object.assign(params, compiled.params);
+    }
+  }
+
+  filters
+    .filter((f) => f.column === "itemMetadata" && f.type === "stringObject")
+    .forEach((f, i) => {
+      if (f.type !== "stringObject") return;
+      const k = `${tag}imk${i}`;
+      const v = `${tag}imv${i}`;
+      params[k] = f.key;
+      const acc = `json_get_string(${alias}.${quoteIdent("dataset_item_metadata")}, :${k})`;
+      if (f.operator === "=") {
+        params[v] = f.value;
+        clauses.push(`${acc} = :${v}`);
+      } else if (f.operator === "contains") {
+        params[v] = `%${escapeSqlLikePattern(f.value)}%`;
+        clauses.push(`${acc} LIKE :${v}`);
+      } else if (f.operator === "does not contain") {
+        params[v] = `%${escapeSqlLikePattern(f.value)}%`;
+        clauses.push(`(${acc} IS NULL OR ${acc} NOT LIKE :${v})`);
+      } else {
+        throw new InvalidRequestError(
+          `Unsupported itemMetadata operator: ${f.operator}`,
+        );
+      }
+    });
+
+  // eventMetadata = root observation metadata (events_proto.metadata) -> EAV EXISTS over
+  // observations_metadata correlated by the item's root observation_id (Codex: NOT dataset item metadata).
+  filters
+    .filter((f) => f.column === "eventMetadata" && f.type === "stringObject")
+    .forEach((f, i) => {
+      if (f.type !== "stringObject") return;
+      const k = `${tag}emk${i}`;
+      const v = `${tag}emv${i}`;
+      params[k] = f.key;
+      const base = `SELECT 1 FROM ${quoteIdent("observations_metadata")} m WHERE m.${quoteIdent("project_id")} = :projectId AND m.${quoteIdent("entity_id")} = ${alias}.${quoteIdent("observation_id")} AND m.${quoteIdent("key")} = :${k} AND m.${quoteIdent("is_deleted")} = false`;
+      if (f.operator === "=") {
+        params[v] = f.value;
+        clauses.push(`EXISTS (${base} AND m.${quoteIdent("value")} = :${v})`);
+      } else if (f.operator === "contains") {
+        params[v] = `%${escapeSqlLikePattern(f.value)}%`;
+        clauses.push(
+          `EXISTS (${base} AND m.${quoteIdent("value")} LIKE :${v})`,
+        );
+      } else if (f.operator === "does not contain") {
+        params[v] = `%${escapeSqlLikePattern(f.value)}%`;
+        clauses.push(
+          `NOT EXISTS (${base} AND m.${quoteIdent("value")} LIKE :${v})`,
+        );
+      } else {
+        throw new InvalidRequestError(
+          `Unsupported eventMetadata operator: ${f.operator}`,
+        );
+      }
+    });
+  params.projectId = projectId;
+  return { sql: clauses.filter(Boolean).join(" AND "), params };
+};
+
+const buildItemQualification = (
+  props: ExperimentItemInput,
+): {
+  ctes: string;
+  where: string;
+  having: string;
+  params: Record<string, unknown>;
+  allExperimentIds: string[];
+  scope: string;
+  scopeParams: Record<string, unknown>;
+} => {
+  const {
+    projectId,
+    baseExperimentId,
+    compExperimentIds,
+    filterByExperiment,
+    config,
+  } = props;
+  const requireBaselinePresence = config?.requireBaselinePresence ?? false;
+  const isBaselineEnforced =
+    requireBaselinePresence && Boolean(baseExperimentId);
+  const filtersByExperiment = new Map(
+    filterByExperiment.map((f) => [f.experimentId, f.filters]),
+  );
+  const filteredCompExperimentIds = compExperimentIds.filter(
+    (id) => (filtersByExperiment.get(id) ?? []).length > 0,
+  );
+  const allExperimentIds = [
+    ...(baseExperimentId ? [baseExperimentId] : []),
+    ...(isBaselineEnforced ? filteredCompExperimentIds : compExperimentIds),
+  ];
+
+  const orParts: string[] = [];
+  const params: Record<string, unknown> = { projectId };
+  allExperimentIds.forEach((rid, i) => {
+    const ridKey = `qrid${i}`;
+    params[ridKey] = rid;
+    const itemFilter = buildItemGrainFilter(
+      filtersByExperiment.get(rid) ?? [],
+      "dd",
+      projectId,
+      `q${i}`,
+    );
+    Object.assign(params, itemFilter.params);
+    const cond = [
+      `dd.${quoteIdent("dataset_run_id")} = :${ridKey}`,
+      itemFilter.sql,
+    ]
+      .filter(Boolean)
+      .join(" AND ");
+    orParts.push(`(${cond})`);
+  });
+
+  let having = "";
+  if (isBaselineEnforced && baseExperimentId) {
+    params.baseExp = baseExperimentId;
+    const parts = [
+      `sum(CASE WHEN dd.${quoteIdent("dataset_run_id")} = :baseExp THEN 1 ELSE 0 END) > 0`,
+    ];
+    if (filteredCompExperimentIds.length > 0) {
+      const placeholders = filteredCompExperimentIds.map((c, j) => {
+        params[`fcomp${j}`] = c;
+        return `:fcomp${j}`;
+      });
+      parts.push(
+        `sum(CASE WHEN dd.${quoteIdent("dataset_run_id")} IN (${placeholders.join(", ")}) THEN 1 ELSE 0 END) > 0`,
+      );
+    }
+    having = `HAVING ${parts.join(" AND ")}`;
+  }
+
+  // dedup scope = project + the participating runs (selective).
+  const runs = greptimeInClause("dataset_run_id", allExperimentIds, "scoperun");
+  const scope = `project_id = :projectId AND ${runs.sql} AND ${notDeleted()}`;
+  Object.assign(params, runs.params);
+  const dedup = driDedupCte(
+    [
+      "project_id",
+      "dataset_item_id",
+      "dataset_run_id",
+      "trace_id",
+      "observation_id",
+      "dataset_item_metadata",
+    ],
+    scope,
+  );
+
+  return {
+    ctes: `item_dedup AS (${dedup})`,
+    where: orParts.length ? `(${orParts.join(" OR ")})` : "1 = 1",
+    having,
+    params,
+    allExperimentIds,
+    scope,
+    scopeParams: { projectId, ...runs.params },
+  };
+};
+
+export const getExperimentItemsQualifiedGreptime = async (
+  props: ExperimentItemInput & {
+    select: "count" | "rows";
+    limit?: number;
+    offset?: number;
+  },
+): Promise<string[] | number> => {
+  const { select, limit, offset } = props;
+  if (props.compExperimentIds.length === 0 && !props.baseExperimentId) {
+    return select === "count" ? 0 : [];
+  }
+  const q = buildItemQualification(props);
+
+  if (select === "count") {
+    const rows = await greptimeQuery<{ count: string | number }>({
+      query: `
+        WITH ${q.ctes}
+        SELECT count(*) AS count FROM (
+          SELECT dd.${quoteIdent("dataset_item_id")}
+          FROM item_dedup dd
+          WHERE ${q.where}
+          GROUP BY dd.${quoteIdent("dataset_item_id")}
+          ${q.having}
+        ) x`,
+      params: q.params,
+      readOnly: true,
+    });
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  const pagination =
+    limit !== undefined && offset !== undefined
+      ? `LIMIT ${Number(limit)} OFFSET ${Number(offset)}`
+      : "";
+  const rows = await greptimeQuery<{ item_id: string }>({
+    query: `
+      WITH ${q.ctes}
+      SELECT dd.${quoteIdent("dataset_item_id")} AS item_id
+      FROM item_dedup dd
+      WHERE ${q.where}
+      GROUP BY dd.${quoteIdent("dataset_item_id")}
+      ${q.having}
+      ORDER BY dd.${quoteIdent("dataset_item_id")} ASC
+      ${pagination}`,
+    params: q.params,
+    readOnly: true,
+  });
+  return rows.map((r) => r.item_id);
+};
+
+/** Per-(item, experiment) root-observation data for the page's items across all experiments. */
+export const getExperimentItemsDataGreptime = async (params: {
+  projectId: string;
+  itemIds: string[];
+  experimentIds: string[];
+}): Promise<
+  {
+    item_id: string;
+    experiment_id: string;
+    level: string | null;
+    start_time: Date | null;
+    total_cost: number | null;
+    latency_ms: number | null;
+    observation_id: string;
+    trace_id: string;
+  }[]
+> => {
+  const { projectId, itemIds, experimentIds } = params;
+  if (itemIds.length === 0 || experimentIds.length === 0) return [];
+  const runs = greptimeInClause("dataset_run_id", experimentIds, "run");
+  const items = greptimeInClause("dataset_item_id", itemIds, "item");
+  const scope = `project_id = :projectId AND ${runs.sql} AND ${items.sql} AND ${notDeleted()}`;
+  const dedup = driDedupCte(
+    ["dataset_item_id", "dataset_run_id", "trace_id", "observation_id"],
+    scope,
+  );
+
+  const bounds = await greptimeQuery<{ lo: Date | null; hi: Date | null }>({
+    query: `SELECT min(${quoteIdent("dataset_run_created_at")}) AS lo, max(${quoteIdent("dataset_run_created_at")}) AS hi
+      FROM ${quoteIdent("dataset_run_items")} WHERE ${scope}`,
+    params: { projectId, ...runs.params, ...items.params },
+    readOnly: true,
+  });
+  const lo = greptimeDate(bounds[0]?.lo);
+  const hi = greptimeDate(bounds[0]?.hi);
+  if (!lo || !hi) return [];
+  const obsLo = greptimeTsParam(new Date(lo.getTime() - ONE_DAY_MS));
+  const obsHi = greptimeTsParam(new Date(hi.getTime() + ONE_DAY_MS));
+
+  const rows = await greptimeQuery<{
+    item_id: string;
+    experiment_id: string;
+    level: string | null;
+    start_time: Date | null;
+    total_cost: string | number | null;
+    latency_ms: string | number | null;
+    observation_id: string | null;
+    trace_id: string;
+  }>({
+    query: `
+      WITH item_dedup AS (${dedup})
+      SELECT dd.${quoteIdent("dataset_item_id")} AS item_id, dd.${quoteIdent("dataset_run_id")} AS experiment_id,
+        o.${quoteIdent("level")} AS level, o.${quoteIdent("start_time")} AS start_time,
+        o.${quoteIdent("total_cost")} AS total_cost,
+        CASE WHEN o.${quoteIdent("end_time")} IS NULL THEN NULL
+          ELSE CAST((to_unixtime(o.${quoteIdent("end_time")}) - to_unixtime(o.${quoteIdent("start_time")})) * 1000 AS BIGINT) END AS latency_ms,
+        dd.${quoteIdent("observation_id")} AS observation_id, dd.${quoteIdent("trace_id")} AS trace_id
+      FROM item_dedup dd
+      LEFT JOIN observations o ON o.${quoteIdent("id")} = dd.${quoteIdent("observation_id")} AND o.${quoteIdent("project_id")} = :projectId
+        AND o.${quoteIdent("trace_id")} = dd.${quoteIdent("trace_id")} AND o.${quoteIdent("start_time")} >= :obsLo AND o.${quoteIdent("start_time")} <= :obsHi
+        AND o.${quoteIdent("is_deleted")} = false`,
+    params: { projectId, ...runs.params, ...items.params, obsLo, obsHi },
+    readOnly: true,
+  });
+
+  return rows.map((r) => ({
+    item_id: r.item_id,
+    experiment_id: r.experiment_id,
+    level: r.level,
+    start_time: r.start_time,
+    total_cost: r.total_cost == null ? null : Number(r.total_cost),
+    latency_ms: r.latency_ms == null ? null : Number(r.latency_ms),
+    observation_id: r.observation_id ?? "",
+    trace_id: r.trace_id,
+  }));
 };

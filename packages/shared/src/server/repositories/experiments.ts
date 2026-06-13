@@ -2,20 +2,6 @@ import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import {
-  FilterList,
-  CTEQueryBuilder,
-  EventsAggQueryBuilder,
-  StringFilter,
-} from "../queries";
-import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
-import {
-  eventsExperimentsRootSpans,
-  eventsScoresAggregation,
-  eventsTracesScoresAggregation,
-} from "../queries/clickhouse-sql/query-fragments";
-import { queryClickhouse } from "../repositories";
-import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
-import {
   getExperimentDatasetIdsGreptime,
   getExperimentNamesGreptime,
   getExperimentMetricsGreptime,
@@ -24,8 +10,9 @@ import {
   getExperimentItemsBatchIORowsGreptime,
   getExperimentsListGreptime,
   getExperimentsListCountGreptime,
+  getExperimentItemsQualifiedGreptime,
+  getExperimentItemsDataGreptime,
 } from "./greptime/experiments";
-import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 
 export type ExperimentEventsDataReturnType = {
   experiment_id: string;
@@ -162,38 +149,11 @@ type ExperimentItemInput = {
  */
 export const getExperimentItemsCountFromEvents = async (
   props: ExperimentItemInput,
-): Promise<number> => {
-  const { projectId, config } = props;
-
-  const qualifiedItems = getExperimentItemsFromEventsGeneric({
+): Promise<number> =>
+  getExperimentItemsQualifiedGreptime({
     ...props,
-    config,
     select: "count",
-  });
-
-  const queryBuilder = new CTEQueryBuilder()
-    .withCTE("qualified_items", {
-      ...qualifiedItems,
-      schema: ["item_id"],
-    })
-    .from("qualified_items", "qi")
-    .select("count() AS count");
-
-  const { query, params } = queryBuilder.buildWithParams();
-
-  const rows = await queryClickhouse<{ count: string }>({
-    query,
-    params,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-count",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  return rows.length > 0 ? Number(rows[0].count) : 0;
-};
+  }) as Promise<number>;
 
 type ExperimentItemsFilterOptionsInput = {
   projectId: string;
@@ -383,219 +343,6 @@ export const getExperimentScoreOptions = async (
   };
 };
 
-type FilterByExperiment = {
-  experimentId: string;
-  filters: FilterState;
-};
-
-type BuildQualificationPlanInput = {
-  compExperimentIds: string[];
-  filterByExperiment: FilterByExperiment[];
-  baseExperimentId?: string;
-  config?: {
-    requireBaselinePresence?: boolean;
-  };
-};
-
-type QualificationPlan = {
-  where: { query: string; params: Record<string, any> };
-  having: { query: string; params: Record<string, any> } | null;
-  orderBy: string | null;
-  hasScoreFilters: boolean;
-  hasTraceScoreFilters: boolean;
-};
-
-function combineConditions(
-  conditions: { query: string; params: Record<string, any> }[],
-  operator: "AND" | "OR" = "OR",
-): { query: string; params: Record<string, any> } {
-  const valid = conditions.filter((c) => c.query.trim().length > 0);
-  if (valid.length === 0) return { query: "", params: {} };
-
-  return {
-    query: `(${valid.map((c) => `(${c.query})`).join(` ${operator} `)})`,
-    params: Object.assign({}, ...valid.map((c) => c.params ?? {})),
-  };
-}
-
-function compileExperimentFilter(params: {
-  experimentId: string;
-  filterState: FilterState;
-}): { query: string; params: Record<string, any> } {
-  // 1) force experiment constraint
-  const experimentFilter = new StringFilter({
-    clickhouseTable: "events_proto",
-    field: "e.experiment_id",
-    operator: "=",
-    value: params.experimentId,
-  });
-
-  // 2) translate UI filters to CH filters with existing mapping
-  const translated = createFilterFromFilterState(
-    params.filterState,
-    experimentItemsTableNativeUiColumnDefinitions,
-  );
-
-  // 3) compile as AND
-  const compiled = new FilterList([experimentFilter, ...translated]).apply();
-
-  return {
-    query: compiled.query,
-    params: compiled.params ?? {},
-  };
-}
-
-/**
- * Build filter conditions for the qualification query.
- * Returns OR conditions and params for each experiment that needs filtering.
- */
-const buildQualificationPlan = (
-  params: BuildQualificationPlanInput,
-): QualificationPlan => {
-  const { baseExperimentId, compExperimentIds, filterByExperiment, config } =
-    params;
-
-  const { requireBaselinePresence = false } = config ?? {};
-  const isBaselineEnforced =
-    requireBaselinePresence && Boolean(baseExperimentId);
-
-  // Map experimentId -> filters for quick lookup
-  const filtersByExperiment = new Map(
-    filterByExperiment.map((f) => [f.experimentId, f.filters]),
-  );
-
-  const filteredCompExperimentIds = compExperimentIds.filter((expId) => {
-    const hasFilters = (filtersByExperiment.get(expId) ?? []).length > 0;
-    return hasFilters;
-  });
-
-  const filters = filterByExperiment.flatMap((f) => f.filters);
-  const hasScoreFilters = filters.some((f) =>
-    ["obs_scores_avg", "obs_score_categories"].includes(f.column),
-  );
-  const hasTraceScoreFilters = filters.some((f) =>
-    ["trace_scores_avg", "trace_score_categories"].includes(f.column),
-  );
-
-  const allExperimentIds = [
-    ...(baseExperimentId ? [baseExperimentId] : []),
-    ...(isBaselineEnforced ? filteredCompExperimentIds : compExperimentIds),
-  ];
-
-  const compiledFiltersByExperiment = allExperimentIds.map((experimentId) =>
-    compileExperimentFilter({
-      experimentId,
-      filterState: filtersByExperiment.get(experimentId) ?? [],
-    }),
-  );
-
-  return {
-    where: combineConditions(compiledFiltersByExperiment, "OR"),
-    having: isBaselineEnforced
-      ? filteredCompExperimentIds.length > 0
-        ? {
-            query: `
-          countIf(e.experiment_id = {baseExperimentId: String}) > 0
-          AND countIf(e.experiment_id IN ({filteredCompExperimentIds: Array(String)})) > 0
-        `,
-            params: {
-              baseExperimentId,
-              filteredCompExperimentIds,
-            },
-          }
-        : {
-            query: `countIf(e.experiment_id = {baseExperimentId: String}) > 0`,
-            params: {
-              baseExperimentId,
-            },
-          }
-      : null,
-    orderBy: `ORDER BY e.experiment_item_id ASC`,
-    hasScoreFilters,
-    hasTraceScoreFilters,
-  };
-};
-
-const getExperimentItemsFromEventsGeneric = (params: {
-  select: "count" | "rows";
-  projectId: string;
-  baseExperimentId?: string;
-  compExperimentIds: string[];
-  filterByExperiment: {
-    experimentId: string;
-    filters: FilterState;
-  }[];
-  config?: {
-    requireBaselinePresence?: boolean;
-  };
-  limit?: number;
-  offset?: number;
-}) => {
-  const {
-    select,
-    projectId,
-    baseExperimentId,
-    compExperimentIds,
-    filterByExperiment,
-    config,
-    limit,
-    offset,
-  } = params;
-
-  const { where, having, orderBy, hasScoreFilters, hasTraceScoreFilters } =
-    buildQualificationPlan({
-      baseExperimentId,
-      compExperimentIds,
-      filterByExperiment,
-      config,
-    });
-
-  const queryBuilder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.experiment_item_id",
-    selectExpression: "e.experiment_item_id as item_id",
-  })
-    .whereRaw("e.span_id = e.experiment_item_root_span_id")
-    .when(hasScoreFilters, (b) =>
-      b.withCTE(
-        "scores_agg",
-        // Optionally add timestamp >= oldest_selected_experiment_start as a coarse partition prune
-        eventsScoresAggregation({
-          projectId,
-        }),
-      ),
-    )
-    .when(hasScoreFilters, (b) =>
-      b.leftJoin("scores_agg AS s", "ON s.observation_id = e.span_id"),
-    )
-    .when(hasTraceScoreFilters, (b) =>
-      b.withCTE(
-        "trace_scores_agg",
-        // Optionally add timestamp >= oldest_selected_experiment_start as a coarse partition prune
-        eventsTracesScoresAggregation({
-          projectId,
-          hasScoreAggregationFilters: true,
-        }),
-      ),
-    )
-    .when(hasTraceScoreFilters, (b) =>
-      b.leftJoin(
-        "trace_scores_agg AS ts",
-        "ON ts.trace_id = e.trace_id AND ts.project_id = e.project_id",
-      ),
-    )
-    .where(where)
-    .when(having !== null, (b) => b.having(having!));
-
-  if (select === "rows") {
-    queryBuilder
-      .when(orderBy !== null, (b) => b.orderBy(orderBy!))
-      .limit(limit ?? 50, offset ?? 0);
-  }
-
-  return queryBuilder.buildWithParams();
-};
-
 /**
  * Get experiment items with intersection filtering across experiments.
  * Returns items grouped by item_id with data from ALL experiments.
@@ -619,31 +366,17 @@ export const getExperimentItemsFromEvents = async (
     config,
   } = props;
 
-  // ========== QUERY 1: Get filtered item_ids using intersection logic ==========
-  const { query: itemIdsQuery, params: itemIdsParams } =
-    getExperimentItemsFromEventsGeneric({
-      select: "rows",
-      projectId,
-      baseExperimentId,
-      compExperimentIds,
-      filterByExperiment,
-      config,
-      limit,
-      offset,
-    });
-
-  const itemIdsResult = await queryClickhouse<{ item_id: string }>({
-    query: itemIdsQuery,
-    params: itemIdsParams,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-filter",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  const itemIds = itemIdsResult.map((r) => r.item_id);
+  // ========== QUERY 1: Get filtered item_ids using intersection / baseline logic ==========
+  const itemIds = (await getExperimentItemsQualifiedGreptime({
+    select: "rows",
+    projectId,
+    baseExperimentId,
+    compExperimentIds,
+    filterByExperiment,
+    config,
+    limit,
+    offset,
+  })) as string[];
 
   if (itemIds.length === 0) {
     return [];
@@ -654,38 +387,11 @@ export const getExperimentItemsFromEvents = async (
     ...compExperimentIds,
   ];
 
-  // ========== QUERY 2: Fetch data for ALL experiments ==========
-  const queryBuilderData = eventsExperimentsRootSpans({
+  // ========== QUERY 2: Fetch per-(item, experiment) root-observation data ==========
+  const rows = await getExperimentItemsDataGreptime({
     projectId,
-    experimentItemIds: itemIds,
+    itemIds,
     experimentIds: allExperimentIds,
-  })
-    .selectRaw(
-      "e.experiment_item_id as item_id",
-      "e.experiment_id as experiment_id",
-      "e.level as level",
-      "e.start_time as start_time",
-      "e.total_cost as total_cost",
-      "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time)) as latency_ms",
-      "e.span_id as observation_id",
-      "e.trace_id as trace_id",
-    )
-    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
-    .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
-    .limitBy("e.experiment_item_id, e.experiment_id");
-
-  const { query: dataQuery, params: dataParams } =
-    queryBuilderData.buildWithParams();
-
-  const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
-    query: dataQuery,
-    params: dataParams,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-data",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Group by item_id, preserving pagination order
@@ -693,10 +399,10 @@ export const getExperimentItemsFromEvents = async (
   for (const row of rows) {
     const data: ExperimentItemData = {
       experimentId: row.experiment_id,
-      level: row.level,
-      startTime: parseClickhouseUTCDateTimeFormat(row.start_time),
-      totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
-      latencyMs: row.latency_ms !== null ? Number(row.latency_ms) : null,
+      level: row.level ?? "",
+      startTime: row.start_time ?? new Date(0),
+      totalCost: row.total_cost,
+      latencyMs: row.latency_ms,
       observationId: row.observation_id,
       traceId: row.trace_id,
     };
