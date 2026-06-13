@@ -113,8 +113,15 @@ the slot. The facet sidebar, view drawer, filter toggle, and AI filter all
 stay. Because both the bar and the sidebar are
 controlled editors over the same source, they reflect each other with no
 explicit sync. Saved views write through `setFilterState`, so they flow into
-both surfaces. Insertion order is preserved end-to-end (AST/serializer,
-URL encode/decode, and the reverse adapter all walk in order).
+both surfaces. Order is preserved _within_ each category — filter-to-filter
+order and within-free-text order survive the AST/serializer and URL
+encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
++ `searchType` as three separate params) has no slot for the relative position
+of filters vs free text, so on commit the reverse adapter canonicalizes to
+`<filters> [in:scope] <freetext>` (Datadog-style): typing `refund level:ERROR`
+and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
+interleave is preserved only in the recent-searches entry (`planCommit`'s
+`canonical`), not in the live bar.
 
 ## Next slices
 
