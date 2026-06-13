@@ -34,6 +34,7 @@ import {
  */
 
 export type { DatasetRunsMetrics } from "./greptime/datasetRunItems";
+export { getDatasetVersionTimestampsGreptime } from "./greptime/datasetRunItems";
 
 type DatasetRunItemsTableQuery = {
   projectId: string;

@@ -619,6 +619,42 @@ export const getDatasetItemIdsWithRunDataGreptime = async (
 // existence / analytics
 // ---------------------------------------------------------------------------
 
+/**
+ * Latest creation / item-version timestamps for a run, used to resolve the dataset version active for
+ * an experiment run. `max` over all physical rows is dedup-invariant (the max is unaffected by logical
+ * fan-out), so no ROW_NUMBER is needed. Replaces the CH `maxOrNull(...)` over `dataset_run_items_rmt`.
+ */
+export const getDatasetVersionTimestampsGreptime = async (opts: {
+  projectId: string;
+  datasetId: string;
+  runId: string;
+}): Promise<{
+  maxCreatedAt: Date | null;
+  maxDatasetItemVersion: Date | null;
+}> => {
+  const rows = await greptimeQuery<{
+    max_created_at: Date | null;
+    max_dataset_item_version: Date | null;
+  }>({
+    query: `
+      SELECT max(${q("created_at")}) AS max_created_at,
+        max(${q("dataset_item_version")}) AS max_dataset_item_version
+      FROM ${q("dataset_run_items")}
+      WHERE project_id = :projectId AND dataset_id = :datasetId
+        AND dataset_run_id = :runId AND ${notDeleted()}`,
+    params: {
+      projectId: opts.projectId,
+      datasetId: opts.datasetId,
+      runId: opts.runId,
+    },
+    readOnly: true,
+  });
+  return {
+    maxCreatedAt: greptimeDate(rows[0]?.max_created_at),
+    maxDatasetItemVersion: greptimeDate(rows[0]?.max_dataset_item_version),
+  };
+};
+
 export const hasAnyDatasetRunItemGreptime = async (
   projectId: string,
 ): Promise<boolean> => {

@@ -16,12 +16,9 @@ import {
 import { v4 } from "uuid";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
 import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
-import {
-  parseClickhouseUTCDateTimeFormat,
-  queryClickhouse,
-} from "./clickhouse";
 import { postgresSearchCondition } from "../queries";
 import { TracingSearchType } from "../../interfaces/search";
+import { getDatasetVersionTimestampsGreptime } from "./greptime/datasetRunItems";
 
 const emptyNormalizeOpts: { sanitizeControlChars?: boolean } = {};
 const emptyValidateOpts: { normalizeUndefinedToNull?: boolean } = {};
@@ -1723,37 +1720,16 @@ export async function getDatasetVersionForRun(params: {
       return null;
     },
     [Implementation.VERSIONED]: async () => {
-      // Step 1: Get the latest creation timestamp from dataset run items (ClickHouse)
-      const maxCreatedAtResult = await queryClickhouse<{
-        max_created_at: string | null;
-        max_dataset_item_version: string | null;
-      }>({
-        query: `
-          SELECT 
-            maxOrNull(created_at) as max_created_at,
-            maxOrNull(dataset_item_version) as max_dataset_item_version
-          FROM dataset_run_items_rmt
-          WHERE project_id = {projectId: String}
-            AND dataset_id = {datasetId: String}
-            AND dataset_run_id = {runId: String}
-        `,
-        params: {
+      // Step 1: Get the latest creation timestamp from dataset run items (GreptimeDB projection)
+      const { maxCreatedAt, maxDatasetItemVersion } =
+        await getDatasetVersionTimestampsGreptime({
           projectId: params.projectId,
           datasetId: params.datasetId,
           runId: params.runId,
-        },
-        tags: {
-          feature: "datasets",
-          operation: "getDatasetVersionForRun",
-        },
-      });
-
-      const maxCreatedAt = maxCreatedAtResult[0]?.max_created_at ?? null;
-      const maxDatasetItemVersion =
-        maxCreatedAtResult[0]?.max_dataset_item_version ?? null;
+        });
 
       if (maxDatasetItemVersion) {
-        return parseClickhouseUTCDateTimeFormat(maxDatasetItemVersion);
+        return maxDatasetItemVersion;
       }
 
       if (!maxCreatedAt) {
@@ -1762,7 +1738,7 @@ export async function getDatasetVersionForRun(params: {
 
       // dataset item version takes precedence over created_at
       // max_created_at as fallback for experiments that ran before dataset item versioning was introduced
-      const formattedTimestamp = parseClickhouseUTCDateTimeFormat(maxCreatedAt);
+      const formattedTimestamp = maxCreatedAt;
       // Step 2: Resolve to dataset version using temporal query (PostgreSQL)
       const result = await prisma.$queryRaw<Array<{ valid_from: Date | null }>>(
         Prisma.sql`

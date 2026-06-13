@@ -24,6 +24,7 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { extractTimeFilter, queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import { getExperimentDatasetIdsGreptime } from "./greptime/experiments";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
   experimentPreAggCols,
@@ -115,6 +116,17 @@ const experimentScoreCTE = (params: {
     .having(params.filters.apply())
     .buildWithParams();
 };
+
+/**
+ * Distinct dataset ids that have experiment (dataset-run) data, for the experiments filter-options UI.
+ * Replaces the experiments use of `getEventsGroupedByExperimentDatasetId` (events table) with a
+ * dedicated `dataset_run_items` reader; the shared events function stays for the v4 events
+ * filter-options path. Accepts the Start Time filter the router already passes.
+ */
+export const getExperimentDatasetIds = (
+  projectId: string,
+  startTimeFilter?: FilterState,
+) => getExperimentDatasetIdsGreptime(projectId, startTimeFilter);
 
 export const getExperimentsCountFromEvents = async (props: {
   projectId: string;

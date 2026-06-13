@@ -50,13 +50,21 @@ import { greptimeInClause, greptimeTsParam, notDeleted } from "./queryHelpers";
 
 type Row = Record<string, unknown>;
 
-/** scores-native filter columns for the grouping helpers (dataset-run/experiment columns are P4). */
+/**
+ * scores-native filter columns for the grouping helpers. The dataset-run-item columns
+ * (`datasetRunItemRunIds` / `datasetId` / `datasetItemIds`) are resolved through a reverse correlated
+ * EXISTS over `dataset_run_items` (CH joined `scores ⋈ dataset_run_items_rmt` by trace_id) — see
+ * `mapScoresColumnsTable` and `DatasetRunItemsOptionsFilter`.
+ */
 const scoresColumnsGreptimeColumnDefinitions: GreptimeColumnMappings = [
   { uiTableName: "Timestamp", uiTableId: "timestamp", greptimeTableName: "scores", greptimeSelect: "timestamp", queryPrefix: "s" }, // prettier-ignore
   { uiTableName: "Session ID", uiTableId: "sessionId", greptimeTableName: "scores", greptimeSelect: "session_id", queryPrefix: "s" }, // prettier-ignore
   { uiTableName: "Dataset Run IDs", uiTableId: "datasetRunIds", greptimeTableName: "scores", greptimeSelect: "dataset_run_id", queryPrefix: "s" }, // prettier-ignore
   { uiTableName: "Observation ID", uiTableId: "observationId", greptimeTableName: "scores", greptimeSelect: "observation_id", queryPrefix: "s" }, // prettier-ignore
   { uiTableName: "Trace ID", uiTableId: "traceId", greptimeTableName: "scores", greptimeSelect: "trace_id", queryPrefix: "s" }, // prettier-ignore
+  { uiTableName: "Dataset Run Item Run IDs", uiTableId: "datasetRunItemRunIds", greptimeTableName: "scores", greptimeSelect: "trace_id", queryPrefix: "s", datasetRunItemsGrain: { driColumn: "dataset_run_id", outerPrefix: "s" } }, // prettier-ignore
+  { uiTableName: "Dataset ID", uiTableId: "datasetId", greptimeTableName: "scores", greptimeSelect: "trace_id", queryPrefix: "s", datasetRunItemsGrain: { driColumn: "dataset_id", outerPrefix: "s" } }, // prettier-ignore
+  { uiTableName: "Dataset Item IDs", uiTableId: "datasetItemIds", greptimeTableName: "scores", greptimeSelect: "trace_id", queryPrefix: "s", datasetRunItemsGrain: { driColumn: "dataset_item_id", outerPrefix: "s" } }, // prettier-ignore
 ];
 
 const inList = (column: string, values: readonly string[], prefix: string) =>
@@ -315,6 +323,59 @@ export const getScoresForExperiments = async (
   });
   return mapScoreRows(rows, excludeMetadata, includeHasMetadata);
 };
+
+/**
+ * Scores correlated to dataset runs / experiments through `dataset_run_items` by `trace_id`. The CH
+ * version joins `dataset_run_items_rmt ⋈ scores FINAL` and dedups with `LIMIT 1 BY (s.id, run_id)`.
+ * In GreptimeDB the scores projection is already merged (one row per id), so we only need to collapse
+ * the DRI physical fan-out: a `DISTINCT (project_id, trace_id, dataset_run_id)` key set (mirrors
+ * `fetchRunScores`) joined to scores yields exactly one row per (score, run). `groupKey` names the
+ * extra field carried back to the caller (`datasetRunId` for runs, `experimentId` for experiments —
+ * experiment_id == dataset_run_id). Metadata payload is excluded; only `hasMetadata` is computed.
+ */
+const getScoresJoinedByDatasetRun = async <K extends string>(
+  projectId: string,
+  runIds: string[],
+  groupKey: K,
+): Promise<
+  Array<ScoreDomain & { hasMetadata: boolean } & Record<K, string>>
+> => {
+  if (runIds.length === 0) return [];
+  const ids = inList("dataset_run_id", runIds, "run");
+  const dt = inList("s.data_type", AGGREGATABLE_SCORE_TYPES, "dt");
+  const rows = await greptimeQuery<Row>({
+    query: `
+      WITH dri_keys AS (
+        SELECT DISTINCT project_id, trace_id, dataset_run_id
+        FROM dataset_run_items
+        WHERE project_id = :projectId AND ${ids.sql} AND ${notDeleted()}
+      )
+      SELECT ${scoreListSelect(true, true)}, d.dataset_run_id AS group_run_id
+      FROM dri_keys d
+      JOIN scores s ON s.project_id = d.project_id AND s.trace_id = d.trace_id AND ${notDeleted("s")}
+      WHERE ${dt.sql}`,
+    params: { projectId, ...ids.params, ...dt.params },
+    readOnly: true,
+  });
+  return rows.map((row) => {
+    const score = convertGreptimeScoreRowToDomain(row, false);
+    return {
+      ...score,
+      [groupKey]: String(row.group_run_id),
+      hasMetadata: greptimeBool(row.has_metadata),
+    } as ScoreDomain & { hasMetadata: boolean } & Record<K, string>;
+  });
+};
+
+export const getTraceScoresForDatasetRuns = (
+  projectId: string,
+  datasetRunIds: string[],
+) => getScoresJoinedByDatasetRun(projectId, datasetRunIds, "datasetRunId");
+
+export const getScoresForExperimentItems = (
+  projectId: string,
+  experimentIds: string[],
+) => getScoresJoinedByDatasetRun(projectId, experimentIds, "experimentId");
 
 export const getScoresForObservations = async (
   props: ListProps & { observationIds: string[]; minTimestamp?: Date },
