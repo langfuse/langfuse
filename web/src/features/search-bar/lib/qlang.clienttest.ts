@@ -353,6 +353,8 @@ describe("validateQuery", () => {
       "metadata.", // dot-prefix field with no key
       "scores.", // dot-prefix score with no key
       "traceScores.", // dot-prefix trace score with no key
+      "tags:(a,b)", // bare comma inside a group (must use OR/AND)
+      "level:(ERROR,WARNING)", // same, on an option field
     ]) {
       const r = validateQuery(text);
       expect(r.valid, `expected invalid: ${text}`).toBe(false);

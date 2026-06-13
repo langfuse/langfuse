@@ -38,14 +38,29 @@ export function planCommit(
   draftText: string,
   scoreTypes?: ScoreTypeContext,
 ): CommitResult {
-  const res = validateQuery(draftText.trim());
+  const res = validateQuery(draftText.trim(), scoreTypes);
   if (!res.valid) {
     return { status: "invalid", diagnostics: res.diagnostics };
   }
-  const { filters, searchQuery, searchType } = astToFilterState(
+  const { filters, searchQuery, searchType, errors } = astToFilterState(
     res.ast,
     scoreTypes,
   );
+  // Parity belt-and-suspenders: validateQuery lowers with the same scoreTypes,
+  // so a valid draft should never produce lowering errors. If it ever does
+  // (a future divergence), refuse to commit rather than silently drop the
+  // errored filters — never write a partial result with no signal.
+  if (errors.length > 0) {
+    return {
+      status: "invalid",
+      diagnostics: errors.map((message) => ({
+        from: 0,
+        to: draftText.length,
+        severity: "error" as const,
+        message,
+      })),
+    };
+  }
   return {
     status: "committed",
     filters,
