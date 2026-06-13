@@ -881,7 +881,16 @@ export function planInputCompletions(
       : "";
   const segFrom = segFromBase + valuePrefix.length;
   const segTo = grouped?.to ?? segFromBase + seg!.text.length;
-  const typed = activeValueText.slice(valuePrefix.length).replace(/^"/, "");
+  // Drop quotes so the typed text matches observed values. A closed pair (a
+  // value picked/seeded via serializeValue, e.g. `"My Test Trace"`) unescapes
+  // like the parser; a lone leading quote (mid-typing, no closing quote yet)
+  // is just stripped. Stripping only the leading quote left a stray trailing
+  // one, so quoted values matched nothing and the popover vanished on switch.
+  const rawTyped = activeValueText.slice(valuePrefix.length);
+  const typed =
+    rawTyped.length >= 2 && rawTyped.startsWith('"') && rawTyped.endsWith('"')
+      ? rawTyped.slice(1, -1).replace(/\\(["\\])/g, "$1")
+      : rawTyped.replace(/^"/, "");
   const groupedPlanAttrs =
     grouped === null ? {} : { keepOpenOnPick: !grouped.completeGroup };
 

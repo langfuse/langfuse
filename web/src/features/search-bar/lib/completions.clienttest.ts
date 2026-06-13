@@ -75,6 +75,22 @@ describe("planInputCompletions", () => {
     });
   });
 
+  it("plans the value stage when switching a quoted value (strips both quotes)", () => {
+    // A picked value with a space serializes to `traceName:"My Test Trace"`.
+    // Clicking back into it to switch must still match the observed value —
+    // the typed text has to drop BOTH quotes, not just the leading one.
+    const p = plan('traceName:"My Test Trace"', 25, {
+      observed: { ...OBSERVED, traceName: [{ value: "My Test Trace" }] },
+    });
+    expect(p?.stage).toBe("value");
+    const first = flattenOptions(p)[0];
+    expect(first).toMatchObject({
+      kind: "value",
+      value: "My Test Trace",
+      active: true,
+    });
+  });
+
   it("offers comparisons for numeric fields", () => {
     const p = plan("latency:", 8);
     expect(p?.sections.map((s) => s.title)).toContain(SECTION_COMPARE_OPS);
