@@ -42,6 +42,40 @@ export type AstToFilterStateResult = {
   errors: string[];
 };
 
+/**
+ * Observed score names by type, so `scores.<name>:<value>` lowers to the right
+ * column. A categorical score can have numeric-looking labels (1–5 ratings,
+ * 0–10 NPS), so we cannot infer the column from value syntax alone — when the
+ * name is known categorical it must hit `score_categories`, not `scores_avg`.
+ * Absent/unknown names fall back to the value-syntax heuristic.
+ */
+export type ScoreTypeContext = {
+  numericScoreNames?: ReadonlySet<string>;
+  categoricalScoreNames?: ReadonlySet<string>;
+  traceNumericScoreNames?: ReadonlySet<string>;
+  traceCategoricalScoreNames?: ReadonlySet<string>;
+};
+
+function resolveScoreType(
+  ctx: ScoreTypeContext | undefined,
+  level: "observation" | "trace",
+  name: string,
+): "numeric" | "categorical" | "both" | "unknown" {
+  if (ctx === undefined) return "unknown";
+  const numeric =
+    level === "trace" ? ctx.traceNumericScoreNames : ctx.numericScoreNames;
+  const categorical =
+    level === "trace"
+      ? ctx.traceCategoricalScoreNames
+      : ctx.categoricalScoreNames;
+  const isNum = numeric?.has(name) ?? false;
+  const isCat = categorical?.has(name) ?? false;
+  if (isNum && isCat) return "both";
+  if (isNum) return "numeric";
+  if (isCat) return "categorical";
+  return "unknown";
+}
+
 function isInFilter(node: ASTNode): node is FilterNode {
   if (node.kind !== "filter") return false;
   const ref = resolveField(node.key);
@@ -79,14 +113,19 @@ type LowerContext = {
   searchTerms: string[];
   scopes: TracingSearchType[];
   errors: string[];
+  scoreTypes?: ScoreTypeContext;
 };
 
-export function astToFilterState(ast: ASTNode | null): AstToFilterStateResult {
+export function astToFilterState(
+  ast: ASTNode | null,
+  scoreTypes?: ScoreTypeContext,
+): AstToFilterStateResult {
   const ctx: LowerContext = {
     filters: [],
     searchTerms: [],
     scopes: [],
     errors: [],
+    scoreTypes,
   };
 
   if (ast !== null) lowerTopLevel(ast, false, ctx);
@@ -146,7 +185,13 @@ function lowerTopLevel(
     case "or": {
       const collapsed = collapseSameFieldOr(node);
       if (collapsed !== null) {
-        lowerFilter(collapsed, negated, ctx.filters, ctx.errors);
+        lowerFilter(
+          collapsed,
+          negated,
+          ctx.filters,
+          ctx.errors,
+          ctx.scoreTypes,
+        );
         return;
       }
       ctx.errors.push(
@@ -165,7 +210,7 @@ function lowerTopLevel(
         lowerIn(node, ctx);
         return;
       }
-      lowerFilter(node, negated, ctx.filters, ctx.errors);
+      lowerFilter(node, negated, ctx.filters, ctx.errors, ctx.scoreTypes);
       return;
   }
 }
@@ -175,6 +220,7 @@ function lowerFilter(
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
+  scoreTypes?: ScoreTypeContext,
 ): void {
   if (node.values.length === 0) {
     errors.push(`Filter "${node.key}" has no value`);
@@ -215,7 +261,7 @@ function lowerFilter(
       lowerMetadata(node, ref.key, negated, out, errors);
       return;
     case "scores":
-      lowerScores(node, ref.key, ref.level, negated, out, errors);
+      lowerScores(node, ref.key, ref.level, negated, out, errors, scoreTypes);
       return;
     case "field":
       switch (ref.field.kind) {
@@ -554,6 +600,7 @@ function lowerScores(
   negated: boolean,
   out: SingleEventsFilter[],
   errors: string[],
+  scoreTypes?: ScoreTypeContext,
 ): void {
   const columns = SCORE_COLUMNS[level];
   const path = level === "trace" ? `traceScores.${key}` : `scores.${key}`;
@@ -599,10 +646,20 @@ function lowerScores(
     return;
   }
 
-  // '=' default: all-numeric value lists mean the numeric score; anything
-  // else matches categories.
+  // '=' default: route by observed score TYPE when we know it — a categorical
+  // score with numeric labels (e.g. a 1–5 rating) must hit the categorical
+  // column, not scores_avg, or it silently targets a column with no data. Only
+  // when the type is unknown ("both", or the score isn't observed yet) do we
+  // fall back to value syntax (all-numeric → numeric).
+  const scoreType = resolveScoreType(scoreTypes, level, key);
   const allNumeric = node.values.every((v) => Number.isFinite(Number(v)));
-  if (allNumeric) {
+  const useNumeric =
+    scoreType === "numeric"
+      ? true
+      : scoreType === "categorical"
+        ? false
+        : allNumeric;
+  if (useNumeric) {
     lowerNumeric();
     return;
   }

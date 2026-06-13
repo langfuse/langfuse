@@ -27,7 +27,8 @@ export function SearchBarSettings() {
             ) with inline suggestions, alongside the existing filter sidebar —
             the two stay in sync. Replaces only the toolbar search field.
             Applies to all members of this project; existing filters keep
-            working.
+            working. Visible to viewers who have the v4 beta enabled on their
+            account.
           </span>
         </div>
         <Switch

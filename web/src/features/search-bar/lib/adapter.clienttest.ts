@@ -247,6 +247,60 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("routes numeric-looking values by observed score TYPE, not value syntax", () => {
+    // `rating` is a categorical score whose labels happen to be numeric (1-5).
+    // Without the score-type map the value-syntax heuristic wrongly picks the
+    // numeric column; with it, the categorical column is targeted.
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(["accuracy"]),
+      categoricalScoreNames: new Set<string>(["rating"]),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(["nps"]),
+    };
+    const lowerWith = (text: string) =>
+      astToFilterState(parse(text).ast, scoreTypes);
+
+    expect(lowerWith("scores.rating:5").filters).toEqual([
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "rating",
+        operator: "any of",
+        value: ["5"],
+      },
+    ]);
+    // A known-numeric score still lowers numeric.
+    expect(lowerWith("scores.accuracy:0.5").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "accuracy",
+        operator: "=",
+        value: 0.5,
+      },
+    ]);
+    // Trace-level categorical with a numeric label.
+    expect(lowerWith("traceScores.nps:9").filters).toEqual([
+      {
+        type: "categoryOptions",
+        column: "trace_score_categories",
+        key: "nps",
+        operator: "any of",
+        value: ["9"],
+      },
+    ]);
+    // Unknown score (not observed) falls back to the value-syntax heuristic.
+    expect(lowerWith("scores.unseen:5").filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "unseen",
+        operator: "=",
+        value: 5,
+      },
+    ]);
+  });
+
   it("lowers has:/-has: to null filters", () => {
     expect(lower("has:endTime").filters).toEqual([
       { type: "null", column: "endTime", operator: "is not null", value: "" },

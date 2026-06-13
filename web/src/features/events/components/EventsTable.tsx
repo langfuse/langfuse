@@ -437,6 +437,11 @@ export default function ObservationsEventsTable({
     [],
   );
 
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions, isFilterOptionsPending),
+    [filterOptions, isFilterOptionsPending],
+  );
+
   const { store: searchBarStore, commit: searchBarCommit } = useEventsSearchBar(
     {
       projectId,
@@ -444,15 +449,11 @@ export default function ObservationsEventsTable({
       filterState: queryFilter.explicitFilterState,
       searchQuery,
       searchType,
+      observed: observedOptions,
       setFilterState: setFiltersWrapper,
       setSearchQuery,
       setSearchType,
     },
-  );
-
-  const observedOptions = useMemo(
-    () => toObservedOptions(filterOptions, isFilterOptionsPending),
-    [filterOptions, isFilterOptionsPending],
   );
 
   // Disabled for now because perhaps confusing
