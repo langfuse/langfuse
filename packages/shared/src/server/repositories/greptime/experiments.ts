@@ -795,7 +795,7 @@ const buildItemGrainFilter = (
     });
 
   // eventMetadata = root observation metadata (events_proto.metadata) -> EAV EXISTS over
-  // observations_metadata correlated by the item's root observation_id (Codex: NOT dataset item metadata).
+  // observations_metadata correlated by the item's root observation_id, not dataset item metadata.
   filters
     .filter((f) => f.column === "eventMetadata" && f.type === "stringObject")
     .forEach((f, i) => {
