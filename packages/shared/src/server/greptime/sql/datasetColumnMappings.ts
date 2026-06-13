@@ -34,3 +34,19 @@ export const datasetRunsTableGreptimeColumnDefinitions: GreptimeColumnMappings =
     { uiTableName: "Dataset Run ID", uiTableId: "id", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_run_id", queryPrefix: "drm" }, // prettier-ignore
     { uiTableName: "Created At", uiTableId: "createdAt", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_run_created_at", queryPrefix: "drm" }, // prettier-ignore
   ];
+
+/**
+ * Experiments LIST pre-aggregation filter columns (experiment == dataset run). Bare columns (no
+ * queryPrefix) so the filter factory emits unqualified predicates that resolve inside the single-table
+ * `dataset_run_items` dedup-CTE scope. `metadata` and the score-aggregation columns are NOT here — the
+ * LIST reader handles `dataset_run_metadata` as a JSON predicate and score filters as a run-level
+ * EXISTS (the DRI projection has no metadata EAV / per-row score array).
+ */
+export const experimentsListGreptimeColumnDefinitions: GreptimeColumnMappings =
+  [
+    { uiTableName: "ID", uiTableId: "id", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_run_id" }, // prettier-ignore
+    { uiTableName: "Name", uiTableId: "name", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_run_name" }, // prettier-ignore
+    { uiTableName: "Description", uiTableId: "description", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_run_description" }, // prettier-ignore
+    { uiTableName: "Dataset ID", uiTableId: "experimentDatasetId", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_id" }, // prettier-ignore
+    { uiTableName: "Start Time", uiTableId: "startTime", greptimeTableName: "dataset_run_items", greptimeSelect: "dataset_run_created_at" }, // prettier-ignore
+  ];

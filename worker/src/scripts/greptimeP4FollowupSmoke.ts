@@ -30,6 +30,8 @@ import {
   getExperimentItemsFilterOptions,
   getExperimentScoreOptions,
   getExperimentItemsBatchIO,
+  getExperimentsFromEvents,
+  getExperimentsCountFromEvents,
   type DatasetRunItemRecordInsertType,
   type ScoreRecordInsertType,
   type ObservationRecordInsertType,
@@ -197,6 +199,19 @@ async function main() {
   // observations on t1: two GENERATION rows (prompt p1 v1, evaluator ev1, langgraph node/step).
   writer.addToQueue(GreptimeTable.Observations, genObs("op1", "t1"));
   writer.addToQueue(GreptimeTable.Observations, genObs("op2", "t1"));
+  // an ERROR span on RUN1's item-2 trace (t2) -> experiment error_count=1 (span-level per-trace scan).
+  writer.addToQueue(GreptimeTable.Observations, {
+    ...genObs("oerr", "t2"),
+    type: "SPAN",
+    level: "ERROR",
+    prompt_id: undefined,
+    prompt_name: undefined,
+    prompt_version: undefined,
+    total_cost: 0,
+    cost_details: {},
+    usage_details: {},
+    metadata: {},
+  });
 
   await writer.flushAll(true);
   await sleep(500);
@@ -478,6 +493,76 @@ async function main() {
       ) &&
       bio1.outputs.some((o) => o.experimentId === RUN2 && o.output == null),
     bio1,
+  );
+
+  // --- A2: experiments LIST ---
+  const experiments = await getExperimentsFromEvents({
+    projectId: SMOKE_PROJECT,
+    filter: [],
+  });
+  const e1 = experiments.find((e) => e.id === RUN1);
+  const e2 = experiments.find((e) => e.id === RUN2);
+  check(
+    "getExperimentsFromEvents: 2 experiments (run-one, run-two)",
+    experiments.length === 2 && !!e1 && !!e2,
+    experiments.map((e) => `${e.id}:${e.name}`),
+  );
+  check(
+    "experiments LIST run1: itemCount=2, errorCount=1 (ERROR span on t2), prompts=[[greet,1]], metadata.kind=smoke",
+    !!e1 &&
+      e1.itemCount === 2 &&
+      e1.errorCount === 1 &&
+      e1.name === "run-one" &&
+      e1.prompts.length === 1 &&
+      e1.prompts[0][0] === "greet" &&
+      e1.prompts[0][1] === 1 &&
+      (e1.metadata as any).kind === "smoke",
+    e1,
+  );
+  check(
+    "experiments LIST run2: itemCount=1, errorCount=0",
+    !!e2 && e2.itemCount === 1 && e2.errorCount === 0,
+    e2,
+  );
+
+  const expCount = await getExperimentsCountFromEvents({
+    projectId: SMOKE_PROJECT,
+    filter: [],
+  });
+  check("getExperimentsCountFromEvents: 2", expCount === 2, expCount);
+
+  // LIST with datasetId filter (experimentDatasetId) -> still both (same dataset).
+  const filtered = await getExperimentsFromEvents({
+    projectId: SMOKE_PROJECT,
+    filter: [
+      {
+        column: "experimentDatasetId",
+        operator: "any of",
+        value: [DS],
+        type: "stringOptions",
+      },
+    ],
+  });
+  check(
+    "experiments LIST datasetId filter: 2 (both in DS)",
+    filtered.length === 2,
+    filtered.map((e) => e.id),
+  );
+  const filteredNone = await getExperimentsFromEvents({
+    projectId: SMOKE_PROJECT,
+    filter: [
+      {
+        column: "experimentDatasetId",
+        operator: "any of",
+        value: ["nonexistent-ds"],
+        type: "stringOptions",
+      },
+    ],
+  });
+  check(
+    "experiments LIST datasetId filter (none): empty",
+    filteredNone.length === 0,
+    filteredNone,
   );
 
   await cleanup();
