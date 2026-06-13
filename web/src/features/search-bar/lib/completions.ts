@@ -804,7 +804,7 @@ export function planInputCompletions(
     const patterns = colon === -1 ? rankFilter(PATTERN_OPTIONS, tokenBody) : [];
     // Free-text guidance: a bare word can become a scoped full-text search
     // ("how do I search inside input?" answered at the moment of typing).
-    const searchIn: CompletionOption[] =
+    const searchScopes: CompletionOption[] =
       colon === -1 &&
       !negated &&
       resolveField(tokenBody) === null &&
@@ -834,7 +834,10 @@ export function planInputCompletions(
           ]
         : [];
     if (
-      fields.length + operators.length + patterns.length + searchIn.length ===
+      fields.length +
+        operators.length +
+        patterns.length +
+        searchScopes.length ===
       0
     )
       return null;
@@ -848,7 +851,7 @@ export function planInputCompletions(
         ...section(SECTION_FIELDS, fields),
         ...section(SECTION_OPERATORS, operators),
         ...section(SECTION_PATTERNS, patterns),
-        ...section(SECTION_SEARCH_IN, searchIn),
+        ...section(SECTION_SEARCH_IN, searchScopes),
       ],
     };
   }
