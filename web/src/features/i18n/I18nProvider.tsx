@@ -8,15 +8,17 @@ import {
 import { useRouter } from "next/router";
 import {
   defaultLocale,
+  formatMessage,
   isSupportedLocale,
   messages,
   type SupportedLocale,
   type TranslationKey,
+  type TranslationValues,
 } from "@/src/features/i18n/messages";
 
 type I18nContextValue = {
   locale: SupportedLocale;
-  t: (key: TranslationKey) => string;
+  t: (key: TranslationKey, values?: TranslationValues) => string;
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
@@ -29,8 +31,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       : defaultLocale;
 
   const t = useCallback(
-    (key: TranslationKey) =>
-      messages[locale][key] ?? messages[defaultLocale][key],
+    (key: TranslationKey, values?: TranslationValues) =>
+      formatMessage(
+        messages[locale][key] ?? messages[defaultLocale][key],
+        values,
+      ),
     [locale],
   );
 
