@@ -326,10 +326,13 @@ export function SearchComposer({
     : plan?.autoHighlight === true
       ? (options[0]?.id ?? null)
       : null;
-  const showTokenDiagnostics = !valid;
-  // The committed query is derived from valid filter state and can never be
-  // invalid, so global diagnostics depend only on a revealed failed commit.
+  // Both the per-token red pill and the global border follow the same
+  // "reveal on Enter/blur" rule — mid-typing and partial structured picks
+  // (level:, tags:(, has:) must not flash red. The committed query is derived
+  // from valid filter state and can never be invalid, so this depends only on
+  // a revealed failed commit.
   const showGlobalDiagnostics = !valid && invalidRevealDraft === draft;
+  const showTokenDiagnostics = showGlobalDiagnostics;
   const visibleDiagnostics = showGlobalDiagnostics ? diagnostics : [];
 
   const planRef = useLatest(plan);
@@ -736,8 +739,13 @@ export function SearchComposer({
       }
       setHighlightedOptionId(null);
       // Apply when the pick produced a valid query; a partial draft (e.g. a
-      // bare `level:` field pick) commits nothing and shows no error.
-      commitStructuredEdit();
+      // bare `level:` field pick) commits nothing and shows no error. A
+      // dot-prefix field pick (`metadata.`, `scores.`, `traceScores.`) parses
+      // as *valid free text*, so committing it would silently set searchQuery
+      // to the bare prefix — defer until the user picks/types a key.
+      if (!(option.kind === "field" && option.fieldId.endsWith("."))) {
+        commitStructuredEdit();
+      }
     },
     [
       appendIntent,

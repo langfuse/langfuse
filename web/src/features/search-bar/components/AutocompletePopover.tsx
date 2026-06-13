@@ -29,8 +29,8 @@ export function AutocompletePopover({
   const [left, setLeft] = React.useState(anchorLeft);
 
   // Collision math needs the rendered popover width — measurement, the one
-  // thing React cannot derive. Runs on every plan/anchor change.
-  React.useLayoutEffect(() => {
+  // thing React cannot derive.
+  const clamp = React.useCallback(() => {
     const pop = popRef.current;
     const container = containerRef.current;
     if (!pop || !container) return;
@@ -40,7 +40,25 @@ export function AutocompletePopover({
     const maxLeft = window.innerWidth - margin - containerLeft - width;
     const minLeft = margin - containerLeft;
     setLeft(Math.max(minLeft, Math.min(anchorLeft, maxLeft)));
-  }, [anchorLeft, containerRef, listbox.plan]);
+  }, [anchorLeft, containerRef]);
+
+  // Re-clamp on every plan/anchor change.
+  React.useLayoutEffect(() => {
+    clamp();
+  }, [clamp, listbox.plan]);
+
+  // `window.innerWidth` and the container rect both shift on viewport reflow
+  // (resize, browser zoom, sidebar collapse) without a re-render or a plan
+  // change. Observe the container so an open popover re-clamps instead of
+  // floating at a stale offset — same pattern as the X-button measurement in
+  // SearchComposer.
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => clamp());
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [clamp, containerRef]);
 
   return (
     <div ref={popRef} className="absolute top-full z-50 mt-1" style={{ left }}>
