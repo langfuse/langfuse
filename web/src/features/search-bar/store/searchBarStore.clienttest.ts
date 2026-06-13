@@ -46,4 +46,20 @@ describe("searchBarStore (draft-only)", () => {
     expect(next).toBe("env:dev");
     expect(store.getState().draft).toBe("env:dev");
   });
+
+  it("validates with scoreTypes so the store agrees with the commit gate", () => {
+    // `accuracy` is numeric, so `scores.accuracy:hello` can't lower. Without
+    // the same scoreTypes planCommit uses, the store would mark it valid and
+    // the red-border gate (which reads draftValid) would show nothing on Enter.
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(["accuracy"]),
+      categoricalScoreNames: new Set<string>(),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+    };
+    const store = createSearchBarStore(() => scoreTypes);
+    store.getState().actions.setDraft("scores.accuracy:hello");
+    expect(store.getState().draftValid).toBe(false);
+    expect(store.getState().draftDiagnostics.length).toBeGreaterThan(0);
+  });
 });

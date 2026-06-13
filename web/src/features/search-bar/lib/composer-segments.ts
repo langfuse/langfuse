@@ -8,6 +8,7 @@
 // from grammar semantics. Serialization stays separate and conservative
 // (qlang.ts, edits.ts).
 
+import type { ScoreTypeContext } from "./adapter";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import { lexTokens, type Diagnostic } from "./qlang";
 import { validateQuery } from "./validate";
@@ -118,8 +119,11 @@ function overlappingErrors(diagnostics: Diagnostic[], span: Span): string[] {
 // ---- projection ----
 
 // One-slot memo: the composer and its consumers all derive from the same
-// draft text within a render pass.
+// draft text within a render pass. Keyed on scoreTypes too, since it changes
+// which `scores.<name>` tokens classify as invalid (callers pass a stable,
+// memoized scoreTypes so the cache still hits across renders).
 let cacheKey: string | null = null;
+let cacheScoreTypes: ScoreTypeContext | undefined;
 let cacheVal: ComposerSegment[] = [];
 
 /**
@@ -133,10 +137,13 @@ let cacheVal: ComposerSegment[] = [];
  *   3. matches a filter AST leaf (incl. `-key:value` negation) → filter
  *   4. otherwise → freeText
  */
-export function deriveComposerSegments(draftText: string): ComposerSegment[] {
-  if (draftText === cacheKey) return cacheVal;
+export function deriveComposerSegments(
+  draftText: string,
+  scoreTypes?: ScoreTypeContext,
+): ComposerSegment[] {
+  if (draftText === cacheKey && scoreTypes === cacheScoreTypes) return cacheVal;
 
-  const { ast, diagnostics } = validateQuery(draftText);
+  const { ast, diagnostics } = validateQuery(draftText, scoreTypes);
   const leaves: Leaf[] = [];
   if (ast !== null) collectLeaves(ast, draftText, leaves);
   const leafByFrom = new Map<number, Leaf>();
@@ -221,6 +228,7 @@ export function deriveComposerSegments(draftText: string): ComposerSegment[] {
   }
 
   cacheKey = draftText;
+  cacheScoreTypes = scoreTypes;
   cacheVal = segments;
   return segments;
 }
