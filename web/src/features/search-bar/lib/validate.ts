@@ -1,0 +1,123 @@
+// Semantic validation — the single "is this committable" gate.
+//
+// The tolerant parser accepts structurally-fine input that the flat Langfuse
+// filter contract cannot represent (cross-field OR, junk values for typed
+// fields, negations with no counterpart…). Commit must gate on BOTH, with
+// span-carrying diagnostics so the editor can underline the offending token.
+//
+// Parity with the adapter is by construction: each top-level node is lowered
+// through the real adapter and its errors become diagnostics at that node's
+// span. `valid === true` therefore guarantees astToFilterState() lowers the
+// whole query without errors.
+
+import type { ASTNode, Span } from "./ast";
+import { astToFilterState } from "./adapter";
+import { nullableFields, resolveField } from "./fields";
+import { parse, type Diagnostic, type ParseResult } from "./qlang";
+
+export const MAX_QUERY_LENGTH = 2048;
+
+function nodeSpan(node: ASTNode, textLength: number): Span {
+  if (node.kind === "and" || node.kind === "or") {
+    if (node.parenSpan) return node.parenSpan;
+    const first = node.children[0];
+    const last = node.children[node.children.length - 1];
+    if (first && last) {
+      return {
+        from: nodeSpan(first, textLength).from,
+        to: nodeSpan(last, textLength).to,
+      };
+    }
+    return { from: 0, to: textLength };
+  }
+  return node.parenSpan ?? node.span ?? { from: 0, to: textLength };
+}
+
+const NULLABLE_FIELD_IDS = new Set(nullableFields().map((f) => f.id));
+
+/** `has:` on a column that always has a value matches everything. */
+function hasFilterWarnings(
+  node: ASTNode,
+  textLength: number,
+  out: Diagnostic[],
+): void {
+  switch (node.kind) {
+    case "filter": {
+      const ref = resolveField(node.key);
+      if (ref === null || ref.type !== "pseudo" || ref.id !== "has") return;
+      for (const v of node.values) {
+        const target = resolveField(v);
+        if (
+          target !== null &&
+          target.type === "field" &&
+          !NULLABLE_FIELD_IDS.has(target.field.id)
+        ) {
+          const span = nodeSpan(node, textLength);
+          out.push({
+            from: span.from,
+            to: span.to,
+            severity: "warning",
+            message: `"${target.field.id}" always has a value — this filter matches everything`,
+          });
+        }
+      }
+      return;
+    }
+    case "text":
+      return;
+    case "not":
+      hasFilterWarnings(node.child, textLength, out);
+      return;
+    case "and":
+    case "or":
+      for (const c of node.children) hasFilterWarnings(c, textLength, out);
+      return;
+  }
+}
+
+export function semanticDiagnostics(
+  ast: ASTNode | null,
+  textLength: number,
+): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  if (ast === null) return out;
+
+  // Lower each top-level node independently so error spans point at the
+  // offending node instead of the whole query.
+  const topLevel: ASTNode[] = ast.kind === "and" ? ast.children : [ast];
+  for (const node of topLevel) {
+    const { errors } = astToFilterState(node);
+    const span = nodeSpan(node, textLength);
+    for (const message of errors) {
+      out.push({ from: span.from, to: span.to, severity: "error", message });
+    }
+    hasFilterWarnings(node, textLength, out);
+  }
+
+  return out;
+}
+
+/**
+ * parse() + semantic checks + length cap, merged. `valid === true` guarantees
+ * the adapter can lower the query — the one commit gate.
+ */
+export function validateQuery(text: string): ParseResult {
+  const res = parse(text);
+  const diagnostics = [
+    ...res.diagnostics,
+    ...semanticDiagnostics(res.ast, text.length),
+  ];
+  if (text.length > MAX_QUERY_LENGTH) {
+    diagnostics.push({
+      from: 0,
+      to: text.length,
+      severity: "error",
+      message: `Query is too long (${text.length} chars, max ${MAX_QUERY_LENGTH})`,
+    });
+  }
+  return {
+    ast: res.ast,
+    diagnostics,
+    valid: !diagnostics.some((d) => d.severity === "error"),
+  };
+}
