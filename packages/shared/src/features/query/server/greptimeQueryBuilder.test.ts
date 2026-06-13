@@ -139,4 +139,39 @@ describe("GreptimeQueryBuilder", () => {
 
     expect(query).toMatch(/LIMIT 7\b/);
   });
+
+  it("auto-includes the by-type dimension when costByType is requested alone", () => {
+    const { query, postProcess } = build({
+      view: "observations",
+      metrics: [{ measure: "costByType", aggregation: "sum" }],
+    });
+    expect(query).toMatch(/json_to_string/);
+    expect(postProcess.byType?.keyDimensionAlias).toBe("costType");
+  });
+
+  it("rejects non-sum aggregation for a by-type measure", () => {
+    expect(() =>
+      build({
+        view: "observations",
+        dimensions: [{ field: "costType" }],
+        metrics: [{ measure: "costByType", aggregation: "avg" }],
+      }),
+    ).toThrow(/only 'sum'/i);
+  });
+
+  it("counts unique users via count(distinct) without nesting, rejects sum", () => {
+    const { query } = build({
+      view: "traces",
+      metrics: [{ measure: "uniqueUserIds", aggregation: "uniq" }],
+    });
+    expect(query).toMatch(/count\(distinct t\.user_id\)/);
+    expect(query).not.toMatch(/count\(distinct count\(distinct/);
+
+    expect(() =>
+      build({
+        view: "traces",
+        metrics: [{ measure: "uniqueUserIds", aggregation: "sum" }],
+      }),
+    ).toThrow(/not valid for measure/i);
+  });
 });

@@ -106,16 +106,19 @@ const tracesView: ViewDeclarationType = {
       relationTable: "scores",
       unit: "scores",
     },
+    // Raw id columns + `string` type so only count/uniq are valid (matching the CH v2 contract: sum
+    // is rejected, uniq counts distinct). The builder applies the aggregation, so the sql must NOT
+    // already aggregate — otherwise `uniq` would nest as count(distinct count(distinct ...)).
     uniqueUserIds: {
-      sql: "count(distinct t.user_id)",
+      sql: "t.user_id",
       alias: "uniqueUserIds",
-      type: "integer",
+      type: "string",
       unit: "users",
     },
     uniqueSessionIds: {
-      sql: "count(distinct t.session_id)",
+      sql: "t.session_id",
       alias: "uniqueSessionIds",
-      type: "integer",
+      type: "string",
       unit: "sessions",
     },
     latency: {

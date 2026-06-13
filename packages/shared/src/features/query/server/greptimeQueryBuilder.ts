@@ -328,6 +328,20 @@ export class GreptimeQueryBuilder {
       dims.unshift(entityDimension);
     }
     const measures = resolveMeasures(query, view);
+
+    // Auto-include the by-type key dimension (costType/usageType) required by costByType/usageByType
+    // when the widget requests the metric alone — mirrors the ClickHouse builder's requiresDimension
+    // auto-injection. Without it the dynamic-key fetch would have no key column and the query would
+    // be rejected even though it is a supported widget shape.
+    for (const m of measures) {
+      if (
+        m.requiresDimension &&
+        !dims.some((d) => d.alias === m.requiresDimension)
+      ) {
+        dims.push(resolveDimension(query.view, view, m.requiresDimension));
+      }
+    }
+
     const bucket = timeBucketExpr(query, view);
 
     const byTypeMeasure = measures.find((m) => m.isByType);
@@ -561,6 +575,13 @@ export class GreptimeQueryBuilder {
   ): GreptimeBuildResult {
     const base = baseAlias(view);
     const byTypeMeasure = measures.find((m) => m.isByType)!;
+    // Dynamic-key by-type expansion sums each JSON map key app-side; non-sum aggregations would be
+    // silently returned as sums under the requested alias, so reject them loudly.
+    if (byTypeMeasure.aggregation !== "sum") {
+      throw new InvalidRequestError(
+        `Aggregation '${byTypeMeasure.aggregation}' is not supported for the by-type measure '${byTypeMeasure.measure}' on GreptimeDB (only 'sum').`,
+      );
+    }
     const keyDim = dims.find((d) => d.isByType);
     if (!keyDim) {
       throw new InvalidRequestError(
