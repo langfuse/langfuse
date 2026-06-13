@@ -29,6 +29,7 @@ import {
   getExperimentMetricsFromEvents,
   getExperimentItemsFilterOptions,
   getExperimentScoreOptions,
+  getExperimentItemsBatchIO,
   type DatasetRunItemRecordInsertType,
   type ScoreRecordInsertType,
   type ObservationRecordInsertType,
@@ -146,8 +147,9 @@ const genObs = (id: string, traceId: string): ObservationRecordInsertType => ({
   provided_cost_details: {},
   cost_details: { input: 0.1, output: 0.2, total: 0.3 },
   total_cost: 0.3,
-  input: "{}",
-  output: "{}",
+  // Distinct from DRI dataset_item_input ({q:"x"}) so BatchIO input must come from the root obs.
+  input: JSON.stringify({ root: "input" }),
+  output: JSON.stringify({ root: "output" }),
   tool_definitions: {},
   tool_calls: [],
   tool_call_names: [],
@@ -453,6 +455,29 @@ async function main() {
     scoreOpts.experiment_scores_avg.includes("overall") &&
       scoreOpts.obs_score_categories.some((c) => c.label === "helpfulness"),
     scoreOpts,
+  );
+
+  // --- A2: batch IO (input from ROOT obs, not DRI item input; expected from DRI) ---
+  const batchIO = await getExperimentItemsBatchIO({
+    projectId: SMOKE_PROJECT,
+    itemIds: ["item-1", "item-2"],
+    baseExperimentId: RUN1,
+    compExperimentIds: [RUN2],
+  });
+  const bio1 = batchIO.find((b) => b.itemId === "item-1");
+  check(
+    "getExperimentItemsBatchIO item-1: input from root obs (not DRI), expected from DRI, RUN2 output null",
+    !!bio1 &&
+      (bio1.input ?? "").includes('"root":"input"') &&
+      !(bio1.input ?? "").includes('"q":"x"') &&
+      (bio1.expectedOutput ?? "").includes('"a":"y"') &&
+      bio1.outputs.some(
+        (o) =>
+          o.experimentId === RUN1 &&
+          (o.output ?? "").includes('"root":"output"'),
+      ) &&
+      bio1.outputs.some((o) => o.experimentId === RUN2 && o.output == null),
+    bio1,
   );
 
   await cleanup();

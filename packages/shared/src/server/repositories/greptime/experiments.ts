@@ -306,3 +306,88 @@ export const getExperimentRunScoreOptionsGreptime = async (params: {
   });
   return parseOptionRows(rows);
 };
+
+// ---------------------------------------------------------------------------
+// experiment items batch IO (input/output from root observation; expected from DRI)
+// ---------------------------------------------------------------------------
+
+const IO_TRUNCATE_LENGTH = 1000;
+const truncate = (v: string | null): string | null =>
+  v == null ? null : Array.from(v).slice(0, IO_TRUNCATE_LENGTH).join("");
+
+/**
+ * Per-(item, experiment) IO rows for the batch-compare view. Replaces `getExperimentItemsBatchIO`'s
+ * events-root-span read: `input`/`output` come from the item's ROOT observation (matching the CH
+ * `e.input`/`e.output` root-span semantics — NOT the DRI dataset_item_input), `expected_output` from
+ * the DRI denormalized `dataset_item_expected_output`. Deduped DRI joined to the root observation by
+ * `observation_id` is unique (no fan-out); the app-side fold (baseline preference) stays in the caller.
+ */
+export const getExperimentItemsBatchIORowsGreptime = async (params: {
+  projectId: string;
+  itemIds: string[];
+  experimentIds: string[];
+}): Promise<
+  {
+    item_id: string;
+    experiment_id: string;
+    input: string | null;
+    output: string | null;
+    expected_output: string | null;
+  }[]
+> => {
+  const { projectId, itemIds, experimentIds } = params;
+  if (itemIds.length === 0 || experimentIds.length === 0) return [];
+  const runs = greptimeInClause("dataset_run_id", experimentIds, "run");
+  const items = greptimeInClause("dataset_item_id", itemIds, "item");
+  const scope = `project_id = :projectId AND ${runs.sql} AND ${items.sql} AND ${notDeleted()}`;
+  const dedup = driDedupCte(
+    [
+      "dataset_item_id",
+      "dataset_run_id",
+      "trace_id",
+      "observation_id",
+      "dataset_item_expected_output",
+    ],
+    scope,
+  );
+
+  const bounds = await greptimeQuery<{ lo: Date | null; hi: Date | null }>({
+    query: `SELECT min(${quoteIdent("dataset_run_created_at")}) AS lo,
+        max(${quoteIdent("dataset_run_created_at")}) AS hi
+      FROM ${quoteIdent("dataset_run_items")} WHERE ${scope}`,
+    params: { projectId, ...runs.params, ...items.params },
+    readOnly: true,
+  });
+  const lo = greptimeDate(bounds[0]?.lo);
+  const hi = greptimeDate(bounds[0]?.hi);
+  if (!lo || !hi) return [];
+  const obsLo = greptimeTsParam(new Date(lo.getTime() - ONE_DAY_MS));
+  const obsHi = greptimeTsParam(new Date(hi.getTime() + ONE_DAY_MS));
+
+  const rows = await greptimeQuery<{
+    item_id: string;
+    experiment_id: string;
+    input: string | null;
+    output: string | null;
+    expected_output: string | null;
+  }>({
+    query: `
+      WITH dri_dedup AS (${dedup})
+      SELECT dri.dataset_item_id AS item_id, dri.dataset_run_id AS experiment_id,
+        o.input AS input, o.output AS output,
+        dri.dataset_item_expected_output AS expected_output
+      FROM dri_dedup dri
+      LEFT JOIN observations o ON o.id = dri.observation_id AND o.project_id = :projectId
+        AND o.trace_id = dri.trace_id AND o.start_time >= :obsLo AND o.start_time <= :obsHi
+        AND ${notDeleted("o")}`,
+    params: { projectId, ...runs.params, ...items.params, obsLo, obsHi },
+    readOnly: true,
+  });
+  return rows.map((r) => ({
+    item_id: r.item_id,
+    experiment_id: r.experiment_id,
+    input: truncate(r.input),
+    output: truncate(r.output),
+    expected_output: truncate(r.expected_output),
+  }));
+};

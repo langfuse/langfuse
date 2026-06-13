@@ -1,4 +1,3 @@
-import { env } from "../../env";
 import { type ScoreSourceType } from "../../domain";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
@@ -29,6 +28,7 @@ import {
   getExperimentMetricsGreptime,
   getExperimentItemScoreOptionsGreptime,
   getExperimentRunScoreOptionsGreptime,
+  getExperimentItemsBatchIORowsGreptime,
 } from "./greptime/experiments";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
@@ -976,8 +976,6 @@ export const getExperimentItemsFromEvents = async (
 // Batch IO Queries
 // ============================================================================
 
-const IO_TRUNCATE_LENGTH = 1000;
-
 /**
  * Output data for a single experiment.
  */
@@ -1018,41 +1016,10 @@ export const getExperimentItemsBatchIO = async (props: {
     ...compExperimentIds,
   ];
 
-  const queryBuilder = eventsExperimentsRootSpans({
+  const rows = await getExperimentItemsBatchIORowsGreptime({
     projectId,
+    itemIds,
     experimentIds: allExperimentIds,
-    experimentItemIds: itemIds,
-  })
-    .selectIO(true, env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT)
-    .selectRaw(
-      "leftUTF8(e.experiment_item_expected_output, {truncateLength: UInt32}) as expected_output",
-      "e.experiment_item_id as item_id",
-      "e.experiment_id as experiment_id",
-    )
-    // We must deterministically return the latest row for each experiment_item_id, experiment_id pair until we model repetitions (LFE-8965)
-    .orderByColumns([{ column: "e.start_time", direction: "DESC" }])
-    .limitBy("e.experiment_item_id, e.experiment_id");
-
-  const { query, params } = queryBuilder.buildWithParams();
-
-  const rows = await queryClickhouse<{
-    item_id: string;
-    experiment_id: string;
-    input: string | null;
-    output: string | null;
-    expected_output: string | null;
-  }>({
-    query,
-    params: {
-      ...params,
-      truncateLength: IO_TRUNCATE_LENGTH,
-    },
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-batch-io",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
   });
 
   // Group by item_id
