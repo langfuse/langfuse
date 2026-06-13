@@ -15,6 +15,10 @@ import { useI18n } from "@/src/features/i18n/I18nProvider";
 export function LanguageSwitcher() {
   const router = useRouter();
   const { locale, t } = useI18n();
+  const localeLabels: Record<SupportedLocale, string> = {
+    en: t("i18n.english"),
+    "zh-CN": t("i18n.chineseSimplified"),
+  };
 
   const onLocaleChange = (nextLocale: SupportedLocale) => {
     router
@@ -33,9 +37,7 @@ export function LanguageSwitcher() {
       <SelectContent>
         {supportedLocales.map((supportedLocale) => (
           <SelectItem key={supportedLocale} value={supportedLocale}>
-            {supportedLocale === "en"
-              ? t("i18n.english")
-              : t("i18n.chineseSimplified")}
+            {localeLabels[supportedLocale]}
           </SelectItem>
         ))}
       </SelectContent>
