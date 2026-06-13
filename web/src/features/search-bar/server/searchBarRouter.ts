@@ -7,8 +7,7 @@ import {
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { TRPCError } from "@trpc/server";
-
-export const SEARCH_BAR_PROJECT_METADATA_KEY = "searchBarEnabled";
+import { SEARCH_BAR_PROJECT_METADATA_KEY } from "@/src/features/search-bar/constants";
 
 export const searchBarRouter = createTRPCRouter({
   setEnabled: protectedProjectProcedure

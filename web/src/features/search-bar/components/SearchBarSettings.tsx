@@ -20,14 +20,14 @@ export function SearchBarSettings() {
             Enable the query search bar on the observations table
           </span>
           <span className="text-muted-foreground text-sm">
-            Replaces the filter sidebar and search field with a single
-            keyboard-driven query bar (e.g.{" "}
+            Adds a keyboard-driven query bar (e.g.{" "}
             <code className="bg-muted rounded px-1 py-0.5 font-mono text-xs">
               level:ERROR -env:dev latency:&gt;2
             </code>
-            ) with inline suggestions. Applies to all members of this project.
-            Existing filters keep working — they are converted into the query on
-            first use.
+            ) with inline suggestions, alongside the existing filter sidebar —
+            the two stay in sync. Replaces only the toolbar search field.
+            Applies to all members of this project; existing filters keep
+            working.
           </span>
         </div>
         <Switch
