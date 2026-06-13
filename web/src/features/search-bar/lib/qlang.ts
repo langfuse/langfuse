@@ -628,6 +628,20 @@ export function parse(input: string): ParseResult {
     }
 
     next();
+    if (t.raw === "-") {
+      // A bare "-" is not a negation operator — the dash form must be glued to
+      // its filter ("-env:dev"). Standalone (e.g. "-(env:dev)" or the typo
+      // "- env:dev") it would otherwise lower to a meaningless free-text term
+      // while the following group/filter stays positive, silently inverting
+      // the user's intent. Reject it with the same message as "-freetext".
+      diagnostics.push({
+        from: t.span.from,
+        to: t.span.to,
+        severity: "error",
+        message: "Negation (-) only applies to field filters, e.g. -env:dev",
+      });
+      return parseTermNode(t.raw, t.span, diagnostics);
+    }
     if (t.raw.startsWith("-") && t.raw.length > 1) {
       const inner = parseTermNode(
         t.raw.slice(1),

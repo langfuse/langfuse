@@ -348,6 +348,8 @@ describe("validateQuery", () => {
       "has:(endTime OR userId)", // positive multi-has
       "in:nope", // bad scope
       "x:1", // unknown field
+      "-(env:dev)", // standalone "-" before a group (must glue to the filter)
+      "- env:dev", // stray "-" then a filter
     ]) {
       const r = validateQuery(text);
       expect(r.valid, `expected invalid: ${text}`).toBe(false);
