@@ -24,6 +24,7 @@ import { type FilterState, type TracingSearchType } from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
 import {
+  isDanglingDotPrefix,
   negationIssue,
   operatorIssue,
   resolveField,
@@ -162,6 +163,16 @@ function lowerTopLevel(
       if (negated) {
         ctx.errors.push(
           `Free text "${node.value}" cannot be negated — search text is global`,
+        );
+        return;
+      }
+      // A bare dot-prefix (`metadata.`, `scores.`, …) parses as free text, so
+      // committing it would silently set searchQuery to the prefix. Reject it
+      // here so every commit path (typed Enter and structured pick) is gated.
+      // Quoted text is an explicit literal search and is allowed.
+      if (!node.quoted && isDanglingDotPrefix(node.value)) {
+        ctx.errors.push(
+          `Incomplete field "${node.value}" — add a key after the dot (e.g. metadata.region:eu)`,
         );
         return;
       }
