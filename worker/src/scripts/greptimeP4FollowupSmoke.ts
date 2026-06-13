@@ -27,6 +27,8 @@ import {
   getAgentGraphData,
   getExperimentNamesFromEvents,
   getExperimentMetricsFromEvents,
+  getExperimentItemsFilterOptions,
+  getExperimentScoreOptions,
   type DatasetRunItemRecordInsertType,
   type ScoreRecordInsertType,
   type ObservationRecordInsertType,
@@ -95,11 +97,13 @@ const score = (
   name: string,
   numeric: number | null,
   categorical: string | null,
+  extra: { observationId?: string; datasetRunId?: string } = {},
 ): ScoreRecordInsertType => ({
   id,
   project_id: SMOKE_PROJECT,
   trace_id: traceId,
-  observation_id: null,
+  observation_id: extra.observationId ?? null,
+  dataset_run_id: extra.datasetRunId,
   timestamp: now,
   name,
   value: numeric ?? 0,
@@ -176,6 +180,17 @@ async function main() {
     GreptimeTable.Scores,
     score("sc3", "t3", "quality", 0.5, null),
   );
+  // observation-level score on root op1 (t1) + run-level score on RUN1.
+  writer.addToQueue(
+    GreptimeTable.Scores,
+    score("sc_obs", "t1", "helpfulness", null, "high", {
+      observationId: "op1",
+    }),
+  );
+  writer.addToQueue(
+    GreptimeTable.Scores,
+    score("sc_run", "", "overall", 0.8, null, { datasetRunId: RUN1 }),
+  );
 
   // observations on t1: two GENERATION rows (prompt p1 v1, evaluator ev1, langgraph node/step).
   writer.addToQueue(GreptimeTable.Observations, genObs("op1", "t1"));
@@ -187,8 +202,8 @@ async function main() {
   // --- getTraceScoresForDatasetRuns ---
   const run1Scores = await getTraceScoresForDatasetRuns(SMOKE_PROJECT, [RUN1]);
   check(
-    "traceScoresForDatasetRuns run1: 2 scores (no dedup double-count)",
-    run1Scores.length === 2,
+    "traceScoresForDatasetRuns run1: 3 scores (sc1/sc2/sc_obs on t1, no dedup double-count)",
+    run1Scores.length === 3,
     run1Scores.map((s) => s.id),
   );
   check(
@@ -201,8 +216,8 @@ async function main() {
     RUN2,
   ]);
   check(
-    "traceScoresForDatasetRuns run1+run2: 3 rows (sc3 tagged run2)",
-    bothRuns.length === 3 &&
+    "traceScoresForDatasetRuns run1+run2: 4 rows (3 run1 + sc3 run2)",
+    bothRuns.length === 4 &&
       bothRuns.some((s) => s.id === "sc3" && s.datasetRunId === RUN2),
     bothRuns.map((s) => `${s.id}:${s.datasetRunId}`),
   );
@@ -210,8 +225,8 @@ async function main() {
   // --- getScoresForExperimentItems (experiment_id == dataset_run_id) ---
   const expScores = await getScoresForExperimentItems(SMOKE_PROJECT, [RUN1]);
   check(
-    "scoresForExperimentItems run1: 2 scores tagged experimentId=RUN1",
-    expScores.length === 2 &&
+    "scoresForExperimentItems run1: 3 scores tagged experimentId=RUN1",
+    expScores.length === 3 &&
       expScores.every((s: any) => s.experimentId === RUN1),
     expScores.map((s: any) => `${s.id}:${s.experimentId}`),
   );
@@ -267,10 +282,11 @@ async function main() {
     ],
   });
   check(
-    "Bug2 datasetRunItemRunIds=[RUN1]: {quality, sentiment}",
-    byRun1.length === 2 &&
-      new Set(byRun1.map((r) => r.name)).size === 2 &&
-      byRun1.every((r) => ["quality", "sentiment"].includes(r.name)),
+    "Bug2 datasetRunItemRunIds=[RUN1]: {quality, sentiment, helpfulness}",
+    new Set(byRun1.map((r) => r.name)).size === 3 &&
+      byRun1.every((r) =>
+        ["quality", "sentiment", "helpfulness"].includes(r.name),
+      ),
     byRun1.map((r) => r.name),
   );
   const byRun2 = await getScoresGroupedByNameSourceType({
@@ -301,8 +317,8 @@ async function main() {
     ],
   });
   check(
-    "Bug2 datasetId=[DS]: all 3 score names present",
-    new Set(byDataset.map((r) => r.name)).size === 2,
+    "Bug2 datasetId=[DS]: {quality, sentiment, helpfulness}",
+    new Set(byDataset.map((r) => r.name)).size === 3,
     byDataset.map((r) => r.name),
   );
   const byItem = await getScoresGroupedByNameSourceType({
@@ -409,6 +425,34 @@ async function main() {
     "getExperimentMetrics run2: no obs -> totalCost null, latencyAvg null",
     !!m2 && m2.totalCost == null && m2.latencyAvg == null,
     m2,
+  );
+
+  // --- A2: item + run score filter options ---
+  const itemOpts = await getExperimentItemsFilterOptions({
+    projectId: SMOKE_PROJECT,
+    experimentIds: [RUN1],
+  });
+  check(
+    "getExperimentItemsFilterOptions: trace numeric=[quality], trace cat=[sentiment:positive], obs cat=[helpfulness:high]",
+    itemOpts.trace_scores_avg.includes("quality") &&
+      itemOpts.trace_score_categories.some(
+        (c) => c.label === "sentiment" && c.values.includes("positive"),
+      ) &&
+      itemOpts.obs_score_categories.some(
+        (c) => c.label === "helpfulness" && c.values.includes("high"),
+      ),
+    itemOpts,
+  );
+
+  const scoreOpts = await getExperimentScoreOptions({
+    projectId: SMOKE_PROJECT,
+    experimentIds: [RUN1],
+  });
+  check(
+    "getExperimentScoreOptions: experiment-run numeric=[overall], obs cat=[helpfulness]",
+    scoreOpts.experiment_scores_avg.includes("overall") &&
+      scoreOpts.obs_score_categories.some((c) => c.label === "helpfulness"),
+    scoreOpts,
   );
 
   await cleanup();
