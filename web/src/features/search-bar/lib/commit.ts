@@ -9,7 +9,7 @@
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
-import { astToFilterState } from "./adapter";
+import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { serialize, type Diagnostic } from "./qlang";
 import { validateQuery } from "./validate";
 
@@ -31,14 +31,21 @@ export type CommitResult =
  * Validate and lower `draftText`. `committed` carries everything the table
  * needs; `invalid` carries the span-tagged diagnostics for the editor to show.
  * `validateQuery` and `astToFilterState` agree by construction, so a valid
- * draft always lowers without errors.
+ * draft always lowers without errors. `scoreTypes` (observed score names by
+ * type) lets `scores.<name>:<value>` lower to the right column.
  */
-export function planCommit(draftText: string): CommitResult {
+export function planCommit(
+  draftText: string,
+  scoreTypes?: ScoreTypeContext,
+): CommitResult {
   const res = validateQuery(draftText.trim());
   if (!res.valid) {
     return { status: "invalid", diagnostics: res.diagnostics };
   }
-  const { filters, searchQuery, searchType } = astToFilterState(res.ast);
+  const { filters, searchQuery, searchType } = astToFilterState(
+    res.ast,
+    scoreTypes,
+  );
   return {
     status: "committed",
     filters,

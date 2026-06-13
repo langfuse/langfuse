@@ -8,6 +8,8 @@
 //   (metadata keys are not enumerated by the API today — metadata key paths
 //   complete from free typing only)
 
+import type { ScoreTypeContext } from "./adapter";
+
 export type ObservedValue = { value: string; count?: number };
 export type ObservedOptions = Record<string, ObservedValue[]>;
 
@@ -61,4 +63,23 @@ export function toObservedOptions(
     }
   }
   return out;
+}
+
+/**
+ * Derive the score-name→type sets the adapter needs to route
+ * `scores.<name>:<value>` to the numeric (`scores_avg`) vs categorical
+ * (`score_categories`) column. Built from the same observed map the completion
+ * planner reads, so the bar's suggestions and its commit agree on score types.
+ */
+export function scoreTypeContextFromObserved(
+  observed: ObservedOptions | undefined,
+): ScoreTypeContext {
+  const names = (column: string): Set<string> =>
+    new Set((observed?.[column] ?? []).map((o) => o.value));
+  return {
+    numericScoreNames: names("scores_avg"),
+    categoricalScoreNames: names("score_categories"),
+    traceNumericScoreNames: names("trace_scores_avg"),
+    traceCategoricalScoreNames: names("trace_score_categories"),
+  };
 }
