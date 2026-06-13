@@ -91,14 +91,28 @@ describe("GreptimeQueryBuilder", () => {
     expect(query).toMatch(/t\.`user_id`/);
   });
 
-  it("throws on deferred experiment dimensions", () => {
-    expect(() =>
-      build({
-        view: "scores-numeric",
-        dimensions: [{ field: "experimentName" }],
-        metrics: [{ measure: "count", aggregation: "count" }],
-      }),
-    ).toThrow(/not supported on GreptimeDB/i);
+  it("joins the dataset_run_items relation for experiment dimensions (P4)", () => {
+    const { query } = build({
+      view: "scores-numeric",
+      dimensions: [{ field: "experimentName" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+    });
+    // experiment relation joins a DISTINCT dataset_run_items subquery (alias dri); no time bound.
+    expect(query).toMatch(
+      /INNER JOIN \(SELECT DISTINCT[\s\S]*dataset_run_items[\s\S]*\) AS dri/i,
+    );
+    expect(query).toMatch(/dri\.experiment_name/);
+    expect(query).not.toMatch(/dataset_run_created_at/);
+  });
+
+  it("reads datasetRunId as a direct scores column (no relation join)", () => {
+    const { query } = build({
+      view: "scores-numeric",
+      dimensions: [{ field: "datasetRunId" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+    });
+    expect(query).toMatch(/s\.dataset_run_id/);
+    expect(query).not.toMatch(/dataset_run_items/);
   });
 
   it("projects entityDimension as entity_dimension", () => {

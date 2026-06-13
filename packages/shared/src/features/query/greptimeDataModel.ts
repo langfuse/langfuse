@@ -53,15 +53,33 @@ const ROW_LATENCY_MS =
 export const BYTYPE_SQL = "__BYTYPE__";
 
 /**
- * v2-only experiment / dataset-run fields, deferred to P4. Referencing any of these resolves to a
- * loud InvalidRequestError. Removing an entry here (once the P4 read path exists) re-enables it.
+ * Experiment / dataset-run dimensions are supported as of P4: `datasetRunId` reads the scores
+ * projection column directly; `experimentName` / `experimentId` / `experimentDatasetId` join the
+ * `dataset_run_items` projection (experiment = dataset run). Nothing is deferred anymore, so the set
+ * is empty (kept for the `assertGreptimeSupportedField` / `validateQuery` call sites).
  */
-export const GREPTIME_UNSUPPORTED: ReadonlySet<string> = new Set([
-  "experimentName",
-  "experimentId",
-  "experimentDatasetId",
-  "datasetRunId",
-]);
+export const GREPTIME_UNSUPPORTED: ReadonlySet<string> = new Set<string>();
+
+/**
+ * The experiment relation join source: a DISTINCT projection of `dataset_run_items` exposing the
+ * per-trace experiment identity. Experiment enrichment is TRACE-LEVEL (every observation/score of a
+ * trace shares the run's experiment), so both observations and scores correlate by `trace_id`. The
+ * DISTINCT collapses a trace's many run items to one row per (trace, run), so a single-run trace
+ * never fans out; a trace in multiple runs contributes once per experiment group (correct multi-
+ * membership). `is_deleted = false` is baked in (the builder skips the usual relation `notDeleted`).
+ */
+const DATASET_RUN_ITEMS_RELATION_QUERY =
+  "SELECT DISTINCT project_id, trace_id, " +
+  "dataset_run_id AS experiment_id, dataset_run_name AS experiment_name, " +
+  "dataset_id AS experiment_dataset_id FROM dataset_run_items WHERE is_deleted = false";
+
+const datasetRunItemsRelation = (joinConditionSql: string) => ({
+  name: "dataset_run_items",
+  joinConditionSql,
+  timeDimension: "dataset_run_created_at",
+  baseQuery: DATASET_RUN_ITEMS_RELATION_QUERY,
+  skipTimeBound: true,
+});
 
 // ---------------------------------------------------------------------------
 // traces view (alias `t`) — relation-backed measures join observations (`o`) / scores (`sc`)
@@ -256,6 +274,25 @@ const observationsView: ViewDeclarationType = {
       type: "string",
       pairExpand: { valuesSql: "o.usage_details", valueAlias: "usage_value" },
     },
+    // experiment dimensions (relation `dataset_run_items`, alias `dri`); experiment = dataset run.
+    experimentName: {
+      sql: "dri.experiment_name",
+      alias: "experimentName",
+      type: "string",
+      relationTable: "dataset_run_items",
+    },
+    experimentId: {
+      sql: "dri.experiment_id",
+      alias: "experimentId",
+      type: "string",
+      relationTable: "dataset_run_items",
+    },
+    experimentDatasetId: {
+      sql: "dri.experiment_dataset_id",
+      alias: "experimentDatasetId",
+      type: "string",
+      relationTable: "dataset_run_items",
+    },
   },
   measures: {
     count: { sql: "*", alias: "count", type: "integer", unit: "observations" },
@@ -348,6 +385,9 @@ const observationsView: ViewDeclarationType = {
         "ON o.id = sc.observation_id AND o.project_id = sc.project_id",
       timeDimension: "timestamp",
     },
+    dataset_run_items: datasetRunItemsRelation(
+      "ON o.project_id = dri.project_id AND o.trace_id = dri.trace_id",
+    ),
   },
   segments: [],
   timeDimension: "start_time",
@@ -437,6 +477,25 @@ const scoreSharedDimensions: DimensionsDeclarationType = {
     type: "string",
     relationTable: "observations",
   },
+  // Run-level scores carry `dataset_run_id` on the projection directly (experiment = dataset run).
+  datasetRunId: {
+    sql: "s.dataset_run_id",
+    alias: "datasetRunId",
+    type: "string",
+  },
+  // Observation-attached experiment identity, correlated by trace through `dataset_run_items`.
+  experimentName: {
+    sql: "dri.experiment_name",
+    alias: "experimentName",
+    type: "string",
+    relationTable: "dataset_run_items",
+  },
+  experimentId: {
+    sql: "dri.experiment_id",
+    alias: "experimentId",
+    type: "string",
+    relationTable: "dataset_run_items",
+  },
 };
 
 const scoreRelations: ViewDeclarationType["tableRelations"] = {
@@ -451,6 +510,9 @@ const scoreRelations: ViewDeclarationType["tableRelations"] = {
       "ON s.observation_id = o.id AND s.project_id = o.project_id",
     timeDimension: "start_time",
   },
+  dataset_run_items: datasetRunItemsRelation(
+    "ON s.project_id = dri.project_id AND s.trace_id = dri.trace_id",
+  ),
 };
 
 const scoresNumericView: ViewDeclarationType = {
@@ -526,6 +588,10 @@ const HIGH_CARDINALITY_FIELDS = [
   "userId",
   "sessionId",
   "parentObservationId",
+  "datasetRunId",
+  "experimentId",
+  "experimentName",
+  "experimentDatasetId",
 ];
 for (const view of Object.values(greptimeViewDeclarations)) {
   for (const field of HIGH_CARDINALITY_FIELDS) {

@@ -63,6 +63,13 @@ export const viewDeclaration = z.object({
       joinConditionSql: z.string(),
       timeDimension: z.string(),
       useFinal: z.boolean().optional(),
+      // GreptimeDB only (04-read-path.md, P4): when set, the relation joins this inline subquery
+      // instead of the physical `name` table — used by the experiment relation, which joins a
+      // DISTINCT projection of `dataset_run_items` to avoid fan-out double-counting.
+      baseQuery: z.string().optional(),
+      // GreptimeDB only: skip the relation time-window predicate (the experiment relation's
+      // `dataset_run_created_at` does not align with the observation/score query window).
+      skipTimeBound: z.boolean().optional(),
     }),
   ),
   // Segments are used to apply "constant" filters to the query. For example, if we only want one type of observations.
