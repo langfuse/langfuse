@@ -3,7 +3,7 @@ import {
   FTS_MATCH_OPERATOR,
   type FtsMatchOperator,
 } from "../../../interfaces/filters";
-import { clickhouseCompliantRandomCharacters } from "../../repositories";
+import { clickhouseCompliantRandomCharacters } from "../../repositories/clickhouse";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import { quoteIdent } from "../schemaUtils";
 

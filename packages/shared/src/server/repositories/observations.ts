@@ -11,7 +11,6 @@ import { FilterState } from "../../types";
 import { FilterList, FullObservations } from "../queries";
 import { OrderByState } from "../../interfaces/orderBy";
 import { getTracesByIds } from "./traces";
-import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
@@ -35,7 +34,6 @@ import {
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
-import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 import * as greptimeObservationReads from "./greptime/observations";
 import {
   getObservationsTableCountGreptime,
@@ -754,141 +752,13 @@ export const getCostByEvaluatorIds = (
 
 // ─── Public-API observation query helpers ─────────────────────────────────────
 
-export const generateObservationsForPublicApi = async ({
-  projectId,
-  filter,
-  pagination,
-}: {
+export const generateObservationsForPublicApi = (args: {
   projectId: string;
   filter: FilterList;
   pagination: { limit: number; page: number };
-}) => {
-  const appliedFilter = filter.apply();
-  const traceFilter = filter.find((f) => f.clickhouseTable === "traces");
+}) => greptimeObservationReads.generateObservationsForPublicApi(args);
 
-  const disableObservationsFinal = await shouldSkipObservationsFinal(projectId);
-
-  const query = `
-    with clickhouse_keys as (
-      SELECT DISTINCT
-        id,
-        trace_id,
-        project_id,
-        type,
-        toDate(start_time)
-      FROM observations o
-        ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
-      WHERE o.project_id = {projectId: String}
-        ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
-        AND ${appliedFilter.query}
-      ORDER BY start_time DESC
-        LIMIT {limit: Int32} OFFSET {offset: Int32}
-    )
-    SELECT
-      id,
-      trace_id,
-      project_id,
-      type,
-      parent_observation_id,
-      environment,
-      start_time,
-      end_time,
-      name,
-      metadata,
-      level,
-      status_message,
-      version,
-      input,
-      output,
-      provided_model_name,
-      internal_model_id,
-      model_parameters,
-      provided_usage_details,
-      usage_details,
-      provided_cost_details,
-      cost_details,
-      total_cost,
-      completion_start_time,
-      prompt_id,
-      prompt_name,
-      prompt_version,
-      created_at,
-      updated_at,
-      event_ts
-    FROM observations o ${disableObservationsFinal ? "" : "FINAL"}
-    WHERE o.project_id = {projectId: String}
-      AND (id, trace_id, project_id, type, toDate(start_time)) in (select * from clickhouse_keys)
-    ORDER BY start_time DESC
-  `;
-
-  return measureAndReturn({
-    operationName: "generateObservationsForPublicApi",
-    projectId,
-    input: {
-      params: {
-        ...appliedFilter.params,
-        projectId,
-        limit: pagination.limit,
-        offset: (pagination.page - 1) * pagination.limit,
-      },
-      tags: {
-        feature: "tracing",
-        type: "observation",
-        projectId,
-        operation_name: "generateObservationsForPublicApi",
-      },
-    },
-    fn: async (input) => {
-      const result = await queryClickhouse<ObservationRecordReadType>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-      return result.map((r) => convertObservation(r));
-    },
-  });
-};
-
-export const getObservationsCountForPublicApi = async ({
-  projectId,
-  filter,
-}: {
+export const getObservationsCountForPublicApi = (args: {
   projectId: string;
   filter: FilterList;
-}) => {
-  const appliedFilter = filter.apply();
-  const traceFilter = filter.find((f) => f.clickhouseTable === "traces");
-
-  const query = `
-    SELECT count() as count
-    FROM observations o
-    ${traceFilter ? `LEFT JOIN __TRACE_TABLE__ t ON o.trace_id = t.id AND t.project_id = o.project_id` : ""}
-    WHERE o.project_id = {projectId: String}
-    ${traceFilter ? `AND t.project_id = {projectId: String}` : ""}
-    AND ${appliedFilter.query}
-  `;
-
-  return measureAndReturn({
-    operationName: "getObservationsCountForPublicApi",
-    projectId,
-    input: {
-      params: { ...appliedFilter.params, projectId },
-      tags: {
-        feature: "tracing",
-        type: "observation",
-        projectId,
-        operation_name: "getObservationsCountForPublicApi",
-      },
-    },
-    fn: async (input) => {
-      const records = await queryClickhouse<{ count: string }>({
-        query: query.replace("__TRACE_TABLE__", "traces"),
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "ReadOnly",
-      });
-      return records.map((record) => Number(record.count)).shift();
-    },
-  });
-};
+}) => greptimeObservationReads.getObservationsCountForPublicApi(args);
