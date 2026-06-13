@@ -73,6 +73,24 @@ describe("GreptimeQueryBuilder", () => {
     expect(postProcess.byType?.valueMetricAlias).toBe("sum_costByType");
   });
 
+  it("joins relation tables required only by filters", () => {
+    const { query } = build({
+      view: "observations",
+      filters: [
+        {
+          column: "userId",
+          type: "string",
+          operator: "=",
+          value: "user-1",
+        },
+      ],
+      metrics: [{ measure: "count", aggregation: "count" }],
+    });
+
+    expect(query).toMatch(/INNER JOIN .*traces.* AS t/);
+    expect(query).toMatch(/t\.`user_id`/);
+  });
+
   it("throws on deferred experiment dimensions", () => {
     expect(() =>
       build({
@@ -83,6 +101,25 @@ describe("GreptimeQueryBuilder", () => {
     ).toThrow(/not supported on GreptimeDB/i);
   });
 
+  it("projects entityDimension as entity_dimension", () => {
+    const { query } = build({
+      view: "observations",
+      entityDimension: { field: "name" },
+      filters: [
+        {
+          column: "name",
+          type: "string",
+          operator: "=",
+          value: "generation-a",
+        },
+      ],
+      metrics: [{ measure: "count", aggregation: "count" }],
+    });
+
+    expect(query).toMatch(/o\.name AS `entity_dimension`/);
+    expect(query).toMatch(/GROUP BY o\.name/);
+  });
+
   it("score segment + scores view builds with data_type filter", () => {
     const { query } = build({
       view: "scores-numeric",
@@ -90,5 +127,16 @@ describe("GreptimeQueryBuilder", () => {
     });
     expect(query).toMatch(/data_type/);
     expect(query).toMatch(/avg\(s\.value\)/);
+  });
+
+  it("honors public metrics config.row_limit", () => {
+    const { query } = build({
+      view: "observations",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", aggregation: "count" }],
+      config: { row_limit: 7 },
+    } as unknown as Partial<QueryType> & Pick<QueryType, "view">);
+
+    expect(query).toMatch(/LIMIT 7\b/);
   });
 });

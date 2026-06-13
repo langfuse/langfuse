@@ -55,10 +55,15 @@ const PREFIX_TABLE: Record<string, string> = {
   sc: "scores",
 };
 
-// obs↔trace and score↔trace lookbacks (absolute lower bound on the child time dimension, matching
-// the P1/P2 read paths). Keyed by relation table name.
+// Relation time-window lookbacks (absolute lower bound on the joined relation's time dimension),
+// keyed by relation table name. For CHILD joins (traces -> observations/scores) the child can start
+// slightly after the parent. For PARENT joins (observations/scores -> traces) the parent trace
+// starts BEFORE the child, by up to the obs↔trace interval; without a lookback the INNER join would
+// drop in-window children whose parent trace started before `fromTimestamp` (silent under-count,
+// e.g. a userId-filtered observations widget). 2 DAY covers the obs↔trace interval in both cases.
 const RELATION_LOOKBACK_MS: Record<string, number> = {
   observations: 2 * 24 * 60 * 60 * 1000, // OBSERVATIONS_TO_TRACE_INTERVAL = 2 DAY
+  traces: 2 * 24 * 60 * 60 * 1000, // parent trace of in-window observations/scores
   scores: 60 * 60 * 1000, // TRACE_TO_SCORES_INTERVAL = 1 HOUR
 };
 
@@ -115,6 +120,12 @@ type AppliedMeasure = {
   isByType: boolean;
   requiresDimension?: string;
 };
+
+type QueryChartConfig = NonNullable<QueryType["chartConfig"]>;
+
+const getChartConfig = (query: QueryType): QueryChartConfig | undefined =>
+  ((query as unknown as { config?: QueryChartConfig }).config ??
+    query.chartConfig) as QueryChartConfig | undefined;
 
 const baseAlias = (view: ViewDeclarationType): string => {
   switch (view.baseCte) {
@@ -211,32 +222,40 @@ const buildFilterMappings = (
   return mappings;
 };
 
+const resolveDimension = (
+  viewName: string,
+  view: ViewDeclarationType,
+  field: string,
+  aliasOverride?: string,
+): AppliedDimension => {
+  assertGreptimeSupportedField(field);
+  const dim = view.dimensions[field];
+  if (!dim) {
+    throw new InvalidRequestError(
+      `Invalid dimension '${field}' for view '${viewName}'. Must be one of ${Object.keys(view.dimensions).join(", ")}`,
+    );
+  }
+  const isByType = dim.sql === BYTYPE_SQL;
+  return {
+    field,
+    alias: aliasOverride ?? dim.alias ?? field,
+    sql: dim.sql,
+    relationTable: dim.relationTable,
+    isByType,
+    byTypeJson: isByType
+      ? dim.pairExpand?.valuesSql.includes("cost_details")
+        ? "cost_details"
+        : "usage_details"
+      : undefined,
+  };
+};
+
 const resolveDimensions = (
   query: QueryType,
+  viewName: string,
   view: ViewDeclarationType,
 ): AppliedDimension[] =>
-  query.dimensions.map((d) => {
-    assertGreptimeSupportedField(d.field);
-    const dim = view.dimensions[d.field];
-    if (!dim) {
-      throw new InvalidRequestError(
-        `Invalid dimension '${d.field}' for view '${query.view}'. Must be one of ${Object.keys(view.dimensions).join(", ")}`,
-      );
-    }
-    const isByType = dim.sql === BYTYPE_SQL;
-    return {
-      field: d.field,
-      alias: dim.alias ?? d.field,
-      sql: dim.sql,
-      relationTable: dim.relationTable,
-      isByType,
-      byTypeJson: isByType
-        ? dim.pairExpand?.valuesSql.includes("cost_details")
-          ? "cost_details"
-          : "usage_details"
-        : undefined,
-    };
-  });
+  query.dimensions.map((d) => resolveDimension(viewName, view, d.field));
 
 const resolveMeasures = (
   query: QueryType,
@@ -293,7 +312,21 @@ export class GreptimeQueryBuilder {
     }
 
     const view = getGreptimeViewDeclaration(query.view);
-    const dims = resolveDimensions(query, view);
+    const dims = resolveDimensions(query, query.view, view);
+    if (query.entityDimension) {
+      const entityDimension = resolveDimension(
+        query.view,
+        view,
+        query.entityDimension.field,
+        "entity_dimension",
+      );
+      if (entityDimension.isByType) {
+        throw new InvalidRequestError(
+          `Invalid entity dimension: ${query.entityDimension.field}. Entity dimensions must be scalar view dimensions.`,
+        );
+      }
+      dims.unshift(entityDimension);
+    }
     const measures = resolveMeasures(query, view);
     const bucket = timeBucketExpr(query, view);
 
@@ -384,12 +417,18 @@ export class GreptimeQueryBuilder {
   }
 
   private collectRelations(
+    query: QueryType,
+    view: ViewDeclarationType,
     dims: AppliedDimension[],
     measures: AppliedMeasure[],
   ): Set<string> {
     const set = new Set<string>();
     for (const d of dims) if (d.relationTable) set.add(d.relationTable);
     for (const m of measures) if (m.relationTable) set.add(m.relationTable);
+    for (const filter of query.filters) {
+      const dimension = view.dimensions[filter.column];
+      if (dimension?.relationTable) set.add(dimension.relationTable);
+    }
     return set;
   }
 
@@ -405,7 +444,7 @@ export class GreptimeQueryBuilder {
     bucket: { expr: string; granularity: Exclude<Granularity, "auto"> } | null,
   ): GreptimeBuildResult {
     const base = baseAlias(view);
-    const relations = this.collectRelations(dims, measures);
+    const relations = this.collectRelations(query, view, dims, measures);
     const needsTwoLevel = measures.some((m) => m.relationTable);
     const { fromClause, parameters } = this.buildFromAndWhere(
       query,
@@ -415,10 +454,6 @@ export class GreptimeQueryBuilder {
     );
 
     const dimAliases = dims.map((d) => d.alias);
-    const metricAliases = measures.map((m) => `${m.aggregation}_${m.alias}`);
-    if (bucket) {
-      metricAliases.push(...[]); // metrics tracked separately
-    }
     const groupOutAliases = [
       ...dimAliases,
       ...(bucket ? ["time_dimension"] : []),
@@ -534,7 +569,7 @@ export class GreptimeQueryBuilder {
     }
     const jsonColumn = keyDim.byTypeJson ?? "usage_details";
     const groupDims = dims.filter((d) => !d.isByType);
-    const relations = this.collectRelations(groupDims, []);
+    const relations = this.collectRelations(query, view, groupDims, []);
     const { fromClause, parameters } = this.buildFromAndWhere(
       query,
       projectId,
@@ -624,7 +659,7 @@ export class GreptimeQueryBuilder {
       ? ` ORDER BY ${order.map((o) => `${quoteIdent(o.field)} ${o.direction === "desc" ? "DESC" : "ASC"}`).join(", ")}`
       : "";
 
-    const rowLimit = query.chartConfig?.row_limit;
+    const rowLimit = getChartConfig(query)?.row_limit;
     if (rowLimit) clause += ` LIMIT ${rowLimit}`;
     return clause;
   }
