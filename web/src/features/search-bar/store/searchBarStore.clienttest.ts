@@ -47,6 +47,24 @@ describe("searchBarStore (draft-only)", () => {
     expect(store.getState().draft).toBe("env:dev");
   });
 
+  it("revalidate refreshes draftValid when scoreTypes change (async observed load)", () => {
+    // The draft was typed before `observed` loaded (empty score sets → numeric
+    // value falls back to a clean categorical filter). Once observed loads,
+    // revalidate must re-run validation so draftValid agrees with planCommit.
+    let st = {
+      numericScoreNames: new Set<string>(),
+      categoricalScoreNames: new Set<string>(),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+    };
+    const store = createSearchBarStore(() => st);
+    store.getState().actions.setDraft("scores.accuracy:hello");
+    expect(store.getState().draftValid).toBe(true);
+    st = { ...st, numericScoreNames: new Set<string>(["accuracy"]) };
+    store.getState().actions.revalidate();
+    expect(store.getState().draftValid).toBe(false);
+  });
+
   it("validates with scoreTypes so the store agrees with the commit gate", () => {
     // `accuracy` is numeric, so `scores.accuracy:hello` can't lower. Without
     // the same scoreTypes planCommit uses, the store would mark it valid and

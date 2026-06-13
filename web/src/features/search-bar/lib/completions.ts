@@ -648,6 +648,19 @@ function valueStageSections(
   }
 }
 
+/**
+ * Strip surrounding quotes from a value token so it matches observed values.
+ * A closed pair (`"My Tag"`) unescapes `\"`/`\\` like the parser's unquote; a
+ * lone leading quote (mid-typing, no closing quote yet) is just stripped.
+ * Stripping only the leading quote left a stray trailing one, so quoted values
+ * matched nothing and the value-stage popover vanished on switch.
+ */
+function stripValueQuotes(raw: string): string {
+  return raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')
+    ? raw.slice(1, -1).replace(/\\(["\\])/g, "$1")
+    : raw.replace(/^"/, "");
+}
+
 function groupedValueSegment(
   valuePart: string,
   relValuePos: number,
@@ -682,7 +695,7 @@ function groupedValueSegment(
   return {
     from: valueStart + 1 + fromInner,
     to: valueStart + 1 + toInner,
-    typed: inner.slice(fromInner, toInner).replace(/^"/, ""),
+    typed: stripValueQuotes(inner.slice(fromInner, toInner)),
     completeGroup: close !== -1,
   };
 }
@@ -881,16 +894,9 @@ export function planInputCompletions(
       : "";
   const segFrom = segFromBase + valuePrefix.length;
   const segTo = grouped?.to ?? segFromBase + seg!.text.length;
-  // Drop quotes so the typed text matches observed values. A closed pair (a
-  // value picked/seeded via serializeValue, e.g. `"My Test Trace"`) unescapes
-  // like the parser; a lone leading quote (mid-typing, no closing quote yet)
-  // is just stripped. Stripping only the leading quote left a stray trailing
-  // one, so quoted values matched nothing and the popover vanished on switch.
-  const rawTyped = activeValueText.slice(valuePrefix.length);
-  const typed =
-    rawTyped.length >= 2 && rawTyped.startsWith('"') && rawTyped.endsWith('"')
-      ? rawTyped.slice(1, -1).replace(/\\(["\\])/g, "$1")
-      : rawTyped.replace(/^"/, "");
+  // Drop quotes so the typed text matches observed values (both the grouped
+  // and non-grouped value segments go through the same helper).
+  const typed = stripValueQuotes(activeValueText.slice(valuePrefix.length));
   const groupedPlanAttrs =
     grouped === null ? {} : { keepOpenOnPick: !grouped.completeGroup };
 
