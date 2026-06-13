@@ -1,19 +1,10 @@
-import {
-  FilterCondition,
-  type ScoreDataTypeType,
-  TracingSearchType,
-  tracesTableCols,
-} from "@langfuse/shared";
+import { FilterCondition, TracingSearchType } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
-  queryClickhouseStream,
+  getScoresForTraces,
+  streamTracesForExport,
   logger,
-  FilterList,
-  createFilterFromFilterState,
   tracesTableUiColumnDefinitions,
-  clickhouseSearchCondition,
-  parseClickhouseUTCDateTimeFormat,
-  StringFilter,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -24,7 +15,7 @@ import {
 } from "./getDatabaseReadStream";
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
 
-const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
+const PAGE_SIZE = 1000;
 
 export const getTraceStream = async (props: {
   projectId: string;
@@ -43,304 +34,95 @@ export const getTraceStream = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const clickhouseConfigs = {
-    request_timeout: 180_000,
-    clickhouse_settings: {
-      join_algorithm: "partial_merge" as const,
-      // Increase HTTP timeouts to prevent Code 209 errors during slow blob storage uploads
-      // See: https://github.com/ClickHouse/ClickHouse/issues/64731
-      http_send_timeout: 300,
-      http_receive_timeout: 300,
-    },
-  };
-
-  // Filter out observation-level filters since we don't join the observations table
-  // This prevents batch export failures when observation-level filters are present
+  // Drop observation-level filters: the GreptimeDB trace projection has no observation columns.
   const traceOnlyFilters = (filter ?? []).filter((f) => {
     const columnDef = tracesTableUiColumnDefinitions.find(
       (col) => col.uiTableName === f.column || col.uiTableId === f.column,
     );
-    // Keep the filter if it's not an observation-level filter
     return columnDef?.clickhouseTableName !== "observations";
   });
 
-  // Get distinct score names for empty columns
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
     filter: traceOnlyFilters,
     isTimestampFilter: isTraceTimestampFilter,
-    clickhouseConfigs,
   });
-
   const emptyScoreColumns = distinctScoreNames.reduce(
     (acc, name) => ({ ...acc, [name]: null }),
     {} as Record<string, null>,
   );
 
-  // Build filters for traces
-  const tracesFilter = new FilterList([]);
-
-  tracesFilter.push(
-    ...createFilterFromFilterState(
-      [
-        ...traceOnlyFilters,
-        {
-          column: "timestamp",
-          operator: "<" as const,
-          value: cutoffCreatedAt,
-          type: "datetime" as const,
-        },
-      ],
-      tracesTableUiColumnDefinitions,
-      tracesTableCols,
-    ),
-  );
-
-  const appliedTracesFilter = tracesFilter.apply();
-
-  const scoresFilter = new FilterList([
-    new StringFilter({
-      clickhouseTable: "scores",
-      field: "project_id",
-      operator: "=",
-      value: projectId,
-    }),
-  ]);
-
-  const appliedScoresFilter = scoresFilter.apply();
-
-  const search = clickhouseSearchCondition({
-    query: searchQuery,
-    searchType,
-    tablePrefix: "t",
-  });
-
-  const query = `
-    WITH scores_agg AS (
-      SELECT
-        project_id,
-        trace_id,
-        -- For numeric scores, use tuples of (name, avg_value, data_type, string_value)
-        groupArrayIf(
-          tuple(name, avg_value, data_type, string_value),
-          data_type IN ('NUMERIC', 'BOOLEAN')
-        ) AS scores_avg,
-        -- concat encoding for hasAny filter compatibility
-        groupArrayIf(
-          concat(name, ':', string_value),
-          data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-        ) AS score_categories,
-        -- tuple encoding for accurate output parsing (names may contain colons)
-        groupArrayIf(
-          tuple(name, string_value, data_type),
-          data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-        ) AS score_categories_tuples
-      FROM (
-        SELECT
-          project_id,
-          trace_id,
-          name,
-          data_type,
-          string_value,
-          avg(value) as avg_value
-        FROM scores FINAL
-        WHERE ${appliedScoresFilter.query}
-        GROUP BY
-          project_id,
-          trace_id,
-          name,
-          data_type,
-          string_value,
-          execution_trace_id
-      ) tmp
-      GROUP BY project_id, trace_id
-    )
-      SELECT
-        t.id as id,
-        t.project_id as project_id,
-        t.timestamp as timestamp,
-        t.name as name,
-        t.user_id as user_id,
-        t.session_id as session_id,
-        t.release as release,
-        t.version as version,
-        t.environment as environment,
-        t.tags as tags,
-        t.bookmarked as bookmarked,
-        t.public as public,
-        t.input as input,
-        t.output as output,
-        t.metadata as metadata,
-        s.scores_avg as scores_avg,
-        s.score_categories as score_categories,
-        s.score_categories_tuples as score_categories_tuples
-      FROM traces t
-        LEFT JOIN scores_agg s ON s.trace_id = t.id AND s.project_id = t.project_id
-      WHERE t.project_id = {projectId: String}
-        ${appliedTracesFilter.query ? `AND ${appliedTracesFilter.query}` : ""}
-        ${search.query}
-      LIMIT 1 BY id, project_id
-      LIMIT {rowLimit: Int64}
-    `;
-
-  const asyncGenerator = queryClickhouseStream<{
-    id: string;
-    project_id: string;
-    timestamp: Date;
-    name: string | null;
-    user_id: string | null;
-    session_id: string | null;
-    release: string | null;
-    version: string | null;
-    environment: string | null;
-    tags: string[];
-    bookmarked: boolean;
-    public: boolean;
-    input: unknown;
-    output: unknown;
-    metadata: unknown;
-    scores_avg:
-      | {
-          name: string;
-          avg_value: number;
-          data_type: ScoreDataTypeType;
-          string_value: string;
-        }[]
-      | undefined;
-    score_categories: string[] | undefined;
-    score_categories_tuples: [string, string | null, string][] | undefined;
-  }>({
-    query,
-    params: {
-      projectId,
-      rowLimit,
-      ...appliedTracesFilter.params,
-      ...appliedScoresFilter.params,
-      ...search.params,
-    },
-    clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "trace",
-      kind: "export",
-      projectId,
-    },
-  });
-
-  // Helper function to process a single trace row
-  const processTraceRow = (
-    bufferedRow: Awaited<ReturnType<typeof asyncGenerator.next>>["value"],
-    commentsByTrace: Map<string, any[]>,
-  ) => {
-    // Process numeric/boolean scores (tuples from ClickHouse)
-    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
-      name: score[0],
-      value: score[1],
-      dataType: score[2],
-      stringValue: score[3],
-    }));
-
-    // Process categorical / text scores (tuples from ClickHouse)
-    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
-      (cat: [string, string | null, string]) => ({
-        name: cat[0],
-        value: null,
-        dataType: cat[2],
-        stringValue: cat[1],
-      }),
-    );
-
-    const outputScores: Record<string, string[] | number[]> =
-      prepareScoresForOutput([...numericScores, ...categoricalScores]);
-
-    // Get comments for this trace
-    const traceComments = commentsByTrace.get(bufferedRow.id) ?? [];
-
-    return getChunkWithFlattenedScores(
-      [
-        {
-          id: bufferedRow.id,
-          timestamp:
-            bufferedRow.timestamp instanceof Date
-              ? bufferedRow.timestamp
-              : parseClickhouseUTCDateTimeFormat(bufferedRow.timestamp),
-          name: bufferedRow.name ?? "",
-          userId: bufferedRow.user_id,
-          sessionId: bufferedRow.session_id,
-          release: bufferedRow.release,
-          version: bufferedRow.version,
-          environment: bufferedRow.environment ?? undefined,
-          tags: bufferedRow.tags,
-          bookmarked: bufferedRow.bookmarked,
-          public: bufferedRow.public,
-          input: bufferedRow.input,
-          output: bufferedRow.output,
-          metadata: bufferedRow.metadata,
-          scores: outputScores,
-          comments: traceComments,
-        },
-      ],
-      emptyScoreColumns,
-    )[0];
-  };
-
-  // Convert async generator to Node.js Readable stream
   let recordsProcessed = 0;
 
   return Readable.from(
     (async function* () {
-      let rowBuffer: Awaited<
-        ReturnType<typeof asyncGenerator.next>
-      >["value"][] = [];
-      let traceIds: string[] = [];
-
-      for await (const row of asyncGenerator) {
-        rowBuffer.push(row);
-        traceIds.push(row.id);
-
-        // Process in batches
-        if (rowBuffer.length >= BATCH_SIZE) {
-          // Fetch comments for this batch
-          const commentsByTrace = await fetchCommentsForExport(
+      for await (const page of streamTracesForExport({
+        projectId,
+        filter: traceOnlyFilters,
+        cutoffCreatedAt,
+        searchQuery,
+        searchType,
+        rowLimit,
+        pageSize: PAGE_SIZE,
+      })) {
+        const traceIds = page.map((t) => t.id);
+        const [scores, commentsByTrace] = await Promise.all([
+          getScoresForTraces({
             projectId,
-            "TRACE",
             traceIds,
-          );
+            excludeMetadata: true,
+          }),
+          fetchCommentsForExport(projectId, "TRACE", traceIds),
+        ]);
 
-          // Process each row in the buffer
-          for (const bufferedRow of rowBuffer) {
-            recordsProcessed++;
-            if (recordsProcessed % 10000 === 0)
-              logger.info(
-                `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
-              );
-
-            yield processTraceRow(bufferedRow, commentsByTrace);
-          }
-
-          // Reset buffers
-          rowBuffer = [];
-          traceIds = [];
+        const scoresByTrace = new Map<string, typeof scores>();
+        for (const score of scores) {
+          if (!score.traceId) continue;
+          const list = scoresByTrace.get(score.traceId) ?? [];
+          list.push(score);
+          scoresByTrace.set(score.traceId, list);
         }
-      }
 
-      // Process remaining rows in buffer
-      if (rowBuffer.length > 0) {
-        const commentsByTrace = await fetchCommentsForExport(
-          projectId,
-          "TRACE",
-          traceIds,
-        );
-
-        for (const bufferedRow of rowBuffer) {
+        for (const trace of page) {
           recordsProcessed++;
           if (recordsProcessed % 10000 === 0)
             logger.info(
               `Streaming traces for project ${projectId}: processed ${recordsProcessed} rows`,
             );
 
-          yield processTraceRow(bufferedRow, commentsByTrace);
+          const outputScores = prepareScoresForOutput(
+            (scoresByTrace.get(trace.id) ?? []).map((s) => ({
+              name: s.name,
+              value: s.value,
+              dataType: s.dataType,
+              stringValue: s.stringValue,
+            })),
+          );
+
+          yield getChunkWithFlattenedScores(
+            [
+              {
+                id: trace.id,
+                timestamp: trace.timestamp,
+                name: trace.name ?? "",
+                userId: trace.userId,
+                sessionId: trace.sessionId,
+                release: trace.release,
+                version: trace.version,
+                environment: trace.environment ?? undefined,
+                tags: trace.tags,
+                bookmarked: trace.bookmarked,
+                public: trace.public,
+                input: trace.input,
+                output: trace.output,
+                metadata: trace.metadata,
+                scores: outputScores,
+                comments: commentsByTrace.get(trace.id) ?? [],
+              },
+            ],
+            emptyScoreColumns,
+          )[0];
         }
       }
     })(),
