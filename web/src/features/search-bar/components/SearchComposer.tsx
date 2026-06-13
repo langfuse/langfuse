@@ -26,7 +26,10 @@ import {
   type ComposerSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
 import { serializeValue } from "@/src/features/search-bar/lib/qlang";
-import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import {
+  scoreTypeContextFromObserved,
+  type ObservedOptions,
+} from "@/src/features/search-bar/lib/observed-options";
 import { getRecentSearches } from "@/src/features/search-bar/lib/recent-searches";
 import {
   flattenOptions,
@@ -305,6 +308,14 @@ export function SearchComposer({
 
   const selectionCollapsed = selectionSnapshot.start === selectionSnapshot.end;
   const caret = selectionSnapshot.end;
+
+  // Memoized so segment projection's one-slot cache stays warm across renders;
+  // routes `scores.<name>` token validity by the same observed score type the
+  // store and commit gate use.
+  const scoreTypes = React.useMemo(
+    () => scoreTypeContextFromObserved(observed),
+    [observed],
+  );
 
   const plan: CompletionPlan | null =
     mode === "rich" && autocompleteOpen && selectionCollapsed
@@ -1000,7 +1011,9 @@ export function SearchComposer({
       // or its padding) nudges the collapsed caret across the whitespace run,
       // so typing starts the next entry instead of gluing to the previous
       // token. Clicks on token text keep their native caret untouched.
-      const segment = deriveComposerSegments(draft).find((s) => s.to === end);
+      const segment = deriveComposerSegments(draft, scoreTypes).find(
+        (s) => s.to === end,
+      );
       const el =
         segment !== undefined
           ? root.querySelector(`[data-segment-id="${CSS.escape(segment.id)}"]`)
@@ -1038,7 +1051,8 @@ export function SearchComposer({
   const describedBy =
     visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : undefined;
 
-  const segments = mode === "rich" ? deriveComposerSegments(draft) : [];
+  const segments =
+    mode === "rich" ? deriveComposerSegments(draft, scoreTypes) : [];
   // The remove affordance targets the hovered token, or — while the editor is
   // focused — the token holding a collapsed caret. Not at the trailing
   // insertion point, where the user is appending, not editing.
@@ -1162,6 +1176,7 @@ export function SearchComposer({
             <ComposerTokens
               draft={draft}
               showDiagnostics={showTokenDiagnostics}
+              scoreTypes={scoreTypes}
             />
           </div>
         ) : (

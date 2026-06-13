@@ -12,6 +12,7 @@
 import * as React from "react";
 import { cva } from "class-variance-authority";
 
+import type { ScoreTypeContext } from "@/src/features/search-bar/lib/adapter";
 import {
   deriveComposerSegments,
   type FilterSegment,
@@ -81,11 +82,13 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
 export function ComposerTokens({
   draft,
   showDiagnostics,
+  scoreTypes,
 }: {
   draft: string;
   showDiagnostics: boolean;
+  scoreTypes?: ScoreTypeContext;
 }): React.ReactNode {
-  const segments = deriveComposerSegments(draft);
+  const segments = deriveComposerSegments(draft, scoreTypes);
   const out: React.ReactNode[] = [];
   let cursor = 0;
   for (const segment of segments) {

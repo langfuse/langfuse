@@ -11,6 +11,7 @@
 
 import { createStore, type StoreApi } from "zustand/vanilla";
 
+import type { ScoreTypeContext } from "../lib/adapter";
 import type { ASTNode } from "../lib/ast";
 import { removeToken } from "../lib/edits";
 import { type Diagnostic } from "../lib/qlang";
@@ -48,10 +49,18 @@ export type SearchBarStoreState = {
 
 export type SearchBarStore = StoreApi<SearchBarStoreState>;
 
-export function createSearchBarStore(): SearchBarStore {
+/**
+ * `resolveScoreTypes` lets draft validation route `scores.<name>` by observed
+ * score type — the SAME context planCommit uses — so the store's draftValid
+ * (which the editor's red-border gate reads) never disagrees with the commit
+ * gate. A thunk so it always reads the latest observed options.
+ */
+export function createSearchBarStore(
+  resolveScoreTypes?: () => ScoreTypeContext | undefined,
+): SearchBarStore {
   return createStore<SearchBarStoreState>((set, get) => {
     const writeDraft = (next: string) => {
-      const res = validateQuery(next);
+      const res = validateQuery(next, resolveScoreTypes?.());
       set({
         draft: next,
         draftAst: res.ast,

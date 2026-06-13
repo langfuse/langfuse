@@ -41,6 +41,19 @@ export function AutocompleteListbox({
   // Chromium fires synthetic mouseover events — honoring those would arm
   // Enter with an option the user never chose (keyboard keeps authority).
   const lastPointer = React.useRef<{ x: number; y: number } | null>(null);
+
+  // Keyboard navigation only moves the highlight id; the listbox is scrollable
+  // and the empty-stage plan has ~50 options, so the active option can fall
+  // outside the viewport. Scroll it back into view (the UA does not do this for
+  // aria-activedescendant). `nearest` avoids jumping when already visible.
+  const optionRefs = React.useRef(new Map<string, HTMLDivElement>());
+  React.useEffect(() => {
+    if (highlightedId === null) return;
+    optionRefs.current.get(highlightedId)?.scrollIntoView?.({
+      block: "nearest",
+    });
+  }, [highlightedId]);
+
   const highlightOnMove = onHighlight
     ? (id: string) => (e: React.MouseEvent) => {
         const last = lastPointer.current;
@@ -92,6 +105,11 @@ export function AutocompleteListbox({
           {sec.options.map((o) => (
             <div
               key={o.id}
+              ref={(el) => {
+                const refs = optionRefs.current;
+                if (el) refs.set(o.id, el);
+                else refs.delete(o.id);
+              }}
               id={optionDomId(listboxId, o.id)}
               role="option"
               aria-selected={o.id === highlightedId}
