@@ -898,6 +898,12 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                             orgMembership.organization.aiFeaturesEnabled,
                           aiTelemetryEnabled:
                             orgMembership.organization.aiTelemetryEnabled,
+                          crossProjectTraceTrackingEnabled:
+                            orgMembership.organization
+                              .crossProjectTraceTrackingEnabled,
+                          crossProjectTraceCorrelationKey:
+                            orgMembership.organization
+                              .crossProjectTraceCorrelationKey,
                           cloudConfig: parsedCloudConfig.data,
                           projects: orgMembership.organization.projects
                             .map((project) => {

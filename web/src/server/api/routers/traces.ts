@@ -67,6 +67,7 @@ import {
 } from "@/src/utils/clientSideDomainTypes";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import partition from "lodash/partition";
+import { getRelatedTracesAcrossProjects } from "@/src/features/trace-correlation/server/traceCorrelationService";
 
 const TraceCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
@@ -678,5 +679,29 @@ export const traceRouter = createTRPCRouter({
         .filter((r) => Boolean(r)) as Required<AgentGraphDataResponse>[];
 
       return result;
+    }),
+  relatedAcrossProjects: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        traceId: z.string(),
+        minStartTime: z.date().nullish(),
+        maxStartTime: z.date().nullish(),
+        timestamp: z.date().nullish(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      return getRelatedTracesAcrossProjects({
+        prisma: ctx.prisma,
+        session: ctx.session,
+        sourceOrgId: ctx.session.orgId,
+        sourceProjectId: ctx.session.projectId,
+        traceId: input.traceId,
+        minStartTime: input.minStartTime,
+        maxStartTime: input.maxStartTime,
+        timestamp: input.timestamp,
+        source:
+          ctx.session.user.v4BetaEnabled === true ? "events_core" : "traces",
+      });
     }),
 });

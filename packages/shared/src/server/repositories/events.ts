@@ -114,6 +114,34 @@ import {
 } from "../../tableDefinitions";
 import { tracesTableCols } from "../../tableDefinitions/tracesTable";
 import { parseMetadataCHRecordToDomain } from "../utils/metadata_conversion";
+import type { RelatedTraceLookupRecord } from "./traces";
+
+export const buildRelatedTracesByMetadataCorrelationFromEventsTableQuery =
+  () => `
+  SELECT
+    project_id,
+    trace_id,
+    nullIf(trace_name, '') AS trace_name,
+    timestamp
+  FROM (
+    SELECT
+      e.project_id AS project_id,
+      e.trace_id AS trace_id,
+      argMax(e.trace_name, e.event_ts) AS trace_name,
+      min(e.start_time) AS timestamp
+    FROM events_core e
+    WHERE e.project_id IN ({projectIds: Array(String)})
+      AND e.start_time >= {fromTimestamp: DateTime64(3)}
+      AND e.start_time <= {toTimestamp: DateTime64(3)}
+      AND e.parent_span_id = ''
+      AND has(e.metadata_names, {correlationKey: String})
+      AND e.metadata_values[indexOf(e.metadata_names, {correlationKey: String})] = {correlationValue: String}
+      AND e.is_deleted = 0
+    GROUP BY e.project_id, e.trace_id
+  )
+  ORDER BY timestamp ASC, project_id ASC
+  LIMIT {limit: UInt32}
+`;
 
 type EventBatchIOStringOutput = {
   id: string;
@@ -3002,6 +3030,67 @@ export async function getAgentGraphDataFromEventsTable(params: {
     },
   });
 }
+
+export const getRelatedTracesByMetadataCorrelationFromEventsTable = async ({
+  projectIds,
+  correlationKey,
+  correlationValue,
+  fromTimestamp,
+  toTimestamp,
+  limit,
+  sourceProjectId,
+}: {
+  projectIds: string[];
+  correlationKey: string;
+  correlationValue: string;
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  limit: number;
+  sourceProjectId: string;
+}): Promise<RelatedTraceLookupRecord[]> => {
+  if (projectIds.length === 0) return [];
+
+  const records = await measureAndReturn({
+    operationName: "getRelatedTracesByMetadataCorrelationFromEventsTable",
+    projectId: sourceProjectId,
+    input: {
+      params: {
+        projectIds,
+        correlationKey,
+        correlationValue,
+        fromTimestamp: convertDateToClickhouseDateTime(fromTimestamp),
+        toTimestamp: convertDateToClickhouseDateTime(toTimestamp),
+        limit,
+      },
+      tags: {
+        feature: "tracing",
+        type: "events",
+        kind: "relatedAcrossProjects",
+        projectId: sourceProjectId,
+      },
+    },
+    fn: (input) =>
+      queryClickhouse<{
+        project_id: string;
+        trace_id: string;
+        trace_name: string | null;
+        timestamp: string;
+      }>({
+        query: buildRelatedTracesByMetadataCorrelationFromEventsTableQuery(),
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "EventsReadOnly",
+      }),
+  });
+
+  return records.map((row) => ({
+    projectId: row.project_id,
+    traceId: row.trace_id,
+    traceName: row.trace_name,
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+    source: "events_core",
+  }));
+};
 
 export const hasAnyEventOlderThan = async (
   projectId: string,
