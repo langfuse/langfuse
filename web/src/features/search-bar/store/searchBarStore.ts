@@ -44,6 +44,12 @@ export type SearchBarStoreState = {
     removeChipSpan: (from: number, to: number) => string;
     /** Mark the current draft as a failed commit so diagnostics can show. */
     revealInvalid: () => void;
+    /**
+     * Re-run validation on the current draft without changing the draft or the
+     * reveal state. Called when async context (observed score types) loads
+     * after the draft was typed, so `draftValid` doesn't stay stale.
+     */
+    revalidate: () => void;
   };
 };
 
@@ -89,6 +95,14 @@ export function createSearchBarStore(
           return next;
         },
         revealInvalid: () => set({ invalidRevealDraft: get().draft }),
+        revalidate: () => {
+          const res = validateQuery(get().draft, resolveScoreTypes?.());
+          set({
+            draftAst: res.ast,
+            draftDiagnostics: res.diagnostics,
+            draftValid: res.valid,
+          });
+        },
       },
     };
   });

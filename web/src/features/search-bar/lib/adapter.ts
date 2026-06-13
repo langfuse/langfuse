@@ -441,13 +441,16 @@ function parseNumbers(
   label: string,
   errors: string[],
 ): number[] | null {
-  const numbers = node.values.map((v) => Number(v));
-  const bad = node.values.find((_, i) => !Number.isFinite(numbers[i]!));
+  // Number("") and Number(" ") are both 0 (finite), so guard empty/whitespace
+  // explicitly — otherwise `latency:""` would silently filter for latency = 0.
+  const bad = node.values.find(
+    (v) => v.trim().length === 0 || !Number.isFinite(Number(v)),
+  );
   if (bad !== undefined) {
     errors.push(`"${label}" expects a number, got "${bad}"`);
     return null;
   }
-  return numbers;
+  return node.values.map((v) => Number(v));
 }
 
 function lowerNumber(

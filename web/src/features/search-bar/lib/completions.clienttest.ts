@@ -91,6 +91,22 @@ describe("planInputCompletions", () => {
     });
   });
 
+  it("plans the value stage when switching a grouped quoted value", () => {
+    // Same as the non-grouped case but inside `(... OR ...)`: clicking into
+    // `"My Tag"` must match the observed tag, so both quotes have to drop.
+    const p = plan('traceTags:("My Tag" OR "Other")', 14, {
+      observed: {
+        ...OBSERVED,
+        traceTags: [{ value: "My Tag" }, { value: "Other" }],
+      },
+    });
+    expect(p?.stage).toBe("value");
+    const values = flattenOptions(p)
+      .filter((o) => o.kind === "value")
+      .map((o) => (o.kind === "value" ? o.value : null));
+    expect(values).toContain("My Tag");
+  });
+
   it("offers comparisons for numeric fields", () => {
     const p = plan("latency:", 8);
     expect(p?.sections.map((s) => s.title)).toContain(SECTION_COMPARE_OPS);

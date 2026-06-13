@@ -301,6 +301,13 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("rejects empty/whitespace numeric values instead of coercing to 0", () => {
+    // Number("") and Number(" ") are both 0 (finite), so without an explicit
+    // guard `latency:""` would silently filter for latency = 0.
+    expect(lower('latency:""').errors.length).toBeGreaterThan(0);
+    expect(lower('latency:" "').errors.length).toBeGreaterThan(0);
+  });
+
   it("lowers has:/-has: to null filters", () => {
     expect(lower("has:endTime").filters).toEqual([
       { type: "null", column: "endTime", operator: "is not null", value: "" },
