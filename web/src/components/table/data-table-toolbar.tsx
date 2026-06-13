@@ -111,6 +111,10 @@ interface DataTableToolbarProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   filterColumnDefinition?: ColumnDefinition[];
   searchConfig?: SearchConfig;
+  /** Authoritative search query to persist into saved views. Use when the
+   * toolbar's own search field is hidden (e.g. search-bar mode) so the live
+   * query — not the toolbar's stale local mirror — is captured. */
+  currentSearchQuery?: string;
   actionButtons?: React.ReactNode;
   filterState?: FilterState;
   setFilterState?:
@@ -181,6 +185,7 @@ export function DataTableToolbar<TData, TValue>({
   columns,
   filterColumnDefinition,
   searchConfig,
+  currentSearchQuery,
   actionButtons,
   filterState,
   setFilterState,
@@ -235,7 +240,7 @@ export function DataTableToolbar<TData, TValue>({
               filters: filterState ?? [],
               columnOrder,
               columnVisibility,
-              searchQuery: searchString,
+              searchQuery: currentSearchQuery ?? searchString,
             }}
             systemFilterPresets={viewConfig.systemFilterPresets}
           />
@@ -423,7 +428,7 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
 
-        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}

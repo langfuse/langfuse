@@ -101,6 +101,12 @@ import { RunEvaluationDialog } from "@/src/features/batch-actions/components/Run
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
+import { createPortal } from "react-dom";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { EventsHeaderControls } from "@/src/features/search-bar/components/EventsHeaderControls";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 export type EventsTableRow = {
   // Identity fields
@@ -183,6 +189,9 @@ export type EventsTableProps = {
   externalDateRange?: TableDateRange;
   limitRows?: number;
   sessionId?: string;
+  /** Page-header DOM node to portal the time-range + refresh controls into
+   * when the search bar is active (keeps the otherwise-full toolbar slim). */
+  headerActionsContainer?: HTMLElement | null;
 };
 
 export default function ObservationsEventsTable({
@@ -194,6 +203,7 @@ export default function ObservationsEventsTable({
   externalDateRange,
   limitRows,
   sessionId,
+  headerActionsContainer,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -405,6 +415,19 @@ export default function ObservationsEventsTable({
     queryFilterOptions,
   );
 
+  // Grammar search bar (project-level beta toggle): an ADDITIONAL editor that
+  // coexists with the facet sidebar and the two stay in sync (Datadog model).
+  // The sidebar's FilterState (+ the table's full-text search) remains the
+  // single source of truth — the bar reads from and writes to it. Only the
+  // legacy toolbar search field is replaced (free text + in: scopes go inline
+  // in the bar); the sidebar and time/refresh controls stay.
+  const { isEnabled: searchBarFlagEnabled } = useSearchBarEnabled();
+  const searchBarMode =
+    searchBarFlagEnabled &&
+    !hideControls &&
+    !externalFilterState &&
+    !peekContext;
+
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
   queryFilterRef.current = queryFilter;
@@ -412,6 +435,25 @@ export default function ObservationsEventsTable({
   const setFiltersWrapper = useCallback(
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
+  );
+
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions, isFilterOptionsPending),
+    [filterOptions, isFilterOptionsPending],
+  );
+
+  const { store: searchBarStore, commit: searchBarCommit } = useEventsSearchBar(
+    {
+      projectId,
+      enabled: searchBarMode,
+      filterState: queryFilter.explicitFilterState,
+      searchQuery,
+      searchType,
+      observed: observedOptions,
+      setFilterState: setFiltersWrapper,
+      setSearchQuery,
+      setSearchType,
+    },
   );
 
   // Disabled for now because perhaps confusing
@@ -450,6 +492,8 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
+  // The sidebar's effective filter state is the single source of truth in both
+  // modes — the search bar syncs into it rather than replacing it.
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
@@ -1417,19 +1461,64 @@ export default function ObservationsEventsTable({
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
+        {/* Search bar row: (near) full-width query composer (sticky). The
+            time-range + refresh controls render into the page header when the
+            host page provides a slot, and fall back to inline-by-the-bar
+            otherwise so they are never dropped. */}
+        {searchBarMode &&
+          (() => {
+            const controls = (
+              <EventsHeaderControls
+                timeRange={timeRange}
+                setTimeRange={setTimeRange}
+                refreshConfig={{
+                  onRefresh: handleRefresh,
+                  isRefreshing: observations.status === "loading",
+                  interval: refreshInterval,
+                  setInterval: setRefreshInterval,
+                }}
+              />
+            );
+            const hasHeaderSlot =
+              headerActionsContainer !== null &&
+              headerActionsContainer !== undefined;
+            return (
+              <>
+                <EventsSearchBarRow
+                  projectId={projectId}
+                  store={searchBarStore}
+                  commit={searchBarCommit}
+                  observed={observedOptions}
+                  inlineControls={hasHeaderSlot ? undefined : controls}
+                />
+                {hasHeaderSlot &&
+                  createPortal(controls, headerActionsContainer)}
+              </>
+            );
+          })()}
         {/* Toolbar spanning full width */}
         {!hideControls && (
           <DataTableToolbar
             columns={columns}
             filterState={queryFilter.explicitFilterState}
-            searchConfig={{
-              metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
-              updateQuery: setSearchQuery,
-              currentQuery: searchQuery ?? undefined,
-              searchType,
-              setSearchType,
-              tableAllowsFullTextSearch: true,
-            }}
+            searchConfig={
+              // In search-bar mode free text + in: scopes live inline in the
+              // bar, so the legacy toolbar search field is hidden.
+              searchBarMode
+                ? undefined
+                : {
+                    metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
+                    updateQuery: setSearchQuery,
+                    currentQuery: searchQuery ?? undefined,
+                    searchType,
+                    setSearchType,
+                    tableAllowsFullTextSearch: true,
+                  }
+            }
+            // In bar mode the toolbar search field is hidden, so source the
+            // saved-view search query from the live URL state (the bar writes
+            // free text there) rather than the toolbar's empty local mirror.
+            currentSearchQuery={searchBarMode ? (searchQuery ?? "") : undefined}
             viewConfig={{
               tableName: TableViewPresetTableName.ObservationsEvents,
               projectId,
@@ -1447,8 +1536,8 @@ export default function ObservationsEventsTable({
             orderByState={orderByState}
             rowHeight={rowHeight}
             setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
+            timeRange={searchBarMode ? undefined : timeRange}
+            setTimeRange={searchBarMode ? undefined : setTimeRange}
             // Disabled, for now moved to filter sidebar
             // TODO: remove this toggle once v4 looks good as is
             // viewModeToggle={
@@ -1457,12 +1546,16 @@ export default function ObservationsEventsTable({
             //     onViewModeChange={setViewMode}
             //   />
             // }
-            refreshConfig={{
-              onRefresh: handleRefresh,
-              isRefreshing: observations.status === "loading",
-              interval: refreshInterval,
-              setInterval: setRefreshInterval,
-            }}
+            refreshConfig={
+              searchBarMode
+                ? undefined
+                : {
+                    onRefresh: handleRefresh,
+                    isRefreshing: observations.status === "loading",
+                    interval: refreshInterval,
+                    setInterval: setRefreshInterval,
+                  }
+            }
             actionButtons={[
               <BatchExportTableButton
                 {...{
@@ -1510,7 +1603,8 @@ export default function ObservationsEventsTable({
           />
         )}
 
-        {/* Content area with sidebar and table */}
+        {/* Content area with sidebar and table. The facet sidebar stays in
+            search-bar mode and syncs bidirectionally with the bar. */}
         <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls

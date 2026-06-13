@@ -33,6 +33,7 @@ import { env } from "@/src/env.mjs";
 import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
+import { SearchBarSettings } from "@/src/features/search-bar/components/SearchBarSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -82,12 +83,21 @@ export const getProjectSettingsPages = ({
   {
     title: "General",
     slug: "index",
-    cmdKKeywords: ["name", "id", "delete", "transfer", "ownership"],
+    cmdKKeywords: [
+      "name",
+      "id",
+      "delete",
+      "transfer",
+      "ownership",
+      "search bar",
+      "filters",
+    ],
     content: (
       <div className="flex flex-col gap-6">
         <HostNameProject />
         <RenameProject />
         {showRetentionSettings && <ConfigureRetention />}
+        <SearchBarSettings />
         <div>
           <Header title="Debug Information" />
           <JSONView
