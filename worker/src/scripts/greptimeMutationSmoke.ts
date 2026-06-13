@@ -21,6 +21,7 @@ import {
   readRawEventsForEntity,
   parseRawEventHistory,
   deleteEntityFromGreptime,
+  deleteEntitiesFromGreptime,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
@@ -273,6 +274,27 @@ async function main() {
       (r.long_string_value ?? "") === sc.expect.long;
     check(`score ${sc.data_type}: projection value mapping`, ok, r);
   }
+
+  // ---------------------------------------------------------------------------
+  // 5. score delete propagates to GreptimeDB (deleteAnnotationScore router fix)
+  // ---------------------------------------------------------------------------
+  const delId = scoreCases[0].id;
+  await deleteEntitiesFromGreptime({
+    projectId: PROJECT,
+    entityType: "score",
+    entityIds: [delId],
+  });
+  await sleep(400);
+  const afterDelete = await greptimeQuery<{ c: number | string }>({
+    query:
+      "SELECT count(*) AS c FROM `scores` WHERE `project_id` = ? AND `id` = ? AND `is_deleted` = false",
+    params: [PROJECT, delId],
+  });
+  check(
+    "score: delete removes it from the GreptimeDB read path",
+    Number(afterDelete[0]?.c ?? 0) === 0,
+    afterDelete[0],
+  );
 
   // ---------------------------------------------------------------------------
   // cleanup

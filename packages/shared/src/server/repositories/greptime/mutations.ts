@@ -43,6 +43,76 @@ import {
 const chToMs = (value: string): number =>
   parseClickhouseUTCDateTimeFormat(value).getTime();
 
+const nowAsClickHouseDateTime = (): string =>
+  new Date().toISOString().replace("T", " ").replace("Z", "");
+
+const normalizeTraceRecord = (
+  record: Partial<TraceRecordReadType>,
+): TraceRecordReadType => {
+  const timestamp = record.timestamp!;
+  const createdAt = record.created_at ?? timestamp;
+  const updatedAt = record.updated_at ?? createdAt;
+
+  return {
+    ...record,
+    id: record.id!,
+    project_id: record.project_id!,
+    timestamp,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    event_ts: record.event_ts ?? nowAsClickHouseDateTime(),
+    name: record.name ?? null,
+    user_id: record.user_id ?? null,
+    metadata: record.metadata ?? {},
+    release: record.release ?? null,
+    version: record.version ?? null,
+    environment: record.environment ?? "default",
+    public: record.public ?? false,
+    bookmarked: record.bookmarked ?? false,
+    tags: record.tags ?? [],
+    input: record.input ?? null,
+    output: record.output ?? null,
+    session_id: record.session_id ?? null,
+    is_deleted: record.is_deleted ?? 0,
+  };
+};
+
+const normalizeScoreRecord = (
+  record: Partial<ScoreRecordReadType>,
+): ScoreRecordReadType => {
+  const timestamp = record.timestamp!;
+  const createdAt = record.created_at ?? timestamp;
+  const updatedAt = record.updated_at ?? createdAt;
+
+  return {
+    ...record,
+    id: record.id!,
+    project_id: record.project_id!,
+    timestamp,
+    created_at: createdAt,
+    updated_at: updatedAt,
+    event_ts: record.event_ts ?? nowAsClickHouseDateTime(),
+    trace_id: record.trace_id ?? null,
+    session_id: record.session_id ?? null,
+    observation_id: record.observation_id ?? null,
+    dataset_run_id: record.dataset_run_id ?? null,
+    environment: record.environment ?? "default",
+    name: record.name!,
+    value: record.value ?? 0,
+    source: record.source ?? "API",
+    comment: record.comment ?? null,
+    metadata: record.metadata ?? {},
+    author_user_id: record.author_user_id ?? null,
+    config_id: record.config_id ?? null,
+    data_type: record.data_type ?? "NUMERIC",
+    string_value: record.string_value ?? null,
+    long_string_value: record.long_string_value ?? "",
+    queue_id: record.queue_id ?? null,
+    execution_trace_id: record.execution_trace_id ?? null,
+    is_deleted: record.is_deleted ?? 0,
+  };
+};
+
 /** Build the physical gRPC tables for a record (projection row + EAV fan-out) and write them. */
 const writeProjection = async (
   table: GreptimeTable,
@@ -63,7 +133,7 @@ const writeProjection = async (
 export const upsertTraceToGreptime = async (
   record: Partial<TraceRecordReadType>,
 ): Promise<void> => {
-  const full = record as TraceRecordReadType;
+  const full = normalizeTraceRecord(record);
 
   // 1. Append the synthetic create event first (source of truth), mirroring the legacy
   //    "S3 event-store append then CH insert" ordering. `convertClickhouseToDomain` is UTC-safe and
@@ -94,7 +164,7 @@ export const upsertTraceToGreptime = async (
 export const upsertScoreToGreptime = async (
   record: Partial<ScoreRecordReadType>,
 ): Promise<void> => {
-  const full = record as ScoreRecordReadType;
+  const full = normalizeScoreRecord(record);
 
   // Projection-only: see the module docstring for why scores are not appended to raw_events.
   const insert: ScoreRecordInsertType = {
