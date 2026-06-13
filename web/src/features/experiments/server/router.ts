@@ -6,7 +6,7 @@ import {
   ExperimentCreateQueue,
   getCategoricalScoresGroupedByName,
   getDatasetItems,
-  getEventsGroupedByExperimentDatasetId,
+  getExperimentDatasetIds,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
   getExperimentItemsBatchIO,
@@ -465,10 +465,7 @@ export const experimentsRouter = createTRPCRouter({
             input.projectId,
             traceTimestampFilters ?? [],
           ),
-          getEventsGroupedByExperimentDatasetId(
-            input.projectId,
-            input.startTimeFilter ?? [],
-          ),
+          getExperimentDatasetIds(input.projectId, input.startTimeFilter ?? []),
         ]);
 
       const experimentDatasetIdSet = new Set<string>();

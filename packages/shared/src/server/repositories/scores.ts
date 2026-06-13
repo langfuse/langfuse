@@ -3,7 +3,6 @@ import {
   ScoreDataTypeType,
   ScoreDomain,
   ScoreSourceType,
-  AGGREGATABLE_SCORE_TYPES,
   AggregatableScoreDataType,
   ScoreByDataType,
   LISTABLE_SCORE_TYPES,
@@ -46,10 +45,7 @@ import type { AnalyticsScoreEvent } from "../analytics-integrations/types";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { logger } from "../logger";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import {
-  eventsTraceMetadata,
-  eventsExperiments,
-} from "../queries/clickhouse-sql/query-fragments";
+import { eventsTraceMetadata } from "../queries/clickhouse-sql/query-fragments";
 import { scoresTableCols } from "../../tableDefinitions/scoresTable";
 import {
   findUiColumnMapping,
@@ -178,81 +174,13 @@ export const getScoresForExperiments = <
     ScoreByDataType<AggregatableScoreDataType>[]
   >;
 
-export const getTraceScoresForDatasetRuns = async (
+export const getTraceScoresForDatasetRuns = (
   projectId: string,
   datasetRunIds: string[],
-): Promise<Array<{ dataset_run_id: string } & any>> => {
-  if (datasetRunIds.length === 0) return [];
+): Promise<Array<{ datasetRunId: string } & any>> =>
+  greptimeScoreReads.getTraceScoresForDatasetRuns(projectId, datasetRunIds);
 
-  const query = `
-    SELECT
-      s.id as id,
-      s.timestamp as timestamp,
-      s.project_id as project_id,
-      s.environment as environment,
-      s.trace_id as trace_id,
-      s.session_id as session_id,
-      s.observation_id as observation_id,
-      s.dataset_run_id as dataset_run_id,
-      s.name as name,
-      s.value as value,
-      s.source as source,
-      s.comment as comment,
-      s.author_user_id as author_user_id,
-      s.config_id as config_id,
-      s.data_type as data_type,
-      s.string_value as string_value,
-      s.queue_id as queue_id,
-      s.execution_trace_id as execution_trace_id,
-      s.created_at as created_at,
-      s.updated_at as updated_at,
-      s.event_ts as event_ts,
-      s.is_deleted as is_deleted,
-      length(mapKeys(s.metadata)) > 0 AS has_metadata,
-      dri.dataset_run_id as run_id
-    FROM dataset_run_items_rmt dri
-    JOIN scores s FINAL ON dri.trace_id = s.trace_id
-      AND dri.project_id = s.project_id
-    WHERE dri.project_id = {projectId: String}
-      AND dri.dataset_run_id IN {datasetRunIds: Array(String)}
-      AND s.project_id = {projectId: String}
-      AND s.data_type IN ({dataTypes: Array(String)})
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id, dri.dataset_run_id
-  `;
-
-  const rows = await queryClickhouse<
-    Omit<ScoreRecordReadType, "metadata"> & {
-      has_metadata: 0 | 1;
-      run_id: string;
-    }
-  >({
-    query,
-    params: {
-      projectId,
-      datasetRunIds,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
-    },
-    tags: {
-      feature: "dataset-run-items",
-      type: "trace-scores",
-      kind: "list",
-      projectId,
-    },
-  });
-
-  const includeMetadataPayload = false;
-  return rows.map((row) => ({
-    ...convertClickhouseScoreToDomain(
-      { ...row, metadata: {} },
-      includeMetadataPayload,
-    ),
-    datasetRunId: row.run_id,
-    hasMetadata: !!row.has_metadata,
-  }));
-};
-
-export const getScoresForExperimentItems = async (
+export const getScoresForExperimentItems = (
   projectId: string,
   experimentIds: string[],
 ): Promise<
@@ -262,83 +190,18 @@ export const getScoresForExperimentItems = async (
       hasMetadata: boolean;
     }
   >
-> => {
-  if (experimentIds.length === 0) return [];
-
-  // Build events subquery using the query builder
-  const eventsSubquery = eventsExperiments({
+> =>
+  greptimeScoreReads.getScoresForExperimentItems(
     projectId,
     experimentIds,
-  })
-    .selectRaw("e.project_id", "e.experiment_id", "e.trace_id")
-    .buildWithParams();
-
-  const query = `
-    SELECT
-      s.id as id,
-      s.timestamp as timestamp,
-      s.project_id as project_id,
-      s.environment as environment,
-      s.trace_id as trace_id,
-      s.session_id as session_id,
-      s.observation_id as observation_id,
-      s.dataset_run_id as dataset_run_id,
-      s.name as name,
-      s.value as value,
-      s.source as source,
-      s.comment as comment,
-      s.author_user_id as author_user_id,
-      s.config_id as config_id,
-      s.data_type as data_type,
-      s.string_value as string_value,
-      s.queue_id as queue_id,
-      s.execution_trace_id as execution_trace_id,
-      s.created_at as created_at,
-      s.updated_at as updated_at,
-      s.event_ts as event_ts,
-      s.is_deleted as is_deleted,
-      length(mapKeys(s.metadata)) > 0 AS has_metadata,
-      e.experiment_id as experiment_id
-    FROM (${eventsSubquery.query}) e
-    JOIN scores s FINAL ON e.trace_id = s.trace_id
-      AND e.project_id = s.project_id
-    WHERE s.project_id = {projectId: String}
-      AND s.data_type IN ({dataTypes: Array(String)})
-    ORDER BY s.event_ts DESC
-    LIMIT 1 BY s.id, s.project_id, e.experiment_id
-  `;
-
-  const rows = await queryClickhouse<
-    Omit<ScoreRecordReadType, "metadata"> & {
-      has_metadata: 0 | 1;
-      experiment_id: string;
-    }
-  >({
-    query,
-    params: {
-      projectId,
-      ...eventsSubquery.params,
-      dataTypes: AGGREGATABLE_SCORE_TYPES,
-    },
-    tags: {
-      feature: "experiments",
-      type: "trace-scores",
-      kind: "list",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  const includeMetadataPayload = false;
-  return rows.map((row) => ({
-    ...convertClickhouseScoreToDomain<false, AggregatableScoreDataType>(
-      { ...row, metadata: {} },
-      includeMetadataPayload,
-    ),
-    experimentId: row.experiment_id,
-    hasMetadata: !!row.has_metadata,
-  }));
-};
+  ) as unknown as Promise<
+    Array<
+      ScoreByDataType<AggregatableScoreDataType> & {
+        experimentId: string;
+        hasMetadata: boolean;
+      }
+    >
+  >;
 
 // Used in multiple places, including the public API, hence the non-default exclusion of metadata via excludeMetadata flag
 export const getScoresForTraces = <

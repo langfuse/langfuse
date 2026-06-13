@@ -758,3 +758,67 @@ export const getUserMetrics = async (
     totalCost: Number(row.sum_total_cost ?? 0),
   }));
 };
+
+/**
+ * Agent-graph observation rows for a trace (LangGraph node/step from `metadata`). Replaces the CH
+ * `metadata['langgraph_node'/'langgraph_step']` reads. Returns `start_time`/`end_time` as ISO strings
+ * to satisfy the `AgentGraphDataSchema` (`z.string()`); `node`/`step` come from the JSON metadata.
+ * The CH start-time window strings are bound directly (GreptimeDB coerces the string to TIMESTAMP).
+ */
+export async function getAgentGraphData(params: {
+  projectId: string;
+  traceId: string;
+  chMinStartTime: string;
+  chMaxStartTime: string;
+}): Promise<
+  {
+    id: string;
+    parent_observation_id: string | null;
+    type: string;
+    name: string | null;
+    start_time: string | null;
+    end_time: string | null;
+    node: string | null;
+    step: string | null;
+  }[]
+> {
+  const { projectId, traceId, chMinStartTime, chMaxStartTime } = params;
+  const rows = await greptimeQuery<{
+    id: string;
+    parent_observation_id: string | null;
+    type: string;
+    name: string | null;
+    start_time: Date | null;
+    end_time: Date | null;
+    node: string | null;
+    step: string | null;
+  }>({
+    query: `
+      SELECT id, parent_observation_id, type, name, start_time, end_time,
+        json_get_string(metadata, 'langgraph_node') AS node,
+        json_get_string(metadata, 'langgraph_step') AS step
+      FROM observations
+      WHERE project_id = :projectId AND trace_id = :traceId
+        AND start_time >= :minStart AND start_time <= :maxStart
+        AND ${notDeleted()}`,
+    params: {
+      projectId,
+      traceId,
+      minStart: chMinStartTime,
+      maxStart: chMaxStartTime,
+    },
+    readOnly: true,
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    parent_observation_id: r.parent_observation_id
+      ? r.parent_observation_id
+      : null,
+    type: r.type,
+    name: r.name,
+    start_time: r.start_time ? r.start_time.toISOString() : null,
+    end_time: r.end_time ? r.end_time.toISOString() : null,
+    node: r.node ? r.node : null,
+    step: r.step ? r.step : null,
+  }));
+}

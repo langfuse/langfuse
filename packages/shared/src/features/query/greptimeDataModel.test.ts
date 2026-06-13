@@ -84,12 +84,34 @@ describe("greptimeDataModel", () => {
     }
   });
 
-  it("throws for deferred experiment / dataset-run fields", () => {
-    for (const field of GREPTIME_UNSUPPORTED) {
-      expect(() => assertGreptimeSupportedField(field)).toThrow(
-        /not supported on GreptimeDB/i,
-      );
+  it("supports experiment / dataset-run dimensions (P4, nothing deferred)", () => {
+    expect(GREPTIME_UNSUPPORTED.size).toBe(0);
+    for (const field of [
+      "experimentName",
+      "experimentId",
+      "experimentDatasetId",
+      "datasetRunId",
+      "name",
+    ]) {
+      expect(() => assertGreptimeSupportedField(field)).not.toThrow();
     }
-    expect(() => assertGreptimeSupportedField("name")).not.toThrow();
+
+    const obs = getGreptimeViewDeclaration("observations");
+    for (const dim of [
+      "experimentName",
+      "experimentId",
+      "experimentDatasetId",
+    ]) {
+      expect(Object.keys(obs.dimensions)).toContain(dim);
+    }
+    const scoresNumeric = getGreptimeViewDeclaration("scores-numeric");
+    for (const dim of ["datasetRunId", "experimentName", "experimentId"]) {
+      expect(Object.keys(scoresNumeric.dimensions)).toContain(dim);
+    }
+
+    // experiment relation joins a DISTINCT dataset_run_items subquery (no fan-out) without a time bound
+    const rel = obs.tableRelations.dataset_run_items;
+    expect(rel?.baseQuery).toMatch(/DISTINCT/i);
+    expect(rel?.skipTimeBound).toBe(true);
   });
 });

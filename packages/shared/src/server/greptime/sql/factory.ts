@@ -19,6 +19,7 @@ import {
   NullFilter,
   CategoryOptionsFilter,
   ScoreNumberObjectFilter,
+  DatasetRunItemsOptionsFilter,
   type GreptimeFilter,
 } from "./greptime-filter";
 import { type GreptimeColumnMappings } from "./columnMappings";
@@ -39,6 +40,7 @@ const PHYSICAL_PROJECTION_TABLES = new Set([
   "traces",
   "observations",
   "scores",
+  "dataset_run_items",
 ]);
 
 // Columns carrying a FULLTEXT index (migration 0004): the FTS match operator can use matches_term.
@@ -97,6 +99,15 @@ export const createGreptimeFilterFromFilterState = (
           tablePrefix,
         });
       case "stringOptions":
+        // Scores filter columns resolved through a `scores ⋈ dataset_run_items` join in CH
+        // (datasetRunItemRunIds / datasetId / datasetItemIds) -> reverse correlated EXISTS.
+        if (column.datasetRunItemsGrain) {
+          return new DatasetRunItemsOptionsFilter({
+            operator: frontEndFilter.operator,
+            values: frontEndFilter.value,
+            grain: column.datasetRunItemsGrain,
+          });
+        }
         return new StringOptionsFilter({
           table,
           field,

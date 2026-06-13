@@ -151,8 +151,10 @@ async function main() {
     ...distinctKeys,
   ]);
 
-  // 7. experiment dimension throws (deferred to P4)
-  let threw = false;
+  // 7. experiment / datasetRunId dimensions are supported (P4): the executor builds valid SQL
+  //    (experiment relation = DISTINCT dataset_run_items join; datasetRunId = direct scores column)
+  //    that runs on openfuse without throwing.
+  let expThrew = false;
   try {
     await executeGreptimeQuery(
       PROJECT,
@@ -162,10 +164,56 @@ async function main() {
         metrics: [{ measure: "count", aggregation: "count" }],
       }),
     );
-  } catch {
-    threw = true;
+  } catch (e) {
+    expThrew = true;
+    console.error(e);
   }
-  check("experiment dimension throws (P4-deferred)", threw);
+  check("experiment dimension executes (P4 supported)", !expThrew);
+
+  let drThrew = false;
+  try {
+    await executeGreptimeQuery(
+      PROJECT,
+      q({
+        view: "scores-numeric",
+        dimensions: [{ field: "datasetRunId" }],
+        metrics: [{ measure: "count", aggregation: "count" }],
+      }),
+    );
+  } catch (e) {
+    drThrew = true;
+    console.error(e);
+  }
+  check("datasetRunId dimension executes (P4 supported)", !drThrew);
+
+  // The real experiment chart shape: experimentName as BOTH entityDimension and filter (same
+  // relation) — verify the builder emits valid SQL (one join) and the executor runs it.
+  let expFilterThrew = false;
+  try {
+    await executeGreptimeQuery(
+      PROJECT,
+      q({
+        view: "observations",
+        entityDimension: { field: "experimentName" },
+        filters: [
+          {
+            column: "experimentName",
+            operator: "any of",
+            value: ["any-experiment"],
+            type: "stringOptions",
+          },
+        ],
+        metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      }),
+    );
+  } catch (e) {
+    expFilterThrew = true;
+    console.error(e);
+  }
+  check(
+    "experiment entityDimension + filter (chart shape) executes",
+    !expFilterThrew,
+  );
 
   console.log(failures === 0 ? "\nALL GREEN" : `\n${failures} FAILURE(S)`);
 }

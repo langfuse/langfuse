@@ -1,5 +1,5 @@
 import { type UiColumnMatchable } from "../../../tableDefinitions/types";
-import { type ScoreGrain } from "./greptime-filter";
+import { type ScoreGrain, type DatasetRunItemsGrain } from "./greptime-filter";
 
 /**
  * GreptimeDB column mapping (04-read-path.md, P1). The dialect-agnostic match keys
@@ -32,6 +32,12 @@ export type GreptimeColumnMapping = UiColumnMatchable &
      * projection has no per-row score array to filter). `greptimeSelect` is unused for these.
      */
     scoreGrain?: ScoreGrain;
+    /**
+     * Present on the scores filter columns that the CH path resolves through a
+     * `scores ⋈ dataset_run_items` join (`datasetRunItemRunIds` / `datasetId` / `datasetItemIds`):
+     * routes a `stringOptions` filter to a correlated reverse EXISTS over `dataset_run_items`.
+     */
+    datasetRunItemsGrain?: DatasetRunItemsGrain;
   }>;
 
 export type GreptimeColumnMappings = readonly GreptimeColumnMapping[];
@@ -127,8 +133,14 @@ export const scoresTableGreptimeColumnDefinitions: GreptimeColumnMappings = [
   { uiTableName: "Data Type", uiTableId: "dataType", greptimeTableName: "scores", greptimeSelect: "data_type", queryPrefix: "s" }, // prettier-ignore
   { uiTableName: "String Value", uiTableId: "stringValue", greptimeTableName: "scores", greptimeSelect: "string_value", queryPrefix: "s" }, // prettier-ignore
   { uiTableName: "Metadata", uiTableId: "metadata", greptimeTableName: "scores", greptimeSelect: "metadata", queryPrefix: "s" }, // prettier-ignore
+  { uiTableName: "Dataset Run IDs", uiTableId: "datasetRunIds", greptimeTableName: "scores", greptimeSelect: "dataset_run_id", queryPrefix: "s" }, // prettier-ignore
   // Trace-joined columns (scores UI table joins `traces t`).
   { uiTableName: "Trace Name", uiTableId: "traceName", greptimeTableName: "traces", greptimeSelect: "name", queryPrefix: "t" }, // prettier-ignore
   { uiTableName: "User ID", uiTableId: "userId", greptimeTableName: "traces", greptimeSelect: "user_id", queryPrefix: "t" }, // prettier-ignore
   { uiTableName: "Trace Tags", uiTableId: "trace_tags", greptimeTableName: "traces", greptimeSelect: "tags", queryPrefix: "t" }, // prettier-ignore
+  // Dataset-run-items-joined filter columns (CH joins scores ⋈ dataset_run_items_rmt by trace_id);
+  // here they route to a reverse correlated EXISTS over `dataset_run_items` (greptimeSelect unused).
+  { uiTableName: "Dataset Run Item Run IDs", uiTableId: "datasetRunItemRunIds", greptimeTableName: "scores", greptimeSelect: "trace_id", queryPrefix: "s", datasetRunItemsGrain: { driColumn: "dataset_run_id", outerPrefix: "s" } }, // prettier-ignore
+  { uiTableName: "Dataset ID", uiTableId: "datasetId", greptimeTableName: "scores", greptimeSelect: "trace_id", queryPrefix: "s", datasetRunItemsGrain: { driColumn: "dataset_id", outerPrefix: "s" } }, // prettier-ignore
+  { uiTableName: "Dataset Item IDs", uiTableId: "datasetItemIds", greptimeTableName: "scores", greptimeSelect: "trace_id", queryPrefix: "s", datasetRunItemsGrain: { driColumn: "dataset_item_id", outerPrefix: "s" } }, // prettier-ignore
 ];

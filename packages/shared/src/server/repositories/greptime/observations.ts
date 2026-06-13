@@ -22,6 +22,7 @@ import {
   greptimeObservationSelect,
 } from "./converters";
 import { greptimeJson, selectJsonColumn } from "../../greptime/sql/rowContract";
+import { greptimeQuantile } from "../../greptime/sql/quantile";
 import {
   greptimeDayBounds,
   greptimeInClause,
@@ -612,4 +613,222 @@ export const getLatencyAndTotalCostForObservationsByTraces = async (
     totalCost: Number(r.total_cost ?? 0),
     latency: Number(r.latency_ms ?? 0) / 1000,
   }));
+};
+
+// ---------------------------------------------------------------------------
+// P4 scattered reads (prompt / evaluator analytics; observation tuples per trace)
+// ---------------------------------------------------------------------------
+
+export const getObservationsWithPromptName = async (
+  projectId: string,
+  promptNames: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+): Promise<{ count: number; promptName: string }[]> => {
+  if (promptNames.length === 0) return [];
+  const names = greptimeInClause("prompt_name", promptNames, "pn");
+  const rows = await greptimeQuery<{
+    count: string | number;
+    prompt_name: string;
+  }>({
+    query: `
+      SELECT count(DISTINCT id) AS count, prompt_name
+      FROM observations
+      WHERE project_id = :projectId AND ${names.sql}
+        AND prompt_name IS NOT NULL AND prompt_name != ''
+        ${fromTimestamp ? "AND start_time >= :fromTs" : ""}
+        ${toTimestamp ? "AND start_time <= :toTs" : ""}
+        AND ${notDeleted()}
+      GROUP BY prompt_name`,
+    params: {
+      projectId,
+      ...names.params,
+      ...(fromTimestamp ? { fromTs: greptimeTsParam(fromTimestamp) } : {}),
+      ...(toTimestamp ? { toTs: greptimeTsParam(toTimestamp) } : {}),
+    },
+    readOnly: true,
+  });
+  return rows.map((r) => ({
+    count: Number(r.count),
+    promptName: r.prompt_name,
+  }));
+};
+
+/**
+ * Per-(prompt_id, prompt_version) GENERATION metrics. CH used `medianExact`; GreptimeDB uses the
+ * uddsketch median (`greptimeQuantile(0.5, ...)`, approximate). usage input/output medians use the
+ * known `input`/`output` usage keys (CH summed every key whose name contains 'input'/'output'); custom
+ * usage keys (e.g. `input_cached`) are not folded into the median — a documented narrowing consistent
+ * with the dashboards known-key reader. `coalesce(...,0)` matches CH's `arraySum` of an empty map = 0.
+ */
+export const getObservationMetricsForPrompts = async (
+  projectId: string,
+  promptIds: string[],
+  {
+    fromTimestamp,
+    toTimestamp,
+  }: { fromTimestamp?: Date; toTimestamp?: Date } = {},
+): Promise<
+  {
+    count: number;
+    promptId: string;
+    promptVersion: number;
+    firstObservation: Date;
+    lastObservation: Date;
+    medianInputUsage: number;
+    medianOutputUsage: number;
+    medianTotalCost: number;
+    medianLatencyMs: number;
+  }[]
+> => {
+  if (promptIds.length === 0) return [];
+  const ids = greptimeInClause("prompt_id", promptIds, "pid");
+  const latencyMs =
+    "CAST((to_unixtime(end_time) - to_unixtime(start_time)) * 1000 AS BIGINT)";
+  const rows = await greptimeQuery<{
+    count: string | number;
+    prompt_id: string;
+    prompt_version: number;
+    first_observation: Date;
+    last_observation: Date;
+    median_input_usage: string | number | null;
+    median_output_usage: string | number | null;
+    median_total_cost: string | number | null;
+    median_latency_ms: string | number | null;
+  }>({
+    query: `
+      SELECT
+        count(*) AS count,
+        prompt_id,
+        prompt_version,
+        min(start_time) AS first_observation,
+        max(start_time) AS last_observation,
+        ${greptimeQuantile(0.5, "coalesce(json_get_float(usage_details, 'input'), 0)")} AS median_input_usage,
+        ${greptimeQuantile(0.5, "coalesce(json_get_float(usage_details, 'output'), 0)")} AS median_output_usage,
+        ${greptimeQuantile(0.5, "coalesce(json_get_float(cost_details, 'total'), 0)")} AS median_total_cost,
+        ${greptimeQuantile(0.5, latencyMs)} AS median_latency_ms
+      FROM observations
+      WHERE project_id = :projectId AND type = 'GENERATION'
+        AND prompt_name IS NOT NULL AND ${ids.sql}
+        ${fromTimestamp ? "AND start_time >= :fromTs" : ""}
+        ${toTimestamp ? "AND start_time <= :toTs" : ""}
+        AND ${notDeleted()}
+      GROUP BY prompt_id, prompt_version
+      ORDER BY prompt_version DESC`,
+    params: {
+      projectId,
+      ...ids.params,
+      ...(fromTimestamp ? { fromTs: greptimeTsParam(fromTimestamp) } : {}),
+      ...(toTimestamp ? { toTs: greptimeTsParam(toTimestamp) } : {}),
+    },
+    readOnly: true,
+  });
+  return rows.map((r) => ({
+    count: Number(r.count),
+    promptId: r.prompt_id,
+    promptVersion: r.prompt_version,
+    firstObservation: r.first_observation,
+    lastObservation: r.last_observation,
+    medianInputUsage: Number(r.median_input_usage ?? 0),
+    medianOutputUsage: Number(r.median_output_usage ?? 0),
+    medianTotalCost: Number(r.median_total_cost ?? 0),
+    medianLatencyMs: Number(r.median_latency_ms ?? 0),
+  }));
+};
+
+/** Observation cost/latency tuples grouped by trace (CH `groupArray(tuple(...))` -> app-side Map). */
+export const getObservationsGroupedByTraceId = async (
+  projectId: string,
+  traceIds: string[],
+  timestamp?: Date,
+): Promise<
+  Map<string, [string, string | null, string, string, string, number][]>
+> => {
+  if (traceIds.length === 0) return new Map();
+  const ids = greptimeInClause("trace_id", traceIds, "tid");
+  const rows = await greptimeQuery<{
+    trace_id: string;
+    id: string;
+    parent_observation_id: string | null;
+    total_cost: string | number | null;
+    input_cost: string | number | null;
+    output_cost: string | number | null;
+    latency_ms: string | number | null;
+  }>({
+    query: `
+      SELECT trace_id, id, parent_observation_id,
+        coalesce(json_get_float(cost_details, 'total'), 0) AS total_cost,
+        coalesce(json_get_float(cost_details, 'input'), 0) AS input_cost,
+        coalesce(json_get_float(cost_details, 'output'), 0) AS output_cost,
+        CAST((to_unixtime(end_time) - to_unixtime(start_time)) * 1000 AS BIGINT) AS latency_ms
+      FROM observations
+      WHERE project_id = :projectId AND ${ids.sql}
+        ${timestamp ? "AND start_time >= :ts" : ""} AND ${notDeleted()}`,
+    params: {
+      projectId,
+      ...ids.params,
+      ...(timestamp ? { ts: greptimeTsParam(timestamp) } : {}),
+    },
+    readOnly: true,
+  });
+  const map = new Map<
+    string,
+    [string, string | null, string, string, string, number][]
+  >();
+  for (const r of rows) {
+    const tuple: [string, string | null, string, string, string, number] = [
+      r.id,
+      r.parent_observation_id ? r.parent_observation_id : null,
+      String(r.total_cost ?? 0),
+      String(r.input_cost ?? 0),
+      String(r.output_cost ?? 0),
+      Number(r.latency_ms ?? 0),
+    ];
+    const existing = map.get(r.trace_id);
+    if (existing) existing.push(tuple);
+    else map.set(r.trace_id, [tuple]);
+  }
+  return map;
+};
+
+/** Per-evaluator GENERATION cost over the last 7 days (CH `metadata['job_configuration_id']`). */
+export const getCostByEvaluatorIds = async (
+  projectId: string,
+  evaluatorIds: string[],
+): Promise<Array<{ evaluatorId: string; totalCost: number }>> => {
+  if (evaluatorIds.length === 0) return [];
+  const evalExpr = "json_get_string(metadata, 'job_configuration_id')";
+  const params: Record<string, unknown> = { projectId };
+  const placeholders = evaluatorIds.map((val, i) => {
+    params[`ev${i}`] = val;
+    return `:ev${i}`;
+  });
+  // CH `today() - 7` = midnight 7 days ago (UTC); computed app-side as an absolute lower bound.
+  const midnight = new Date();
+  midnight.setUTCHours(0, 0, 0, 0);
+  params.lookback = greptimeTsParam(minus(midnight, 7 * DAY_MS));
+
+  const rows = await greptimeQuery<{
+    evaluator_id: string | null;
+    total_cost: string | number | null;
+  }>({
+    query: `
+      SELECT ${evalExpr} AS evaluator_id, sum(total_cost) AS total_cost
+      FROM observations
+      WHERE project_id = :projectId AND type = 'GENERATION'
+        AND start_time >= :lookback
+        AND ${evalExpr} IN (${placeholders.join(", ")})
+        AND ${notDeleted()}
+      GROUP BY ${evalExpr}`,
+    params,
+    readOnly: true,
+  });
+  return rows
+    .filter((r) => r.evaluator_id != null)
+    .map((r) => ({
+      evaluatorId: String(r.evaluator_id),
+      totalCost: Number(r.total_cost ?? 0),
+    }));
 };

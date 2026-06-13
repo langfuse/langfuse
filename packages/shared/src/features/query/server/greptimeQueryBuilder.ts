@@ -53,6 +53,7 @@ const PREFIX_TABLE: Record<string, string> = {
   o: "observations",
   s: "scores",
   sc: "scores",
+  dri: "dataset_run_items",
 };
 
 // Relation time-window lookbacks (absolute lower bound on the joined relation's time dimension),
@@ -412,18 +413,27 @@ export class GreptimeQueryBuilder {
       }
       const relAlias =
         rel === "scores" ? "sc" : baseAliasForTable(relation.name);
-      fromClause +=
-        `\nINNER JOIN ${quoteIdent(relation.name)} AS ${relAlias} ` +
-        `${relation.joinConditionSql} AND ${notDeleted(relAlias)}`;
-      // relation time-range lower bound (lookback) keeps the child scan bounded
-      const lookback = RELATION_LOOKBACK_MS[relation.name] ?? 0;
-      const from = greptimeTimestampLiteral(
-        new Date(new Date(query.fromTimestamp).getTime() - lookback),
-      );
-      const to = greptimeTimestampLiteral(new Date(query.toTimestamp));
-      fromClause +=
-        ` AND ${relAlias}.${relation.timeDimension} >= '${from}'` +
-        ` AND ${relAlias}.${relation.timeDimension} <= '${to}'`;
+      // A `baseQuery` relation joins an inline subquery (the experiment relation joins a DISTINCT
+      // projection of dataset_run_items) — the subquery already filters `is_deleted`, so no extra
+      // notDeleted, and it carries no comparable time column, so `skipTimeBound` omits the window.
+      const joinSource = relation.baseQuery
+        ? `(${relation.baseQuery})`
+        : quoteIdent(relation.name);
+      fromClause += `\nINNER JOIN ${joinSource} AS ${relAlias} ${relation.joinConditionSql}`;
+      if (!relation.baseQuery) {
+        fromClause += ` AND ${notDeleted(relAlias)}`;
+      }
+      if (!relation.skipTimeBound) {
+        // relation time-range lower bound (lookback) keeps the child scan bounded
+        const lookback = RELATION_LOOKBACK_MS[relation.name] ?? 0;
+        const from = greptimeTimestampLiteral(
+          new Date(new Date(query.fromTimestamp).getTime() - lookback),
+        );
+        const to = greptimeTimestampLiteral(new Date(query.toTimestamp));
+        fromClause +=
+          ` AND ${relAlias}.${relation.timeDimension} >= '${from}'` +
+          ` AND ${relAlias}.${relation.timeDimension} <= '${to}'`;
+      }
     }
 
     fromClause += ` WHERE ${applied.query} AND ${notDeleted(base)}`;
@@ -704,6 +714,8 @@ const baseAliasForTable = (table: string): string => {
       return "o";
     case "scores":
       return "sc";
+    case "dataset_run_items":
+      return "dri";
     default:
       return table;
   }

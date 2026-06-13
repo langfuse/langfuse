@@ -716,6 +716,68 @@ export class ScoreNumberObjectFilter implements GreptimeFilter {
   }
 }
 
+/**
+ * Reverse correlation: filter `scores` rows by a `dataset_run_items` column (the run/dataset/item a
+ * score's trace belongs to). Replaces the CH `scores ⋈ dataset_run_items_rmt` join used by
+ * `mapScoresColumnsTable` (`datasetRunItemRunIds` / `datasetId` / `datasetItemIds`). The outer row is
+ * a `scores` row (prefix `outerPrefix`); the EXISTS is project-scoped and soft-delete-aware, correlated
+ * by `(project_id, trace_id)`. `none of` is the negated EXISTS.
+ */
+export type DatasetRunItemsGrain = {
+  driColumn: "dataset_run_id" | "dataset_id" | "dataset_item_id";
+  outerPrefix: string;
+};
+
+const DRI_GRAIN_ALIAS = "drif";
+
+export class DatasetRunItemsOptionsFilter implements GreptimeFilter {
+  public table = "dataset_run_items";
+  public field: string;
+  public values: string[];
+  public operator: (typeof filterOperators.stringOptions)[number];
+  public tablePrefix?: string;
+  public grain: DatasetRunItemsGrain;
+
+  constructor(opts: {
+    values: string[];
+    operator: (typeof filterOperators.stringOptions)[number];
+    grain: DatasetRunItemsGrain;
+  }) {
+    this.values = opts.values;
+    this.operator = opts.operator;
+    this.grain = opts.grain;
+    this.field = opts.grain.driColumn;
+    this.tablePrefix = opts.grain.outerPrefix;
+  }
+
+  apply(): CompiledFilter {
+    if (this.values.length === 0) {
+      return {
+        query: this.operator === "any of" ? "1 = 0" : "1 = 1",
+        params: {},
+      };
+    }
+    const d = DRI_GRAIN_ALIAS;
+    const outer = this.grain.outerPrefix;
+    const params: Record<string, unknown> = {};
+    const placeholders = this.values.map((val) => {
+      const name = `v${uid()}`;
+      params[name] = val;
+      return `:${name}`;
+    });
+    const sub =
+      `SELECT 1 FROM ${quoteIdent("dataset_run_items")} ${d} ` +
+      `WHERE ${d}.${quoteIdent("project_id")} = ${outer}.${quoteIdent("project_id")} ` +
+      `AND ${d}.${quoteIdent("trace_id")} = ${outer}.${quoteIdent("trace_id")} ` +
+      `AND ${d}.${quoteIdent(this.grain.driColumn)} IN (${placeholders.join(", ")}) ` +
+      `AND ${d}.${quoteIdent("is_deleted")} = false`;
+    return {
+      query: `${this.operator === "none of" ? "NOT EXISTS" : "EXISTS"} (${sub})`,
+      params,
+    };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // FilterList
 // ---------------------------------------------------------------------------
