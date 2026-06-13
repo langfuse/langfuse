@@ -15,13 +15,14 @@ import {
   SeveritySchema,
   TopicSchema,
   TopicGroups,
+  highestSupportPlan,
 } from "../formConstants";
 
 import {
   createPylonIssue,
   buildPylonIssueBodyHtml,
   buildPylonMetadataString,
-  mapSeverityToPylonPriority,
+  mapCaseSeverityToPylonPriority,
   updatePylonAccountCustomFields,
   mapPlanToPylonCustomerTier,
   mapToPylonCaseSeverity,
@@ -148,6 +149,24 @@ export const supportRouter = createTRPCRouter({
         currentSupportRequestContext.organizationId = organization.id;
       }
 
+      // When no specific org/project is in context (the support form is
+      // reachable from pages without org/project in the URL), fall back to the
+      // user's highest-tier org plan. This mirrors the client-side gating so a
+      // legitimate Team/Enterprise user is not silently downgraded.
+      if (!currentSupportRequestContext.plan) {
+        currentSupportRequestContext.plan = highestSupportPlan(
+          ctx.session.user.organizations.map((o) => o.plan),
+        );
+      }
+
+      // Resolve the Pylon case severity (Sev-1/2/3). Sev-1 is gated to
+      // high-tier plans inside mapToPylonCaseSeverity, so a Severity 1 selection
+      // from a non-high-tier plan is safely downgraded server-side.
+      const caseSeverity = mapToPylonCaseSeverity({
+        severity: input.severity,
+        plan: currentSupportRequestContext.plan,
+      });
+
       const { topLevel, subtype } = splitTopic(input.topic);
 
       // Generate a short unique identifier to prevent Gmail from merging threads
@@ -190,7 +209,7 @@ export const supportRouter = createTRPCRouter({
             requesterEmail: email,
             requesterName: fullName,
             tags: ["Langfuse"],
-            priority: mapSeverityToPylonPriority(input.severity),
+            priority: mapCaseSeverityToPylonPriority(caseSeverity),
             attachmentUrls: input.pylonAttachmentUrls,
             customFields: [
               ...(input.url
@@ -212,10 +231,7 @@ export const supportRouter = createTRPCRouter({
               { slug: "langfuse_metadata", value: pylonMetadata },
               {
                 slug: "case_severity",
-                value: mapToPylonCaseSeverity({
-                  severity: input.severity,
-                  plan: currentSupportRequestContext.plan,
-                }),
+                value: caseSeverity,
               },
             ],
           });

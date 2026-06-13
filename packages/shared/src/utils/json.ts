@@ -389,6 +389,11 @@ export function deepParseJsonIterative(
  * 2. \d[eE] - scientific notation (always use lossless-json for safety)
  */
 const UNSAFE_NUMBER_PATTERN = /[\d.]{13,}|\d[eE]/;
+const JSON_NUMBER_LITERAL_PATTERN =
+  /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+
+export const isJsonNumberLiteral = (value: string): boolean =>
+  JSON_NUMBER_LITERAL_PATTERN.test(value.trim());
 
 export const parseJsonPrioritised = (
   json: string,

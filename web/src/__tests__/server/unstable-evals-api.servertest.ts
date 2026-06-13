@@ -274,6 +274,7 @@ describe("/api/public/unstable evaluators API", () => {
       id: v2.body.id,
       name: "Faithfulness",
       scope: "project",
+      type: "llm_as_judge",
     });
   });
 
@@ -328,6 +329,7 @@ describe("/api/public/unstable evaluators API", () => {
       id: v2.body.id,
       name: "Answer groundedness",
       scope: "project",
+      type: "llm_as_judge",
     });
   });
 
@@ -428,6 +430,7 @@ describe("/api/public/unstable evaluators API", () => {
       id: managed.id,
       name: "Answer relevance",
       scope: "managed",
+      type: "llm_as_judge",
     });
 
     const deleted = await makeZodVerifiedAPICall(

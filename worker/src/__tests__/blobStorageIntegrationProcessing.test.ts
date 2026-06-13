@@ -753,6 +753,90 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
   });
 
+  describe("legacy observations export field groups", () => {
+    it("should exclude columns for deselected exportFieldGroups in the legacy observations export", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "TRACES_OBSERVATIONS",
+          exportFieldGroups: ["core", "io"],
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+        },
+      });
+
+      const traceId = randomUUID();
+      await createObservationsCh([
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          start_time: dataTime,
+          end_time: dataTime + 5000,
+          name: "Legacy Observation",
+          metadata: { secret: "should-not-appear" },
+          usage_details: { input: 100, output: 200, total: 300 },
+        }),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      const observationFile = files.find((f) =>
+        f.file.includes("/observations/"),
+      );
+      expect(observationFile).toBeDefined();
+
+      if (observationFile) {
+        const content = await s3StorageService.download(observationFile.file);
+        const row = JSON.parse(content.trim().split("\n")[0]);
+
+        // core + io fields should be present
+        expect(row).toHaveProperty("id");
+        expect(row).toHaveProperty("trace_id");
+        expect(row).toHaveProperty("input");
+        expect(row).toHaveProperty("output");
+
+        // metadata group not selected → must not leak
+        expect(row).not.toHaveProperty("metadata");
+
+        // metrics group not selected → computed fields must not appear
+        expect(row).not.toHaveProperty("latency");
+        expect(row).not.toHaveProperty("time_to_first_token");
+
+        // model group not selected → no model id or pricing enrichment
+        expect(row).not.toHaveProperty("model_id");
+        expect(row).not.toHaveProperty("input_price");
+
+        // other non-selected groups must not appear
+        expect(row).not.toHaveProperty("name");
+        expect(row).not.toHaveProperty("level");
+        expect(row).not.toHaveProperty("usage_details");
+      }
+    });
+  });
+
   describe("BlobStorageExportMode minTimestamp behavior", () => {
     maybeIt(
       "should export old data for FULL_HISTORY mode when data exists",

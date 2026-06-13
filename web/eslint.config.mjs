@@ -1,8 +1,11 @@
+import { globalIgnores } from "eslint/config";
 import storybook from "eslint-plugin-storybook";
 
 import nextConfig from "@repo/eslint-config/next";
 
 export default [
+  globalIgnores(["**/storybook-static/"]),
+
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
 

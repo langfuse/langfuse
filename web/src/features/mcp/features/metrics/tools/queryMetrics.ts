@@ -2,13 +2,16 @@ import { InvalidRequestError } from "@langfuse/shared";
 import { executeQuery } from "@langfuse/shared/query/server";
 import {
   dimension,
-  granularities,
   metric,
   validateQuery,
   viewsV2,
 } from "@langfuse/shared/query";
-import { MetricsQueryObjectV2 } from "@/src/features/public-api/types/metrics";
+import {
+  MetricsQueryObjectV2,
+  publicGranularities,
+} from "@/src/features/public-api/types/metrics";
 import { defineTool } from "../../../core/define-tool";
+import { McpAdvancedFilterBaseSchema } from "../../../core/filter-schema";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { z } from "zod";
 
@@ -57,22 +60,14 @@ const normalizeMetricOrderByFields = (
   };
 };
 
-const MetricsFilterBaseSchema = z.object({
-  column: z.string(),
-  operator: z.string(),
-  value: z.any(),
-  type: z.string(),
-  key: z.string().optional(),
-});
-
 const MetricsQueryObjectV2BaseSchema = z.object({
   view: viewsV2,
   dimensions: z.array(dimension).optional().default([]),
   metrics: z.array(metric),
-  filters: z.array(MetricsFilterBaseSchema).optional().default([]),
+  filters: z.array(McpAdvancedFilterBaseSchema).optional().default([]),
   timeDimension: z
     .object({
-      granularity: granularities,
+      granularity: publicGranularities,
     })
     .optional(),
   fromTimestamp: z.iso.datetime({ offset: true }),

@@ -127,7 +127,7 @@ export default async function handler(
       isInAppAgentKey: authCheck.scope.isInAppAgentKey === true,
     };
 
-    logger.info("MCP request authenticated", {
+    logger.debug("MCP request authenticated", {
       method: req.method,
       projectId: context.projectId,
       orgId: context.orgId,

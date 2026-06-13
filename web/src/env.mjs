@@ -67,6 +67,7 @@ export const env = createEnv({
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    LANGFUSE_ENABLE_WEB_CALLOUTS: z.enum(["true", "false"]).default("false"),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -400,13 +401,6 @@ export const env = createEnv({
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
-    // Whether to propagate the toTimestamp restriction (including a server-side offset)
-    // onto the observations CTE in GET /api/public/traces. Can be used to improve performance
-    // for self-hosters that have a trace known trace duration of less than multiple hours.
-    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS: z
-      .enum(["true", "false"])
-      .default("false"),
-
     // API Traces endpoint controls (may induce breaking changes on API when changed!)
     LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS: z.coerce
       .number()
@@ -435,8 +429,6 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("legacy"),
-
-    LANGFUSE_ENABLE_SCORES_V3_API: z.enum(["true", "false"]).default("false"),
 
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
@@ -474,6 +466,7 @@ export const env = createEnv({
       .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
       .optional(),
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
@@ -507,9 +500,12 @@ export const env = createEnv({
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF:
       process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_ENABLE_WEB_CALLOUTS: process.env.LANGFUSE_ENABLE_WEB_CALLOUTS,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
@@ -817,8 +813,6 @@ export const env = createEnv({
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
 
     // Api Performance Flags
-    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS:
-      process.env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS,
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
 
@@ -845,7 +839,6 @@ export const env = createEnv({
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
-    LANGFUSE_ENABLE_SCORES_V3_API: process.env.LANGFUSE_ENABLE_SCORES_V3_API,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },

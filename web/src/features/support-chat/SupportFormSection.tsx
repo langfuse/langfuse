@@ -6,10 +6,15 @@ import { type z } from "zod";
 import {
   MESSAGE_TYPES,
   SEVERITIES,
+  SEVERITY_1,
+  SEVERITY_2,
+  SEVERITY_3,
   INTEGRATION_TYPES,
   TopicGroups,
   type MessageType,
   SupportFormSchema,
+  isSeverityAllowedForPlan,
+  highestSupportPlan,
 } from "./formConstants";
 
 import { api } from "@/src/utils/api";
@@ -34,6 +39,7 @@ import {
 } from "@/src/components/ui/select";
 import { Textarea } from "@/src/components/ui/textarea";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
 
 import {
@@ -161,6 +167,20 @@ export function SupportFormSection({
   onSuccess: () => void;
 }) {
   const { organization, project } = useQueryProjectOrOrganization();
+  const session = useSession();
+
+  // The support drawer is mounted globally and reachable from pages without an
+  // org/project in the URL (home, setup, onboarding, account settings), where
+  // `organization` is null. Fall back to the user's highest-tier org plan so
+  // severity eligibility reflects what the user actually has access to instead
+  // of being wrongly restricted. The server applies the same fallback.
+  const effectivePlan =
+    organization?.plan ??
+    highestSupportPlan(
+      (session.data?.user?.organizations ?? []).map((o) => o.plan),
+    );
+  const isSev1Allowed = isSeverityAllowedForPlan(SEVERITY_1, effectivePlan);
+  const isSev2Allowed = isSeverityAllowedForPlan(SEVERITY_2, effectivePlan);
 
   // Tracks whether we've already warned about a short message
   const [warnedShortOnce, setWarnedShortOnce] = useState(false);
@@ -179,7 +199,7 @@ export function SupportFormSection({
     resolver: zodResolver(SupportFormSchema),
     defaultValues: {
       messageType: "Question" as MessageType,
-      severity: "Question or feature request",
+      severity: SEVERITY_3,
       topic: "",
       message: "",
       integrationType: "",
@@ -207,7 +227,7 @@ export function SupportFormSection({
         }
         form.reset({
           messageType: "Question",
-          severity: "Question or feature request",
+          severity: SEVERITY_3,
           topic: "",
           message: "",
         });
@@ -369,27 +389,42 @@ export function SupportFormSection({
             )}
           />
 
-          {/* Severity */}
+          {/* Priority (maps to Pylon case_severity). Severity 1 is gated to
+              Team / Enterprise plans. */}
           <FormField
             control={form.control}
             name="severity"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Severity</FormLabel>
+                <FormLabel>Priority</FormLabel>
                 <FormControl>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Select severity" />
+                      <SelectValue placeholder="Select a priority" />
                     </SelectTrigger>
                     <SelectContent>
                       {SEVERITIES.map((s) => (
-                        <SelectItem key={s} value={s}>
+                        <SelectItem
+                          key={s}
+                          value={s}
+                          disabled={!isSeverityAllowedForPlan(s, effectivePlan)}
+                        >
                           {s}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </FormControl>
+                {/* Explain the gating for all input modalities (keyboard /
+                    screen-reader users can't reach a per-item tooltip, and a
+                    tooltip portal can stack behind the dropdown). */}
+                {!isSev1Allowed && (
+                  <FormDescription>
+                    {isSev2Allowed
+                      ? "Severity 1 is available on the Team and Enterprise plans."
+                      : "Severity 1 (Team and Enterprise) and Severity 2 (Pro and above) are not available on your current plan."}
+                  </FormDescription>
+                )}
                 <FormMessage />
               </FormItem>
             )}
