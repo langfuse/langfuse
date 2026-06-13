@@ -20,8 +20,14 @@ import {
   getDatasetVersionTimestampsGreptime,
   getExperimentDatasetIds,
   getScoresGroupedByNameSourceType,
+  getObservationsWithPromptName,
+  getObservationMetricsForPrompts,
+  getObservationsGroupedByTraceId,
+  getCostByEvaluatorIds,
+  getAgentGraphData,
   type DatasetRunItemRecordInsertType,
   type ScoreRecordInsertType,
+  type ObservationRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { GreptimeWriter, GreptimeTable } from "../services/GreptimeWriter";
 
@@ -108,6 +114,43 @@ const score = (
   is_deleted: 0,
 });
 
+const genObs = (id: string, traceId: string): ObservationRecordInsertType => ({
+  id,
+  project_id: SMOKE_PROJECT,
+  trace_id: traceId,
+  type: "GENERATION",
+  environment: "default",
+  name: "gen",
+  level: "DEFAULT",
+  start_time: now,
+  end_time: now + 1000,
+  metadata: {
+    job_configuration_id: "ev1",
+    langgraph_node: "n1",
+    langgraph_step: "2",
+  },
+  provided_model_name: "gpt-4o",
+  internal_model_id: "m1",
+  model_parameters: "{}",
+  prompt_id: "p1",
+  prompt_name: "greet",
+  prompt_version: 1,
+  provided_usage_details: { input: 10, output: 20 },
+  usage_details: { input: 10, output: 20, total: 30 },
+  provided_cost_details: {},
+  cost_details: { input: 0.1, output: 0.2, total: 0.3 },
+  total_cost: 0.3,
+  input: "{}",
+  output: "{}",
+  tool_definitions: {},
+  tool_calls: [],
+  tool_call_names: [],
+  created_at: now,
+  updated_at: now,
+  event_ts: now,
+  is_deleted: 0,
+});
+
 async function main() {
   await cleanup();
   const writer = GreptimeWriter.getInstance();
@@ -131,6 +174,10 @@ async function main() {
     GreptimeTable.Scores,
     score("sc3", "t3", "quality", 0.5, null),
   );
+
+  // observations on t1: two GENERATION rows (prompt p1 v1, evaluator ev1, langgraph node/step).
+  writer.addToQueue(GreptimeTable.Observations, genObs("op1", "t1"));
+  writer.addToQueue(GreptimeTable.Observations, genObs("op2", "t1"));
 
   await writer.flushAll(true);
   await sleep(500);
@@ -271,6 +318,64 @@ async function main() {
     "Bug2 datasetItemIds=[item-2]: none (t2 has no scores)",
     byItem.length === 0,
     byItem.map((r) => r.name),
+  );
+
+  // --- B class: scattered observation reads ---
+  const withPrompt = await getObservationsWithPromptName(SMOKE_PROJECT, [
+    "greet",
+  ]);
+  check(
+    "getObservationsWithPromptName greet: count distinct = 2",
+    withPrompt.length === 1 && withPrompt[0].count === 2,
+    withPrompt,
+  );
+
+  const promptMetrics = await getObservationMetricsForPrompts(SMOKE_PROJECT, [
+    "p1",
+  ]);
+  // uddsketch medians are approximate (~1% relative error for (128, 0.01)).
+  const rel = (a: number, b: number) => Math.abs(a - b) / b < 0.03;
+  check(
+    "getObservationMetricsForPrompts p1: count=2, median input/output/cost/latency ~ 10/20/0.3/1000",
+    promptMetrics.length === 1 &&
+      promptMetrics[0].count === 2 &&
+      rel(promptMetrics[0].medianInputUsage, 10) &&
+      rel(promptMetrics[0].medianOutputUsage, 20) &&
+      rel(promptMetrics[0].medianTotalCost, 0.3) &&
+      rel(promptMetrics[0].medianLatencyMs, 1000),
+    promptMetrics,
+  );
+
+  const grouped = await getObservationsGroupedByTraceId(SMOKE_PROJECT, ["t1"]);
+  const t1Obs = grouped.get("t1") ?? [];
+  check(
+    "getObservationsGroupedByTraceId t1: 2 tuples, total cost 0.3",
+    t1Obs.length === 2 && t1Obs.every((o) => o[2] === "0.3" && o[5] === 1000),
+    t1Obs,
+  );
+
+  const evalCost = await getCostByEvaluatorIds(SMOKE_PROJECT, ["ev1"]);
+  check(
+    "getCostByEvaluatorIds ev1: sum = 0.6",
+    evalCost.length === 1 &&
+      evalCost[0].evaluatorId === "ev1" &&
+      Math.abs(evalCost[0].totalCost - 0.6) < 1e-6,
+    evalCost,
+  );
+
+  const graph = await getAgentGraphData({
+    projectId: SMOKE_PROJECT,
+    traceId: "t1",
+    chMinStartTime: new Date(now - ONE_DAY).toISOString(),
+    chMaxStartTime: new Date(now + ONE_DAY).toISOString(),
+  });
+  check(
+    "getAgentGraphData t1: 2 rows with node=n1 step=2",
+    graph.length === 2 &&
+      graph.every(
+        (g) => g.node === "n1" && g.step === "2" && g.type === "GENERATION",
+      ),
+    graph,
   );
 
   await cleanup();
