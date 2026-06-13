@@ -35,11 +35,17 @@ function nodeSpan(node: ASTNode, textLength: number): Span {
 
 const NULLABLE_FIELD_IDS = new Set(nullableFields().map((f) => f.id));
 
-/** `has:` on a column that always has a value matches everything. */
+/**
+ * `has:` on a column that always has a value matches everything — and its
+ * negation (`-has:` / `NOT has:`) lowers to `IS NULL`, which is vacuously
+ * false on a non-nullable column, so it matches nothing. `negated` tracks
+ * polarity through `NOT` so the warning states the right side.
+ */
 function hasFilterWarnings(
   node: ASTNode,
   textLength: number,
   out: Diagnostic[],
+  negated = false,
 ): void {
   switch (node.kind) {
     case "filter": {
@@ -57,7 +63,9 @@ function hasFilterWarnings(
             from: span.from,
             to: span.to,
             severity: "warning",
-            message: `"${target.field.id}" always has a value — this filter matches everything`,
+            message: negated
+              ? `"${target.field.id}" always has a value — this filter matches nothing`
+              : `"${target.field.id}" always has a value — this filter matches everything`,
           });
         }
       }
@@ -66,11 +74,12 @@ function hasFilterWarnings(
     case "text":
       return;
     case "not":
-      hasFilterWarnings(node.child, textLength, out);
+      hasFilterWarnings(node.child, textLength, out, !negated);
       return;
     case "and":
     case "or":
-      for (const c of node.children) hasFilterWarnings(c, textLength, out);
+      for (const c of node.children)
+        hasFilterWarnings(c, textLength, out, negated);
       return;
   }
 }

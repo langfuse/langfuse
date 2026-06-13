@@ -26,11 +26,23 @@ function spliceSpan(
   return (text.slice(0, start) + replacement + text.slice(end)).trim();
 }
 
-/** Splice, then verify; on invalid output fall back to AST surgery. */
+/**
+ * Splice, then verify; fall back to AST surgery when the splice is unsafe.
+ *
+ * A parse check alone is not enough: a splice can stay syntactically valid yet
+ * change the semantics of the *untouched* subtrees. Removing `level:ERROR`
+ * from `NOT level:ERROR env:dev` splices to `NOT env:dev`, which parses — but
+ * the orphaned `NOT` keyword re-binds to `env:dev` and silently flips its
+ * polarity. So accept the splice only when it reparses into the same AST as
+ * the surgical removal (which collapses the stranded `NOT`); otherwise
+ * reserialize the surgery result.
+ */
 function removeWithFallback(text: string, ast: ASTNode, span: Span): string {
+  const surgical = removeNodeBySpan(ast, span);
   const spliced = spliceSpan(text, span.from, span.to, "");
-  if (parse(spliced).valid) return spliced;
-  return serialize(removeNodeBySpan(ast, span));
+  const reparsed = parse(spliced);
+  if (reparsed.valid && astEquals(reparsed.ast, surgical)) return spliced;
+  return serialize(surgical);
 }
 
 function scanParenPairs(text: string): Array<{ open: number; close: number }> {
