@@ -25,7 +25,14 @@ import {
 import {
   getTraceByIdFromTracesTable,
   getTracesIdentifierForSessionFromTracesTable,
+  getTracesGroupedByUsers,
+  getTotalUserCount,
+  getUserMetrics,
+  getTracesByIds,
+  hasAnyUser,
 } from "./traces";
+import { hasAnySession } from "./trace-sessions";
+import { getSessionsWithMetricsGreptime } from "./greptime/sessionsUiTable";
 import {
   DateTimeFilter,
   type Filter,
@@ -52,8 +59,6 @@ import type {
 import type { TracingSearchType } from "../../interfaces/search";
 import {
   eventsScoresAggregation,
-  eventsSessionsAggregation,
-  eventsTraceMetadata,
   eventsTracesAggregation,
   eventsTracesScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
@@ -76,7 +81,6 @@ import {
 } from "../../domain/observation-field-groups";
 import {
   commandClickhouse,
-  parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
 } from "./clickhouse";
@@ -3228,19 +3232,10 @@ export const getObservationsTraceIdsFromEventsTable = async (opts: {
  * Includes a "Timestamp" mapping that points to start_time for compatibility
  * with the Users page filter state (which uses "Timestamp" from traces table).
  */
-const usersFromEventsTableColumnDefinitions: UiColumnMappings = [
-  ...eventsTableUiColumnDefinitions,
-  {
-    uiTableName: "Timestamp",
-    uiTableId: "timestamp",
-    clickhouseTableName: "events_proto",
-    clickhouseSelect: 'e."start_time"',
-  },
-];
-
 /**
- * Get users with trace counts from events table with pagination
- * Similar to getTracesGroupedByUsers but queries the events table
+ * Get users with trace counts. Events (v4) collapse onto the GreptimeDB traces projection
+ * (04-read-path.md, P3): events_core does not exist on GreptimeDB, and the projection serves the
+ * same merged user list as the legacy path.
  */
 export const getUsersFromEventsTable = async (
   projectId: string,
@@ -3249,40 +3244,14 @@ export const getUsersFromEventsTable = async (
   limit?: number,
   offset?: number,
 ) => {
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
-  );
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const queryBuilder = new EventsAggQueryBuilder({
+  return getTracesGroupedByUsers(
     projectId,
-    groupByColumn: "e.user_id",
-    selectExpression: "e.user_id as user, uniq(e.trace_id) as count",
-  })
-    .where(appliedEventsFilter)
-    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
-    .whereRaw("e.is_deleted = 0")
-    .when(Boolean(searchQuery), (b) =>
-      b.whereRaw("e.user_id ILIKE {searchQuery: String}", {
-        searchQuery: `%${searchQuery}%`,
-      }),
-    )
-    .orderBy("ORDER BY count DESC")
-    .limit(limit, offset);
-
-  const { query, params } = queryBuilder.buildWithParams();
-
-  return queryClickhouse<{ user: string; count: string }>({
-    query,
-    params,
-    tags: {
-      feature: "users",
-      type: "events",
-      kind: "analytic",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
+    filter,
+    searchQuery,
+    limit,
+    offset,
+    undefined,
+  );
 };
 
 /**
@@ -3292,42 +3261,8 @@ export const getUsersCountFromEventsTable = async (
   projectId: string,
   filter: FilterState,
   searchQuery?: string,
-): Promise<{ totalCount: string }[]> => {
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
-  );
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const searchCondition = searchQuery
-    ? `AND e.user_id ILIKE {searchQuery: String}`
-    : "";
-
-  const query = `
-    SELECT uniq(e.user_id) AS totalCount
-    FROM events_core e
-    WHERE e.project_id = {projectId: String}
-    AND e.user_id IS NOT NULL
-    AND e.user_id != ''
-    AND e.is_deleted = 0
-    ${appliedEventsFilter.query ? `AND ${appliedEventsFilter.query}` : ""}
-    ${searchCondition}
-  `;
-
-  return queryClickhouse<{ totalCount: string }>({
-    query,
-    params: {
-      projectId,
-      ...appliedEventsFilter.params,
-      ...(searchQuery ? { searchQuery: `%${searchQuery}%` } : {}),
-    },
-    tags: {
-      feature: "users",
-      type: "events",
-      kind: "analytic",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
+) => {
+  return getTotalUserCount(projectId, filter, searchQuery);
 };
 
 /**
@@ -3344,86 +3279,7 @@ export const getUserMetricsFromEventsTable = async (
   if (userIds.length === 0) {
     return [];
   }
-
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(filter, usersFromEventsTableColumnDefinitions),
-  );
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const statsBuilder = new EventsAggQueryBuilder({
-    projectId,
-    groupByColumn: "e.user_id",
-    selectExpression: `
-      e.user_id as user_id,
-      anyLast(e.environment) as environment,
-      count(DISTINCT e.span_id) as obs_count,
-      count(DISTINCT e.trace_id) as trace_count,
-      sumMap(e.usage_details) as sum_usage_details,
-      sum(e.total_cost) as sum_total_cost,
-      min(e.start_time) as min_timestamp,
-      max(e.start_time) as max_timestamp
-    `,
-  })
-    .whereRaw("e.user_id IN ({userIds: Array(String)})", { userIds })
-    // not required if called from tRPC (user_id is always defined), left in for safety only
-    .whereRaw("e.user_id IS NOT NULL AND length(e.user_id) > 0")
-    .whereRaw("e.is_deleted = 0")
-    .where(appliedEventsFilter);
-
-  const { query: statsQuery, params: statsParams } =
-    statsBuilder.buildWithParams();
-
-  const query = `
-    WITH stats AS (${statsQuery})
-    SELECT
-      user_id,
-      environment,
-      obs_count,
-      trace_count,
-      sum_total_cost,
-      min_timestamp,
-      max_timestamp,
-      arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, sum_usage_details))) as input_usage,
-      arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, sum_usage_details))) as output_usage,
-      sum_usage_details['total'] as total_usage
-    FROM stats
-  `;
-
-  const rows = await queryClickhouse<{
-    user_id: string;
-    environment: string;
-    max_timestamp: string;
-    min_timestamp: string;
-    input_usage: string;
-    output_usage: string;
-    total_usage: string;
-    obs_count: string;
-    trace_count: string;
-    sum_total_cost: string;
-  }>({
-    query,
-    params: statsParams,
-    tags: {
-      feature: "users",
-      type: "events",
-      kind: "analytic",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  return rows.map((row) => ({
-    userId: row.user_id,
-    environment: row.environment,
-    maxTimestamp: parseClickhouseUTCDateTimeFormat(row.max_timestamp),
-    minTimestamp: parseClickhouseUTCDateTimeFormat(row.min_timestamp),
-    inputUsage: Number(row.input_usage),
-    outputUsage: Number(row.output_usage),
-    totalUsage: Number(row.total_usage),
-    observationCount: Number(row.obs_count),
-    traceCount: Number(row.trace_count),
-    totalCost: Number(row.sum_total_cost),
-  }));
+  return getUserMetrics(projectId, userIds, filter);
 };
 
 /**
@@ -3433,29 +3289,7 @@ export const getUserMetricsFromEventsTable = async (
 export const hasAnyUserFromEventsTable = async (
   projectId: string,
 ): Promise<boolean> => {
-  // Filter out deleted rows
-  const query = `
-    SELECT 1
-    FROM events_core
-    WHERE project_id = {projectId: String}
-    AND user_id IS NOT NULL
-    AND user_id != ''
-    AND is_deleted = 0
-    LIMIT 1
-  `;
-
-  const rows = await queryClickhouse<{ 1: number }>({
-    query,
-    params: { projectId },
-    tags: {
-      feature: "users",
-      type: "events",
-      kind: "hasAny",
-      projectId,
-    },
-  });
-
-  return rows.length > 0;
+  return hasAnyUser(projectId);
 };
 
 /**
@@ -3609,35 +3443,8 @@ export const getEventsForAnalyticsIntegrations = async function* (
 export const hasAnySessionFromEventsTable = async (
   projectId: string,
 ): Promise<boolean> => {
-  const query = `
-    SELECT 1
-    FROM events_core
-    WHERE project_id = {projectId: String}
-    AND session_id IS NOT NULL
-    AND session_id != ''
-    AND is_deleted = 0
-    LIMIT 1
-  `;
-
-  const rows = await measureAndReturn({
-    operationName: "hasAnySessionFromEventsTable",
-    projectId,
-    input: { params: { projectId } },
-    fn: async (input) => {
-      return queryClickhouse<{ 1: number }>({
-        query,
-        params: input.params,
-        tags: {
-          feature: "sessions",
-          type: "events",
-          kind: "hasAny",
-          projectId,
-        },
-      });
-    },
-  });
-
-  return rows.length > 0;
+  // Session existence is tracked in Postgres (`traceSession`), independent of the analytics store.
+  return hasAnySession(projectId);
 };
 
 /**
@@ -3647,40 +3454,19 @@ export const hasAnySessionFromEventsTable = async (
 export const getTraceMetadataByIdsFromEvents = async (props: {
   projectId: string;
   traceIds: string[];
-}) => {
+}): Promise<
+  Array<{ id: string; name: string; user_id: string; tags: string[] }>
+> => {
   if (props.traceIds.length === 0) return [];
-
-  const builder = eventsTraceMetadata(props.projectId).whereRaw(
-    "e.trace_id IN ({traceIds: Array(String)})",
-    { traceIds: props.traceIds },
-  );
-
-  const { query, params } = builder.buildWithParams();
-
-  return measureAndReturn({
-    operationName: "getTraceMetadataByIdsFromEvents",
-    projectId: props.projectId,
-    input: {
-      params,
-      tags: {
-        feature: "tracing",
-        type: "trace-metadata",
-        projectId: props.projectId,
-      },
-    },
-    fn: async (input) =>
-      queryClickhouse<{
-        id: string;
-        name: string;
-        user_id: string;
-        tags: string[];
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      }),
-  });
+  // Collapse onto the merged traces projection (P3): the score table only needs trace name / user /
+  // tags for enrichment, all of which are plain projection columns.
+  const traces = await getTracesByIds(props.traceIds, props.projectId);
+  return traces.map((t) => ({
+    id: t.id,
+    name: t.name ?? "",
+    user_id: t.userId ?? "",
+    tags: t.tags ?? [],
+  }));
 };
 
 export const getAvgCostByEvaluatorIds = async (
@@ -3738,43 +3524,27 @@ export const getSessionMetricsFromEvents = async (props: {
   projectId: string;
   sessionIds: string[];
   queryFromTimestamp?: Date;
-}) => {
+}): Promise<SessionEventsMetricsRow[]> => {
   if (props.sessionIds.length === 0) return [];
 
-  const builder = eventsSessionsAggregation({
+  // Collapse onto the GreptimeDB sessions rollup (P3). sessionIds fully scope the result, so the
+  // legacy `queryFromTimestamp` scan-window hint is dropped (it only bounded the CH scan; omitting
+  // it widens the scan but cannot change correctness).
+  const rows = await getSessionsWithMetricsGreptime({
     projectId: props.projectId,
-    sessionIds: props.sessionIds,
-    startTimeFrom: props.queryFromTimestamp
-      ? convertDateToClickhouseDateTime(props.queryFromTimestamp)
-      : undefined,
-  }).limit(props.sessionIds.length);
-
-  const { query, params } = builder.buildWithParams();
-
-  const rows = await measureAndReturn({
-    operationName: "getSessionMetricsFromEvents",
-    projectId: props.projectId,
-    input: {
-      params,
-      tags: {
-        feature: "tracing",
-        type: "session-metrics-direct",
-        projectId: props.projectId,
+    filter: [
+      {
+        column: "id",
+        type: "stringOptions",
+        operator: "any of",
+        value: props.sessionIds,
       },
-    },
-    fn: async (input) =>
-      queryClickhouse<SessionEventsMetricsRow>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      }),
+    ],
   });
 
   return rows.map((row) => ({
     ...row,
-    trace_count: Number(row.trace_count),
-    total_observations: Number(row.total_observations),
+    environment: row.trace_environment,
   }));
 };
 
@@ -3917,81 +3687,7 @@ export const getTracesIdentifierForSessionFromEvents = async (
   projectId: string,
   sessionId: string,
 ) => {
-  // Build traces CTE using eventsTracesAggregation
-  const tracesBuilder = eventsTracesAggregation({
-    projectId,
-    truncated: true,
-    orderByTimestamp: false,
-  });
-
-  tracesBuilder.whereRaw(
-    `e.trace_id IN (
-      SELECT DISTINCT trace_id
-      FROM events_core
-      WHERE project_id = {projectId: String}
-        AND session_id = {sessionId: String}
-    )`,
-    {
-      projectId: projectId,
-      sessionId: sessionId,
-    },
-  );
-
-  tracesBuilder.havingRaw("session_id = {sessionId: String}", {
-    sessionId: sessionId,
-  });
-
-  // Build the final query
-  const queryBuilder = new CTEQueryBuilder()
-    .withCTEFromBuilder("traces", tracesBuilder)
-    .from("traces", "t")
-    .selectColumns(
-      "t.id",
-      "t.user_id",
-      "t.name",
-      "t.timestamp",
-      "t.project_id",
-      "t.environment",
-    )
-    .orderBy("ORDER BY t.timestamp ASC")
-    .limitBy("t.id", "t.project_id");
-
-  const { query, params } = queryBuilder.buildWithParams();
-
-  const rows = await measureAndReturn({
-    operationName: "getTracesIdentifierForSessionFromEvents",
-    projectId,
-    input: {
-      params,
-      tags: {
-        feature: "tracing",
-        type: "trace",
-        kind: "list",
-        projectId,
-        operation_name: "getTracesIdentifierForSessionFromEvents",
-      },
-    },
-    fn: async (input) => {
-      return await queryClickhouse<{
-        id: string;
-        user_id: string;
-        name: string;
-        timestamp: string;
-        environment: string;
-      }>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
-  });
-
-  return rows.map((row) => ({
-    id: row.id,
-    userId: row.user_id,
-    name: row.name,
-    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
-    environment: row.environment,
-  }));
+  // Collapse onto the merged traces projection (P3): same per-session trace identifiers as the
+  // legacy path, which `getTracesIdentifierForSessionFromTracesTable` already serves.
+  return getTracesIdentifierForSessionFromTracesTable(projectId, sessionId);
 };

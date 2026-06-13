@@ -1,5 +1,8 @@
 import { type QueryType, type ViewVersion } from "./types";
-import { getViewDeclaration } from "./dataModel";
+import {
+  getRuntimeViewDeclaration,
+  GREPTIME_UNSUPPORTED,
+} from "./greptimeDataModel";
 
 /**
  * Result of query validation.
@@ -52,7 +55,7 @@ function getHighCardinalityDimensions(
     return [];
   }
 
-  const view = getViewDeclaration(query.view, version);
+  const view = getRuntimeViewDeclaration(query.view, version);
   return query.dimensions
     .filter((dim) => view.dimensions[dim.field]?.highCardinality)
     .map((dim) => dim.field);
@@ -90,7 +93,7 @@ function validateEntityDimension(
   query: QueryType,
   version: ViewVersion,
 ): QueryValidationResult {
-  const view = getViewDeclaration(query.view, version);
+  const view = getRuntimeViewDeclaration(query.view, version);
 
   const field = query.entityDimension!.field;
   const dimension = view.dimensions[field];
@@ -138,6 +141,22 @@ export function validateQuery(
   query: QueryType,
   version: ViewVersion,
 ): QueryValidationResult {
+  // Reject GreptimeDB-deferred (P4) experiment / dataset-run fields up front, so validation and the
+  // GreptimeDB executor agree (no "passes validation, throws at runtime" split-brain).
+  const referencedFields = [
+    ...query.dimensions.map((d) => d.field),
+    ...(query.entityDimension ? [query.entityDimension.field] : []),
+    ...query.filters.map((f) => f.column),
+    ...query.metrics.map((m) => m.measure),
+  ];
+  const unsupported = referencedFields.find((f) => GREPTIME_UNSUPPORTED.has(f));
+  if (unsupported) {
+    return {
+      valid: false,
+      reason: `Field '${unsupported}' is not supported on GreptimeDB yet (deferred to P4).`,
+    };
+  }
+
   if (query.timeDimension && query.entityDimension) {
     return {
       valid: false,
