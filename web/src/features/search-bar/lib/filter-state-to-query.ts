@@ -17,7 +17,7 @@ import {
 
 import type { ASTNode, FilterNode } from "./ast";
 import { resolveField, SCORE_COLUMNS } from "./fields";
-import { serialize } from "./qlang";
+import { NEEDS_QUOTES, serialize } from "./qlang";
 
 // Legacy filters address columns by id ("userId") or display name ("User ID").
 const COLUMN_ID_BY_KEY = new Map<string, string>();
@@ -125,6 +125,10 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
     case "stringObject": {
       const id = columnIdOf(filter.column);
       if (id !== "metadata") return null;
+      // A key with grammar chars (`:`, space, …) would reparse as a different
+      // key/value pair, silently corrupting the filter. Can't be expressed in
+      // the grammar — skip so the container preserves it (no silent rewrite).
+      if (NEEDS_QUOTES.test(filter.key)) return null;
       const key = `metadata.${filter.key}`;
       if (filter.operator === "does not contain") {
         return negate(filterNode(key, "~", [filter.value]));
@@ -134,12 +138,14 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
+      if (NEEDS_QUOTES.test(filter.key)) return null;
       const path = scorePathOf(filter.column, filter.key);
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
       return filterNode(path, op, [String(filter.value)]);
     }
     case "categoryOptions": {
+      if (NEEDS_QUOTES.test(filter.key)) return null;
       const path = scorePathOf(filter.column, filter.key);
       if (path === null || filter.value.length === 0) return null;
       const node = filterNode(path, "=", filter.value);

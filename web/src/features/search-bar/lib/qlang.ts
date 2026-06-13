@@ -721,7 +721,7 @@ export function termAt(
 
 // ---- serializer ----
 
-const NEEDS_QUOTES = /[\s:,()"\\]/;
+export const NEEDS_QUOTES = /[\s:,()"\\]/;
 // A value/term that STARTS with an operator prefix would otherwise be reparsed
 // as that operator (`name:>5` → comparison, `name:~x` → contains), and a
 // leading `-` would be read as negation when the term is free text (`-foo`).

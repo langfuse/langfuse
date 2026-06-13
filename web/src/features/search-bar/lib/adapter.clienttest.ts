@@ -477,6 +477,33 @@ describe("filterStateToQueryText", () => {
     expect(skippedFilters).toEqual([positionFilter]);
   });
 
+  it("skips keyed filters whose key carries grammar chars (would mis-parse)", () => {
+    // `metadata.foo:bar` would reparse as key `metadata.foo` value `bar:…` and
+    // silently corrupt the filter — so a key with a colon (or any NEEDS_QUOTES
+    // char) must be preserved via skippedFilters, not serialized into text.
+    const colonKeyMeta: FilterState[number] = {
+      type: "stringObject",
+      column: "metadata",
+      key: "foo:bar",
+      operator: "contains",
+      value: "x",
+    };
+    const colonKeyScore: FilterState[number] = {
+      type: "categoryOptions",
+      column: "score_categories",
+      key: "rate:test",
+      operator: "any of",
+      value: ["5"],
+    };
+    const r = filterStateToQueryText([colonKeyMeta, colonKeyScore]);
+    expect(r.text).toBe("");
+    expect(r.skippedFilters).toEqual([colonKeyMeta, colonKeyScore]);
+    // A normal key still serializes into the query text.
+    expect(
+      filterStateToQueryText([{ ...colonKeyMeta, key: "region" }]).text,
+    ).toBe("metadata.region:~x");
+  });
+
   it("round-trips bare boolean keywords and leading-hyphen free text", () => {
     // serialize() must quote AND/OR/NOT and -foo so they reparse as free text
     // rather than as operators/negation (otherwise the bar lands invalid).

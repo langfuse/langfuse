@@ -140,6 +140,21 @@ export function resolveField(name: string): FieldRef | null {
   return field ? { type: "field", field } : null;
 }
 
+/**
+ * A dot-path prefix typed/picked with no key after the dot (`metadata.`,
+ * `scores.`, `traceScores.` and accepted aliases). These parse as free text
+ * (no colon), so without this guard committing one would silently set the
+ * full-text searchQuery to the bare prefix.
+ */
+export function isDanglingDotPrefix(value: string): boolean {
+  const lower = value.toLowerCase();
+  return (
+    lower === METADATA_PREFIX ||
+    SCORE_PREFIXES.includes(lower) ||
+    TRACE_SCORE_PREFIXES.includes(lower)
+  );
+}
+
 /** Fields whose observed values feed value autocomplete. */
 export function facetableFields(): FieldDef[] {
   return FIELDS.filter(

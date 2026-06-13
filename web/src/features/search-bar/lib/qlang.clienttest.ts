@@ -350,6 +350,9 @@ describe("validateQuery", () => {
       "x:1", // unknown field
       "-(env:dev)", // standalone "-" before a group (must glue to the filter)
       "- env:dev", // stray "-" then a filter
+      "metadata.", // dot-prefix field with no key
+      "scores.", // dot-prefix score with no key
+      "traceScores.", // dot-prefix trace score with no key
     ]) {
       const r = validateQuery(text);
       expect(r.valid, `expected invalid: ${text}`).toBe(false);
