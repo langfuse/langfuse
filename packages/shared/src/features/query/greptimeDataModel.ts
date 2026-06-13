@@ -512,6 +512,25 @@ const greptimeViewDeclarations: {
   "scores-categorical": scoresCategoricalView,
 };
 
+// High-cardinality identity dimensions: grouping by these without a bound (timeDimension /
+// entityDimension / row_limit) produces unbounded result sets. `validateQuery` enforces the same
+// bounding rules the ClickHouse engine did; flag them on the single GreptimeDB model so validation
+// and execution agree (mirrors the CH v2 highCardinality set, minus deferred experiment fields).
+const HIGH_CARDINALITY_FIELDS = [
+  "id",
+  "traceId",
+  "observationId",
+  "userId",
+  "sessionId",
+  "parentObservationId",
+];
+for (const view of Object.values(greptimeViewDeclarations)) {
+  for (const field of HIGH_CARDINALITY_FIELDS) {
+    const dim = view.dimensions[field];
+    if (dim) dim.highCardinality = true;
+  }
+}
+
 /**
  * Resolve a GreptimeDB dashboard view declaration. Version-agnostic: both CH v1 and v2 collapse onto
  * the same merged projection view.

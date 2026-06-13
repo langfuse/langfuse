@@ -432,8 +432,13 @@ export class GreptimeQueryBuilder {
         selectParts.push(`${d.sql} AS ${quoteIdent(d.alias)}`);
       if (bucket) selectParts.push(`${bucket.expr} AS time_dimension`);
       for (const m of measures) {
+        // A "*" (row-count) measure is always count(*) regardless of the requested aggregation.
+        const expr =
+          m.sql === "*"
+            ? "count(*)"
+            : translateAggregation(m.aggregation, m.sql);
         selectParts.push(
-          `${translateAggregation(m.aggregation, m.sql)} AS ${quoteIdent(`${m.aggregation}_${m.alias}`)}`,
+          `${expr} AS ${quoteIdent(`${m.aggregation}_${m.alias}`)}`,
         );
       }
       if (measures.length === 0) selectParts.push("count(*) AS count");

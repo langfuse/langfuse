@@ -4,7 +4,7 @@
 import { type z } from "zod";
 
 import { type singleFilter } from "../../interfaces/filters";
-import { getViewDeclaration } from "../query/dataModel";
+import { getRuntimeViewDeclaration } from "../query/greptimeDataModel";
 import {
   getValidAggregationsForMeasureType,
   type MeasureDefinition,
@@ -44,7 +44,7 @@ export function isValidQuery(input: {
   metrics: z.infer<typeof metric>[];
   filters: z.infer<typeof singleFilter>[];
 }): QueryValidation {
-  const declaration = getViewDeclaration(input.view, "v2");
+  const declaration = getRuntimeViewDeclaration(input.view, "v2");
 
   const filterReason = invalidFilterReason(declaration, input.filters);
   if (filterReason) {
@@ -75,7 +75,7 @@ export function isValidQuery(input: {
 
 /** invalidFilterReason returns why a filter makes the whole query invalid, or undefined when all filters pass. */
 function invalidFilterReason(
-  declaration: ReturnType<typeof getViewDeclaration>,
+  declaration: ReturnType<typeof getRuntimeViewDeclaration>,
   filters: z.infer<typeof singleFilter>[],
 ): string | undefined {
   for (const filter of filters) {
@@ -106,7 +106,7 @@ function invalidFilterReason(
 
 /** invalidMetricReason returns why a metric doesn't resolve on the view declaration, or undefined when it is valid. */
 function invalidMetricReason(
-  declaration: ReturnType<typeof getViewDeclaration>,
+  declaration: ReturnType<typeof getRuntimeViewDeclaration>,
   view: z.infer<typeof viewsV2>,
   m: z.infer<typeof metric>,
 ): string | undefined {

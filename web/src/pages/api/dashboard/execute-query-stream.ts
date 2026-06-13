@@ -1,22 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as z from "zod/v4";
-import {
-  isProgressRow,
-  isRow,
-  isException,
-  ClickHouseResourceError,
-  queryClickhouseWithProgress,
-} from "@langfuse/shared/src/server";
-import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  prepareExecuteQuery,
-  toClickhouseQueryOpts,
-} from "@langfuse/shared/query/server";
+import { executeQuery } from "@langfuse/shared/query/server";
 import {
   query as customQuery,
   validateQuery,
@@ -133,42 +122,14 @@ export default async function handler(
   });
 
   try {
-    const prepared = await prepareExecuteQuery({
-      projectId,
-      query,
-      version,
-      enableSingleLevelOptimization: version === "v2",
-    });
-    const chOpts = toClickhouseQueryOpts(prepared);
-
-    for await (const event of queryClickhouseWithProgress<
-      Record<string, unknown>
-    >(chOpts)) {
+    // GreptimeDB engine (04-read-path.md, P3): the dashboard query engine no longer streams partial
+    // progress. We run the buffered GreptimeDB query and emit the rows followed by `done` over the
+    // same SSE contract — the client renders the final result without intermediate `progress` events.
+    const rows = await executeQuery(projectId, query, version);
+    for (const row of rows) {
       if (aborted) break;
-
-      if (isProgressRow(event)) {
-        res.write(
-          formatSSEEvent({ type: "progress", progress: event.progress }),
-        );
-      } else if (isRow<Record<string, unknown>>(event)) {
-        res.write(formatSSEEvent({ type: "row", row: event.row }));
-      } else if (isException(event)) {
-        const isResource =
-          ClickHouseResourceError.wrapIfResourceError(
-            new Error(event.exception),
-          ) instanceof ClickHouseResourceError;
-        logger.error(
-          `[execute-query-stream] ClickHouse exception: ${event.exception}`,
-          { projectId },
-        );
-        const userMessage = isResource
-          ? RESOURCE_LIMIT_ERROR_MESSAGE
-          : event.exception;
-        res.write(formatSSEEvent({ type: "error", message: userMessage }));
-        return;
-      }
+      res.write(formatSSEEvent({ type: "row", row }));
     }
-
     if (!aborted) {
       res.write(formatSSEEvent({ type: "done" }));
     }
@@ -179,11 +140,7 @@ export default async function handler(
         projectId,
       });
       const message =
-        error instanceof ClickHouseResourceError
-          ? RESOURCE_LIMIT_ERROR_MESSAGE
-          : error instanceof Error
-            ? error.message
-            : "Internal server error";
+        error instanceof Error ? error.message : "Internal server error";
       res.write(formatSSEEvent({ type: "error", message }));
     }
   } finally {
