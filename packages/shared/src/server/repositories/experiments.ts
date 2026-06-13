@@ -24,7 +24,11 @@ import {
 } from "../queries/clickhouse-sql/query-fragments";
 import { extractTimeFilter, queryClickhouse } from "../repositories";
 import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
-import { getExperimentDatasetIdsGreptime } from "./greptime/experiments";
+import {
+  getExperimentDatasetIdsGreptime,
+  getExperimentNamesGreptime,
+  getExperimentMetricsGreptime,
+} from "./greptime/experiments";
 import { experimentItemsTableNativeUiColumnDefinitions } from "../tableMappings/mapExperimentItemsTable";
 import {
   experimentPreAggCols,
@@ -179,51 +183,10 @@ export const getExperimentsFromEvents = async (props: {
   }));
 };
 
-export const getExperimentMetricsFromEvents = async (props: {
+export const getExperimentMetricsFromEvents = (props: {
   projectId: string;
   experimentIds: string[];
-}) => {
-  if (props.experimentIds.length === 0) {
-    return [];
-  }
-
-  // Use eventsExperimentsAggregation with "metrics" field set for simplified aggregation
-  const queryBuilder = eventsExperimentsAggregation({
-    projectId: props.projectId,
-    fieldSet: "metrics",
-    experimentIds: props.experimentIds,
-  });
-
-  const { query, params } = queryBuilder.buildWithParams();
-
-  const res = await measureAndReturn({
-    operationName: "getExperimentMetricsFromEvents",
-    projectId: props.projectId,
-    input: {
-      params,
-      tags: {
-        feature: "experiments",
-        type: "experiments-table",
-        projectId: props.projectId,
-        operation_name: "getExperimentMetricsFromEvents",
-      },
-    },
-    fn: async (input) => {
-      return queryClickhouse<ExperimentMetricsReturnType>({
-        query,
-        params: input.params,
-        tags: input.tags,
-        preferredClickhouseService: "EventsReadOnly",
-      });
-    },
-  });
-
-  return res.map((row) => ({
-    id: row.experiment_id,
-    totalCost: row.total_cost !== null ? Number(row.total_cost) : null,
-    latencyAvg: row.latency_avg !== null ? Number(row.latency_avg) : null,
-  }));
-};
+}) => getExperimentMetricsGreptime(props);
 
 export type FetchExperimentsFromEventsProps = {
   select: "count" | "rows";
@@ -1286,34 +1249,5 @@ export const getExperimentItemsBatchIO = async (props: {
   });
 };
 
-export const getExperimentNamesFromEvents = async (props: {
-  projectId: string;
-}) => {
-  const queryBuilder = new EventsAggQueryBuilder({
-    projectId: props.projectId,
-    groupByColumn: "e.experiment_name",
-    selectExpression:
-      "e.experiment_name as experimentName, any(e.experiment_id) as experimentId",
-  })
-    .whereRaw("e.experiment_name IS NOT NULL AND length(e.experiment_name) > 0")
-    .limit(1000, 0);
-
-  const { query, params } = queryBuilder.buildWithParams();
-
-  const res = await queryClickhouse<{
-    experimentName: string;
-    experimentId: string;
-  }>({
-    query,
-    params,
-    tags: {
-      feature: "tracing",
-      type: "events",
-      kind: "analytic",
-      projectId: props.projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  return res;
-};
+export const getExperimentNamesFromEvents = (props: { projectId: string }) =>
+  getExperimentNamesGreptime(props);

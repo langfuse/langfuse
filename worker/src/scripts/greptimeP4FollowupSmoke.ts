@@ -25,6 +25,8 @@ import {
   getObservationsGroupedByTraceId,
   getCostByEvaluatorIds,
   getAgentGraphData,
+  getExperimentNamesFromEvents,
+  getExperimentMetricsFromEvents,
   type DatasetRunItemRecordInsertType,
   type ScoreRecordInsertType,
   type ObservationRecordInsertType,
@@ -156,8 +158,8 @@ async function main() {
   const writer = GreptimeWriter.getInstance();
 
   // run-1: item-1(t1) written under TWO ids (dedup), item-2(t2). run-2: item-1(t3).
-  writer.addToQueue(GreptimeTable.DatasetRunItems, dri({ id: "d1a", dataset_run_id: RUN1, dataset_item_id: "item-1", trace_id: "t1" })); // prettier-ignore
-  writer.addToQueue(GreptimeTable.DatasetRunItems, dri({ id: "d1b", dataset_run_id: RUN1, dataset_item_id: "item-1", trace_id: "t1", created_at: now + 5000, dataset_item_version: now + 5000 })); // prettier-ignore
+  writer.addToQueue(GreptimeTable.DatasetRunItems, dri({ id: "d1a", dataset_run_id: RUN1, dataset_item_id: "item-1", trace_id: "t1", observation_id: "op1" })); // prettier-ignore
+  writer.addToQueue(GreptimeTable.DatasetRunItems, dri({ id: "d1b", dataset_run_id: RUN1, dataset_item_id: "item-1", trace_id: "t1", observation_id: "op1", created_at: now + 5000, dataset_item_version: now + 5000 })); // prettier-ignore
   writer.addToQueue(GreptimeTable.DatasetRunItems, dri({ id: "d2", dataset_run_id: RUN1, dataset_item_id: "item-2", trace_id: "t2" })); // prettier-ignore
   writer.addToQueue(GreptimeTable.DatasetRunItems, dri({ id: "d3", dataset_run_id: RUN2, dataset_item_id: "item-1", trace_id: "t3" })); // prettier-ignore
 
@@ -376,6 +378,37 @@ async function main() {
         (g) => g.node === "n1" && g.step === "2" && g.type === "GENERATION",
       ),
     graph,
+  );
+
+  // --- A2: experiment Names + Metrics ---
+  const names = await getExperimentNamesFromEvents({
+    projectId: SMOKE_PROJECT,
+  });
+  check(
+    "getExperimentNames: 2 distinct names (run-one, run-two)",
+    names.length === 2 &&
+      new Set(names.map((n) => n.experimentName)).size === 2,
+    names,
+  );
+
+  const metrics = await getExperimentMetricsFromEvents({
+    projectId: SMOKE_PROJECT,
+    experimentIds: [RUN1, RUN2],
+  });
+  const m1 = metrics.find((m) => m.id === RUN1);
+  const m2 = metrics.find((m) => m.id === RUN2);
+  check(
+    "getExperimentMetrics run1: totalCost=0.6 (t1 2 obs), latencyAvg~1000 (root op1)",
+    !!m1 &&
+      Math.abs((m1.totalCost ?? 0) - 0.6) < 1e-6 &&
+      m1.latencyAvg != null &&
+      Math.abs(m1.latencyAvg - 1000) < 1,
+    m1,
+  );
+  check(
+    "getExperimentMetrics run2: no obs -> totalCost null, latencyAvg null",
+    !!m2 && m2.totalCost == null && m2.latencyAvg == null,
+    m2,
   );
 
   await cleanup();
