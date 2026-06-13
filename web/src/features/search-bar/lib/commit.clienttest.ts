@@ -42,4 +42,18 @@ describe("planCommit", () => {
     if (r.status !== "invalid") return;
     expect(r.diagnostics.length).toBeGreaterThan(0);
   });
+
+  it("blocks commit when validation and lowering disagree (score-type parity)", () => {
+    // `accuracy` is a numeric score, so `accuracy:hello` can't lower. The
+    // validity check must see the same scoreTypes the lowering does — otherwise
+    // it commits an empty filter set and the user's input silently vanishes.
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(["accuracy"]),
+      categoricalScoreNames: new Set<string>(),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+    };
+    const r = planCommit("scores.accuracy:hello", scoreTypes);
+    expect(r.status).toBe("invalid");
+  });
 });

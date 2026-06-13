@@ -11,7 +11,7 @@
 // whole query without errors.
 
 import type { ASTNode, Span } from "./ast";
-import { astToFilterState } from "./adapter";
+import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { nullableFields, resolveField } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./qlang";
 
@@ -87,15 +87,18 @@ function hasFilterWarnings(
 export function semanticDiagnostics(
   ast: ASTNode | null,
   textLength: number,
+  scoreTypes?: ScoreTypeContext,
 ): Diagnostic[] {
   const out: Diagnostic[] = [];
   if (ast === null) return out;
 
   // Lower each top-level node independently so error spans point at the
-  // offending node instead of the whole query.
+  // offending node instead of the whole query. The lowering must see the same
+  // scoreTypes the commit-time lowering does, or the two disagree on score
+  // routing and a clean validation hides an error the commit then drops.
   const topLevel: ASTNode[] = ast.kind === "and" ? ast.children : [ast];
   for (const node of topLevel) {
-    const { errors } = astToFilterState(node);
+    const { errors } = astToFilterState(node, scoreTypes);
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
       out.push({ from: span.from, to: span.to, severity: "error", message });
@@ -108,13 +111,17 @@ export function semanticDiagnostics(
 
 /**
  * parse() + semantic checks + length cap, merged. `valid === true` guarantees
- * the adapter can lower the query — the one commit gate.
+ * the adapter can lower the query — the one commit gate. `scoreTypes` must
+ * match what the commit-time lowering uses so the two stay in parity.
  */
-export function validateQuery(text: string): ParseResult {
+export function validateQuery(
+  text: string,
+  scoreTypes?: ScoreTypeContext,
+): ParseResult {
   const res = parse(text);
   const diagnostics = [
     ...res.diagnostics,
-    ...semanticDiagnostics(res.ast, text.length),
+    ...semanticDiagnostics(res.ast, text.length, scoreTypes),
   ];
   if (text.length > MAX_QUERY_LENGTH) {
     diagnostics.push({
