@@ -47,11 +47,16 @@ export function useEventsSearchBar({
 }): { store: SearchBarStore; commit: () => boolean } {
   const [store] = useState(() => createSearchBarStore());
 
-  // Committed query text DERIVED from the single source of truth. Pure.
-  const committedText = useMemo(
-    () => filterStateToQueryText(filterState, { searchQuery, searchType }).text,
+  // Committed query DERIVED from the single source of truth (pure). `skipped`
+  // are filters that have no grammar form — the bar can't show them, so they
+  // must be preserved across a commit instead of being silently wiped.
+  const derived = useMemo(
+    () => filterStateToQueryText(filterState, { searchQuery, searchType }),
     [filterState, searchQuery, searchType],
   );
+  const committedText = derived.text;
+  const skippedFiltersRef = useRef(derived.skippedFilters);
+  skippedFiltersRef.current = derived.skippedFilters;
 
   // The one external→local sync: seed the draft whenever the committed
   // baseline changes (a commit echo, a sidebar edit, a saved view, or
@@ -73,7 +78,12 @@ export function useEventsSearchBar({
       return false;
     }
     const { setFilterState, setSearchQuery, setSearchType } = applyRef.current;
-    setFilterState(result.filters);
+    // Re-attach the filters the grammar can't represent so the commit never
+    // drops them (no-silent-drop contract).
+    const skipped = skippedFiltersRef.current;
+    setFilterState(
+      skipped.length > 0 ? [...result.filters, ...skipped] : result.filters,
+    );
     setSearchQuery(result.searchQuery);
     setSearchType(result.searchType);
     if (result.canonical.length > 0) {
