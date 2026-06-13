@@ -27,7 +27,6 @@ import {
   type FieldRef,
 } from "./fields";
 import type { ObservedOptions } from "./observed-options";
-import type { FilterSegment } from "./composer-segments";
 
 export type CompletionStage =
   | "empty"
@@ -919,76 +918,6 @@ export function planInputCompletions(
       !flatValues.some((o) => o.kind === "value" && o.value === typed),
     sections: staged.sections,
     ...groupedPlanAttrs,
-  };
-}
-
-/**
- * Value suggestions for a selected filter pill (clicking a filter pill
- * selects it and opens value suggestions for that field). Options for '='
- * filters toggle membership, so currently-included values are marked active.
- */
-export function planTokenValueCompletions(
-  segment: FilterSegment,
-  observed: ObservedOptions | undefined,
-): CompletionPlan | null {
-  const ref = resolveField(segment.field);
-  if (ref === null) return null;
-
-  if (ref.type === "field" && ref.field.kind === "boolean") {
-    return {
-      stage: "value",
-      from: 0,
-      to: 0,
-      loading: false,
-      sections: section(SECTION_VALUES, [
-        {
-          id: "value:true",
-          kind: "value",
-          label: "true",
-          value: "true",
-          active: segment.values.includes("true"),
-        },
-        {
-          id: "value:false",
-          kind: "value",
-          label: "false",
-          value: "false",
-          active: segment.values.includes("false"),
-        },
-      ]),
-    };
-  }
-
-  // The pill's value list comes from the same per-column options the input
-  // value stage uses (metadata.<key> / score_categories.<name> included).
-  const column =
-    ref.type === "field"
-      ? ref.field.id
-      : ref.type === "metadata"
-        ? `metadata.${ref.key}`
-        : ref.type === "scores"
-          ? `${ref.level === "trace" ? "trace_score_categories" : "score_categories"}.${ref.key}`
-          : null;
-  if (column === null) return null;
-
-  if (observed === undefined) {
-    return { stage: "value", from: 0, to: 0, loading: true, sections: [] };
-  }
-  const options: CompletionOption[] = (observed[column] ?? []).map((o) => ({
-    id: `value:${o.value}`,
-    kind: "value",
-    label: o.value,
-    detail: o.count !== undefined ? String(o.count) : undefined,
-    value: o.value,
-    active: segment.op === "=" && segment.values.includes(o.value),
-  }));
-  if (options.length === 0) return null;
-  return {
-    stage: "value",
-    from: 0,
-    to: 0,
-    loading: false,
-    sections: section(SECTION_VALUES, options),
   };
 }
 

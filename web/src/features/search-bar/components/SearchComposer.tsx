@@ -1221,6 +1221,15 @@ export function SearchComposer({
           className="text-muted-foreground hover:text-foreground rounded p-0.5"
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => {
+            // Rich (<div>) and plain (<span>) roots are different elements, so
+            // toggling remounts the contenteditable and kills the native
+            // selection. Capture the logical caret first so the mode-deps
+            // restore effect (consumed via onFocus) puts it back instead of
+            // defaulting to offset 0.
+            const root = rootRef.current;
+            if (root !== null && document.activeElement === root) {
+              pendingSelectionRef.current = selectionOffsets(root);
+            }
             setAutocompleteOpen(false);
             setMode((current) => (current === "rich" ? "plain" : "rich"));
             requestAnimationFrame(() => rootRef.current?.focus());
