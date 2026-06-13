@@ -186,6 +186,35 @@ async function main() {
   }
   check("datasetRunId dimension executes (P4 supported)", !drThrew);
 
+  // The real experiment chart shape: experimentName as BOTH entityDimension and filter (same
+  // relation) — verify the builder emits valid SQL (one join) and the executor runs it.
+  let expFilterThrew = false;
+  try {
+    await executeGreptimeQuery(
+      PROJECT,
+      q({
+        view: "observations",
+        entityDimension: { field: "experimentName" },
+        filters: [
+          {
+            column: "experimentName",
+            operator: "any of",
+            value: ["any-experiment"],
+            type: "stringOptions",
+          },
+        ],
+        metrics: [{ measure: "totalCost", aggregation: "sum" }],
+      }),
+    );
+  } catch (e) {
+    expFilterThrew = true;
+    console.error(e);
+  }
+  check(
+    "experiment entityDimension + filter (chart shape) executes",
+    !expFilterThrew,
+  );
+
   console.log(failures === 0 ? "\nALL GREEN" : `\n${failures} FAILURE(S)`);
 }
 

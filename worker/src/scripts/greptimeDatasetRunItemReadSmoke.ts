@@ -227,6 +227,21 @@ async function main() {
     filter: [],
   });
   check("item rows dedup = 3", items.length === 3, items.length);
+  // JSON metadata + string IO must survive passing through the ROW_NUMBER dedup subquery
+  // (the inner subquery selects the bare JSON column; the outer json_to_string serializes it).
+  const item2 = items.find((i) => i.datasetItemId === "item-2");
+  check(
+    "item datasetRunMetadata round-trips through dedup subquery",
+    (item2?.datasetRunMetadata as Record<string, unknown> | null)?.kind ===
+      "smoke",
+    item2?.datasetRunMetadata,
+  );
+  check(
+    "item datasetItemInput string round-trips through dedup subquery",
+    typeof item2?.datasetItemInput === "string" &&
+      (item2.datasetItemInput as string).includes("x"),
+    item2?.datasetItemInput,
+  );
 
   // 2. runs metrics
   const metrics = await getDatasetRunsTableMetricsCh({
