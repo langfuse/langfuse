@@ -1514,6 +1514,10 @@ export default function ObservationsEventsTable({
                     tableAllowsFullTextSearch: true,
                   }
             }
+            // In bar mode the toolbar search field is hidden, so source the
+            // saved-view search query from the live URL state (the bar writes
+            // free text there) rather than the toolbar's empty local mirror.
+            currentSearchQuery={searchBarMode ? (searchQuery ?? "") : undefined}
             viewConfig={{
               tableName: TableViewPresetTableName.ObservationsEvents,
               projectId,
