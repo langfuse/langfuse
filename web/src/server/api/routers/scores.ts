@@ -60,6 +60,7 @@ import {
   QueueJobs,
   getScoreMetadataById,
   deleteScores,
+  deleteEntitiesFromGreptime,
   getTracesIdentifierForSession,
   validateConfigAgainstBody,
 } from "@langfuse/shared/src/server";
@@ -912,7 +913,14 @@ export const scoresRouter = createTRPCRouter({
         before: clickhouseScore,
       });
 
-      await deleteScores(input.projectId, [clickhouseScore.id]);
+      await Promise.all([
+        deleteEntitiesFromGreptime({
+          projectId: input.projectId,
+          entityType: "score",
+          entityIds: [clickhouseScore.id],
+        }),
+        deleteScores(input.projectId, [clickhouseScore.id]),
+      ]);
 
       return validateDbScore(clickhouseScore);
     }),
