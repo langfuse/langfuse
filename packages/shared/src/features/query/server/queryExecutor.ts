@@ -1,12 +1,9 @@
-import {
-  queryClickhouse,
-  type ClickhouseQueryOpts,
-} from "../../../server/repositories/clickhouse";
-import { measureAndReturn } from "../../../server/clickhouse/measureAndReturn";
+import { type ClickhouseQueryOpts } from "../../../server/repositories/clickhouse";
 import { type PreferredClickhouseService } from "../../../server/clickhouse/client";
 import { QueryBuilder } from "./queryBuilder";
 import { type QueryType, type ViewVersion } from "../types";
 import { env } from "../../../env";
+import { executeGreptimeQuery } from "./greptimeQueryExecutor";
 
 export type PreparedQuery = {
   compiledQuery: string;
@@ -93,44 +90,19 @@ export function toClickhouseQueryOpts(
   };
 }
 
+/**
+ * Dashboard widget query entry point. Hard-swapped to the GreptimeDB engine (04-read-path.md, P3):
+ * the ClickHouse `QueryBuilder` + `dataModel` (still used by `prepareExecuteQuery` for the streaming
+ * route until P7) are bypassed; both CH v1 and v2 widget queries collapse onto the merged GreptimeDB
+ * projection via `executeGreptimeQuery`. `version` and `enableSingleLevelOptimization` are retained
+ * for call-site compatibility and ignored (GreptimeDB collapses the versions and two-levels only when
+ * a relation measure requires it).
+ */
 export async function executeQuery(
   projectId: string,
   query: QueryType,
-  version: ViewVersion = "v1",
-  enableSingleLevelOptimization: boolean = false,
+  _version: ViewVersion = "v1",
+  _enableSingleLevelOptimization: boolean = false,
 ): Promise<Array<Record<string, unknown>>> {
-  const prepared = await prepareExecuteQuery({
-    projectId,
-    query,
-    version,
-    enableSingleLevelOptimization,
-  });
-
-  const chOpts = toClickhouseQueryOpts(prepared);
-
-  if (!prepared.usesTraceTable) {
-    return queryClickhouse<Record<string, unknown>>(chOpts);
-  }
-
-  return measureAndReturn({
-    operationName: "executeQuery",
-    projectId,
-    input: {
-      query: prepared.compiledQuery,
-      params: prepared.parameters,
-      fromTimestamp: prepared.fromTimestamp,
-      tags: {
-        ...prepared.tags,
-        operation_name: "executeQuery",
-      },
-    },
-    fn: async (input) => {
-      return queryClickhouse<Record<string, unknown>>({
-        ...chOpts,
-        query: input.query,
-        params: input.params,
-        tags: input.tags,
-      });
-    },
-  });
+  return executeGreptimeQuery(projectId, query);
 }

@@ -66,6 +66,11 @@ type Granularity = z.infer<typeof granularities>;
 type Aggregation = z.infer<typeof metricAggregations>;
 
 export type PostProcess = {
+  // Output metric columns (`<agg>_<measure>` or `count`). Their values come back from mysql2 as
+  // strings for DECIMAL/BIGINT; the executor coerces them to numbers to match the ClickHouse shape.
+  metricColumns: string[];
+  // Whether the query produced a `time_dimension` column (coerced to an ISO string on output).
+  hasTimeDimension: boolean;
   // Gap-fill descriptor (present when the query buckets by time).
   timeFill?: {
     granularity: Exclude<Granularity, "auto">;
@@ -481,7 +486,13 @@ export class GreptimeQueryBuilder {
 
     sql += this.orderLimit(query, dims, measures, bucket);
 
-    const postProcess: PostProcess = {};
+    const postProcess: PostProcess = {
+      metricColumns:
+        measures.length > 0
+          ? measures.map((m) => `${m.aggregation}_${m.alias}`)
+          : ["count"],
+      hasTimeDimension: Boolean(bucket),
+    };
     if (bucket) {
       postProcess.timeFill = {
         granularity: bucket.granularity,
@@ -539,6 +550,8 @@ export class GreptimeQueryBuilder {
       query: sql,
       parameters,
       postProcess: {
+        metricColumns: [`${byTypeMeasure.aggregation}_${byTypeMeasure.alias}`],
+        hasTimeDimension: Boolean(bucket),
         byType: {
           jsonColumn,
           keyDimensionAlias: keyDim.alias,

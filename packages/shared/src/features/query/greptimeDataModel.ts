@@ -37,9 +37,13 @@ import { InvalidRequestError } from "../../errors";
  * dimension, measure, filter, entityDimension, or orderBy throws a clear error at validation time.
  */
 
-/** Per-row (leaf) known-key JSON accessor, defaulting a missing key to 0 (matches CH sumMap default). */
+/**
+ * Per-row (leaf) known-key JSON accessor, defaulting a missing key to 0 (matches CH sumMap default).
+ * usage_details / cost_details are native JSON columns, so json_get_float reads them directly (no
+ * parse_json, which only accepts a String argument).
+ */
 const knownKey = (prefix: string, jsonCol: string, key: string): string =>
-  `coalesce(json_get_float(parse_json(${prefix}.${jsonCol}), '${key}'), 0)`;
+  `coalesce(json_get_float(${prefix}.${jsonCol}, '${key}'), 0)`;
 
 /** Per-row latency in milliseconds (leaf observations): end - start. */
 const ROW_LATENCY_MS =
