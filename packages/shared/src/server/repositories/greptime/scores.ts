@@ -1204,8 +1204,8 @@ export const _handleGetScoresCountForPublicApi = async ({
   return rows.length > 0 ? Number(rows[0].count) : undefined;
 };
 
-const greptimeStringOrUndefined = (v: unknown): string =>
-  v == null ? "" : String(v);
+const greptimeStringOrUndefined = (v: unknown): string | undefined =>
+  v == null ? undefined : String(v);
 const greptimeStringOrNull = (v: unknown): string | null =>
   v == null ? null : String(v);
 

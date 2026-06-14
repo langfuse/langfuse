@@ -231,7 +231,7 @@ async function main() {
     fields: ["core", "io"],
     cursor: {
       lastStartTimeTo: last.startTime,
-      lastTraceId: last.traceId,
+      lastTraceId: last.traceId ?? "",
       lastId: last.id,
     },
   });

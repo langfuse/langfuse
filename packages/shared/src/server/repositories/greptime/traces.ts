@@ -1004,14 +1004,17 @@ export const generateTracesForPublicApi = async ({
     readOnly: true,
   });
 
-  return rows.map((row) => ({
-    ...convertGreptimeTraceRowToDomain(row),
-    observations: includeObservations ? splitIds(row.observation_ids) : [],
-    scores: includeScores ? splitIds(row.score_ids) : [],
-    totalCost: includeMetrics ? Number(row.rollup_total_cost ?? 0) : -1,
-    latency: includeMetrics ? Number(row.rollup_latency_ms ?? 0) / 1000 : -1,
-    htmlPath: `/project/${projectId}/traces/${convertGreptimeTraceRowToDomain(row).id}`,
-  }));
+  return rows.map((row) => {
+    const trace = convertGreptimeTraceRowToDomain(row);
+    return {
+      ...trace,
+      observations: includeObservations ? splitIds(row.observation_ids) : [],
+      scores: includeScores ? splitIds(row.score_ids) : [],
+      totalCost: includeMetrics ? Number(row.rollup_total_cost ?? 0) : -1,
+      latency: includeMetrics ? Number(row.rollup_latency_ms ?? 0) / 1000 : -1,
+      htmlPath: `/project/${projectId}/traces/${trace.id}`,
+    };
+  });
 };
 
 export const getTracesCountForPublicApi = async ({

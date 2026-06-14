@@ -113,6 +113,10 @@ export const getEventsStream = async (props: {
               `Streaming events for project ${projectId}: processed ${recordsProcessed} rows`,
             );
 
+          // BatchExportEventsRow.traceId is required; skip orphan observations rather than
+          // emitting an empty trace id into the export.
+          if (!obs.traceId) continue;
+
           const outputScores = prepareScoresForOutput(
             (scoresByObs.get(obs.id) ?? []).map((s) => ({
               name: s.name,
@@ -124,7 +128,7 @@ export const getEventsStream = async (props: {
 
           const eventRow: BatchExportEventsRow = {
             id: obs.id,
-            traceId: obs.traceId ?? "",
+            traceId: obs.traceId,
             traceName: obs.traceName,
             type: obs.type,
             name: obs.name ?? "",
@@ -200,6 +204,8 @@ export const getEventsStreamForDataset = async (props: {
         pageSize: PAGE_SIZE,
       })) {
         for (const obs of page) {
+          // Dataset items require a real trace id; skip orphan observations.
+          if (!obs.traceId) continue;
           yield {
             id: obs.id,
             traceId: obs.traceId,
@@ -245,6 +251,8 @@ export const getEventsStreamForAnnotationQueue = async (props: {
         pageSize: PAGE_SIZE,
       })) {
         for (const obs of page) {
+          // Annotation-queue items require a real trace id; skip orphan observations.
+          if (!obs.traceId) continue;
           yield { id: obs.id, traceId: obs.traceId };
         }
       }
