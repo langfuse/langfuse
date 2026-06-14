@@ -62,7 +62,7 @@ const COMPARISON_OPS: Record<string, string> = {
 export const getExperimentDatasetIdsGreptime = async (
   projectId: string,
   startTimeFilter?: FilterState,
-): Promise<{ experimentDatasetId: string }[]> => {
+): Promise<{ experimentDatasetId: string; count: number }[]> => {
   const clauses: string[] = [
     "project_id = :projectId",
     `dataset_id IS NOT NULL`,
@@ -80,17 +80,51 @@ export const getExperimentDatasetIdsGreptime = async (
     clauses.push(`${quoteIdent("dataset_run_created_at")} ${op} :${key}`);
   });
 
-  const rows = await greptimeQuery<{ experiment_dataset_id: string }>({
+  const rows = await greptimeQuery<{
+    experiment_dataset_id: string;
+    count: string | number;
+  }>({
     query: `
-      SELECT DISTINCT dataset_id AS experiment_dataset_id
+      SELECT dataset_id AS experiment_dataset_id, count(*) AS count
       FROM ${quoteIdent("dataset_run_items")}
       WHERE ${clauses.join(" AND ")}
+      GROUP BY dataset_id
+      ORDER BY count(*) DESC, dataset_id ASC
       LIMIT 1000`,
     params,
     readOnly: true,
   });
 
-  return rows.map((r) => ({ experimentDatasetId: r.experiment_dataset_id }));
+  return rows.map((r) => ({
+    experimentDatasetId: r.experiment_dataset_id,
+    count: Number(r.count),
+  }));
+};
+
+export const getExperimentIdsGreptime = async (props: {
+  projectId: string;
+}): Promise<{ experimentId: string; count: number }[]> => {
+  const rows = await greptimeQuery<{
+    experimentId: string;
+    count: string | number;
+  }>({
+    query: `
+      SELECT ${quoteIdent("dataset_run_id")} AS ${quoteIdent("experimentId")},
+        count(*) AS count
+      FROM ${quoteIdent("dataset_run_items")}
+      WHERE project_id = :projectId AND ${notDeleted()}
+        AND ${quoteIdent("dataset_run_id")} IS NOT NULL
+        AND ${quoteIdent("dataset_run_id")} != ''
+      GROUP BY ${quoteIdent("dataset_run_id")}
+      ORDER BY count(*) DESC, ${quoteIdent("dataset_run_id")} ASC
+      LIMIT 1000`,
+    params: { projectId: props.projectId },
+    readOnly: true,
+  });
+  return rows.map((r) => ({
+    experimentId: r.experimentId,
+    count: Number(r.count),
+  }));
 };
 
 /**
@@ -101,19 +135,24 @@ export const getExperimentDatasetIdsGreptime = async (
  */
 export const getExperimentNamesGreptime = async (props: {
   projectId: string;
-}): Promise<{ experimentName: string; experimentId: string }[]> => {
+}): Promise<
+  { experimentName: string; experimentId: string; count: number }[]
+> => {
   const rows = await greptimeQuery<{
     experimentName: string;
     experimentId: string;
+    count: string | number;
   }>({
     query: `
       SELECT ${quoteIdent("dataset_run_name")} AS ${quoteIdent("experimentName")},
-        min(${quoteIdent("dataset_run_id")}) AS ${quoteIdent("experimentId")}
+        min(${quoteIdent("dataset_run_id")}) AS ${quoteIdent("experimentId")},
+        count(*) AS count
       FROM ${quoteIdent("dataset_run_items")}
       WHERE project_id = :projectId AND ${notDeleted()}
         AND ${quoteIdent("dataset_run_name")} IS NOT NULL
         AND ${quoteIdent("dataset_run_name")} != ''
       GROUP BY ${quoteIdent("dataset_run_name")}
+      ORDER BY count(*) DESC, ${quoteIdent("dataset_run_name")} ASC
       LIMIT 1000`,
     params: { projectId: props.projectId },
     readOnly: true,
@@ -121,6 +160,7 @@ export const getExperimentNamesGreptime = async (props: {
   return rows.map((r) => ({
     experimentName: r.experimentName,
     experimentId: r.experimentId,
+    count: Number(r.count),
   }));
 };
 

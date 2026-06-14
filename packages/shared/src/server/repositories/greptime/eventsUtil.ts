@@ -444,7 +444,6 @@ export const getEventsStreamForEvalGreptime = async (props: {
     ),
   );
   const applied = filterList.apply();
-  const needsTraceJoin = filterList.some((f) => f.table === "traces");
 
   const baseParams: Record<string, string | number | null> = {
     projectId,
@@ -467,15 +466,6 @@ export const getEventsStreamForEvalGreptime = async (props: {
     readOnly: true,
     buildPage: (seekPredicate, _cursor, limit) => {
       const pageLimit = Math.min(limit, Math.max(remaining, 0));
-      const traceJoin = needsTraceJoin
-        ? `LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id AND ${notDeleted("t")}`
-        : "";
-      const traceCols = needsTraceJoin
-        ? `t.name AS trace_name, t.user_id AS user_id, t.session_id AS session_id,
-           ${selectJsonColumn("tags", { tablePrefix: "t" })}, t.release AS release`
-        : `CAST(NULL AS STRING) AS trace_name, CAST(NULL AS STRING) AS user_id,
-           CAST(NULL AS STRING) AS session_id, CAST(NULL AS STRING) AS tags,
-           CAST(NULL AS STRING) AS release`;
       return {
         query: `
           SELECT
@@ -495,9 +485,10 @@ export const getEventsStreamForEvalGreptime = async (props: {
             ${selectJsonColumn("tool_call_names", { tablePrefix: "o" })},
             o.input AS input, o.output AS output,
             ${selectJsonColumn("metadata", { tablePrefix: "o" })},
-            ${traceCols}
+            t.name AS trace_name, t.user_id AS user_id, t.session_id AS session_id,
+            ${selectJsonColumn("tags", { tablePrefix: "t" })}, t.release AS release
           FROM observations o
-          ${traceJoin}
+          LEFT JOIN traces t ON t.id = o.trace_id AND t.project_id = o.project_id AND ${notDeleted("t")}
           WHERE o.project_id = :projectId AND ${notDeleted("o")}
             ${cutoffCreatedAt ? "AND o.start_time < :cutoff" : ""}
             ${applied.query ? `AND ${applied.query}` : ""}

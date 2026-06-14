@@ -6,10 +6,15 @@ import { greptimeQuery } from "../../greptime/client";
 import { FilterList, StringFilter } from "../../greptime/sql/greptime-filter";
 import { createGreptimeFilterFromFilterState } from "../../greptime/sql/factory";
 import { observationsTableGreptimeColumnDefinitions } from "../../greptime/sql/columnMappings";
-import { greptimeJson, selectJsonColumn } from "../../greptime/sql/rowContract";
+import {
+  greptimeBool,
+  greptimeJson,
+  selectJsonColumn,
+} from "../../greptime/sql/rowContract";
 import { notDeleted } from "./queryHelpers";
 import {
   getExperimentDatasetIdsGreptime,
+  getExperimentIdsGreptime,
   getExperimentNamesGreptime,
 } from "./experiments";
 
@@ -302,7 +307,7 @@ export const getEventsGroupedByHasParentObservationGreptime = async (
     offset: opts?.offset,
   });
   return rows.map((r) => ({
-    hasParentObservation: Boolean(Number(r.value)),
+    hasParentObservation: greptimeBool(r.value),
     count: Number(r.count),
   }));
 };
@@ -321,7 +326,7 @@ export const getEventsGroupedByIsRootObservationGreptime = async (
     offset: opts?.offset,
   });
   return rows.map((r) => ({
-    isRootObservation: Boolean(Number(r.value)),
+    isRootObservation: greptimeBool(r.value),
     count: Number(r.count),
   }));
 };
@@ -336,7 +341,7 @@ export const getEventsGroupedByPromptNameGreptime = async (
   opts?: GroupedEventsFilterOptions,
 ) => {
   const facet = buildEventsFacetWhere(projectId, filter);
-  const rows = await greptimeQuery<{ id: string }>({
+  const rows = await greptimeQuery<{ id: string; count: string | number }>({
     query: `
       SELECT o.prompt_id AS id, count(*) AS count
       FROM observations o
@@ -361,7 +366,20 @@ export const getEventsGroupedByPromptNameGreptime = async (
           where: { id: { in: promptIds }, projectId },
         })
       : [];
-  return prompts.map((p) => ({ promptName: p.name }));
+  const promptNameById = new Map(prompts.map((p) => [p.id, p.name]));
+  const countsByName = new Map<string, number>();
+  for (const r of rows) {
+    const promptName = promptNameById.get(r.id);
+    if (promptName) {
+      countsByName.set(
+        promptName,
+        (countsByName.get(promptName) ?? 0) + Number(r.count),
+      );
+    }
+  }
+  return Array.from(countsByName.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([promptName, count]) => ({ promptName, count }));
 };
 
 // ---------------------------------------------------------------------------
@@ -491,15 +509,18 @@ export const getEventsGroupedByExperimentDatasetIdGreptime = async (
     projectId,
     startTimeFilter.length > 0 ? startTimeFilter : undefined,
   );
-  return rows.map((r) => ({ experimentDatasetId: r.experimentDatasetId }));
+  return rows.map((r) => ({
+    experimentDatasetId: r.experimentDatasetId,
+    count: r.count,
+  }));
 };
 
 export const getEventsGroupedByExperimentIdGreptime = async (
   projectId: string,
   _filter: FilterState,
 ) => {
-  const rows = await getExperimentNamesGreptime({ projectId });
-  return rows.map((r) => ({ experimentId: r.experimentId }));
+  const rows = await getExperimentIdsGreptime({ projectId });
+  return rows.map((r) => ({ experimentId: r.experimentId, count: r.count }));
 };
 
 export const getEventsGroupedByExperimentNameGreptime = async (
@@ -507,7 +528,10 @@ export const getEventsGroupedByExperimentNameGreptime = async (
   _filter: FilterState,
 ) => {
   const rows = await getExperimentNamesGreptime({ projectId });
-  return rows.map((r) => ({ experimentName: r.experimentName }));
+  return rows.map((r) => ({
+    experimentName: r.experimentName,
+    count: r.count,
+  }));
 };
 
 // ---------------------------------------------------------------------------

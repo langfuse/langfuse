@@ -305,6 +305,13 @@ async function main() {
     evalRows.every((r) => "span_id" in r && "parent_span_id" in r),
     Object.keys(evalRows[0] ?? {}).slice(0, 12),
   );
+  // Guards the trace LEFT JOIN: the eval consumer needs the trace-denormalised fields populated,
+  // not just present as NULL columns.
+  check(
+    "eval-stream rows carry populated trace denorm (user_id non-null somewhere)",
+    evalRows.some((r) => r.user_id != null && r.trace_id != null),
+    { user_id: evalRows[0]?.user_id, trace_name: evalRows[0]?.trace_name },
+  );
 
   console.log(`\n== ${pass} passed, ${fail} failed ==`);
   if (fail > 0) process.exit(1);

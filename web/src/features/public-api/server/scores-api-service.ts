@@ -168,6 +168,7 @@ function buildScoreFilters(
       field: "project_id",
       operator: "=",
       value: props.projectId,
+      tablePrefix: "s",
     }),
   );
 
