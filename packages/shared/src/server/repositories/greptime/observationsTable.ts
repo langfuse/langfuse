@@ -55,7 +55,7 @@ const observationsTableExtendedColumns: GreptimeColumnMapping[] = [
   { uiTableName: "Scores (categorical)", uiTableId: "score_categories", greptimeTableName: "scores", greptimeSelect: "observation_id", scoreGrain: { scoresColumn: "observation_id", outerPrefix: "o", outerColumn: "id" } }, // prettier-ignore
 ];
 
-const observationsTableMapping: GreptimeColumnMappings = [
+export const observationsTableMapping: GreptimeColumnMappings = [
   ...observationsTableGreptimeColumnDefinitions,
   ...observationsTableExtendedColumns,
 ];
@@ -78,7 +78,7 @@ type CompiledObs = {
   lookback?: string;
 };
 
-const buildObservationsTableQuery = (
+export const buildObservationsTableQuery = (
   props: GreptimeObservationsTableProps,
 ): CompiledObs => {
   const { projectId, filter, orderBy } = props;

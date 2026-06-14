@@ -1,29 +1,22 @@
 /**
- * Event stream for batch exports.
- * Queries the ClickHouse events table with filters and streams results
- * for efficient batch export processing.
+ * Event stream for batch exports, collapsed to the GreptimeDB observation projection.
  *
- * The events table is denormalized with trace data already included,
- * so no JOINs are needed for trace-level fields.
+ * In the ClickHouse build the events table was a denormalised observation-grain table; GreptimeDB has
+ * no events table, so the export reads the merged `observations` projection (joined to `traces` for
+ * the denormalised trace fields) — events are observation-grain (span_id -> observation id).
  */
 
 import {
   FilterCondition,
-  type ScoreDataTypeType,
   TimeFilter,
   TracingSearchType,
-  eventsTableCols,
 } from "@langfuse/shared";
 import {
   getDistinctScoreNames,
-  queryClickhouseStream,
+  getScoresForObservations,
+  streamObservationsForExport,
   logger,
-  FilterList,
-  createFilterFromFilterState,
-  eventsTableUiColumnDefinitions,
-  clickhouseSearchCondition,
-  EventsQueryBuilder,
-  eventsScoresAggregation,
+  observationsTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -34,35 +27,26 @@ import {
 import { fetchCommentsForExport } from "./fetchCommentsForExport";
 import { BatchExportEventsRow } from "./types";
 
-const BATCH_SIZE = 1000; // Fetch comments in batches for efficiency
-const EVENT_SEARCH_COLUMNS = [
-  "span_id",
-  "name",
-  "trace_name",
-  "user_id",
-  "session_id",
-  "trace_id",
-] as const;
+const PAGE_SIZE = 1000;
 
-const eventSearchCondition = (opts: {
-  query?: string;
-  searchType?: TracingSearchType[];
-}) =>
-  clickhouseSearchCondition({
-    query: opts.query,
-    searchType: opts.searchType,
-    tablePrefix: "e",
-    searchColumns: EVENT_SEARCH_COLUMNS,
-    useEventsTablePath: true,
+const isStartTimeFilter = (f: FilterCondition): f is TimeFilter =>
+  f.column === "Start Time" && f.type === "datetime";
+
+// Events filters exclude score/comment columns; the observation projection has no such columns.
+const eventOnly = (filter: FilterCondition[] | null): FilterCondition[] =>
+  (filter ?? []).filter((f) => {
+    const columnDef = observationsTableUiColumnDefinitions.find(
+      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    );
+    return (
+      columnDef?.clickhouseTableName !== "scores" &&
+      columnDef?.clickhouseTableName !== "comments"
+    );
   });
 
-/**
- * Creates a stream of events from ClickHouse for batch export.
- * Includes comments fetched in batches and flattened scores.
- *
- * @param props - Query parameters including projectId, filters, and limits
- * @returns A Node.js Readable stream of event records
- */
+const latencyMs = (start: Date, end: Date | null | undefined): number | null =>
+  end ? end.getTime() - start.getTime() : null;
+
 export const getEventsStream = async (props: {
   projectId: string;
   cutoffCreatedAt: Date;
@@ -80,280 +64,108 @@ export const getEventsStream = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const clickhouseConfigs = {
-    request_timeout: 180_000, // 3 minutes
-    clickhouse_settings: {
-      join_algorithm: "partial_merge" as const,
-      // Increase HTTP timeouts to prevent Code 209 errors during slow blob storage uploads
-      // See: https://github.com/ClickHouse/ClickHouse/issues/64731
-      http_send_timeout: 300,
-      http_receive_timeout: 300,
-    },
-  };
-
-  // Filter out score and comment filters since they require special handling
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
-    // Keep the filter if it's not a scores or comments filter
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
-
-  // Get distinct score names for empty columns
+  const filters = eventOnly(filter);
   const distinctScoreNames = await getDistinctScoreNames({
     projectId,
     cutoffCreatedAt,
-    filter: eventOnlyFilters,
-    isTimestampFilter: (
-      filterItem: FilterCondition,
-    ): filterItem is TimeFilter =>
-      filterItem.column === "Start Time" && filterItem.type === "datetime",
-    clickhouseConfigs,
+    filter: filters,
+    isTimestampFilter: isStartTimeFilter,
   });
-
   const emptyScoreColumns = distinctScoreNames.reduce(
     (acc, name) => ({ ...acc, [name]: null }),
     {} as Record<string, null>,
   );
 
-  // Build filters for events (project_id is handled by the query builder)
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      [
-        ...eventOnlyFilters,
-        {
-          column: "startTime",
-          operator: "<" as const,
-          value: cutoffCreatedAt,
-          type: "datetime" as const,
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const search = eventSearchCondition({
-    query: searchQuery,
-    searchType,
-  });
-
-  // Build the query using EventsQueryBuilder
-  const eventsQuery = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("export")
-    .selectIO(false) // Full I/O, no truncation
-    .selectMetadataExpanded() // Full metadata values from events_full
-    .selectRaw(
-      "s.scores_avg as scores_avg",
-      "s.score_categories as score_categories",
-      "s.score_categories_tuples as score_categories_tuples",
-    )
-    .withCTE(
-      "scores_agg",
-      eventsScoresAggregation({ projectId, includeTupleEncoding: true }),
-    )
-    .leftJoin(
-      "scores_agg s",
-      "ON s.trace_id = e.trace_id AND s.observation_id = e.span_id",
-    )
-    .when(search.requiresEventsFull, (b) => b.forceFullTable())
-    .where(appliedEventsFilter)
-    .where(search)
-    .whereRaw("e.is_deleted = 0")
-    .orderByDefault()
-    .limitBy("e.span_id", "e.project_id")
-    .limit(rowLimit);
-
-  const { query, params: queryParams } = eventsQuery.buildWithParams();
-
-  type EventRow = {
-    id: string;
-    trace_id: string;
-    project_id: string;
-    start_time: Date;
-    end_time: Date | null;
-    name: string | null;
-    type: string;
-    environment: string | null;
-    version: string | null;
-    user_id: string | null;
-    session_id: string | null;
-    level: string;
-    status_message: string | null;
-    prompt_name: string | null;
-    prompt_id: string | null;
-    prompt_version: number | null;
-    model_id: string | null;
-    provided_model_name: string | null;
-    model_parameters: unknown;
-    usage_details: Record<string, number>;
-    cost_details: Record<string, number>;
-    total_cost: number | null;
-    input: unknown;
-    output: unknown;
-    metadata: Record<string, unknown>;
-    completion_start_time: Date | null;
-    latency: number | null;
-    time_to_first_token: number | null;
-    tags: string[];
-    release: string | null;
-    trace_name: string | null;
-    parent_observation_id: string | null;
-    scores_avg:
-      | {
-          name: string;
-          value: number;
-          dataType: ScoreDataTypeType;
-          stringValue: string;
-        }[]
-      | undefined;
-    score_categories: string[] | undefined;
-    score_categories_tuples: [string, string | null, string][] | undefined;
-  };
-
-  const asyncGenerator = queryClickhouseStream<EventRow>({
-    query,
-    params: queryParams,
-    clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "event",
-      kind: "export",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
-  // Helper function to process a single event row
-  const processEventRow = (
-    bufferedRow: EventRow,
-    commentsByEvent: Map<string, any[]>,
-  ) => {
-    // Process numeric/boolean scores (tuples from ClickHouse)
-    const numericScores = (bufferedRow.scores_avg ?? []).map((score: any) => ({
-      name: score[0],
-      value: score[1],
-      dataType: score[2],
-      stringValue: score[3],
-    }));
-
-    // Process categorical scores (tuples from ClickHouse)
-    const categoricalScores = (bufferedRow.score_categories_tuples ?? []).map(
-      (cat: [string, string | null, string]) => ({
-        name: cat[0],
-        value: null,
-        dataType: cat[2],
-        stringValue: cat[1],
-      }),
-    );
-
-    const outputScores: Record<string, string[] | number[]> =
-      prepareScoresForOutput([...numericScores, ...categoricalScores]);
-
-    // Get comments for this event (events use OBSERVATION type since they are observations)
-    const eventComments = commentsByEvent.get(bufferedRow.id) ?? [];
-
-    const eventRow: BatchExportEventsRow = {
-      id: bufferedRow.id,
-      traceId: bufferedRow.trace_id,
-      traceName: bufferedRow.trace_name,
-      type: bufferedRow.type,
-      name: bufferedRow.name ?? "",
-      startTime: bufferedRow.start_time,
-      endTime: bufferedRow.end_time,
-      completionStartTime: bufferedRow.completion_start_time,
-      environment: bufferedRow.environment,
-      version: bufferedRow.version,
-      userId: bufferedRow.user_id,
-      sessionId: bufferedRow.session_id,
-      level: bufferedRow.level,
-      statusMessage: bufferedRow.status_message,
-      promptName: bufferedRow.prompt_name,
-      promptId: bufferedRow.prompt_id,
-      promptVersion: bufferedRow.prompt_version,
-      modelId: bufferedRow.model_id,
-      providedModelName: bufferedRow.provided_model_name,
-      modelParameters: bufferedRow.model_parameters,
-      usageDetails: bufferedRow.usage_details,
-      costDetails: bufferedRow.cost_details,
-      totalCost: bufferedRow.total_cost,
-      input: bufferedRow.input,
-      output: bufferedRow.output,
-      metadata: bufferedRow.metadata,
-      latencyMs: bufferedRow.latency,
-      timeToFirstTokenMs: bufferedRow.time_to_first_token,
-      tags: bufferedRow.tags,
-      release: bufferedRow.release,
-      parentObservationId: bufferedRow.parent_observation_id,
-      scores: outputScores,
-      comments: eventComments,
-    };
-
-    return getChunkWithFlattenedScores([eventRow], emptyScoreColumns)[0];
-  };
-
-  // Convert async generator to Node.js Readable stream
   let recordsProcessed = 0;
 
   return Readable.from(
     (async function* () {
-      let rowBuffer: EventRow[] = [];
-      let eventIds: string[] = [];
-
-      for await (const row of asyncGenerator) {
-        rowBuffer.push(row);
-        eventIds.push(row.id);
-
-        // Process in batches
-        if (rowBuffer.length >= BATCH_SIZE) {
-          // Fetch comments for this batch (events are observations)
-          const commentsByEvent = await fetchCommentsForExport(
+      for await (const page of streamObservationsForExport({
+        projectId,
+        filter: filters,
+        cutoffCreatedAt,
+        searchQuery,
+        searchType,
+        rowLimit,
+        pageSize: PAGE_SIZE,
+      })) {
+        const observationIds = page.map((o) => o.id);
+        const [scores, commentsByEvent] = await Promise.all([
+          getScoresForObservations({
             projectId,
-            "OBSERVATION",
-            eventIds,
-          );
-
-          // Process each row in the buffer
-          for (const bufferedRow of rowBuffer) {
-            recordsProcessed++;
-            if (recordsProcessed % 10000 === 0) {
-              logger.info(
-                `Streaming events for project ${projectId}: processed ${recordsProcessed} rows`,
-              );
-            }
-
-            yield processEventRow(bufferedRow, commentsByEvent);
-          }
-
-          // Reset buffers
-          rowBuffer = [];
-          eventIds = [];
+            observationIds,
+            excludeMetadata: true,
+          }),
+          fetchCommentsForExport(projectId, "OBSERVATION", observationIds),
+        ]);
+        const scoresByObs = new Map<string, typeof scores>();
+        for (const s of scores) {
+          if (!s.observationId) continue;
+          const list = scoresByObs.get(s.observationId) ?? [];
+          list.push(s);
+          scoresByObs.set(s.observationId, list);
         }
-      }
 
-      // Process remaining rows in buffer
-      if (rowBuffer.length > 0) {
-        const commentsByEvent = await fetchCommentsForExport(
-          projectId,
-          "OBSERVATION",
-          eventIds,
-        );
-
-        for (const bufferedRow of rowBuffer) {
+        for (const obs of page) {
           recordsProcessed++;
-          if (recordsProcessed % 10000 === 0) {
+          if (recordsProcessed % 10000 === 0)
             logger.info(
               `Streaming events for project ${projectId}: processed ${recordsProcessed} rows`,
             );
-          }
 
-          yield processEventRow(bufferedRow, commentsByEvent);
+          // BatchExportEventsRow.traceId is required; skip orphan observations rather than
+          // emitting an empty trace id into the export.
+          if (!obs.traceId) continue;
+
+          const outputScores = prepareScoresForOutput(
+            (scoresByObs.get(obs.id) ?? []).map((s) => ({
+              name: s.name,
+              value: s.value,
+              dataType: s.dataType,
+              stringValue: s.stringValue,
+            })),
+          );
+
+          const eventRow: BatchExportEventsRow = {
+            id: obs.id,
+            traceId: obs.traceId,
+            traceName: obs.traceName,
+            type: obs.type,
+            name: obs.name ?? "",
+            startTime: obs.startTime,
+            endTime: obs.endTime,
+            completionStartTime: obs.completionStartTime,
+            environment: obs.environment,
+            version: obs.version,
+            userId: obs.userId,
+            sessionId: obs.traceSessionId,
+            level: obs.level,
+            statusMessage: obs.statusMessage,
+            promptName: obs.promptName,
+            promptId: obs.promptId,
+            promptVersion: obs.promptVersion,
+            modelId: obs.internalModelId,
+            providedModelName: obs.model,
+            modelParameters: obs.modelParameters,
+            usageDetails: obs.usageDetails,
+            costDetails: obs.costDetails,
+            totalCost: obs.totalCost,
+            input: obs.input,
+            output: obs.output,
+            metadata: obs.metadata,
+            latencyMs: latencyMs(obs.startTime, obs.endTime),
+            timeToFirstTokenMs: latencyMs(
+              obs.startTime,
+              obs.completionStartTime,
+            ),
+            tags: obs.traceTags,
+            release: obs.traceRelease,
+            parentObservationId: obs.parentObservationId,
+            scores: outputScores,
+            comments: commentsByEvent.get(obs.id) ?? [],
+          };
+
+          yield getChunkWithFlattenedScores([eventRow], emptyScoreColumns)[0];
         }
       }
     })(),
@@ -361,9 +173,7 @@ export const getEventsStream = async (props: {
 };
 
 /**
- * Lightweight event stream for batch add-to-dataset.
- * Only fetches the fields needed for dataset item creation:
- * id, traceId, input, output, metadata.
+ * Lightweight event stream for batch add-to-dataset: id, traceId, input, output, metadata.
  */
 export const getEventsStreamForDataset = async (props: {
   projectId: string;
@@ -382,100 +192,35 @@ export const getEventsStreamForDataset = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
-
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
-
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      [
-        ...eventOnlyFilters,
-        {
-          column: "startTime",
-          operator: "<" as const,
-          value: cutoffCreatedAt,
-          type: "datetime" as const,
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const search = eventSearchCondition({
-    query: searchQuery,
-    searchType,
-  });
-
-  const eventsQuery = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("core")
-    .selectIO(false)
-    .selectFieldSet("metadata")
-    .when(search.requiresEventsFull, (b) => b.forceFullTable())
-    .where(appliedEventsFilter)
-    .where(search)
-    .whereRaw("e.is_deleted = 0")
-    .orderByDefault()
-    .limitBy("e.span_id", "e.project_id")
-    .limit(rowLimit);
-
-  const { query, params: queryParams } = eventsQuery.buildWithParams();
-
-  type DatasetEventRow = {
-    id: string;
-    trace_id: string;
-    input: unknown;
-    output: unknown;
-    metadata: Record<string, unknown> | null;
-  };
-
-  const asyncGenerator = queryClickhouseStream<DatasetEventRow>({
-    query,
-    params: queryParams,
-    clickhouseConfigs: {
-      request_timeout: 180_000,
-      clickhouse_settings: {
-        http_send_timeout: 300,
-        http_receive_timeout: 300,
-      },
-    },
-    tags: {
-      feature: "batch-add-to-dataset",
-      type: "event",
-      kind: "dataset",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
   return Readable.from(
     (async function* () {
-      for await (const row of asyncGenerator) {
-        yield {
-          id: row.id,
-          traceId: row.trace_id,
-          input: row.input,
-          output: row.output,
-          metadata: row.metadata,
-        };
+      for await (const page of streamObservationsForExport({
+        projectId,
+        filter: eventOnly(filter),
+        cutoffCreatedAt,
+        searchQuery,
+        searchType,
+        rowLimit,
+        pageSize: PAGE_SIZE,
+      })) {
+        for (const obs of page) {
+          // Dataset items require a real trace id; skip orphan observations.
+          if (!obs.traceId) continue;
+          yield {
+            id: obs.id,
+            traceId: obs.traceId,
+            input: obs.input,
+            output: obs.output,
+            metadata: obs.metadata,
+          };
+        }
       }
     })(),
   );
 };
 
 /**
- * Lightweight event stream for batch add-to-annotation-queue.
- * Only fetches the fields needed for annotation queue item creation:
- * id, traceId.
+ * Lightweight event stream for batch add-to-annotation-queue: id, traceId.
  */
 export const getEventsStreamForAnnotationQueue = async (props: {
   projectId: string;
@@ -494,83 +239,22 @@ export const getEventsStreamForAnnotationQueue = async (props: {
     rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
   } = props;
 
-  const eventOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = eventsTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
-    );
-
-    return (
-      columnDef?.clickhouseTableName !== "scores" &&
-      columnDef?.clickhouseTableName !== "comments"
-    );
-  });
-
-  const eventsFilter = new FilterList(
-    createFilterFromFilterState(
-      [
-        ...eventOnlyFilters,
-        {
-          column: "startTime",
-          operator: "<" as const,
-          value: cutoffCreatedAt,
-          type: "datetime" as const,
-        },
-      ],
-      eventsTableUiColumnDefinitions,
-      eventsTableCols,
-    ),
-  );
-
-  const appliedEventsFilter = eventsFilter.apply();
-
-  const search = eventSearchCondition({
-    query: searchQuery,
-    searchType,
-  });
-
-  const eventsQuery = new EventsQueryBuilder({ projectId })
-    .selectFieldSet("core")
-    .when(search.requiresEventsFull, (b) => b.forceFullTable())
-    .where(appliedEventsFilter)
-    .where(search)
-    .whereRaw("e.is_deleted = 0")
-    .orderByDefault()
-    .limitBy("e.span_id", "e.project_id")
-    .limit(rowLimit);
-
-  const { query, params: queryParams } = eventsQuery.buildWithParams();
-
-  type AnnotationQueueEventRow = {
-    id: string;
-    trace_id: string;
-  };
-
-  const asyncGenerator = queryClickhouseStream<AnnotationQueueEventRow>({
-    query,
-    params: queryParams,
-    clickhouseConfigs: {
-      request_timeout: 180_000,
-      clickhouse_settings: {
-        http_send_timeout: 300,
-        http_receive_timeout: 300,
-      },
-    },
-    tags: {
-      feature: "batch-add-to-annotation-queue",
-      type: "event",
-      kind: "annotation",
-      projectId,
-    },
-    preferredClickhouseService: "EventsReadOnly",
-  });
-
   return Readable.from(
     (async function* () {
-      for await (const row of asyncGenerator) {
-        yield {
-          id: row.id,
-          traceId: row.trace_id,
-        };
+      for await (const page of streamObservationsForExport({
+        projectId,
+        filter: eventOnly(filter),
+        cutoffCreatedAt,
+        searchQuery,
+        searchType,
+        rowLimit,
+        pageSize: PAGE_SIZE,
+      })) {
+        for (const obs of page) {
+          // Annotation-queue items require a real trace id; skip orphan observations.
+          if (!obs.traceId) continue;
+          yield { id: obs.id, traceId: obs.traceId };
+        }
       }
     })(),
   );

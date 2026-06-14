@@ -55,6 +55,7 @@ function buildObservationsFilter(props: ObservationsApiQueryProps) {
       field: "project_id",
       operator: "=",
       value: props.projectId,
+      tablePrefix: "o",
     }),
   );
   return filteredChFilter;

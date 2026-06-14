@@ -6,7 +6,9 @@ import {
   type ListableScoreDataType,
   AGGREGATABLE_SCORE_TYPES,
   LISTABLE_SCORE_TYPES,
+  ScoreDataTypeEnum,
 } from "../../../domain/scores";
+import { InternalServerError } from "../../../errors";
 import {
   type FilterState,
   type FilterCondition,
@@ -17,8 +19,17 @@ import { scoresTableCols } from "../../../tableDefinitions/scoresTable";
 import { greptimeQuery } from "../../greptime/client";
 import { recordDistribution } from "../../instrumentation";
 import { parseMetadataCHRecordToDomain } from "../../utils/metadata_conversion";
-import { FilterList, StringFilter } from "../../greptime/sql/greptime-filter";
+import {
+  FilterList,
+  StringFilter,
+  StringOptionsFilter,
+  DateTimeFilter,
+  NumberFilter,
+} from "../../greptime/sql/greptime-filter";
 import { createGreptimeFilterFromFilterState } from "../../greptime/sql/factory";
+import { type FilterList as ChFilterList } from "../../queries";
+import { translateChFilterList } from "./translateChFilter";
+import type { ListFilterParams, ScoresCursorV3Type } from "../scores";
 import {
   scoresTableGreptimeColumnDefinitions,
   type GreptimeColumnMappings,
@@ -1087,4 +1098,278 @@ export const getAggregatedScoresForPrompts = async (
     promptId: row.prompt_id,
     hasMetadata: greptimeBool(row.has_metadata),
   }));
+};
+
+// ---------------------------------------------------------------------------
+// P5 public-API score generators (legacy /api/public/scores v1/v2 + v3 list)
+// ---------------------------------------------------------------------------
+
+/**
+ * Public-API score list. The CH self-referential IN-subquery + `LIMIT 1 BY` dedup is redundant on
+ * the merged projection (the outer score filter already selects the matching rows), so it collapses
+ * to a single filtered SELECT with an optional traces LEFT JOIN. scoreScope `traces_only` restricts
+ * to trace-attached scores. Returns domain scores with an optional embedded `trace` object.
+ */
+export const _handleGenerateScoresForPublicApi = async ({
+  projectId,
+  scoresFilter,
+  tracesFilter,
+  scoreScope,
+  includeTrace,
+  needsTraceJoin,
+  pagination,
+}: {
+  projectId: string;
+  scoresFilter: ChFilterList;
+  tracesFilter: ChFilterList;
+  scoreScope: "traces_only" | "all";
+  includeTrace: boolean;
+  needsTraceJoin: boolean;
+  pagination?: { limit: number; page: number };
+}) => {
+  const applied = translateChFilterList(scoresFilter).apply();
+  const appliedTraces = translateChFilterList(tracesFilter).apply();
+  const rows = await greptimeQuery<Record<string, unknown>>({
+    query: `
+      SELECT
+        ${needsTraceJoin ? `t.user_id AS user_id, ${selectJsonColumn("tags", { alias: "tags", tablePrefix: "t" })}, t.environment AS trace_environment, t.session_id AS trace_session_id,` : ""}
+        ${greptimeScoreSelect({ prefix: "s" })}
+      FROM scores s
+      ${needsTraceJoin ? `LEFT JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id AND ${notDeleted("t")}` : ""}
+      WHERE s.project_id = :projectId AND ${notDeleted("s")}
+        ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
+        ${applied.query ? `AND ${applied.query}` : ""}
+        ${tracesFilter.length() > 0 ? `AND ${appliedTraces.query}` : ""}
+      ORDER BY s.timestamp DESC
+      ${pagination ? "LIMIT :limit OFFSET :offset" : ""}`,
+    params: {
+      projectId,
+      ...applied.params,
+      ...appliedTraces.params,
+      ...(pagination
+        ? {
+            limit: pagination.limit,
+            offset: (pagination.page - 1) * pagination.limit,
+          }
+        : {}),
+    },
+    readOnly: true,
+  });
+
+  return rows.map((record) => {
+    const domainScore = convertGreptimeScoreRowToDomain(record);
+    return {
+      ...domainScore,
+      trace:
+        includeTrace && domainScore.traceId !== null
+          ? {
+              userId: greptimeStringOrUndefined(record.user_id),
+              tags: greptimeJson<string[]>(record.tags, []),
+              environment: greptimeStringOrUndefined(record.trace_environment),
+              sessionId: greptimeStringOrNull(record.trace_session_id),
+            }
+          : null,
+    };
+  });
+};
+
+export const _handleGetScoresCountForPublicApi = async ({
+  projectId,
+  scoresFilter,
+  tracesFilter,
+  scoreScope,
+  needsTraceJoin,
+}: {
+  projectId: string;
+  scoresFilter: ChFilterList;
+  tracesFilter: ChFilterList;
+  scoreScope: "traces_only" | "all";
+  includeTrace: boolean;
+  needsTraceJoin: boolean;
+}): Promise<number | undefined> => {
+  const applied = translateChFilterList(scoresFilter).apply();
+  const appliedTraces = translateChFilterList(tracesFilter).apply();
+  const rows = await greptimeQuery<{ count: string | number }>({
+    query: `
+      SELECT count(*) AS count
+      FROM scores s
+      ${needsTraceJoin ? `LEFT JOIN traces t ON s.trace_id = t.id AND s.project_id = t.project_id AND ${notDeleted("t")}` : ""}
+      WHERE s.project_id = :projectId AND ${notDeleted("s")}
+        ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
+        ${applied.query ? `AND ${applied.query}` : ""}
+        ${tracesFilter.length() > 0 ? `AND ${appliedTraces.query}` : ""}`,
+    params: { projectId, ...applied.params, ...appliedTraces.params },
+    readOnly: true,
+  });
+  return rows.length > 0 ? Number(rows[0].count) : undefined;
+};
+
+const greptimeStringOrUndefined = (v: unknown): string | undefined =>
+  v == null ? undefined : String(v);
+const greptimeStringOrNull = (v: unknown): string | null =>
+  v == null ? null : String(v);
+
+const V3_STRING_OPTION_FIELDS: ReadonlyArray<{
+  key: keyof ListFilterParams;
+  field: string;
+}> = [
+  { key: "id", field: "id" },
+  { key: "name", field: "name" },
+  { key: "source", field: "source" },
+  { key: "dataType", field: "data_type" },
+  { key: "environment", field: "environment" },
+  { key: "configId", field: "config_id" },
+  { key: "queueId", field: "queue_id" },
+  { key: "authorUserId", field: "author_user_id" },
+  { key: "traceId", field: "trace_id" },
+  { key: "sessionId", field: "session_id" },
+  { key: "observationId", field: "observation_id" },
+  { key: "experimentId", field: "dataset_run_id" },
+];
+
+/** GreptimeDB-native port of the v3 `buildDynamicFilters` (all plain `scores` columns). */
+const buildGreptimeScoreV3Filters = (
+  params: ListFilterParams,
+): { query: string; params: Record<string, unknown> } => {
+  const list = new FilterList();
+  for (const { key, field } of V3_STRING_OPTION_FIELDS) {
+    const values = params[key] as string[] | undefined;
+    if (values?.length) {
+      list.push(
+        new StringOptionsFilter({
+          table: "scores",
+          field,
+          operator: "any of",
+          values,
+          tablePrefix: "s",
+        }),
+      );
+    }
+  }
+  if (params.fromTimestamp !== undefined)
+    list.push(
+      new DateTimeFilter({
+        table: "scores",
+        field: "timestamp",
+        operator: ">=",
+        value: params.fromTimestamp,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.toTimestamp !== undefined)
+    list.push(
+      new DateTimeFilter({
+        table: "scores",
+        field: "timestamp",
+        operator: "<",
+        value: params.toTimestamp,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.valueMin !== undefined)
+    list.push(
+      new NumberFilter({
+        table: "scores",
+        field: "value",
+        operator: ">=",
+        value: params.valueMin,
+        tablePrefix: "s",
+      }),
+    );
+  if (params.valueMax !== undefined)
+    list.push(
+      new NumberFilter({
+        table: "scores",
+        field: "value",
+        operator: "<=",
+        value: params.valueMax,
+        tablePrefix: "s",
+      }),
+    );
+
+  const compiled = list.apply();
+  const extraClauses: string[] = [];
+  const extraParams: Record<string, unknown> = {};
+
+  if (params.value?.length && params.dataType?.length === 1) {
+    const dt = params.dataType[0] as ScoreDataTypeType;
+    if (dt === ScoreDataTypeEnum.NUMERIC || dt === ScoreDataTypeEnum.BOOLEAN) {
+      const nums = params.value.map((v) => {
+        if (dt === ScoreDataTypeEnum.BOOLEAN) {
+          if (v === "true") return 1;
+          if (v === "false") return 0;
+          throw new InternalServerError(
+            `BOOLEAN value filter received unexpected value: ${v}`,
+          );
+        }
+        const n = Number(v);
+        if (!Number.isFinite(n))
+          throw new InternalServerError(
+            `NUMERIC value filter received non-finite value: ${v}`,
+          );
+        return n;
+      });
+      const placeholders = nums.map((n, i) => {
+        extraParams[`v3val${i}`] = n;
+        return `:v3val${i}`;
+      });
+      extraClauses.push(`s.\`value\` IN (${placeholders.join(", ")})`);
+    } else if (dt === ScoreDataTypeEnum.CATEGORICAL) {
+      const placeholders = params.value.map((v, i) => {
+        extraParams[`v3sval${i}`] = v;
+        return `:v3sval${i}`;
+      });
+      extraClauses.push(`s.\`string_value\` IN (${placeholders.join(", ")})`);
+    } else {
+      throw new InternalServerError(
+        `value filter with dataType=${dt} should have been rejected by handler validation`,
+      );
+    }
+  }
+
+  const query = [compiled.query, ...extraClauses].filter(Boolean).join(" AND ");
+  return { query, params: { ...compiled.params, ...extraParams } };
+};
+
+/**
+ * v3 score list rows (cursor keyset). Fetches `limit + 1` domain scores ordered by
+ * (timestamp, id) DESC with a stable composite cursor; the caller (scores.ts) slices, encodes the
+ * next cursor, and shapes each domain score into the field-group `APIScoreV3` contract.
+ */
+export const listScoresV3RowsForPublicApi = async (
+  params: {
+    projectId: string;
+    limit: number;
+    cursor?: ScoresCursorV3Type;
+  } & ListFilterParams,
+): Promise<{ scores: ScoreDomain[]; hasMore: boolean }> => {
+  const filter = buildGreptimeScoreV3Filters(params);
+  const rows = await greptimeQuery<Record<string, unknown>>({
+    query: `
+      SELECT ${greptimeScoreSelect({ prefix: "s" })}
+      FROM scores s
+      WHERE s.project_id = :projectId AND ${notDeleted("s")}
+        ${params.cursor ? "AND (s.timestamp < :lastTs OR (s.timestamp = :lastTs AND s.id < :lastId))" : ""}
+        ${filter.query ? `AND ${filter.query}` : ""}
+      ORDER BY s.timestamp DESC, s.id DESC
+      LIMIT :limit`,
+    params: {
+      projectId: params.projectId,
+      limit: params.limit + 1,
+      ...(params.cursor
+        ? {
+            lastTs: greptimeTsParam(params.cursor.lastTimestamp),
+            lastId: params.cursor.lastId,
+          }
+        : {}),
+      ...filter.params,
+    },
+    readOnly: true,
+  });
+  const hasMore = rows.length > params.limit;
+  const page = hasMore ? rows.slice(0, params.limit) : rows;
+  return {
+    scores: page.map((r) => convertGreptimeScoreRowToDomain(r)),
+    hasMore,
+  };
 };

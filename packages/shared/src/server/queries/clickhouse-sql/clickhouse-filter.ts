@@ -3,7 +3,7 @@ import {
   type FtsMatchOperator,
   filterOperators,
 } from "../../../interfaces/filters";
-import { clickhouseCompliantRandomCharacters } from "../../repositories";
+import { clickhouseCompliantRandomCharacters } from "../../repositories/clickhouse";
 import { escapeSqlLikePattern } from "../../utils/sqlLike";
 import {
   assertValidFtsMatchFilter,

@@ -29,6 +29,9 @@ import {
   greptimeTsParam,
   notDeleted,
 } from "./queryHelpers";
+import { type FilterList as ChFilterList } from "../../queries";
+import { translateChFilterList } from "./translateChFilter";
+import { type ScoreGrain } from "../../greptime/sql/greptime-filter";
 
 /**
  * GreptimeDB core observation reads (04-read-path.md, P1). Plain SELECT on the merged projection
@@ -831,4 +834,145 @@ export const getCostByEvaluatorIds = async (
       evaluatorId: String(r.evaluator_id),
       totalCost: Number(r.total_cost ?? 0),
     }));
+};
+
+// ---------------------------------------------------------------------------
+// P5 scattered small reads
+// ---------------------------------------------------------------------------
+
+/**
+ * Observation counts grouped by project and UTC day over a half-open [startDate, endDate) window
+ * (telemetry / usage-thresholds cron). Mirrors `getTraceCountsByProjectAndDay` on `start_time`.
+ */
+export const getObservationCountsByProjectAndDay = async ({
+  startDate,
+  endDate,
+}: {
+  startDate: Date;
+  endDate: Date;
+}): Promise<Array<{ count: number; projectId: string; date: string }>> => {
+  const rows = await greptimeQuery<{
+    count: string;
+    project_id: string;
+    date: Date | string;
+  }>({
+    query: `
+      SELECT count(*) AS count, project_id, date_trunc('day', start_time) AS date
+      FROM observations
+      WHERE start_time >= :start AND start_time < :end AND ${notDeleted()}
+      GROUP BY project_id, date_trunc('day', start_time)`,
+    params: {
+      start: greptimeTsParam(startDate),
+      end: greptimeTsParam(endDate),
+    },
+    readOnly: true,
+  });
+  return rows.map((row) => ({
+    count: Number(row.count),
+    projectId: row.project_id,
+    // CH returned toDate() as 'YYYY-MM-DD'; keep that contract.
+    date:
+      row.date instanceof Date
+        ? row.date.toISOString().slice(0, 10)
+        : String(row.date).slice(0, 10),
+  }));
+};
+
+// ---------------------------------------------------------------------------
+// P5 public-API observation generators (legacy /api/public/observations path)
+// ---------------------------------------------------------------------------
+
+// Any rollup-score filter arriving via an advanced ?filter= correlates by observation id.
+const OBSERVATION_SCORE_GRAIN: ScoreGrain = {
+  scoresColumn: "observation_id",
+  outerPrefix: "o",
+  outerColumn: "id",
+};
+
+/**
+ * Public-API observation list. The CH two-phase keys-CTE + FINAL dedup collapses to a single SELECT
+ * on the merged projection (`is_deleted = false`). A trace join is added only when the (translated)
+ * filter references trace columns. Returns domain observations (same contract as `convertObservation`).
+ */
+export const generateObservationsForPublicApi = async ({
+  projectId,
+  filter,
+  pagination,
+}: {
+  projectId: string;
+  filter: ChFilterList;
+  pagination: { limit: number; page: number };
+}) => {
+  const needsTraceJoin = filter.some((f) => f.clickhouseTable === "traces");
+  const applied = translateChFilterList(filter, {
+    scoreGrain: OBSERVATION_SCORE_GRAIN,
+  }).apply();
+  const rows = await greptimeQuery<Record<string, unknown>>({
+    query: `
+      SELECT ${greptimeObservationSelect({ prefix: "o" })}
+      FROM observations o
+      ${needsTraceJoin ? `LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id AND ${notDeleted("t")}` : ""}
+      WHERE o.project_id = :projectId AND ${notDeleted("o")}
+        ${applied.query ? `AND ${applied.query}` : ""}
+      ORDER BY o.start_time DESC
+      LIMIT :limit OFFSET :offset`,
+    params: {
+      projectId,
+      limit: pagination.limit,
+      offset: (pagination.page - 1) * pagination.limit,
+      ...applied.params,
+    },
+    readOnly: true,
+  });
+  return rows.map((r) => convertGreptimeObservationRowToDomain(r));
+};
+
+export const getObservationsCountForPublicApi = async ({
+  projectId,
+  filter,
+}: {
+  projectId: string;
+  filter: ChFilterList;
+}): Promise<number | undefined> => {
+  const needsTraceJoin = filter.some((f) => f.clickhouseTable === "traces");
+  const applied = translateChFilterList(filter, {
+    scoreGrain: OBSERVATION_SCORE_GRAIN,
+  }).apply();
+  const rows = await greptimeQuery<{ count: string | number }>({
+    query: `
+      SELECT count(*) AS count
+      FROM observations o
+      ${needsTraceJoin ? `LEFT JOIN traces t ON o.trace_id = t.id AND o.project_id = t.project_id AND ${notDeleted("t")}` : ""}
+      WHERE o.project_id = :projectId AND ${notDeleted("o")}
+        ${applied.query ? `AND ${applied.query}` : ""}`,
+    params: { projectId, ...applied.params },
+    readOnly: true,
+  });
+  return rows.length > 0 ? Number(rows[0].count) : undefined;
+};
+
+/**
+ * Last-used timestamp per internal model id within a project (model table UI). CH:
+ * `MAX(start_time) GROUP BY internal_model_id` over GENERATION observations. camelCase aliases are
+ * backticked (GreptimeDB case-folds unquoted aliases to lowercase).
+ */
+export const getModelLastUsedByIds = async ({
+  projectId,
+  modelIds,
+}: {
+  projectId: string;
+  modelIds: string[];
+}): Promise<Array<{ modelId: string; lastUsed: Date }>> => {
+  if (modelIds.length === 0) return [];
+  const idList = greptimeInClause("internal_model_id", modelIds, "mid");
+  return greptimeQuery<{ modelId: string; lastUsed: Date }>({
+    query: `
+      SELECT internal_model_id AS \`modelId\`, max(start_time) AS \`lastUsed\`
+      FROM observations
+      WHERE project_id = :projectId AND type = 'GENERATION'
+        AND ${idList.sql} AND ${notDeleted()}
+      GROUP BY internal_model_id`,
+    params: { projectId, ...idList.params },
+    readOnly: true,
+  });
 };

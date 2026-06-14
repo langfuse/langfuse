@@ -24,6 +24,7 @@ import {
   type GreptimeColumnMappings,
 } from "../../greptime/sql/columnMappings";
 import { greptimeSearchCondition } from "../../greptime/sql/search";
+import { greptimeOrderBySql } from "../../greptime/sql/orderby";
 import {
   convertGreptimeTraceRowToDomain,
   greptimeTraceSelect,
@@ -34,6 +35,14 @@ import {
   greptimeTsParam,
   notDeleted,
 } from "./queryHelpers";
+import { type OrderByState } from "../../../interfaces/orderBy";
+import { LISTABLE_SCORE_TYPES } from "../../../domain/scores";
+import {
+  type FilterList as ChFilterList,
+  DateTimeFilter as ChDateTimeFilter,
+} from "../../queries";
+import { translateChFilterList } from "./translateChFilter";
+import { type ScoreGrain } from "../../greptime/sql/greptime-filter";
 
 /**
  * GreptimeDB core trace reads (04-read-path.md, P1). These replace the legacy ClickHouse
@@ -562,6 +571,27 @@ export const getTraceCountsByProjectAndDay = async ({
   }));
 };
 
+/**
+ * Cross-project trace lookup by id (legacy redirect support, no projectId). The merged projection is
+ * unique per (project_id, id), so a plain SELECT replaces the CH `ORDER BY event_ts DESC LIMIT 1 by
+ * id, project_id`; one (id, projectId) pair is returned per project that holds the id.
+ */
+export const getTracesByIdsForAnyProject = async (
+  traceIds: string[],
+): Promise<Array<{ id: string; projectId: string }>> => {
+  if (traceIds.length === 0) return [];
+  const idList = greptimeInClause("id", traceIds, "tid");
+  const rows = await greptimeQuery<{ id: string; project_id: string }>({
+    query: `
+      SELECT id, project_id
+      FROM traces
+      WHERE ${idList.sql} AND ${notDeleted()}`,
+    params: idList.params,
+    readOnly: true,
+  });
+  return rows.map((r) => ({ id: r.id, projectId: r.project_id }));
+};
+
 // ---------------------------------------------------------------------------
 // P2 rollup: trace existence (eval path) + per-user metrics
 // ---------------------------------------------------------------------------
@@ -822,3 +852,195 @@ export async function getAgentGraphData(params: {
     step: r.step ? r.step : null,
   }));
 }
+
+// ---------------------------------------------------------------------------
+// P5 public-API trace generators (legacy /api/public/traces path)
+// ---------------------------------------------------------------------------
+
+const TRACE_SCORE_GRAIN: ScoreGrain = {
+  scoresColumn: "trace_id",
+  outerPrefix: "t",
+  outerColumn: "id",
+};
+const ID_AGG_SEP = "";
+// Lookback when bounding the observation/score CTE scan by the trace from-time filter
+// (mirrors CH TRACE_TO_OBSERVATIONS_INTERVAL = 2 days; LEFT JOIN so over-wide is safe).
+const TRACE_TO_OBS_LOOKBACK_MS = 2 * 24 * 60 * 60 * 1000;
+// Score id-array CTE only collects listable score types (mirrors CH `data_type IN (...)`).
+const dataTypeInClause = greptimeInClause(
+  "data_type",
+  LISTABLE_SCORE_TYPES,
+  "sdt",
+);
+
+const splitIds = (blob: unknown): string[] =>
+  typeof blob === "string" && blob.length > 0 ? blob.split(ID_AGG_SEP) : [];
+
+const findFromTimeFilter = (
+  filter: ChFilterList,
+): ChDateTimeFilter | undefined =>
+  filter.find(
+    (f) =>
+      f instanceof ChDateTimeFilter &&
+      f.clickhouseTable === "traces" &&
+      f.field.includes("timestamp") &&
+      (f.operator === ">=" || f.operator === ">"),
+  ) as ChDateTimeFilter | undefined;
+
+const ALL_TRACE_FIELDS = [
+  "core",
+  "io",
+  "scores",
+  "observations",
+  "metrics",
+] as const;
+
+/**
+ * Public-API trace list. Mirrors the CH `buildTracesBaseQuery` field-group contract on the merged
+ * projection: optional observation/score CTEs supply the `observations` / `scores` id arrays and the
+ * `latency` / `totalCost` metrics; rollup-score advanced filters route to a correlated score-grain
+ * EXISTS (TRACE_SCORE_GRAIN). Observation-aggregate advanced filtering (CH `observation_stats` column
+ * filters) has no per-row projection column and is a documented narrow gap — it throws loud rather
+ * than silently mis-filter. Returns the same domain shape as `convertClickhouseTracesListToDomain`.
+ */
+export const generateTracesForPublicApi = async ({
+  projectId,
+  filter,
+  orderBy,
+  pagination,
+  fields,
+}: {
+  projectId: string;
+  filter: ChFilterList;
+  orderBy: OrderByState;
+  pagination?: { limit: number; page: number };
+  fields?: readonly string[];
+}) => {
+  if (filter.some((f) => f.clickhouseTable === "observations")) {
+    throw new Error(
+      "Observation-aggregate filtering is not supported on the GreptimeDB public traces API; " +
+        "filter on trace columns (or score categories/values) instead.",
+    );
+  }
+
+  const requested = fields ?? ALL_TRACE_FIELDS;
+  const includeIo = requested.includes("io");
+  const includeScores = requested.includes("scores");
+  const includeObservations = requested.includes("observations");
+  const includeMetrics = requested.includes("metrics");
+  const needObsCte = includeObservations || includeMetrics;
+
+  const applied = translateChFilterList(filter, {
+    scoreGrain: TRACE_SCORE_GRAIN,
+  }).apply();
+  const fromTime = findFromTimeFilter(filter);
+  const obsLowerBound = fromTime
+    ? greptimeTsParam(
+        new Date(fromTime.value.getTime() - TRACE_TO_OBS_LOOKBACK_MS),
+      )
+    : undefined;
+
+  const ctes: string[] = [];
+  if (needObsCte) {
+    ctes.push(`obs_stats AS (
+      SELECT
+        trace_id,
+        project_id,
+        array_to_string(array_agg(id), :idsep) AS observation_ids,
+        sum(coalesce(total_cost, 0)) AS total_cost,
+        CAST((to_unixtime(greatest(max(start_time), max(end_time))) - to_unixtime(least(min(start_time), min(end_time)))) * 1000 AS BIGINT) AS latency_ms
+      FROM observations
+      WHERE project_id = :projectId AND ${notDeleted()}
+        ${obsLowerBound ? "AND start_time >= :obsLowerBound" : ""}
+      GROUP BY project_id, trace_id
+    )`);
+  }
+  if (includeScores) {
+    ctes.push(`score_stats AS (
+      SELECT trace_id, project_id, array_to_string(array_agg(id), :idsep) AS score_ids
+      FROM scores
+      WHERE project_id = :projectId
+        AND session_id IS NULL AND dataset_run_id IS NULL
+        AND ${dataTypeInClause.sql}
+        ${fromTime ? "AND timestamp >= :scoreFromTime" : ""}
+        AND ${notDeleted()}
+      GROUP BY project_id, trace_id
+    )`);
+  }
+
+  const orderByClause =
+    greptimeOrderBySql(orderBy, tracesTableGreptimeColumnDefinitions) ||
+    "ORDER BY t.timestamp DESC";
+
+  const rows = await greptimeQuery<Record<string, unknown>>({
+    query: `
+      ${ctes.length ? `WITH ${ctes.join(",\n")}` : ""}
+      SELECT ${greptimeTraceSelect({ prefix: "t", excludeIo: !includeIo, excludeMetadata: !includeIo })}
+        ${needObsCte ? ", o.observation_ids AS observation_ids, o.total_cost AS rollup_total_cost, o.latency_ms AS rollup_latency_ms" : ""}
+        ${includeScores ? ", sc.score_ids AS score_ids" : ""}
+      FROM traces t
+      ${needObsCte ? "LEFT JOIN obs_stats o ON t.id = o.trace_id AND t.project_id = o.project_id" : ""}
+      ${includeScores ? "LEFT JOIN score_stats sc ON t.id = sc.trace_id AND t.project_id = sc.project_id" : ""}
+      WHERE t.project_id = :projectId AND ${notDeleted("t")}
+        ${applied.query ? `AND ${applied.query}` : ""}
+      ${orderByClause}
+      ${pagination ? "LIMIT :limit OFFSET :offset" : ""}`,
+    params: {
+      projectId,
+      idsep: ID_AGG_SEP,
+      ...(includeScores ? dataTypeInClause.params : {}),
+      ...(obsLowerBound ? { obsLowerBound } : {}),
+      ...(includeScores && fromTime
+        ? { scoreFromTime: greptimeTsParam(fromTime.value) }
+        : {}),
+      ...(pagination
+        ? {
+            limit: pagination.limit,
+            offset: (pagination.page - 1) * pagination.limit,
+          }
+        : {}),
+      ...applied.params,
+    },
+    readOnly: true,
+  });
+
+  return rows.map((row) => {
+    const trace = convertGreptimeTraceRowToDomain(row);
+    return {
+      ...trace,
+      observations: includeObservations ? splitIds(row.observation_ids) : [],
+      scores: includeScores ? splitIds(row.score_ids) : [],
+      totalCost: includeMetrics ? Number(row.rollup_total_cost ?? 0) : -1,
+      latency: includeMetrics ? Number(row.rollup_latency_ms ?? 0) / 1000 : -1,
+      htmlPath: `/project/${projectId}/traces/${trace.id}`,
+    };
+  });
+};
+
+export const getTracesCountForPublicApi = async ({
+  projectId,
+  filter,
+}: {
+  projectId: string;
+  filter: ChFilterList;
+}): Promise<number> => {
+  if (filter.some((f) => f.clickhouseTable === "observations")) {
+    throw new Error(
+      "Observation-aggregate filtering is not supported on the GreptimeDB public traces API; " +
+        "filter on trace columns (or score categories/values) instead.",
+    );
+  }
+  const applied = translateChFilterList(filter, {
+    scoreGrain: TRACE_SCORE_GRAIN,
+  }).apply();
+  const rows = await greptimeQuery<{ count: string | number }>({
+    query: `
+      SELECT count(*) AS count
+      FROM traces t
+      WHERE t.project_id = :projectId AND ${notDeleted("t")}
+        ${applied.query ? `AND ${applied.query}` : ""}`,
+    params: { projectId, ...applied.params },
+    readOnly: true,
+  });
+  return rows.length > 0 ? Number(rows[0].count) : 0;
+};
