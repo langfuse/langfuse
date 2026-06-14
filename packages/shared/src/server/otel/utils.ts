@@ -2,6 +2,48 @@ export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
 }
 
+const LANGGRAPH_CONTROL_FLOW_EXCEPTION_MARKERS = [
+  "langgraph.errors.GraphInterrupt",
+  "langgraph.errors.GraphBubbleUp",
+];
+
+export function isLangGraphControlFlowInterruptSpan(span: {
+  status?: { code?: number };
+  events?: Array<{
+    name?: string;
+    attributes?: Array<{ key?: string; value?: Record<string, unknown> }>;
+  }>;
+}): boolean {
+  if (span.status?.code !== 2) {
+    return false;
+  }
+
+  for (const event of span.events ?? []) {
+    if (event.name !== "exception") {
+      continue;
+    }
+
+    for (const attr of event.attributes ?? []) {
+      if (attr.key !== "exception.type") {
+        continue;
+      }
+
+      const typeValue = String(
+        (attr.value as { stringValue?: string } | undefined)?.stringValue ?? "",
+      );
+      if (
+        LANGGRAPH_CONTROL_FLOW_EXCEPTION_MARKERS.some((marker) =>
+          typeValue.includes(marker),
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
 /**
  * Flattens a nested JSON object into path-based names and string values.
  * For example: {foo: {bar: "baz", num: 42}} becomes:
