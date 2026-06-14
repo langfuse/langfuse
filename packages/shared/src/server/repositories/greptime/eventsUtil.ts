@@ -331,8 +331,10 @@ export async function getLatestSdkVersionInfoFromEventsGreptime(params: {
       FROM observations o
       WHERE o.project_id = :projectId
         AND o.start_time >= :lookback
-        AND json_get_string(o.metadata, 'scope') IS NOT NULL
-        AND json_get_string(o.metadata, 'scope') != ''
+        AND (
+          json_get_string(o.metadata, 'scope.name') IS NOT NULL
+          OR json_get_string(o.metadata, 'scope') IS NOT NULL
+        )
         AND ${notDeleted("o")}
       ORDER BY o.start_time DESC
       LIMIT 1`,
