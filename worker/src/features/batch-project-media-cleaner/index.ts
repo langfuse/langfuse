@@ -107,7 +107,7 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
       projectId,
       mediaFiles,
       storageClient: getS3MediaStorageClient(
-        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET!,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "local",
       ),
     });
 

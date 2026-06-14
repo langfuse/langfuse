@@ -4,6 +4,12 @@ import { env } from "@/src/env.mjs";
 import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
 import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
 import {
+  getLocalMediaDownloadUrl,
+  getLocalMediaUploadUrl,
+  isLocalMediaStorageEnabled,
+  LOCAL_MEDIA_BUCKET,
+} from "@/src/features/media/server/localMediaStorage";
+import {
   GetMediaResponseSchema,
   type GetMediaUploadUrlQuery,
   GetMediaUploadUrlResponseSchema,
@@ -65,7 +71,9 @@ export async function createMediaUploadUrl(params: {
       });
     }
 
-    const uploadBucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
+    const uploadBucket = isLocalMediaStorageEnabled()
+      ? LOCAL_MEDIA_BUCKET
+      : env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
 
     if (!uploadBucket) {
       throw new InternalServerError(
@@ -74,15 +82,23 @@ export async function createMediaUploadUrl(params: {
     }
 
     const bucketPath = getBucketPath({ projectId, mediaId, contentType });
-    const uploadUrl = await getMediaStorageServiceClient(
-      uploadBucket,
-    ).getSignedUploadUrl({
-      path: bucketPath,
-      ttlSeconds: 60 * 60,
-      sha256Hash,
-      contentType,
-      contentLength,
-    });
+    const uploadUrl = isLocalMediaStorageEnabled()
+      ? getLocalMediaUploadUrl({
+          projectId,
+          mediaId,
+          bucketPath,
+          contentType,
+          contentLength,
+          sha256Hash,
+          ttlSeconds: 60 * 60,
+        })
+      : await getMediaStorageServiceClient(uploadBucket).getSignedUploadUrl({
+          path: bucketPath,
+          ttlSeconds: 60 * 60,
+          sha256Hash,
+          contentType,
+          contentLength,
+        });
 
     await upsertMediaRecord({
       mediaId,
@@ -135,11 +151,15 @@ export async function getMedia(params: { projectId: string; mediaId: string }) {
   }
 
   const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
-  const url = await getMediaStorageServiceClient(media.bucketName).getSignedUrl(
-    media.bucketPath,
+  const url = await getMediaDownloadUrl({
+    projectId,
+    mediaId,
+    bucketName: media.bucketName,
+    bucketPath: media.bucketPath,
+    contentType: media.contentType,
+    contentLength: Number(media.contentLength),
     ttlSeconds,
-    false,
-  );
+  });
 
   return GetMediaResponseSchema.parse({
     mediaId,
@@ -150,6 +170,33 @@ export async function getMedia(params: { projectId: string; mediaId: string }) {
     urlExpiry: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
   });
 }
+
+export const getMediaDownloadUrl = async (params: {
+  projectId: string;
+  mediaId: string;
+  bucketName: string;
+  bucketPath: string;
+  contentType: string;
+  contentLength: number;
+  ttlSeconds: number;
+}): Promise<string> => {
+  if (params.bucketName === LOCAL_MEDIA_BUCKET) {
+    return getLocalMediaDownloadUrl({
+      projectId: params.projectId,
+      mediaId: params.mediaId,
+      bucketPath: params.bucketPath,
+      contentType: params.contentType,
+      contentLength: params.contentLength,
+      ttlSeconds: params.ttlSeconds,
+    });
+  }
+
+  return getMediaStorageServiceClient(params.bucketName).getSignedUrl(
+    params.bucketPath,
+    params.ttlSeconds,
+    false,
+  );
+};
 
 export async function updateMediaUploadStatus(params: {
   projectId: string;

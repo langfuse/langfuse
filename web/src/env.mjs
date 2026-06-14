@@ -314,7 +314,7 @@ export const env = createEnv({
     LANGFUSE_CACHE_API_KEY_ENABLED: z.enum(["true", "false"]).default("true"),
     LANGFUSE_CACHE_API_KEY_TTL_SECONDS: z.coerce.number().default(300),
 
-    // Multimodal media upload to S3
+    // Multimodal media upload
     LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH: z.coerce
       .number()
       .positive()
@@ -335,6 +335,8 @@ export const env = createEnv({
       .default(3600),
     LANGFUSE_S3_MEDIA_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
     LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+    LANGFUSE_MEDIA_STORAGE_BACKEND: z.enum(["s3", "local"]).default("s3"),
+    LANGFUSE_MEDIA_LOCAL_PATH: z.string().optional(),
 
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
@@ -727,6 +729,8 @@ export const env = createEnv({
     LANGFUSE_S3_MEDIA_UPLOAD_SSE: process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
     LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID:
       process.env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
+    LANGFUSE_MEDIA_STORAGE_BACKEND: process.env.LANGFUSE_MEDIA_STORAGE_BACKEND,
+    LANGFUSE_MEDIA_LOCAL_PATH: process.env.LANGFUSE_MEDIA_LOCAL_PATH,
     // Worker
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,

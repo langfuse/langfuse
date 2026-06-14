@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
+import { getMediaDownloadUrl } from "@/src/features/media/server/mediaService";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -44,15 +44,18 @@ export const mediaRouter = createTRPCRouter({
           message: `Media upload failed`,
         });
 
-      const mediaStorageClient = getMediaStorageServiceClient(media.bucketName);
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
       const urlExpiry = new Date(Date.now() + ttlSeconds * 1000).toISOString();
 
-      const url = await mediaStorageClient.getSignedUrl(
-        media.bucketPath,
+      const url = await getMediaDownloadUrl({
+        projectId,
+        mediaId,
+        bucketName: media.bucketName,
+        bucketPath: media.bucketPath,
+        contentType: media.contentType,
+        contentLength: Number(media.contentLength),
         ttlSeconds,
-        false,
-      );
+      });
 
       return {
         mediaId,
@@ -144,20 +147,21 @@ export const mediaRouter = createTRPCRouter({
         return [];
       }
 
-      const mediaStorageClient = getMediaStorageServiceClient(
-        media[0].bucket_name,
-      );
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
       const urlExpiry = new Date(Date.now() + ttlSeconds * 1000).toISOString();
 
       // Use Promise.all as better to fail all media requests than one of them only
       return await Promise.all(
         media.map<Promise<MediaReturnType>>(async (m) => {
-          const url = await mediaStorageClient.getSignedUrl(
-            m.bucket_path,
+          const url = await getMediaDownloadUrl({
+            projectId,
+            mediaId: m.id,
+            bucketName: m.bucket_name,
+            bucketPath: m.bucket_path,
+            contentType: m.content_type,
+            contentLength: Number(m.content_length),
             ttlSeconds,
-            false,
-          );
+          });
           return {
             mediaId: m.id,
             contentType: m.content_type as MediaContentType,

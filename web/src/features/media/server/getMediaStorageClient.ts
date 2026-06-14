@@ -19,6 +19,8 @@ export const getMediaStorageServiceClient = (
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
       awsSse: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE,
       awsSseKmsKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
+      useLocalFileStorage: env.LANGFUSE_MEDIA_STORAGE_BACKEND === "local",
+      localFileStoragePath: env.LANGFUSE_MEDIA_LOCAL_PATH,
     });
   }
   return s3StorageServiceClient;

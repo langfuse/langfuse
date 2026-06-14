@@ -59,8 +59,11 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     Date.now() - currentRetention * 24 * 60 * 60 * 1000,
   );
 
-  // Delete media files if bucket is configured
-  if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
+  // Delete media files if media storage is configured
+  if (
+    env.LANGFUSE_MEDIA_STORAGE_BACKEND === "local" ||
+    env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+  ) {
     logger.info(
       `[Data Retention] Deleting media files older than ${currentRetention} days for project ${projectId}`,
     );
@@ -72,7 +75,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
       projectId,
       mediaFiles: mediaFilesToDelete,
       storageClient: getS3MediaStorageClient(
-        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "local",
       ),
     });
     logger.info(

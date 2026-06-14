@@ -40,15 +40,18 @@ export const projectDeleteProcessor: Processor = async (
 
   logger.info(`Deleting ${projectId} in org ${orgId}`);
 
-  // Delete media data from S3 and PG for project
-  if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
+  // Delete media data from storage and PG for project
+  if (
+    env.LANGFUSE_MEDIA_STORAGE_BACKEND === "local" ||
+    env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+  ) {
     logger.info(`Deleting media for ${projectId} in org ${orgId}`);
     const mediaFilesToDelete = await findAllMediaByProjectId({ projectId });
     await deleteMediaFiles({
       projectId,
       mediaFiles: mediaFilesToDelete,
       storageClient: getS3MediaStorageClient(
-        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "local",
       ),
     });
   }

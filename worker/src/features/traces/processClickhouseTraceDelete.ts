@@ -17,7 +17,10 @@ const deleteMediaItemsForTraces = async (
   projectId: string,
   traceIds: string[],
 ): Promise<void> => {
-  if (!env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
+  if (
+    env.LANGFUSE_MEDIA_STORAGE_BACKEND !== "local" &&
+    !env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+  ) {
     return;
   }
 
@@ -108,7 +111,7 @@ const deleteMediaItemsForTraces = async (
     if (orphanedMedia.length > 0) {
       // Delete from S3
       await getS3MediaStorageClient(
-        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "", // Fallback is never used.
+        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "local",
       ).deleteFiles(orphanedMedia.map((f) => f.bucketPath));
 
       // Delete from postgres

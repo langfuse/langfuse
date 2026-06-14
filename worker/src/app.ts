@@ -694,7 +694,8 @@ export let batchProjectMediaCleaner: BatchProjectMediaCleaner | null = null;
 
 if (
   env.LANGFUSE_BATCH_PROJECT_CLEANER_ENABLED === "true" &&
-  env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+  (env.LANGFUSE_MEDIA_STORAGE_BACKEND === "local" ||
+    env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
 ) {
   batchProjectMediaCleaner = new BatchProjectMediaCleaner();
   batchProjectMediaCleaner.start();
