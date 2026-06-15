@@ -118,7 +118,7 @@ export function ComposerTokens({
       segment.kind === "invalid"
         ? undefined
         : segment.kind === "freeText"
-          ? `Full-text search — matches results containing "${segment.raw}". Searches id, name and user id by default; add in:input, in:output or in:content to change scope.`
+          ? `Full-text search — matches results containing "${segment.raw}". Searches id, name and user id by default; use content:, input: or output: to search the payloads.`
           : segment.raw;
     out.push(
       <span

@@ -9,7 +9,7 @@
 // (langQ.ts, edits.ts).
 
 import type { ScoreTypeContext } from "./adapter";
-import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
+import type { ASTNode, FilterNode, Span, TextNode } from "./ast";
 import { lexTokens, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
@@ -19,11 +19,9 @@ export type FilterSegment = {
   from: number;
   to: number;
   raw: string;
-  /** Canonical field id or `metadata.<key>` (registry-resolved). */
-  field: string;
   /** The key as the user typed it (alias/casing) — pills display this. */
   displayField: string;
-  op: CompareOp;
+  /** Parsed values — used to color numeric values distinctly. */
   values: string[];
   negated: boolean;
   editable: true;
@@ -205,9 +203,7 @@ export function deriveComposerSegments(
         from: span.from,
         to: span.to,
         raw,
-        field: node.key,
         displayField: node.rawKey ?? node.key,
-        op: node.op,
         values: node.values,
         negated: leaf.negated,
         editable: true,

@@ -28,7 +28,7 @@ export const AnyOfGroup = meta.story({
 });
 
 export const FreeTextAndScopes = meta.story({
-  args: { draft: "timeout in:content scores.accuracy:>0.8" },
+  args: { draft: "timeout content:refund scores.accuracy:>0.8" },
 });
 
 export const InvalidRevealed = meta.story({
