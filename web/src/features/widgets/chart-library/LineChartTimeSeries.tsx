@@ -148,7 +148,7 @@ const ThresholdOverlay = ({
       {threshold.label && (
         <Label
           value={threshold.label}
-          position="top"
+          position="insideTopRight"
           fill={stroke}
           fontSize={11}
         />
