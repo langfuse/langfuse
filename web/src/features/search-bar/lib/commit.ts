@@ -10,7 +10,7 @@
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
 import { astToFilterState, type ScoreTypeContext } from "./adapter";
-import { serialize, type Diagnostic } from "./qlang";
+import { serialize, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
 /** Search scope applied when the query carries no explicit `in:` token. */

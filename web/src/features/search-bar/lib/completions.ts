@@ -17,7 +17,7 @@ import {
   serializeValue,
   splitOutsideQuotes,
   termAt,
-} from "./qlang";
+} from "./langQ";
 import {
   FIELDS,
   nullableFields,

@@ -67,7 +67,7 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 
 ## Ownership map
 
-- `lib/` — pure logic, no React/DOM. `qlang.ts` (tolerant lexer/parser +
+- `lib/` — pure logic, no React/DOM. `langQ.ts` (tolerant lexer/parser +
   canonical serializer), `ast.ts`, `fields.ts` (field registry +
   operator-validity table mirroring `eventsTableCols`), `validate.ts` (commit
   gate; parity with the adapter by construction), `adapter.ts`

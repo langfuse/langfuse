@@ -25,7 +25,7 @@ import {
   deriveComposerSegments,
   type ComposerSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
-import { serializeValue } from "@/src/features/search-bar/lib/qlang";
+import { serializeValue } from "@/src/features/search-bar/lib/langQ";
 import {
   scoreTypeContextFromObserved,
   type ObservedOptions,

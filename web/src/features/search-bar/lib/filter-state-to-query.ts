@@ -17,7 +17,7 @@ import {
 
 import type { ASTNode, FilterNode } from "./ast";
 import { resolveField, SCORE_COLUMNS } from "./fields";
-import { NEEDS_QUOTES, serialize } from "./qlang";
+import { NEEDS_QUOTES, serialize } from "./langQ";
 
 // Legacy filters address columns by id ("userId") or display name ("User ID").
 const COLUMN_ID_BY_KEY = new Map<string, string>();

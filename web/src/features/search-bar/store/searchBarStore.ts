@@ -13,7 +13,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { ScoreTypeContext } from "../lib/adapter";
 import { removeToken } from "../lib/edits";
-import { type Diagnostic } from "../lib/qlang";
+import { type Diagnostic } from "../lib/langQ";
 import { validateQuery } from "../lib/validate";
 
 export type SearchBarStoreState = {

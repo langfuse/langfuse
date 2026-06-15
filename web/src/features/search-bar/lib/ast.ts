@@ -1,5 +1,5 @@
 // Editor AST for the search-bar query language: a discriminated union
-// expression tree produced by the grammar parser (qlang.ts). This is the
+// expression tree produced by the grammar parser (langQ.ts). This is the
 // *editor* representation — the table-facing contract is the flat
 // `FilterState` from @langfuse/shared, derived via adapter.ts.
 //

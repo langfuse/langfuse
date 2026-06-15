@@ -1,5 +1,5 @@
 import type { ASTNode } from "@/src/features/search-bar/lib/ast";
-import { parse, serialize, termAt } from "@/src/features/search-bar/lib/qlang";
+import { parse, serialize, termAt } from "@/src/features/search-bar/lib/langQ";
 import {
   removeToken,
   tidyQueryText,
@@ -28,7 +28,7 @@ function strip(node: ASTNode | null): unknown {
   }
 }
 
-describe("qlang parser", () => {
+describe("langQ parser", () => {
   it("resolves aliases to canonical field ids", () => {
     const r = parse("env:prod");
     expect(r.valid).toBe(true);
@@ -183,7 +183,7 @@ describe("qlang parser", () => {
   });
 });
 
-describe("qlang serializer", () => {
+describe("langQ serializer", () => {
   it("round-trips canonical text", () => {
     for (const text of [
       "level:ERROR",

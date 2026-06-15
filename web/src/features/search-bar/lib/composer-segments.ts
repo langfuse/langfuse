@@ -6,11 +6,11 @@
 // rewrites text. Token boundaries come from the real lexer and classification
 // from the real parser + semantic validation, so the projection cannot drift
 // from grammar semantics. Serialization stays separate and conservative
-// (qlang.ts, edits.ts).
+// (langQ.ts, edits.ts).
 
 import type { ScoreTypeContext } from "./adapter";
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
-import { lexTokens, type Diagnostic } from "./qlang";
+import { lexTokens, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
 export type FilterSegment = {

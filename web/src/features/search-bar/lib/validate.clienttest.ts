@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parse } from "./qlang";
+import { parse } from "./langQ";
 import { semanticDiagnostics } from "./validate";
 
 function warnings(query: string): string[] {

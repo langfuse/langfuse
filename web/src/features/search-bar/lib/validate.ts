@@ -13,7 +13,7 @@
 import type { ASTNode, Span } from "./ast";
 import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { nullableFields, resolveField } from "./fields";
-import { parse, type Diagnostic, type ParseResult } from "./qlang";
+import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
 export const MAX_QUERY_LENGTH = 2048;
 

@@ -8,7 +8,7 @@
 
 import type { ASTNode, Span } from "./ast";
 import { astEquals, removeNodeBySpan } from "./ast";
-import { findClosingQuote, parse, serialize } from "./qlang";
+import { findClosingQuote, parse, serialize } from "./langQ";
 
 function spliceSpan(
   text: string,
