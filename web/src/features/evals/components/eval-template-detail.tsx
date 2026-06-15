@@ -25,7 +25,7 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { DeleteEvalTemplateButton } from "@/src/components/deleteButton";
+import { DeleteEvalTemplateButton } from "@/src/features/evals/components/delete-eval-template-button";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
