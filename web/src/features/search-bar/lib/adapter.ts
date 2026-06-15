@@ -143,16 +143,23 @@ export function astToFilterState(
 // searchQuery + searchType=content path (input:/output: alone are real column
 // filters; the default scope, bare free text, searches ids & names).
 function lowerContent(node: FilterNode, ctx: LowerContext): void {
-  let added = false;
-  for (const v of node.values) {
-    if (v.length === 0) {
-      ctx.errors.push("content: needs search text (e.g. content:refund)");
-      continue;
-    }
-    ctx.searchTerms.push(v);
-    added = true;
+  // content: is a single-phrase full-text search (ILIKE %phrase%), so a
+  // grouped/comma form like content:(a OR b) or content:a,b cannot mean "a OR
+  // b" — joining them would silently search the literal phrase "a b". Reject it
+  // rather than rewrite a user-typed boolean into a phrase.
+  if (node.values.length > 1) {
+    ctx.errors.push(
+      "content: is a single-phrase search — it takes one value; search alternatives in separate queries, not content:(a OR b)",
+    );
+    return;
   }
-  if (added && !ctx.scopes.includes("content")) ctx.scopes.push("content");
+  const value = node.values[0];
+  if (value === undefined || value.length === 0) {
+    ctx.errors.push("content: needs search text (e.g. content:refund)");
+    return;
+  }
+  ctx.searchTerms.push(value);
+  if (!ctx.scopes.includes("content")) ctx.scopes.push("content");
 }
 
 // AND chains (top-level or parenthesized — semantically identical in the

@@ -364,6 +364,15 @@ describe("astToFilterState", () => {
     expect(r.searchQuery).toBe("refund policy");
   });
 
+  it("rejects multi-value content: instead of joining it into a phrase", () => {
+    // content:(a OR b) / content:a,b can't mean OR — joining would search the
+    // literal phrase "a b". Reject rather than silently rewrite the boolean.
+    expect(lower("content:(refund OR cancel)").errors.length).toBeGreaterThan(
+      0,
+    );
+    expect(lower("content:refund,cancel").errors.length).toBeGreaterThan(0);
+  });
+
   it("lowers input:/output: to real column filters (not searchType)", () => {
     const r = lower("input:refund");
     expect(r.errors).toEqual([]);
@@ -668,5 +677,30 @@ describe("filterStateToQueryText", () => {
     const r = astToFilterState(v.ast);
     expect(r.filters).toEqual([]);
     expect(r.searchQuery).toBe("a:b (c)");
+  });
+
+  it("preserves a multi-space free-text phrase (no \\s+ collapse)", () => {
+    const { text } = filterStateToQueryText([], {
+      searchQuery: "hello   world",
+    });
+    const r = astToFilterState(validateQuery(text).ast);
+    expect(r.searchQuery).toBe("hello   world");
+  });
+
+  it('round-trips an empty-value metadata filter (:="")', () => {
+    const filters: FilterState = [
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "region",
+        operator: "=",
+        value: "",
+      },
+    ];
+    const { text, skipped } = filterStateToQueryText(filters);
+    expect(skipped).toEqual([]);
+    const v = validateQuery(text);
+    expect(v.valid, text).toBe(true);
+    expect(astToFilterState(v.ast).filters).toEqual(filters);
   });
 });

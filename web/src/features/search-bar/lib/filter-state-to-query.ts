@@ -248,6 +248,11 @@ export function filterStateToQueryText(
         op: "=",
         values: [searchQuery],
       });
+    } else if (/\s{2,}/.test(searchQuery)) {
+      // An intentional multi-space phrase ("a   b") must stay one token —
+      // splitting on \s+ would collapse it to "a b" and change matched rows on
+      // the next commit. NEEDS_QUOTES forces serializeValue to quote it.
+      nodes.push({ kind: "text", value: searchQuery });
     } else {
       for (const term of searchQuery.split(/\s+/)) {
         nodes.push({ kind: "text", value: term });

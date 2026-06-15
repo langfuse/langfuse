@@ -145,6 +145,16 @@ describe("langQ parser", () => {
     });
   });
 
+  it('accepts a quoted empty exact value (round-trips :="")', () => {
+    const r = parse('metadata.region:=""');
+    expect(r.valid).toBe(true);
+    expect(strip(r.ast)).toMatchObject({ op: "exact", values: [""] });
+  });
+
+  it("rejects a key with quotes or spaces", () => {
+    expect(parse('metadata."foo":bar').valid).toBe(false);
+  });
+
   it("flags unknown fields with an error diagnostic", () => {
     const r = parse("nope:1");
     expect(r.valid).toBe(false);

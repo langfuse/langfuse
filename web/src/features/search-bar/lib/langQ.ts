@@ -293,6 +293,16 @@ function parseTermNode(
       severity: "error",
       message: `Unknown field "${keyRaw}"`,
     });
+  } else if (NEEDS_QUOTES.test(keyRaw)) {
+    // A key with quotes/spaces/grammar chars (e.g. `metadata."foo"`) has no
+    // representable form — the reverse adapter routes it to skippedFilters, so
+    // committing would silently clear the bar. Reject it at parse time instead.
+    diagnostics.push({
+      from: span.from,
+      to: span.from + colon,
+      severity: "error",
+      message: `Field name "${keyRaw}" cannot contain quotes or spaces`,
+    });
   }
 
   const key = ref === null ? keyRaw : canonicalKey(ref);
@@ -359,8 +369,12 @@ function parseTermNode(
   for (const { prefix, op } of OPERATOR_PREFIXES) {
     if (valueRaw.startsWith(prefix)) {
       const scalarRaw = valueRaw.slice(prefix.length);
-      const { value } = unquote(scalarRaw);
-      if (value.length === 0) {
+      const { value, quoted } = unquote(scalarRaw);
+      // A quoted empty string (`:=""`) is an intentional empty value (same as
+      // the comma-list branch below); only a bare empty is an error. This keeps
+      // `metadata.foo:=""` — what the reverse adapter emits for an empty
+      // stringObject filter — round-tripping instead of landing red.
+      if (value.length === 0 && !quoted) {
         diagnostics.push({
           from: span.from,
           to: span.to,
@@ -374,7 +388,7 @@ function parseTermNode(
         key,
         rawKey: keyRaw,
         op,
-        values: value.length > 0 ? [value] : [],
+        values: value.length > 0 || quoted ? [value] : [],
         span,
       };
     }
