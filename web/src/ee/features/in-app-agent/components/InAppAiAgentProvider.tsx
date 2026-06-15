@@ -27,7 +27,6 @@ import {
   type InAppAgentRuntimeState,
 } from "@/src/ee/features/in-app-agent/schema";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { createInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
@@ -117,7 +116,6 @@ export function InAppAiAgentProvider({
   defaultOpen = false,
 }: InAppAiAgentProviderProps) {
   const router = useRouter();
-  const { isBetaEnabled: isV4Enabled } = useV4Beta();
   const routerProjectId = router.query.projectId;
   const projectId =
     typeof routerProjectId === "string" ? routerProjectId : undefined;
@@ -132,7 +130,6 @@ export function InAppAiAgentProvider({
       key={projectId}
       projectId={projectId}
       defaultOpen={defaultOpen}
-      isV4Enabled={isV4Enabled}
     >
       {children}
     </InAppAiAgentProjectProvider>
@@ -143,10 +140,8 @@ function InAppAiAgentProjectProvider({
   children,
   projectId,
   defaultOpen,
-  isV4Enabled,
 }: InAppAiAgentProviderProps & {
   projectId: string;
-  isV4Enabled: boolean;
 }) {
   const [open, setOpen] = useSessionStorage<boolean>(
     `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
@@ -158,7 +153,6 @@ function InAppAiAgentProjectProvider({
       projectId={projectId}
       open={open}
       setOpen={setOpen}
-      isV4Enabled={isV4Enabled}
     >
       {children}
     </InAppAiAgentProviderInner>
@@ -167,7 +161,6 @@ function InAppAiAgentProjectProvider({
 
 type InAppAiAgentProviderInnerProps = PropsWithChildren<{
   projectId: string;
-  isV4Enabled: boolean;
   open: boolean;
   setOpen: Dispatch<SetStateAction<boolean>>;
 }>;
@@ -175,7 +168,6 @@ type InAppAiAgentProviderInnerProps = PropsWithChildren<{
 function InAppAiAgentProviderInner({
   children,
   projectId,
-  isV4Enabled,
   open,
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
@@ -401,7 +393,7 @@ function InAppAiAgentProviderInner({
       resetAgent();
 
       const agent = new HttpAgent({
-        url: getInAppAgentUrl(isV4Enabled),
+        url: getInAppAgentUrl(),
         threadId: conversationId,
         initialMessages,
         initialState: getConversationAgentState(
@@ -415,7 +407,7 @@ function InAppAiAgentProviderInner({
 
       return agent;
     },
-    [isV4Enabled, projectId, resetAgent],
+    [projectId, resetAgent],
   );
 
   const releaseSubmitLock = useCallback(() => {
@@ -732,12 +724,8 @@ function attachActiveRunIdToAssistantMessages(
   });
 }
 
-function getInAppAgentUrl(isV4Enabled: boolean) {
-  const searchParams = new URLSearchParams({
-    v4BetaEnabled: String(isV4Enabled),
-  });
-
-  return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent?${searchParams.toString()}`;
+function getInAppAgentUrl() {
+  return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`;
 }
 
 function getAgentErrorMessage(error: unknown): string {

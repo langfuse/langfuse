@@ -786,7 +786,8 @@ function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
     if (
       event.type !== EventType.TOOL_CALL_START &&
       event.type !== EventType.TOOL_CALL_ARGS &&
-      event.type !== EventType.TOOL_CALL_END
+      event.type !== EventType.TOOL_CALL_END &&
+      event.type !== EventType.TOOL_CALL_RESULT
     ) {
       return true;
     }

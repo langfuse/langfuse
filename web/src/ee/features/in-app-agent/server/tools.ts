@@ -218,12 +218,14 @@ function getTracesFilterState(
 
   addStringOptionsFilter("environment", filters.environment);
   addStringOptionsFilter("level", filters.level);
-  addStringOptionsFilter("sessionId", filters.sessionId);
+  if (!isV4Enabled) {
+    addStringOptionsFilter("sessionId", filters.sessionId);
+  }
   addStringOptionsFilter("traceName", filters.traceName);
   addStringOptionsFilter("userId", filters.userId);
-  addArrayOptionsFilter("traceTags", filters.tags);
+  addArrayOptionsFilter(isV4Enabled ? "tags" : "traceTags", filters.tags);
 
-  if (filters.bookmarked !== undefined) {
+  if (!isV4Enabled && filters.bookmarked !== undefined) {
     filterState.push({
       column: "bookmarked",
       operator: "=",

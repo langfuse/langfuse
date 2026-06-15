@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/schema";
+import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
@@ -265,6 +266,83 @@ describe("createAgUiStream", () => {
     ]);
     expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith({});
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+  });
+
+  it("uses V4-compatible filters for traces redirect actions", async () => {
+    const { createAgUiStream } =
+      await import("@/src/ee/features/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "open checkout traces",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    adapterEvents.items = [];
+
+    const stream = createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: true,
+        },
+      },
+    });
+    await readStream(stream);
+
+    const redirectTool = vi.mocked(Agent).mock.calls[0]?.[0]?.tools?.[
+      IN_APP_AGENT_REDIRECT_TOOL_NAME
+    ] as
+      | {
+          execute?: (input: unknown) => Promise<unknown>;
+        }
+      | undefined;
+
+    const result = await redirectTool?.execute?.({
+      label: "Open traces tagged checkout",
+      destination: "traces",
+      params: {
+        filters: {
+          tags: ["checkout"],
+          sessionId: ["session-1"],
+          bookmarked: true,
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      type: "redirectAction",
+      label: "Open traces tagged checkout",
+    });
+    const href = (result as { href: string }).href;
+    const filter = new URL(`https://langfuse.local${href}`).searchParams.get(
+      "filter",
+    );
+
+    expect(decodeFiltersGeneric(filter ?? "")).toEqual([
+      {
+        column: "tags",
+        operator: "any of",
+        type: "arrayOptions",
+        value: ["checkout"],
+      },
+    ]);
   });
 
   it("lets HttpAgent subscribers observe streamed run errors", async () => {
