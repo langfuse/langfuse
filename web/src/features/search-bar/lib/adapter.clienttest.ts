@@ -301,6 +301,31 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("treats := (exact) on a categorical score as a category match", () => {
+    // `:=positive` must behave like the bare `:positive` (any-of category),
+    // not be rejected as a comparison.
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(),
+      categoricalScoreNames: new Set<string>(["feedback"]),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+    };
+    const r = astToFilterState(
+      parse("scores.feedback:=positive").ast,
+      scoreTypes,
+    );
+    expect(r.errors).toEqual([]);
+    expect(r.filters).toEqual([
+      {
+        type: "categoryOptions",
+        column: "score_categories",
+        key: "feedback",
+        operator: "any of",
+        value: ["positive"],
+      },
+    ]);
+  });
+
   it("rejects a comparison operator on a categorical score", () => {
     // `feedback` is categorical → `scores.feedback:>0.8` would otherwise route
     // to the numeric column (no data) and return an empty table with no error.

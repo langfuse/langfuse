@@ -655,47 +655,48 @@ function lowerScores(
     });
   };
 
+  const pushCategory = (): void => {
+    out.push({
+      type: "categoryOptions",
+      column: columns.categorical,
+      key,
+      operator: negated ? "none of" : "any of",
+      value: node.values,
+    });
+  };
+
   // Route by observed score TYPE when we know it — a categorical score with
   // numeric labels (e.g. a 1–5 rating) must hit the categorical column, not
-  // scores_avg, or it silently targets a column with no data. Comparisons only
-  // make sense on numeric scores, so reject them on a known-categorical score
-  // rather than letting the numeric branch target an empty column.
+  // scores_avg, or it silently targets a column with no data.
   const scoreType = resolveScoreType(scoreTypes, level, key);
-  if (
-    scoreType === "categorical" &&
-    (isComparison(node.op) || node.op === "exact")
-  ) {
-    errors.push(
-      `${path} is categorical — comparison operators only apply to numeric scores`,
-    );
+  if (scoreType === "categorical") {
+    // Comparisons (> < >= <=) are meaningless on a category. But exact (`:=x`)
+    // and the bare `=` form are both just an exact category match, so they
+    // lower to categoryOptions exactly like `scores.<name>:x`.
+    if (isComparison(node.op)) {
+      errors.push(
+        `${path} is categorical — comparison operators only apply to numeric scores`,
+      );
+      return;
+    }
+    pushCategory();
     return;
   }
 
+  // Numeric / unknown: comparisons and exact target the numeric column.
   if (isComparison(node.op) || node.op === "exact") {
     lowerNumeric();
     return;
   }
 
-  // '=' default: fall back to value syntax (all-numeric → numeric) only when
-  // the type is unknown ("both", or the score isn't observed yet).
+  // '=' default: numeric when known-numeric, else value-syntax fallback
+  // (all-numeric → numeric) for unknown/both.
   const allNumeric = node.values.every((v) => Number.isFinite(Number(v)));
-  const useNumeric =
-    scoreType === "numeric"
-      ? true
-      : scoreType === "categorical"
-        ? false
-        : allNumeric;
-  if (useNumeric) {
+  if (scoreType === "numeric" || allNumeric) {
     lowerNumeric();
     return;
   }
-  out.push({
-    type: "categoryOptions",
-    column: columns.categorical,
-    key,
-    operator: negated ? "none of" : "any of",
-    value: node.values,
-  });
+  pushCategory();
 }
 
 /** `has:field` -> is-not-null; `-has:field` -> is-null. */

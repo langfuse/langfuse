@@ -635,7 +635,12 @@ function valueStageSections(
         value: o.value,
       }));
       const values = valueOptions(all, typed);
-      const ops = typed.length === 0 ? matchOperatorOptions(f.id) : [];
+      // Array fields reject match operators (`~`/`=`/`^`/`$`) — operatorIssue
+      // routes them to value/any-of/all-of groups — so don't suggest them.
+      const ops =
+        typed.length === 0 && f.syncMode !== "arrayOption"
+          ? matchOperatorOptions(f.id)
+          : [];
       if (values.length + ops.length === 0) return null;
       return {
         sections: [

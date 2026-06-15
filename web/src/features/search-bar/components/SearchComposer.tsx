@@ -595,7 +595,9 @@ export function SearchComposer({
 
       if (type === "insertText" || type === "insertReplacementText") {
         event.preventDefault();
-        applyTextInsert((native.data ?? "").replace(/\s+/g, " "));
+        // Collapse only line-breaking whitespace/tabs (the single-line surface
+        // can't render them); preserve spaces inside quoted values verbatim.
+        applyTextInsert((native.data ?? "").replace(/[\n\r\t]+/g, " "));
         return;
       }
       if (type === "insertParagraph" || type === "insertLineBreak") {
@@ -973,9 +975,11 @@ export function SearchComposer({
 
   const onPaste = (event: React.ClipboardEvent<HTMLElement>) => {
     event.preventDefault();
+    // Collapse only line-breaking whitespace/tabs (single-line surface);
+    // preserve spaces inside quoted values (e.g. pasting `name:"a  b"`).
     const clean = event.clipboardData
       .getData("text/plain")
-      .replace(/\s+/g, " ");
+      .replace(/[\n\r\t]+/g, " ");
     applyTextInsert(clean);
   };
 

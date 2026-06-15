@@ -120,6 +120,14 @@ describe("planInputCompletions", () => {
     expect(p?.sections.map((s) => s.title)).toContain(SECTION_COMPARE_OPS);
   });
 
+  it("does not offer match operators for array fields (operatorIssue rejects them)", () => {
+    const p = plan("traceTags:", 10, {
+      observed: { ...OBSERVED, traceTags: [{ value: "a" }, { value: "b" }] },
+    });
+    expect(p?.stage).toBe("value");
+    expect(p?.sections.map((s) => s.title)).not.toContain(SECTION_MATCH_OPS);
+  });
+
   it("offers match operators for plain text fields", () => {
     const p = plan("statusMessage:", 14);
     expect(p?.sections.map((s) => s.title)).toContain(SECTION_MATCH_OPS);
