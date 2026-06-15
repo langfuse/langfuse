@@ -211,6 +211,7 @@ export async function linkDatasetItemMedia(
         })
       ).map((row) => row.mediaId)
     : [];
+  const newRowMediaIds = new Set(rows.map((row) => row.mediaId));
 
   if (replaceExisting) {
     await tx.datasetItemMedia.deleteMany({
@@ -232,14 +233,16 @@ export async function linkDatasetItemMedia(
     await tx.media.updateMany({
       where: {
         projectId,
-        id: { in: [...new Set(rows.map((row) => row.mediaId))] },
+        id: { in: [...newRowMediaIds] },
         retainedByDatasetAt: null,
       },
       data: { retainedByDatasetAt: new Date() },
     });
   }
 
-  return { droppedMediaIds: priorMediaIds };
+  return {
+    droppedMediaIds: priorMediaIds.filter((id) => !newRowMediaIds.has(id)),
+  };
 }
 
 /**
@@ -253,13 +256,13 @@ export async function releaseDroppedDatasetMedia(
   droppedMediaIds: string[],
 ): Promise<void> {
   const bucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
-  if (droppedMediaIds.length === 0 || !bucket) return;
+  if (droppedMediaIds.length === 0) return;
 
   try {
     await releaseDatasetMedia({
       projectId,
       mediaIds: droppedMediaIds,
-      storageClient: getS3MediaStorageClient(bucket),
+      storageClient: bucket ? getS3MediaStorageClient(bucket) : undefined,
     });
   } catch (error) {
     logger.error(

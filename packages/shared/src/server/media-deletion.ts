@@ -133,15 +133,16 @@ export async function deleteMediaFiles(params: {
  * Release media that may have lost its last dataset reference. For each given
  * mediaId with no remaining dataset_item_media row: media still referenced by
  * a trace or observation is unmarked as dataset-retained (retention takes over
- * again), media with no references at all is deleted from S3 and Postgres.
- * Media still referenced by another dataset item is left untouched.
+ * again), media with no references at all is deleted from Postgres and from S3
+ * when a storage client is available. Media still referenced by another dataset
+ * item is left untouched.
  *
  * Call after the relevant dataset_item_media rows have been deleted.
  */
 export async function releaseDatasetMedia(params: {
   projectId: string;
   mediaIds: string[];
-  storageClient: StorageClient;
+  storageClient?: StorageClient;
 }): Promise<void> {
   const { projectId, mediaIds, storageClient } = params;
 
@@ -187,7 +188,7 @@ export async function releaseDatasetMedia(params: {
       SELECT "bucketPath" FROM deleted
     `;
 
-    if (deletedMedia.length > 0) {
+    if (deletedMedia.length > 0 && storageClient) {
       await storageClient.deleteFiles(deletedMedia.map((m) => m.bucketPath));
     }
   }
@@ -199,9 +200,8 @@ export async function releaseDatasetMedia(params: {
  *
  * The link-row delete always runs: dataset_item_media has no FK to cascade on
  * dataset deletion, so this is the only path that drops these rows for a
- * dataset. Releasing the media touches S3 and is therefore skipped when no
- * storage bucket is configured (storageClient omitted) — the rows are still
- * cleaned up rather than leaked.
+ * dataset. Releasing always updates PostgreSQL state. S3 file deletion is
+ * skipped when no storage bucket is configured (storageClient omitted).
  */
 export async function deleteDatasetMediaByDatasetId(params: {
   projectId: string;
@@ -227,8 +227,6 @@ export async function deleteDatasetMediaByDatasetId(params: {
     ],
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
   );
-
-  if (!storageClient) return;
 
   await releaseDatasetMedia({
     projectId,
