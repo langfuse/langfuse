@@ -9,6 +9,7 @@ import {
   BaseMessage,
   ContentBlock,
   HumanMessage,
+  type MessageContent,
   SystemMessage,
   ToolMessage,
 } from "@langchain/core/messages";
@@ -134,14 +135,32 @@ function shouldNormalizeContentBlocks(modelParams: ModelParams): boolean {
   );
 }
 
+// Converts our ChatMessage content into the shape langchain message
+// constructors accept. Strings pass through, arrays (multimodal content blocks,
+// e.g. `image_url` parts produced for LLM-as-a-judge media) are forwarded
+// untouched so they reach the provider as real images/audio, and any other
+// shape is safely JSON-stringified.
+const toLangchainMessageContent = (content: unknown): MessageContent => {
+  if (typeof content === "string") return content;
+  // Multimodal content parts (e.g. `image_url`) are passed through; langchain's
+  // message constructors accept these block arrays at runtime even though our
+  // ChatMessage content type is intentionally loose.
+  if (Array.isArray(content)) return content as unknown as MessageContent;
+  try {
+    return JSON.stringify(content);
+  } catch {
+    return "[Unserializable content]";
+  }
+};
+
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
 ): BaseMessage[] => {
-  const safeContent =
-    typeof messages[0].content === "string"
-      ? messages[0].content
-      : JSON.stringify(messages[0].content);
-  return [new HumanMessage(safeContent)];
+  return [
+    new HumanMessage({
+      content: toLangchainMessageContent(messages[0].content),
+    }),
+  ];
 };
 
 const googleProviderOptionsSchema = z
@@ -296,15 +315,6 @@ export async function fetchLLMCompletion(
 
   finalCallbacks = finalCallbacks.length > 0 ? finalCallbacks : undefined;
 
-  // Helper function to safely stringify content
-  const safeStringify = (content: any): string => {
-    try {
-      return JSON.stringify(content);
-    } catch {
-      return "[Unserializable content]";
-    }
-  };
-
   let finalMessages: BaseMessage[];
   // Some providers require at least 1 user message
   if (
@@ -315,21 +325,19 @@ export async function fetchLLMCompletion(
     finalMessages = transformSystemMessageToUserMessage(messages);
   } else {
     finalMessages = messages.map((message, idx) => {
-      // For arbitrary content types, convert to string safely
-      const safeContent =
-        typeof message.content === "string"
-          ? message.content
-          : safeStringify(message.content);
+      // Preserve multimodal array content (e.g. `image_url` parts); otherwise
+      // fall back to a safe string representation.
+      const safeContent = toLangchainMessageContent(message.content);
 
       if (message.role === ChatMessageRole.User)
-        return new HumanMessage(safeContent);
+        return new HumanMessage({ content: safeContent });
       if (
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
       )
         return idx === 0
-          ? new SystemMessage(safeContent)
-          : new HumanMessage(safeContent);
+          ? new SystemMessage({ content: safeContent })
+          : new HumanMessage({ content: safeContent });
 
       if (message.type === ChatMessageType.ToolResult) {
         return new ToolMessage({
