@@ -86,7 +86,7 @@ export default function DatasetCompare() {
   return (
     <Page
       headerProps={{
-        title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
+        title: `Compare experiments: ${dataset.data?.name ?? datasetId}`,
         tabsProps: {
           tabs: getDatasetRunCompareTabs(projectId, datasetId),
           activeTab: DATASET_RUN_COMPARE_TABS.CHARTS,
@@ -100,9 +100,13 @@ export default function DatasetCompare() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
+          },
         ],
         help: {
-          description: "Compare your dataset runs side by side",
+          description: "Compare your experiments side by side",
         },
         actionButtonsRight: (
           <>

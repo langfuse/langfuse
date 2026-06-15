@@ -26,6 +26,7 @@ import { LocalIsoDate } from "@/src/components/LocalIsoDate";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
+import { getDatasetBreadcrumb } from "@/src/features/datasets/utils/getDatasetBreadcrumb";
 
 export default function Dataset() {
   const router = useRouter();
@@ -73,6 +74,11 @@ export default function Dataset() {
       }, 5_000);
     }
   }, []);
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
 
   return (
     <Page
@@ -80,14 +86,10 @@ export default function Dataset() {
         title: run.data?.name ?? runId,
         itemType: "DATASET_RUN",
         breadcrumb: [
-          { name: "Datasets", href: `/project/${projectId}/datasets` },
-          {
-            name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
-          },
+          ...breadcrumb,
           {
             name: "Experiments",
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
         ],
         actionButtonsRight: (
@@ -122,7 +124,7 @@ export default function Dataset() {
                     projectId={projectId}
                     datasetRunId={runId}
                     datasetId={datasetId}
-                    redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
+                    redirectUrl={`/project/${projectId}/datasets/${datasetId}/experiments`}
                   />
                 </DropdownMenuItem>
               </DropdownMenuContent>

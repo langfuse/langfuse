@@ -102,6 +102,10 @@ function DatasetCompareInternal() {
             name: dataset.data?.name ?? datasetId,
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
+          {
+            name: "Experiments",
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
+          },
         ],
         help: {
           description: "Compare your dataset runs side by side",
