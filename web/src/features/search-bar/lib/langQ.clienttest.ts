@@ -171,6 +171,7 @@ describe("langQ parser", () => {
       "NOT",
       "AND",
       "level:ERROR OR",
+      "AND env:dev", // leading AND with no left-hand expression
       "tags:(a OR b AND c)",
       "-freetext",
     ]) {

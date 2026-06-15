@@ -614,6 +614,16 @@ export function parse(input: string): ParseResult {
         if (kw === "or") break;
         if (kw === "and") {
           next();
+          if (children.length === 0) {
+            // Leading AND has nothing to join — mirror parseOr instead of
+            // silently swallowing it (the "no silent drops/rewrites" contract).
+            diagnostics.push({
+              from: t.span.from,
+              to: t.span.to,
+              severity: "error",
+              message: "AND is missing a left-hand expression",
+            });
+          }
           const upcoming = peek();
           const ends =
             upcoming === null ||
