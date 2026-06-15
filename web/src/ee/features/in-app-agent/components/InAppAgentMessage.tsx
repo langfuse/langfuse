@@ -170,10 +170,8 @@ export function InAppAgentMessage({
     return (
       <div
         className={cn(
-          "bg-card dark:bg-header text-foreground border-border rounded-2xl border py-2 shadow-xs",
-          isCompact
-            ? "rounded-xl py-1 text-[0.775rem]"
-            : "rounded-2xl py-1.5 text-sm",
+          "text-foreground w-full",
+          isCompact ? "py-1 text-[0.775rem]" : "py-1.5 text-sm",
         )}
       >
         <ToolCallGroup
@@ -217,13 +215,18 @@ const MessageCard = forwardRef<
     <div
       ref={ref}
       className={cn(
-        "max-w-full overflow-hidden wrap-break-word shadow-xs",
-        isCompact
-          ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
-          : "rounded-2xl px-3 py-1.5 text-sm",
+        "max-w-full overflow-hidden wrap-break-word",
         isUser
-          ? "bg-primary text-primary-foreground"
-          : "bg-card dark:bg-header text-foreground border-border border",
+          ? cn(
+              "bg-primary text-primary-foreground shadow-xs",
+              isCompact
+                ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
+                : "rounded-2xl px-3 py-1.5 text-sm",
+            )
+          : cn(
+              "text-foreground w-full",
+              isCompact ? "text-[0.775rem]" : "text-sm",
+            ),
       )}
     >
       {content.type === "loading" ? (

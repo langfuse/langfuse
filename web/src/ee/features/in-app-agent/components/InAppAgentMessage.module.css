@@ -33,15 +33,15 @@
 }
 
 .Streamdown table {
-  @apply bg-muted dark:bg-card m-0! overflow-hidden rounded border;
+  @apply m-0! overflow-hidden rounded border;
 }
 
 .Streamdown td {
-  @apply p-2;
+  @apply py-2;
 }
 
 .Streamdown th {
-  @apply p-2;
+  @apply py-2;
 }
 
 .Streamdown tr {
