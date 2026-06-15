@@ -1,9 +1,8 @@
 // Grammar-aware search composer (Datadog-style).
 //
 // The per-mount store owns draft/committed query state. This component owns
-// rich/plain mode and autocomplete state. Rich mode projects the draft string
-// into inline spans inside one contenteditable root; plain mode is a
-// contenteditable string surface with no token spans or suggestions.
+// autocomplete state and projects the draft string into inline token spans
+// inside one contenteditable root.
 //
 // Selection model: the BROWSER owns selection. No mouse handler prevents
 // default; click, drag, double-click, and Shift+Arrow are native. A document
@@ -17,7 +16,7 @@
 
 import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
-import { AlertCircle, Code2, WandSparkles, X } from "lucide-react";
+import { AlertCircle, X } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -62,7 +61,6 @@ const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 // are intentionally suppressed (popover closed or append mode).
 const NO_RECENTS: string[] = [];
 
-type EditorMode = "rich" | "plain";
 type LogicalRange = { start: number; end: number };
 
 function textFromRoot(root: HTMLElement): string {
@@ -292,7 +290,6 @@ export function SearchComposer({
     })),
   );
 
-  const [mode, setMode] = React.useState<EditorMode>("rich");
   const [autocompleteOpen, setAutocompleteOpen] = React.useState(false);
   const [appendIntent, setAppendIntent] = React.useState(false);
   const [highlightedOptionId, setHighlightedOptionId] = React.useState<
@@ -305,7 +302,7 @@ export function SearchComposer({
   // Mirror of the native selection in logical (joiner-free) offsets.
   const [selectionSnapshot, setSelectionSnapshot] =
     React.useState<LogicalRange>({ start: 0, end: 0 });
-  const rootRef = React.useRef<HTMLDivElement | HTMLSpanElement>(null);
+  const rootRef = React.useRef<HTMLDivElement>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   // Selection to restore after the next reprojection of a controlled edit.
   const pendingSelectionRef = React.useRef<LogicalRange | null>(null);
@@ -334,7 +331,7 @@ export function SearchComposer({
   );
 
   const plan: CompletionPlan | null =
-    mode === "rich" && autocompleteOpen && selectionCollapsed
+    autocompleteOpen && selectionCollapsed
       ? planInputCompletions({
           input: appendIntent ? "" : draft,
           caret: appendIntent ? 0 : Math.min(caret, draft.length),
@@ -475,11 +472,9 @@ export function SearchComposer({
   const redoRef = useLatest(redo);
 
   const openAutocompleteAfterEdit = React.useCallback(() => {
-    if (mode === "rich") {
-      setAutocompleteOpen(true);
-      setHighlightedOptionId(null);
-    }
-  }, [mode]);
+    setAutocompleteOpen(true);
+    setHighlightedOptionId(null);
+  }, []);
 
   // Restore selection after a controlled mutation reprojected the DOM. Runs
   // before paint so the caret never visibly jumps. External draft changes
@@ -493,7 +488,7 @@ export function SearchComposer({
     pendingSelectionRef.current = null;
     setSelectionRange(root, pending.start, pending.end);
     setSelectionSnapshot(pending);
-  }, [draft, mode]);
+  }, [draft]);
 
   // Mirror the native selection. Read-only: this effect never moves the
   // selection, it only snapshots it for completion planning and hover/focus
@@ -663,7 +658,7 @@ export function SearchComposer({
     };
     root.addEventListener("beforeinput", onBeforeInput);
     return () => root.removeEventListener("beforeinput", onBeforeInput);
-  }, [applyTextDeletion, applyTextInsert, draftRef, mode, redoRef, undoRef]);
+  }, [applyTextDeletion, applyTextInsert, draftRef, redoRef, undoRef]);
 
   const commit = React.useCallback(() => {
     const root = rootRef.current;
@@ -892,7 +887,6 @@ export function SearchComposer({
       !event.altKey &&
       !event.ctrlKey &&
       !event.metaKey &&
-      mode === "rich" &&
       selectionCollapsed &&
       caret === draft.length &&
       draft.length > 0
@@ -914,7 +908,6 @@ export function SearchComposer({
         (o) => o.id === highlightedRef.current,
       );
       if (
-        mode === "rich" &&
         autocompleteOpen &&
         planRef.current !== null &&
         option !== undefined
@@ -949,7 +942,6 @@ export function SearchComposer({
     }
 
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      if (mode !== "rich") return;
       event.preventDefault();
       const ids = optionsRef.current.map((o) => o.id);
       if (!autocompleteOpen) {
@@ -1006,9 +998,9 @@ export function SearchComposer({
 
   const onFocus = () => {
     setEditorFocused(true);
-    // A draft was set while the editor was blurred (raw-mode toggle or an
-    // external structured edit): the restore effect could not run then, so
-    // consume the pending selection now that focus arrived.
+    // A draft was set while the editor was blurred (an external structured
+    // edit): the restore effect could not run then, so consume the pending
+    // selection now that focus arrived.
     const root = rootRef.current;
     const pending = pendingSelectionRef.current;
     if (root !== null && pending !== null) {
@@ -1016,9 +1008,7 @@ export function SearchComposer({
       setSelectionRange(root, pending.start, pending.end);
       setSelectionSnapshot(pending);
     }
-    if (mode === "rich") {
-      setAutocompleteOpen(true);
-    }
+    setAutocompleteOpen(true);
   };
 
   const onBlur = () => {
@@ -1033,7 +1023,6 @@ export function SearchComposer({
   // A collapsed click opens caret-contextual suggestions; a click past the
   // end of the text means "start a new entry".
   const onRootClick = (event: React.MouseEvent<HTMLElement>) => {
-    if (mode !== "rich") return;
     if (event.target instanceof Element && event.target.closest("button"))
       return;
     const root = rootRef.current;
@@ -1084,7 +1073,6 @@ export function SearchComposer({
   };
 
   const onRootMouseOver = (event: React.MouseEvent<HTMLElement>) => {
-    if (mode !== "rich") return;
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("[data-overlay-remove]")) return; // keep the X alive under the pointer
     const token = target?.closest("[data-segment-id]");
@@ -1094,8 +1082,7 @@ export function SearchComposer({
   const describedBy =
     visibleDiagnostics.length > 0 ? "search-bar-diagnostics" : undefined;
 
-  const segments =
-    mode === "rich" ? deriveComposerSegments(draft, scoreTypes) : [];
+  const segments = deriveComposerSegments(draft, scoreTypes);
   // The remove affordance targets the hovered token, or — while the editor is
   // focused — the token holding a collapsed caret. Not at the trailing
   // insertion point, where the user is appending, not editing.
@@ -1161,10 +1148,10 @@ export function SearchComposer({
     });
   }, [removeTargetIdActual]);
 
-  // Re-measure when the target, draft text, or mode changes.
+  // Re-measure when the target or draft text changes.
   React.useLayoutEffect(() => {
     measureRemovePosition();
-  }, [measureRemovePosition, draft, mode]);
+  }, [measureRemovePosition, draft]);
 
   // Those deps miss layout reflows that don't change React state — window
   // resize, browser zoom, sidebar collapse — which re-wrap the full-width bar
@@ -1195,81 +1182,55 @@ export function SearchComposer({
           // break across a wrap. Balanced padding: a small, even gutter on all
           // sides (the left no longer dwarfs the inter-pill gap and top), py
           // centers a single line near min-h-9 and the box grows when wrapped.
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5 pr-16",
+          // pr-8 keeps the top-right error icon clear of the last token.
+          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5 pr-8",
           "focus-within:ring-ring focus-within:ring-1",
           showGlobalDiagnostics &&
             "border-destructive focus-within:ring-destructive/40",
         )}
       >
         {draft.length === 0 && (
-          <div className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate pr-16 font-mono text-xs">
+          <div className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate pr-8 font-mono text-xs">
             {COMPOSER_PLACEHOLDER}
           </div>
         )}
-        {mode === "rich" ? (
-          <div
-            ref={rootRef as React.RefObject<HTMLDivElement>}
-            role="combobox"
-            aria-label="Search"
-            aria-expanded={plan !== null}
-            aria-controls={plan !== null ? LISTBOX_ID : undefined}
-            aria-autocomplete="list"
-            aria-activedescendant={
-              plan !== null && highlightedId !== null
-                ? optionDomId(LISTBOX_ID, highlightedId)
-                : undefined
-            }
-            aria-describedby={describedBy}
-            contentEditable
-            suppressContentEditableWarning
-            spellCheck={false}
-            data-testid="search-bar-input"
-            className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
-            onInput={(event) => {
-              if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
-            }}
-            onCompositionEnd={syncFromDom}
-            onKeyDown={onKeyDown}
-            onCopy={onCopy}
-            onCut={onCut}
-            onPaste={onPaste}
-            onFocus={onFocus}
-            onBlur={onBlur}
-            onClick={onRootClick}
-            onMouseOver={onRootMouseOver}
-          >
-            <ComposerTokens
-              draft={draft}
-              showDiagnostics={showTokenDiagnostics}
-              scoreTypes={scoreTypes}
-            />
-          </div>
-        ) : (
-          <span
-            ref={rootRef as React.RefObject<HTMLSpanElement>}
-            role="textbox"
-            aria-label="Search"
-            aria-multiline="false"
-            aria-describedby={describedBy}
-            contentEditable
-            suppressContentEditableWarning
-            spellCheck={false}
-            data-testid="search-bar-input"
-            className="block min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
-            onInput={(event) => {
-              if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
-            }}
-            onCompositionEnd={syncFromDom}
-            onKeyDown={onKeyDown}
-            onCopy={onCopy}
-            onCut={onCut}
-            onPaste={onPaste}
-            onFocus={onFocus}
-            onBlur={onBlur}
-          >
-            {draft}
-          </span>
-        )}
+        <div
+          ref={rootRef}
+          role="combobox"
+          aria-label="Search"
+          aria-expanded={plan !== null}
+          aria-controls={plan !== null ? LISTBOX_ID : undefined}
+          aria-autocomplete="list"
+          aria-activedescendant={
+            plan !== null && highlightedId !== null
+              ? optionDomId(LISTBOX_ID, highlightedId)
+              : undefined
+          }
+          aria-describedby={describedBy}
+          contentEditable
+          suppressContentEditableWarning
+          spellCheck={false}
+          data-testid="search-bar-input"
+          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          onInput={(event) => {
+            if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
+          }}
+          onCompositionEnd={syncFromDom}
+          onKeyDown={onKeyDown}
+          onCopy={onCopy}
+          onCut={onCut}
+          onPaste={onPaste}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onClick={onRootClick}
+          onMouseOver={onRootMouseOver}
+        >
+          <ComposerTokens
+            draft={draft}
+            showDiagnostics={showTokenDiagnostics}
+            scoreTypes={scoreTypes}
+          />
+        </div>
         {/* Bar-local overlay stacking ladder (hardcoded for now — a proper
             app-wide layer system is a separate ticket): token text (base) <
             remove-X (z-20) < error tooltip (z-30) < autocomplete popover
@@ -1300,8 +1261,8 @@ export function SearchComposer({
         )}
       </div>
 
-      <div className="absolute top-1.5 right-2 flex items-center gap-1">
-        {showGlobalDiagnostics && (
+      {showGlobalDiagnostics && (
+        <div className="absolute top-1.5 right-2 flex items-center gap-1">
           <span
             className="text-destructive"
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
@@ -1309,40 +1270,8 @@ export function SearchComposer({
           >
             <AlertCircle className="h-4 w-4" />
           </span>
-        )}
-        <button
-          type="button"
-          data-testid="search-bar-raw-toggle"
-          aria-label={
-            mode === "rich"
-              ? "Switch to plain input mode"
-              : "Switch to rich input mode"
-          }
-          title={mode === "rich" ? "Plain input mode" : "Rich input mode"}
-          className="text-muted-foreground hover:text-foreground rounded p-0.5"
-          onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
-            // Rich (<div>) and plain (<span>) roots are different elements, so
-            // toggling remounts the contenteditable and kills the native
-            // selection. Capture the logical caret first so the mode-deps
-            // restore effect (consumed via onFocus) puts it back instead of
-            // defaulting to offset 0.
-            const root = rootRef.current;
-            if (root !== null && document.activeElement === root) {
-              pendingSelectionRef.current = selectionOffsets(root);
-            }
-            setAutocompleteOpen(false);
-            setMode((current) => (current === "rich" ? "plain" : "rich"));
-            requestAnimationFrame(() => rootRef.current?.focus());
-          }}
-        >
-          {mode === "rich" ? (
-            <Code2 className="h-4 w-4" />
-          ) : (
-            <WandSparkles className="h-4 w-4" />
-          )}
-        </button>
-      </div>
+        </div>
+      )}
 
       {visibleDiagnostics.length > 0 && (
         <div id="search-bar-diagnostics" className="sr-only">
@@ -1350,7 +1279,7 @@ export function SearchComposer({
         </div>
       )}
 
-      {plan !== null && mode === "rich" && (
+      {plan !== null && (
         <AutocompletePopover
           plan={plan}
           highlightedId={highlightedId}
