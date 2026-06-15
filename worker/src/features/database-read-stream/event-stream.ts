@@ -44,7 +44,7 @@ const EVENT_SEARCH_COLUMNS = [
   "trace_id",
 ] as const;
 
-const eventSearchCondition = (opts: {
+export const eventSearchCondition = (opts: {
   query?: string;
   searchType?: TracingSearchType[];
 }) =>

@@ -344,4 +344,50 @@ describe("RateLimitService", () => {
     });
     expect(result?.isRateLimited()).toBe(false);
   });
+
+  it("should apply media-upload rate limits separately from ingestion", async () => {
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId,
+      accessLevel: "project" as const,
+      rateLimitOverrides: [],
+    };
+
+    const rateLimitService = RateLimitService.getInstance(redis);
+    const mediaResult = await rateLimitService.rateLimitRequest(
+      scope,
+      "media-upload",
+    );
+    const ingestionResult = await rateLimitService.rateLimitRequest(
+      scope,
+      "ingestion",
+    );
+
+    expect(mediaResult?.res).toEqual({
+      scope: scope,
+      resource: "media-upload",
+      points: 1000,
+      remainingPoints: 999,
+      msBeforeNext: expect.any(Number),
+      consumedPoints: 1,
+      isFirstInDuration: true,
+    });
+    expect(ingestionResult?.res).toEqual({
+      scope: scope,
+      resource: "ingestion",
+      points: 1000,
+      remainingPoints: 999,
+      msBeforeNext: expect.any(Number),
+      consumedPoints: 1,
+      isFirstInDuration: true,
+    });
+
+    await expect(
+      redis.get(`${RATE_LIMIT_REDIS_KEY_PREFIX}:media-upload:${orgId}`),
+    ).resolves.toBeDefined();
+    await expect(
+      redis.get(`${RATE_LIMIT_REDIS_KEY_PREFIX}:ingestion:${orgId}`),
+    ).resolves.toBeDefined();
+  });
 });

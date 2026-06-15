@@ -4,6 +4,9 @@ import {
   BlobStorageIntegrationType,
   InvalidRequestError,
   AnalyticsIntegrationExportSource,
+  LEGACY_BLOB_EXPORT_SOURCES,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+  isLegacyBlobExporter,
   type BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
@@ -58,6 +61,12 @@ export async function upsertBlobStorageIntegration(params: {
   // Evaluated inside the transaction so the row-state check and the INSERT are
   // atomic — no TOCTOU window.
   forceEventsOnCreate?: boolean;
+  // When true and no existing row is found inside the transaction, the CREATE
+  // branch refuses a legacy export source (throws). Evaluated in-transaction so
+  // a concurrent DELETE between the router's pre-flight read and this upsert
+  // cannot slip a new post-cutoff row in with a legacy source. Symmetric with
+  // forceEventsOnCreate; set by both the tRPC and REST paths on Cloud.
+  refuseLegacyOnCreate?: boolean;
 }) {
   const { prisma, projectId, data } = params;
 
@@ -141,7 +150,7 @@ export async function upsertBlobStorageIntegration(params: {
         ? AnalyticsIntegrationExportSource.EVENTS
         : undefined);
 
-    return tx.blobStorageIntegration.upsert({
+    const result = await tx.blobStorageIntegration.upsert({
       where: { projectId },
       create: {
         ...writeData,
@@ -160,5 +169,27 @@ export async function upsertBlobStorageIntegration(params: {
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: null } : {}),
       },
     });
+
+    // Race-free integration-cutoff backstop. The pre-flight `existing` snapshot
+    // (and the router's pre-flight gate) are racy under READ COMMITTED: a
+    // concurrent DELETE can flip this upsert to a CREATE after those reads.
+    // Validate the *persisted* row instead — its `createdAt` reflects the actual
+    // CREATE/UPDATE outcome (CREATE → now(); UPDATE → preserved). If the row
+    // that now exists is a brand-new post-cutoff Cloud exporter carrying a legacy
+    // source, throw to roll back. UPDATEs of pre-cutoff rows keep their
+    // original createdAt and are unaffected.
+    if (
+      params.refuseLegacyOnCreate &&
+      !isLegacyBlobExporter(result.createdAt, !isSelfHosted) &&
+      (LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
+        result.exportSource,
+      )
+    ) {
+      throw new InvalidRequestError(
+        `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`,
+      );
+    }
+
+    return result;
   });
 }

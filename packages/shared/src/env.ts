@@ -7,6 +7,8 @@ const EnvSchema = z.object({
   // export cutoff for local testing (e.g. "2020-01-01T00:00:00.000Z" makes
   // every project post-cutoff; "2099-01-01T00:00:00.000Z" grandfathers all).
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
+  // Same, for the integration-level cutoff (BlobStorageIntegration.createdAt).
+  NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

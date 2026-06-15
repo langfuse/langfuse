@@ -60,6 +60,9 @@ describe("withMiddlewares error handling", () => {
         message: "Bad Request",
         error: "BadRequest",
       });
+      expect(logger.warn).toHaveBeenCalledWith(error);
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
 
     it("should handle BaseError with 5xx status code and trace exception", async () => {
@@ -239,6 +242,7 @@ describe("withMiddlewares error handling", () => {
       await handler(req, res);
 
       expect(res._getStatusCode()).toBe(422);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(logger.warn).toHaveBeenCalledWith(
         "ClickHouse resource limit exceeded",
         expect.objectContaining({
@@ -355,6 +359,9 @@ describe("withMiddlewares error handling", () => {
           }),
         ]),
       });
+      expect(logger.warn).toHaveBeenCalledWith(expect.any(z.ZodError));
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
   });
 
