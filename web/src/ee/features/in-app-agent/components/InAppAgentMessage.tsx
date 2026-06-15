@@ -440,7 +440,7 @@ function ToolCallGroup({
         ) : (
           <Wrench className={cn("text-muted-foreground shrink-0", iconSize)} />
         )}
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate py-0.5">{label}</span>
         <span className="text-muted-foreground text-xs group-open/tool-group:hidden">
           Show
         </span>
@@ -468,7 +468,7 @@ function ToolCallDetails({ tool }: { tool: InAppAgentToolCallContent }) {
     <details className="group/tool min-w-0">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
         <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Used {tool.name}</span>
+        <span className="min-w-0 flex-1 truncate py-0.5">Used {tool.name}</span>
         <span className="text-muted-foreground text-xs group-open/tool:hidden">
           Show
         </span>
