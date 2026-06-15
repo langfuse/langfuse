@@ -1007,7 +1007,6 @@ model EvalTemplate {
   sourceCode         String?                         @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvalTemplateSourceCodeLanguage? @map("source_code_language")
   JobConfiguration   JobConfiguration[]
-  JobExecution       JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -1093,7 +1092,6 @@ model JobExecution {
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
   jobTemplateId String?       @map("job_template_id")
-  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")
@@ -1117,8 +1115,6 @@ model JobExecution {
   @@index([projectId, jobConfigurationId, jobInputTraceId])
   @@index([projectId, jobOutputScoreId])
   @@index([jobConfigurationId])
-  // required so the FK's ON DELETE SET NULL does not seq-scan this (huge) table on eval template deletion
-  @@index([jobTemplateId])
   @@map("job_executions")
 }
 
