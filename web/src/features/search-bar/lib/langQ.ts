@@ -698,11 +698,25 @@ export function parse(input: string): ParseResult {
     }
   }
 
+  // Tolerant recovery can flag the same span from more than one path (e.g. an
+  // unclosed "(" caught by both the lexer and parseTermNode). Drop exact
+  // duplicates so the composer doesn't render the same message twice.
+  const deduped = dedupeDiagnostics(diagnostics);
   return {
     ast,
-    diagnostics,
-    valid: !diagnostics.some((d) => d.severity === "error"),
+    diagnostics: deduped,
+    valid: !deduped.some((d) => d.severity === "error"),
   };
+}
+
+function dedupeDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
+  const seen = new Set<string>();
+  return diagnostics.filter((d) => {
+    const key = `${d.from}:${d.to}:${d.severity}:${d.message}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function nodeEnd(node: ASTNode): number | null {

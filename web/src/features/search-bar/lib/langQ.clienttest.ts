@@ -390,4 +390,11 @@ describe("validateQuery", () => {
     expect(errors).toHaveLength(1);
     expect(errors[0]!.message).toMatch(/uppercase OR or AND/);
   });
+
+  it("emits a single Unclosed-paren diagnostic for `level:(`", () => {
+    const unclosed = validateQuery("level:(").diagnostics.filter((d) =>
+      d.message.includes("Unclosed"),
+    );
+    expect(unclosed).toHaveLength(1);
+  });
 });
