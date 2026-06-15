@@ -7,17 +7,9 @@ import {
   type InAppAgentWindowProps,
 } from "./InAppAgentWindow";
 import {
-  getInitialInAppAgentWindowShellGeometry,
   InAppAgentWindowShell,
+  useInAppAgentWindowShellPanelControl,
 } from "./InAppAgentWindowShell";
-import { useMovableResizablePanelGeometry } from "@/src/components/movable-resizable-panel";
-
-function getStoryViewport() {
-  return {
-    height: typeof window === "undefined" ? 768 : window.innerHeight,
-    width: typeof window === "undefined" ? 1024 : window.innerWidth,
-  };
-}
 
 function InAppAgentWindowStoryShell({
   children,
@@ -27,30 +19,18 @@ function InAppAgentWindowStoryShell({
   isExpanded: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const floatingPanelHandle = useInAppAgentWindowShellPanelControl({});
 
-  const [initialGeometry] = useState(() => {
-    const viewport = getStoryViewport();
-
-    return getInitialInAppAgentWindowShellGeometry({
-      viewportHeight: viewport.height,
-      viewportWidth: viewport.width,
-    });
-  });
-
-  const geometry = useMovableResizablePanelGeometry({
-    getInitialGeometry: () => initialGeometry,
-  });
-
-  const floatingGeometry = isExpanded ? null : geometry.getGeometry();
+  useEffect(() => {
+    floatingPanelHandle.initializeGeometry();
+  }, [floatingPanelHandle]);
 
   return (
     <InAppAgentWindowShell
-      floatingGeometry={floatingGeometry}
+      floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
       panelRef={panelRef}
       zIndex={1}
-      onPositionChange={geometry.setPosition}
-      onSizeChange={geometry.setSize}
     >
       {children}
     </InAppAgentWindowShell>

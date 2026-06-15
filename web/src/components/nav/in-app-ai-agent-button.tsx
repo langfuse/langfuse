@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 import { useSession } from "next-auth/react";
 import { BotMessageSquare } from "lucide-react";
 
-import { useMovableResizablePanelGeometry } from "@/src/components/movable-resizable-panel";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -16,8 +15,8 @@ import {
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
 import {
-  getInitialInAppAgentWindowShellGeometry,
   InAppAgentWindowShell,
+  useInAppAgentWindowShellPanelControl,
 } from "@/src/ee/features/in-app-agent/components/InAppAgentWindowShell";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
@@ -44,18 +43,8 @@ export const InAppAiAgentButton = () => {
   );
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
 
-  const getInitialFloatingPanelGeometry = () => {
-    const button = buttonRef.current;
-
-    return getInitialInAppAgentWindowShellGeometry({
-      anchorRect: button?.getBoundingClientRect(),
-      viewportHeight: window.innerHeight,
-      viewportWidth: window.innerWidth,
-    });
-  };
-
-  const floatingPanelGeometry = useMovableResizablePanelGeometry({
-    getInitialGeometry: getInitialFloatingPanelGeometry,
+  const floatingPanelHandle = useInAppAgentWindowShellPanelControl({
+    anchorRef: buttonRef,
   });
 
   useEffect(() => {
@@ -93,24 +82,17 @@ export const InAppAiAgentButton = () => {
       !open ||
       !portalContainer ||
       isExpanded ||
-      floatingPanelGeometry.geometry
+      floatingPanelHandle.geometry
     ) {
       return;
     }
 
-    floatingPanelGeometry.initializeGeometry();
-  }, [floatingPanelGeometry, isExpanded, open, portalContainer]);
+    floatingPanelHandle.initializeGeometry();
+  }, [floatingPanelHandle, isExpanded, open, portalContainer]);
 
   if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
     return null;
   }
-
-  const activeFloatingPanelGeometry =
-    open && portalContainer
-      ? isExpanded
-        ? floatingPanelGeometry.getGeometry()
-        : floatingPanelGeometry.geometry
-      : null;
 
   const handleClick = () => {
     if (organization && !organization.aiFeaturesEnabled) {
@@ -124,7 +106,7 @@ export const InAppAiAgentButton = () => {
       const nextOpen = !currentOpen;
 
       if (nextOpen) {
-        floatingPanelGeometry.resetGeometry();
+        floatingPanelHandle.resetGeometry();
       }
 
       return nextOpen;
@@ -140,12 +122,10 @@ export const InAppAiAgentButton = () => {
       {open && portalContainer
         ? createPortal(
             <InAppAgentWindowShell
-              floatingGeometry={activeFloatingPanelGeometry}
+              floatingPanelHandle={floatingPanelHandle}
               isExpanded={isExpanded}
               panelRef={panelRef}
               zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
-              onPositionChange={floatingPanelGeometry.setPosition}
-              onSizeChange={floatingPanelGeometry.setSize}
             >
               {({ isHeaderDragHandleEnabled }) => (
                 <ControlledInAppAgentWindow
@@ -158,7 +138,7 @@ export const InAppAiAgentButton = () => {
                     setIsExpanded(nextIsExpanded);
                   }}
                   onClose={() => {
-                    floatingPanelGeometry.clearGeometry();
+                    floatingPanelHandle.clearGeometry();
                     setOpen(false);
                   }}
                 />

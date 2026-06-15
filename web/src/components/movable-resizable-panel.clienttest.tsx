@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
 import { vi } from "vitest";
 
 import {
   MovableResizablePanel,
+  useMovableResizablePanelControl,
+  type MovableResizablePanelGeometry,
   type MovableResizablePanelPosition,
   type MovableResizablePanelSize,
 } from "./movable-resizable-panel";
@@ -16,8 +17,7 @@ type TestPanelProps = {
   minSize?: MovableResizablePanelSize;
   ignoreOutsideInteraction?: boolean;
   onActionClick?: () => void;
-  onPositionChange?: (position: MovableResizablePanelPosition) => void;
-  onSizeChange?: (size: MovableResizablePanelSize) => void;
+  onGeometryChange?: (geometry: MovableResizablePanelGeometry) => void;
 };
 
 function TestPanel({
@@ -28,29 +28,30 @@ function TestPanel({
   maxSize,
   minSize = { width: 200, height: 160 },
   onActionClick,
-  onPositionChange,
-  onSizeChange,
+  onGeometryChange,
 }: TestPanelProps) {
-  const [position, setPosition] = useState(initialPosition);
-  const [size, setSize] = useState(initialSize);
+  const handle = useMovableResizablePanelControl({
+    boundsPadding,
+    getInitialGeometry: () => ({
+      position: initialPosition,
+      size: initialSize,
+    }),
+    maxSize,
+    minSize,
+  });
+  const geometry = handle.getGeometry();
 
   return (
     <MovableResizablePanel
-      boundsPadding={boundsPadding}
       dragHandleSelector="[data-drag-handle='true']"
+      handle={{
+        ...handle,
+        setGeometry: (nextGeometry) => {
+          handle.setGeometry(nextGeometry);
+          onGeometryChange?.(nextGeometry);
+        },
+      }}
       ignoreOutsideInteraction={ignoreOutsideInteraction}
-      maxSize={maxSize}
-      minSize={minSize}
-      position={position}
-      size={size}
-      onPositionChange={(nextPosition) => {
-        setPosition(nextPosition);
-        onPositionChange?.(nextPosition);
-      }}
-      onSizeChange={(nextSize) => {
-        setSize(nextSize);
-        onSizeChange?.(nextSize);
-      }}
     >
       <div className="h-full w-full">
         <div data-drag-handle="true" data-testid="drag-handle">
@@ -65,7 +66,7 @@ function TestPanel({
           </button>
         </div>
         <div data-testid="panel-state">
-          {position.left},{position.top},{size.width},{size.height}
+          {`${geometry.position.left},${geometry.position.top},${geometry.size.width},${geometry.size.height}`}
         </div>
       </div>
     </MovableResizablePanel>
@@ -290,15 +291,13 @@ describe("MovableResizablePanel", () => {
   });
 
   it("ignores window resize while an interaction is in flight", () => {
-    const onPositionChange = vi.fn();
-    const onSizeChange = vi.fn();
+    const onGeometryChange = vi.fn();
 
     render(
       <TestPanel
         initialPosition={{ left: 700, top: 100 }}
         initialSize={{ width: 300, height: 240 }}
-        onPositionChange={onPositionChange}
-        onSizeChange={onSizeChange}
+        onGeometryChange={onGeometryChange}
       />,
     );
 
@@ -317,8 +316,7 @@ describe("MovableResizablePanel", () => {
     });
     fireEvent.resize(window);
 
-    expect(onPositionChange).not.toHaveBeenCalled();
-    expect(onSizeChange).not.toHaveBeenCalled();
+    expect(onGeometryChange).not.toHaveBeenCalled();
     expect(screen.getByTestId("panel-state")).toHaveTextContent(
       "700,100,300,240",
     );

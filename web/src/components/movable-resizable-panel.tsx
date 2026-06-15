@@ -1,11 +1,13 @@
 "use client";
-
 import {
   type CSSProperties,
+  type ForwardedRef,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  type RefObject,
+  forwardRef,
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -54,72 +56,160 @@ type Interaction =
       startSize: MovableResizablePanelSize;
     };
 
-type PanelSizeConstraints = {
+export type MovableResizablePanelSizeConstraints = {
   maxHeight: number;
   maxWidth: number;
   minHeight: number;
   minWidth: number;
 };
 
+export type MovableResizablePanelViewportBounds = {
+  minLeft: number;
+  minTop: number;
+  maxRight: number;
+  maxBottom: number;
+};
+
+export type MovableResizablePanelResizeContext = {
+  bounds: MovableResizablePanelViewportBounds;
+  constraints: MovableResizablePanelSizeConstraints;
+};
+
+export type MovableResizablePanelHandle = {
+  clampGeometry: (
+    geometry: MovableResizablePanelGeometry,
+  ) => MovableResizablePanelGeometry;
+  geometry: MovableResizablePanelGeometry | null;
+  getResizeContext: () => MovableResizablePanelResizeContext;
+  getGeometry: () => MovableResizablePanelGeometry;
+  keepGeometryWithinBounds: () => void;
+  initializeGeometry: () => void;
+  resetGeometry: () => void;
+  clearGeometry: () => void;
+  setGeometry: (geometry: MovableResizablePanelGeometry) => void;
+};
+
 type MovableResizablePanelProps = {
   children: ReactNode;
   className?: string;
+  handle: MovableResizablePanelHandle;
   dragHandleSelector: string;
-  maxSize?: MovableResizablePanelSize;
-  minSize: MovableResizablePanelSize;
-  panelRef?: RefObject<HTMLDivElement | null>;
-  position: MovableResizablePanelPosition;
-  size: MovableResizablePanelSize;
-  boundsPadding?: number;
   ignoreOutsideInteraction?: boolean;
-  isGeometryManaged?: boolean;
-  isMovable?: boolean;
-  isResizable?: boolean;
   style?: CSSProperties;
   zIndex?: number;
-  onPositionChange: (position: MovableResizablePanelPosition) => void;
-  onSizeChange: (size: MovableResizablePanelSize) => void;
 };
 
-export function useMovableResizablePanelGeometry({
+const DEFAULT_BOUNDS_PADDING = 8;
+
+export function useMovableResizablePanelControl({
+  boundsPadding = DEFAULT_BOUNDS_PADDING,
   getInitialGeometry,
+  maxSize,
+  minSize,
 }: {
+  boundsPadding?: number;
   getInitialGeometry: () => MovableResizablePanelGeometry;
+  maxSize?: MovableResizablePanelSize;
+  minSize: MovableResizablePanelSize;
 }) {
   const [geometry, setGeometry] =
     useState<MovableResizablePanelGeometry | null>(null);
 
-  const getGeometry = () => geometry ?? getInitialGeometry();
-  const initializeGeometry = () => {
-    setGeometry((currentGeometry) => currentGeometry ?? getInitialGeometry());
-  };
-  const resetGeometry = () => setGeometry(getInitialGeometry());
-  const clearGeometry = () => setGeometry(null);
-  const setPosition = (position: MovableResizablePanelPosition) => {
-    setGeometry((currentGeometry) => ({
-      position,
-      size: currentGeometry?.size ?? getInitialGeometry().size,
-    }));
-  };
-  const setSize = (size: MovableResizablePanelSize) => {
-    setGeometry((currentGeometry) => ({
-      position: currentGeometry?.position ?? getInitialGeometry().position,
-      size,
-    }));
-  };
+  const clampGeometry = useCallback(
+    (geometry: MovableResizablePanelGeometry) =>
+      clampPanelBounds({
+        boundsPadding,
+        maxSize,
+        minSize,
+        position: geometry.position,
+        size: geometry.size,
+      }),
+    [boundsPadding, maxSize, minSize],
+  );
 
-  return {
-    geometry,
-    getGeometry,
-    initializeGeometry,
-    resetGeometry,
-    clearGeometry,
-    setPosition,
-    setSize,
-  };
+  const getResizeContext = useCallback(
+    () => ({
+      bounds: getViewportBounds(boundsPadding),
+      constraints: getPanelSizeConstraints({
+        boundsPadding,
+        maxSize,
+        minSize,
+      }),
+    }),
+    [boundsPadding, maxSize, minSize],
+  );
+
+  const getGeometry = useCallback(
+    () => clampGeometry(geometry ?? getInitialGeometry()),
+    [clampGeometry, geometry, getInitialGeometry],
+  );
+
+  const keepGeometryWithinBounds = useCallback(() => {
+    const currentGeometry = geometry ?? getInitialGeometry();
+    const nextGeometry = clampGeometry(currentGeometry);
+
+    if (arePanelsEqual(currentGeometry, nextGeometry)) {
+      return;
+    }
+
+    setGeometry(nextGeometry);
+  }, [clampGeometry, geometry, getInitialGeometry]);
+
+  const initializeGeometry = useCallback(() => {
+    if (geometry) {
+      return;
+    }
+
+    const nextGeometry = clampGeometry(getInitialGeometry());
+
+    setGeometry(nextGeometry);
+  }, [clampGeometry, geometry, getInitialGeometry]);
+
+  const resetGeometry = useCallback(() => {
+    const nextGeometry = clampGeometry(getInitialGeometry());
+
+    setGeometry(nextGeometry);
+  }, [clampGeometry, getInitialGeometry]);
+
+  const clearGeometry = useCallback(() => {
+    setGeometry(null);
+  }, []);
+
+  const setGeometryValue = useCallback(
+    (geometry: MovableResizablePanelGeometry) => {
+      const nextGeometry = clampGeometry(geometry);
+
+      setGeometry(nextGeometry);
+    },
+    [clampGeometry],
+  );
+
+  return useMemo<MovableResizablePanelHandle>(
+    () => ({
+      clampGeometry,
+      geometry,
+      getResizeContext,
+      getGeometry,
+      keepGeometryWithinBounds,
+      initializeGeometry,
+      resetGeometry,
+      clearGeometry,
+      setGeometry: setGeometryValue,
+    }),
+    [
+      clampGeometry,
+      clearGeometry,
+      geometry,
+      getGeometry,
+      getResizeContext,
+      initializeGeometry,
+      keepGeometryWithinBounds,
+      resetGeometry,
+      setGeometryValue,
+    ],
+  );
 }
 
-const DEFAULT_BOUNDS_PADDING = 8;
 const RESIZE_HANDLE_SIZE_PX = 10;
 const IGNORE_DRAG_TARGET_SELECTOR =
   "[data-movable-resizable-panel-ignore-drag='true']";
@@ -143,7 +233,9 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function getViewportBounds(boundsPadding: number) {
+function getViewportBounds(
+  boundsPadding: number,
+): MovableResizablePanelViewportBounds {
   if (typeof window === "undefined") {
     return {
       minLeft: boundsPadding,
@@ -169,7 +261,7 @@ function getPanelSizeConstraints({
   boundsPadding: number;
   maxSize?: MovableResizablePanelSize;
   minSize: MovableResizablePanelSize;
-}): PanelSizeConstraints {
+}): MovableResizablePanelSizeConstraints {
   const bounds = getViewportBounds(boundsPadding);
   const viewportMaxWidth = bounds.maxRight - bounds.minLeft;
   const viewportMaxHeight = bounds.maxBottom - bounds.minTop;
@@ -278,8 +370,8 @@ function getResizedPanel(
   interaction: Extract<Interaction, { type: "resize" }>,
   clientX: number,
   clientY: number,
-  constraints: PanelSizeConstraints,
-  bounds: ReturnType<typeof getViewportBounds>,
+  constraints: MovableResizablePanelSizeConstraints,
+  bounds: MovableResizablePanelViewportBounds,
 ) {
   const deltaX = clientX - interaction.startClientX;
   const deltaY = clientY - interaction.startClientY;
@@ -407,123 +499,110 @@ function getResizeHandleStyle(direction: ResizeDirection): CSSProperties {
   return style;
 }
 
-export function MovableResizablePanel({
-  boundsPadding = DEFAULT_BOUNDS_PADDING,
-  children,
-  className,
-  dragHandleSelector,
-  ignoreOutsideInteraction = false,
-  isGeometryManaged = true,
-  isMovable = true,
-  isResizable = true,
-  maxSize,
-  minSize,
-  panelRef: externalPanelRef,
-  position,
-  size,
-  style,
-  zIndex,
-  onPositionChange,
-  onSizeChange,
-}: MovableResizablePanelProps) {
+function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null) {
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+
+  if (ref) {
+    ref.current = value;
+  }
+}
+
+export const MovableResizablePanel = forwardRef<
+  HTMLDivElement,
+  MovableResizablePanelProps
+>(function MovableResizablePanel(
+  {
+    children,
+    className,
+    dragHandleSelector,
+    handle,
+    ignoreOutsideInteraction = false,
+    style,
+    zIndex,
+  },
+  forwardedRef,
+) {
   const panelRef = useRef<HTMLDivElement>(null);
   const interactionRef = useRef<Interaction | null>(null);
-  const maxSizeHeight = maxSize?.height;
-  const maxSizeWidth = maxSize?.width;
-  const minSizeHeight = minSize.height;
-  const minSizeWidth = minSize.width;
-  const [{ position: livePosition, size: liveSize }, setLivePanel] = useState(
-    () =>
-      clampPanelBounds({
-        boundsPadding,
-        maxSize,
-        minSize,
-        position,
-        size,
-      }),
-  );
-  const livePanelRef = useRef({ position: livePosition, size: liveSize });
-  const onPositionChangeRef = useRef(onPositionChange);
-  const onSizeChangeRef = useRef(onSizeChange);
+  const [draftPanel, setDraftPanel] =
+    useState<MovableResizablePanelGeometry | null>(null);
+  const renderedPanel = draftPanel ?? handle.getGeometry();
+  const renderedPanelRef = useRef(renderedPanel);
+  const draftPanelRef = useRef<MovableResizablePanelGeometry | null>(null);
 
-  onPositionChangeRef.current = onPositionChange;
-  onSizeChangeRef.current = onSizeChange;
+  renderedPanelRef.current = renderedPanel;
 
-  useEffect(() => {
+  function handleMovePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (interactionRef.current) {
       return;
     }
 
-    const nextPanel = clampPanelBounds({
-      boundsPadding,
-      maxSize:
-        typeof maxSizeWidth === "number" && typeof maxSizeHeight === "number"
-          ? { width: maxSizeWidth, height: maxSizeHeight }
-          : undefined,
-      minSize: { width: minSizeWidth, height: minSizeHeight },
-      position,
-      size,
-    });
-
-    livePanelRef.current = nextPanel;
-    setLivePanel((currentPanel) =>
-      arePanelsEqual(currentPanel, nextPanel) ? currentPanel : nextPanel,
-    );
-  }, [
-    boundsPadding,
-    maxSizeHeight,
-    maxSizeWidth,
-    minSizeHeight,
-    minSizeWidth,
-    position,
-    size,
-  ]);
-
-  useEffect(() => {
-    const handleResize = () => {
-      if (interactionRef.current) {
-        return;
-      }
-
-      const nextPanel = clampPanelBounds({
-        boundsPadding,
-        maxSize:
-          typeof maxSizeWidth === "number" && typeof maxSizeHeight === "number"
-            ? { width: maxSizeWidth, height: maxSizeHeight }
-            : undefined,
-        minSize: { width: minSizeWidth, height: minSizeHeight },
-        position: livePanelRef.current.position,
-        size: livePanelRef.current.size,
-      });
-
-      if (arePanelsEqual(livePanelRef.current, nextPanel)) {
-        return;
-      }
-
-      livePanelRef.current = nextPanel;
-      setLivePanel(nextPanel);
-      onPositionChangeRef.current(nextPanel.position);
-      onSizeChangeRef.current(nextPanel.size);
-    };
-
-    window.addEventListener("resize", handleResize);
-
-    return () => window.removeEventListener("resize", handleResize);
-  }, [boundsPadding, maxSizeHeight, maxSizeWidth, minSizeHeight, minSizeWidth]);
-
-  const startInteraction = (
-    event: ReactPointerEvent<HTMLDivElement>,
-    interaction: Interaction,
-  ) => {
     const panel = panelRef.current;
+    const coordinates = getPointerCoordinates(event);
+    const target = event.target instanceof Element ? event.target : null;
+    const handle = target?.closest(dragHandleSelector);
+
+    if (
+      !panel ||
+      !handle ||
+      !panel.contains(handle) ||
+      !coordinates ||
+      isIgnoredDragTarget(target)
+    ) {
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
-    interactionRef.current = interaction;
-    panel?.setPointerCapture(event.pointerId);
-  };
 
-  const updateInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const { position, size } = renderedPanelRef.current;
+
+    interactionRef.current = {
+      type: "move",
+      pointerId: event.pointerId,
+      startClientX: coordinates.clientX,
+      startClientY: coordinates.clientY,
+      startPosition: position,
+      startSize: size,
+    };
+    panelRef.current?.setPointerCapture(event.pointerId);
+  }
+
+  function handleResizePointerDown(
+    direction: ResizeDirection,
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (interactionRef.current) {
+      return;
+    }
+
+    const coordinates = getPointerCoordinates(event);
+
+    if (!coordinates) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const { position, size } = renderedPanelRef.current;
+
+    interactionRef.current = {
+      type: "resize",
+      direction,
+      pointerId: event.pointerId,
+      startClientX: coordinates.clientX,
+      startClientY: coordinates.clientY,
+      startPosition: position,
+      startSize: size,
+    };
+    panelRef.current?.setPointerCapture(event.pointerId);
+  }
+
+  function handleMovePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
     const interaction = interactionRef.current;
     const coordinates = getPointerCoordinates(event);
 
@@ -535,130 +614,89 @@ export function MovableResizablePanel({
       return;
     }
 
-    const nextPanel = clampPanelBounds({
-      boundsPadding,
-      maxSize,
-      minSize,
-      ...(interaction.type === "move"
+    const { bounds, constraints } = handle.getResizeContext();
+
+    const nextUnclampedPanel =
+      interaction.type === "move"
         ? getMovedPanel(interaction, coordinates.clientX, coordinates.clientY)
         : getResizedPanel(
             interaction,
             coordinates.clientX,
             coordinates.clientY,
-            getPanelSizeConstraints({ boundsPadding, maxSize, minSize }),
-            getViewportBounds(boundsPadding),
-          )),
-    });
+            constraints,
+            bounds,
+          );
 
-    livePanelRef.current = nextPanel;
-    setLivePanel(nextPanel);
-  };
+    const nextPanel = handle.clampGeometry(nextUnclampedPanel);
 
-  const stopInteraction = (event: ReactPointerEvent<HTMLDivElement>) => {
+    draftPanelRef.current = nextPanel;
+    setDraftPanel(nextPanel);
+  }
+
+  function handleMoveStop(event: ReactPointerEvent<HTMLDivElement>) {
     const interaction = interactionRef.current;
 
     if (!interaction || interaction.pointerId !== event.pointerId) {
       return;
     }
 
-    const finalPanel = livePanelRef.current;
+    const finalPanel = draftPanelRef.current ?? renderedPanelRef.current;
 
     interactionRef.current = null;
+    draftPanelRef.current = null;
+    setDraftPanel(null);
     panelRef.current?.releasePointerCapture(event.pointerId);
-    onPositionChange(finalPanel.position);
-    onSizeChange(finalPanel.size);
-  };
+    handle.setGeometry(finalPanel);
+  }
+
+  useEffect(() => {
+    function keepPanelGeometryWithinBounds() {
+      if (interactionRef.current) {
+        return;
+      }
+
+      handle.keepGeometryWithinBounds();
+    }
+
+    window.addEventListener("resize", keepPanelGeometryWithinBounds);
+
+    return () =>
+      window.removeEventListener("resize", keepPanelGeometryWithinBounds);
+  }, [handle]);
 
   return (
     <div
       ref={(node) => {
         panelRef.current = node;
-
-        if (externalPanelRef) {
-          externalPanelRef.current = node;
-        }
+        assignForwardedRef(forwardedRef, node);
       }}
       className={`fixed origin-top-left${className ? ` ${className}` : ""}`}
       data-ignore-outside-interaction={ignoreOutsideInteraction || undefined}
       data-testid="movable-resizable-panel"
       style={{
-        ...(isGeometryManaged
-          ? {
-              left: livePosition.left,
-              top: livePosition.top,
-              width: liveSize.width,
-              height: liveSize.height,
-            }
-          : null),
+        left: renderedPanel.position.left,
+        top: renderedPanel.position.top,
+        width: renderedPanel.size.width,
+        height: renderedPanel.size.height,
         zIndex,
         ...style,
       }}
-      onPointerDown={(event) => {
-        if (!isMovable || interactionRef.current) {
-          return;
-        }
-
-        const panel = panelRef.current;
-        const coordinates = getPointerCoordinates(event);
-        const target = event.target instanceof Element ? event.target : null;
-        const handle = target?.closest(dragHandleSelector);
-
-        if (
-          !panel ||
-          !handle ||
-          !panel.contains(handle) ||
-          !coordinates ||
-          isIgnoredDragTarget(target)
-        ) {
-          return;
-        }
-
-        startInteraction(event, {
-          type: "move",
-          pointerId: event.pointerId,
-          startClientX: coordinates.clientX,
-          startClientY: coordinates.clientY,
-          startPosition: livePosition,
-          startSize: liveSize,
-        });
-      }}
-      onPointerMove={updateInteraction}
-      onPointerUp={stopInteraction}
-      onPointerCancel={stopInteraction}
+      onPointerDown={handleMovePointerDown}
+      onPointerMove={handleMovePointerMove}
+      onPointerUp={handleMoveStop}
+      onPointerCancel={handleMoveStop}
     >
       {children}
-      {isResizable
-        ? resizeDirections.map((direction) => (
-            <div
-              key={direction}
-              aria-hidden="true"
-              data-resize-direction={direction}
-              data-testid={`movable-resizable-panel-resize-${direction}`}
-              style={getResizeHandleStyle(direction)}
-              onPointerDown={(event) => {
-                if (interactionRef.current) {
-                  return;
-                }
-
-                const coordinates = getPointerCoordinates(event);
-
-                if (!coordinates) {
-                  return;
-                }
-
-                startInteraction(event, {
-                  type: "resize",
-                  direction,
-                  pointerId: event.pointerId,
-                  startClientX: coordinates.clientX,
-                  startClientY: coordinates.clientY,
-                  startPosition: livePosition,
-                  startSize: liveSize,
-                });
-              }}
-            />
-          ))
-        : null}
+      {resizeDirections.map((direction) => (
+        <div
+          key={direction}
+          aria-hidden="true"
+          data-resize-direction={direction}
+          data-testid={`movable-resizable-panel-resize-${direction}`}
+          style={getResizeHandleStyle(direction)}
+          onPointerDown={(event) => handleResizePointerDown(direction, event)}
+        />
+      ))}
     </div>
   );
-}
+});
