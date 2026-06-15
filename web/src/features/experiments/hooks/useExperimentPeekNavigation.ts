@@ -17,22 +17,11 @@ type ExperimentTarget = {
  */
 export function useExperimentPeekNavigation() {
   const router = useRouter();
-  const { baselineId, comparisonIds } = useExperimentResultsState();
+  const { allExperimentIds } = useExperimentResultsState();
   const { detailPagelists } = useDetailPageLists();
-  const [peekExperimentId, setPeekExperimentId] = useQueryParam(
-    "peekExperimentId",
-    StringParam,
-  );
+  const [peekExperimentId] = useQueryParam("peekExperimentId", StringParam);
 
   const peekItemId = router.query.peek as string | undefined;
-
-  // Ordered experiment list: baseline first, then comparisons
-  const allExperimentIds = useMemo(() => {
-    const ids: string[] = [];
-    if (baselineId) ids.push(baselineId);
-    ids.push(...comparisonIds.filter((id) => id !== baselineId));
-    return ids;
-  }, [baselineId, comparisonIds]);
 
   // Get stored targets from detail page list
   const experimentTargets = useMemo(():
@@ -52,50 +41,49 @@ export function useExperimentPeekNavigation() {
     }
   }, [detailPagelists, peekItemId]);
 
-  // Current experiment (defaults to baseline)
-  const currentExperimentId =
-    peekExperimentId ?? baselineId ?? allExperimentIds[0];
-  const currentIndex = allExperimentIds.indexOf(currentExperimentId ?? "");
+  // Current experiment: validate peekExperimentId is in allExperimentIds, fall back to first
+  const rawIndex = allExperimentIds.indexOf(peekExperimentId ?? "");
+  const currentIndex = rawIndex >= 0 ? rawIndex : 0;
+  const currentExperimentId = allExperimentIds[currentIndex];
 
   // Current target for trace rendering
   const currentTarget = experimentTargets?.[currentExperimentId ?? ""] ?? null;
 
+  // Check if prev/next have targets available
+  const prevId = currentIndex > 0 ? allExperimentIds[currentIndex - 1] : null;
+  const nextId =
+    currentIndex < allExperimentIds.length - 1
+      ? allExperimentIds[currentIndex + 1]
+      : null;
+  const hasPrev = !!(prevId && experimentTargets?.[prevId]);
+  const hasNext = !!(nextId && experimentTargets?.[nextId]);
+
   const goTo = useCallback(
     (experimentId: string) => {
       const target = experimentTargets?.[experimentId];
-      if (!target) {
-        // Fall back to just updating peekExperimentId if we don't have targets
-        setPeekExperimentId(experimentId);
-        return;
-      }
+      if (!target) return;
 
-      // Update URL with new experiment and its trace params
       const params = new URLSearchParams(window.location.search);
       params.set("peekExperimentId", experimentId);
       params.set("traceId", target.traceId);
       params.set("timestamp", target.timestamp);
       params.set("observation", target.observationId);
 
-      // Use window.location.pathname to get the resolved path (not the Next.js pattern)
       const pathname = window.location.pathname;
       router.push(`${pathname}?${params.toString()}`, undefined, {
         shallow: true,
       });
     },
-    [experimentTargets, router, setPeekExperimentId],
+    [experimentTargets, router],
   );
 
   const goToPrev = useCallback(() => {
-    if (currentIndex > 0) {
-      goTo(allExperimentIds[currentIndex - 1]);
-    }
-  }, [currentIndex, allExperimentIds, goTo]);
+    if (prevId && hasPrev) goTo(prevId);
+  }, [prevId, hasPrev, goTo]);
 
   const goToNext = useCallback(() => {
-    if (currentIndex < allExperimentIds.length - 1) {
-      goTo(allExperimentIds[currentIndex + 1]);
-    }
-  }, [currentIndex, allExperimentIds, goTo]);
+    if (nextId && hasNext) goTo(nextId);
+  }, [nextId, hasNext, goTo]);
 
   return {
     currentExperimentId,
@@ -103,12 +91,11 @@ export function useExperimentPeekNavigation() {
     currentIndex,
     total: allExperimentIds.length,
     allExperimentIds,
-    hasPrev: currentIndex > 0,
-    hasNext: currentIndex < allExperimentIds.length - 1,
+    hasPrev,
+    hasNext,
     goToPrev,
     goToNext,
     goTo,
-    // Can switch if we have targets stored and more than one experiment
     canSwitch: !!experimentTargets && allExperimentIds.length > 1,
   };
 }

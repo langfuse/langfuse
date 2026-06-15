@@ -905,7 +905,13 @@ export default function ExperimentItemsTable({
   );
 
   const peekNavigationProps = usePeekNavigation({
-    queryParams: ["observation", "display", "timestamp", "traceId"],
+    queryParams: [
+      "observation",
+      "display",
+      "timestamp",
+      "traceId",
+      "peekExperimentId",
+    ],
     extractParamsValuesFromRow: (row: ExperimentItemsTableRow) => {
       // Use baseline experiment (the one matching experimentId prop)
       const baselineExp = row.experiments.find(

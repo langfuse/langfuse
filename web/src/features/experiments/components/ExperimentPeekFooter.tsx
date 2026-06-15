@@ -17,7 +17,6 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
     hasNext,
     goToPrev,
     goToNext,
-    canSwitch,
   } = useExperimentPeekNavigation();
 
   const { experimentNames } = useExperimentNames({ projectId });
@@ -29,8 +28,6 @@ export function ExperimentPeekFooter({ projectId }: { projectId: string }) {
   const colorStyles = currentExperimentId
     ? getExperimentColorStyles(currentExperimentId, allExperimentIds)
     : undefined;
-
-  if (!canSwitch) return null;
 
   return (
     <div className="flex h-7 items-center justify-between gap-3">
