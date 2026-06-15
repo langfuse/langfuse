@@ -382,11 +382,23 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
 
             <ol className="flex w-full flex-col gap-3 pb-4">
-              {messages.map((message) => {
+              {messages.map((message, index) => {
                 const hasToolContent = message.content.type === "toolGroup";
+                const nextUserMessageIndex = messages.findIndex(
+                  (nextMessage, nextIndex) =>
+                    nextIndex > index && nextMessage.role === "user",
+                );
+                const nextTurnStartIndex =
+                  nextUserMessageIndex === -1
+                    ? messages.length
+                    : nextUserMessageIndex;
+                const isLastMessageOfTurn = messages
+                  .slice(index + 1, nextTurnStartIndex)
+                  .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
                   message.role === "assistant" &&
-                  message.content.type === "text"
+                  message.content.type === "text" &&
+                  isLastMessageOfTurn
                     ? message.runId
                     : undefined;
 

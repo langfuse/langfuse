@@ -1171,6 +1171,7 @@ const getScoresUiGeneric = async <T>(props: {
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
+        s.dataset_run_id,
         s.observation_id,
         s.author_user_id,
         t.user_id,
@@ -1398,6 +1399,7 @@ const getScoresUiGenericFromEvents = async <T>(props: {
         ${excludeMetadata ? "" : "s.metadata,"}
         s.trace_id,
         s.session_id,
+        s.dataset_run_id,
         s.observation_id,
         s.author_user_id,
         s.created_at,
@@ -1486,8 +1488,11 @@ export async function getScoresUiTableFromEvents(props: {
   limit?: number;
   offset?: number;
   clickhouseConfigs?: ClickHouseClientConfigOptions;
+  // Defaults to true: the scores UI table only needs the hasMetadata flag.
+  // Batch exports pass false to include the full metadata payload.
+  excludeMetadata?: boolean;
 }) {
-  const { clickhouseConfigs, ...rest } = props;
+  const { clickhouseConfigs, excludeMetadata = true, ...rest } = props;
 
   const rows = await getScoresUiGenericFromEvents<{
     id: string;
@@ -1503,6 +1508,7 @@ export async function getScoresUiTableFromEvents(props: {
     trace_id: string | null;
     session_id: string | null;
     dataset_run_id: string | null;
+    metadata?: Record<string, string>;
     observation_id: string | null;
     author_user_id: string | null;
     config_id: string | null;
@@ -1516,7 +1522,7 @@ export async function getScoresUiTableFromEvents(props: {
   }>({
     select: "rows",
     tags: { kind: "analytic" },
-    excludeMetadata: true,
+    excludeMetadata,
     includeHasMetadataFlag: true,
     clickhouseConfigs,
     ...rest,
@@ -1526,10 +1532,10 @@ export async function getScoresUiTableFromEvents(props: {
     const score = convertClickhouseScoreToDomain(
       {
         ...row,
-        metadata: {},
+        metadata: excludeMetadata ? {} : (row.metadata ?? {}),
         long_string_value: "",
       },
-      false,
+      !excludeMetadata,
     );
     return {
       ...score,
@@ -2415,6 +2421,7 @@ export const _handleGenerateScoresForPublicApi = async ({
   includeTrace,
   needsTraceJoin,
   pagination,
+  apiVersion,
 }: {
   projectId: string;
   scoresFilter: FilterList;
@@ -2423,6 +2430,7 @@ export const _handleGenerateScoresForPublicApi = async ({
   includeTrace: boolean;
   needsTraceJoin: boolean;
   pagination?: { limit: number; page: number };
+  apiVersion?: "v1" | "v2";
 }) => {
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
@@ -2506,6 +2514,7 @@ export const _handleGenerateScoresForPublicApi = async ({
         scoreScope,
         operation_name: "_handleGenerateScoresForPublicApi",
         includeTrace: includeTrace.toString(),
+        ...(apiVersion ? { api_version: apiVersion } : {}),
       },
     },
     fn: async (input) => {
@@ -2549,6 +2558,7 @@ export const _handleGetScoresCountForPublicApi = async ({
   scoreScope,
   includeTrace,
   needsTraceJoin,
+  apiVersion,
 }: {
   projectId: string;
   scoresFilter: FilterList;
@@ -2556,6 +2566,7 @@ export const _handleGetScoresCountForPublicApi = async ({
   scoreScope: "traces_only" | "all";
   includeTrace: boolean;
   needsTraceJoin: boolean;
+  apiVersion?: "v1" | "v2";
 }) => {
   const appliedScoresFilter = scoresFilter.apply();
   const appliedTracesFilter = tracesFilter.apply();
@@ -2605,6 +2616,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         scoreScope,
         operation_name: "_handleGetScoresCountForPublicApi",
         includeTrace: includeTrace.toString(),
+        ...(apiVersion ? { api_version: apiVersion } : {}),
       },
     },
     fn: async (input) => {
@@ -2852,8 +2864,12 @@ const buildV3ListQuery = (
   FROM scores s
   WHERE s.project_id = {projectId: String}
   ${
+    // The simple timestamp bound is redundant with the tuple comparison but
+    // required for index pruning: ClickHouse does not decompose tuple
+    // comparisons, so only the simple bound activates the partition key and
+    // the (project_id, toDate(timestamp)) primary-key prefix.
     withCursor
-      ? "AND (s.timestamp, s.id) < ({lastTimestamp: DateTime64(3)}, {lastId: String})"
+      ? "AND (s.timestamp, s.id) < ({lastTimestamp: DateTime64(3)}, {lastId: String}) AND s.timestamp <= {lastTimestamp: DateTime64(3)}"
       : ""
   }
   ${filterClause ? `AND ${filterClause}` : ""}
@@ -2993,6 +3009,7 @@ export async function listScoresV3ForPublicApi(
         type: "score",
         projectId: params.projectId,
         operation_name: "listScoresV3ForPublicApi",
+        api_version: "v3",
       },
     },
     fn: async (input) => {
