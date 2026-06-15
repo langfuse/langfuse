@@ -15,6 +15,14 @@ type DatasetItemVersionKey = {
 };
 
 /**
+ * Stable lookup key for a dataset item version. Media is linked per version
+ * (id, validFrom), so both id and validFrom must be part of the key.
+ */
+export function datasetItemMediaReferenceKey(item: DatasetItemVersionKey) {
+  return `${item.id}:${item.validFrom.getTime()}`;
+}
+
+/**
  * Resolves `@@@langfuseMedia...@@@` reference strings to signed download URLs
  * (MediaReturnType) for rendering in the dataset item attachment section. Used
  * for the live form state, where media is referenced directly in the JSON
@@ -63,16 +71,22 @@ export async function resolveMediaReferenceStrings(props: {
 
 /**
  * Resolves the media references of dataset item versions to signed download
- * URLs from dataset_item_media, returning one reference list per item (same
- * order as the input). One media lookup and one signed URL is generated per
- * distinct mediaId per call. References whose media is missing or not
- * uploaded yield `media: null`.
+ * URLs from dataset_item_media, returning a map keyed by
+ * datasetItemMediaReferenceKey (item id + validFrom). Every requested item is
+ * present in the map (empty array if it has no references), so callers look up
+ * by key rather than relying on positional alignment with the input. One media
+ * lookup and one signed URL is generated per distinct mediaId per call.
+ * References whose media is missing or not uploaded yield `media: null`.
  */
 export async function resolveDatasetItemMediaReferences(props: {
   projectId: string;
   items: DatasetItemVersionKey[];
-}): Promise<APIDatasetItemMediaReference[][]> {
-  if (props.items.length === 0) return [];
+}): Promise<Map<string, APIDatasetItemMediaReference[]>> {
+  const referencesByItem = new Map<string, APIDatasetItemMediaReference[]>();
+  for (const item of props.items) {
+    referencesByItem.set(datasetItemMediaReferenceKey(item), []);
+  }
+  if (props.items.length === 0) return referencesByItem;
 
   const referenceRows = await prisma.datasetItemMedia.findMany({
     where: {
@@ -84,7 +98,7 @@ export async function resolveDatasetItemMediaReferences(props: {
     },
     orderBy: [{ field: "asc" }, { jsonPath: "asc" }],
   });
-  if (referenceRows.length === 0) return props.items.map(() => []);
+  if (referenceRows.length === 0) return referencesByItem;
 
   const mediaRecords = await prisma.media.findMany({
     where: {
@@ -116,18 +130,20 @@ export async function resolveDatasetItemMediaReferences(props: {
     ),
   );
 
-  return props.items.map((item) =>
-    referenceRows
-      .filter(
-        (row) =>
-          row.datasetItemId === item.id &&
-          row.datasetItemValidFrom.getTime() === item.validFrom.getTime(),
-      )
-      .map((row) => ({
-        field: row.field as APIDatasetItemMediaReference["field"],
-        referenceString: row.referenceString,
-        jsonPath: row.jsonPath,
-        media: mediaById.get(row.mediaId) ?? null,
-      })),
-  );
+  // referenceRows arrive ordered by (field, jsonPath); pushing in that order
+  // preserves it per item.
+  for (const row of referenceRows) {
+    const key = datasetItemMediaReferenceKey({
+      id: row.datasetItemId,
+      validFrom: row.datasetItemValidFrom,
+    });
+    referencesByItem.get(key)?.push({
+      field: row.field as APIDatasetItemMediaReference["field"],
+      referenceString: row.referenceString,
+      jsonPath: row.jsonPath,
+      media: mediaById.get(row.mediaId) ?? null,
+    });
+  }
+
+  return referencesByItem;
 }

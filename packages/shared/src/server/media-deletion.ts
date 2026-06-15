@@ -148,79 +148,91 @@ export async function releaseDatasetMedia(params: {
   for (const batch of chunk(mediaIds, 1000)) {
     if (batch.length === 0) continue;
 
-    // Media may still be referenced by items of other datasets (content
-    // dedupe) — only release media with no remaining dataset references.
-    const releasableMedia = await prisma.$queryRaw<
-      { id: string; bucketPath: string; hasTraceReferences: boolean }[]
-    >`
-      SELECT
-        m.id,
-        m.bucket_path AS "bucketPath",
-        (
-          EXISTS (
-            SELECT 1 FROM trace_media tm
-            WHERE tm.project_id = m.project_id AND tm.media_id = m.id
+    // One query to avoid race issues
+    const deletedMedia = await prisma.$queryRaw<{ bucketPath: string }[]>`
+      WITH releasable AS (
+        SELECT
+          m.id,
+          m.bucket_path,
+          (
+            EXISTS (
+              SELECT 1 FROM trace_media tm
+              WHERE tm.project_id = m.project_id AND tm.media_id = m.id
+            )
+            OR EXISTS (
+              SELECT 1 FROM observation_media om
+              WHERE om.project_id = m.project_id AND om.media_id = m.id
+            )
+          ) AS has_other_refs
+        FROM media m
+        WHERE m.project_id = ${projectId}
+          AND m.id IN (${Prisma.join(batch)})
+          AND NOT EXISTS (
+            SELECT 1 FROM dataset_item_media dim
+            WHERE dim.project_id = m.project_id AND dim.media_id = m.id
           )
-          OR EXISTS (
-            SELECT 1 FROM observation_media om
-            WHERE om.project_id = m.project_id AND om.media_id = m.id
-          )
-        ) AS "hasTraceReferences"
-      FROM media m
-      WHERE
-        m.project_id = ${projectId}
-        AND m.id IN (${Prisma.join(batch)})
-        AND NOT EXISTS (
-          SELECT 1 FROM dataset_item_media dim
-          WHERE dim.project_id = m.project_id AND dim.media_id = m.id
-        )
+      ),
+      unretained AS (
+        UPDATE media m
+        SET retained_by_dataset_at = NULL
+        FROM releasable r
+        WHERE m.id = r.id AND m.project_id = ${projectId} AND r.has_other_refs
+      ),
+      deleted AS (
+        DELETE FROM media m
+        USING releasable r
+        WHERE m.id = r.id AND m.project_id = ${projectId} AND NOT r.has_other_refs
+        RETURNING m.bucket_path AS "bucketPath"
+      )
+      SELECT "bucketPath" FROM deleted
     `;
-    if (releasableMedia.length === 0) continue;
 
-    await prisma.media.updateMany({
-      where: {
-        projectId,
-        id: {
-          in: releasableMedia
-            .filter((media) => media.hasTraceReferences)
-            .map((media) => media.id),
-        },
-      },
-      data: { retainedByDatasetAt: null },
-    });
-
-    await deleteMediaFiles({
-      projectId,
-      mediaFiles: releasableMedia.filter((media) => !media.hasTraceReferences),
-      storageClient,
-    });
+    if (deletedMedia.length > 0) {
+      await storageClient.deleteFiles(deletedMedia.map((m) => m.bucketPath));
+    }
   }
 }
 
 /**
  * Delete a dataset's media associations and release the referenced media (see
  * releaseDatasetMedia).
+ *
+ * The link-row delete always runs: dataset_item_media has no FK to cascade on
+ * dataset deletion, so this is the only path that drops these rows for a
+ * dataset. Releasing the media touches S3 and is therefore skipped when no
+ * storage bucket is configured (storageClient omitted) — the rows are still
+ * cleaned up rather than leaked.
  */
 export async function deleteDatasetMediaByDatasetId(params: {
   projectId: string;
   datasetId: string;
-  storageClient: StorageClient;
+  storageClient?: StorageClient;
 }): Promise<void> {
   const { projectId, datasetId, storageClient } = params;
 
-  const referencedMedia = await prisma.datasetItemMedia.findMany({
-    select: { mediaId: true },
-    where: { projectId, datasetId },
-    distinct: ["mediaId"],
-  });
+  // Capture which media the dataset referenced and delete the link rows in one
+  // RepeatableRead transaction: a plain findMany-then-deleteMany would let a
+  // concurrent insert for this dataset slip a row past the capture, leaving
+  // that media with its retention marker set but no remaining rows (a leak).
+  const [referenced] = await prisma.$transaction(
+    [
+      prisma.datasetItemMedia.findMany({
+        where: { projectId, datasetId },
+        select: { mediaId: true },
+        distinct: ["mediaId"],
+      }),
+      prisma.datasetItemMedia.deleteMany({
+        where: { projectId, datasetId },
+      }),
+    ],
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  );
 
-  await prisma.datasetItemMedia.deleteMany({
-    where: { projectId, datasetId },
-  });
+  if (!storageClient) return;
 
   await releaseDatasetMedia({
     projectId,
-    mediaIds: referencedMedia.map((row) => row.mediaId),
+    mediaIds: referenced.map((row) => row.mediaId),
     storageClient,
   });
 }

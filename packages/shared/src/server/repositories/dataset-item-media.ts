@@ -1,3 +1,5 @@
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "../../db";
 import { type DatasetItemMediaField } from "../../domain";
 import { env } from "../../env";
@@ -54,7 +56,11 @@ export async function validateDatasetItemMediaReferences(props: {
   if (referencedMediaIds.length === 0) return;
 
   const existingMedia = await prisma.media.findMany({
-    where: { projectId: props.projectId, id: { in: referencedMediaIds } },
+    where: {
+      projectId: props.projectId,
+      id: { in: referencedMediaIds },
+      uploadHttpStatus: { in: [200, 201] },
+    },
     select: { id: true },
   });
   const existingMediaIds = new Set(existingMedia.map((media) => media.id));
@@ -72,20 +78,30 @@ export async function validateDatasetItemMediaReferences(props: {
 /**
  * Records which media a dataset item version references in dataset_item_media
  * and marks that media as dataset-retained so it is excluded from
- * trace-retention deletion. Referenced media must exist — call
- * validateDatasetItemMediaReferences before persisting the items.
+ * trace-retention deletion, using the given transaction client. Enroll this in
+ * the same transaction as the item write so an item is never committed without
+ * its media linked and retention-protected (a gap that, for bulk-imported
+ * items never re-edited, would otherwise be permanent). Referenced media must
+ * exist — call validateDatasetItemMediaReferences before persisting the items.
+ *
+ * Returns the media ids the update dropped; the caller must release them with
+ * releaseDroppedDatasetMedia *after* the transaction commits, since releasing
+ * touches S3 and must not run inside the write transaction.
  *
  * `replaceExisting` is for in-place updates with versioning disabled
  * (STATEFUL), where the item version (id, validFrom) stays the same and
  * removed references must be unlinked. Versioned updates write a new
  * validFrom, so old versions keep their rows and the delete is a no-op.
  */
-export async function syncDatasetItemMedia(props: {
-  projectId: string;
-  items: DatasetItemMediaSource[];
-  // true for in-place (STATEFUL) updates, false when inserting a fresh version
-  replaceExisting: boolean;
-}) {
+export async function linkDatasetItemMedia(
+  tx: Prisma.TransactionClient,
+  props: {
+    projectId: string;
+    items: DatasetItemMediaSource[];
+    // true for in-place (STATEFUL) updates, false when inserting a fresh version
+    replaceExisting: boolean;
+  },
+) {
   const { projectId, items, replaceExisting } = props;
 
   const rows = items.flatMap((item) =>
@@ -100,13 +116,14 @@ export async function syncDatasetItemMedia(props: {
 
   // Hot path: items without media need no queries. With replaceExisting we
   // still delete so references removed by the update are unlinked.
-  if (rows.length === 0 && !replaceExisting) return;
+  if (rows.length === 0 && !replaceExisting)
+    return { droppedMediaIds: [] as string[] };
 
   // For in-place (STATEFUL) updates the previously referenced media must be
   // released if the update dropped it; capture it before deleting the rows.
   const priorMediaIds = replaceExisting
     ? (
-        await prisma.datasetItemMedia.findMany({
+        await tx.datasetItemMedia.findMany({
           select: { mediaId: true },
           where: {
             projectId,
@@ -120,50 +137,78 @@ export async function syncDatasetItemMedia(props: {
       ).map((row) => row.mediaId)
     : [];
 
-  await prisma.$transaction(async (tx) => {
-    if (replaceExisting) {
-      await tx.datasetItemMedia.deleteMany({
-        where: {
-          projectId,
-          OR: items.map((item) => ({
-            datasetItemId: item.datasetItemId,
-            datasetItemValidFrom: item.datasetItemValidFrom,
-          })),
-        },
-      });
-    }
-
-    if (rows.length > 0) {
-      await tx.datasetItemMedia.createMany({
-        data: rows,
-        skipDuplicates: true,
-      });
-      await tx.media.updateMany({
-        where: {
-          projectId,
-          id: { in: [...new Set(rows.map((row) => row.mediaId))] },
-          retainedByDatasetAt: null,
-        },
-        data: { retainedByDatasetAt: new Date() },
-      });
-    }
-  });
-
-  // Best-effort release of media the update dropped: the item write is already
-  // committed, so a cleanup failure is logged and retried on the next change.
-  const bucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
-  if (priorMediaIds.length > 0 && bucket) {
-    try {
-      await releaseDatasetMedia({
+  if (replaceExisting) {
+    await tx.datasetItemMedia.deleteMany({
+      where: {
         projectId,
-        mediaIds: priorMediaIds,
-        storageClient: getS3MediaStorageClient(bucket),
-      });
-    } catch (error) {
-      logger.error(
-        `Failed to release orphaned dataset media in project ${projectId}`,
-        error,
-      );
-    }
+        OR: items.map((item) => ({
+          datasetItemId: item.datasetItemId,
+          datasetItemValidFrom: item.datasetItemValidFrom,
+        })),
+      },
+    });
   }
+
+  if (rows.length > 0) {
+    await tx.datasetItemMedia.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
+    await tx.media.updateMany({
+      where: {
+        projectId,
+        id: { in: [...new Set(rows.map((row) => row.mediaId))] },
+        retainedByDatasetAt: null,
+      },
+      data: { retainedByDatasetAt: new Date() },
+    });
+  }
+
+  return { droppedMediaIds: priorMediaIds };
+}
+
+/**
+ * Best-effort release of media an item write dropped (see releaseDatasetMedia).
+ * Call after the write transaction commits — releaseDatasetMedia touches S3, so
+ * it must not run inside the write transaction. A failure is logged and
+ * self-heals on the item's next edit (which re-runs the sync).
+ */
+export async function releaseDroppedDatasetMedia(
+  projectId: string,
+  droppedMediaIds: string[],
+): Promise<void> {
+  const bucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
+  if (droppedMediaIds.length === 0 || !bucket) return;
+
+  try {
+    await releaseDatasetMedia({
+      projectId,
+      mediaIds: droppedMediaIds,
+      storageClient: getS3MediaStorageClient(bucket),
+    });
+  } catch (error) {
+    logger.error(
+      `Failed to release orphaned dataset media in project ${projectId}`,
+      error,
+    );
+  }
+}
+
+/**
+ * Convenience wrapper for callers that link media after their item write has
+ * already committed (interactive single-item upsert/delete). Runs the link in
+ * its own transaction, then releases dropped media. Prefer linkDatasetItemMedia
+ * directly inside the item-write transaction where the write strategy allows
+ * it, so the item and its media commit atomically.
+ */
+export async function syncDatasetItemMedia(props: {
+  projectId: string;
+  items: DatasetItemMediaSource[];
+  replaceExisting: boolean;
+}) {
+  const { droppedMediaIds } = await prisma.$transaction((tx) =>
+    linkDatasetItemMedia(tx, props),
+  );
+
+  await releaseDroppedDatasetMedia(props.projectId, droppedMediaIds);
 }

@@ -144,6 +144,54 @@ describe("Dataset Item Media Associations", () => {
     ).resolves.toBeNull();
   });
 
+  // A media row exists from createMediaUploadUrl before its S3 PUT
+  // (uploadHttpStatus null). Referencing it must be rejected like unknown
+  // media: linking it would retention-protect a file the readers render as
+  // null forever and retention then permanently skips.
+  it("rejects references to media that has not finished uploading", async () => {
+    const datasetId = await createDataset();
+    const sha256Hash = crypto
+      .createHash("sha256")
+      .update(v4())
+      .digest("base64");
+    const mediaId = sha256Hash
+      .replaceAll("+", "-")
+      .replaceAll("/", "_")
+      .slice(0, 22);
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        projectId,
+        sha256Hash,
+        bucketPath: `media/${mediaId}.png`,
+        bucketName: "test-bucket",
+        contentType: "image/png",
+        contentLength: 1234,
+        uploadHttpStatus: null,
+      },
+    });
+    const datasetItemId = v4();
+
+    await expect(
+      createManyDatasetItems({
+        projectId,
+        items: [
+          {
+            datasetId,
+            id: datasetItemId,
+            input: {
+              image: `@@@langfuseMedia:type=image/png|id=${mediaId}|source=base64@@@`,
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow(`Dataset item references unknown media: ${mediaId}`);
+
+    await expect(
+      prisma.datasetItem.findFirst({ where: { projectId, id: datasetItemId } }),
+    ).resolves.toBeNull();
+  });
+
   it("records media references for bulk created items", async () => {
     const datasetId = await createDataset();
     const firstMedia = await createMediaRow();
@@ -171,6 +219,33 @@ describe("Dataset Item Media Associations", () => {
         mediaId: secondMedia.mediaId,
       },
     ]);
+  });
+
+  // Bulk-imported items are frequently never re-edited, so the link + retain
+  // must commit with the item write rather than as a best-effort follow-up:
+  // an item must never be persisted with its media left unprotected from
+  // retention cleanup.
+  it("marks media of bulk created items as dataset-retained", async () => {
+    const datasetId = await createDataset();
+    const media = await createMediaRow();
+
+    const result = await createManyDatasetItems({
+      projectId,
+      items: [{ datasetId, input: { image: media.referenceString } }],
+    });
+    if (!result.success) throw new Error("bulk create failed");
+
+    const stored = await prisma.media.findUnique({
+      where: { projectId_id: { projectId, id: media.mediaId } },
+    });
+    expect(stored?.retainedByDatasetAt).toEqual(expect.any(Date));
+
+    // the link is keyed to the version that was actually written
+    const item = await prisma.datasetItem.findFirst({
+      where: { projectId, id: result.datasetItems[0].id },
+    });
+    const rows = await getItemMediaRows(result.datasetItems[0].id);
+    expect(rows[0]?.datasetItemValidFrom).toEqual(item?.validFrom);
   });
 
   describe("syncDatasetItemMedia", () => {

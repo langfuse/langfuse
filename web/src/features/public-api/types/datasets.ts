@@ -215,7 +215,7 @@ export const PostDatasetItemsV1Body = z.object({
   sourceObservationId: z.string().nullish(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).nullish(),
 });
-export const PostDatasetItemsV1Response = APIDatasetItem.strict();
+export const PostDatasetItemsV1Response = APIDatasetItem;
 
 // GET /dataset-items
 export const GetDatasetItemsV1Query = z
@@ -252,7 +252,7 @@ export const GetDatasetItemV1Query = z.object({
   datasetItemId: z.string(),
   includeMediaReferences: includeMediaReferencesZod,
 });
-export const GetDatasetItemV1Response = APIDatasetItem.strict();
+export const GetDatasetItemV1Response = APIDatasetItem;
 
 // DELETE /dataset-items/{datasetItemId}
 export const DeleteDatasetItemV1Query = z.object({

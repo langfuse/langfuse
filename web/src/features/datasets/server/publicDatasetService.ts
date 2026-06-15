@@ -37,7 +37,10 @@ import {
   UnauthorizedError,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { resolveDatasetItemMediaReferences } from "@/src/features/media/server/datasetItemMediaReferences";
+import {
+  datasetItemMediaReferenceKey,
+  resolveDatasetItemMediaReferences,
+} from "@/src/features/media/server/datasetItemMediaReferences";
 import { upsertDataset } from "./actions/createDataset";
 import {
   addToDeleteDatasetQueue,
@@ -537,9 +540,14 @@ export const listDatasetItemsForApi = async ({
     : null;
 
   return {
-    data: items.map((item, index) => ({
+    data: items.map((item) => ({
       ...transformDbDatasetItemDomainToAPIDatasetItem(item),
-      ...(mediaReferences ? { mediaReferences: mediaReferences[index] } : {}),
+      ...(mediaReferences
+        ? {
+            mediaReferences:
+              mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
+          }
+        : {}),
     })),
     meta: {
       page,
@@ -592,7 +600,13 @@ export const getDatasetItemForApi = async ({
       status: datasetItem.status ?? "ACTIVE",
       datasetName: dataset.name,
     }),
-    ...(mediaReferences ? { mediaReferences: mediaReferences[0] } : {}),
+    ...(mediaReferences
+      ? {
+          mediaReferences:
+            mediaReferences.get(datasetItemMediaReferenceKey(datasetItem)) ??
+            [],
+        }
+      : {}),
   };
 };
 

@@ -79,14 +79,17 @@ const deleteMediaItemsForTraces = async (
   const mediaIdChunks = chunk(Array.from(allMediaIds), 1000);
 
   for (const mediaIdChunk of mediaIdChunks) {
-    // First, fetch media items that are orphaned (no references) to get their bucket paths
-    const orphanedMedia = await prisma.$queryRaw<
-      { id: string; bucketPath: string }[]
-    >`
-      SELECT
-        m.id,
-        m.bucket_path AS "bucketPath"
-      FROM media m
+    // Delete media orphaned by this trace deletion in a single statement: the
+    // NOT EXISTS guards (including dataset_item_media, which dataset-item saves
+    // can insert at any time via SHA-256 content dedupe) are re-checked when the
+    // DELETE runs, so a media row that gained a reference since this trace
+    // delete started is left intact instead of having its file deleted out from
+    // under the new reference. RETURNING drives the S3 delete from exactly what
+    // was removed; the row is gone before its file, so a row the guard skips
+    // never loses its file (a crash between commit and the S3 delete leaves an
+    // orphaned file, a minor leak preferable to deleting a live file).
+    const orphanedMedia = await prisma.$queryRaw<{ bucketPath: string }[]>`
+      DELETE FROM media m
       WHERE
         m.project_id = ${projectId}
         AND m.id IN (${Prisma.join(mediaIdChunk)})
@@ -108,23 +111,13 @@ const deleteMediaItemsForTraces = async (
           WHERE dim.project_id = m.project_id
             AND dim.media_id = m.id
         )
+      RETURNING m.bucket_path AS "bucketPath"
     `;
 
     if (orphanedMedia.length > 0) {
-      // Delete from S3
       await getS3MediaStorageClient(
         env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "", // Fallback is never used.
       ).deleteFiles(orphanedMedia.map((f) => f.bucketPath));
-
-      // Delete from postgres
-      await prisma.media.deleteMany({
-        where: {
-          projectId,
-          id: {
-            in: orphanedMedia.map((f) => f.id),
-          },
-        },
-      });
     }
   }
 };

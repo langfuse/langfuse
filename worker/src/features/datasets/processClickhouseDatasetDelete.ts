@@ -23,15 +23,15 @@ export const processClickhouseDatasetDelete = async (
   try {
     switch (deletionType) {
       case "dataset":
-        if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
-          await deleteDatasetMediaByDatasetId({
-            projectId,
-            datasetId,
-            storageClient: getS3MediaStorageClient(
-              env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-            ),
-          });
-        }
+        // Always drop the dataset_item_media link rows (no FK cascades them);
+        // only the S3 release needs a configured bucket.
+        await deleteDatasetMediaByDatasetId({
+          projectId,
+          datasetId,
+          storageClient: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
+            ? getS3MediaStorageClient(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
+            : undefined,
+        });
         await deleteDatasetRunItemsByDatasetId({ projectId, datasetId });
         break;
 

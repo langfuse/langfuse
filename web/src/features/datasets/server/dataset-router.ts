@@ -11,6 +11,7 @@ import {
   updateMediaUploadStatus,
 } from "@/src/features/media/server/mediaService";
 import {
+  datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
   resolveMediaReferenceStrings,
 } from "@/src/features/media/server/datasetItemMediaReferences";
@@ -825,12 +826,13 @@ export const datasetRouter = createTRPCRouter({
         validFrom = item.validFrom;
       }
 
-      const [references = []] = await resolveDatasetItemMediaReferences({
+      const item = { id: input.datasetItemId, validFrom };
+      const referencesByItem = await resolveDatasetItemMediaReferences({
         projectId: input.projectId,
-        items: [{ id: input.datasetItemId, validFrom }],
+        items: [item],
       });
 
-      return references;
+      return referencesByItem.get(datasetItemMediaReferenceKey(item)) ?? [];
     }),
   // Resolve media reference strings (from the live create/edit form JSON) to
   // signed download URLs for the attachment preview, since the item is not yet

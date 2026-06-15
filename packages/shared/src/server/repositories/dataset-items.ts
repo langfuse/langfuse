@@ -15,6 +15,7 @@ import {
 } from "../datasets/executeWithDatasetServiceStrategy";
 import { v4 } from "uuid";
 import {
+  linkDatasetItemMedia,
   syncDatasetItemMedia,
   validateDatasetItemMediaReferences,
 } from "./dataset-item-media";
@@ -721,17 +722,38 @@ export async function createManyDatasetItems(props: {
       items: preparedItems,
     });
 
-    // Set explicitly (instead of the column default) so the media sync below
+    // Set explicitly (instead of the column default) so the media link below
     // knows each inserted row's validFrom
     const newValidFrom = new Date();
 
+    // Bulk-imported items are frequently never individually re-edited, so the
+    // self-healing on next edit does not apply: link media in the same
+    // transaction as the item write so an item is never committed without its
+    // media retention-protected. These are fresh inserts (replaceExisting:
+    // false), so nothing is dropped and no post-commit release is needed.
+    const mediaItems = preparedItems.map((item) => ({
+      datasetId: item.datasetId,
+      datasetItemId: item.id,
+      datasetItemValidFrom: newValidFrom,
+      input: item.input,
+      expectedOutput: item.expectedOutput,
+      metadata: item.metadata,
+    }));
+
     await executeWithDatasetServiceStrategy(OperationType.WRITE, {
       [Implementation.STATEFUL]: async () => {
-        await prisma.datasetItem.createMany({
-          data: preparedItems.map((item) => ({
-            ...item,
-            validFrom: newValidFrom,
-          })),
+        await prisma.$transaction(async (tx) => {
+          await tx.datasetItem.createMany({
+            data: preparedItems.map((item) => ({
+              ...item,
+              validFrom: newValidFrom,
+            })),
+          });
+          await linkDatasetItemMedia(tx, {
+            projectId: props.projectId,
+            items: mediaItems,
+            replaceExisting: false,
+          });
         });
       },
       [Implementation.VERSIONED]: async () => {
@@ -766,22 +788,15 @@ export async function createManyDatasetItems(props: {
               validFrom: newValidFrom,
             })),
           });
+
+          // 4. Link media in the same transaction as the write
+          await linkDatasetItemMedia(tx, {
+            projectId: props.projectId,
+            items: mediaItems,
+            replaceExisting: false,
+          });
         });
       },
-    });
-
-    await syncDatasetItemMedia({
-      projectId: props.projectId,
-      items: preparedItems.map((item) => ({
-        datasetId: item.datasetId,
-        datasetItemId: item.id,
-        datasetItemValidFrom: newValidFrom,
-        input: item.input,
-        expectedOutput: item.expectedOutput,
-        metadata: item.metadata,
-      })),
-      // freshly inserted rows, nothing to replace
-      replaceExisting: false,
     });
   }
 
