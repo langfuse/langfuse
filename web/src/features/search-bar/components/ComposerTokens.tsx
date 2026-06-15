@@ -33,8 +33,8 @@ export const composerTokenVariants = cva("max-w-full", {
         "mr-0.5 inline rounded border px-1.5 py-1 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
       freeText:
         "mr-0.5 inline rounded border px-1.5 py-1 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
-      operator: "font-semibold uppercase text-muted-foreground",
-      paren: "text-muted-foreground",
+      operator: "font-semibold uppercase text-qlang-keyword",
+      paren: "text-qlang-operator",
       invalid:
         "mr-0.5 inline rounded border border-dashed px-1.5 py-1 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
     },
@@ -60,14 +60,14 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
   const value = colon === -1 ? "" : body.slice(colon + 1);
   return (
     <>
-      {dash && <span className="text-muted-foreground">-</span>}
-      <span data-part="field" className="text-accent-dark-blue">
+      {dash && <span className="text-qlang-operator">-</span>}
+      <span data-part="field" className="text-qlang-field">
         {segment.displayField}
       </span>
-      <span data-part="operator" className="text-muted-foreground">
+      <span data-part="operator" className="text-qlang-operator">
         :
       </span>
-      <span data-part="value" className="text-foreground">
+      <span data-part="value" className="text-qlang-value">
         {value}
       </span>
     </>
