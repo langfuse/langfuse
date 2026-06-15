@@ -1475,7 +1475,8 @@ export default function ObservationsEventsTable({
               // This is a table-internal sticky band below PageHeader. Using
               // top-banner-offset here pushes the band down by the viewport
               // header/banner offset and leaves a large blank gap above it.
-              searchBarMode && "bg-background sticky top-0 z-30",
+              // pb-1.5 gives the band a bit more breathing room above the table.
+              searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
             )}
           >
             {/* Search bar row: (near) full-width query composer. In bar mode it
