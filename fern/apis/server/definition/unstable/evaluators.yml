@@ -293,40 +293,7 @@ service:
         - errors.TooManyRequestsError
         - errors.InternalServerError
 
-    delete:
-      docs: |
-        Delete an evaluator.
-
-        Important behavior:
-        - This deletes the evaluator including all of its stored versions; `evaluatorId` may reference any version.
-        - The API returns `409` while evaluation rules still reference the evaluator. Delete those evaluation rules first.
-        - Langfuse-managed evaluators (`scope=managed`) cannot be deleted; the API returns `403`.
-        - Scores already produced by the evaluator are not deleted.
-      method: DELETE
-      path: /evaluators/{evaluatorId}
-      path-parameters:
-        evaluatorId:
-          type: string
-          docs: Evaluator identifier returned by the evaluator endpoints.
-      response: DeleteEvaluatorResponse
-      errors:
-        - errors.BadRequestError
-        - errors.UnauthorizedError
-        - errors.AccessDeniedError
-        - errors.NotFoundError
-        - errors.MethodNotAllowedError
-        - errors.ConflictError
-        - errors.TooManyRequestsError
-        - errors.InternalServerError
-
 types:
-  DeleteEvaluatorResponse:
-    docs: Confirmation response returned after successful deletion.
-    properties:
-      message:
-        type: string
-        docs: Always `Evaluator successfully deleted`.
-
   Evaluator:
     docs: |
       One evaluator that can be used for scoring.

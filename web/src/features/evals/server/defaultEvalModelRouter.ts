@@ -4,7 +4,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod";
-import { findDefaultModelEvalTemplateIds } from "./evaluatorRepository";
+import { findDefaultModelEvalTemplateIds } from "./defaultModelEvalTemplateRepository";
 import {
   EvaluatorBlockReason,
   ZodModelConfig,
