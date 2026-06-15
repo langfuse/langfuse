@@ -643,11 +643,18 @@ export function SearchComposer({
             target.endContainer,
             target.endOffset,
           );
-          applyTextDeletion({
-            from: Math.min(from, to),
-            to: Math.max(from, to),
-          });
-          return;
+          // The browser's target range can span a zero-width WORD_JOINER (the
+          // caret sits just after a token's trailing joiner — reachable with
+          // ArrowRight or a click past the end). That maps to an EMPTY logical
+          // range, so applying it would be a silent no-op and the delete would
+          // look stuck. Fall through to the logical caret delete in that case.
+          if (from !== to) {
+            applyTextDeletion({
+              from: Math.min(from, to),
+              to: Math.max(from, to),
+            });
+            return;
+          }
         }
         const range = deletionRange(current, selection, type);
         if (range !== null) applyTextDeletion(range);
@@ -890,6 +897,11 @@ export function SearchComposer({
       caret === draft.length &&
       draft.length > 0
     ) {
+      // Keep the caret at the logical end rather than letting it drift across
+      // the token's trailing zero-width WORD_JOINER — crossing it looks like a
+      // dead first keypress ("ArrowRight only works the second time") and lands
+      // the caret in the after-joiner spot that confuses backspace targeting.
+      event.preventDefault();
       setAppendIntent(true);
       setAutocompleteOpen(true);
       setHighlightedOptionId(null);
