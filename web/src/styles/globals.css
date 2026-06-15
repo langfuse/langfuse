@@ -32,11 +32,11 @@
   --color-accent-light-blue: hsl(var(--accent-light-blue));
   --color-accent-dark-blue: hsl(var(--accent-dark-blue));
 
-  /* Search-bar query syntax highlighting (key:value token parts). */
+  /* Search-bar query syntax highlighting (key:value token parts). Operators
+     (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
   --color-qlang-field: hsl(var(--qlang-field));
   --color-qlang-value: hsl(var(--qlang-value));
   --color-qlang-number: hsl(var(--qlang-number));
-  --color-qlang-operator: hsl(var(--qlang-operator));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
   --color-border: hsl(var(--border));
@@ -218,13 +218,15 @@
     --accent-light-blue: 251 95.2% 91.8%;
     --accent-dark-blue: 224 76.3% 38%;
 
-    /* Search-bar query syntax highlighting. Scoped to the filter grammar
-       (key:value pills) — NOT a global palette. Retune freely; a designer can
-       own these later. Values from the langfuse-search-bar prototype. */
+    /* Search-bar query syntax highlighting — a DELIBERATE editor-style syntax
+       theme (like a code editor's theme), intentionally its own thing rather
+       than the app palette: field=violet, value=green, number=orange,
+       keyword=blue. Scoped to the filter grammar (key:value pills); retune
+       freely, a designer can own these later. Operators reuse muted-foreground.
+       Values from the langfuse-search-bar prototype. */
     --qlang-field: 262 60% 47%;
     --qlang-value: 152 60% 30%;
     --qlang-number: 24 75% 42%;
-    --qlang-operator: 215 16% 47%;
     --qlang-keyword: 221 83% 53%;
 
     --radius: 0.5rem;
@@ -331,7 +333,6 @@
     --qlang-field: 255 92% 76%;
     --qlang-value: 158 64% 52%;
     --qlang-number: 27 96% 61%;
-    --qlang-operator: 215 20% 65%;
     --qlang-keyword: 213 94% 68%;
 
     --radius: 0.5rem;
