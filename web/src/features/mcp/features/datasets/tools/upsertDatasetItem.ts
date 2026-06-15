@@ -1,6 +1,7 @@
 import { createDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { PostDatasetItemsV1Response } from "@/src/features/public-api/types/datasets";
 import { defineTool } from "../../../core/define-tool";
+import { buildDatasetItemUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { PostDatasetItemMcpInput } from "../schema";
 
@@ -21,7 +22,16 @@ export const [upsertDatasetItemTool, handleUpsertDatasetItem] = defineTool({
           auditScope: context,
         });
 
-        return PostDatasetItemsV1Response.parse(result);
+        const datasetItem = PostDatasetItemsV1Response.parse(result);
+
+        return {
+          ...datasetItem,
+          url: buildDatasetItemUrl({
+            projectId: context.projectId,
+            datasetId: input.datasetId,
+            datasetItemId: datasetItem.id,
+          }),
+        };
       },
     }),
   destructiveHint: true,
