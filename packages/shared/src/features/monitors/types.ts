@@ -258,14 +258,8 @@ export const MonitorSchema = z.object({
   // Monitor Config
   window: MonitorWindowSchema,
   thresholdOperator: MonitorThresholdOperatorSchema,
-  alertThreshold: z.preprocess(
-    (v: unknown) => (typeof v === "string" && v !== "" ? Number(v) : v),
-    z.number({ message: ErrorAlertThresholdRequired }),
-  ),
-  warningThreshold: z.preprocess(
-    (v: unknown) => (typeof v === "string" ? (v === "" ? null : Number(v)) : v),
-    z.number().nullable(),
-  ),
+  alertThreshold: z.number({ message: ErrorAlertThresholdRequired }),
+  warningThreshold: z.number().nullable(),
   noData: MonitorNoDataSchema.default({
     mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO,
   }),

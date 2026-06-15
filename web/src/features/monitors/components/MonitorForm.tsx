@@ -646,14 +646,15 @@ export const MonitorForm = ({
                         </span>
                         <FormControl>
                           <Input
-                            type="text"
-                            inputMode="decimal"
+                            type="number"
                             className="flex-1"
                             placeholder="0"
                             value={field.value ?? ""}
                             onChange={(e) => {
                               const raw = e.target.value;
-                              field.onChange(raw === "" ? undefined : raw);
+                              field.onChange(
+                                raw === "" ? undefined : Number(raw),
+                              );
                             }}
                             disabled={!hasAccess}
                           />
@@ -691,14 +692,13 @@ export const MonitorForm = ({
                         </span>
                         <FormControl>
                           <Input
-                            type="text"
-                            inputMode="decimal"
+                            type="number"
                             className="flex-1"
                             placeholder="optional"
                             value={field.value ?? ""}
                             onChange={(e) => {
                               const raw = e.target.value;
-                              field.onChange(raw === "" ? null : raw);
+                              field.onChange(raw === "" ? null : Number(raw));
                             }}
                             disabled={!hasAccess}
                           />
