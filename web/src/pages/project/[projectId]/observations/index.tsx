@@ -11,12 +11,19 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 
 export default function Generations() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled, isInitializing } = useV4Beta();
   const { project } = useQueryProject();
+  // The header-actions slot only has a consumer when the bar is actually
+  // active (admin + project opted in), so gate it the same way the table gates
+  // searchBarMode — otherwise it's a dead empty node in the header.
+  const { isEnabled: searchBarEnabled, canToggle: canUseSearchBar } =
+    useSearchBarEnabled();
+  const searchBarActive = isBetaEnabled && searchBarEnabled && canUseSearchBar;
   // Host for the events table's time-range + refresh controls, rendered into
   // the page header (which is otherwise under-utilized). The events table
   // portals into this node when the search bar is active.
@@ -51,7 +58,7 @@ export default function Generations() {
             "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        actionButtonsRight: isBetaEnabled ? (
+        actionButtonsRight: searchBarActive ? (
           <div ref={setHeaderActions} className="flex items-center gap-2" />
         ) : undefined,
         tabsProps:

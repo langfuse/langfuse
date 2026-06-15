@@ -58,6 +58,10 @@ const LISTBOX_ID = "search-bar-listbox";
 // reaches the model or clipboard.
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
+// Stable empty recents reference so the plan memo doesn't churn when recents
+// are intentionally suppressed (popover closed or append mode).
+const NO_RECENTS: string[] = [];
+
 type EditorMode = "rich" | "plain";
 type LogicalRange = { start: number; end: number };
 
@@ -317,13 +321,25 @@ export function SearchComposer({
     [observed],
   );
 
+  // Read recents only while the popover is open (avoids a synchronous
+  // localStorage read on every keystroke/selection render), and not in append
+  // mode — a recent is a complete query, not a token to append, so showing
+  // them there would let a pick silently replace the in-progress draft.
+  const recents = React.useMemo(
+    () =>
+      autocompleteOpen && !appendIntent
+        ? getRecentSearches(projectId)
+        : NO_RECENTS,
+    [autocompleteOpen, appendIntent, projectId],
+  );
+
   const plan: CompletionPlan | null =
     mode === "rich" && autocompleteOpen && selectionCollapsed
       ? planInputCompletions({
           input: appendIntent ? "" : draft,
           caret: appendIntent ? 0 : Math.min(caret, draft.length),
           observed,
-          recents: getRecentSearches(projectId),
+          recents,
           currentQueryText: draft,
         })
       : null;
