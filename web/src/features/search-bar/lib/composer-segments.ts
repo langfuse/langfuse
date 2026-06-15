@@ -227,8 +227,41 @@ export function deriveComposerSegments(
     });
   }
 
+  const coalesced = coalesceFreeText(segments, draftText);
   cacheKey = draftText;
   cacheScoreTypes = scoreTypes;
-  cacheVal = segments;
-  return segments;
+  cacheVal = coalesced;
+  return coalesced;
+}
+
+// Contiguous free-text words are ONE phrase semantically: they lower to a
+// single `searchQuery` and the backend matches them as a contiguous substring
+// (ILIKE %phrase%), not as independent AND terms. So `abc abc abc` must read as
+// one chip, not three identical blocks. Merge runs of adjacent free-text
+// segments (the lexer only separates them by whitespace) into a single span
+// covering the whole phrase, internal spaces included.
+function coalesceFreeText(
+  segments: ComposerSegment[],
+  text: string,
+): ComposerSegment[] {
+  const out: ComposerSegment[] = [];
+  for (const seg of segments) {
+    const prev = out[out.length - 1];
+    if (seg.kind === "freeText" && prev?.kind === "freeText") {
+      const from = prev.from;
+      const to = seg.to;
+      const raw = text.slice(from, to);
+      out[out.length - 1] = {
+        id: segmentId("freeText", { from, to }, raw),
+        kind: "freeText",
+        from,
+        to,
+        raw,
+        editable: true,
+      };
+      continue;
+    }
+    out.push(seg);
+  }
+  return out;
 }

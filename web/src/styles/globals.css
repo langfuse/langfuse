@@ -35,6 +35,7 @@
   /* Search-bar query syntax highlighting (key:value token parts). */
   --color-qlang-field: hsl(var(--qlang-field));
   --color-qlang-value: hsl(var(--qlang-value));
+  --color-qlang-number: hsl(var(--qlang-number));
   --color-qlang-operator: hsl(var(--qlang-operator));
   --color-qlang-keyword: hsl(var(--qlang-keyword));
 
@@ -222,6 +223,7 @@
        own these later. Values from the langfuse-search-bar prototype. */
     --qlang-field: 262 60% 47%;
     --qlang-value: 152 60% 30%;
+    --qlang-number: 24 75% 42%;
     --qlang-operator: 215 16% 47%;
     --qlang-keyword: 221 83% 53%;
 
@@ -328,6 +330,7 @@
        key/value read against the dark surface. See :root for the contract. */
     --qlang-field: 255 92% 76%;
     --qlang-value: 158 64% 52%;
+    --qlang-number: 27 96% 61%;
     --qlang-operator: 215 20% 65%;
     --qlang-keyword: 213 94% 68%;
 

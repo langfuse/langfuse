@@ -1192,11 +1192,10 @@ export function SearchComposer({
         onMouseLeave={() => setHoveredTokenId(null)}
         className={cn(
           // Prominent primary control. Block (not flex) so inline pills never
-          // break across a wrap; tight vertical padding keeps the frame thin
-          // around the (chunkier) pills, py centers a single line at min-h-9
-          // (aligns with the adjacent 36px controls) and the box grows when
-          // wrapped.
-          "border-input bg-background relative min-h-9 rounded-md border px-3 py-1 pr-16",
+          // break across a wrap. Balanced padding: a small, even gutter on all
+          // sides (the left no longer dwarfs the inter-pill gap and top), py
+          // centers a single line near min-h-9 and the box grows when wrapped.
+          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5 pr-16",
           "focus-within:ring-ring focus-within:ring-1",
           showGlobalDiagnostics &&
             "border-destructive focus-within:ring-destructive/40",

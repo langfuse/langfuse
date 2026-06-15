@@ -30,13 +30,13 @@ export const composerTokenVariants = cva("max-w-full", {
   variants: {
     kind: {
       filter:
-        "mr-0.5 inline rounded border px-1.5 py-1 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
+        "mr-1 inline rounded border px-1.5 py-1 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
       freeText:
-        "mr-0.5 inline rounded border px-1.5 py-1 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
+        "mr-1 inline rounded border px-1.5 py-1 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
       operator: "font-semibold uppercase text-qlang-keyword",
       paren: "text-qlang-operator",
       invalid:
-        "mr-0.5 inline rounded border border-dashed px-1.5 py-1 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
+        "mr-1 inline rounded border border-dashed px-1.5 py-1 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
     },
   },
   defaultVariants: { kind: "freeText" },
@@ -58,6 +58,12 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
   const body = segment.negated ? raw.slice(1) : raw;
   const colon = body.indexOf(":");
   const value = colon === -1 ? "" : body.slice(colon + 1);
+  // Numeric values (latency:>2, totalTokens:100, totalCost:0.5) read as number
+  // literals, not strings — color them distinctly. Grouped/text/boolean values
+  // stay green.
+  const numeric =
+    segment.values.length > 0 &&
+    segment.values.every((v) => /^-?\d+(\.\d+)?$/.test(v.trim()));
   return (
     <>
       {dash && <span className="text-qlang-operator">-</span>}
@@ -67,7 +73,10 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
       <span data-part="operator" className="text-qlang-operator">
         :
       </span>
-      <span data-part="value" className="text-qlang-value">
+      <span
+        data-part="value"
+        className={numeric ? "text-qlang-number" : "text-qlang-value"}
+      >
         {value}
       </span>
     </>
@@ -101,15 +110,23 @@ export function ComposerTokens({
       segment.kind === "invalid" && !showDiagnostics
         ? "freeText"
         : segment.kind;
+    // Invalid tokens get the styled per-token error tooltip (a positioned
+    // overlay in SearchComposer), not the native browser title. Free text is a
+    // full-text search — say so on hover so a standalone text chip explains
+    // itself instead of looking like a stray block.
+    const title =
+      segment.kind === "invalid"
+        ? undefined
+        : segment.kind === "freeText"
+          ? `Full-text search — matches results containing "${segment.raw}". Searches id, name and user id by default; add in:input, in:output or in:content to change scope.`
+          : segment.raw;
     out.push(
       <span
         key={segment.id}
         data-testid="search-bar-token"
         data-kind={visibleKind}
         data-segment-id={segment.id}
-        // Invalid tokens get the styled per-token error tooltip (a positioned
-        // overlay in SearchComposer), not the native browser title.
-        title={segment.kind === "invalid" ? undefined : segment.raw}
+        title={title}
         className={composerTokenVariants({ kind: visibleKind })}
       >
         {segment.kind === "filter" ? (
