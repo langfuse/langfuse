@@ -50,6 +50,10 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
+  const showSearchBarSettings = useHasProjectAccess({
+    projectId: project?.id,
+    scope: "project:update",
+  });
 
   if (!project || !organization || !router.query.projectId) {
     return [];
@@ -62,6 +66,7 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showRetentionSettings,
     showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
+    showSearchBarSettings,
   });
 }
 
@@ -72,6 +77,7 @@ export const getProjectSettingsPages = ({
   showRetentionSettings,
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
+  showSearchBarSettings,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
   organization: { id: string; name: string; metadata: Record<string, unknown> };
@@ -79,6 +85,7 @@ export const getProjectSettingsPages = ({
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
   showProtectedLabelsSettings: boolean;
+  showSearchBarSettings: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
@@ -89,15 +96,14 @@ export const getProjectSettingsPages = ({
       "delete",
       "transfer",
       "ownership",
-      "search bar",
-      "filters",
+      ...(showSearchBarSettings ? ["search bar", "filters"] : []),
     ],
     content: (
       <div className="flex flex-col gap-6">
         <HostNameProject />
         <RenameProject />
         {showRetentionSettings && <ConfigureRetention />}
-        <SearchBarSettings />
+        {showSearchBarSettings && <SearchBarSettings />}
         <div>
           <Header title="Debug Information" />
           <JSONView

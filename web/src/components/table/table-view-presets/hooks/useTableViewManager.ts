@@ -25,7 +25,7 @@ interface TableStateUpdaters {
   setColumnVisibility: (columnVisibility: VisibilityState) => void;
   setOrderBy?: (orderBy: OrderByState) => void;
   setFilters?: (filters: FilterState) => void;
-  setSearchQuery?: (searchQuery: string) => void;
+  setSearchQuery?: (searchQuery: string | null) => void;
   setExpandedFilters?: (expandedFilters: string[]) => void;
 }
 
@@ -304,9 +304,8 @@ export function useTableViewManager({
         }
       }
 
-      // Handle search query (only set if non-empty to avoid use-query-params batching conflicts)
-      if (viewData.searchQuery && setSearchQueryRef.current) {
-        setSearchQueryRef.current(viewData.searchQuery);
+      if (setSearchQueryRef.current) {
+        setSearchQueryRef.current(viewData.searchQuery ?? null);
       }
 
       // Apply column order and visibility without validation since UI will handle gracefully

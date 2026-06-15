@@ -1,9 +1,10 @@
-// The sticky search-bar row: the query composer at (near) full width. The
-// time-range + refresh controls normally live in the page header (portaled by
-// EventsTable). When the host page provides no header slot, EventsTable passes
-// them here as `inlineControls` so they always render somewhere — the row then
-// lays out composer + controls side by side. Left padding matches the toolbar
-// row below so the bar's left edge aligns with it.
+// Search-bar row: the query composer at (near) full width. EventsTable owns the
+// sticky stack around this row + the toolbar so the toolbar cannot scroll under
+// the composer. Time-range + refresh controls normally live in the page header
+// (portaled by EventsTable). When the host page provides no header slot,
+// EventsTable passes them here as `inlineControls` so they always render
+// somewhere. Left padding matches the toolbar row below so the bar's left edge
+// aligns with it.
 
 import type { ReactNode } from "react";
 
@@ -28,7 +29,7 @@ export function EventsSearchBarRow({
   inlineControls?: ReactNode;
 }) {
   return (
-    <div className="bg-background sticky top-0 z-30 flex items-start gap-2 px-2 pt-2 pb-1">
+    <div className="flex items-start gap-2 px-2 pt-2 pb-1">
       <div className="min-w-0 flex-1">
         <SearchBarStoreProvider store={store} commit={commit}>
           <SearchComposer projectId={projectId} observed={observed} />

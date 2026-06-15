@@ -11,6 +11,8 @@ import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBa
 export function SearchBarSettings() {
   const { isEnabled, canToggle, setEnabled, isLoading } = useSearchBarEnabled();
 
+  if (!canToggle) return null;
+
   return (
     <div id="search-bar-settings">
       <Header title="Filter Search Bar (Beta)" />
@@ -25,15 +27,14 @@ export function SearchBarSettings() {
               level:ERROR -env:dev latency:&gt;2
             </code>
             ) with inline suggestions, alongside the existing filter sidebar —
-            the two stay in sync. Replaces only the toolbar search field.
-            Applies to all members of this project; existing filters keep
-            working. Visible to viewers who have the v4 beta enabled on their
-            account.
+            the two stay in sync. Replaces only the toolbar search field. During
+            beta it is visible to project admins/owners who have the v4 beta
+            enabled on their account; existing filters keep working.
           </span>
         </div>
         <Switch
           checked={isEnabled}
-          disabled={!canToggle || isLoading}
+          disabled={isLoading}
           onCheckedChange={(checked) => setEnabled(checked)}
           aria-label="Enable search bar"
         />

@@ -140,6 +140,7 @@ interface DataTableToolbarProps<TData, TValue> {
   viewConfig?: TableViewConfig;
   filterWithAI?: boolean;
   className?: string;
+  rowClassName?: string;
   viewModeToggle?: React.ReactNode;
 }
 
@@ -202,6 +203,7 @@ export function DataTableToolbar<TData, TValue>({
   multiSelect,
   environmentFilter,
   className,
+  rowClassName,
   orderByState,
   viewConfig,
   filterWithAI = false,
@@ -230,7 +232,12 @@ export function DataTableToolbar<TData, TValue>({
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
-      <div className="@container my-2 flex flex-wrap items-center gap-2">
+      <div
+        className={cn(
+          "@container my-2 flex flex-wrap items-center gap-2",
+          rowClassName,
+        )}
+      >
         {hasNewSidebar && <FilterToggleButton filterState={filterState} />}
         {!!columnVisibility && !!columnOrder && !!viewConfig && (
           <TableViewPresetsDrawer

@@ -982,7 +982,7 @@ export function SearchComposer({
 
   const onBlur = () => {
     setEditorFocused(false);
-    if (!valid) storeApi.getState().actions.revealInvalid();
+    commit();
     setAppendIntent(false);
     setAutocompleteOpen(false);
   };

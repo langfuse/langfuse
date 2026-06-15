@@ -27,7 +27,7 @@ export function useSearchBarEnabled() {
 
   const setEnabled = useCallback(
     (enabled: boolean) => {
-      if (!project) return;
+      if (!project || !canToggle) return;
       mutation.mutate(
         { projectId: project.id, enabled },
         {
@@ -39,7 +39,7 @@ export function useSearchBarEnabled() {
         },
       );
     },
-    [mutation, project, updateSession],
+    [canToggle, mutation, project, updateSession],
   );
 
   return {
