@@ -120,7 +120,11 @@ export async function markDatasetMediaUploadComplete(props: {
       `Media asset ${props.mediaId} not found in project ${props.projectId}`,
     );
   }
-  if (media.uploadHttpStatus === 200 || media.uploadHttpStatus === 201) {
+  const hasCompletedUpload =
+    media.uploadHttpStatus === 200 || media.uploadHttpStatus === 201;
+  const isCompletingUpload =
+    props.uploadHttpStatus === 200 || props.uploadHttpStatus === 201;
+  if (hasCompletedUpload && !isCompletingUpload) {
     throw new InvalidRequestError(
       `Media asset ${props.mediaId} already has a completed upload`,
     );

@@ -8,6 +8,12 @@ const SUPPORTED_CONTENT_TYPES = new Set<string>(
   Object.values(MediaContentType),
 );
 
+// Browser hashing uses file.arrayBuffer(), so keep this below the server-side
+// media limit to avoid tab OOMs before the upload URL request can reject.
+const MAX_BROWSER_MEDIA_UPLOAD_SIZE_MB = 100;
+const MAX_BROWSER_MEDIA_UPLOAD_SIZE_BYTES =
+  MAX_BROWSER_MEDIA_UPLOAD_SIZE_MB * 1024 * 1024;
+
 export type PendingMediaUpload = { id: string; fileName: string };
 
 async function sha256Base64(buffer: ArrayBuffer): Promise<string> {
@@ -47,6 +53,14 @@ export function useDatasetItemMediaUpload({
         showErrorToast(
           "Unsupported file type",
           `${file.type || "Unknown type"} is not supported for media uploads.`,
+        );
+        return null;
+      }
+
+      if (file.size > MAX_BROWSER_MEDIA_UPLOAD_SIZE_BYTES) {
+        showErrorToast(
+          "File too large",
+          `Maximum file size is ${MAX_BROWSER_MEDIA_UPLOAD_SIZE_MB}MB`,
         );
         return null;
       }

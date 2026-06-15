@@ -285,6 +285,35 @@ describe("Dataset item media tRPC procedures", () => {
     expect(media?.uploadHttpStatus).toBe(200);
   });
 
+  it("allows idempotent successful upload completion", async () => {
+    const { mediaId } = await caller.datasets.getItemMediaUploadUrl({
+      projectId,
+      contentType: MediaContentType.PNG,
+      contentLength: 1234,
+      sha256Hash: validSha256(),
+    });
+    await caller.datasets.markItemMediaUploadComplete({
+      projectId,
+      mediaId,
+      uploadedAt: new Date(),
+      uploadHttpStatus: 200,
+    });
+
+    await expect(
+      caller.datasets.markItemMediaUploadComplete({
+        projectId,
+        mediaId,
+        uploadedAt: new Date(),
+        uploadHttpStatus: 200,
+      }),
+    ).resolves.toEqual({ success: true });
+
+    const media = await prisma.media.findUnique({
+      where: { projectId_id: { projectId, id: mediaId } },
+    });
+    expect(media?.uploadHttpStatus).toBe(200);
+  });
+
   // datasets:CUD must not be usable to overwrite an already-successful upload
   // (e.g. flip a trace media reference to a failed status).
   it("rejects marking an already-completed upload", async () => {
