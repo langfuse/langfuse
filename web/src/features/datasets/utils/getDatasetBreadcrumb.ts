@@ -23,7 +23,7 @@ export const getDatasetBreadcrumb = (
       ? [
           {
             name: datasetDisplayName,
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${encodeURIComponent(datasetId)}/items`,
           },
         ]
       : []),
