@@ -1407,6 +1407,9 @@ model DatasetItemMedia {
   createdAt            DateTime @default(now()) @map("created_at")
   updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId              String   @map("media_id")
+  // dataset items cascade on dataset deletion, but these rows have no FK;
+  // datasetId lets the dataset-delete worker clean them up directly
+  datasetId            String   @map("dataset_id")
   datasetItemId        String   @map("dataset_item_id")
   datasetItemValidFrom DateTime @map("dataset_item_valid_from")
   // dataset item field containing the reference: input | expected_output | metadata
@@ -1418,6 +1421,7 @@ model DatasetItemMedia {
 
   @@unique([projectId, datasetItemId, datasetItemValidFrom, field, jsonPath], map: "dataset_item_media_item_version_field_path_key")
   @@index([projectId, mediaId])
+  @@index([projectId, datasetId])
   @@map("dataset_item_media")
 }
 

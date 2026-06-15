@@ -278,6 +278,8 @@ describe("ProjectDeletionProcessingJob", () => {
         bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
+        // dataset-retained media must still be deleted with the project
+        retainedByDatasetAt: new Date(),
       },
     });
 
@@ -298,6 +300,19 @@ describe("ProjectDeletionProcessingJob", () => {
         observationId: randomUUID(),
         mediaId,
         field: "test",
+      },
+    });
+    await prisma.datasetItemMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        datasetId: randomUUID(),
+        datasetItemId: randomUUID(),
+        datasetItemValidFrom: new Date(),
+        mediaId,
+        field: "input",
+        jsonPath: "$['image']",
+        referenceString: `@@@langfuseMedia:type=text/plain|id=${mediaId}|source=bytes@@@`,
       },
     });
 
@@ -323,6 +338,10 @@ describe("ProjectDeletionProcessingJob", () => {
       where: { mediaId },
     });
     expect(observationMedia).toBeNull();
+    const datasetItemMedia = await prisma.datasetItemMedia.findFirst({
+      where: { mediaId },
+    });
+    expect(datasetItemMedia).toBeNull();
   });
 
   describe("delete functions with hasAny probe", () => {

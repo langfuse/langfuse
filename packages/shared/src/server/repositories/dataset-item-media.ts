@@ -1,7 +1,11 @@
 import { prisma } from "../../db";
 import { type DatasetItemMediaField } from "../../domain";
+import { env } from "../../env";
 import { InvalidRequestError } from "../../errors";
 import { findMediaReferences } from "../../utils/mediaReferences";
+import { logger } from "../logger";
+import { releaseDatasetMedia } from "../media-deletion";
+import { getS3MediaStorageClient } from "../s3";
 
 type DatasetItemMediaValues = {
   input?: unknown;
@@ -10,6 +14,7 @@ type DatasetItemMediaValues = {
 };
 
 type DatasetItemMediaSource = DatasetItemMediaValues & {
+  datasetId: string;
   datasetItemId: string;
   datasetItemValidFrom: Date;
 };
@@ -78,13 +83,15 @@ export async function validateDatasetItemMediaReferences(props: {
 export async function syncDatasetItemMedia(props: {
   projectId: string;
   items: DatasetItemMediaSource[];
-  replaceExisting?: boolean;
+  // true for in-place (STATEFUL) updates, false when inserting a fresh version
+  replaceExisting: boolean;
 }) {
   const { projectId, items, replaceExisting } = props;
 
   const rows = items.flatMap((item) =>
     collectMediaReferences(item).map((reference) => ({
       projectId,
+      datasetId: item.datasetId,
       datasetItemId: item.datasetItemId,
       datasetItemValidFrom: item.datasetItemValidFrom,
       ...reference,
@@ -94,6 +101,24 @@ export async function syncDatasetItemMedia(props: {
   // Hot path: items without media need no queries. With replaceExisting we
   // still delete so references removed by the update are unlinked.
   if (rows.length === 0 && !replaceExisting) return;
+
+  // For in-place (STATEFUL) updates the previously referenced media must be
+  // released if the update dropped it; capture it before deleting the rows.
+  const priorMediaIds = replaceExisting
+    ? (
+        await prisma.datasetItemMedia.findMany({
+          select: { mediaId: true },
+          where: {
+            projectId,
+            OR: items.map((item) => ({
+              datasetItemId: item.datasetItemId,
+              datasetItemValidFrom: item.datasetItemValidFrom,
+            })),
+          },
+          distinct: ["mediaId"],
+        })
+      ).map((row) => row.mediaId)
+    : [];
 
   await prisma.$transaction(async (tx) => {
     if (replaceExisting) {
@@ -123,4 +148,22 @@ export async function syncDatasetItemMedia(props: {
       });
     }
   });
+
+  // Best-effort release of media the update dropped: the item write is already
+  // committed, so a cleanup failure is logged and retried on the next change.
+  const bucket = env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET;
+  if (priorMediaIds.length > 0 && bucket) {
+    try {
+      await releaseDatasetMedia({
+        projectId,
+        mediaIds: priorMediaIds,
+        storageClient: getS3MediaStorageClient(bucket),
+      });
+    } catch (error) {
+      logger.error(
+        `Failed to release orphaned dataset media in project ${projectId}`,
+        error,
+      );
+    }
+  }
 }

@@ -251,6 +251,70 @@ describe("trace deletion", () => {
     expect(traceMedia).toHaveLength(1);
   });
 
+  it("should NOT delete S3 media files for deleted traces if referenced by a dataset item", async () => {
+    // Setup
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    await createTracesCh([createTrace({ id: traceId, project_id: projectId })]);
+
+    const fileType = "text/plain";
+    await mediaStorageService.uploadFile({
+      fileName: `${projectId}/trace-${traceId}.txt`,
+      fileType,
+      data: "Hello, world!",
+    });
+
+    const mediaId = randomUUID();
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath: `${projectId}/trace-${traceId}.txt`,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: fileType,
+        contentLength: 0,
+        retainedByDatasetAt: new Date(),
+      },
+    });
+    await prisma.traceMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        traceId,
+        mediaId,
+        field: "test",
+      },
+    });
+    await prisma.datasetItemMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        datasetId: randomUUID(),
+        datasetItemId: randomUUID(),
+        datasetItemValidFrom: new Date(),
+        mediaId,
+        field: "input",
+        jsonPath: "$['image']",
+        referenceString: `@@@langfuseMedia:type=text/plain|id=${mediaId}|source=bytes@@@`,
+      },
+    });
+
+    // When
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    // Then: trace link removed, but media and S3 file survive
+    await expect(
+      prisma.traceMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      prisma.media.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(1);
+    const files = await mediaStorageService.listFiles(projectId);
+    expect(files).toHaveLength(1);
+  });
+
   it("should delete S3 event files for deleted traces", async () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();

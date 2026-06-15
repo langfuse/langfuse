@@ -102,6 +102,12 @@ const deleteMediaItemsForTraces = async (
           WHERE om.project_id = m.project_id
             AND om.media_id = m.id
         )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM dataset_item_media dim
+          WHERE dim.project_id = m.project_id
+            AND dim.media_id = m.id
+        )
     `;
 
     if (orphanedMedia.length > 0) {

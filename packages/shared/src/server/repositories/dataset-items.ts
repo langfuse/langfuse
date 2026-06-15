@@ -454,6 +454,7 @@ export async function upsertDatasetItem(
     projectId: props.projectId,
     items: [
       {
+        datasetId: dataset.id,
         datasetItemId: writtenItem.id,
         datasetItemValidFrom: writtenItem.validFrom,
         input: writtenItem.input,
@@ -499,6 +500,20 @@ export async function deleteDatasetItem(props: {
             projectId: props.projectId,
           },
         },
+      });
+      // Drop the deleted version's media rows (a media-less item produces
+      // none) and release media it orphaned; media referenced elsewhere is
+      // kept. STATEFUL items have a single version, so this covers all rows.
+      await syncDatasetItemMedia({
+        projectId: props.projectId,
+        items: [
+          {
+            datasetId: item.datasetId,
+            datasetItemId: item.id,
+            datasetItemValidFrom: item.validFrom,
+          },
+        ],
+        replaceExisting: true,
       });
     },
     [Implementation.VERSIONED]: async () => {
@@ -758,12 +773,15 @@ export async function createManyDatasetItems(props: {
     await syncDatasetItemMedia({
       projectId: props.projectId,
       items: preparedItems.map((item) => ({
+        datasetId: item.datasetId,
         datasetItemId: item.id,
         datasetItemValidFrom: newValidFrom,
         input: item.input,
         expectedOutput: item.expectedOutput,
         metadata: item.metadata,
       })),
+      // freshly inserted rows, nothing to replace
+      replaceExisting: false,
     });
   }
 

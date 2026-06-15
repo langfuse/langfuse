@@ -1,6 +1,6 @@
 import chunk from "lodash/chunk";
 
-import { prisma } from "../db";
+import { prisma, Prisma } from "../db";
 
 const BATCH_SIZE = 10_000;
 
@@ -25,6 +25,8 @@ export async function findAllMediaByProjectId(params: {
 
 /**
  * Find expired media files for a project (for retention-based cleanup).
+ * Media referenced by dataset items is excluded; it is only deleted with its
+ * dataset or project.
  */
 export async function findExpiredMediaByProjectId(params: {
   projectId: string;
@@ -35,6 +37,7 @@ export async function findExpiredMediaByProjectId(params: {
     where: {
       projectId: params.projectId,
       createdAt: { lte: params.cutoffDate },
+      retainedByDatasetAt: null,
     },
   });
 }
@@ -58,6 +61,11 @@ export async function deleteMediaLinkRowsByProjectId(params: {
       },
     }),
     prisma.observationMedia.deleteMany({
+      where: {
+        projectId: params.projectId,
+      },
+    }),
+    prisma.datasetItemMedia.deleteMany({
       where: {
         projectId: params.projectId,
       },
@@ -103,6 +111,12 @@ export async function deleteMediaFiles(params: {
           mediaId: { in: mediaIds },
         },
       }),
+      prisma.datasetItemMedia.deleteMany({
+        where: {
+          projectId,
+          mediaId: { in: mediaIds },
+        },
+      }),
       prisma.media.deleteMany({
         where: {
           id: { in: mediaIds },
@@ -113,6 +127,102 @@ export async function deleteMediaFiles(params: {
   }
 
   return mediaFiles.length;
+}
+
+/**
+ * Release media that may have lost its last dataset reference. For each given
+ * mediaId with no remaining dataset_item_media row: media still referenced by
+ * a trace or observation is unmarked as dataset-retained (retention takes over
+ * again), media with no references at all is deleted from S3 and Postgres.
+ * Media still referenced by another dataset item is left untouched.
+ *
+ * Call after the relevant dataset_item_media rows have been deleted.
+ */
+export async function releaseDatasetMedia(params: {
+  projectId: string;
+  mediaIds: string[];
+  storageClient: StorageClient;
+}): Promise<void> {
+  const { projectId, mediaIds, storageClient } = params;
+
+  for (const batch of chunk(mediaIds, 1000)) {
+    if (batch.length === 0) continue;
+
+    // Media may still be referenced by items of other datasets (content
+    // dedupe) — only release media with no remaining dataset references.
+    const releasableMedia = await prisma.$queryRaw<
+      { id: string; bucketPath: string; hasTraceReferences: boolean }[]
+    >`
+      SELECT
+        m.id,
+        m.bucket_path AS "bucketPath",
+        (
+          EXISTS (
+            SELECT 1 FROM trace_media tm
+            WHERE tm.project_id = m.project_id AND tm.media_id = m.id
+          )
+          OR EXISTS (
+            SELECT 1 FROM observation_media om
+            WHERE om.project_id = m.project_id AND om.media_id = m.id
+          )
+        ) AS "hasTraceReferences"
+      FROM media m
+      WHERE
+        m.project_id = ${projectId}
+        AND m.id IN (${Prisma.join(batch)})
+        AND NOT EXISTS (
+          SELECT 1 FROM dataset_item_media dim
+          WHERE dim.project_id = m.project_id AND dim.media_id = m.id
+        )
+    `;
+    if (releasableMedia.length === 0) continue;
+
+    await prisma.media.updateMany({
+      where: {
+        projectId,
+        id: {
+          in: releasableMedia
+            .filter((media) => media.hasTraceReferences)
+            .map((media) => media.id),
+        },
+      },
+      data: { retainedByDatasetAt: null },
+    });
+
+    await deleteMediaFiles({
+      projectId,
+      mediaFiles: releasableMedia.filter((media) => !media.hasTraceReferences),
+      storageClient,
+    });
+  }
+}
+
+/**
+ * Delete a dataset's media associations and release the referenced media (see
+ * releaseDatasetMedia).
+ */
+export async function deleteDatasetMediaByDatasetId(params: {
+  projectId: string;
+  datasetId: string;
+  storageClient: StorageClient;
+}): Promise<void> {
+  const { projectId, datasetId, storageClient } = params;
+
+  const referencedMedia = await prisma.datasetItemMedia.findMany({
+    select: { mediaId: true },
+    where: { projectId, datasetId },
+    distinct: ["mediaId"],
+  });
+
+  await prisma.datasetItemMedia.deleteMany({
+    where: { projectId, datasetId },
+  });
+
+  await releaseDatasetMedia({
+    projectId,
+    mediaIds: referencedMedia.map((row) => row.mediaId),
+    storageClient,
+  });
 }
 
 /**
