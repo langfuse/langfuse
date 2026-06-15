@@ -31,4 +31,25 @@ describe("removeToken — semantic preservation", () => {
     const text = "level:ERROR -env:dev";
     expect(removeToken(text, spanOf(text, "level:ERROR"))).toBe("-env:dev");
   });
+
+  // A coalesced free-text chip spans several text leaves; its × target span
+  // matches none of them exactly, so removal must drop the contained leaves.
+  it("removes a multi-word free-text chip as one unit", () => {
+    expect(
+      removeToken("refund policy", spanOf("refund policy", "refund policy")),
+    ).toBe("");
+    const text = "level:ERROR refund policy";
+    expect(removeToken(text, spanOf(text, "refund policy"))).toBe(
+      "level:ERROR",
+    );
+  });
+
+  // An invalid `-foo` free-text-negation chip: the × target token span includes
+  // the leading dash, but the inner text leaf's span does not — removal must
+  // still drop the whole token, not strip the dash and keep `foo`.
+  it("removes an invalid -word negation chip whole, not just the dash", () => {
+    expect(removeToken("-foo", spanOf("-foo", "-foo"))).toBe("");
+    const text = "level:ERROR -foo";
+    expect(removeToken(text, spanOf(text, "-foo"))).toBe("level:ERROR");
+  });
 });

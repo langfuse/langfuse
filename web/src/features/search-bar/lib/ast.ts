@@ -65,6 +65,11 @@ function spanEq(a: Span | undefined, b: Span): boolean {
   return a !== undefined && a.from === b.from && a.to === b.to;
 }
 
+/** True when span `a` is fully contained within span `b`. */
+function spanWithin(a: Span, b: Span): boolean {
+  return a.from >= b.from && a.to <= b.to;
+}
+
 /** Semantic equality — ignores spans, parens, rawKey/quoted presentation. */
 export function astEquals(a: ASTNode | null, b: ASTNode | null): boolean {
   if (a === null || b === null) return a === b;
@@ -109,6 +114,11 @@ export function removeNodeBySpan(node: ASTNode, target: Span): ASTNode | null {
   switch (node.kind) {
     case "filter":
     case "text":
+      // A leaf fully inside the target span is also removed: a coalesced
+      // free-text chip's span covers several text leaves (matching none
+      // exactly), and a `-foo` chip's target token span includes the leading
+      // dash while the inner text leaf's span does not.
+      if (ownSpan && spanWithin(ownSpan, target)) return null;
       return node;
     case "not": {
       const child = removeNodeBySpan(node.child, target);
