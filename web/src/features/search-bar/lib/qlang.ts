@@ -459,18 +459,21 @@ function parseGroupedValues(
         severity: "error",
         message: "Empty grouped value",
       });
-    } else if (indexOfOutsideQuotes(token.raw, ",") !== -1) {
+    } else {
       // A bare comma inside a group (`tags:(a,b)`) lexes as one token, so it
       // would otherwise become the literal value "a,b" with no diagnostic.
-      // Grouped values separate with uppercase OR/AND — flag it rather than
-      // match a tag that doesn't exist.
-      diagnostics.push({
-        from: span.from,
-        to: span.to,
-        severity: "error",
-        message: "Separate grouped values with uppercase OR or AND, not commas",
-      });
-    } else {
+      // Grouped values separate with uppercase OR/AND — flag it, but still push
+      // the value so parseTermNode doesn't stack a misleading "missing grouped
+      // value" on top of the comma error.
+      if (indexOfOutsideQuotes(token.raw, ",") !== -1) {
+        diagnostics.push({
+          from: span.from,
+          to: span.to,
+          severity: "error",
+          message:
+            "Separate grouped values with uppercase OR or AND, not commas",
+        });
+      }
       values.push(value);
     }
     expectValue = false;

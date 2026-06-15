@@ -6,7 +6,8 @@ import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBa
 /**
  * Project settings card: opt the project into the grammar search bar on the
  * observations table. Only project admins/owners (`project:update`) can flip
- * it; everyone else sees the current state read-only.
+ * it; the card is not rendered for other roles (the parent settings page gates
+ * it too).
  */
 export function SearchBarSettings() {
   const { isEnabled, canToggle, setEnabled, isLoading } = useSearchBarEnabled();

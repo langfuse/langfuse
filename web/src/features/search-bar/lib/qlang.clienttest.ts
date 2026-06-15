@@ -382,4 +382,12 @@ describe("validateQuery", () => {
     const long = `name:${"a".repeat(2100)}`;
     expect(validateQuery(long).valid).toBe(false);
   });
+
+  it("flags a bare comma in a group with a single diagnostic, not a doubled one", () => {
+    const errors = validateQuery("tags:(a,b)").diagnostics.filter(
+      (d) => d.severity === "error",
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.message).toMatch(/uppercase OR or AND/);
+  });
 });
