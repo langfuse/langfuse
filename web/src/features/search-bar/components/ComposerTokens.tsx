@@ -30,13 +30,13 @@ export const composerTokenVariants = cva("max-w-full", {
   variants: {
     kind: {
       filter:
-        "mr-0.5 inline rounded border px-1 py-0.5 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
+        "mr-0.5 inline rounded border px-1.5 py-1 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
       freeText:
-        "mr-0.5 inline rounded border px-1 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
+        "mr-0.5 inline rounded border px-1.5 py-1 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
       operator: "font-semibold uppercase text-muted-foreground",
       paren: "text-muted-foreground",
       invalid:
-        "mr-0.5 inline rounded border border-dashed px-1 py-0.5 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
+        "mr-0.5 inline rounded border border-dashed px-1.5 py-1 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
     },
   },
   defaultVariants: { kind: "freeText" },
