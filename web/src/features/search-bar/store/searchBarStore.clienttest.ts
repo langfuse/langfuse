@@ -6,7 +6,6 @@ describe("searchBarStore (draft-only)", () => {
     store.getState().actions.setDraft("level:ERROR");
     expect(store.getState().draft).toBe("level:ERROR");
     expect(store.getState().draftValid).toBe(true);
-    expect(store.getState().draftAst).not.toBeNull();
 
     store.getState().actions.setDraft("level:ERROR OR env:dev");
     expect(store.getState().draftValid).toBe(false);

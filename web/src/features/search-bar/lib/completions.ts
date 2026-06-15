@@ -813,7 +813,14 @@ export function planInputCompletions(
         : rankFilter(allFields, keyPart);
     const operators =
       colon === -1 ? rankFilter(OPERATOR_OPTIONS, tokenBody) : [];
-    const patterns = colon === -1 ? rankFilter(PATTERN_OPTIONS, tokenBody) : [];
+    const patterns =
+      colon === -1
+        ? rankFilter(PATTERN_OPTIONS, tokenBody).filter(
+            // The term already starts with `-`; the negation pattern carries
+            // its own `-`, so suggesting it would splice `--environment:`.
+            (p) => !(negated && p.id === "pat:negation"),
+          )
+        : [];
     // Free-text guidance: a bare word can become a scoped full-text search
     // ("how do I search inside input?" answered at the moment of typing).
     const searchScopes: CompletionOption[] =

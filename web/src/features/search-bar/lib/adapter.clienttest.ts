@@ -301,6 +301,19 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("rejects a comparison operator on a categorical score", () => {
+    // `feedback` is categorical → `scores.feedback:>0.8` would otherwise route
+    // to the numeric column (no data) and return an empty table with no error.
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(),
+      categoricalScoreNames: new Set<string>(["feedback"]),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+    };
+    const r = astToFilterState(parse("scores.feedback:>0.8").ast, scoreTypes);
+    expect(r.errors.length).toBeGreaterThan(0);
+  });
+
   it("rejects empty/whitespace numeric values instead of coercing to 0", () => {
     // Number("") and Number(" ") are both 0 (finite), so without an explicit
     // guard `latency:""` would silently filter for latency = 0.

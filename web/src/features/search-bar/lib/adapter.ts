@@ -655,17 +655,29 @@ function lowerScores(
     });
   };
 
+  // Route by observed score TYPE when we know it — a categorical score with
+  // numeric labels (e.g. a 1–5 rating) must hit the categorical column, not
+  // scores_avg, or it silently targets a column with no data. Comparisons only
+  // make sense on numeric scores, so reject them on a known-categorical score
+  // rather than letting the numeric branch target an empty column.
+  const scoreType = resolveScoreType(scoreTypes, level, key);
+  if (
+    scoreType === "categorical" &&
+    (isComparison(node.op) || node.op === "exact")
+  ) {
+    errors.push(
+      `${path} is categorical — comparison operators only apply to numeric scores`,
+    );
+    return;
+  }
+
   if (isComparison(node.op) || node.op === "exact") {
     lowerNumeric();
     return;
   }
 
-  // '=' default: route by observed score TYPE when we know it — a categorical
-  // score with numeric labels (e.g. a 1–5 rating) must hit the categorical
-  // column, not scores_avg, or it silently targets a column with no data. Only
-  // when the type is unknown ("both", or the score isn't observed yet) do we
-  // fall back to value syntax (all-numeric → numeric).
-  const scoreType = resolveScoreType(scoreTypes, level, key);
+  // '=' default: fall back to value syntax (all-numeric → numeric) only when
+  // the type is unknown ("both", or the score isn't observed yet).
   const allNumeric = node.values.every((v) => Number.isFinite(Number(v)));
   const useNumeric =
     scoreType === "numeric"

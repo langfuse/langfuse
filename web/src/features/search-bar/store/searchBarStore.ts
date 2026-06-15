@@ -12,7 +12,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { ScoreTypeContext } from "../lib/adapter";
-import type { ASTNode } from "../lib/ast";
 import { removeToken } from "../lib/edits";
 import { type Diagnostic } from "../lib/qlang";
 import { validateQuery } from "../lib/validate";
@@ -21,7 +20,6 @@ export type SearchBarStoreState = {
   /** Live editing buffer. */
   draft: string;
   /** Pure derivations of `draft`, cached on write to avoid re-parsing. */
-  draftAst: ASTNode | null;
   draftDiagnostics: Diagnostic[];
   draftValid: boolean;
   /**
@@ -69,7 +67,6 @@ export function createSearchBarStore(
       const res = validateQuery(next, resolveScoreTypes?.());
       set({
         draft: next,
-        draftAst: res.ast,
         draftDiagnostics: res.diagnostics,
         draftValid: res.valid,
         invalidRevealDraft: null,
@@ -78,7 +75,6 @@ export function createSearchBarStore(
 
     return {
       draft: "",
-      draftAst: null,
       draftDiagnostics: [],
       draftValid: true,
       invalidRevealDraft: null,
@@ -98,7 +94,6 @@ export function createSearchBarStore(
         revalidate: () => {
           const res = validateQuery(get().draft, resolveScoreTypes?.());
           set({
-            draftAst: res.ast,
             draftDiagnostics: res.diagnostics,
             draftValid: res.valid,
           });

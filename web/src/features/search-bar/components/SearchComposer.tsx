@@ -896,7 +896,9 @@ export function SearchComposer({
       return;
     }
 
-    if (event.key === "Tab") {
+    // Forward Tab picks the highlighted option; Shift+Tab must stay native
+    // backward focus (key is "Tab" for both, so guard on shiftKey).
+    if (event.key === "Tab" && !event.shiftKey) {
       const option = optionsRef.current.find(
         (o) => o.id === highlightedRef.current,
       );

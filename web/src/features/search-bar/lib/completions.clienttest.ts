@@ -107,6 +107,14 @@ describe("planInputCompletions", () => {
     expect(values).toContain("My Tag");
   });
 
+  it("omits the negation pattern when the term already starts with '-'", () => {
+    // The user has committed to negation by typing `-`; suggesting the
+    // negation pattern (which inserts its own `-`) would double-dash to
+    // `--environment:`.
+    const ids = flattenOptions(plan("-", 1)).map((o) => o.id);
+    expect(ids).not.toContain("pat:negation");
+  });
+
   it("offers comparisons for numeric fields", () => {
     const p = plan("latency:", 8);
     expect(p?.sections.map((s) => s.title)).toContain(SECTION_COMPARE_OPS);
