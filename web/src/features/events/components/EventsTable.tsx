@@ -428,7 +428,13 @@ export default function ObservationsEventsTable({
     canUseSearchBar &&
     !hideControls &&
     !externalFilterState &&
-    !peekContext;
+    !peekContext &&
+    // Embedded user/session-detail tables are page-scoped (a userId/sessionId
+    // filter is AND-combined into the query); the bar reads the full FIELDS
+    // registry and would let e.g. `userId:other` fight that scope. Keep it to
+    // full-page surfaces, matching the documented embedded opt-out.
+    !userId &&
+    !sessionId;
 
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
