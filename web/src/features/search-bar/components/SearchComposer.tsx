@@ -374,6 +374,11 @@ export function SearchComposer({
     coalesce: "typing" | null;
   }>({ undo: [], redo: [], coalesce: null });
   const lastDraftRef = React.useRef(draft);
+  // True once the user has focused/edited the bar. Until then, external draft
+  // rewrites (the initial URL hydration) only move the baseline — they are NOT
+  // pushed onto the undo stack, so a first Cmd+Z can't revert to the
+  // pre-hydration empty draft and (via blur-commit) wipe the applied filters.
+  const hasInteractedRef = React.useRef(false);
 
   const setDraftWithSelection = React.useCallback(
     (
@@ -413,20 +418,23 @@ export function SearchComposer({
     [draftRef, storeApi],
   );
 
-  // External draft rewrites (URL hydration, saved views) are undoable single
-  // steps too: capture any draft transition this component did not make
-  // itself.
+  // External draft rewrites (saved views, sidebar edits) the user makes AFTER
+  // interacting are undoable single steps too. But the pre-interaction URL
+  // hydration must NOT be captured — otherwise Cmd+Z reverts to the empty
+  // initial draft and the blur-commit wipes the applied filters.
   React.useEffect(() => {
     if (draft === lastDraftRef.current) return;
-    const stacks = historyRef.current;
-    const previous = lastDraftRef.current;
-    stacks.undo.push({
-      text: previous,
-      selection: { start: previous.length, end: previous.length },
-    });
-    if (stacks.undo.length > 100) stacks.undo.shift();
-    stacks.redo = [];
-    stacks.coalesce = null;
+    if (hasInteractedRef.current) {
+      const stacks = historyRef.current;
+      const previous = lastDraftRef.current;
+      stacks.undo.push({
+        text: previous,
+        selection: { start: previous.length, end: previous.length },
+      });
+      if (stacks.undo.length > 100) stacks.undo.shift();
+      stacks.redo = [];
+      stacks.coalesce = null;
+    }
     lastDraftRef.current = draft;
   }, [draft]);
 
@@ -998,6 +1006,7 @@ export function SearchComposer({
 
   const onFocus = () => {
     setEditorFocused(true);
+    hasInteractedRef.current = true;
     // A draft was set while the editor was blurred (an external structured
     // edit): the restore effect could not run then, so consume the pending
     // selection now that focus arrived.
