@@ -14,6 +14,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createDatasetItem } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+import { env } from "@/src/env.mjs";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -236,6 +237,17 @@ describe("Dataset item media tRPC procedures", () => {
         where: { projectId, mediaId: result.mediaId },
       }),
     ).resolves.toBe(0);
+  });
+
+  it("rejects uploads above the media size limit", async () => {
+    await expect(
+      caller.datasets.getItemMediaUploadUrl({
+        projectId,
+        contentType: "image/png",
+        contentLength: env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH + 1,
+        sha256Hash: validSha256(),
+      }),
+    ).rejects.toThrow(/File size must be less than/);
   });
 
   it("marks a dataset media upload complete", async () => {

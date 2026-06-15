@@ -28,7 +28,9 @@ import {
   optionalPaginationZod,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  InvalidRequestError,
 } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
 import {
   datasetRunsTableSchema,
@@ -749,6 +751,14 @@ export const datasetRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "datasets:CUD",
       });
+
+      // Mirror the public media route: this is the only server-side size gate
+      // before a direct-to-storage upload URL is signed, so enforce the media
+      // size limit here too.
+      if (input.contentLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH)
+        throw new InvalidRequestError(
+          `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
+        );
 
       return createMediaUploadUrl({
         projectId: input.projectId,
