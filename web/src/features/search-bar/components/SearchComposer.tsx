@@ -1228,7 +1228,7 @@ export function SearchComposer({
           suppressContentEditableWarning
           spellCheck={false}
           data-testid="search-bar-input"
-          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          className="min-h-6 font-mono text-xs leading-7 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}

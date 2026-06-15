@@ -66,12 +66,17 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
     segment.values.every((v) => /^-?\d+(\.\d+)?$/.test(v.trim()));
   return (
     <>
-      {dash && <span className="text-muted-foreground">-</span>}
-      <span data-part="field" className="text-qlang-field">
-        {segment.displayField}
-      </span>
-      <span data-part="operator" className="text-muted-foreground">
-        :
+      {/* Keep the negation dash + field + colon on one line — the `-` is a
+          hyphen, so a line wrap would otherwise break it away from its field.
+          The value stays outside so long grouped values can still wrap. */}
+      <span className="whitespace-nowrap">
+        {dash && <span className="text-muted-foreground">-</span>}
+        <span data-part="field" className="text-qlang-field">
+          {segment.displayField}
+        </span>
+        <span data-part="operator" className="text-muted-foreground">
+          :
+        </span>
       </span>
       <span
         data-part="value"
