@@ -3,6 +3,7 @@ import { ApiAccessScope } from "../server";
 
 export const RateLimitResource = z.enum([
   "ingestion",
+  "media-upload",
   "public-api",
   "public-api-metrics",
   "public-api-daily-metrics-legacy",

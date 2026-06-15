@@ -97,7 +97,7 @@ export const AssistantMarkdown = meta.story({
         "##### Heading 5",
         "###### Heading 6",
         "",
-        "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, and metadata across releases.",
+        "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, `metadata` and `scores` across releases.",
         "",
         "- Inspect traces with nested observations",
         "- Evaluate outputs with scores",
