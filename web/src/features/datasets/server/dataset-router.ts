@@ -7,6 +7,15 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
+  createMediaUploadUrl,
+  updateMediaUploadStatus,
+} from "@/src/features/media/server/mediaService";
+import {
+  resolveDatasetItemMediaReferences,
+  resolveMediaReferenceStrings,
+} from "@/src/features/media/server/datasetItemMediaReferences";
+import { MediaContentType } from "@/src/features/media/validation";
+import {
   paginationZod,
   singleFilter,
   StringNoHTML,
@@ -717,6 +726,104 @@ export const datasetRouter = createTRPCRouter({
       // Return null if item doesn't exist at this version (not created yet or deleted)
       return item;
     }),
+  // Issue a presigned upload URL for media attached to a dataset item from the
+  // UI (no trace context). The dataset item association is created when the
+  // item is saved, which parses the media reference out of the item JSON.
+  getItemMediaUploadUrl: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        contentType: z.enum(MediaContentType),
+        contentLength: z.number().positive().int(),
+        sha256Hash: z
+          .string()
+          .regex(
+            /^[A-Za-z0-9+/=]{44}$/,
+            "Must be a 44 character base64 encoded SHA-256 hash",
+          ),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      return createMediaUploadUrl({
+        projectId: input.projectId,
+        body: {
+          contentType: input.contentType,
+          contentLength: input.contentLength,
+          sha256Hash: input.sha256Hash,
+        },
+      });
+    }),
+  markItemMediaUploadComplete: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        mediaId: z.string(),
+        uploadedAt: z.coerce.date(),
+        uploadHttpStatus: z.number().positive().int(),
+        uploadHttpError: z.string().nullish(),
+        uploadTimeMs: z.number().nullish(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      await updateMediaUploadStatus({
+        projectId: input.projectId,
+        mediaId: input.mediaId,
+        body: {
+          uploadedAt: input.uploadedAt,
+          uploadHttpStatus: input.uploadHttpStatus,
+          uploadHttpError: input.uploadHttpError,
+          uploadTimeMs: input.uploadTimeMs,
+        },
+      });
+
+      return { success: true as const };
+    }),
+  // Resolve a saved dataset item version's media from dataset_item_media.
+  // The create/edit forms instead derive media from the live JSON.
+  itemMediaByItemId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), datasetItemId: z.string() }))
+    .query(async ({ input }) => {
+      const item = await getDatasetItemById({
+        projectId: input.projectId,
+        datasetItemId: input.datasetItemId,
+      });
+      if (!item) return [];
+
+      const [references = []] = await resolveDatasetItemMediaReferences({
+        projectId: input.projectId,
+        items: [{ id: item.id, validFrom: item.validFrom }],
+      });
+
+      return references;
+    }),
+  // Resolve media reference strings (from the live create/edit form JSON) to
+  // signed download URLs for the attachment preview, since the item is not yet
+  // saved and has no dataset_item_media rows.
+  resolveItemMediaReferences: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        referenceStrings: z.array(z.string()),
+      }),
+    )
+    .query(async ({ input }) =>
+      resolveMediaReferenceStrings({
+        projectId: input.projectId,
+        referenceStrings: input.referenceStrings,
+      }),
+    ),
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input }) => {

@@ -83,13 +83,14 @@ export const DatasetItemVersionedContent = ({
   // Show normal view of selected version
   return (
     <DatasetItemFields
-      inputValue={stringifyDatasetItemData(itemAtVersion.input)}
-      expectedOutputValue={stringifyDatasetItemData(
-        itemAtVersion.expectedOutput,
-      )}
-      metadataValue={stringifyDatasetItemData(itemAtVersion.metadata)}
+      values={{
+        input: stringifyDatasetItemData(itemAtVersion.input),
+        expectedOutput: stringifyDatasetItemData(itemAtVersion.expectedOutput),
+        metadata: stringifyDatasetItemData(itemAtVersion.metadata),
+      }}
       dataset={dataset}
       editable={false}
+      projectId={itemAtVersion.projectId}
     />
   );
 };

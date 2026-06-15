@@ -1,7 +1,7 @@
 import { api } from "@/src/utils/api";
 import * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { type Control, useForm, useWatch } from "react-hook-form";
 import { useEffect, useState, useMemo } from "react";
 import { Form } from "@/src/components/ui/form";
 import { Button } from "@/src/components/ui/button";
@@ -15,6 +15,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
+import { useDatasetItemMediaUpload } from "../hooks/useDatasetItemMediaUpload";
 import type { DatasetItemDomain } from "@langfuse/shared";
 import {
   DatasetItemFields,
@@ -99,21 +100,9 @@ export const EditDatasetItemDialog = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetItem?.id, open]);
 
-  const inputValue = form.watch("input");
-  const expectedOutputValue = form.watch("expectedOutput");
-
-  // Create dataset array for validation hook
-  const datasets = useMemo(() => {
-    if (!dataset) return [];
-    return [dataset];
-  }, [dataset]);
-
-  // Validate against dataset schemas
-  const validation = useDatasetItemValidation(
-    inputValue,
-    expectedOutputValue,
-    datasets,
-  );
+  const { uploadFile, pendingUploads } = useDatasetItemMediaUpload({
+    projectId,
+  });
 
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => {
@@ -153,12 +142,12 @@ export const EditDatasetItemDialog = ({
                 </p>
               ) : null}
               <DatasetItemFields
-                inputValue={inputValue}
-                expectedOutputValue={expectedOutputValue}
-                metadataValue={form.watch("metadata")}
                 dataset={dataset}
                 editable={hasAccess}
+                projectId={projectId}
                 control={form.control}
+                onUploadMedia={hasAccess ? uploadFile : undefined}
+                pendingUploads={pendingUploads}
               />
             </DialogBody>
             <DialogFooter>
@@ -170,21 +159,52 @@ export const EditDatasetItemDialog = ({
               >
                 Cancel
               </Button>
-              <Button
-                type="submit"
-                loading={updateDatasetItemMutation.isPending}
-                disabled={
-                  !form.formState.isDirty ||
-                  !hasAccess ||
-                  (validation.hasSchemas && !validation.isValid)
-                }
-              >
-                Save changes
-              </Button>
+              <SaveChangesButton
+                control={form.control}
+                dataset={dataset}
+                disabled={!form.formState.isDirty || !hasAccess}
+                isPending={updateDatasetItemMutation.isPending}
+              />
             </DialogFooter>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
+  );
+};
+
+/**
+ * Submit button isolated from the dialog so schema validation (which depends on
+ * the live field values) re-renders only the button as the user types, not the
+ * editors. Subscribes to the values via `useWatch` rather than `form.watch` at
+ * the dialog level.
+ */
+const SaveChangesButton = ({
+  control,
+  dataset,
+  disabled,
+  isPending,
+}: {
+  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
+  dataset: DatasetSchema | null;
+  disabled: boolean;
+  isPending: boolean;
+}) => {
+  const [input, expectedOutput] = useWatch({
+    control,
+    name: ["input", "expectedOutput"],
+  });
+
+  const datasets = useMemo(() => (dataset ? [dataset] : []), [dataset]);
+  const validation = useDatasetItemValidation(input, expectedOutput, datasets);
+
+  return (
+    <Button
+      type="submit"
+      loading={isPending}
+      disabled={disabled || (validation.hasSchemas && !validation.isValid)}
+    >
+      Save changes
+    </Button>
   );
 };

@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import type { Session } from "next-auth";
 
 import {
   getDatasetItemForApi,
@@ -8,11 +9,47 @@ import {
   GetDatasetItemsV1Response,
   GetDatasetItemV1Response,
 } from "@/src/features/public-api/types/datasets";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
 import { createDatasetItem } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+const session: Session = {
+  expires: "1",
+  user: {
+    id: "user-1",
+    canCreateOrganizations: true,
+    name: "Demo User",
+    organizations: [
+      {
+        id: "seed-org-id",
+        name: "Test Organization",
+        role: "OWNER",
+        plan: "cloud:hobby",
+        cloudConfig: undefined,
+        projects: [
+          {
+            id: projectId,
+            role: "ADMIN",
+            retentionDays: 30,
+            deletedAt: null,
+            name: "Test Project",
+          },
+        ],
+      },
+    ],
+    featureFlags: { excludeClickhouseRead: false, templateFlag: true },
+    admin: true,
+  },
+  environment: {} as never,
+};
+const caller = appRouter.createCaller({
+  ...createInnerTRPCContext({ session }),
+  prisma,
+});
 
 const createMediaRow = async () => {
   const sha256Hash = crypto.createHash("sha256").update(v4()).digest("base64");
@@ -176,6 +213,69 @@ describe("Dataset item media references (public API read path)", () => {
         jsonPath: "$['image']",
         media: null,
       },
+    ]);
+  });
+});
+
+describe("Dataset item media tRPC procedures", () => {
+  const validSha256 = () =>
+    crypto.createHash("sha256").update(v4()).digest("base64");
+
+  it("issues a trace-less upload URL and links nothing", async () => {
+    const result = await caller.datasets.getItemMediaUploadUrl({
+      projectId,
+      contentType: "image/png",
+      contentLength: 1234,
+      sha256Hash: validSha256(),
+    });
+
+    expect(result.mediaId).toBeDefined();
+    expect(result.uploadUrl).toBeDefined();
+    await expect(
+      prisma.traceMedia.count({
+        where: { projectId, mediaId: result.mediaId },
+      }),
+    ).resolves.toBe(0);
+  });
+
+  it("marks a dataset media upload complete", async () => {
+    const { mediaId } = await caller.datasets.getItemMediaUploadUrl({
+      projectId,
+      contentType: "image/png",
+      contentLength: 1234,
+      sha256Hash: validSha256(),
+    });
+
+    await caller.datasets.markItemMediaUploadComplete({
+      projectId,
+      mediaId,
+      uploadedAt: new Date(),
+      uploadHttpStatus: 200,
+    });
+
+    const media = await prisma.media.findUnique({
+      where: { projectId_id: { projectId, id: mediaId } },
+    });
+    expect(media?.uploadHttpStatus).toBe(200);
+  });
+
+  it("resolves a saved dataset item's media from the table", async () => {
+    const media = await createMediaRow();
+    const { datasetItemId } = await createDatasetWithItem({
+      image: media.referenceString,
+    });
+
+    const references = await caller.datasets.itemMediaByItemId({
+      projectId,
+      datasetItemId,
+    });
+
+    expect(references).toEqual([
+      expect.objectContaining({
+        field: "input",
+        jsonPath: "$['image']",
+        media: expect.objectContaining({ mediaId: media.mediaId }),
+      }),
     ]);
   });
 });
