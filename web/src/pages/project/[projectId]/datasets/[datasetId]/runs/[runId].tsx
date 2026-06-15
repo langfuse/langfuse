@@ -83,7 +83,7 @@ export default function Dataset() {
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
+            href: `/project/${projectId}/datasets/${datasetId}`,
           },
           {
             name: "Experiments",
