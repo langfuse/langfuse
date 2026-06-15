@@ -84,11 +84,16 @@ type TablePeekViewProps = Pick<
    * The content to display in the peek view.
    */
   children: React.ReactNode;
+  /**
+   * Optional footer content to display at the bottom of the peek view.
+   * Useful for navigation controls or contextual actions.
+   */
+  footer?: React.ReactNode;
 };
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
   const peekView = props;
-  const { title, children } = props;
+  const { title, children, footer } = props;
   const router = useRouter();
   const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
   const itemId = router.query.peek as string | undefined;
@@ -172,6 +177,12 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
             <div className="flex-1 overflow-auto" key={itemId}>
               {children}
             </div>
+            {footer && (
+              <>
+                <Separator />
+                <div className="shrink-0 px-3 py-2.5">{footer}</div>
+              </>
+            )}
           </div>
         </PeekTableStateProvider>
       </SheetContent>

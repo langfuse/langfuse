@@ -473,30 +473,35 @@ export default function ExperimentItemsTable({
 
   useEffect(() => {
     if (items.status === "success") {
-      // Use baseline experiment for detail page navigation
+      // Store all experiment targets for peek navigation
       setDetailPageList(
         "experiment-items",
         items?.rows?.map((item: ExperimentItemsTableRow) => {
-          if (!baselineId)
-            return {
-              id: item.itemId,
-            };
+          const baselineExp = baselineId
+            ? item.experiments.find((e) => e.experimentId === baselineId)
+            : item.experiments[0];
 
-          const baselineExp = item.experiments.find(
-            (e) => e.experimentId === baselineId,
+          // Build experiment targets map for all experiments
+          const experimentTargets = Object.fromEntries(
+            item.experiments.map((exp) => [
+              exp.experimentId,
+              {
+                traceId: exp.traceId,
+                observationId: exp.observationId,
+                timestamp: exp.startTime.toISOString(),
+              },
+            ]),
           );
-
-          if (!baselineExp)
-            return {
-              id: item.itemId,
-            };
 
           return {
             id: item.itemId,
             params: {
-              traceId: baselineExp.traceId,
-              observation: baselineExp.observationId,
-              timestamp: baselineExp.startTime.toISOString(),
+              // Primary trace params (baseline, for URL compat and initial load)
+              traceId: baselineExp?.traceId ?? "",
+              observation: baselineExp?.observationId ?? "",
+              timestamp: baselineExp?.startTime?.toISOString() ?? "",
+              // All experiment targets for switching between experiments
+              experimentTargets: JSON.stringify(experimentTargets),
             },
           };
         }),

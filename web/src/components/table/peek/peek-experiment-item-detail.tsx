@@ -3,6 +3,7 @@ import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { Trace } from "@/src/components/trace/Trace";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TablePeekView } from "@/src/components/table/peek";
+import { ExperimentPeekFooter } from "@/src/features/experiments/components/ExperimentPeekFooter";
 
 const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
   const router = useRouter();
@@ -43,7 +44,7 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
 export const TablePeekViewExperimentItemDetail = (
   props: Omit<
     React.ComponentProps<typeof TablePeekView>,
-    "children" | "title"
+    "children" | "title" | "footer"
   > & {
     projectId: string;
   },
@@ -56,6 +57,7 @@ export const TablePeekViewExperimentItemDetail = (
     <TablePeekView
       {...props}
       title={peekId ? `Experiment Item: ${peekId}` : undefined}
+      footer={<ExperimentPeekFooter projectId={projectId} />}
     >
       <PeekViewExperimentItemDetail projectId={projectId} />
     </TablePeekView>
