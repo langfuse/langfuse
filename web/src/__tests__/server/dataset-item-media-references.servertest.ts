@@ -15,6 +15,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { createDatasetItem } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { env } from "@/src/env.mjs";
+import { MediaContentType } from "@/src/features/media/validation";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -31,24 +32,37 @@ const session: Session = {
         role: "OWNER",
         plan: "cloud:hobby",
         cloudConfig: undefined,
+        metadata: {},
+        aiFeaturesEnabled: false,
+        aiTelemetryEnabled: false,
         projects: [
           {
             id: projectId,
             role: "ADMIN",
             retentionDays: 30,
             deletedAt: null,
+            hasTraces: false,
             name: "Test Project",
+            metadata: {},
+            createdAt: new Date().toISOString(),
           },
         ],
       },
     ],
-    featureFlags: { excludeClickhouseRead: false, templateFlag: true },
+    featureFlags: {
+      excludeClickhouseRead: false,
+      templateFlag: true,
+      inAppAgent: false,
+      v4BetaToggleVisible: false,
+      observationEvals: false,
+      experimentsV4Enabled: false,
+    },
     admin: true,
   },
   environment: {} as never,
 };
 const caller = appRouter.createCaller({
-  ...createInnerTRPCContext({ session }),
+  ...createInnerTRPCContext({ session, headers: {} }),
   prisma,
 });
 
@@ -66,7 +80,7 @@ const createMediaRow = async () => {
       sha256Hash,
       bucketPath: `media/${mediaId}.png`,
       bucketName: "test-bucket",
-      contentType: "image/png",
+      contentType: MediaContentType.PNG,
       contentLength: 1234,
       uploadHttpStatus: 200,
     },
@@ -126,7 +140,7 @@ describe("Dataset item media references (public API read path)", () => {
         jsonPath: "$['image']",
         media: {
           mediaId: media.mediaId,
-          contentType: "image/png",
+          contentType: MediaContentType.PNG,
           contentLength: 1234,
           url: expect.any(String),
           urlExpiry: expect.any(String),
@@ -225,7 +239,7 @@ describe("Dataset item media tRPC procedures", () => {
   it("issues a trace-less upload URL and links nothing", async () => {
     const result = await caller.datasets.getItemMediaUploadUrl({
       projectId,
-      contentType: "image/png",
+      contentType: MediaContentType.PNG,
       contentLength: 1234,
       sha256Hash: validSha256(),
     });
@@ -243,7 +257,7 @@ describe("Dataset item media tRPC procedures", () => {
     await expect(
       caller.datasets.getItemMediaUploadUrl({
         projectId,
-        contentType: "image/png",
+        contentType: MediaContentType.PNG,
         contentLength: env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH + 1,
         sha256Hash: validSha256(),
       }),
@@ -253,7 +267,7 @@ describe("Dataset item media tRPC procedures", () => {
   it("marks a dataset media upload complete", async () => {
     const { mediaId } = await caller.datasets.getItemMediaUploadUrl({
       projectId,
-      contentType: "image/png",
+      contentType: MediaContentType.PNG,
       contentLength: 1234,
       sha256Hash: validSha256(),
     });
@@ -264,6 +278,38 @@ describe("Dataset item media tRPC procedures", () => {
       uploadedAt: new Date(),
       uploadHttpStatus: 200,
     });
+
+    const media = await prisma.media.findUnique({
+      where: { projectId_id: { projectId, id: mediaId } },
+    });
+    expect(media?.uploadHttpStatus).toBe(200);
+  });
+
+  // datasets:CUD must not be usable to overwrite an already-successful upload
+  // (e.g. flip a trace media reference to a failed status).
+  it("rejects marking an already-completed upload", async () => {
+    const { mediaId } = await caller.datasets.getItemMediaUploadUrl({
+      projectId,
+      contentType: MediaContentType.PNG,
+      contentLength: 1234,
+      sha256Hash: validSha256(),
+    });
+    await caller.datasets.markItemMediaUploadComplete({
+      projectId,
+      mediaId,
+      uploadedAt: new Date(),
+      uploadHttpStatus: 200,
+    });
+
+    await expect(
+      caller.datasets.markItemMediaUploadComplete({
+        projectId,
+        mediaId,
+        uploadedAt: new Date(),
+        uploadHttpStatus: 500,
+        uploadHttpError: "tampering",
+      }),
+    ).rejects.toThrow(/already has a completed upload/);
 
     const media = await prisma.media.findUnique({
       where: { projectId_id: { projectId, id: mediaId } },

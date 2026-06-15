@@ -15,7 +15,9 @@ import {
 } from "../datasets/executeWithDatasetServiceStrategy";
 import { v4 } from "uuid";
 import {
+  findUnresolvableMediaReferences,
   linkDatasetItemMedia,
+  releaseDroppedDatasetMedia,
   syncDatasetItemMedia,
   validateDatasetItemMediaReferences,
 } from "./dataset-item-media";
@@ -361,34 +363,55 @@ export async function upsertDatasetItem(
   });
 
   let item: DatasetItem | null = null;
+  let droppedMediaIds: string[] = [];
+
+  const linkWrittenItemMedia = (
+    tx: Prisma.TransactionClient,
+    written: DatasetItem,
+  ) =>
+    linkDatasetItemMedia(tx, {
+      projectId: props.projectId,
+      items: [
+        {
+          datasetId: dataset.id,
+          datasetItemId: written.id,
+          datasetItemValidFrom: written.validFrom,
+          input: written.input,
+          expectedOutput: written.expectedOutput,
+          metadata: written.metadata,
+        },
+      ],
+      replaceExisting: true,
+    });
+
   // 6. Update item
   await executeWithDatasetServiceStrategy(OperationType.WRITE, {
     [Implementation.STATEFUL]: async () => {
-      if (existingItem) {
-        const res = await prisma.datasetItem.update({
-          where: {
-            id_projectId_validFrom: {
-              id: existingItem.id,
-              projectId: props.projectId,
-              validFrom: existingItem.validFrom,
-            },
-            datasetId: dataset.id,
-          },
-          data: {
-            ...itemData,
-          },
-        });
+      await prisma.$transaction(async (tx) => {
+        const res = existingItem
+          ? await tx.datasetItem.update({
+              where: {
+                id_projectId_validFrom: {
+                  id: existingItem.id,
+                  projectId: props.projectId,
+                  validFrom: existingItem.validFrom,
+                },
+                datasetId: dataset.id,
+              },
+              data: {
+                ...itemData,
+              },
+            })
+          : await tx.datasetItem.create({
+              data: {
+                ...itemData,
+                datasetId: dataset.id,
+                projectId: props.projectId,
+              },
+            });
         item = res;
-      } else {
-        const res = await prisma.datasetItem.create({
-          data: {
-            ...itemData,
-            datasetId: dataset.id,
-            projectId: props.projectId,
-          },
-        });
-        item = res;
-      }
+        droppedMediaIds = (await linkWrittenItemMedia(tx, res)).droppedMediaIds;
+      });
     },
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: Invalidate old row by setting valid_to, then create new row
@@ -440,6 +463,7 @@ export async function upsertDatasetItem(
           },
         });
         item = res;
+        droppedMediaIds = (await linkWrittenItemMedia(tx, res)).droppedMediaIds;
       });
     },
   });
@@ -448,23 +472,7 @@ export async function upsertDatasetItem(
     throw new InternalServerError("Failed to upsert dataset item");
   }
 
-  // replaceExisting unlinks references removed by STATEFUL in-place updates;
-  // VERSIONED updates write a new validFrom, so old versions keep their rows
-  const writtenItem: DatasetItem = item;
-  await syncDatasetItemMedia({
-    projectId: props.projectId,
-    items: [
-      {
-        datasetId: dataset.id,
-        datasetItemId: writtenItem.id,
-        datasetItemValidFrom: writtenItem.validFrom,
-        input: writtenItem.input,
-        expectedOutput: writtenItem.expectedOutput,
-        metadata: writtenItem.metadata,
-      },
-    ],
-    replaceExisting: true,
-  });
+  await releaseDroppedDatasetMedia(props.projectId, droppedMediaIds);
 
   return { ...toDomainType(item), datasetName: dataset.name };
 }
@@ -642,7 +650,10 @@ export async function createManyDatasetItems(props: {
 
   // 3. Validate all items, collect errors with original index
   const validationErrors: CreateManyValidationError[] = [];
-  const preparedItems: CreateManyItemsInsert = [];
+  let preparedItems: CreateManyItemsInsert = [];
+  // Original input index per prepared item, so media validation below can
+  // report a bad reference against the right input row.
+  const preparedOriginalIndices: number[] = [];
 
   for (const datasetId of datasetIds) {
     const datasetItems = itemsByDataset[datasetId];
@@ -701,8 +712,43 @@ export async function createManyDatasetItems(props: {
           sourceTraceId: item.sourceTraceId,
           sourceObservationId: item.sourceObservationId,
         });
+        preparedOriginalIndices.push(item.originalIndex);
       }
     }
+  }
+
+  // 3b. Validate media references the same way as schema errors: record each
+  // unresolvable reference (missing or not-yet-uploaded media) against its item
+  // and drop the item, so the early return below handles schema and media
+  // failures uniformly.
+  const unresolvableMedia = preparedItems.length
+    ? await findUnresolvableMediaReferences({
+        projectId: props.projectId,
+        items: preparedItems,
+      })
+    : [];
+  if (unresolvableMedia.length > 0) {
+    const failedItemIndices = new Set(
+      unresolvableMedia.map((r) => r.itemIndex),
+    );
+    for (const r of unresolvableMedia) {
+      validationErrors.push({
+        itemIndex: preparedOriginalIndices[r.itemIndex],
+        // dataset_item_media uses snake_case; validation errors use the dataset
+        // item's property names.
+        field: r.field === "expected_output" ? "expectedOutput" : r.field,
+        errors: [
+          {
+            path: r.jsonPath,
+            message: `references unknown media: ${r.mediaId}`,
+            keyword: "media",
+          },
+        ],
+      });
+    }
+    successCount -= failedItemIndices.size;
+    failedCount += failedItemIndices.size;
+    preparedItems = preparedItems.filter((_, i) => !failedItemIndices.has(i));
   }
 
   // 4. If any validation errors and partial success not allowed, return early
@@ -717,11 +763,6 @@ export async function createManyDatasetItems(props: {
 
   // 5. Bulk insert all valid items
   if (preparedItems.length > 0) {
-    await validateDatasetItemMediaReferences({
-      projectId: props.projectId,
-      items: preparedItems,
-    });
-
     // Set explicitly (instead of the column default) so the media link below
     // knows each inserted row's validFrom
     const newValidFrom = new Date();
@@ -860,7 +901,9 @@ export type CreateManyItemsInsert = {
  */
 export type CreateManyValidationError = {
   itemIndex: number;
-  field: "input" | "expectedOutput";
+  // "metadata" only occurs for media-reference errors; schema validation
+  // reports input/expectedOutput.
+  field: "input" | "expectedOutput" | "metadata";
   errors: Array<{
     path: string;
     message: string;

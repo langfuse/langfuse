@@ -6,10 +6,7 @@ import {
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  createMediaUploadUrl,
-  updateMediaUploadStatus,
-} from "@/src/features/media/server/mediaService";
+import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
@@ -61,6 +58,7 @@ import {
   upsertDatasetItem,
   deleteDatasetItem,
   createManyDatasetItems,
+  markDatasetMediaUploadComplete,
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
@@ -788,15 +786,13 @@ export const datasetRouter = createTRPCRouter({
         scope: "datasets:CUD",
       });
 
-      await updateMediaUploadStatus({
+      await markDatasetMediaUploadComplete({
         projectId: input.projectId,
         mediaId: input.mediaId,
-        body: {
-          uploadedAt: input.uploadedAt,
-          uploadHttpStatus: input.uploadHttpStatus,
-          uploadHttpError: input.uploadHttpError,
-          uploadTimeMs: input.uploadTimeMs,
-        },
+        uploadedAt: input.uploadedAt,
+        uploadHttpStatus: input.uploadHttpStatus,
+        uploadHttpError: input.uploadHttpError,
+        uploadTimeMs: input.uploadTimeMs,
       });
 
       return { success: true as const };

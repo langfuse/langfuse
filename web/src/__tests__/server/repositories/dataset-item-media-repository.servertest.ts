@@ -120,23 +120,30 @@ describe("Dataset Item Media Associations", () => {
     const unknownMediaId = v4();
     const datasetItemId = v4();
 
-    await expect(
-      createManyDatasetItems({
-        projectId,
-        items: [
-          {
-            datasetId,
-            id: datasetItemId,
-            input: {
-              image: `@@@langfuseMedia:type=image/png|id=${unknownMediaId}|source=base64@@@`,
-            },
+    const result = await createManyDatasetItems({
+      projectId,
+      items: [
+        {
+          datasetId,
+          id: datasetItemId,
+          input: {
+            image: `@@@langfuseMedia:type=image/png|id=${unknownMediaId}|source=base64@@@`,
           },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.validationErrors).toEqual([
+      expect.objectContaining({
+        itemIndex: 0,
+        errors: [
+          expect.objectContaining({
+            message: expect.stringContaining(unknownMediaId),
+          }),
         ],
       }),
-    ).rejects.toThrow(
-      `Dataset item references unknown media: ${unknownMediaId}`,
-    );
-
+    ]);
     await expect(
       prisma.datasetItem.findFirst({
         where: { projectId, id: datasetItemId },
@@ -172,21 +179,30 @@ describe("Dataset Item Media Associations", () => {
     });
     const datasetItemId = v4();
 
-    await expect(
-      createManyDatasetItems({
-        projectId,
-        items: [
-          {
-            datasetId,
-            id: datasetItemId,
-            input: {
-              image: `@@@langfuseMedia:type=image/png|id=${mediaId}|source=base64@@@`,
-            },
+    const result = await createManyDatasetItems({
+      projectId,
+      items: [
+        {
+          datasetId,
+          id: datasetItemId,
+          input: {
+            image: `@@@langfuseMedia:type=image/png|id=${mediaId}|source=base64@@@`,
           },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.validationErrors).toEqual([
+      expect.objectContaining({
+        itemIndex: 0,
+        errors: [
+          expect.objectContaining({
+            message: expect.stringContaining(mediaId),
+          }),
         ],
       }),
-    ).rejects.toThrow(`Dataset item references unknown media: ${mediaId}`);
-
+    ]);
     await expect(
       prisma.datasetItem.findFirst({ where: { projectId, id: datasetItemId } }),
     ).resolves.toBeNull();
@@ -246,6 +262,49 @@ describe("Dataset Item Media Associations", () => {
     });
     const rows = await getItemMediaRows(result.datasetItems[0].id);
     expect(rows[0]?.datasetItemValidFrom).toEqual(item?.validFrom);
+  });
+
+  // An unresolvable media reference must fail only its own item under partial
+  // success, not throw and abort the whole batch.
+  it("fails only the item with an unresolvable media reference under partial success", async () => {
+    const datasetId = await createDataset();
+    const goodMedia = await createMediaRow();
+    const unknownMediaId = v4();
+
+    const result = await createManyDatasetItems({
+      projectId,
+      allowPartialSuccess: true,
+      items: [
+        { datasetId, input: { image: goodMedia.referenceString } },
+        {
+          datasetId,
+          input: {
+            image: `@@@langfuseMedia:type=image/png|id=${unknownMediaId}|source=base64@@@`,
+          },
+        },
+      ],
+    });
+    if (!result.success) throw new Error("expected partial success");
+
+    expect(result.successCount).toBe(1);
+    expect(result.failedCount).toBe(1);
+    expect(result.datasetItems).toHaveLength(1);
+    await expect(
+      getItemMediaRows(result.datasetItems[0].id),
+    ).resolves.toMatchObject([
+      { field: "input", jsonPath: "$['image']", mediaId: goodMedia.mediaId },
+    ]);
+    expect(result.validationErrors).toEqual([
+      expect.objectContaining({
+        itemIndex: 1,
+        field: "input",
+        errors: [
+          expect.objectContaining({
+            message: expect.stringContaining(unknownMediaId),
+          }),
+        ],
+      }),
+    ]);
   });
 
   describe("syncDatasetItemMedia", () => {

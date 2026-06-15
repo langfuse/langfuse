@@ -3,8 +3,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { type DatasetItemMediaField } from "../../domain";
 import { env } from "../../env";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError, LangfuseNotFoundError } from "../../errors";
 import { findMediaReferences } from "../../utils/mediaReferences";
+import { recordHistogram, recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import { releaseDatasetMedia } from "../media-deletion";
 import { getS3MediaStorageClient } from "../s3";
@@ -39,39 +40,109 @@ function collectMediaReferences(item: DatasetItemMediaValues) {
 }
 
 /**
- * Throws if items reference media that does not exist in the project.
- * Call before persisting items so failed writes leave no partial state.
+ * Returns references (tagged with their item index) whose media is missing or
+ * not finished uploading, so bulk callers can fail a single item rather than
+ * the whole batch. Requires uploadHttpStatus 200/201, matching the resolvers.
  */
-export async function validateDatasetItemMediaReferences(props: {
+export async function findUnresolvableMediaReferences(props: {
   projectId: string;
   items: DatasetItemMediaValues[];
 }) {
-  const referencedMediaIds = [
-    ...new Set(
-      props.items.flatMap((item) =>
-        collectMediaReferences(item).map((reference) => reference.mediaId),
-      ),
-    ),
-  ];
-  if (referencedMediaIds.length === 0) return;
+  const references = props.items.flatMap((item, itemIndex) =>
+    collectMediaReferences(item).map((reference) => ({
+      itemIndex,
+      field: reference.field,
+      jsonPath: reference.jsonPath,
+      mediaId: reference.mediaId,
+    })),
+  );
+  if (references.length === 0) return [];
 
+  const mediaIds = [
+    ...new Set(references.map((reference) => reference.mediaId)),
+  ];
   const existingMedia = await prisma.media.findMany({
     where: {
       projectId: props.projectId,
-      id: { in: referencedMediaIds },
+      id: { in: mediaIds },
       uploadHttpStatus: { in: [200, 201] },
     },
     select: { id: true },
   });
   const existingMediaIds = new Set(existingMedia.map((media) => media.id));
 
-  const unknownMediaIds = referencedMediaIds.filter(
-    (id) => !existingMediaIds.has(id),
+  return references.filter(
+    (reference) => !existingMediaIds.has(reference.mediaId),
   );
-  if (unknownMediaIds.length > 0) {
+}
+
+/**
+ * Throws if any item references media that does not exist in the project or has
+ * not finished uploading. Call before persisting items on the single-item /
+ * upsert paths so failed writes leave no partial state. Bulk callers that
+ * support partial success should use findUnresolvableMediaReferences and report
+ * per item instead.
+ */
+export async function validateDatasetItemMediaReferences(props: {
+  projectId: string;
+  items: DatasetItemMediaValues[];
+}) {
+  const unresolvable = await findUnresolvableMediaReferences(props);
+  if (unresolvable.length > 0) {
+    const unknownMediaIds = [
+      ...new Set(unresolvable.map((reference) => reference.mediaId)),
+    ];
     throw new InvalidRequestError(
       `Dataset item references unknown media: ${unknownMediaIds.join(", ")}`,
     );
+  }
+}
+
+/**
+ * Records a dataset media upload result, refusing to overwrite an
+ * already-successful upload — datasets:CUD reaches any project media id via
+ * SHA-256 dedupe, so a completed upload must not be flippable to a failure.
+ */
+export async function markDatasetMediaUploadComplete(props: {
+  projectId: string;
+  mediaId: string;
+  uploadedAt: Date;
+  uploadHttpStatus: number;
+  uploadHttpError?: string | null;
+  uploadTimeMs?: number | null;
+}) {
+  const media = await prisma.media.findUnique({
+    where: { projectId_id: { projectId: props.projectId, id: props.mediaId } },
+    select: { uploadHttpStatus: true },
+  });
+  if (!media) {
+    throw new LangfuseNotFoundError(
+      `Media asset ${props.mediaId} not found in project ${props.projectId}`,
+    );
+  }
+  if (media.uploadHttpStatus === 200 || media.uploadHttpStatus === 201) {
+    throw new InvalidRequestError(
+      `Media asset ${props.mediaId} already has a completed upload`,
+    );
+  }
+
+  await prisma.media.update({
+    where: { projectId_id: { projectId: props.projectId, id: props.mediaId } },
+    data: {
+      uploadedAt: props.uploadedAt,
+      uploadHttpStatus: props.uploadHttpStatus,
+      uploadHttpError:
+        props.uploadHttpStatus === 200 ? null : props.uploadHttpError,
+    },
+  });
+
+  recordIncrement("langfuse.media.upload_http_status", 1, {
+    status_code: props.uploadHttpStatus,
+  });
+  if (props.uploadTimeMs) {
+    recordHistogram("langfuse.media.upload_time_ms", props.uploadTimeMs, {
+      status_code: props.uploadHttpStatus,
+    });
   }
 }
 
