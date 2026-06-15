@@ -39,6 +39,13 @@ represent are commit-blocking diagnostics, not silent drops. There is no
 FTS `*` operator: the events tRPC filter contract has none; full-text search
 is free text + `in:` scopes.
 
+Free text matches as a **contiguous substring** server-side
+(`clickhouse-sql/search.ts`, `ILIKE %query%`): the default `in:id` scope
+searches `id` + `user_id` + `name`; `in:content|input|output` search the IO
+columns. So multi-word free text is a **phrase**, not token-AND — e.g.
+`test media` matches "Test Media" but not "Media — Test run". Whether to keep
+phrase semantics or match each word independently is open Decision A below.
+
 Operator-looking tokens that aren't supported yet are **reserved** — they emit
 an explicit "not supported yet" diagnostic instead of silently becoming free
 text: `!`, lowercase `not`/`or`/`and` (use `-field:value` to exclude;
@@ -71,6 +78,24 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   because `resetTo` no-ops when the draft already matches.
 - This mirrors the prototype's ADR-006 ("URL is canonical; everything derives
   from it") and "no write loops".
+
+## Invariants (don't break these)
+
+- **No silent drops or rewrites.** Every filter is either rendered in the bar,
+  preserved untouched via `skippedFilters` (shapes the grammar can't express —
+  `positionInTrace`, keys with grammar chars, single-value `all of`), or a
+  commit-blocking diagnostic. Never silently dropped, reordered into a
+  different filter, or rewritten.
+- **validate ↔ lower parity, across _every_ site.** `draftValid` (store),
+  token classification (`deriveComposerSegments`), and the commit gate
+  (`planCommit` → `validateQuery` + `astToFilterState`) must all lower with the
+  **same `scoreTypes`** context. If they diverge, the red-state gate (which
+  reads `draftValid`) disagrees with the commit gate and Enter silently no-ops.
+  This regressed twice — `scoreTypes` is now threaded through all three.
+- **Negation is not a primitive.** `-`/`NOT` lower to existing inverse
+  operators (`none of`, `does not contain`, `is null`) or flip a comparison /
+  boolean. Anything without a native inverse is a diagnostic (`fields.ts`
+  `negationIssue` is the spec) — the backend has no general NOT.
 
 ## Ownership map
 
@@ -135,14 +160,35 @@ and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
 interleave is preserved only in the recent-searches entry (`planCommit`'s
 `canonical`), not in the live bar.
 
+## Hardening before default-on
+
+- **Round-trip property test (highest-leverage TODO).** The `FilterState ⇄ text`
+  boundary (reverse adapter ↔ parse/lower) is where almost every correctness bug
+  landed. `lib/` is well unit-tested case-by-case, but there is no _invariant_
+  test asserting, over generated inputs, that `FilterState → text → FilterState`
+  is stable (lossless or skipped) and `validateQuery.valid === (lowering has no
+  errors)`. Deterministic matrix (fields × operators × adversarial values ×
+  scoreTypes contexts), no new dep. Would have caught most of the round-trip
+  reds — and the parity regressions — in one pass.
+- **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
+  controller is browser-reviewed only. Extracting the selection/`beforeinput`
+  machinery into a hook (below) is the prerequisite to testing it.
+- **No e2e** for bar↔sidebar sync or the embedded-vs-full-page mount matrix
+  (the bar leaking onto user/session detail was a review find, not caught by a
+  test).
+
 ## Next slices
 
 - Pill click-to-edit (value switcher dropdown on filter tokens).
 - Saved-view round-trip for free text/search scopes.
-- Strict-mode follow-ups (pending product decisions): free text as a single
-  visible/scoped chip with confirmed phrase matching; reserve top-level
-  grouping `( )` (entangled with `tidyQueryText`/chip-removal — needs its own
-  pass).
+- Strict-mode follow-ups (pending product decisions):
+  - **Decision A — free-text semantics**: keep phrase (contiguous substring;
+    just render free text as one visible/scoped chip) vs. token-AND (match each
+    word independently; needs a backend FTS change). See Query language above.
+  - **Decision B — top-level grouping `( )`**: reserve it like the other
+    operators, or leave it. Entangled with `tidyQueryText`/chip-removal (which
+    strips redundant parens and would bail on a now-"invalid" paren) and
+    removes documented top-level grouping — needs its own pass.
 - App-wide **layer system** (z-index): the bar's overlays use a hardcoded local
   ladder (X z-20 < error tooltip z-30 < popover z-50) because the app has no
   shared z scale (overlays are just `z-50` + Radix portals). A proper layering
