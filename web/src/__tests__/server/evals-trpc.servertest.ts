@@ -1113,257 +1113,173 @@ describe("evals trpc", () => {
     });
   });
 
-  const createTemplateVersion = (
-    projectId: string | null,
-    name: string,
-    version: number,
-  ) =>
-    prisma.evalTemplate.create({
-      data: {
-        projectId,
-        name,
-        version,
-        prompt: "test prompt",
-        outputDefinition: createNumericEvalOutputDefinition({
-          reasoningDescription: "Why",
-          scoreDescription: "How good",
-        }),
-      },
-    });
+  // TODO: moved to LFE-4573
+  // describe("evals.deleteEvalTemplate", () => {
+  //   it("should successfully delete an eval template", async () => {
+  //     const { project, caller } = await prepare();
 
-  describe("evals.evalTemplateUsage", () => {
-    it("should return running evaluators referencing any version of the family", async () => {
-      const { project, caller } = await prepare();
+  //     // Create a template to delete
+  //     const evalTemplate = await prisma.evalTemplate.create({
+  //       data: {
+  //         projectId: project.id,
+  //         name: "test-template",
+  //         version: 1,
+  //         prompt: "test prompt",
+  //         model: "test-model",
+  //         modelParams: {},
+  //         vars: [],
+  //         outputDefinition: {
+  //           score: "test-score",
+  //           reasoning: "test-reasoning",
+  //         },
+  //         provider: "test-provider",
+  //       },
+  //     });
 
-      const v1 = await createTemplateVersion(project.id, "usage-template", 1);
-      const v2 = await createTemplateVersion(project.id, "usage-template", 2);
+  //     // Delete the template
+  //     await caller.evals.deleteEvalTemplate({
+  //       projectId: project.id,
+  //       evalTemplateId: evalTemplate.id,
+  //     });
 
-      const config = await prisma.jobConfiguration.create({
-        data: {
-          projectId: project.id,
-          jobType: "EVAL",
-          evalTemplateId: v1.id,
-          scoreName: "usage-score",
-          filter: [],
-          targetObject: EvalTargetObject.TRACE,
-          variableMapping: [],
-          sampling: 1,
-          delay: 0,
-          status: "ACTIVE",
-          timeScope: ["NEW"],
-        },
-      });
+  //     // Verify template is deleted
+  //     const deletedTemplate = await prisma.evalTemplate.findUnique({
+  //       where: {
+  //         id: evalTemplate.id,
+  //       },
+  //     });
+  //     expect(deletedTemplate).toBeNull();
+  //   });
 
-      // queried via the latest version while the config references the old one
-      const usage = await caller.evals.evalTemplateUsage({
-        projectId: project.id,
-        evalTemplateId: v2.id,
-      });
+  //   it("should set evalTemplateId to null for associated eval jobs when template is deleted", async () => {
+  //     const { project, caller } = await prepare();
 
-      expect(usage).toEqual([{ id: config.id, scoreName: "usage-score" }]);
-    });
+  //     // Create a template
+  //     const evalTemplate = await prisma.evalTemplate.create({
+  //       data: {
+  //         projectId: project.id,
+  //         name: "test-template",
+  //         version: 1,
+  //         prompt: "test prompt",
+  //         model: "test-model",
+  //         modelParams: {},
+  //         vars: [],
+  //         outputDefinition: {
+  //           score: "test-score",
+  //           reasoning: "test-reasoning",
+  //         },
+  //         provider: "test-provider",
+  //       },
+  //     });
 
-    it("should return an empty list for unused evaluators", async () => {
-      const { project, caller } = await prepare();
+  //     // Create an eval job linked to this template
+  //     const evalJob = await prisma.jobConfiguration.create({
+  //       data: {
+  //         projectId: project.id,
+  //         jobType: "EVAL",
+  //         scoreName: "test-score",
+  //         filter: [],
+  //         targetObject: EvalTargetObject.TRACE,
+  //         variableMapping: [],
+  //         sampling: 1,
+  //         delay: 0,
+  //         status: "ACTIVE",
+  //         timeScope: ["NEW"],
+  //         evalTemplateId: evalTemplate.id,
+  //       },
+  //     });
 
-      const template = await createTemplateVersion(
-        project.id,
-        "unused-template",
-        1,
-      );
+  //     // Delete the template
+  //     await caller.evals.deleteEvalTemplate({
+  //       projectId: project.id,
+  //       evalTemplateId: evalTemplate.id,
+  //     });
 
-      const usage = await caller.evals.evalTemplateUsage({
-        projectId: project.id,
-        evalTemplateId: template.id,
-      });
+  //     // Verify template is deleted
+  //     const deletedTemplate = await prisma.evalTemplate.findUnique({
+  //       where: {
+  //         id: evalTemplate.id,
+  //       },
+  //     });
+  //     expect(deletedTemplate).toBeNull();
 
-      expect(usage).toEqual([]);
-    });
+  //     // Verify eval job still exists but has evalTemplateId set to null
+  //     const updatedJob = await prisma.jobConfiguration.findUnique({
+  //       where: {
+  //         id: evalJob.id,
+  //       },
+  //     });
+  //     expect(updatedJob).not.toBeNull();
+  //     expect(updatedJob?.evalTemplateId).toBeNull();
+  //   });
 
-    it("should not expose evaluators of another project", async () => {
-      const { project, caller } = await prepare();
-      const { project: otherProject } = await prepare();
+  //   it("should throw error when trying to delete non-existent eval template", async () => {
+  //     const { project, caller } = await prepare();
 
-      const otherProjectTemplate = await createTemplateVersion(
-        otherProject.id,
-        "other-project-usage-template",
-        1,
-      );
+  //     await expect(
+  //       caller.evals.deleteEvalTemplate({
+  //         projectId: project.id,
+  //         evalTemplateId: "non-existent-id",
+  //       }),
+  //     ).rejects.toThrow("Template not found");
+  //   });
 
-      await expect(
-        caller.evals.evalTemplateUsage({
-          projectId: project.id,
-          evalTemplateId: otherProjectTemplate.id,
-        }),
-      ).rejects.toThrow("Evaluator not found");
-    });
-  });
+  //   it("should throw error when user lacks evalTemplate:CUD access scope", async () => {
+  //     const { project, session } = await prepare();
 
-  describe("evals.deleteEvalTemplate", () => {
-    it("should delete all versions of a project-owned evaluator", async () => {
-      const { project, caller } = await prepare();
+  //     // Create a session with limited permissions
+  //     const limitedSession: Session = {
+  //       ...session,
+  //       user: {
+  //         id: session.user!.id,
+  //         name: session.user!.name,
+  //         canCreateOrganizations: session.user!.canCreateOrganizations,
+  //         admin: false,
+  //         featureFlags: session.user!.featureFlags,
+  //         organizations: [
+  //           {
+  //             ...session.user!.organizations[0],
+  //             role: "MEMBER",
+  //             projects: [
+  //               {
+  //                 ...session.user!.organizations[0].projects[0],
+  //                 role: "VIEWER", // VIEWER role doesn't have evalTemplate:CUD scope
+  //               },
+  //             ],
+  //           },
+  //         ],
+  //       },
+  //       expires: session.expires,
+  //       environment: session.environment,
+  //     };
+  //     const limitedCtx = createInnerTRPCContext({ session: limitedSession });
+  //     const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
 
-      const v1 = await createTemplateVersion(project.id, "delete-template", 1);
-      const v2 = await createTemplateVersion(project.id, "delete-template", 2);
+  //     // Create a template
+  //     const evalTemplate = await prisma.evalTemplate.create({
+  //       data: {
+  //         projectId: project.id,
+  //         name: "test-template",
+  //         version: 1,
+  //         prompt: "test prompt",
+  //         model: "test-model",
+  //         modelParams: {},
+  //         vars: [],
+  //         outputDefinition: {
+  //           score: "test-score",
+  //           reasoning: "test-reasoning",
+  //         },
+  //         provider: "test-provider",
+  //       },
+  //     });
 
-      await caller.evals.deleteEvalTemplate({
-        projectId: project.id,
-        evalTemplateId: v1.id,
-      });
-
-      const remainingVersions = await prisma.evalTemplate.findMany({
-        where: { id: { in: [v1.id, v2.id] } },
-      });
-      expect(remainingVersions).toHaveLength(0);
-
-      const auditLogs = await prisma.auditLog.findMany({
-        where: {
-          projectId: project.id,
-          resourceType: "evalTemplate",
-          action: "delete",
-          resourceId: { in: [v1.id, v2.id] },
-        },
-      });
-      expect(auditLogs).toHaveLength(2);
-    });
-
-    it("should block deletion while a running evaluator references any version", async () => {
-      const { project, caller } = await prepare();
-
-      const v1 = await createTemplateVersion(project.id, "in-use-template", 1);
-      const v2 = await createTemplateVersion(project.id, "in-use-template", 2);
-
-      // job config references the old version; deleting via the latest
-      // version id must still be blocked
-      await prisma.jobConfiguration.create({
-        data: {
-          projectId: project.id,
-          jobType: "EVAL",
-          evalTemplateId: v1.id,
-          scoreName: "in-use-score",
-          filter: [],
-          targetObject: EvalTargetObject.TRACE,
-          variableMapping: [],
-          sampling: 1,
-          delay: 0,
-          status: "INACTIVE",
-          timeScope: ["NEW"],
-        },
-      });
-
-      await expect(
-        caller.evals.deleteEvalTemplate({
-          projectId: project.id,
-          evalTemplateId: v2.id,
-        }),
-      ).rejects.toThrow(
-        'Evaluator "in-use-template" is in use by 1 running evaluator(s): "in-use-score". Delete those running evaluators first.',
-      );
-
-      const remainingVersions = await prisma.evalTemplate.findMany({
-        where: { id: { in: [v1.id, v2.id] } },
-      });
-      expect(remainingVersions).toHaveLength(2);
-    });
-
-    it("should reject deletion of langfuse-managed evaluators", async () => {
-      const { project, caller } = await prepare();
-
-      const managedTemplate = await createTemplateVersion(
-        null,
-        `langfuse-managed-template-${project.id}`,
-        1,
-      );
-
-      try {
-        await expect(
-          caller.evals.deleteEvalTemplate({
-            projectId: project.id,
-            evalTemplateId: managedTemplate.id,
-          }),
-        ).rejects.toThrow("Langfuse-managed evaluators cannot be deleted");
-      } finally {
-        // managed templates are global and not covered by the org cleanup
-        await prisma.evalTemplate.delete({ where: { id: managedTemplate.id } });
-      }
-    });
-
-    it("should not delete evaluators of another project", async () => {
-      const { project, caller } = await prepare();
-      const { project: otherProject } = await prepare();
-
-      const otherProjectTemplate = await createTemplateVersion(
-        otherProject.id,
-        "other-project-template",
-        1,
-      );
-
-      await expect(
-        caller.evals.deleteEvalTemplate({
-          projectId: project.id,
-          evalTemplateId: otherProjectTemplate.id,
-        }),
-      ).rejects.toThrow("Evaluator not found");
-
-      const untouchedTemplate = await prisma.evalTemplate.findUnique({
-        where: { id: otherProjectTemplate.id },
-      });
-      expect(untouchedTemplate).not.toBeNull();
-    });
-
-    it("should throw error when trying to delete non-existent eval template", async () => {
-      const { project, caller } = await prepare();
-
-      await expect(
-        caller.evals.deleteEvalTemplate({
-          projectId: project.id,
-          evalTemplateId: "non-existent-id",
-        }),
-      ).rejects.toThrow("Evaluator not found");
-    });
-
-    it("should throw error when user lacks evalTemplate:CUD access scope", async () => {
-      const { project, session } = await prepare();
-
-      const limitedSession: Session = {
-        ...session,
-        user: {
-          id: session.user!.id,
-          name: session.user!.name,
-          canCreateOrganizations: session.user!.canCreateOrganizations,
-          admin: false,
-          featureFlags: session.user!.featureFlags,
-          organizations: [
-            {
-              ...session.user!.organizations[0],
-              role: "MEMBER",
-              projects: [
-                {
-                  ...session.user!.organizations[0].projects[0],
-                  role: "VIEWER", // VIEWER role doesn't have evalTemplate:CUD scope
-                },
-              ],
-            },
-          ],
-        },
-        expires: session.expires,
-        environment: session.environment,
-      };
-      const limitedCtx = createInnerTRPCContext({ session: limitedSession });
-      const limitedCaller = appRouter.createCaller({ ...limitedCtx, prisma });
-
-      const evalTemplate = await createTemplateVersion(
-        project.id,
-        "no-access-template",
-        1,
-      );
-
-      await expect(
-        limitedCaller.evals.deleteEvalTemplate({
-          projectId: project.id,
-          evalTemplateId: evalTemplate.id,
-        }),
-      ).rejects.toThrow("User does not have access to this resource or action");
-    });
-  });
+  //     // Attempt to delete with limited permissions
+  //     await expect(
+  //       limitedCaller.evals.deleteEvalTemplate({
+  //         projectId: project.id,
+  //         evalTemplateId: evalTemplate.id,
+  //       }),
+  //     ).rejects.toThrow("User does not have access to this resource or action");
+  //   });
+  // });
 });

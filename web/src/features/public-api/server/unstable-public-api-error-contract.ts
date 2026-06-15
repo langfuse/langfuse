@@ -4,7 +4,6 @@ import {
   BaseError,
   InvalidRequestError,
   InternalServerError,
-  ForbiddenError,
   LangfuseConflictError,
   LangfuseNotFoundError,
   MethodNotAllowedError,
@@ -178,14 +177,6 @@ export function toUnstablePublicApiError(
   }
 
   if (error instanceof UnauthorizedError) {
-    return createUnstablePublicApiError({
-      httpCode: 403,
-      code: "access_denied",
-      message: error.message,
-    });
-  }
-
-  if (error instanceof ForbiddenError) {
     return createUnstablePublicApiError({
       httpCode: 403,
       code: "access_denied",

@@ -25,7 +25,6 @@ import {
   SidePanelTitle,
 } from "@/src/components/ui/side-panel";
 import { LangfuseIcon } from "@/src/components/LangfuseLogo";
-import { DeleteEvalTemplateButton } from "@/src/features/evals/components/delete-eval-template-button";
 
 export const EvalTemplateDetail = () => {
   const router = useRouter();
@@ -107,15 +106,18 @@ export const EvalTemplateDetail = () => {
               isCustom={!!template.data?.projectId}
             />
 
-            {template.data?.projectId ? (
-              <DeleteEvalTemplateButton
-                itemId={templateId}
-                projectId={projectId}
-                icon
-                redirectUrl={`/project/${projectId}/evals/templates`}
-                deleteConfirmation={template.data.name}
-              />
-            ) : null}
+            {/* TODO: moved to LFE-4573 */}
+            {/* <DeleteEvaluatorTemplateButton
+              itemId={templateId}
+              projectId={projectId}
+              redirectUrl={`/project/${projectId}/evals/templates`}
+              deleteConfirmation={
+                template.data != null
+                  ? `${template.data.name}-v${template.data.version}`
+                  : undefined
+              }
+              enabled={!template.isPending}
+            /> */}
           </>
         ),
       }}

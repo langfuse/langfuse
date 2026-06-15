@@ -76,10 +76,6 @@ import {
   deleteEvaluationRuleTool,
   handleDeleteEvaluationRule,
 } from "@/src/features/mcp/features/evals/tools/deleteEvaluationRule";
-import {
-  deleteEvaluatorTool,
-  handleDeleteEvaluator,
-} from "@/src/features/mcp/features/evals/tools/deleteEvaluator";
 import { handleGetEvaluationRule } from "@/src/features/mcp/features/evals/tools/getEvaluationRule";
 
 const createScoreConfig = async (projectId: string) =>
@@ -333,50 +329,6 @@ describe("MCP Write Tools", () => {
       await expect(
         handleGetEvaluationRule({ evaluationRuleId: rule.id }, setup.context),
       ).rejects.toThrow();
-    });
-  });
-
-  describe("deleteEvaluator tool", () => {
-    it("should have destructiveHint annotation", () => {
-      verifyToolAnnotations(deleteEvaluatorTool, {
-        destructiveHint: true,
-      });
-    });
-
-    it("should delete an evaluator and audit the write", async () => {
-      const setup = await createMcpTestSetup();
-      const { projectId, apiKeyId } = setup;
-      const evaluator = await createLlmEvaluatorForMcpWriteTest(setup);
-
-      await expect(
-        handleDeleteEvaluator({ evaluatorId: evaluator.id }, setup.context),
-      ).resolves.toEqual({ message: "Evaluator successfully deleted" });
-      await expect(
-        verifyAuditLog({
-          projectId,
-          apiKeyId,
-          resourceType: "evalTemplate",
-          resourceId: evaluator.id,
-          action: "delete",
-        }),
-      ).resolves.toMatchObject({ resourceId: evaluator.id, action: "delete" });
-
-      await expect(
-        prisma.evalTemplate.findUnique({ where: { id: evaluator.id } }),
-      ).resolves.toBeNull();
-    });
-
-    it("should reject deletion while an evaluation rule references the evaluator", async () => {
-      const setup = await createMcpTestSetup();
-      const { evaluator } = await createLlmEvaluationRuleForMcpWriteTest(setup);
-
-      await expect(
-        handleDeleteEvaluator({ evaluatorId: evaluator.id }, setup.context),
-      ).rejects.toThrow(/evaluation rule/);
-
-      await expect(
-        prisma.evalTemplate.findUnique({ where: { id: evaluator.id } }),
-      ).resolves.not.toBeNull();
     });
   });
 

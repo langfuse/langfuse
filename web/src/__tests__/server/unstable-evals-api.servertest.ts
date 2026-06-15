@@ -8,7 +8,6 @@ import {
   PostUnstableEvaluationRuleResponse,
 } from "@/src/features/public-api/types/unstable-evaluation-rules";
 import {
-  DeleteUnstableEvaluatorResponse,
   GetUnstableEvaluatorResponse,
   GetUnstableEvaluatorsResponse,
   PostUnstableEvaluatorResponse,
@@ -213,148 +212,6 @@ describe("/api/public/unstable evaluators API", () => {
     expect(
       listed.body.data.some((evaluator) => evaluator.id === v1.body.id),
     ).toBe(false);
-  });
-
-  it("deletes an evaluator including all of its versions via any version id", async () => {
-    const v1 = await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Deletable correctness",
-        prompt: "Judge {{input}} against {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    const v2 = await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Deletable correctness",
-        prompt: "Judge {{input}} versus {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    // deleting via the old version id removes the whole family
-    const deleted = await makeZodVerifiedAPICall(
-      DeleteUnstableEvaluatorResponse,
-      "DELETE",
-      `/api/public/unstable/evaluators/${v1.body.id}`,
-      undefined,
-      auth,
-    );
-    expect(deleted.body.message).toBe("Evaluator successfully deleted");
-
-    const fetchLatest = await makeAPICall(
-      "GET",
-      `/api/public/unstable/evaluators/${v2.body.id}`,
-      undefined,
-      auth,
-    );
-    expectUnstableError(fetchLatest, {
-      status: 404,
-      code: "resource_not_found",
-    });
-  });
-
-  it("rejects evaluator deletion while evaluation rules reference the family", async () => {
-    const evaluator = await makeZodVerifiedAPICall(
-      PostUnstableEvaluatorResponse,
-      "POST",
-      "/api/public/unstable/evaluators",
-      {
-        name: "Referenced correctness",
-        prompt: "Judge {{input}} against {{output}}",
-        outputDefinition: numericOutputDefinition,
-      },
-      auth,
-    );
-
-    const rule = await makeZodVerifiedAPICall(
-      PostUnstableEvaluationRuleResponse,
-      "POST",
-      "/api/public/unstable/evaluation-rules",
-      {
-        name: "referenced_correctness_live",
-        evaluator: {
-          name: "Referenced correctness",
-          scope: "project",
-        },
-        target: "observation",
-        enabled: true,
-        sampling: 1,
-        filter: [],
-        mapping: [
-          { variable: "input", source: "input" },
-          { variable: "output", source: "output" },
-        ],
-      },
-      auth,
-    );
-
-    const blocked = await makeAPICall(
-      "DELETE",
-      `/api/public/unstable/evaluators/${evaluator.body.id}`,
-      undefined,
-      auth,
-    );
-    const blockedBody = expectUnstableError(blocked, {
-      status: 409,
-      code: "conflict",
-    });
-    expect(blockedBody.message).toContain("evaluation rule");
-
-    await makeZodVerifiedAPICall(
-      DeleteUnstableEvaluationRuleResponse,
-      "DELETE",
-      `/api/public/unstable/evaluation-rules/${rule.body.id}`,
-      undefined,
-      auth,
-    );
-
-    await makeZodVerifiedAPICall(
-      DeleteUnstableEvaluatorResponse,
-      "DELETE",
-      `/api/public/unstable/evaluators/${evaluator.body.id}`,
-      undefined,
-      auth,
-    );
-  });
-
-  it("rejects deletion of langfuse-managed evaluators", async () => {
-    const managed = await createManagedEvaluator({
-      name: "Managed deletable",
-      version: 1,
-    });
-
-    const response = await makeAPICall(
-      "DELETE",
-      `/api/public/unstable/evaluators/${managed.id}`,
-      undefined,
-      auth,
-    );
-    expectUnstableError(response, {
-      status: 403,
-      code: "access_denied",
-    });
-  });
-
-  it("returns 404 when deleting an unknown evaluator", async () => {
-    const response = await makeAPICall(
-      "DELETE",
-      "/api/public/unstable/evaluators/unknown-evaluator-id",
-      undefined,
-      auth,
-    );
-    expectUnstableError(response, {
-      status: 404,
-      code: "resource_not_found",
-    });
   });
 
   it("automatically moves existing evaluation rules to the newest project evaluator version", async () => {
@@ -587,7 +444,7 @@ describe("/api/public/unstable evaluators API", () => {
     expect(deleted.body.message).toBe("Evaluation rule successfully deleted");
   });
 
-  it("returns method_not_allowed for evaluator patch", async () => {
+  it("returns method_not_allowed for evaluator patch and delete", async () => {
     const evaluator = await makeZodVerifiedAPICall(
       PostUnstableEvaluatorResponse,
       "POST",
@@ -608,8 +465,18 @@ describe("/api/public/unstable evaluators API", () => {
       },
       auth,
     );
+    const deleteRes = await makeAPICall(
+      "DELETE",
+      `/api/public/unstable/evaluators/${evaluator.body.id}`,
+      undefined,
+      auth,
+    );
 
     expectUnstableError(patchRes, {
+      status: 405,
+      code: "method_not_allowed",
+    });
+    expectUnstableError(deleteRes, {
       status: 405,
       code: "method_not_allowed",
     });
