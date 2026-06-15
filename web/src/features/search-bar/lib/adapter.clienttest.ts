@@ -122,9 +122,9 @@ describe("astToFilterState", () => {
     ]);
   });
 
-  it("rejects the FTS * operator (full text goes through in: scopes)", () => {
+  it("rejects the FTS * operator (full text goes through content:/scope)", () => {
     // The events tRPC filter contract has no `matches` operator — full-text
-    // search is searchQuery/searchType, i.e. free text + in: scopes.
+    // search is searchQuery/searchType, i.e. bare text + content:/input:/output:.
     expect(lower('input:*"refund policy"').errors.length).toBeGreaterThan(0);
     expect(lower("metadata.region:*eu").errors.length).toBeGreaterThan(0);
   });
@@ -356,11 +356,25 @@ describe("astToFilterState", () => {
     expect(lower("has:(endTime OR userId)").errors.length).toBeGreaterThan(0);
   });
 
-  it("collects in: scopes into searchType", () => {
-    const r = lower("in:content in:input refund policy");
+  it("lowers content: to the content search scope + query", () => {
+    const r = lower('content:"refund policy"');
     expect(r.errors).toEqual([]);
-    expect(r.searchType).toEqual(["content", "input"]);
+    expect(r.searchType).toEqual(["content"]);
     expect(r.searchQuery).toBe("refund policy");
+  });
+
+  it("lowers input:/output: to real column filters (not searchType)", () => {
+    const r = lower("input:refund");
+    expect(r.errors).toEqual([]);
+    expect(r.searchType).toBeNull();
+    expect(r.filters).toEqual([
+      {
+        type: "string",
+        column: "input",
+        operator: "contains",
+        value: "refund",
+      },
+    ]);
   });
 
   it("flattens parenthesized AND groups like the top-level chain", () => {
@@ -394,7 +408,7 @@ describe("validateQuery / adapter parity", () => {
       "-env:dev latency:>2",
       "scores.accuracy:>0.8 traceScores.nps:positive",
       "metadata.region:~eu has:endTime -has:userId",
-      "in:content refund tags:(a AND b)",
+      "content:refund tags:(a AND b)",
       "isRootObservation:true name:~chat",
       "(level:ERROR OR level:WARNING) env:dev",
     ];

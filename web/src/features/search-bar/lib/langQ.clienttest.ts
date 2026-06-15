@@ -324,7 +324,7 @@ describe("validateQuery", () => {
       "scores.accuracy:>0.8",
       "traceScores.nps:positive",
       "metadata.region:~eu",
-      "in:content refund",
+      "content:refund",
       "tags:(a AND b)",
       "isRootObservation:true",
       "-isRootObservation:true",

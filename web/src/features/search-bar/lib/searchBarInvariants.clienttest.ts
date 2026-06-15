@@ -18,10 +18,9 @@ const eventsView: RegistryUnderTest = {
     "metadata.region",
     "scores.accuracy",
     "traceScores.nps",
+    "content",
     "has:endTime",
     "has:latency",
-    "in:content",
-    "in:input",
   ],
   // Numeric vs categorical routing for scores.accuracy must not change which
   // invariants hold — only how a score lowers.

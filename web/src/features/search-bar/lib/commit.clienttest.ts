@@ -2,7 +2,7 @@ import { planCommit } from "@/src/features/search-bar/lib/commit";
 
 describe("planCommit", () => {
   it("lowers a valid draft to filters + search + canonical text", () => {
-    const r = planCommit("  level:ERROR timeout in:content  ");
+    const r = planCommit("  level:ERROR content:timeout  ");
     expect(r.status).toBe("committed");
     if (r.status !== "committed") return;
     expect(r.filters).toEqual([
@@ -16,7 +16,7 @@ describe("planCommit", () => {
     expect(r.searchQuery).toBe("timeout");
     expect(r.searchType).toEqual(["content"]);
     // Canonical text preserves the parsed (typed) order.
-    expect(r.canonical).toBe("level:ERROR timeout in:content");
+    expect(r.canonical).toBe("level:ERROR content:timeout");
   });
 
   it("defaults searchType to id when no in: scope is present", () => {

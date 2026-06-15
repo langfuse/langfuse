@@ -22,7 +22,6 @@ import {
   FIELDS,
   nullableFields,
   resolveField,
-  SEARCH_SCOPES,
   type FieldDef,
   type FieldRef,
 } from "./fields";
@@ -217,11 +216,11 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
         fieldId: "has",
       },
       {
-        id: "field:in",
+        id: "field:content",
         kind: "field",
-        label: "in",
-        detail: "scope free-text search, e.g. in:input refund",
-        fieldId: "in",
+        label: "content",
+        detail: "full-text search in input + output, e.g. content:refund",
+        fieldId: "content",
       },
     );
   }
@@ -388,13 +387,6 @@ function matchOperatorOptions(fieldId: string): CompletionOption[] {
   ];
 }
 
-const SCOPE_DETAILS: Record<string, string> = {
-  id: "IDs and names (observation/trace/user/session, model)",
-  content: "input + output full text",
-  input: "observation input only",
-  output: "observation output only",
-};
-
 // ---- key-path suggestions (metadata.*, scores.*, traceScores.*) ----
 
 type PathKind = {
@@ -504,17 +496,9 @@ function valueStageSections(
           loading: false,
         };
       }
-      const all = SEARCH_SCOPES.map((scope) => ({
-        id: `value:${scope}`,
-        kind: "value" as const,
-        label: scope,
-        detail: SCOPE_DETAILS[scope],
-        value: scope,
-      }));
-      return {
-        sections: section(SECTION_VALUES, valueOptions(all, typed)),
-        loading: false,
-      };
+      // content: is a free-form full-text search — no enumerated values to
+      // suggest; the user just types the query.
+      return null;
     }
 
     case "metadata": {
@@ -835,25 +819,25 @@ export function planInputCompletions(
       !["AND", "OR", "NOT"].includes(tokenBody)
         ? [
             {
+              id: "search:content",
+              kind: "pattern",
+              label: `content:${tokenBody}`,
+              detail: "Full-text search in input + output",
+              insert: `content:${tokenBody}`,
+            },
+            {
               id: "search:input",
               kind: "pattern",
-              label: `input:~${tokenBody}`,
-              detail: "search inside input",
-              insert: `input:~${tokenBody}`,
+              label: `input:${tokenBody}`,
+              detail: "Search the input payload",
+              insert: `input:${tokenBody}`,
             },
             {
               id: "search:output",
               kind: "pattern",
-              label: `output:~${tokenBody}`,
-              detail: "search inside output",
-              insert: `output:~${tokenBody}`,
-            },
-            {
-              id: "search:content",
-              kind: "pattern",
-              label: `in:content ${tokenBody}`,
-              detail: "free-text search in input + output",
-              insert: `in:content ${tokenBody}`,
+              label: `output:${tokenBody}`,
+              detail: "Search the output payload",
+              insert: `output:${tokenBody}`,
             },
           ]
         : [];

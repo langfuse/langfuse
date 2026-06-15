@@ -88,11 +88,13 @@ export const METADATA_PREFIX = "metadata.";
 const SCORE_PREFIXES = ["scores.", "score."];
 const TRACE_SCORE_PREFIXES = ["tracescores.", "trace_scores.", "tracescore."];
 
-// Pseudo-fields: not columns — `has:<field>` lowers to a null filter,
-// `in:<scope>` sets the searchType for free-text terms.
+// Pseudo-fields: not columns — `has:<field>` lowers to a null filter, and
+// `content:<text>` is a full-text search over input + output combined. There
+// is no single "content" column, so it lowers to searchQuery + searchType
+// (the only cross-column path); `input:`/`output:` are real text columns and
+// the default (bare free text) searches ids & names.
 export const HAS_KEY = "has";
-export const IN_KEY = "in";
-export const SEARCH_SCOPES = ["id", "content", "input", "output"] as const;
+export const CONTENT_KEY = "content";
 
 /** Langfuse score filter columns (filter by score NAME via key-value ops). */
 export const SCORE_COLUMNS = {
@@ -107,7 +109,7 @@ export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "metadata"; key: string }
   | { type: "scores"; key: string; level: "observation" | "trace" }
-  | { type: "pseudo"; id: typeof HAS_KEY | typeof IN_KEY };
+  | { type: "pseudo"; id: typeof HAS_KEY | typeof CONTENT_KEY };
 
 /**
  * Resolve a user-typed key (case-insensitive, alias-aware) to a field, a
@@ -134,7 +136,7 @@ export function resolveField(name: string): FieldRef | null {
         : null;
     }
   }
-  if (lower === HAS_KEY || lower === IN_KEY)
+  if (lower === HAS_KEY || lower === CONTENT_KEY)
     return { type: "pseudo", id: lower };
   const field = byName.get(lower);
   return field ? { type: "field", field } : null;
@@ -220,7 +222,7 @@ export function operatorIssue(
       if (op !== "=") {
         return ref.id === "has"
           ? `has: lists fields that have a value — it does not support ${label(op)}`
-          : `in: picks search scopes — it does not support ${label(op)}`;
+          : `content: is a full-text search — just type the text (e.g. content:refund), not ${label(op)}`;
       }
       return null;
     case "metadata":
@@ -284,9 +286,9 @@ export function negationIssue(
     return `negated all-of groups on "${refName(ref)}" are not representable — negate single values instead`;
   }
   if (ref.type === "pseudo") {
-    return ref.id === "in"
-      ? "in: cannot be negated — pick the scopes to search instead"
-      : null;
+    return ref.id === "content"
+      ? "content: is a full-text search and cannot be negated — search text is global"
+      : null; // -has: is valid (missing value)
   }
   if (op === "^" || op === "$" || op === "*") {
     return `negation of ${label(op)} is not representable in the Langfuse filter contract`;

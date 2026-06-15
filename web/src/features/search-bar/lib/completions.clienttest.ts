@@ -165,8 +165,9 @@ describe("planInputCompletions", () => {
   it("offers scoped full-text rewrites for free text", () => {
     const p = plan("refund", 6);
     const labels = flattenOptions(p).map((o) => o.label);
-    expect(labels).toContain("input:~refund");
-    expect(labels).toContain("in:content refund");
+    expect(labels).toContain("content:refund");
+    expect(labels).toContain("input:refund");
+    expect(labels).toContain("output:refund");
   });
 
   it("plans grouped value segments with keep-open for incomplete groups", () => {

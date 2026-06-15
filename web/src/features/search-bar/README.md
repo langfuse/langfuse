@@ -5,7 +5,7 @@ replace the facet sidebar — it is an ADDITIONAL keyboard-driven editor that
 coexists with the sidebar and stays in sync with it (Datadog model). The facet
 sidebar's `FilterState` (+ the table's full-text search) remains the single
 source of truth; the bar reads from and writes to it. Only the legacy toolbar
-search field is replaced (free text + `in:` scopes go inline in the bar).
+search field is replaced (full-text search goes inline in the bar).
 Project-level opt-in. Based on the `langfuse-search-bar` prototype.
 
 ## Enablement
@@ -32,26 +32,41 @@ Project-level opt-in. Based on the `langfuse-search-bar` prototype.
 - `name:~chat` contains, `:=` exact, `:^` starts-with, `:$` ends-with
 - `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
 - `has:endTime` / `-has:endTime` null checks
-- free text → `searchQuery`; `in:id|content|input|output` → `searchType`
+- full-text search (see below): bare text, or `content:`/`input:`/`output:`
 
 Cross-field OR, negated groups, and other shapes the flat contract cannot
 represent are commit-blocking diagnostics, not silent drops. There is no
-FTS `*` operator: the events tRPC filter contract has none; full-text search
-is free text + `in:` scopes.
+FTS `*` operator: the events tRPC filter contract has none.
 
-Free text matches as a **contiguous substring** server-side
-(`clickhouse-sql/search.ts`, `ILIKE %query%`): the default `in:id` scope
-searches `id` + `user_id` + `name`; `in:content|input|output` search the IO
-columns. So multi-word free text is a **phrase**, not token-AND — e.g.
-`test media` matches "Test Media" but not "Media — Test run". Whether to keep
-phrase semantics or match each word independently is open Decision A below.
+**Full-text search.** It matches as a **contiguous substring** server-side
+(`clickhouse-sql/search.ts`, `ILIKE %query%`) and is expressed field-style:
+
+- **bare text** (`refund policy`) → `searchQuery`, default scope: `id` +
+  `user_id` + `name`.
+- **`content:"refund"`** → input **OR** output combined. There is no single
+  "content" column, so this is the one full-text form that lowers to
+  `searchQuery` + `searchType=content` (a pseudo-field, like `has:`).
+- **`input:"refund"` / `output:"refund"`** → real `string` "contains" **column
+  filters** on `e.input`/`e.output` (not `searchType`). They round-trip as
+  `FilterState` like any other column filter.
+
+Typing bare text offers the scope rewrites (`content:`/`input:`/`output:`) with
+hover explanations. Scope is global per query (`searchType` is one value), so
+multi-word free text is a **phrase**, not token-AND — `test media` matches
+"Test Media" but not "Media — Test run" (open Decision A below).
+
+Historical note: the old `in:<scope>` token is **gone**. It overlapped the
+`input:`/`output:` column filters (token-indexed search vs plain ILIKE) and
+read as a cryptic detached pill. The reverse adapter canonicalizes a legacy
+`searchType=input|output` to the `input:`/`output:` **column filter** on the
+next commit (the chosen normalization); `content` stays the searchType path.
 
 Operator-looking tokens that aren't supported yet are **reserved** — they emit
 an explicit "not supported yet" diagnostic instead of silently becoming free
 text: `!`, lowercase `not`/`or`/`and` (use `-field:value` to exclude;
 `field:(A OR B)` for one field's values). Quote a reserved word (`"or"`) to
-search for it as literal text. (Top-level grouping with `(` `)` and a single
-visible/scoped free-text chip are tracked as follow-ups.)
+search for it as literal text. (Top-level grouping with `(` `)` is tracked as a
+follow-up.)
 
 ## Data flow (one source of truth, one direction)
 
@@ -147,8 +162,8 @@ The table always reads the sidebar's `effectiveFilterState` +
 mounted by both `/observations` and `/traces` in v4 mode (and embedded on the
 user/session detail pages — page-scoped by `userId`/`sessionId` — and the
 evaluator form via `hideControls`, where the bar stays off). In bar mode the
-toolbar's legacy search field is hidden (free text + `in:` scopes are inline in
-the bar); the time-range/refresh controls (`EventsHeaderControls`) render into
+toolbar's legacy search field is hidden (full-text search is inline in the
+bar); the time-range/refresh controls (`EventsHeaderControls`) render into
 the page header when the host page provides a header-actions slot
 (`actionButtonsRight` with a callback-ref DOM node), and **fall back to inline
 beside the bar** when it does not — so they are never dropped if a page forgets
@@ -161,7 +176,7 @@ order and within-free-text order survive the AST/serializer and URL
 encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
 + `searchType` as three separate params) has no slot for the relative position
 of filters vs free text, so on commit the reverse adapter canonicalizes to
-`<filters> [in:scope] <freetext>` (Datadog-style): typing `refund level:ERROR`
+`<filters> <freetext>` (Datadog-style): typing `refund level:ERROR`
 and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
 interleave is preserved only in the recent-searches entry (`planCommit`'s
 `canonical`), not in the live bar.
@@ -231,7 +246,7 @@ refactor; everything after it is data, not code.
 **What stays grammar-global — do not make per-view:** tokenizing, quoting
 (`serializeValue` ↔ `reservedTokenIssue` is a **mirror invariant**: add a
 reserved token to one, add it to the other, or the round-trip test fails),
-operator precedence, and the `has:`/`in:` pseudo-fields. These are language, not
+operator precedence, and the `has:`/`content:` pseudo-fields. These are language, not
 data — a new view inherits them unchanged.
 
 **Do not couple to `ColumnDefinition` speculatively.** Build the deriver +
@@ -284,8 +299,8 @@ unused planners).
 - Saved-view round-trip for free text/search scopes.
 - Strict-mode follow-ups (pending product decisions):
   - **Decision A — free-text semantics**: keep phrase (contiguous substring;
-    just render free text as one visible/scoped chip) vs. token-AND (match each
-    word independently; needs a backend FTS change). See Query language above.
+    free text already renders as one chip) vs. token-AND (match each word
+    independently; needs a backend FTS change). See Query language above.
   - **Decision B — top-level grouping `( )`**: reserve it like the other
     operators, or leave it. Entangled with `tidyQueryText`/chip-removal (which
     strips redundant parens and would bail on a now-"invalid" paren) and

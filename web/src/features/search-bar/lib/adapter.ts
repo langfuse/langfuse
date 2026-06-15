@@ -29,7 +29,6 @@ import {
   operatorIssue,
   resolveField,
   SCORE_COLUMNS,
-  SEARCH_SCOPES,
   type FieldDef,
 } from "./fields";
 
@@ -77,10 +76,10 @@ function resolveScoreType(
   return "unknown";
 }
 
-function isInFilter(node: ASTNode): node is FilterNode {
+function isContentFilter(node: ASTNode): node is FilterNode {
   if (node.kind !== "filter") return false;
   const ref = resolveField(node.key);
-  return ref !== null && ref.type === "pseudo" && ref.id === "in";
+  return ref !== null && ref.type === "pseudo" && ref.id === "content";
 }
 
 /**
@@ -139,20 +138,26 @@ export function astToFilterState(
   };
 }
 
-function lowerIn(node: FilterNode, ctx: LowerContext): void {
+// `content:<text>` is a full-text search over input + output combined. There
+// is no flat-contract filter for "input OR output", so it lowers to the
+// searchQuery + searchType=content path (input:/output: alone are real column
+// filters; the default scope, bare free text, searches ids & names).
+function lowerContent(node: FilterNode, ctx: LowerContext): void {
+  let added = false;
   for (const v of node.values) {
-    const scope = v.toLowerCase();
-    if ((SEARCH_SCOPES as readonly string[]).includes(scope)) {
-      if (!ctx.scopes.includes(scope as TracingSearchType))
-        ctx.scopes.push(scope as TracingSearchType);
-    } else {
-      ctx.errors.push(`in: expects ${SEARCH_SCOPES.join(", ")} — got "${v}"`);
+    if (v.length === 0) {
+      ctx.errors.push("content: needs search text (e.g. content:refund)");
+      continue;
     }
+    ctx.searchTerms.push(v);
+    added = true;
   }
+  if (added && !ctx.scopes.includes("content")) ctx.scopes.push("content");
 }
 
 // AND chains (top-level or parenthesized — semantically identical in the
-// flat contract) accept free text (-> searchQuery) and `in:` (-> searchType).
+// flat contract) accept free text (-> searchQuery) and `content:` (-> the
+// content searchType scope).
 function lowerTopLevel(
   node: ASTNode,
   negated: boolean,
@@ -211,14 +216,14 @@ function lowerTopLevel(
       return;
     }
     case "filter":
-      if (isInFilter(node)) {
+      if (isContentFilter(node)) {
         if (negated) {
           ctx.errors.push(
-            "in: cannot be negated — pick the scopes to search instead",
+            "content: is a full-text search and cannot be negated — search text is global",
           );
           return;
         }
-        lowerIn(node, ctx);
+        lowerContent(node, ctx);
         return;
       }
       lowerFilter(node, negated, ctx.filters, ctx.errors, ctx.scoreTypes);

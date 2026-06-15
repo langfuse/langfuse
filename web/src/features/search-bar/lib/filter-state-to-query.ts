@@ -178,16 +178,16 @@ export type FilterStateToQueryResult = {
 };
 
 export type FilterStateToQueryOptions = {
-  /** Global full-text query — appended as free-text tokens. */
+  /** Global full-text query — rendered as bare text or a scoped field token. */
   searchQuery?: string | null;
-  /** Search scopes — appended as an `in:` token unless they are the
-   *  default (`["id"]`/empty), which carries no token. */
+  /** Search scope — rendered as content:/input:/output: when non-default;
+   *  the default (`["id"]`/empty) renders as bare free text. */
   searchType?: TracingSearchType[] | null;
 };
 
-// The searchType value that carries no `in:` token (matches the table's
-// default full-text scope). astToFilterState returns `null` searchType for a
-// query with no `in:`; the sync layer maps that back to this default.
+// The default full-text scope (ids & names), rendered as bare free text.
+// astToFilterState returns `null` searchType for a query with no scope field;
+// the sync layer maps that back to this default.
 const DEFAULT_SEARCH_TYPE = "id";
 
 function isDefaultSearchType(
@@ -198,6 +198,21 @@ function isDefaultSearchType(
     searchType.length === 0 ||
     (searchType.length === 1 && searchType[0] === DEFAULT_SEARCH_TYPE)
   );
+}
+
+// The bar field that expresses a non-default search scope: content (input +
+// output, or both selected) → the content: pseudo; input/output alone → their
+// real text columns; id / empty → null (the default, rendered as bare text).
+function scopedSearchField(
+  searchType: TracingSearchType[] | null | undefined,
+): "content" | "input" | "output" | null {
+  if (isDefaultSearchType(searchType)) return null;
+  const set = new Set(searchType ?? []);
+  if (set.has("content") || (set.has("input") && set.has("output")))
+    return "content";
+  if (set.has("input")) return "input";
+  if (set.has("output")) return "output";
+  return null;
 }
 
 export function filterStateToQueryText(
@@ -217,22 +232,26 @@ export function filterStateToQueryText(
     nodes.push(node);
   }
 
-  // `in:` scope token for non-default search scopes.
-  if (!isDefaultSearchType(options.searchType)) {
-    nodes.push({
-      kind: "filter",
-      key: "in",
-      op: "=",
-      values: options.searchType!,
-    });
-  }
-
-  // Free-text terms (whitespace-split so each lexes as one token; quoted
-  // when a term carries grammar-significant characters).
+  // Full-text search. A non-default scope bundles the whole query into one
+  // scoped token: `content:"…"` (input + output) reparses to searchType=content;
+  // `input:"…"`/`output:"…"` reparse to their real column filters (so a legacy
+  // input/output searchType normalizes to a column filter on the next commit —
+  // the deliberate (a) canonicalization). The default scope (ids & names) stays
+  // as bare free-text terms (whitespace-split so each lexes as one token).
   const searchQuery = options.searchQuery?.trim() ?? "";
   if (searchQuery.length > 0) {
-    for (const term of searchQuery.split(/\s+/)) {
-      nodes.push({ kind: "text", value: term });
+    const scopeField = scopedSearchField(options.searchType);
+    if (scopeField !== null) {
+      nodes.push({
+        kind: "filter",
+        key: scopeField,
+        op: "=",
+        values: [searchQuery],
+      });
+    } else {
+      for (const term of searchQuery.split(/\s+/)) {
+        nodes.push({ kind: "text", value: term });
+      }
     }
   }
 
