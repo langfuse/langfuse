@@ -705,7 +705,13 @@ export function SearchComposer({
       if (currentPlan === null) return;
       if (option.kind === "recent") {
         setDraftWithSelection(option.query, option.query.length);
-        commitStructuredEdit();
+        // A recent is a COMPLETE query the user explicitly picked, so it gets
+        // the same Enter/blur reveal semantics: commit if valid, otherwise
+        // reveal the red invalid state instead of silently no-op'ing (e.g. a
+        // recent stored before a grammar tightening, or a since-retyped score).
+        const state = storeApi.getState();
+        if (state.draftValid) commitToFilterState();
+        else state.actions.revealInvalid();
         setAppendIntent(false);
         setAutocompleteOpen(false);
         return;
@@ -801,6 +807,8 @@ export function SearchComposer({
       planRef,
       setDraftWithSelection,
       commitStructuredEdit,
+      commitToFilterState,
+      storeApi,
     ],
   );
 
@@ -1225,6 +1233,11 @@ export function SearchComposer({
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}
           onCompositionEnd={syncFromDom}
+          // Disable drag-and-drop: an intra-bar drag fires deleteByDrag (which
+          // the delete branch applies) without a matching insert, silently
+          // dropping the dragged text. Drop is unsupported anyway; selection
+          // and copy/cut/paste stay fully functional.
+          onDragStart={(e) => e.preventDefault()}
           onKeyDown={onKeyDown}
           onCopy={onCopy}
           onCut={onCut}
