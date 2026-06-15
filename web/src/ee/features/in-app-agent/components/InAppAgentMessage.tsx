@@ -1,6 +1,13 @@
 "use client";
 
-import { Loader2, ThumbsDown, ThumbsUp, Wrench } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Loader2,
+  ThumbsDown,
+  ThumbsUp,
+  Wrench,
+} from "lucide-react";
 import { Streamdown } from "streamdown";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
@@ -22,6 +29,7 @@ import {
   PopoverContent,
 } from "@/src/components/ui/popover";
 import { useElementSize } from "@/src/hooks/useElementSize";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
 export type InAppAgentMessageRole = "assistant" | "user";
@@ -588,7 +596,7 @@ function MessageText({
           i: ({ children }) => <i>{children}</i>,
           em: ({ children }) => <em>{children}</em>,
           code: ({ children }) => <code>{children}</code>,
-          pre: ({ children }) => <pre>{children}</pre>,
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           thead: ({ children }) => <thead>{children}</thead>,
           tbody: ({ children }) => <tbody>{children}</tbody>,
           tr: ({ children }) => <tr>{children}</tr>,
@@ -604,6 +612,47 @@ function MessageText({
         {text}
       </Streamdown>
     </div>
+  );
+}
+
+function CodeBlock({ children }: { children: ReactNode }) {
+  const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });
+
+  // This is ugly but streamdown doesn't provide an easy way to get the raw text content of a code block
+  const code = useMemo(
+    () =>
+      typeof children === "object" &&
+      children &&
+      "props" in children &&
+      typeof children.props === "object" &&
+      children.props &&
+      "children" in children.props &&
+      typeof children.props.children === "string"
+        ? children.props.children
+        : "",
+    [children],
+  );
+
+  return (
+    <pre className="group/code-block relative pr-10">
+      <button
+        type="button"
+        aria-label={isCopied ? "Copied code" : "Copy code"}
+        title={isCopied ? "Copied" : "Copy code"}
+        disabled={!code}
+        onClick={() => {
+          copy(code).catch(() => undefined);
+        }}
+        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {isCopied ? (
+          <Check className="size-3.5" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
+      </button>
+      {children}
+    </pre>
   );
 }
 
