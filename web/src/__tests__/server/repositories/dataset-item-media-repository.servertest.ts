@@ -6,8 +6,8 @@ import {
   createManyDatasetItems,
   deleteDatasetMediaByDatasetId,
   findExpiredMediaByProjectId,
+  linkDatasetItemMedia,
   releaseDatasetMedia,
-  syncDatasetItemMedia,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
@@ -52,6 +52,20 @@ const getItemMediaRows = (datasetItemId: string) =>
     where: { projectId, datasetItemId },
     orderBy: [{ field: "asc" }, { jsonPath: "asc" }],
   });
+
+const linkDatasetItemMediaForTest = async (
+  props: Parameters<typeof linkDatasetItemMedia>[1],
+) => {
+  const { droppedMediaIds } = await prisma.$transaction((tx) =>
+    linkDatasetItemMedia(tx, props),
+  );
+
+  await releaseDatasetMedia({
+    projectId: props.projectId,
+    mediaIds: droppedMediaIds,
+    storageClient: { deleteFiles: async () => undefined },
+  });
+};
 
 describe("Dataset Item Media Associations", () => {
   it("records media references of created items and marks media as dataset-retained", async () => {
@@ -143,6 +157,54 @@ describe("Dataset Item Media Associations", () => {
           }),
         ],
       }),
+    ]);
+    await expect(
+      prisma.datasetItem.findFirst({
+        where: { projectId, id: datasetItemId },
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it("groups multiple unresolvable media references in the same field into one validation error", async () => {
+    const datasetId = await createDataset();
+    const firstUnknownMediaId = v4();
+    const secondUnknownMediaId = v4();
+    const datasetItemId = v4();
+
+    const result = await createManyDatasetItems({
+      projectId,
+      items: [
+        {
+          datasetId,
+          id: datasetItemId,
+          input: {
+            images: [
+              `@@@langfuseMedia:type=image/png|id=${firstUnknownMediaId}|source=base64@@@`,
+              `@@@langfuseMedia:type=image/png|id=${secondUnknownMediaId}|source=base64@@@`,
+            ],
+          },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.successCount).toBe(0);
+    expect(result.failedCount).toBe(1);
+    expect(result.validationErrors).toEqual([
+      {
+        itemIndex: 0,
+        field: "input",
+        errors: [
+          expect.objectContaining({
+            path: "$['images'][0]",
+            message: expect.stringContaining(firstUnknownMediaId),
+          }),
+          expect.objectContaining({
+            path: "$['images'][1]",
+            message: expect.stringContaining(secondUnknownMediaId),
+          }),
+        ],
+      },
     ]);
     await expect(
       prisma.datasetItem.findFirst({
@@ -307,7 +369,7 @@ describe("Dataset Item Media Associations", () => {
     ]);
   });
 
-  describe("syncDatasetItemMedia", () => {
+  describe("linkDatasetItemMedia", () => {
     // Covers the STATEFUL in-place update path, where the item version
     // (id, validFrom) stays the same and removed references must be unlinked
     it("replaces rows of the same item version with replaceExisting", async () => {
@@ -318,7 +380,7 @@ describe("Dataset Item Media Associations", () => {
       const datasetItemId = v4();
       const datasetItemValidFrom = new Date();
 
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [
           {
@@ -332,7 +394,7 @@ describe("Dataset Item Media Associations", () => {
         replaceExisting: false,
       });
 
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [
           {
@@ -362,7 +424,7 @@ describe("Dataset Item Media Associations", () => {
       const datasetItemId = v4();
       const datasetItemValidFrom = new Date();
 
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [
           {
@@ -375,7 +437,7 @@ describe("Dataset Item Media Associations", () => {
         replaceExisting: false,
       });
 
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [
           {
@@ -519,7 +581,7 @@ describe("Dataset Item Media Associations", () => {
     // releaseDatasetMedia: the three outcomes, with an injected storage client
     it("deletes media with no remaining references", async () => {
       const media = await createMediaRow();
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [
           {
@@ -616,7 +678,7 @@ describe("Dataset Item Media Associations", () => {
       const datasetItemValidFrom = new Date();
       await linkTrace(media.mediaId);
 
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [
           {
@@ -636,7 +698,7 @@ describe("Dataset Item Media Associations", () => {
         )?.retainedByDatasetAt,
       ).toEqual(expect.any(Date));
 
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [
           {
@@ -666,7 +728,7 @@ describe("Dataset Item Media Associations", () => {
       const datasetItemValidFrom = new Date();
       await linkTrace(media.mediaId);
 
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [
           {
@@ -679,7 +741,7 @@ describe("Dataset Item Media Associations", () => {
         replaceExisting: false,
       });
 
-      await syncDatasetItemMedia({
+      await linkDatasetItemMediaForTest({
         projectId,
         items: [{ datasetId, datasetItemId, datasetItemValidFrom }],
         replaceExisting: true,

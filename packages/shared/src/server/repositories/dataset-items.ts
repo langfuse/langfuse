@@ -18,7 +18,6 @@ import {
   findUnresolvableMediaReferences,
   linkDatasetItemMedia,
   releaseDroppedDatasetMedia,
-  syncDatasetItemMedia,
   validateDatasetItemMediaReferences,
 } from "./dataset-item-media";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
@@ -499,31 +498,36 @@ export async function deleteDatasetItem(props: {
     );
   }
 
+  let droppedMediaIds: string[] = [];
+
   await executeWithDatasetServiceStrategy(OperationType.WRITE, {
     [Implementation.STATEFUL]: async () => {
-      await prisma.datasetItem.delete({
-        where: {
-          id_projectId_validFrom: {
-            id: item.id,
-            validFrom: item.validFrom,
-            projectId: props.projectId,
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.datasetItem.delete({
+          where: {
+            id_projectId_validFrom: {
+              id: item.id,
+              validFrom: item.validFrom,
+              projectId: props.projectId,
+            },
           },
-        },
+        });
+        // Drop the deleted version's media rows in the same transaction as the
+        // item delete. STATEFUL items have a single version, so this covers all
+        // rows; release happens after commit because it may touch S3.
+        return linkDatasetItemMedia(tx, {
+          projectId: props.projectId,
+          items: [
+            {
+              datasetId: item.datasetId,
+              datasetItemId: item.id,
+              datasetItemValidFrom: item.validFrom,
+            },
+          ],
+          replaceExisting: true,
+        });
       });
-      // Drop the deleted version's media rows (a media-less item produces
-      // none) and release media it orphaned; media referenced elsewhere is
-      // kept. STATEFUL items have a single version, so this covers all rows.
-      await syncDatasetItemMedia({
-        projectId: props.projectId,
-        items: [
-          {
-            datasetId: item.datasetId,
-            datasetItemId: item.id,
-            datasetItemValidFrom: item.validFrom,
-          },
-        ],
-        replaceExisting: true,
-      });
+      droppedMediaIds = result.droppedMediaIds;
     },
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: Invalidate old row, then create delete marker
@@ -557,6 +561,8 @@ export async function deleteDatasetItem(props: {
       });
     },
   });
+
+  await releaseDroppedDatasetMedia(props.projectId, droppedMediaIds);
 
   return { success: true, deletedItem: item };
 }
@@ -731,20 +737,36 @@ export async function createManyDatasetItems(props: {
     const failedItemIndices = new Set(
       unresolvableMedia.map((r) => r.itemIndex),
     );
+    const mediaValidationErrorsByField = new Map<
+      string,
+      CreateManyValidationError
+    >();
     for (const r of unresolvableMedia) {
-      validationErrors.push({
-        itemIndex: preparedOriginalIndices[r.itemIndex],
-        // dataset_item_media uses snake_case; validation errors use the dataset
-        // item's property names.
-        field: r.field === "expected_output" ? "expectedOutput" : r.field,
-        errors: [
-          {
-            path: r.jsonPath,
-            message: `references unknown media: ${r.mediaId}`,
-            keyword: "media",
-          },
-        ],
-      });
+      // dataset_item_media uses snake_case; validation errors use the dataset
+      // item's property names.
+      const field: CreateManyValidationError["field"] =
+        r.field === "expected_output" ? "expectedOutput" : r.field;
+      const itemIndex = preparedOriginalIndices[r.itemIndex];
+      const key = `${itemIndex}-${field}`;
+      const error = {
+        path: r.jsonPath,
+        message: `references unknown media: ${r.mediaId}`,
+        keyword: "media",
+      };
+
+      const existing = mediaValidationErrorsByField.get(key);
+      if (existing) {
+        existing.errors.push(error);
+      } else {
+        mediaValidationErrorsByField.set(key, {
+          itemIndex,
+          field,
+          errors: [error],
+        });
+      }
+    }
+    for (const error of mediaValidationErrorsByField.values()) {
+      validationErrors.push(error);
     }
     successCount -= failedItemIndices.size;
     failedCount += failedItemIndices.size;

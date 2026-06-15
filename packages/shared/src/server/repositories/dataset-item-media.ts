@@ -264,22 +264,3 @@ export async function releaseDroppedDatasetMedia(
     );
   }
 }
-
-/**
- * Convenience wrapper for callers that link media after their item write has
- * already committed (interactive single-item upsert/delete). Runs the link in
- * its own transaction, then releases dropped media. Prefer linkDatasetItemMedia
- * directly inside the item-write transaction where the write strategy allows
- * it, so the item and its media commit atomically.
- */
-export async function syncDatasetItemMedia(props: {
-  projectId: string;
-  items: DatasetItemMediaSource[];
-  replaceExisting: boolean;
-}) {
-  const { droppedMediaIds } = await prisma.$transaction((tx) =>
-    linkDatasetItemMedia(tx, props),
-  );
-
-  await releaseDroppedDatasetMedia(props.projectId, droppedMediaIds);
-}
