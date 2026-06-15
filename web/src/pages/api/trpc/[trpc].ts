@@ -25,6 +25,7 @@ export default createNextApiHandler({
       "FORBIDDEN",
       "BAD_REQUEST",
       "PRECONDITION_FAILED",
+      "UNPROCESSABLE_CONTENT",
     ];
 
     if (userErrorCodes.includes(error.code)) {
