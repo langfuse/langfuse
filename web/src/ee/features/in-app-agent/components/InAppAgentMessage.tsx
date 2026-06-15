@@ -1,6 +1,13 @@
 "use client";
 
-import { Loader2, ThumbsDown, ThumbsUp, Wrench } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Loader2,
+  ThumbsDown,
+  ThumbsUp,
+  Wrench,
+} from "lucide-react";
 import { Streamdown } from "streamdown";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
@@ -22,7 +29,9 @@ import {
   PopoverContent,
 } from "@/src/components/ui/popover";
 import { useElementSize } from "@/src/hooks/useElementSize";
+import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import styles from "./InAppAgentMessage.module.css";
 
 export type InAppAgentMessageRole = "assistant" | "user";
 
@@ -432,7 +441,7 @@ function ToolCallGroup({
         ) : (
           <Wrench className={cn("text-muted-foreground shrink-0", iconSize)} />
         )}
-        <span className="min-w-0 flex-1 truncate">{label}</span>
+        <span className="min-w-0 flex-1 truncate py-0.5">{label}</span>
         <span className="text-muted-foreground text-xs group-open/tool-group:hidden">
           Show
         </span>
@@ -460,7 +469,7 @@ function ToolCallDetails({ tool }: { tool: InAppAgentToolCallContent }) {
     <details className="group/tool min-w-0">
       <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
         <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Used {tool.name}</span>
+        <span className="min-w-0 flex-1 truncate py-0.5">Used {tool.name}</span>
         <span className="text-muted-foreground text-xs group-open/tool:hidden">
           Show
         </span>
@@ -544,12 +553,8 @@ function MessageText({
 
   return (
     <div
-      className={cn(
-        "prose prose-sm text-foreground prose-strong:text-inherit prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-table:m-0! prose-headings:text-inherit dark:prose-pre:bg-card prose-pre:leading-tight prose-table:border prose-td:p-2 prose-th:p-2 prose-table:bg-muted dark:prose-table:bg-card prose-table:overflow-hidden prose-table:rounded prose-tr:border-b prose-tr:border-border dark:prose-tr:border-border prose-headings:text-sm prose-hr:border-border prose-code:before:content-[''] prose-code:after:content-[''] prose-code:bg-muted prose-code:rounded prose-code:px-1.5 prose-code:py-1 dark:prose-code:bg-card prose-code:font-normal max-w-none [&_pre>code]:p-0",
-        isCompact
-          ? "prose-headings:my-2 prose-p:my-1 prose-ul:my-1 prose-li:my-0.5 prose-ol:my-1 prose-blockquote:my-2 prose-pre:my-2 prose-table:my-2 prose-th:text-xs prose-hr:my-3 text-[0.775rem] leading-4"
-          : "prose-headings:my-2.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-1 prose-ol:my-1.5 prose-blockquote:my-2.5 prose-pre:my-2.5 prose-table:my-2.5 prose-th:text-sm prose-hr:my-5 leading-4.5",
-      )}
+      data-compact={isCompact}
+      className={cn(styles.Streamdown, isCompact && styles.compact)}
     >
       <Streamdown
         // Remove all default classNames so that tailwind's prose styling can be applied without conflicts
@@ -588,7 +593,7 @@ function MessageText({
           i: ({ children }) => <i>{children}</i>,
           em: ({ children }) => <em>{children}</em>,
           code: ({ children }) => <code>{children}</code>,
-          pre: ({ children }) => <pre>{children}</pre>,
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           thead: ({ children }) => <thead>{children}</thead>,
           tbody: ({ children }) => <tbody>{children}</tbody>,
           tr: ({ children }) => <tr>{children}</tr>,
@@ -604,6 +609,47 @@ function MessageText({
         {text}
       </Streamdown>
     </div>
+  );
+}
+
+function CodeBlock({ children }: { children: ReactNode }) {
+  const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });
+
+  // This is ugly but streamdown doesn't provide an easy way to get the raw text content of a code block
+  const code = useMemo(
+    () =>
+      typeof children === "object" &&
+      children &&
+      "props" in children &&
+      typeof children.props === "object" &&
+      children.props &&
+      "children" in children.props &&
+      typeof children.props.children === "string"
+        ? children.props.children
+        : "",
+    [children],
+  );
+
+  return (
+    <pre className="group/code-block relative pr-10">
+      <button
+        type="button"
+        aria-label={isCopied ? "Copied code" : "Copy code"}
+        title={isCopied ? "Copied" : "Copy code"}
+        disabled={!code}
+        onClick={() => {
+          copy(code).catch(() => undefined);
+        }}
+        className="bg-background/90 text-muted-foreground hover:text-foreground focus-visible:ring-ring absolute top-1.5 right-1.5 z-10 inline-flex size-6 items-center justify-center rounded-md border opacity-80 shadow-sm transition hover:opacity-100 focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {isCopied ? (
+          <Check className="size-3.5" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
+      </button>
+      {children}
+    </pre>
   );
 }
 
