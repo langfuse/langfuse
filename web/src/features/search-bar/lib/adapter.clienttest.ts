@@ -93,7 +93,7 @@ describe("astToFilterState", () => {
     expect(lower("statusMessage:=rate").filters).toEqual([
       { type: "string", column: "statusMessage", operator: "=", value: "rate" },
     ]);
-    expect(lower("-statusMessage:~rate").filters).toEqual([
+    expect(lower("-statusMessage:*rate*").filters).toEqual([
       {
         type: "string",
         column: "statusMessage",
@@ -103,8 +103,8 @@ describe("astToFilterState", () => {
     ]);
   });
 
-  it("lowers explicit string operators", () => {
-    expect(lower("input:^How").filters).toEqual([
+  it("lowers positional `*` globs to string match operators", () => {
+    expect(lower("input:How*").filters).toEqual([
       {
         type: "string",
         column: "input",
@@ -112,7 +112,7 @@ describe("astToFilterState", () => {
         value: "How",
       },
     ]);
-    expect(lower("output:$done").filters).toEqual([
+    expect(lower("output:*done").filters).toEqual([
       {
         type: "string",
         column: "output",
@@ -120,13 +120,14 @@ describe("astToFilterState", () => {
         value: "done",
       },
     ]);
-  });
-
-  it("rejects the FTS * operator (full text goes through content:/scope)", () => {
-    // The events tRPC filter contract has no `matches` operator — full-text
-    // search is searchQuery/searchType, i.e. bare text + content:/input:/output:.
-    expect(lower('input:*"refund policy"').errors.length).toBeGreaterThan(0);
-    expect(lower("metadata.region:*eu").errors.length).toBeGreaterThan(0);
+    expect(lower('input:*"refund policy"*').filters).toEqual([
+      {
+        type: "string",
+        column: "input",
+        operator: "contains",
+        value: "refund policy",
+      },
+    ]);
   });
 
   it("lowers array fields with any-of, none-of, and all-of", () => {
@@ -195,7 +196,7 @@ describe("astToFilterState", () => {
         value: "eu",
       },
     ]);
-    expect(lower("-metadata.region:~eu").filters).toEqual([
+    expect(lower("-metadata.region:*eu*").filters).toEqual([
       {
         type: "stringObject",
         column: "metadata",
@@ -407,9 +408,9 @@ describe("validateQuery / adapter parity", () => {
       "level:(ERROR OR WARNING)",
       "-env:dev latency:>2",
       "scores.accuracy:>0.8 traceScores.nps:positive",
-      "metadata.region:~eu has:endTime -has:userId",
+      "metadata.region:*eu* has:endTime -has:userId",
       "content:refund tags:(a AND b)",
-      "isRootObservation:true name:~chat",
+      "isRootObservation:true name:*chat*",
       "(level:ERROR OR level:WARNING) env:dev",
     ];
     for (const text of queries) {
@@ -578,10 +579,10 @@ describe("filterStateToQueryText", () => {
     const r = filterStateToQueryText([colonKeyMeta, colonKeyScore]);
     expect(r.text).toBe("");
     expect(r.skippedFilters).toEqual([colonKeyMeta, colonKeyScore]);
-    // A normal key still serializes into the query text.
+    // A normal key still serializes into the query text (contains → `*x*`).
     expect(
       filterStateToQueryText([{ ...colonKeyMeta, key: "region" }]).text,
-    ).toBe("metadata.region:~x");
+    ).toBe("metadata.region:*x*");
   });
 
   it("round-trips bare boolean keywords and leading-hyphen free text", () => {

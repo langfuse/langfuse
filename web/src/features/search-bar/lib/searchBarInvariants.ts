@@ -65,10 +65,12 @@ export type InvariantFailure = {
   detail: string;
 };
 
-// Typed operator prefixes a value can carry after the colon. INV-1 does not
-// need to know which are valid for a given field — it only checks that the two
-// gates agree — so we throw the whole set at every field.
-const OP_PREFIXES = ["", "=", "~", "^", "$", ">", "<", ">=", "<="] as const;
+// Prefix operators a value can carry after the colon, plus positional `*` glob
+// wraps (starts/ends/contains). INV-1 does not need to know which are valid for
+// a given field — it only checks the two gates agree — so we throw the whole
+// set at every field. `%s` is replaced by the value.
+const OP_PREFIXES = ["", "=", ">", "<", ">=", "<="] as const;
+const GLOB_FORMS = ["%s*", "*%s", "*%s*"] as const;
 const GROUP_VALUES = ["(a OR b)", "(a AND b)", "(a)"] as const;
 
 function stable(value: unknown): string {
@@ -102,9 +104,12 @@ export function generateQueryCases(view: RegistryUnderTest): string[] {
       continue;
     }
     for (const neg of ["", "-"]) {
-      for (const op of OP_PREFIXES) {
-        for (const value of view.fieldValues) {
+      for (const value of view.fieldValues) {
+        for (const op of OP_PREFIXES) {
           cases.push(`${neg}${key}:${op}${value}`);
+        }
+        for (const glob of GLOB_FORMS) {
+          cases.push(`${neg}${key}:${glob.replace("%s", value)}`);
         }
       }
       for (const group of GROUP_VALUES) {

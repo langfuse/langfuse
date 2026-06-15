@@ -50,7 +50,7 @@ describe("validateQuery — merged-diagnostic dedup", () => {
       .map((d) => d.message);
   }
 
-  it.each(["metadata.region:>5", "level:>5", "traceTags:~tag", "xyz:1"])(
+  it.each(["metadata.region:>5", "level:>5", "traceTags:*tag*", "xyz:1"])(
     "emits each error message once for %s",
     (query) => {
       const messages = errorMessages(query);

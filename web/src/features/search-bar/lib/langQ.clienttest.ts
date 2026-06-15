@@ -115,17 +115,34 @@ describe("langQ parser", () => {
     });
   });
 
-  it("parses explicit string operators", () => {
-    expect(strip(parse("name:~chat").ast)).toMatchObject({ op: "~" });
-    expect(strip(parse("input:^How").ast)).toMatchObject({ op: "^" });
-    expect(strip(parse("output:$end").ast)).toMatchObject({ op: "$" });
+  it("parses positional `*` globs into match operators", () => {
+    // contains/starts/ends are positional wildcards, not prefix operators.
+    expect(strip(parse("name:*chat*").ast)).toMatchObject({
+      op: "~",
+      values: ["chat"],
+    });
+    expect(strip(parse("input:How*").ast)).toMatchObject({
+      op: "^",
+      values: ["How"],
+    });
+    expect(strip(parse("output:*end").ast)).toMatchObject({
+      op: "$",
+      values: ["end"],
+    });
     expect(strip(parse("name:=exact").ast)).toMatchObject({ op: "exact" });
   });
 
-  it("tokenizes the * operator but flags it as unsupported", () => {
-    const r = parse('input:*"refund policy"');
-    expect(strip(r.ast)).toMatchObject({ op: "*" });
-    expect(r.valid).toBe(false);
+  it("treats a glob around a quoted value as a literal phrase match", () => {
+    // The `*` lives outside the quotes; the phrase keeps its spaces.
+    expect(strip(parse('input:*"refund policy"*').ast)).toMatchObject({
+      op: "~",
+      values: ["refund policy"],
+    });
+    // A bare value with no leading/trailing `*` is a plain contains-default.
+    expect(strip(parse("name:gpt-4").ast)).toMatchObject({
+      op: "=",
+      values: ["gpt-4"],
+    });
   });
 
   it("flags unknown fields with an error diagnostic", () => {
@@ -323,7 +340,7 @@ describe("validateQuery", () => {
       "latency:>2 -has:endTime",
       "scores.accuracy:>0.8",
       "traceScores.nps:positive",
-      "metadata.region:~eu",
+      "metadata.region:*eu*",
       "content:refund",
       "tags:(a AND b)",
       "isRootObservation:true",
@@ -340,7 +357,7 @@ describe("validateQuery", () => {
       "level:ERROR OR env:dev", // cross-field OR
       "NOT (level:ERROR env:dev)", // negated group
       "-latency:2", // negated numeric equality
-      "-input:^prefix", // negated starts-with
+      "-input:prefix*", // negated starts-with
       "-tags:(a AND b)", // negated all-of
       "metadata.region:>5", // metadata comparison
       "-metadata.region:eu", // negated metadata equality

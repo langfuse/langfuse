@@ -170,19 +170,12 @@ export function nullableFields(): FieldDef[] {
 // accepts today (filterTypeCompatibility.ts in @langfuse/shared).
 
 const COMPARISONS: ReadonlySet<CompareOp> = new Set([">", "<", ">=", "<="]);
-const STRING_OPS: ReadonlySet<CompareOp> = new Set([
-  "exact",
-  "~",
-  "^",
-  "$",
-  "*",
-]);
+const STRING_OPS: ReadonlySet<CompareOp> = new Set(["exact", "~", "^", "$"]);
 
 const OP_LABEL: Record<string, string> = {
-  "~": "contains (~)",
-  "^": "starts-with (^)",
-  $: "ends-with ($)",
-  "*": "matches (*)",
+  "~": "contains (*term*)",
+  "^": "starts-with (term*)",
+  $: "ends-with (*term)",
   exact: "exact match (=)",
 };
 
@@ -201,11 +194,6 @@ export function operatorIssue(
   op: CompareOp,
   valueOp: "or" | "and" = "or",
 ): string | null {
-  if (op === "*") {
-    // The events tRPC filter contract has no FTS operator — full-text search
-    // goes through searchQuery/searchType, i.e. free text + in: scopes.
-    return `matches (*) is not supported — use free text with in:input, in:output, or in:content for full-text search`;
-  }
   if (valueOp === "and") {
     const isArray =
       ref.type === "field" && ref.field.syncMode === "arrayOption";
@@ -290,14 +278,14 @@ export function negationIssue(
       ? "content: is a full-text search and cannot be negated — search text is global"
       : null; // -has: is valid (missing value)
   }
-  if (op === "^" || op === "$" || op === "*") {
+  if (op === "^" || op === "$") {
     return `negation of ${label(op)} is not representable in the Langfuse filter contract`;
   }
   if (op === "exact" || op === "=") {
     if (ref.type === "metadata") {
       // stringObject has no "does not equal" — only does-not-contain.
       return op === "exact"
-        ? `negated exact match on metadata is not representable — use -metadata.${ref.key}:~value (does not contain)`
+        ? `negated exact match on metadata is not representable — use -metadata.${ref.key}:*value* (does not contain)`
         : null; // '=' on metadata negates via categoryOptions? No — handled below.
     }
     if (ref.type === "scores") {
@@ -311,7 +299,7 @@ export function negationIssue(
       }
       if (f.kind === "boolean") return null; // inverts the value
       if (f.kind === "text" && f.syncMode === "textSearch" && op === "exact") {
-        return `negated exact match on "${f.id}" is not representable — use -${f.id}:~value (does not contain)`;
+        return `negated exact match on "${f.id}" is not representable — use -${f.id}:*value* (does not contain)`;
       }
       return null;
     }

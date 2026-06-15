@@ -128,12 +128,20 @@ describe("planInputCompletions", () => {
     expect(p?.sections.map((s) => s.title)).not.toContain(SECTION_MATCH_OPS);
   });
 
-  it("offers match operators for plain text fields", () => {
-    const p = plan("statusMessage:", 14);
+  it("offers glob match refinements once a text value is typed", () => {
+    // Empty value → nothing to wrap, no match-op section.
+    const empty = plan("statusMessage:", 14);
+    expect(empty?.sections.map((s) => s.title) ?? []).not.toContain(
+      SECTION_MATCH_OPS,
+    );
+    // Typed value → wrap it in positional `*` globs (+ exact).
+    const p = plan("statusMessage:rate", 18);
     expect(p?.sections.map((s) => s.title)).toContain(SECTION_MATCH_OPS);
-    // No FTS * operator — full text goes through in: scopes.
     const labels = flattenOptions(p).map((o) => o.label);
-    expect(labels).not.toContain("*");
+    expect(labels).toContain("*rate*"); // contains
+    expect(labels).toContain("rate*"); // starts with
+    expect(labels).toContain("*rate"); // ends with
+    expect(labels).toContain("=rate"); // exact
   });
 
   it("suggests score names for score dot paths", () => {

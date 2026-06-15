@@ -354,35 +354,39 @@ function datetimeOperatorOptions(fieldId: string): CompletionOption[] {
   }));
 }
 
-function matchOperatorOptions(fieldId: string): CompletionOption[] {
+// Glob/exact refinements for a value the user has already typed. Match ops are
+// positional `*` wildcards, so they WRAP the typed value rather than prefix it
+// (you type the value first, then anchor it). Caller only invokes this when
+// `typed` is non-empty.
+function matchOperatorOptions(typed: string): CompletionOption[] {
   return [
     {
-      id: "vop:~",
-      kind: "operator",
-      label: "~",
-      detail: `contains — e.g. ${fieldId}:~refund`,
-      insert: "~",
+      id: "vop:contains",
+      kind: "pattern",
+      label: `*${typed}*`,
+      detail: "contains (same as the bare value)",
+      insert: `*${typed}*`,
     },
     {
-      id: "vop:=",
-      kind: "operator",
-      label: "=",
-      detail: `exact match — e.g. ${fieldId}:="full text"`,
-      insert: "=",
+      id: "vop:starts",
+      kind: "pattern",
+      label: `${typed}*`,
+      detail: "starts with",
+      insert: `${typed}*`,
     },
     {
-      id: "vop:^",
-      kind: "operator",
-      label: "^",
-      detail: `starts with — e.g. ${fieldId}:^How`,
-      insert: "^",
+      id: "vop:ends",
+      kind: "pattern",
+      label: `*${typed}`,
+      detail: "ends with",
+      insert: `*${typed}`,
     },
     {
-      id: "vop:$",
-      kind: "operator",
-      label: "$",
-      detail: `ends with — e.g. ${fieldId}:$policy`,
-      insert: "$",
+      id: "vop:exact",
+      kind: "pattern",
+      label: `=${typed}`,
+      detail: "exact match",
+      insert: `=${typed}`,
     },
   ];
 }
@@ -511,8 +515,7 @@ function valueStageSections(
         value: o.value,
       }));
       const values = valueOptions(all, typed);
-      const ops =
-        typed.length === 0 ? matchOperatorOptions(`metadata.${ref.key}`) : [];
+      const ops = typed.length > 0 ? matchOperatorOptions(typed) : [];
       if (values.length + ops.length === 0) return null;
       return {
         sections: [
@@ -603,10 +606,11 @@ function valueStageSections(
       }
       // text
       if (f.syncMode === "textSearch") {
-        // No enumerable values; teach the match operators instead.
-        if (typed.length > 0) return null;
+        // No enumerable values. Once a value is typed, offer glob/exact
+        // refinements that wrap it (bare value already means contains).
+        if (typed.length === 0) return null;
         return {
-          sections: section(SECTION_MATCH_OPS, matchOperatorOptions(f.id)),
+          sections: section(SECTION_MATCH_OPS, matchOperatorOptions(typed)),
           loading: false,
         };
       }
@@ -619,11 +623,12 @@ function valueStageSections(
         value: o.value,
       }));
       const values = valueOptions(all, typed);
-      // Array fields reject match operators (`~`/`=`/`^`/`$`) — operatorIssue
-      // routes them to value/any-of/all-of groups — so don't suggest them.
+      // Array fields reject match operators — operatorIssue routes them to
+      // value/any-of/all-of groups — so don't suggest them. For other option
+      // fields, once a value is typed offer glob/exact refinements that wrap it.
       const ops =
-        typed.length === 0 && f.syncMode !== "arrayOption"
-          ? matchOperatorOptions(f.id)
+        typed.length > 0 && f.syncMode !== "arrayOption"
+          ? matchOperatorOptions(typed)
           : [];
       if (values.length + ops.length === 0) return null;
       return {

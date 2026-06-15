@@ -7,7 +7,9 @@
 //   andExpr   := unary ((AND)? unary)*            -- implicit AND on adjacency
 //   unary     := NOT unary | '-'term | '(' expr ')' | term
 //   term      := key ':' valueExpr | freeText
-//   valueExpr := '~' scalar | ('>'|'<'|'>='|'<=') scalar | value | '(' value (OR value)* ')'
+//   valueExpr := ('>'|'<'|'>='|'<=') scalar | '=' scalar | globValue | '(' value (OR value)* ')'
+//   globValue := value with optional leading/trailing '*' wildcards:
+//                'v*' starts-with, '*v' ends-with, '*v*' contains, 'v' default
 //
 // The parser NEVER throws. It returns an AST (best-effort on broken input)
 // plus diagnostics with source spans; severity 'error' blocks commit, the
@@ -212,17 +214,32 @@ function isKeyword(raw: string): "and" | "or" | "not" | null {
 }
 
 // Operator prefixes between ':' and the value. Longest first so '>=' wins
-// over '>'. '~' and the grouped/list default are handled separately.
+// over '>'. Text-match ops (~/^/$) are NOT prefixes — they are positional `*`
+// globs handled by parseGlob below. The grouped/list default is separate.
 const OPERATOR_PREFIXES: Array<{ prefix: string; op: CompareOp }> = [
   { prefix: ">=", op: ">=" },
   { prefix: "<=", op: "<=" },
   { prefix: ">", op: ">" },
   { prefix: "<", op: "<" },
   { prefix: "=", op: "exact" },
-  { prefix: "^", op: "^" },
-  { prefix: "$", op: "$" },
-  { prefix: "*", op: "*" },
 ];
+
+// Positional `*` glob on a single (un-grouped) value → a text-match op.
+// `v*` starts-with, `*v` ends-with, `*v*` contains. The `*`s are recognized
+// only as the first/last char of the raw segment (a quoted value's edges are
+// `"`, and stars inside quotes are literal), so `"a*b"` and `a*b` stay literal.
+// Returns null when there is no anchoring star or no value survives stripping.
+function parseGlob(rawSegment: string): { op: CompareOp; core: string } | null {
+  const leading = rawSegment.startsWith("*");
+  const trailing = rawSegment.endsWith("*") && rawSegment.length > 1;
+  if (!leading && !trailing) return null;
+  let core = rawSegment;
+  if (leading) core = core.slice(1);
+  if (trailing) core = core.slice(0, -1);
+  if (core.length === 0) return null; // lone `*` / `**` → treat as literal
+  const op: CompareOp = leading && trailing ? "~" : trailing ? "^" : "$";
+  return { op, core };
+}
 
 // Operator-looking tokens we don't support yet. Rather than silently treat
 // them as free text (lowercase `not`/`or`/`and`) or as a cryptic "unknown
@@ -339,28 +356,6 @@ function parseTermNode(
     };
   }
 
-  if (valueRaw.startsWith("~")) {
-    const scalarRaw = valueRaw.slice(1);
-    const { value } = unquote(scalarRaw);
-    if (value.length === 0) {
-      diagnostics.push({
-        from: span.from,
-        to: span.to,
-        severity: "error",
-        message: `Missing value after "${keyRaw}:~"`,
-      });
-    }
-    pushOpIssue("~");
-    return {
-      kind: "filter",
-      key,
-      rawKey: keyRaw,
-      op: "~",
-      values: value.length > 0 ? [value] : [],
-      span,
-    };
-  }
-
   for (const { prefix, op } of OPERATOR_PREFIXES) {
     if (valueRaw.startsWith(prefix)) {
       const scalarRaw = valueRaw.slice(prefix.length);
@@ -386,6 +381,32 @@ function parseTermNode(
   }
 
   const segments = splitOutsideQuotes(valueRaw, ",");
+
+  // A single un-grouped value can carry positional `*` glob wildcards.
+  if (segments.length === 1) {
+    const glob = parseGlob(segments[0]!.text);
+    if (glob !== null) {
+      const { value } = unquote(glob.core);
+      if (value.length === 0) {
+        diagnostics.push({
+          from: span.from,
+          to: span.to,
+          severity: "error",
+          message: `Missing value in "${keyRaw}:${segments[0]!.text}"`,
+        });
+      }
+      pushOpIssue(glob.op);
+      return {
+        kind: "filter",
+        key,
+        rawKey: keyRaw,
+        op: glob.op,
+        values: value.length > 0 ? [value] : [],
+        span,
+      };
+    }
+  }
+
   const values: string[] = [];
   for (const seg of segments) {
     const { value, quoted } = unquote(seg.text);
@@ -781,12 +802,15 @@ export function termAt(
 
 export const NEEDS_QUOTES = /[\s:,()"\\]/;
 // A value/term that STARTS with an operator prefix would otherwise be reparsed
-// as that operator (`name:>5` → comparison, `name:~x` → contains), and a
-// leading `-` would be read as negation when the term is free text (`-foo`).
-// Only the leading position matters — mid-value `-`/`>` (e.g. "gpt-4-turbo") is
-// fine and must NOT force quoting. ( `-` is placed first in the class so it is
-// a literal, not a range.)
-const LEADING_OPERATOR = /^[-~^$*=><]/;
+// as that operator (`name:>5` → comparison, `name:=x` → exact), and a leading
+// `-` would be read as negation when the term is free text (`-foo`). Only the
+// leading position matters — mid-value `-`/`>` (e.g. "gpt-4-turbo") is fine and
+// must NOT force quoting. ( `-` is placed first in the class so it is a
+// literal, not a range.)
+const LEADING_OPERATOR = /^[-=><]/;
+// A literal value whose first OR last char is `*` would otherwise be read as a
+// glob anchor (`*v`/`v*`), so it must be quoted to stay literal.
+const STAR_ANCHOR = /^\*|\*$/;
 
 // Tokens reservedTokenIssue rejects as bare free text — they must round-trip
 // quoted or the bar lands invalid on the next derive. Mirror that set exactly:
@@ -799,6 +823,7 @@ export function serializeValue(value: string): string {
     value.length === 0 ||
     NEEDS_QUOTES.test(value) ||
     LEADING_OPERATOR.test(value) ||
+    STAR_ANCHOR.test(value) ||
     value.startsWith("!") ||
     RESERVED_BARE_TOKEN.test(value)
   ) {
@@ -808,14 +833,11 @@ export function serializeValue(value: string): string {
   return value;
 }
 
-// Inverse of OPERATOR_PREFIXES / the '~' branch: AST op -> typed prefix.
-const OP_SYMBOL: Record<CompareOp, string> = {
+// Inverse of OPERATOR_PREFIXES: prefix-style AST op -> typed prefix. The glob
+// ops (~/^/$) are NOT prefixes — they wrap the value (see serializeFilter).
+const OP_SYMBOL: Partial<Record<CompareOp, string>> = {
   "=": "",
   exact: "=",
-  "~": "~",
-  "^": "^",
-  $: "$",
-  "*": "*",
   ">": ">",
   "<": "<",
   ">=": ">=",
@@ -830,7 +852,14 @@ export function serializeFilter(node: FilterNode): string {
     const joiner = node.valueOp === "and" ? " AND " : " OR ";
     return `${key}:(${node.values.map(serializeValue).join(joiner)})`;
   }
-  return `${key}:${OP_SYMBOL[node.op]}${node.values.map(serializeValue).join(",")}`;
+  // Text-match ops render as positional `*` globs around the value.
+  if (node.op === "~" || node.op === "^" || node.op === "$") {
+    const v = serializeValue(node.values[0] ?? "");
+    const wrapped =
+      node.op === "~" ? `*${v}*` : node.op === "^" ? `${v}*` : `*${v}`;
+    return `${key}:${wrapped}`;
+  }
+  return `${key}:${OP_SYMBOL[node.op] ?? ""}${node.values.map(serializeValue).join(",")}`;
 }
 
 function sameFieldOrGroup(node: ASTNode): FilterNode[] | null {

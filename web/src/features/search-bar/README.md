@@ -29,7 +29,9 @@ Project-level opt-in. Based on the `langfuse-search-bar` prototype.
 - `level:(ERROR OR WARNING)` any-of, `-env:dev` none-of,
   `tags:(a AND b)` array all-of
 - `latency:>2`, `startTime:>2026-06-01` comparisons
-- `name:~chat` contains, `:=` exact, `:^` starts-with, `:$` ends-with
+- text match via positional `*` globs: `name:*chat*` contains, `name:chat*`
+  starts-with, `name:*chat` ends-with, `name:chat` bare (contains default),
+  `name:=chat` exact (quote a literal `*`, e.g. `name:"a*b"`)
 - `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `content:`/`input:`/`output:`

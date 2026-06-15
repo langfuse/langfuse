@@ -10,16 +10,16 @@
 export type Span = { from: number; to: number };
 
 // Filter operators: '=' is the per-field default (any-of / contains),
-// 'exact' is the explicit `key:=v` string/number equality, '~' contains,
-// '^' starts with, '$' ends with, '*' the events-table FTS "matches",
-// plus the comparisons.
+// 'exact' is the explicit `key:=v` string/number equality. The text-match ops
+// are surfaced as positional `*` globs — '~' contains (`*v*`), '^' starts-with
+// (`v*`), '$' ends-with (`*v`) — plus the comparisons. (The op names stay
+// `~`/`^`/`$` internally; only the typed/serialized syntax is glob.)
 export type CompareOp =
   | "="
   | "exact"
   | "~"
   | "^"
   | "$"
-  | "*"
   | ">"
   | "<"
   | ">="
