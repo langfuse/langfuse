@@ -224,7 +224,7 @@ refactor; everything after it is data, not code.
    hand-author a second 47-entry list. ~70% is mechanical: `type → kind`
    (`number`/`datetime`/`boolean` map directly, everything else → `text`),
    `nullable`, `options → observed values`, `unit`. Write a
-   `fieldRegistryFromColumns(cols)` deriver.
+   `fieldRegistryFromColumns(cols)` helper.
 2. **Add a thin per-view grammar overlay** for what `ColumnDefinition`
    deliberately does not carry (it is a UI/SQL contract, not a grammar):
    user-facing **aliases** (`env`, `tags`, `ttft`), **dot-path roots**
@@ -251,7 +251,7 @@ reserved token to one, add it to the other, or the round-trip test fails),
 operator precedence, and the `has:`/`content:` pseudo-fields. These are language, not
 data — a new view inherits them unchanged.
 
-**Do not couple to `ColumnDefinition` speculatively.** Build the deriver +
+**Do not couple to `ColumnDefinition` speculatively.** Build the derivation +
 overlay when the first real second view lands, validated against that consumer —
 not ahead of it (the same no-half-finished rule that removed the prototype's
 unused planners).
