@@ -39,6 +39,13 @@ represent are commit-blocking diagnostics, not silent drops. There is no
 FTS `*` operator: the events tRPC filter contract has none; full-text search
 is free text + `in:` scopes.
 
+Operator-looking tokens that aren't supported yet are **reserved** — they emit
+an explicit "not supported yet" diagnostic instead of silently becoming free
+text: `!`, lowercase `not`/`or`/`and` (use `-field:value` to exclude;
+`field:(A OR B)` for one field's values). Quote a reserved word (`"or"`) to
+search for it as literal text. (Top-level grouping with `(` `)` and a single
+visible/scoped free-text chip are tracked as follow-ups.)
+
 ## Data flow (one source of truth, one direction)
 
 The table's URL filter state — `FilterState` (the `filter` param, owned by the

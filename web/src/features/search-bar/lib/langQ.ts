@@ -224,11 +224,41 @@ const OPERATOR_PREFIXES: Array<{ prefix: string; op: CompareOp }> = [
   { prefix: "*", op: "*" },
 ];
 
+// Operator-looking tokens we don't support yet. Rather than silently treat
+// them as free text (lowercase `not`/`or`/`and`) or as a cryptic "unknown
+// field" (`!foo:bar`), surface an explicit "not supported yet" error. Quoting
+// (`"or"`) escapes the word back into free text.
+function reservedTokenIssue(raw: string): string | null {
+  if (raw.startsWith("!")) {
+    return '"!" is not supported yet — use -field:value to exclude (e.g. -env:dev)';
+  }
+  const lower = raw.toLowerCase();
+  if (lower === "not") {
+    return '"not" is not supported yet — use -field:value to exclude (e.g. -env:dev)';
+  }
+  if (lower === "or" || lower === "and") {
+    return `"${raw}" between filters is not supported yet — combine one field's values with field:(A OR B), or quote "${raw}" to search text`;
+  }
+  return null;
+}
+
 function parseTermNode(
   raw: string,
   span: Span,
   diagnostics: Diagnostic[],
 ): FilterNode | TextNode {
+  const reserved = reservedTokenIssue(raw);
+  if (reserved !== null) {
+    diagnostics.push({
+      from: span.from,
+      to: span.to,
+      severity: "error",
+      message: reserved,
+    });
+    const { value, quoted } = unquote(raw);
+    return { kind: "text", value, quoted, span };
+  }
+
   const colon = indexOfOutsideQuotes(raw, ":");
   if (colon === -1) {
     const { value, quoted } = unquote(raw);

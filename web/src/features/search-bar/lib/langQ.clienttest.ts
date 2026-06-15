@@ -355,6 +355,10 @@ describe("validateQuery", () => {
       "traceScores.", // dot-prefix trace score with no key
       "tags:(a,b)", // bare comma inside a group (must use OR/AND)
       "level:(ERROR,WARNING)", // same, on an option field
+      "not level:ERROR", // lowercase `not` reserved (use -field:value)
+      "!level:ERROR", // `!` reserved (use -field:value)
+      "level:ERROR or env:dev", // lowercase `or` reserved
+      "level:ERROR and env:dev", // lowercase `and` reserved
     ]) {
       const r = validateQuery(text);
       expect(r.valid, `expected invalid: ${text}`).toBe(false);
@@ -396,5 +400,17 @@ describe("validateQuery", () => {
       d.message.includes("Unclosed"),
     );
     expect(unclosed).toHaveLength(1);
+  });
+
+  it("reserves operator-looking tokens with a 'not supported yet' diagnostic", () => {
+    const msgOf = (q: string) =>
+      validateQuery(q)
+        .diagnostics.map((d) => d.message)
+        .join(" | ");
+    expect(msgOf("not level:ERROR")).toMatch(/not.*not supported yet/i);
+    expect(msgOf("!level:ERROR")).toMatch(/not supported yet/i);
+    expect(msgOf("level:ERROR or env:dev")).toMatch(/not supported yet/i);
+    // quoting escapes the reserved word back into free text
+    expect(validateQuery('"not" level:ERROR').valid).toBe(true);
   });
 });
