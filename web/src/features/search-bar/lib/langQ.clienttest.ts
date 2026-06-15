@@ -151,6 +151,13 @@ describe("langQ parser", () => {
     expect(strip(r.ast)).toMatchObject({ op: "exact", values: [""] });
   });
 
+  it('accepts quoted-empty glob values (input:*""* round-trips)', () => {
+    // What the reverse adapter emits for an empty contains/starts/ends filter.
+    expect(parse('input:*""*').valid).toBe(true);
+    expect(parse('input:""*').valid).toBe(true);
+    expect(parse('input:*""').valid).toBe(true);
+  });
+
   it("rejects a key with quotes or spaces", () => {
     expect(parse('metadata."foo":bar').valid).toBe(false);
   });

@@ -63,6 +63,16 @@ read as a cryptic detached pill. The reverse adapter canonicalizes a legacy
 `searchType=input|output` to the `input:`/`output:` **column filter** on the
 next commit (the chosen normalization); `content` stays the searchType path.
 
+**Known limitation (multi-scope legacy state).** The bar's scope is a single
+value per query; the legacy toolbar's `searchType` was a *set*. The one
+combination the bar can't faithfully represent is `['id','content']` (the old
+"Input/Output" radio, which searched ids/names **and** input/output at once):
+on derive it collapses to a single `content:"…"` token, and a subsequent commit
+narrows the URL to `searchType=['content']`, dropping the id channel. Every
+single-token projection drops *some* channel, so there's no lossless fix
+without a real "all fields" scope token — deferred past beta. Trigger is narrow
+(a legacy URL from the old dropdown + the bar enabled + a commit).
+
 Operator-looking tokens that aren't supported yet are **reserved** — they emit
 an explicit "not supported yet" diagnostic instead of silently becoming free
 text: `!`, lowercase `not`/`or`/`and` (use `-field:value` to exclude;

@@ -83,6 +83,32 @@ function isContentFilter(node: ASTNode): node is FilterNode {
 }
 
 /**
+ * `content:` is a single-phrase full-text search with ONE global scope, so it
+ * can't share a query with a bare free-text sibling (which wants the default id
+ * scope) or a second `content:` — both lower into the same `searchTerms` and
+ * would silently fuse into one phrase under the content scope. Returns the
+ * offending content node + message (so the diagnostic can point at it), or
+ * null. Checked at the whole-query level by BOTH astToFilterState (commit) and
+ * semanticDiagnostics (validate), so the two gates agree.
+ */
+export function contentScopeConflict(
+  ast: ASTNode,
+): { node: FilterNode; message: string } | null {
+  const top = ast.kind === "and" ? ast.children : [ast];
+  const contentNode = top.find((n): n is FilterNode => isContentFilter(n));
+  if (contentNode === undefined) return null;
+  const textSources = top.filter(
+    (n) => n.kind === "text" || isContentFilter(n),
+  ).length;
+  if (textSources <= 1) return null;
+  return {
+    node: contentNode,
+    message:
+      "content: searches the whole query as one phrase — use it alone, not alongside other free text",
+  };
+}
+
+/**
  * A top-level OR whose children are all same-field single-value `=` filters
  * collapses to one any-of filter node. Null otherwise.
  */
@@ -128,7 +154,11 @@ export function astToFilterState(
     scoreTypes,
   };
 
-  if (ast !== null) lowerTopLevel(ast, false, ctx);
+  if (ast !== null) {
+    const conflict = contentScopeConflict(ast);
+    if (conflict !== null) ctx.errors.push(conflict.message);
+    lowerTopLevel(ast, false, ctx);
+  }
 
   return {
     filters: ctx.filters,

@@ -11,7 +11,11 @@
 // whole query without errors.
 
 import type { ASTNode, Span } from "./ast";
-import { astToFilterState, type ScoreTypeContext } from "./adapter";
+import {
+  astToFilterState,
+  contentScopeConflict,
+  type ScoreTypeContext,
+} from "./adapter";
 import { nullableFields, resolveField } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
@@ -104,6 +108,20 @@ export function semanticDiagnostics(
       out.push({ from: span.from, to: span.to, severity: "error", message });
     }
     hasFilterWarnings(node, textLength, out);
+  }
+
+  // Cross-token check: per-node lowering above can't see a `content:` token
+  // sharing the query with free text — run it once on the whole AST so validate
+  // agrees with the commit-time lowering (which checks the whole AST).
+  const conflict = contentScopeConflict(ast);
+  if (conflict !== null) {
+    const span = nodeSpan(conflict.node, textLength);
+    out.push({
+      from: span.from,
+      to: span.to,
+      severity: "error",
+      message: conflict.message,
+    });
   }
 
   return out;

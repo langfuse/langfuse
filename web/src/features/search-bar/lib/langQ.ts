@@ -400,8 +400,12 @@ function parseTermNode(
   if (segments.length === 1) {
     const glob = parseGlob(segments[0]!.text);
     if (glob !== null) {
-      const { value } = unquote(glob.core);
-      if (value.length === 0) {
+      const { value, quoted } = unquote(glob.core);
+      // A quoted empty value (`input:*""*`) is intentional — same carve-out as
+      // the OPERATOR_PREFIXES and comma-list branches; it's what the reverse
+      // adapter emits for an empty contains/starts/ends filter, so it must
+      // round-trip rather than land red.
+      if (value.length === 0 && !quoted) {
         diagnostics.push({
           from: span.from,
           to: span.to,
@@ -415,7 +419,7 @@ function parseTermNode(
         key,
         rawKey: keyRaw,
         op: glob.op,
-        values: value.length > 0 ? [value] : [],
+        values: value.length > 0 || quoted ? [value] : [],
         span,
       };
     }

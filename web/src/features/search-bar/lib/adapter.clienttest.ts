@@ -373,6 +373,17 @@ describe("astToFilterState", () => {
     expect(lower("content:refund,cancel").errors.length).toBeGreaterThan(0);
   });
 
+  it("rejects content: sharing the query with bare free text", () => {
+    // content: is one global-scope phrase; a bare sibling (or a second
+    // content:) would silently fuse into one phrase under the content scope.
+    expect(lower("content:refund kitten").errors.length).toBeGreaterThan(0);
+    expect(lower("kitten content:refund").errors.length).toBeGreaterThan(0);
+    expect(lower("content:a content:b").errors.length).toBeGreaterThan(0);
+    // Alone, or with field filters, is fine.
+    expect(lower("content:refund").errors).toEqual([]);
+    expect(lower("content:refund level:ERROR").errors).toEqual([]);
+  });
+
   it("lowers input:/output: to real column filters (not searchType)", () => {
     const r = lower("input:refund");
     expect(r.errors).toEqual([]);
