@@ -261,12 +261,16 @@ function DatasetItemAttachments({
 export function DatasetItemSavedMediaAttachments({
   projectId,
   datasetItemId,
+  datasetItemValidFrom,
 }: {
   projectId: string;
   datasetItemId: string;
+  // The viewed version; omitted for the latest item (resolves the current
+  // version), passed for a historical version to show that version's media.
+  datasetItemValidFrom?: Date;
 }) {
   const { data } = api.datasets.itemMediaByItemId.useQuery(
-    { projectId, datasetItemId },
+    { projectId, datasetItemId, datasetItemValidFrom },
     { refetchOnWindowFocus: false, refetchOnMount: false },
   );
 

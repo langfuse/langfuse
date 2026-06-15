@@ -91,6 +91,8 @@ export const DatasetItemVersionedContent = ({
       dataset={dataset}
       editable={false}
       projectId={itemAtVersion.projectId}
+      datasetItemId={itemAtVersion.id}
+      datasetItemValidFrom={itemAtVersion.validFrom}
     />
   );
 };

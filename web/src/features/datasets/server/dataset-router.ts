@@ -803,17 +803,31 @@ export const datasetRouter = createTRPCRouter({
   // Resolve a saved dataset item version's media from dataset_item_media.
   // The create/edit forms instead derive media from the live JSON.
   itemMediaByItemId: protectedProjectProcedure
-    .input(z.object({ projectId: z.string(), datasetItemId: z.string() }))
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetItemId: z.string(),
+        // The exact version to resolve media for. Media is linked per item
+        // version (keyed by validFrom), so the historical-version view passes
+        // the viewed version's validFrom to see that version's attachments.
+        // Omitted for the latest view, where the current version is resolved.
+        datasetItemValidFrom: z.date().optional(),
+      }),
+    )
     .query(async ({ input }) => {
-      const item = await getDatasetItemById({
-        projectId: input.projectId,
-        datasetItemId: input.datasetItemId,
-      });
-      if (!item) return [];
+      let validFrom = input.datasetItemValidFrom;
+      if (!validFrom) {
+        const item = await getDatasetItemById({
+          projectId: input.projectId,
+          datasetItemId: input.datasetItemId,
+        });
+        if (!item) return [];
+        validFrom = item.validFrom;
+      }
 
       const [references = []] = await resolveDatasetItemMediaReferences({
         projectId: input.projectId,
-        items: [{ id: item.id, validFrom: item.validFrom }],
+        items: [{ id: input.datasetItemId, validFrom }],
       });
 
       return references;

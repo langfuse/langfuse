@@ -28,6 +28,9 @@ type DatasetItemFieldsProps = {
   projectId: string;
   // Present in view mode; selects the saved (table-backed) attachment section.
   datasetItemId?: string;
+  // The viewed version (view mode). Passed for a historical version so its
+  // attachments resolve to that version; omitted for the latest item.
+  datasetItemValidFrom?: Date;
   // For form integration (edit mode)
   control?: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
   onInputChange?: (value: string) => void;
@@ -54,6 +57,7 @@ export const DatasetItemFields = ({
   editable,
   projectId,
   datasetItemId,
+  datasetItemValidFrom,
   control,
   onInputChange,
   onExpectedOutputChange,
@@ -201,6 +205,7 @@ export const DatasetItemFields = ({
         <DatasetItemSavedMediaAttachments
           projectId={projectId}
           datasetItemId={datasetItemId}
+          datasetItemValidFrom={datasetItemValidFrom}
         />
       ) : null}
     </div>

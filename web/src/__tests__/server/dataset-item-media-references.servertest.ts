@@ -290,4 +290,57 @@ describe("Dataset item media tRPC procedures", () => {
       }),
     ]);
   });
+
+  it("resolves saved media for the exact viewed version", async () => {
+    const oldMedia = await createMediaRow();
+    const newMedia = await createMediaRow();
+    const dataset = await prisma.dataset.create({
+      data: { id: v4(), name: v4(), projectId },
+    });
+    const datasetItemId = v4();
+    const oldValidFrom = new Date("2023-01-01T00:00:00.000Z");
+    const newValidFrom = new Date("2023-02-01T00:00:00.000Z");
+
+    // Two versions of the same item, each with its own linked media.
+    await prisma.datasetItemMedia.createMany({
+      data: [oldValidFrom, newValidFrom].map((validFrom, i) => ({
+        projectId,
+        datasetId: dataset.id,
+        datasetItemId,
+        datasetItemValidFrom: validFrom,
+        mediaId: i === 0 ? oldMedia.mediaId : newMedia.mediaId,
+        field: "input",
+        jsonPath: "$['image']",
+        referenceString:
+          i === 0 ? oldMedia.referenceString : newMedia.referenceString,
+      })),
+    });
+
+    // The historical version resolves its own media, not the latest.
+    await expect(
+      caller.datasets.itemMediaByItemId({
+        projectId,
+        datasetItemId,
+        datasetItemValidFrom: oldValidFrom,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        referenceString: oldMedia.referenceString,
+        media: expect.objectContaining({ mediaId: oldMedia.mediaId }),
+      }),
+    ]);
+
+    await expect(
+      caller.datasets.itemMediaByItemId({
+        projectId,
+        datasetItemId,
+        datasetItemValidFrom: newValidFrom,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        referenceString: newMedia.referenceString,
+        media: expect.objectContaining({ mediaId: newMedia.mediaId }),
+      }),
+    ]);
+  });
 });
