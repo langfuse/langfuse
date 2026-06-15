@@ -83,11 +83,11 @@ export default function Dataset() {
           { name: "Datasets", href: `/project/${projectId}/datasets` },
           {
             name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
           {
             name: "Experiments",
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
         ],
         actionButtonsRight: (
@@ -122,7 +122,7 @@ export default function Dataset() {
                     projectId={projectId}
                     datasetRunId={runId}
                     datasetId={datasetId}
-                    redirectUrl={`/project/${projectId}/datasets/${datasetId}`}
+                    redirectUrl={`/project/${projectId}/datasets/${datasetId}/experiments`}
                   />
                 </DropdownMenuItem>
               </DropdownMenuContent>

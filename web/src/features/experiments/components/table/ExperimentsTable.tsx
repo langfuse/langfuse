@@ -344,7 +344,7 @@ export default function ExperimentsTable({
 
         return (
           <Link
-            href={`/project/${projectId}/datasets/${encodeURIComponent(datasetId)}`}
+            href={`/project/${projectId}/datasets/${encodeURIComponent(datasetId)}/experiments`}
             target="_blank"
             rel="noopener noreferrer"
           >

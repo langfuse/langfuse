@@ -100,7 +100,7 @@ function DatasetCompareInternal() {
           },
           {
             name: dataset.data?.name ?? datasetId,
-            href: `/project/${projectId}/datasets/${datasetId}`,
+            href: `/project/${projectId}/datasets/${datasetId}/experiments`,
           },
         ],
         help: {

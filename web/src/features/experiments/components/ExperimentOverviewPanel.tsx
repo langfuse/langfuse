@@ -149,7 +149,7 @@ export function ExperimentOverviewPanel({
 
               <ExperimentOverviewField label="Dataset">
                 <Link
-                  href={`/project/${projectId}/datasets/${encodeURIComponent(experiment.datasetId)}`}
+                  href={`/project/${projectId}/datasets/${encodeURIComponent(experiment.datasetId)}/experiments`}
                   className="text-primary hover:underline"
                 >
                   {experiment.datasetName || experiment.datasetId}
