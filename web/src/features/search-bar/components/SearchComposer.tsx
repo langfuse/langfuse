@@ -1086,11 +1086,25 @@ export function SearchComposer({
   const removeTargetId = hoveredTokenId ?? focusTokenId;
   const removeTarget =
     segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
+  // The hovered/caret token's diagnostic, shown as a styled per-token tooltip
+  // once diagnostics are revealed (Datadog-style) — replaces the native title.
+  // Suppressed while the suggestions popover is open so the two overlays never
+  // stack/collide (you're editing, not inspecting the error).
+  const errorTarget =
+    showTokenDiagnostics && plan === null && removeTarget?.kind === "invalid"
+      ? removeTarget
+      : null;
 
   // Measure the remove target's last client rect in the parent's layout
   // effect: it runs after every commit that can move text, and after all
   // subtree refs (root + container) are attached.
   const [removePosition, setRemovePosition] = React.useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  // Anchor for the per-token error tooltip — bottom-left of the same token, so
+  // the styled diagnostic popover sits just under the offending block.
+  const [errorPosition, setErrorPosition] = React.useState<{
     left: number;
     top: number;
   } | null>(null);
@@ -1100,6 +1114,7 @@ export function SearchComposer({
     const container = containerRef.current;
     if (root === null || container === null || removeTargetIdActual === null) {
       setRemovePosition(null);
+      setErrorPosition(null);
       return;
     }
     const el = root.querySelector(
@@ -1107,15 +1122,21 @@ export function SearchComposer({
     );
     if (el === null) {
       setRemovePosition(null);
+      setErrorPosition(null);
       return;
     }
     const rects = el.getClientRects();
     const rect =
       rects.length > 0 ? rects[rects.length - 1]! : el.getBoundingClientRect();
+    const firstRect = rects.length > 0 ? rects[0]! : rect;
     const containerRect = container.getBoundingClientRect();
     setRemovePosition({
       left: rect.right - containerRect.left - 6,
       top: rect.top - containerRect.top - 8,
+    });
+    setErrorPosition({
+      left: firstRect.left - containerRect.left,
+      top: firstRect.bottom - containerRect.top + 6,
     });
   }, [removeTargetIdActual]);
 
@@ -1227,12 +1248,33 @@ export function SearchComposer({
             {draft}
           </span>
         )}
+        {/* Bar-local overlay stacking ladder (hardcoded for now — a proper
+            app-wide layer system is a separate ticket): token text (base) <
+            remove-X (z-20) < error tooltip (z-30) < autocomplete popover
+            (z-50). The error tooltip and the popover are also mutually
+            exclusive (see errorTarget), so the z order only needs to be
+            self-consistent within the bar. */}
         {removeTarget !== null && removePosition !== null && (
           <RemoveTokenButton
             segment={removeTarget}
             position={removePosition}
             onRemove={removeSegment}
           />
+        )}
+        {errorTarget !== null && errorPosition !== null && (
+          <div
+            role="tooltip"
+            style={{ left: errorPosition.left, top: errorPosition.top }}
+            // pointer-events-none so moving onto the tooltip doesn't change the
+            // hovered token (which would make it flicker away).
+            className={cn(
+              "pointer-events-none absolute z-30 max-w-[min(360px,calc(100vw-32px))]",
+              "border-destructive/40 bg-popover text-destructive rounded-md border",
+              "px-2 py-1 font-sans text-xs leading-snug shadow-md",
+            )}
+          >
+            {errorTarget.message}
+          </div>
         )}
       </div>
 

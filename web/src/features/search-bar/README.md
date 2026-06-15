@@ -139,6 +139,14 @@ interleave is preserved only in the recent-searches entry (`planCommit`'s
 
 - Pill click-to-edit (value switcher dropdown on filter tokens).
 - Saved-view round-trip for free text/search scopes.
+- Strict-mode follow-ups (pending product decisions): free text as a single
+  visible/scoped chip with confirmed phrase matching; reserve top-level
+  grouping `( )` (entangled with `tidyQueryText`/chip-removal — needs its own
+  pass).
+- App-wide **layer system** (z-index): the bar's overlays use a hardcoded local
+  ladder (X z-20 < error tooltip z-30 < popover z-50) because the app has no
+  shared z scale (overlays are just `z-50` + Radix portals). A proper layering
+  system is a separate, app-level ticket.
 - Optional: extract `SearchComposer`'s contenteditable selection/`beforeinput`
   machinery into a `useContentEditableController` hook to fully separate the
   imperative integration from the React component.

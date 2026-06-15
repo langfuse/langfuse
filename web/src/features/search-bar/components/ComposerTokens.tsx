@@ -107,11 +107,9 @@ export function ComposerTokens({
         data-testid="search-bar-token"
         data-kind={visibleKind}
         data-segment-id={segment.id}
-        title={
-          segment.kind === "invalid" && showDiagnostics
-            ? segment.message
-            : segment.raw
-        }
+        // Invalid tokens get the styled per-token error tooltip (a positioned
+        // overlay in SearchComposer), not the native browser title.
+        title={segment.kind === "invalid" ? undefined : segment.raw}
         className={composerTokenVariants({ kind: visibleKind })}
       >
         {segment.kind === "filter" ? (
