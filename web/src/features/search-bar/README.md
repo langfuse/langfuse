@@ -123,7 +123,11 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   - `SearchComposer.tsx` — the stateful contenteditable CONTROLLER: browser
     owns selection, mutations flow through `beforeinput`, undo/redo/caret/
     autocomplete state. Picking a value advances to "append next"; ArrowRight
-    at the end of the query exits the last token.
+    at the end of the query exits the last token. Paste inserts cleaned text
+    (line-breaks/tabs → spaces) into the draft, which auto-tokenizes like typed
+    text — there is no special structured-vs-raw paste branch. Editing a
+    value works by placing the caret in it (click/arrow): the value-stage
+    popover then offers that field's values with the current one active.
   - `ComposerTokens.tsx` — **presentational** (pure, prop-driven): draft text →
     styled token spans. `cva` token variants. Story: `ComposerTokens.stories`.
   - `AutocompleteListbox.tsx` — **presentational** ARIA listbox over a
@@ -179,7 +183,11 @@ interleave is preserved only in the recent-searches entry (`planCommit`'s
 
 ## Next slices
 
-- Pill click-to-edit (value switcher dropdown on filter tokens).
+- Pill click-to-edit: a dedicated value-switcher dropdown anchored to a
+  *selected pill*. (Editing a value already works by placing the caret in it —
+  see SearchComposer; only the pill-anchored dropdown is unbuilt. The prototype's
+  `planTokenValueCompletions` planner was removed as dead code in review, so this
+  is a clean slice with nothing half-wired.)
 - Saved-view round-trip for free text/search scopes.
 - Strict-mode follow-ups (pending product decisions):
   - **Decision A — free-text semantics**: keep phrase (contiguous substring;
