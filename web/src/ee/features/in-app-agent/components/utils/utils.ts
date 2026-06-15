@@ -4,10 +4,61 @@ import type { InAppAgentToolCallContent } from "../InAppAgentMessage";
 import { deduplicateBy } from "@/src/utils/arrays";
 import {
   AgUiMessageSchema,
-  InAppAgentDocsToolResultSchema,
   type AgUiMessage,
   type InAppAgentMessageSource,
+  InAppAgentMessageSourceSchema,
 } from "@/src/ee/features/in-app-agent/schema";
+
+const LangfuseDocsDocumentSchema = z.object({
+  type: z.literal("document"),
+  title: z.string().trim().optional(),
+  url: z.string().trim().min(1),
+});
+
+const InkeepChoiceContentSourceSchema = z
+  .object({
+    content: z.array(z.unknown()),
+  })
+  .transform(({ content }): InAppAgentMessageSource[] => {
+    return content.flatMap((entry) => {
+      const parsedDocument = LangfuseDocsDocumentSchema.safeParse(entry);
+
+      if (!parsedDocument.success) {
+        return [];
+      }
+
+      let faviconUrl: string;
+
+      try {
+        faviconUrl = new URL(
+          "/favicon.ico",
+          parsedDocument.data.url,
+        ).toString();
+      } catch {
+        return [];
+      }
+
+      const parsedSource = InAppAgentMessageSourceSchema.safeParse({
+        title: parsedDocument.data.title || parsedDocument.data.url,
+        url: parsedDocument.data.url,
+        faviconUrl,
+      });
+
+      return parsedSource.success ? [parsedSource.data] : [];
+    });
+  });
+
+const InkeepChoiceResultSchema = z.object({
+  _meta: z.object({
+    choices: z.array(
+      z.object({
+        message: z.object({
+          content: z.string(),
+        }),
+      }),
+    ),
+  }),
+});
 
 export function getDrawerMessages({
   error,
@@ -236,16 +287,36 @@ export function extractLangfuseDocsSources(
 function extractSourcesFromToolResult(
   result: string,
 ): InAppAgentMessageSource[] {
-  let parsed: unknown;
+  const parsed = parseJsonString(result);
+  const parsedResult = InkeepChoiceResultSchema.safeParse(parsed);
 
-  try {
-    parsed = JSON.parse(result);
-  } catch {
+  if (!parsedResult.success) {
     return [];
   }
 
-  const parsedResult = InAppAgentDocsToolResultSchema.safeParse(parsed);
-  return parsedResult.success ? parsedResult.data.sources : [];
+  return parsedResult.data._meta.choices.flatMap((choice) => {
+    const parsedContent = parseJsonString(choice.message.content);
+    const parsedSource =
+      InkeepChoiceContentSourceSchema.safeParse(parsedContent);
+
+    if (!parsedSource.success) {
+      return [];
+    }
+
+    return parsedSource.data;
+  });
+}
+
+function parseJsonString(value: unknown) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return null;
+  }
 }
 
 function mergeSources(

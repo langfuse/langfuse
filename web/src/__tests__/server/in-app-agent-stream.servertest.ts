@@ -229,12 +229,9 @@ describe("createAgUiStream", () => {
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
     const docsSearchTool = agentConfig?.tools?.langfuseDocs_search;
     await expect(docsSearchTool?.execute?.({}, {})).resolves.toMatchObject({
-      sources: [
-        {
-          title: "Invite Co-workers",
-          url: "https://langfuse.com/faq/all/inviting-in-langfuse",
-        },
-      ],
+      _meta: expect.objectContaining({
+        choices: expect.any(Array),
+      }),
     });
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,

@@ -2,26 +2,57 @@ import type { AgUiMessage } from "@/src/ee/features/in-app-agent/schema";
 import { extractLangfuseDocsSources, getDrawerMessages } from "./utils";
 
 describe("extractLangfuseDocsSources", () => {
-  it("extracts and deduplicates structured sources from docs tool results", () => {
+  it("extracts and deduplicates document sources from docs tool results", () => {
     const result = JSON.stringify({
-      content: [{ type: "document", title: "Core Concepts" }],
-      sources: [
-        {
-          url: "https://langfuse.com/docs/evaluation/core-concepts",
-          title: "Core Concepts",
-          faviconUrl: "https://langfuse.com/favicon.ico",
-        },
-        {
-          url: "https://langfuse.com/docs/evaluation/scores/overview",
-          title: "Scores",
-          faviconUrl: "https://langfuse.com/favicon.ico",
-        },
-        {
-          url: "https://langfuse.com/docs/evaluation/scores/overview",
-          title: "Scores duplicate",
-          faviconUrl: "https://langfuse.com/favicon.ico",
-        },
-      ],
+      _meta: {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                content: [
+                  { type: "text", text: "Search result" },
+                  {
+                    type: "document",
+                    title: "Core Concepts",
+                    url: "https://langfuse.com/docs/evaluation/core-concepts",
+                  },
+                  {
+                    type: "document",
+                    title: "Scores",
+                    url: "https://langfuse.com/docs/evaluation/scores/overview",
+                  },
+                ],
+              }),
+            },
+          },
+          {
+            message: {
+              content: JSON.stringify({
+                content: [
+                  {
+                    type: "document",
+                    title: "Datasets",
+                    url: "https://langfuse.com/docs/datasets/overview",
+                  },
+                ],
+              }),
+            },
+          },
+          {
+            message: {
+              content: JSON.stringify({
+                content: [
+                  {
+                    type: "document",
+                    title: "Scores duplicate",
+                    url: "https://langfuse.com/docs/evaluation/scores/overview",
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      },
     });
 
     expect(
@@ -50,20 +81,37 @@ describe("extractLangfuseDocsSources", () => {
         url: "https://langfuse.com/docs/evaluation/scores/overview",
         faviconUrl: "https://langfuse.com/favicon.ico",
       },
+      {
+        title: "Datasets",
+        url: "https://langfuse.com/docs/datasets/overview",
+        faviconUrl: "https://langfuse.com/favicon.ico",
+      },
     ]);
   });
 
   it("ignores malformed structured sources", () => {
     const result = JSON.stringify({
-      sources: [
-        {
-          url: "https://langfuse.com/docs/evaluation/core-concepts",
-        },
-        {
-          url: 1,
-          title: "Invalid URL",
-        },
-      ],
+      _meta: {
+        choices: [
+          { message: { content: "not json" } },
+          { message: { content: JSON.stringify({ content: "not array" }) } },
+          {
+            message: {
+              content: JSON.stringify({
+                content: [
+                  { type: "document", title: "Missing URL" },
+                  { type: "document", title: "Blank URL", url: "   " },
+                  {
+                    type: "document",
+                    title: "Unsafe protocol",
+                    url: "javascript:alert(1)",
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      },
     });
 
     expect(
@@ -82,13 +130,23 @@ describe("extractLangfuseDocsSources", () => {
 describe("getDrawerMessages", () => {
   it("attaches docs sources to the answer after a search preamble", () => {
     const docsResult = JSON.stringify({
-      sources: [
-        {
-          url: "https://langfuse.com/docs/audit-logs",
-          title: "Audit Logs",
-          faviconUrl: "https://langfuse.com/favicon.ico",
-        },
-      ],
+      _meta: {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                content: [
+                  {
+                    type: "document",
+                    url: "https://langfuse.com/docs/audit-logs",
+                    title: "Audit Logs",
+                  },
+                ],
+              }),
+            },
+          },
+        ],
+      },
     });
 
     const mappedMessages = getDrawerMessages({

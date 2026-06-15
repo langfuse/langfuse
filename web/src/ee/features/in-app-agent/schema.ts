@@ -139,13 +139,6 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
 
 export type AgUiMessage = z.infer<typeof AgUiMessageSchema>;
 
-export const InAppAgentDocsSourceSchema = z.object({
-  title: z.string(),
-  url: z.string().trim().min(1),
-});
-
-export type InAppAgentDocsSource = z.infer<typeof InAppAgentDocsSourceSchema>;
-
 const AbsoluteHttpUrlSchema = z.string().transform((value, ctx) => {
   let parsedUrl: URL;
 
@@ -179,41 +172,6 @@ export const InAppAgentMessageSourceSchema = z.object({
 export type InAppAgentMessageSource = z.infer<
   typeof InAppAgentMessageSourceSchema
 >;
-
-export const InAppAgentDocsSourceWithDisplayFieldsSchema =
-  InAppAgentDocsSourceSchema.transform((source, ctx) => {
-    let parsedUrl: URL;
-
-    try {
-      parsedUrl = new URL(source.url);
-    } catch {
-      ctx.addIssue({
-        code: "custom",
-        message: "Source URL must be absolute",
-        path: ["url"],
-      });
-      return z.NEVER;
-    }
-
-    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-      ctx.addIssue({
-        code: "custom",
-        message: "Source URL protocol must be http or https",
-        path: ["url"],
-      });
-      return z.NEVER;
-    }
-
-    return {
-      title: source.title,
-      url: parsedUrl.href,
-      faviconUrl: new URL("/favicon.ico", parsedUrl).toString(),
-    };
-  }).pipe(InAppAgentMessageSourceSchema);
-
-export const InAppAgentDocsToolResultSchema = z.object({
-  sources: z.array(InAppAgentMessageSourceSchema),
-});
 
 const AgUiToolSchema = z.object({
   name: z.string(),

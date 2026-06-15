@@ -11,7 +11,6 @@ import type {
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
-import { prefixLangfuseDocsTools } from "@/src/ee/features/in-app-agent/server/tools";
 import { logger } from "@langfuse/shared/src/server";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
@@ -543,7 +542,7 @@ async function createMastraAdapter(params: {
 
     const tools = {
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
-      ...prefixLangfuseDocsTools(toolsets.langfuseDocs),
+      ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
     };
 
     const agent = new Agent({
