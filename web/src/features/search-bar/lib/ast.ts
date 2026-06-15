@@ -61,28 +61,6 @@ export type ASTNode = AndNode | OrNode | NotNode | FilterNode | TextNode;
 
 // ---- helpers ----
 
-export function isEmpty(ast: ASTNode | null): boolean {
-  if (ast === null) return true;
-  if (ast.kind === "and" || ast.kind === "or") return ast.children.length === 0;
-  return false;
-}
-
-export function flatFilters(ast: ASTNode | null): FilterNode[] {
-  if (ast === null) return [];
-  if (ast.kind === "filter") return [ast];
-  if (ast.kind === "text") return [];
-  if (ast.kind === "not") return flatFilters(ast.child);
-  return ast.children.flatMap(flatFilters);
-}
-
-export function flatFreeText(ast: ASTNode | null): TextNode[] {
-  if (ast === null) return [];
-  if (ast.kind === "text") return [ast];
-  if (ast.kind === "filter") return [];
-  if (ast.kind === "not") return flatFreeText(ast.child);
-  return ast.children.flatMap(flatFreeText);
-}
-
 function spanEq(a: Span | undefined, b: Span): boolean {
   return a !== undefined && a.from === b.from && a.to === b.to;
 }

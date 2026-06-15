@@ -64,6 +64,31 @@ describe("searchBarStore (draft-only)", () => {
     expect(store.getState().draftValid).toBe(false);
   });
 
+  it("revalidate bails when scoreTypes are set-equal (no churn re-render)", () => {
+    // observed identity rotates every auto-refresh tick, but when the score-name
+    // sets are unchanged revalidate must NOT re-run validation / emit a fresh
+    // diagnostics array (which would trigger a no-op subscriber re-render).
+    let st = {
+      numericScoreNames: new Set<string>(["accuracy"]),
+      categoricalScoreNames: new Set<string>(),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+    };
+    const store = createSearchBarStore(() => st);
+    store.getState().actions.setDraft("level:ERROR");
+    let notified = 0;
+    const unsub = store.subscribe(() => notified++);
+    // New context object, identical sets (a refetch tick).
+    st = { ...st, numericScoreNames: new Set<string>(["accuracy"]) };
+    store.getState().actions.revalidate();
+    expect(notified).toBe(0);
+    // A real change still triggers a re-validate.
+    st = { ...st, numericScoreNames: new Set<string>(["accuracy", "latency"]) };
+    store.getState().actions.revalidate();
+    expect(notified).toBe(1);
+    unsub();
+  });
+
   it("validates with scoreTypes so the store agrees with the commit gate", () => {
     // `accuracy` is numeric, so `scores.accuracy:hello` can't lower. Without
     // the same scoreTypes planCommit uses, the store would mark it valid and

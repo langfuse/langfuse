@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parse } from "./langQ";
-import { semanticDiagnostics } from "./validate";
+import { semanticDiagnostics, validateQuery } from "./validate";
 
 function warnings(query: string): string[] {
   const { ast } = parse(query);
@@ -37,4 +37,25 @@ describe("semanticDiagnostics — has: polarity", () => {
       '"level" always has a value — this filter matches everything',
     );
   });
+});
+
+describe("validateQuery — merged-diagnostic dedup", () => {
+  // The parser (pushOpIssue) and the adapter (operatorIssue in lowerFilter)
+  // both flag the same operator/field mismatch at the same span. validateQuery
+  // merges the two lists, so it must dedupe — otherwise the global tooltip and
+  // aria-live region announce the same message twice for a single typo.
+  function errorMessages(query: string): string[] {
+    return validateQuery(query)
+      .diagnostics.filter((d) => d.severity === "error")
+      .map((d) => d.message);
+  }
+
+  it.each(["metadata.region:>5", "level:>5", "traceTags:~tag", "xyz:1"])(
+    "emits each error message once for %s",
+    (query) => {
+      const messages = errorMessages(query);
+      expect(messages.length).toBeGreaterThan(0);
+      expect(new Set(messages).size).toBe(messages.length);
+    },
+  );
 });

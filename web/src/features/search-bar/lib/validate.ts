@@ -110,6 +110,33 @@ export function semanticDiagnostics(
 }
 
 /**
+ * The parser and the adapter both run the same operator-/field-validity checks
+ * (operatorIssue, ref resolution), so a single filter typo surfaces twice once
+ * the two lists are merged — and the composer joins all messages into the
+ * global tooltip + aria-live region, announcing it twice. parse() already
+ * dedupes its own list by exact span+message, but the parser anchors the
+ * unknown-field diagnostic at the key span (`xyz`) while the adapter wraps at
+ * the full term span (`xyz:1`), so an exact key misses that pair. Drop a later
+ * diagnostic whose severity+message duplicates an earlier kept one AND whose
+ * span overlaps it — two distinct tokens never overlap, so per-token underlines
+ * are preserved.
+ */
+function dedupeMergedDiagnostics(diagnostics: Diagnostic[]): Diagnostic[] {
+  const kept: Diagnostic[] = [];
+  for (const d of diagnostics) {
+    const dup = kept.some(
+      (k) =>
+        k.severity === d.severity &&
+        k.message === d.message &&
+        k.from < d.to &&
+        d.from < k.to,
+    );
+    if (!dup) kept.push(d);
+  }
+  return kept;
+}
+
+/**
  * parse() + semantic checks + length cap, merged. `valid === true` guarantees
  * the adapter can lower the query — the one commit gate. `scoreTypes` must
  * match what the commit-time lowering uses so the two stay in parity.
@@ -119,10 +146,10 @@ export function validateQuery(
   scoreTypes?: ScoreTypeContext,
 ): ParseResult {
   const res = parse(text);
-  const diagnostics = [
+  const diagnostics = dedupeMergedDiagnostics([
     ...res.diagnostics,
     ...semanticDiagnostics(res.ast, text.length, scoreTypes),
-  ];
+  ]);
   if (text.length > MAX_QUERY_LENGTH) {
     diagnostics.push({
       from: 0,

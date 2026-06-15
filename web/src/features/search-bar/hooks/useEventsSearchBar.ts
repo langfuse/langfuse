@@ -100,7 +100,9 @@ export function useEventsSearchBar({
   // were known has a stale draftValid (the editor's red-border gate reads it),
   // so without this a `scores.<numeric>:<non-number>` typed during the load
   // window would commit-reject with no visible error. `observed` identity is
-  // stable (memoized upstream), so this only fires when it actually changes.
+  // NOT stable across refetches (a relative range + auto-refresh rebuilds it
+  // every tick), so this can fire on ticks where the score types are unchanged
+  // — revalidate() bails on a set-equal context, keeping that path a no-op.
   useEffect(() => {
     if (!enabled) return;
     store.getState().actions.revalidate();

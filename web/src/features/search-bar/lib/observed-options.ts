@@ -83,3 +83,35 @@ export function scoreTypeContextFromObserved(
     traceCategoricalScoreNames: names("trace_score_categories"),
   };
 }
+
+function nameSetsEqual(
+  a: ReadonlySet<string> | undefined,
+  b: ReadonlySet<string> | undefined,
+): boolean {
+  if (a === b) return true;
+  const sizeA = a?.size ?? 0;
+  const sizeB = b?.size ?? 0;
+  if (sizeA !== sizeB) return false;
+  if (a) for (const v of a) if (!b?.has(v)) return false;
+  return true;
+}
+
+/**
+ * Set-equality of the four score-name sets. `scoreTypeContextFromObserved`
+ * builds a fresh context on every `filterOptions` refetch, so under
+ * auto-refresh on a relative time range the context identity rotates every tick
+ * even when the underlying score types are unchanged. Callers use this to skip
+ * re-validating the draft when the routing-relevant data did not actually move.
+ */
+export function scoreTypeContextEqual(
+  a: ScoreTypeContext | undefined,
+  b: ScoreTypeContext | undefined,
+): boolean {
+  if (a === b) return true;
+  return (
+    nameSetsEqual(a?.numericScoreNames, b?.numericScoreNames) &&
+    nameSetsEqual(a?.categoricalScoreNames, b?.categoricalScoreNames) &&
+    nameSetsEqual(a?.traceNumericScoreNames, b?.traceNumericScoreNames) &&
+    nameSetsEqual(a?.traceCategoricalScoreNames, b?.traceCategoricalScoreNames)
+  );
+}

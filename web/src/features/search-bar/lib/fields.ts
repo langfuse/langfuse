@@ -155,21 +155,9 @@ export function isDanglingDotPrefix(value: string): boolean {
   );
 }
 
-/** Fields whose observed values feed value autocomplete. */
-export function facetableFields(): FieldDef[] {
-  return FIELDS.filter(
-    (f) => f.syncMode === "exactOption" || f.syncMode === "arrayOption",
-  );
-}
-
 /** Fields that can be unset — the value domain of `has:` / `-has:`. */
 export function nullableFields(): FieldDef[] {
   return FIELDS.filter((f) => f.nullable === true);
-}
-
-/** Does this field's kind allow comparison operators (> < >= <=)? */
-export function allowsComparison(kind: FieldKind): boolean {
-  return kind === "number" || kind === "datetime";
 }
 
 // ---- operator validity ----

@@ -788,15 +788,19 @@ export const NEEDS_QUOTES = /[\s:,()"\\]/;
 // a literal, not a range.)
 const LEADING_OPERATOR = /^[-~^$*=><]/;
 
+// Tokens reservedTokenIssue rejects as bare free text — they must round-trip
+// quoted or the bar lands invalid on the next derive. Mirror that set exactly:
+// AND/OR/NOT in any case lex as boolean operators, and a leading "!" is
+// reserved for future negation (and not covered by LEADING_OPERATOR).
+const RESERVED_BARE_TOKEN = /^(?:and|or|not)$/i;
+
 export function serializeValue(value: string): string {
   if (
     value.length === 0 ||
     NEEDS_QUOTES.test(value) ||
     LEADING_OPERATOR.test(value) ||
-    // Bare AND/OR/NOT would be lexed as boolean operators inside a value group.
-    value === "AND" ||
-    value === "OR" ||
-    value === "NOT"
+    value.startsWith("!") ||
+    RESERVED_BARE_TOKEN.test(value)
   ) {
     // Escape \ before " — must be the exact inverse of unquote.
     return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;

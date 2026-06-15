@@ -14,6 +14,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { ScoreTypeContext } from "../lib/adapter";
 import { removeToken } from "../lib/edits";
 import { type Diagnostic } from "../lib/langQ";
+import { scoreTypeContextEqual } from "../lib/observed-options";
 import { validateQuery } from "../lib/validate";
 
 export type SearchBarStoreState = {
@@ -63,8 +64,18 @@ export function createSearchBarStore(
   resolveScoreTypes?: () => ScoreTypeContext | undefined,
 ): SearchBarStore {
   return createStore<SearchBarStoreState>((set, get) => {
+    // The score-type context used by the most recent validation. revalidate()
+    // bails when the context is set-equal to this, so observed-identity churn
+    // (a relative range + auto-refresh rebuilds the context every tick) doesn't
+    // re-parse the draft and emit a fresh diagnostics array for no change.
+    let lastScoreTypes: ScoreTypeContext | undefined;
+    let hasValidated = false;
+
     const writeDraft = (next: string) => {
-      const res = validateQuery(next, resolveScoreTypes?.());
+      const scoreTypes = resolveScoreTypes?.();
+      lastScoreTypes = scoreTypes;
+      hasValidated = true;
+      const res = validateQuery(next, scoreTypes);
       set({
         draft: next,
         draftDiagnostics: res.diagnostics,
@@ -92,7 +103,16 @@ export function createSearchBarStore(
         },
         revealInvalid: () => set({ invalidRevealDraft: get().draft }),
         revalidate: () => {
-          const res = validateQuery(get().draft, resolveScoreTypes?.());
+          const scoreTypes = resolveScoreTypes?.();
+          // Nothing to refresh: the draft was already validated against an
+          // equal context (writeDraft and revalidate both record it), so the
+          // result would be identical. Skip the parse + set to avoid a
+          // no-op re-render from the fresh diagnostics array.
+          if (hasValidated && scoreTypeContextEqual(scoreTypes, lastScoreTypes))
+            return;
+          lastScoreTypes = scoreTypes;
+          hasValidated = true;
+          const res = validateQuery(get().draft, scoreTypes);
           set({
             draftDiagnostics: res.diagnostics,
             draftValid: res.valid,

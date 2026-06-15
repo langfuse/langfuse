@@ -25,7 +25,7 @@ import {
   deriveComposerSegments,
   type ComposerSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
-import { serializeValue } from "@/src/features/search-bar/lib/langQ";
+import { serializeValue, termAt } from "@/src/features/search-bar/lib/langQ";
 import {
   scoreTypeContextFromObserved,
   type ObservedOptions,
@@ -704,6 +704,7 @@ export function SearchComposer({
       const current = draftRef.current;
       let insert: string;
       let keepOpen: boolean;
+      let replaceTo = currentPlan.to;
       if (option.kind === "field") {
         // Replacing the key of an existing filter: the span ends AT the colon,
         // so the insert must not bring its own.
@@ -714,6 +715,14 @@ export function SearchComposer({
             ? option.fieldId
             : `${option.fieldId}:`;
         keepOpen = true;
+        // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
+        // partial key. When an existing `:value` follows the replaced key, the
+        // bare prefix would splice in front of it (`meta:foo` -> broken
+        // `metadata.:foo`). Consume the whole term so the user re-picks the key
+        // from observed options instead.
+        if (!appendIntent && option.fieldId.endsWith(".") && colonFollows) {
+          replaceTo = termAt(current, currentPlan.from)?.to ?? currentPlan.to;
+        }
         if (appendIntent && current.trimEnd().endsWith(insert)) {
           const caretAt = current.trimEnd().length;
           setDraftWithSelection(current, caretAt);
@@ -750,7 +759,7 @@ export function SearchComposer({
           : "";
       const next = appendIntent
         ? `${current}${prefix}${insert}`
-        : replaceRange(current, currentPlan.from, currentPlan.to, insert);
+        : replaceRange(current, currentPlan.from, replaceTo, insert);
       const caretAt = appendIntent
         ? current.length + prefix.length + insert.length
         : currentPlan.from + insert.length;

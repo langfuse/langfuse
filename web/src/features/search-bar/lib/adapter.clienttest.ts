@@ -571,9 +571,23 @@ describe("filterStateToQueryText", () => {
   });
 
   it("round-trips bare boolean keywords and leading-hyphen free text", () => {
-    // serialize() must quote AND/OR/NOT and -foo so they reparse as free text
-    // rather than as operators/negation (otherwise the bar lands invalid).
-    for (const searchQuery of ["OR", "AND", "NOT", "-foo", "OR AND -x"]) {
+    // serialize() must quote AND/OR/NOT (any case), !-prefix tokens, and -foo
+    // so they reparse as free text rather than as operators/negation/reserved
+    // tokens (otherwise the bar lands invalid on page load from URL state).
+    for (const searchQuery of [
+      "OR",
+      "AND",
+      "NOT",
+      "-foo",
+      "OR AND -x",
+      "or",
+      "and",
+      "not",
+      "team or kitten",
+      "test not really",
+      "!important",
+      "!critical bug",
+    ]) {
       const { text } = filterStateToQueryText([], { searchQuery });
       const v = validateQuery(text);
       expect(v.valid, `${searchQuery} -> ${text}`).toBe(true);
