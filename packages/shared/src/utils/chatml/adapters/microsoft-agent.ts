@@ -32,6 +32,36 @@ const MicrosoftAgentMessageSchema = z.looseObject({
 // Array of Microsoft Agent messages
 const MicrosoftAgentMessagesSchema = z.array(MicrosoftAgentMessageSchema);
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function hasPydanticAiMessageMarkers(data: unknown): boolean {
+  const messages = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.messages)
+      ? data.messages
+      : isRecord(data)
+        ? [data]
+        : [];
+
+  return messages.some((msg) => {
+    if (!isRecord(msg)) return false;
+    if (!Array.isArray(msg.parts)) return false;
+
+    return msg.parts.some((part) => {
+      if (!isRecord(part)) return false;
+
+      return (
+        part.type === "thinking" ||
+        part.type === "redacted_thinking" ||
+        (part.type === "tool_call_response" &&
+          ("result" in part || msg.role === "user"))
+      );
+    });
+  });
+}
+
 /**
  * Extract tool calls and text content from parts array
  * Handles: text, tool_call, tool_call_response
@@ -280,6 +310,13 @@ export const microsoftAgentAdapter: ProviderAdapter = {
       "gen_ai.provider.name",
     );
     if (providerName === "microsoft.agent_framework") return true;
+
+    if (
+      hasPydanticAiMessageMarkers(ctx.metadata) ||
+      hasPydanticAiMessageMarkers(ctx.data)
+    ) {
+      return false;
+    }
 
     // STRUCTURAL: Schema-based detection on metadata
     if (MicrosoftAgentMessagesSchema.safeParse(ctx.metadata).success)

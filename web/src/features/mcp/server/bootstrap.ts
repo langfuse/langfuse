@@ -20,9 +20,10 @@ import { healthFeature } from "../features/health";
 import { scoresFeature } from "../features/scores";
 import { metricsFeature } from "../features/metrics";
 import { modelsFeature } from "../features/models";
+import { mediaFeature } from "../features/media";
+import { evalsFeature } from "../features/evals";
 // Import future features as they're added:
 // import { tracesFeature } from "../features/traces";
-// import { evalsFeature } from "../features/evals";
 
 /**
  * Bootstrap all MCP features
@@ -41,10 +42,11 @@ export function bootstrapMcpFeatures(): void {
   toolRegistry.register(scoresFeature);
   toolRegistry.register(metricsFeature);
   toolRegistry.register(modelsFeature);
+  toolRegistry.register(mediaFeature);
+  toolRegistry.register(evalsFeature);
 
   // Add future features here:
   // toolRegistry.register(tracesFeature);
-  // toolRegistry.register(evalsFeature);
 }
 
 /**

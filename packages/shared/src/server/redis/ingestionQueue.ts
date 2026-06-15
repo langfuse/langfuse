@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 import { getShardIndex } from "./sharding";
 import { env } from "../../env";
@@ -60,16 +56,11 @@ export class IngestionQueue {
       return IngestionQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
     const name = `${QueueName.IngestionQueue}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
-    const queueInstance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(name);
+    const queueInstance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.IngestionQueue]>(name, {
-          connection: newRedis,
-          prefix: getQueuePrefix(name),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,
@@ -147,16 +138,11 @@ export class SecondaryIngestionQueue {
       return SecondaryIngestionQueue.instances.get(shardIndex) || null;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
     const name = `${QueueName.IngestionSecondaryQueue}${shardIndex > 0 ? `-${shardIndex}` : ""}`;
-    const queueInstance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(name);
+    const queueInstance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.IngestionSecondaryQueue]>(name, {
-          connection: newRedis,
-          prefix: getQueuePrefix(name),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100_000,

@@ -27,6 +27,7 @@ describe("Score Comparison Analytics tRPC", () => {
           cloudConfig: undefined,
           metadata: {},
           aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
           projects: [
             {
               id: projectId,

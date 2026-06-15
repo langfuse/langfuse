@@ -28,6 +28,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     SlackService: {
       getInstance: vi.fn(),
     },
+    getActionById: vi.fn(),
   };
 });
 
@@ -42,7 +43,12 @@ describe("Slack Processor", () => {
 
   beforeAll(async () => {
     // Import mocked SlackService
-    const { SlackService } = await import("@langfuse/shared/src/server");
+    const server = await import("@langfuse/shared/src/server");
+    const { SlackService } = server;
+
+    // getActionById delegates to the real impl so existing tests read real rows
+    const actual = await vi.importActual<any>("@langfuse/shared/src/server");
+    (server.getActionById as any).mockImplementation(actual.getActionById);
 
     // Create mock service instance
     mockSlackService = {
@@ -67,6 +73,11 @@ describe("Slack Processor", () => {
   beforeEach(async () => {
     // Reset mocks
     vi.clearAllMocks();
+
+    // clearAllMocks wipes call history but preserves the getActionById impl
+    const actual = await vi.importActual<any>("@langfuse/shared/src/server");
+    const server = await import("@langfuse/shared/src/server");
+    (server.getActionById as any).mockImplementation(actual.getActionById);
 
     // Create test project
     ({ projectId } = await createOrgProjectAndApiKey());
@@ -441,6 +452,170 @@ describe("Slack Processor", () => {
       expect(trigger?.status).toBe(JobConfigState.INACTIVE);
     });
 
+    it("monitor-alert with a JSON-round-tripped (string) timestamp builds the full message, not the fallback", async () => {
+      // Reconfigure the action as a monitor-alert SLACK action.
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            type: "SLACK",
+            channelId: "C123456",
+            channelName: "general",
+          } as SlackActionConfig,
+        },
+      });
+
+      const monitorInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          id: executionId,
+          timestamp: new Date("2026-05-18T12:01:00.000Z"),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: "mon_01",
+            projectId,
+            severity: "ALERT",
+            permalink:
+              "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+            message: { title: "High error rate", body: "errors > 100" },
+            timestamp: new Date("2026-05-18T12:01:00.000Z"),
+            fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+            toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
+            view: "observations",
+            filters: [],
+            window: "5m",
+          },
+        },
+      };
+
+      // Reproduce the BullMQ wire shape: Dates become ISO strings.
+      const wireInput: WebhookInput = JSON.parse(JSON.stringify(monitorInput));
+
+      await executeWebhook(wireInput, { skipValidation: true });
+
+      expect(mockSlackService.sendMessage).toHaveBeenCalledTimes(1);
+      const sent = mockSlackService.sendMessage.mock.calls[0][0];
+
+      // Full monitor message: content nests in the colored attachment; the
+      // linked title section carries the alert title.
+      expect(sent.blocks).toEqual([]);
+      const inner = sent.attachments![0].blocks!;
+      expect(inner[0].type).toBe("section");
+      expect(inner[0].text.text).toContain("High error rate");
+
+      // Not the fallback: fallback emits a single top-level section and no attachment.
+      const isFallback =
+        sent.attachments === undefined &&
+        sent.blocks.length === 1 &&
+        sent.blocks[0].text?.text?.startsWith("*Langfuse Notification*");
+      expect(isFallback).toBe(false);
+    });
+
+    it("monitor-alert: attachment fallback is the alert title; no generic notification text", async () => {
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            type: "SLACK",
+            channelId: "C123456",
+            channelName: "general",
+          } as SlackActionConfig,
+        },
+      });
+
+      const monitorInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          id: executionId,
+          timestamp: new Date("2026-05-18T12:01:00.000Z"),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: "mon_01",
+            projectId,
+            severity: "ALERT",
+            permalink:
+              "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+            message: { title: "[ALERT] High error rate", body: "errors > 100" },
+            timestamp: new Date("2026-05-18T12:01:00.000Z"),
+            fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+            toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
+            view: "observations",
+            filters: [],
+            window: "5m",
+          },
+        },
+      };
+
+      const wireInput: WebhookInput = JSON.parse(JSON.stringify(monitorInput));
+
+      await executeWebhook(wireInput, { skipValidation: true });
+
+      const sent = mockSlackService.sendMessage.mock.calls[0][0];
+      expect(sent.text).toBeUndefined();
+      expect(sent.attachments).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ fallback: "[ALERT] High error rate" }),
+        ]),
+      );
+    });
+
+    it("monitor-alert: title escapes Slack mention tokens in the monitor name", async () => {
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            type: "SLACK",
+            channelId: "C123456",
+            channelName: "general",
+          } as SlackActionConfig,
+        },
+      });
+
+      const monitorInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          id: executionId,
+          timestamp: new Date("2026-05-18T12:01:00.000Z"),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId: "mon_01",
+            projectId,
+            severity: "ALERT",
+            permalink:
+              "https://cloud.langfuse.com/project/proj_01/monitors/mon_01",
+            message: {
+              title: "[ALERT] <!channel> investigate",
+              body: "errors > 100",
+            },
+            timestamp: new Date("2026-05-18T12:01:00.000Z"),
+            fromTimestamp: new Date("2026-05-18T11:55:30.000Z"),
+            toTimestamp: new Date("2026-05-18T12:00:30.000Z"),
+            view: "observations",
+            filters: [],
+            window: "5m",
+          },
+        },
+      };
+
+      const wireInput: WebhookInput = JSON.parse(JSON.stringify(monitorInput));
+
+      await executeWebhook(wireInput, { skipValidation: true });
+
+      const sent = mockSlackService.sendMessage.mock.calls[0][0];
+      const titleBlock = sent.attachments![0].blocks![0];
+      expect(titleBlock.text.text).toContain("&lt;!channel&gt;");
+      expect(titleBlock.text.text).not.toContain("<!channel>");
+    });
+
     it("should handle SlackService errors gracefully", async () => {
       const { SlackService } = await import("@langfuse/shared/src/server");
 
@@ -490,6 +665,55 @@ describe("Slack Processor", () => {
       });
       expect(execution?.status).toBe(ActionExecutionStatus.ERROR);
       expect(execution?.error).toContain("Failed to get Slack client");
+    });
+
+    it("getActionById infra failure propagates for BullMQ retry instead of disabling the trigger", async () => {
+      const server = await import("@langfuse/shared/src/server");
+      (server.getActionById as any).mockRejectedValueOnce(
+        new Error("P2024: connection pool timeout"),
+      );
+
+      const fullPrompt = await prisma.prompt.findUnique({
+        where: { id: promptId },
+      });
+
+      const slackInput: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: fullPrompt as PromptDomain,
+          action: "created",
+          type: "prompt-version",
+          user: {
+            id: "user-123",
+            name: "Test User",
+            email: "test@example.com",
+          },
+        },
+      };
+
+      // Pre-create the execution row so the catch path can fully disable the
+      // trigger pre-fix; post-fix the error propagates before the catch.
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: executionId,
+          input: slackInput,
+        },
+      });
+
+      await expect(executeWebhook(slackInput)).rejects.toThrow();
+
+      const trigger = await prisma.trigger.findUnique({
+        where: { id: triggerId },
+      });
+      expect(trigger?.status).toBe(JobConfigState.ACTIVE);
     });
   });
 });

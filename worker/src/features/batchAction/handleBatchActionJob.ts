@@ -1,6 +1,7 @@
 import {
   BatchActionProcessingEventType,
   CreateEvalQueue,
+  getEventsStreamForEval,
   getCurrentSpan,
   logger,
   QueueJobs,
@@ -14,6 +15,7 @@ import {
   BatchTableNames,
   FilterCondition,
   EvalTargetObject,
+  EvalTemplateType,
 } from "@langfuse/shared";
 import Decimal from "decimal.js";
 import {
@@ -32,7 +34,6 @@ import { randomUUID } from "node:crypto";
 import { processClickhouseScoreDelete } from "../scores/processClickhouseScoreDelete";
 import { getObservationStream } from "../database-read-stream/observation-stream";
 import {
-  getEventsStreamForEval,
   getEventsStreamForDataset,
   getEventsStreamForAnnotationQueue,
 } from "../database-read-stream/event-stream";
@@ -196,6 +197,7 @@ export const handleBatchActionJob = async (
                 ...streamParams,
                 orderBy: query.orderBy,
                 tableName: tableName as BatchTableNames,
+                useEventsTable: query.useEventsTable,
               });
 
     // Process stream in database-sized batches
@@ -229,12 +231,29 @@ export const handleBatchActionJob = async (
         id: configId,
         projectId: projectId,
       },
+      select: {
+        delay: true,
+        evalTemplate: {
+          select: {
+            type: true,
+          },
+        },
+      },
     });
 
     if (!config) {
       logger.error(
         `Eval config ${configId} not found for project ${projectId}`,
       );
+      return;
+    }
+
+    if (config.evalTemplate?.type !== EvalTemplateType.LLM_AS_JUDGE) {
+      logger.info(`Skipping legacy eval-create for non-LLM eval template`, {
+        projectId,
+        configId,
+        evalTemplateType: config.evalTemplate?.type ?? null,
+      });
       return;
     }
 
@@ -393,6 +412,7 @@ export const handleBatchActionJob = async (
         where: {
           id: { in: selectedEvaluatorIds },
           projectId,
+          evalTemplateId: { not: null },
           // Preserve the selected evaluators as-is. Executability is checked
           // later when each scheduling attempt runs.
         },
@@ -400,6 +420,11 @@ export const handleBatchActionJob = async (
           id: true,
           projectId: true,
           evalTemplateId: true,
+          evalTemplate: {
+            select: {
+              type: true,
+            },
+          },
           scoreName: true,
           targetObject: true,
           variableMapping: true,
@@ -413,6 +438,7 @@ export const handleBatchActionJob = async (
       // sampling=1 to ensure every streamed observation is evaluated.
       evaluators = rawEvaluators.map((e) => ({
         ...e,
+        evalTemplate: e.evalTemplate!,
         filter: [] as [],
         sampling: new Decimal(1),
       }));

@@ -1,6 +1,7 @@
 import { type Flag } from "@/src/features/feature-flags/types";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import {
+  BellRing,
   Database,
   LayoutDashboard,
   LifeBuoy,
@@ -29,6 +30,7 @@ import { InAppAiAgentButton } from "@/src/components/nav/in-app-ai-agent-button"
 import { BookACallButton } from "@/src/components/nav/book-a-call-button";
 import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
@@ -61,6 +63,8 @@ export type Route = {
   productModule?: ProductModule; // Product module this route belongs to. Used to show/hide modules via ui customization.
   show?: (p: {
     organization: User["organizations"][number] | undefined;
+    projectId: string | undefined;
+    isLangfuseCloud: boolean;
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
 };
@@ -124,6 +128,16 @@ export const ROUTES: Route[] = [
     section: RouteSection.Main,
   },
   {
+    title: "Monitors",
+    pathname: "/project/[projectId]/monitors",
+    icon: BellRing,
+    projectRbacScopes: ["monitors:read"],
+    show: ({ isLangfuseCloud }) => isLangfuseCloud,
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+    label: "Beta",
+  },
+  {
     title: "Prompts",
     pathname: "/project/[projectId]/prompts",
     icon: FileJson,
@@ -148,7 +162,7 @@ export const ROUTES: Route[] = [
     icon: SquarePercent,
   },
   {
-    title: "LLM-as-a-Judge",
+    title: "Evaluators",
     icon: Lightbulb,
     productModule: "evaluation",
     projectRbacScopes: ["evalJob:read"],
@@ -179,7 +193,6 @@ export const ROUTES: Route[] = [
     featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
-    label: "Beta",
   },
   {
     title: "Upgrade",
@@ -231,11 +244,12 @@ export const ROUTES: Route[] = [
     menuNode: <BookACallButton />,
   },
   {
-    title: "AI Assistant",
+    title: "Assistant",
     section: RouteSection.Secondary,
     pathname: "",
     featureFlag: "inAppAgent",
-    show: ({ organization }) => organization?.aiFeaturesEnabled === true,
+    show: ({ organization, projectId, isLangfuseCloud }) =>
+      isLangfuseCloud && organization !== undefined && projectId !== undefined,
     menuNode: <InAppAiAgentButton />,
   },
   {
@@ -263,14 +277,10 @@ function CommandMenuTrigger() {
     >
       <Search className="h-4 w-4" />
       Go to...
-      <kbd className="pointer-events-none ml-auto inline-flex h-5 items-center gap-1 rounded-md border px-1.5 font-mono text-[10px] select-none">
-        {navigator.userAgent.includes("Mac") ? (
-          <span className="text-[12px]">⌘</span>
-        ) : (
-          <span>Ctrl</span>
-        )}
-        <span>K</span>
-      </kbd>
+      <KeyboardShortcut
+        className="ml-auto"
+        keys={[navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl", "K"]}
+      />
     </SidebarMenuButton>
   );
 }

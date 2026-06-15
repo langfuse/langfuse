@@ -14,6 +14,7 @@ import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
 import { useRouter } from "next/router";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -109,11 +110,16 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           // Prevent the default behavior of closing when clicking outside when we set modal={false}
           e.preventDefault();
         }}
+        onInteractOutside={(e) => {
+          if (shouldIgnoreOutsideInteraction(e.target)) {
+            e.preventDefault();
+          }
+        }}
         side="right"
         className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden p-0"
       >
         <SheetHeader className="bg-header flex min-h-11 flex-row flex-nowrap items-center justify-between px-2 py-1">
-          <SheetTitle className="mt-0! ml-2 flex min-w-0 flex-row items-center gap-2">
+          <SheetTitle className="flex min-w-0 flex-row items-center gap-2">
             <ItemBadge type={peekView.itemType} showLabel />
             <span
               className="truncate text-sm font-medium focus:outline-hidden"

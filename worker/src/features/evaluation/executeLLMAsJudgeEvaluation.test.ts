@@ -4,7 +4,7 @@ import z from "zod";
 import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import { type ExtractedVariable } from "@langfuse/shared/src/server";
 import {
   EvalTargetObject,
   type PersistedEvalOutputDefinition,
@@ -453,7 +453,6 @@ describe("executeLLMAsJudgeEvaluation", () => {
               job_execution_id: jobExecutionId,
               job_configuration_id: mockJobExecution.jobConfigurationId,
               target_trace_id: mockJobExecution.jobInputTraceId,
-              score_id: expect.any(String),
             }),
           }),
         }),

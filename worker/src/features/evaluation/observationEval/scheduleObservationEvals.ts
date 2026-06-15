@@ -88,6 +88,7 @@ export async function scheduleObservationEvals(
   // Upload observation to S3 once
   const observationS3Path = await schedulerDeps.uploadObservationToS3({
     projectId: observation.project_id,
+    traceId: observation.trace_id,
     observationId: observation.span_id,
     data: observation,
   });
@@ -133,7 +134,12 @@ async function processMatchingConfig(
   } = params;
 
   const jobExecutionId = createW3CTraceId(
-    `${matchingConfig.id}:${observation.span_id}`,
+    JSON.stringify([
+      "observation-eval",
+      matchingConfig.id,
+      observation.trace_id,
+      observation.span_id,
+    ]),
   );
 
   // Create job execution
@@ -153,6 +159,7 @@ async function processMatchingConfig(
     projectId: observation.project_id,
     observationS3Path,
     delay: 0,
+    evalTemplateType: matchingConfig.evalTemplate.type,
     ...(executionMode ? { executionMode } : {}),
   });
 

@@ -11,6 +11,7 @@ import {
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
+  getTracesIdentifierForSessionFromEvents,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -21,7 +22,7 @@ import waitForExpect from "wait-for-expect";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -2090,6 +2091,144 @@ describe("Clickhouse Events Repository Test", () => {
 
       // Cleanup
       await prisma.model.delete({ where: { id: modelId } });
+    });
+  });
+
+  maybe("getTracesIdentifierForSessionFromEvents", () => {
+    it("should return distinct traces for a session ordered by earliest trace timestamp", async () => {
+      const uniqueProjectId = randomUUID();
+      const sessionId = randomUUID();
+      const otherSessionId = randomUUID();
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+      const traceId3 = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          trace_name: "trace-one-initial",
+          session_id: sessionId,
+          user_id: "user-1-old",
+          environment: "staging",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          trace_name: "trace-one-latest",
+          session_id: sessionId,
+          user_id: "user-1-new",
+          environment: "production",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId2,
+          trace_name: "trace-two",
+          session_id: sessionId,
+          user_id: "user-2",
+          environment: "default",
+          start_time: nowMicro + 5_000,
+          event_ts: nowMicro + 5_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId3,
+          trace_name: "trace-three-other-session",
+          session_id: otherSessionId,
+          user_id: "user-3",
+          start_time: nowMicro + 10_000,
+          event_ts: nowMicro + 10_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const traces = await getTracesIdentifierForSessionFromEvents(
+          uniqueProjectId,
+          sessionId,
+        );
+
+        expect(traces).toHaveLength(2);
+        expect(traces.map((trace) => trace.id)).toEqual([traceId1, traceId2]);
+        expect(traces[0]).toMatchObject({
+          id: traceId1,
+          name: "trace-one-latest",
+          userId: "user-1-new",
+          environment: "production",
+        });
+        expect(traces[0]?.timestamp.getTime()).toBe(nowMicro / 1000);
+        expect(traces[1]).toMatchObject({
+          id: traceId2,
+          name: "trace-two",
+          userId: "user-2",
+          environment: "default",
+        });
+        expect(traces[1]?.timestamp.getTime()).toBe((nowMicro + 5_000) / 1000);
+      });
+    });
+
+    it("should resolve session membership from the latest non-empty session_id in the trace aggregation", async () => {
+      const uniqueProjectId = randomUUID();
+      const originalSessionId = randomUUID();
+      const latestSessionId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          trace_name: "trace-before-session-change",
+          session_id: originalSessionId,
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          trace_name: "trace-after-session-change",
+          session_id: latestSessionId,
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        await expect(
+          getTracesIdentifierForSessionFromEvents(
+            uniqueProjectId,
+            originalSessionId,
+          ),
+        ).resolves.toEqual([]);
+
+        await expect(
+          getTracesIdentifierForSessionFromEvents(
+            uniqueProjectId,
+            latestSessionId,
+          ),
+        ).resolves.toEqual([
+          expect.objectContaining({
+            id: traceId,
+            name: "trace-after-session-change",
+          }),
+        ]);
+      });
     });
   });
 

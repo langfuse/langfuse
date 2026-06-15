@@ -1,15 +1,22 @@
-import { filterOperators } from "../../../interfaces/filters";
-import { clickhouseCompliantRandomCharacters } from "../../repositories";
 import {
-  ftsMetadataArrayHas,
-  ftsTextTokenConjunct,
+  FTS_MATCH_OPERATOR,
+  type FtsMatchOperator,
+  filterOperators,
+} from "../../../interfaces/filters";
+import { clickhouseCompliantRandomCharacters } from "../../repositories";
+import { escapeSqlLikePattern } from "../../utils/sqlLike";
+import {
+  assertValidFtsMatchFilter,
+  FTS_OPERATOR_DESCRIPTORS,
   isFtsEventsTable,
+  isFtsMetadataField,
   isFtsTextTarget,
 } from "./fts";
 
 export type ClickhouseOperator =
   | (typeof filterOperators)[keyof typeof filterOperators][number]
-  | "!=";
+  | "!="
+  | FtsMatchOperator;
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
@@ -22,18 +29,24 @@ type ClickhouseFilter = {
   params: { [x: string]: any } | {};
 };
 
+const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
+  (typeof filterOperators)["stringObject"][number]
+>(["contains", "starts with", "ends with"]);
+
 export class StringFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
   public value: string;
-  public operator: (typeof filterOperators)["string"][number];
+  public operator:
+    | (typeof filterOperators)["string"][number]
+    | FtsMatchOperator;
   public tablePrefix?: string;
   public emptyEqualsNull?: boolean;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators)["string"][number];
+    operator: (typeof filterOperators)["string"][number] | FtsMatchOperator;
     value: string;
     tablePrefix?: string;
     emptyEqualsNull?: boolean;
@@ -72,6 +85,13 @@ export class StringFilter implements Filter {
     switch (this.operator) {
       case "=":
         query = `${fieldWithPrefix} = {${varName}: String}`;
+        if (isFtsTextTarget(this.clickhouseTable, this.field, this.operator)) {
+          query = FTS_OPERATOR_DESCRIPTORS["="].textCondition(
+            fieldWithPrefix,
+            `{${varName}: String}`,
+            query,
+          );
+        }
         break;
       case "contains":
         query = `position(${fieldWithPrefix}, {${varName}: String}) > 0`;
@@ -85,6 +105,21 @@ export class StringFilter implements Filter {
       case "ends with":
         query = `endsWith(${fieldWithPrefix}, {${varName}: String})`;
         break;
+      case FTS_MATCH_OPERATOR:
+        assertValidFtsMatchFilter({
+          filterType: "string",
+          clickhouseTable: this.clickhouseTable,
+          field: this.field,
+          value: this.value,
+        });
+        query = FTS_OPERATOR_DESCRIPTORS[FTS_MATCH_OPERATOR].textCondition(
+          fieldWithPrefix,
+          `{${varName}: String}`,
+          // `matches` shares the descriptor signature with exact filters but
+          // does not need a base exact predicate.
+          "",
+        );
+        break;
       default:
         throw new Error(`Unsupported operator: ${this.operator}`);
     }
@@ -92,10 +127,6 @@ export class StringFilter implements Filter {
     // '' ≡ NULL: "does not contain" would match '' — guard against it
     if (this.emptyEqualsNull && this.operator === "does not contain") {
       query = `(${fieldWithPrefix} != '' AND ${query})`;
-    }
-
-    if (isFtsTextTarget(this.clickhouseTable, this.field, this.operator)) {
-      query = `(${query} AND ${ftsTextTokenConjunct(fieldWithPrefix, `{${varName}: String}`)})`;
     }
 
     return {
@@ -286,13 +317,17 @@ export class StringObjectFilter implements Filter {
   public field: string;
   public key: string;
   public value: string;
-  public operator: (typeof filterOperators)["stringObject"][number];
+  public operator:
+    | (typeof filterOperators)["stringObject"][number]
+    | FtsMatchOperator;
   public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators)["stringObject"][number];
+    operator:
+      | (typeof filterOperators)["stringObject"][number]
+      | FtsMatchOperator;
     key: string;
     value: string;
     tablePrefix?: string;
@@ -326,25 +361,67 @@ export class StringObjectFilter implements Filter {
       const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
       const hasKey = `has(${namesColumn}, {${varKeyName}: String})`;
       const valueParam = `{${varValueName}: String}`;
+      const ngramPrefilterParamName = `stringObjectNgramFilter${clickhouseCompliantRandomCharacters()}`;
+      const shouldUseNgramPrefilter =
+        this.operator !== FTS_MATCH_OPERATOR &&
+        isFtsMetadataField(this.field) &&
+        NGRAM_ACCELERATED_METADATA_OPERATORS.has(this.operator) &&
+        this.value.length > 0;
+      const ngramPrefilter = shouldUseNgramPrefilter
+        ? `like(arrayStringConcat(${valuesColumn}), {${ngramPrefilterParamName}: String})`
+        : undefined;
+      const ngramConjunct = ngramPrefilter ? ` AND ${ngramPrefilter}` : "";
 
       switch (this.operator) {
         case "=":
-          query = `${hasKey} AND ${ftsMetadataArrayHas(valuesColumn, valueParam)} AND (${valueAccessor} = ${valueParam})`;
+          query = FTS_OPERATOR_DESCRIPTORS["="].metadataArrayCondition({
+            hasKey,
+            valuesColumn,
+            valueAccessor,
+            valueParam,
+          });
           break;
         case "contains":
-          query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
+          query = `${hasKey}${ngramConjunct} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
           break;
         case "does not contain":
           query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) = 0)`;
           break;
         case "starts with":
-          query = `${hasKey} AND (startsWith(${valueAccessor}, ${valueParam}))`;
+          query = `${hasKey}${ngramConjunct} AND (startsWith(${valueAccessor}, ${valueParam}))`;
           break;
         case "ends with":
-          query = `${hasKey} AND (endsWith(${valueAccessor}, ${valueParam}))`;
+          query = `${hasKey}${ngramConjunct} AND (endsWith(${valueAccessor}, ${valueParam}))`;
+          break;
+        case FTS_MATCH_OPERATOR:
+          assertValidFtsMatchFilter({
+            filterType: "stringObject",
+            clickhouseTable: this.clickhouseTable,
+            field: this.field,
+            value: this.value,
+          });
+          query = FTS_OPERATOR_DESCRIPTORS[
+            FTS_MATCH_OPERATOR
+          ].metadataArrayCondition({
+            hasKey,
+            valuesColumn,
+            valueAccessor,
+            valueParam,
+          });
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);
+      }
+
+      if (ngramPrefilter) {
+        return {
+          query,
+          params: {
+            [varKeyName]: this.key,
+            [varValueName]: this.value,
+            [ngramPrefilterParamName]: `%${escapeSqlLikePattern(this.value)}%`,
+          },
+        };
       }
     } else {
       // For observations/traces tables, use Map access: metadata[key]

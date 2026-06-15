@@ -44,7 +44,7 @@ export const LogViewJsonMode = memo(function LogViewJsonMode({
   // Auto-load data when JSON mode is rendered
   useEffect(() => {
     if (!data && !isLoading && !isError) {
-      void loadAllData();
+      loadAllData();
     }
   }, [data, isLoading, isError, loadAllData]);
 

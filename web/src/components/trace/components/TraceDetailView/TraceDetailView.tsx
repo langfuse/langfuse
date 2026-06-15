@@ -189,11 +189,11 @@ export function TraceDetailView({
   const showTabsBar = showLogViewTab || showScoresTab;
 
   const refreshTraceScores = useCallback(() => {
-    void utils.traces.byIdWithObservationsAndScores.invalidate({
+    utils.traces.byIdWithObservationsAndScores.invalidate({
       projectId,
       traceId: trace.id,
     });
-    void utils.events.scoresForTrace.invalidate({
+    utils.events.scoresForTrace.invalidate({
       projectId,
       traceId: trace.id,
     });

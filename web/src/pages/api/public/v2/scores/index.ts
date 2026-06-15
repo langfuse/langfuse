@@ -7,13 +7,13 @@ import {
   InvalidRequestError,
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
-import { logger } from "@langfuse/shared/src/server";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "/api/public/scores",
     querySchema: GetScoresQueryV2,
     responseSchema: GetScoresResponseV2,
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       // Validate that trace filters are not used when trace field is excluded
       const requestedFields = query.fields ?? ["score", "trace"];
@@ -24,10 +24,6 @@ export default withMiddlewares({
 
       const includesTrace = requestedFields.includes("trace");
       const hasTraceFilters = Boolean(query.userId || query.traceTags);
-
-      logger.info(
-        `fields: ${query.fields}, includesTrace: ${includesTrace}, hasTraceFilters: ${hasTraceFilters}`,
-      );
 
       if (!includesTrace && hasTraceFilters) {
         throw new InvalidRequestError(
