@@ -551,7 +551,11 @@ function parseGroupedValues(
     lastSeparator = null;
   }
 
-  if (lastSeparator !== null) {
+  // Only a TRAILING separator after a real value (`level:(a OR)`) dangles. A
+  // lone separator (`level:(OR)`) already got the missing-left-hand diagnostic
+  // at the same span, so gating on values.length avoids doubling it — mirrors
+  // the parseAnd dangling-AND fix.
+  if (lastSeparator !== null && values.length > 0) {
     diagnostics.push({
       from: lastSeparator.span.from,
       to: lastSeparator.span.to,

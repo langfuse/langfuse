@@ -167,6 +167,18 @@ describe("langQ parser", () => {
     expect(errs).toHaveLength(1);
   });
 
+  it("emits one separator diagnostic for a lone OR/AND inside a group", () => {
+    // `level:(OR)` must not double the missing-left-hand and dangling messages
+    // at the same span (mirrors the bare-AND fix in parseAnd).
+    for (const q of ["level:(OR)", "traceTags:(AND)"]) {
+      const sep = q.includes("OR") ? "OR" : "AND";
+      const errs = parse(q).diagnostics.filter(
+        (d) => d.severity === "error" && d.message.includes(sep),
+      );
+      expect(errs, q).toHaveLength(1);
+    }
+  });
+
   it("flags unknown fields with an error diagnostic", () => {
     const r = parse("nope:1");
     expect(r.valid).toBe(false);
