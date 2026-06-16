@@ -3,6 +3,10 @@ import type { QueueBaseOptions } from "bullmq";
 import fs from "fs";
 import { env } from "../../env";
 import { logger } from "../logger";
+import {
+  bindManagedCredentialToRedis,
+  getRedisManagedCredentialProviderFromEnv,
+} from "../auth/credentials/redisCredentials";
 
 const defaultRedisOptions: Partial<RedisOptions> = {
   enableReadyCheck: true,
@@ -209,23 +213,50 @@ export const createNewRedisInstance = (
 
   const tlsOptions = buildTlsOptions();
 
+  // Opt-in short-lived credentials (Azure Managed Identity, external token file).
+  // Returns null for the default static auth, leaving the path below unchanged.
+  const managedCredentialProvider = getRedisManagedCredentialProviderFromEnv();
+  // With a managed credential we defer connecting until the first token has been
+  // fetched and installed as the password (see bindManagedCredentialToRedis).
+  const lazyConnectOptions = managedCredentialProvider
+    ? { lazyConnect: true }
+    : {};
+
   const instance = env.REDIS_CONNECTION_STRING
     ? new Redis(env.REDIS_CONNECTION_STRING, {
         ...defaultRedisOptions,
         ...additionalOptions,
         ...tlsOptions,
+        ...lazyConnectOptions,
       })
     : env.REDIS_HOST
       ? new Redis({
           host: String(env.REDIS_HOST),
           port: Number(env.REDIS_PORT),
-          username: env.REDIS_USERNAME || undefined,
-          password: String(env.REDIS_AUTH),
+          username: managedCredentialProvider
+            ? managedCredentialProvider.username
+            : env.REDIS_USERNAME || undefined,
+          password: managedCredentialProvider
+            ? undefined
+            : String(env.REDIS_AUTH),
           ...defaultRedisOptions,
           ...additionalOptions,
           ...tlsOptions,
+          ...lazyConnectOptions,
         })
       : null;
+
+  if (instance && managedCredentialProvider) {
+    // Fetch the first token, install it, wire refresh, then connect. Runs
+    // asynchronously so the synchronous factory contract is preserved.
+    bindManagedCredentialToRedis(instance, managedCredentialProvider).catch(
+      (error) =>
+        logger.error(
+          "Failed to initialize Redis short-lived credentials",
+          error,
+        ),
+    );
+  }
 
   instance?.on("error", (error) => {
     logger.error("Redis error", error);

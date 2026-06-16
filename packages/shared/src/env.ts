@@ -29,6 +29,23 @@ const EnvSchema = z.object({
   REDIS_AUTH: z.string().nullish(),
   REDIS_USERNAME: z.string().nullish(),
   REDIS_CONNECTION_STRING: z.string().nullish(),
+  // Short-lived / identity-based credentials for Redis (opt-in). The default
+  // "static" preserves the existing REDIS_AUTH/REDIS_USERNAME behaviour exactly.
+  //  - "azure-managed-identity": fetch a Microsoft Entra token via
+  //    @azure/identity and use it as the Redis password, refreshing before expiry.
+  //    REDIS_USERNAME must be the identity's object id.
+  //  - "file": read the password from REDIS_AUTH_FILE (kept fresh by an external
+  //    rotator such as Vault Agent or a workload-identity sidecar). No cloud SDK.
+  REDIS_AUTH_METHOD: z
+    .enum(["static", "azure-managed-identity", "file"])
+    .default("static"),
+  // Path to a file containing the Redis password (REDIS_AUTH_METHOD=file).
+  REDIS_AUTH_FILE: z.string().optional(),
+  // Client id of a user-assigned managed identity (REDIS_AUTH_METHOD=azure-managed-identity).
+  // Omit for a system-assigned identity / DefaultAzureCredential.
+  REDIS_AZURE_CLIENT_ID: z.string().optional(),
+  // Entra scope to request the token for. Defaults to the Azure Redis scope.
+  REDIS_AZURE_SCOPE: z.string().optional(),
   // Optional prefix for Redis keys. Used by BullMQ queues via their native prefix option
   // and by the singleton cache instance via ioredis keyPrefix. Useful for multi-tenant Redis.
   REDIS_KEY_PREFIX: z.string().nullish(),
