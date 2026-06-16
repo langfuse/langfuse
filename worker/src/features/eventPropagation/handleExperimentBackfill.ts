@@ -139,6 +139,7 @@ export async function getDatasetRunItemsSinceLastRun(
     LEFT ANTI JOIN events_core AS ec
       ON dri.project_id = ec.project_id
       AND dri.trace_id = ec.trace_id
+      AND ec.experiment_id != ''
     WHERE dri.created_at > {lastRun: DateTime64(3)}
       AND dri.created_at <= {upperBound: DateTime64(3)}
       AND (dri.project_id, dri.trace_id) IN (SELECT project_id, trace_id FROM candidate_dris)
