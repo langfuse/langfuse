@@ -686,9 +686,11 @@ function valueStageSections(
       // Array fields reject match operators — operatorIssue routes them to
       // value/any-of/all-of groups — so don't suggest them. For other option
       // fields, once a value is typed offer glob/exact refinements that wrap it.
+      // Pass `negated` so a negated value only offers contains (the lone
+      // refinement with an inverse op), mirroring the metadata/textSearch sites.
       const ops =
         typed.length > 0 && f.syncMode !== "arrayOption"
-          ? matchOperatorOptions(typed)
+          ? matchOperatorOptions(typed, negated)
           : [];
       if (values.length + ops.length === 0) return null;
       return {

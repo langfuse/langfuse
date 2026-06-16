@@ -332,6 +332,19 @@ describe("planInputCompletions", () => {
     }
   });
 
+  it("offers only contains on a negated exactOption value", () => {
+    // Same parity as the textSearch case above, for exactOption text fields
+    // (level/environment/name/…): starts-with (`^`) and ends-with (`$`) wrapped
+    // in NOT are "not representable" (negationIssue), so picking them would land
+    // a red invalid draft. The value stage must offer only the contains glob.
+    const opts = flattenOptions(plan("-level:foo", "-level:foo".length));
+    const labels = opts.map((o) => o.label);
+    expect(labels).toContain("*foo*"); // contains (does not contain)
+    expect(labels).not.toContain("foo*"); // starts with — no inverse op
+    expect(labels).not.toContain("*foo"); // ends with — no inverse op
+    expect(labels).not.toContain("=foo"); // exact — redundant w/ bare value
+  });
+
   it("does not suggest observed metadata/score names with grammar chars", () => {
     // An observed score named `foo:bar` can't be suggested as `scores.foo:bar`:
     // picking it would reparse with the key split at the first colon and commit
