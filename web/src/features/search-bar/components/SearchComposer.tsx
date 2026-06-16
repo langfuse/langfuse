@@ -949,6 +949,36 @@ export function SearchComposer({
       return;
     }
 
+    // Plain Left/Right move ONE logical position, skipping the zero-width
+    // WORD_JOINERs (and the redundant inter-block DOM spots they create: a pill
+    // is followed by its trailing joiner AND the separating space, all sharing
+    // one logical offset). Native movement stalls on those — e.g. ArrowLeft from
+    // the start of a block takes two presses to actually cross into the previous
+    // block. Moving by logical offset makes every press advance exactly one
+    // character in both directions. (A non-collapsed selection collapses
+    // natively; modifier/at-end arrows are handled above.)
+    if (
+      (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+      !event.shiftKey &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey
+    ) {
+      const root = rootRef.current;
+      if (root === null) return;
+      const { start, end } = selectionOffsets(root);
+      if (start !== end) return; // let native collapse a selection
+      const target =
+        event.key === "ArrowLeft"
+          ? Math.max(0, end - 1)
+          : Math.min(draft.length, end + 1);
+      if (target === end) return; // at an edge — native no-op
+      event.preventDefault();
+      setSelectionRange(root, target, target);
+      setAppendIntent(false);
+      return;
+    }
+
     if (event.key === "Enter") {
       event.preventDefault();
       const option = optionsRef.current.find(
@@ -1144,10 +1174,11 @@ export function SearchComposer({
     segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
   // The hovered/caret token's diagnostic, shown as a styled per-token tooltip
   // once diagnostics are revealed (Datadog-style) — replaces the native title.
-  // Suppressed while the suggestions popover is open so the two overlays never
-  // stack/collide (you're editing, not inspecting the error).
+  // Shown even while the suggestions popover is open (you still need to see why
+  // the block is red); the tooltip flips ABOVE the block then, so it doesn't
+  // collide with the popover that drops BELOW the bar (see the render below).
   const errorTarget =
-    showTokenDiagnostics && plan === null && removeTarget?.kind === "invalid"
+    showTokenDiagnostics && removeTarget?.kind === "invalid"
       ? removeTarget
       : null;
 
@@ -1158,11 +1189,13 @@ export function SearchComposer({
     left: number;
     top: number;
   } | null>(null);
-  // Anchor for the per-token error tooltip — bottom-left of the same token, so
-  // the styled diagnostic popover sits just under the offending block.
+  // Anchors for the per-token error tooltip — left edge of the token, plus its
+  // bottom (default placement, just under the block) and top (used to flip the
+  // tooltip ABOVE the block while the suggestions popover is open below).
   const [errorPosition, setErrorPosition] = React.useState<{
     left: number;
     top: number;
+    aboveTop: number;
   } | null>(null);
   const removeTargetIdActual = removeTarget?.id ?? null;
   const measureRemovePosition = React.useCallback(() => {
@@ -1193,6 +1226,7 @@ export function SearchComposer({
     setErrorPosition({
       left: firstRect.left - containerRect.left,
       top: firstRect.bottom - containerRect.top + 6,
+      aboveTop: firstRect.top - containerRect.top,
     });
   }, [removeTargetIdActual]);
 
@@ -1294,9 +1328,9 @@ export function SearchComposer({
         {/* Bar-local overlay stacking ladder (hardcoded for now — a proper
             app-wide layer system is a separate ticket): token text (base) <
             remove-X (z-20) < error tooltip (z-30) < autocomplete popover
-            (z-50). The error tooltip and the popover are also mutually
-            exclusive (see errorTarget), so the z order only needs to be
-            self-consistent within the bar. */}
+            (z-50). The popover drops BELOW the bar; when it's open the error
+            tooltip flips ABOVE the offending block (see errorAbove), so the two
+            never overlap and the z order only needs to be self-consistent. */}
         {removeTarget !== null && removePosition !== null && (
           <RemoveTokenButton
             segment={removeTarget}
@@ -1307,7 +1341,15 @@ export function SearchComposer({
         {errorTarget !== null && errorPosition !== null && (
           <div
             role="tooltip"
-            style={{ left: errorPosition.left, top: errorPosition.top }}
+            style={
+              plan !== null
+                ? {
+                    left: errorPosition.left,
+                    top: errorPosition.aboveTop,
+                    transform: "translateY(calc(-100% - 6px))",
+                  }
+                : { left: errorPosition.left, top: errorPosition.top }
+            }
             // pointer-events-none so moving onto the tooltip doesn't change the
             // hovered token (which would make it flicker away).
             className={cn(
