@@ -1,13 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// Required @langfuse/shared env vars so the real StorageServiceFactory can load
-// (this test exercises the real S3 presigner, only the web env is mocked).
-process.env.CLICKHOUSE_URL ??= "http://localhost:8123";
-process.env.CLICKHOUSE_MIGRATION_URL ??= "clickhouse://localhost:9000";
-process.env.CLICKHOUSE_USER ??= "clickhouse";
-process.env.CLICKHOUSE_PASSWORD ??= "clickhouse";
-process.env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET ??= "langfuse";
-
 const INTERNAL_HOST = "langfuse-s3.internal:9000";
 const EXTERNAL_HOST = "media.public.example.com";
 
