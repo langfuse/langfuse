@@ -14,6 +14,7 @@
 import {
   indexOfOutsideQuotes,
   lexTokens,
+  NEEDS_QUOTES,
   parseGlob,
   serializeValue,
   splitOutsideQuotes,
@@ -363,19 +364,27 @@ function datetimeOperatorOptions(fieldId: string): CompletionOption[] {
 // positional `*` wildcards, so they WRAP the typed value rather than prefix it
 // (you type the value first, then anchor it). Caller only invokes this when
 // `typed` is non-empty.
-function matchOperatorOptions(typed: string): CompletionOption[] {
+function matchOperatorOptions(
+  typed: string,
+  negated = false,
+): CompletionOption[] {
   // Quote the value through the serializer so a value with whitespace/grammar
   // chars (`My Test`) becomes `*"My Test"*` — one lexer token — instead of a
   // raw `*My Test*` the lexer would tear in half.
   const v = serializeValue(typed);
+  const contains: CompletionOption = {
+    id: "vop:contains",
+    kind: "pattern",
+    label: `*${v}*`,
+    detail: "contains (same as the bare value)",
+    insert: `*${v}*`,
+  };
+  // Under negation only "contains" is representable (-> "does not contain").
+  // Negated starts/ends/exact have no inverse operator, so the validator would
+  // reject them on the next derive — don't offer drafts that can't commit.
+  if (negated) return [contains];
   return [
-    {
-      id: "vop:contains",
-      kind: "pattern",
-      label: `*${v}*`,
-      detail: "contains (same as the bare value)",
-      insert: `*${v}*`,
-    },
+    contains,
     {
       id: "vop:starts",
       kind: "pattern",
@@ -442,14 +451,22 @@ function keyPathOptions(
   typedKey: string,
   observed: ObservedOptions | undefined,
 ): { title: string; options: CompletionOption[] } {
+  // Observed names with grammar chars (a colon, space, …) can't be suggested:
+  // picking `scores.foo:bar` would reparse with the key split at the FIRST
+  // colon and silently commit a filter on a different/non-existent key. The
+  // reverse adapter already drops these (filter-state-to-query NEEDS_QUOTES
+  // guards); mirror that here so they're never offered.
+  const suggestable = (name: string) => !NEEDS_QUOTES.test(name);
   if (kind.canonical === "metadata.") {
-    const options = observedValues(observed, "metadata").map((o) => ({
-      id: `key:metadata.${o.value}`,
-      kind: "field" as const,
-      label: `metadata.${o.value}`,
-      detail: o.count !== undefined ? String(o.count) : undefined,
-      fieldId: `metadata.${o.value}`,
-    }));
+    const options = observedValues(observed, "metadata")
+      .filter((o) => suggestable(o.value))
+      .map((o) => ({
+        id: `key:metadata.${o.value}`,
+        kind: "field" as const,
+        label: `metadata.${o.value}`,
+        detail: o.count !== undefined ? String(o.count) : undefined,
+        fieldId: `metadata.${o.value}`,
+      }));
     return {
       title: SECTION_KEYS,
       options: rankFilter(options, `metadata.${typedKey}`),
@@ -461,8 +478,9 @@ function keyPathOptions(
     kind.level === "trace" ? "trace_score_categories" : "score_categories";
   const seen = new Map<string, string>();
   for (const o of observedValues(observed, numericColumn))
-    seen.set(o.value, "numeric score");
+    if (suggestable(o.value)) seen.set(o.value, "numeric score");
   for (const o of observedValues(observed, categoricalColumn)) {
+    if (!suggestable(o.value)) continue;
     seen.set(
       o.value,
       seen.has(o.value) ? "numeric + categorical score" : "categorical score",
@@ -545,7 +563,7 @@ function valueStageSections(
         value: o.value,
       }));
       const values = valueOptions(all, typed);
-      const ops = typed.length > 0 ? matchOperatorOptions(typed) : [];
+      const ops = typed.length > 0 ? matchOperatorOptions(typed, negated) : [];
       if (values.length + ops.length === 0) return null;
       return {
         sections: [
@@ -650,7 +668,7 @@ function valueStageSections(
             : [];
         return {
           sections: [
-            ...section(SECTION_MATCH_OPS, matchOperatorOptions(typed)),
+            ...section(SECTION_MATCH_OPS, matchOperatorOptions(typed, negated)),
             ...section(SECTION_SEARCH_IN, scopeSwitches),
           ],
           loading: false,

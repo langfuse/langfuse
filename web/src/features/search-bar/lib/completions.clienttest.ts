@@ -321,12 +321,36 @@ describe("planInputCompletions", () => {
       expect(ids, q).not.toContain("scope:output");
       expect(ids, q).not.toContain("scope:input");
       expect(ids, q).not.toContain("scope:default");
-      // The glob match-op refinements still ride alongside.
-      expect(
-        opts.map((o) => o.label),
-        q,
-      ).toContain("*refund*");
+      // Only the contains glob survives negation: starts/ends/exact have no
+      // inverse operator, so offering them would yield drafts the validator
+      // rejects. Contains stays; the other three are gone.
+      const labels = opts.map((o) => o.label);
+      expect(labels, q).toContain("*refund*");
+      expect(labels, q).not.toContain("refund*"); // starts with
+      expect(labels, q).not.toContain("*refund"); // ends with
+      expect(labels, q).not.toContain("=refund"); // exact
     }
+  });
+
+  it("does not suggest observed metadata/score names with grammar chars", () => {
+    // An observed score named `foo:bar` can't be suggested as `scores.foo:bar`:
+    // picking it would reparse with the key split at the first colon and commit
+    // a filter on a different key. Filter such names out of the key-path stage.
+    const observed = {
+      ...OBSERVED,
+      scores_avg: [{ value: "accuracy" }, { value: "foo:bar" }],
+      metadata: [{ value: "region" }, { value: "a:b" }],
+    };
+    const scoreLabels = flattenOptions(plan("scores.", 7, { observed })).map(
+      (o) => o.label,
+    );
+    expect(scoreLabels).toContain("scores.accuracy");
+    expect(scoreLabels).not.toContain("scores.foo:bar");
+    const metaLabels = flattenOptions(plan("metadata.", 9, { observed })).map(
+      (o) => o.label,
+    );
+    expect(metaLabels).toContain("metadata.region");
+    expect(metaLabels).not.toContain("metadata.a:b");
   });
 
   it("keeps the value stage live for a glob value (re-form + re-scope)", () => {
