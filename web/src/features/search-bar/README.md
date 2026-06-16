@@ -18,7 +18,7 @@ Project-level opt-in. Based on the `langfuse-search-bar` prototype.
   is a project admin/owner (`canUseSearchBar` = `project:update`) with the v4
   beta, and the table is a full-page surface
   (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
-  During beta, bar *visibility* — not just the toggle — is admin-only.
+  During beta, bar _visibility_ — not just the toggle — is admin-only.
   Default off — zero changes for projects that do not opt in.
 
 ## Query language
@@ -64,14 +64,16 @@ read as a cryptic detached pill. The reverse adapter canonicalizes a legacy
 next commit (the chosen normalization); `content` stays the searchType path.
 
 **Known limitation (multi-scope legacy state).** The bar's scope is a single
-value per query; the legacy toolbar's `searchType` was a *set*. The one
-combination the bar can't faithfully represent is `['id','content']` (the old
-"Input/Output" radio, which searched ids/names **and** input/output at once):
-on derive it collapses to a single `content:"…"` token, and a subsequent commit
-narrows the URL to `searchType=['content']`, dropping the id channel. Every
-single-token projection drops *some* channel, so there's no lossless fix
-without a real "all fields" scope token — deferred past beta. Trigger is narrow
-(a legacy URL from the old dropdown + the bar enabled + a commit).
+value per query; the legacy toolbar's `searchType` was a _set_. All three legacy
+multi-scope states (each from a pre-bar radio that searched ids/names **and** a
+payload channel at once) drop the id channel on the next commit:
+`['id','content']` collapses to a single `content:"…"` token and narrows the URL
+to `searchType=['content']`; `['id','input']` / `['id','output']` canonicalize
+to `input:"…"` / `output:"…"` **column filters** (per the historical note above)
+and drop the id-scope `searchType`/`searchQuery` entirely. Every single-token
+projection drops _some_ channel, so there's no lossless fix without a real "all
+fields" scope token — deferred past beta. Trigger is narrow (a legacy URL from
+the old dropdown + the bar enabled + a commit).
 
 Operator-looking tokens that aren't supported yet are **reserved** — they emit
 an explicit "not supported yet" diagnostic instead of silently becoming free
@@ -85,7 +87,7 @@ follow-up.)
 The table's URL filter state — `FilterState` (the `filter` param, owned by the
 facet sidebar's `useSidebarFilterState`) plus `searchQuery`/`searchType` (the
 `search`/`searchType` params, owned by `useFullTextSearch`) — is the **single
-source of truth**. The bar is a *controlled editor* over it; the facet sidebar
+source of truth**. The bar is a _controlled editor_ over it; the facet sidebar
 is another. Neither stores a second copy.
 
 ```
@@ -186,17 +188,18 @@ explicit sync. Saved views write through `setFilterState`, so they flow into
 both surfaces. Order is preserved _within_ each category — filter-to-filter
 order and within-free-text order survive the AST/serializer and URL
 encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
-+ `searchType` as three separate params) has no slot for the relative position
-of filters vs free text, so on commit the reverse adapter canonicalizes to
-`<filters> <freetext>` (Datadog-style): typing `refund level:ERROR`
-and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
-interleave is preserved only in the recent-searches entry (`planCommit`'s
-`canonical`), not in the live bar.
+
+- `searchType` as three separate params) has no slot for the relative position
+  of filters vs free text, so on commit the reverse adapter canonicalizes to
+  `<filters> <freetext>` (Datadog-style): typing `refund level:ERROR`
+  and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
+  interleave is preserved only in the recent-searches entry (`planCommit`'s
+  `canonical`), not in the live bar.
 
 ## Extending to other views (the universality contract)
 
 The bar is intended to become the primary filter interface for **every**
-filterable view, not just the v4 events table. That is cheap *by design* — but
+filterable view, not just the v4 events table. That is cheap _by design_ — but
 only if new views extend it through the seam below instead of forking the
 grammar. Read this before adding a second view.
 
@@ -249,7 +252,7 @@ refactor; everything after it is data, not code.
    per-kind lowering. Never add a second lowering path — that breaks the
    universality and re-opens the validate↔lower parity drift.
 5. **Per-kind handlers, not per-field branches.** The recurring parity
-   regressions came from a kind's *validate* half (`validate.ts`) and *lower*
+   regressions came from a kind's _validate_ half (`validate.ts`) and _lower_
    half (`adapter.ts`) living apart. New value kinds should add a single handler
    that owns both, so the two cannot drift.
 6. **Add the round-trip property test for the new registry** (see Hardening) —
@@ -294,6 +297,7 @@ unused planners).
   grammar is parameterized over an injected registry, thread `view.registry`
   into the harness's parse/validate/lower calls; the generators and assertions
   do not change.
+
 - **`SearchComposer` (~1.3k LOC) has no unit tests** — the contenteditable
   controller is browser-reviewed only. Extracting the selection/`beforeinput`
   machinery into a hook (below) is the prerequisite to testing it.
@@ -304,7 +308,7 @@ unused planners).
 ## Next slices
 
 - Pill click-to-edit: a dedicated value-switcher dropdown anchored to a
-  *selected pill*. (Editing a value already works by placing the caret in it —
+  _selected pill_. (Editing a value already works by placing the caret in it —
   see SearchComposer; only the pill-anchored dropdown is unbuilt. The prototype's
   `planTokenValueCompletions` planner was removed as dead code in review, so this
   is a clean slice with nothing half-wired.)
