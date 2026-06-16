@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { InAppAgentWindow } from "./InAppAgentWindow";
+import type { InAppAgentResourceReferenceRenderer } from "./InAppAgentMessage";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { getDrawerMessages } from "./utils/utils";
 
@@ -9,6 +10,7 @@ type ControlledInAppAgentWindowBaseProps = {
   isHeaderDragHandleEnabled?: boolean;
   zIndex?: number;
   isExpanded: boolean;
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
   onExpandedChange: (isExpanded: boolean) => void;
 };
 
@@ -62,6 +64,7 @@ export function ControlledInAppAgentWindow(
       isExpanded={props.isExpanded}
       isInputDisabled={isInputDisabled}
       messages={drawerMessages}
+      renderResourceReference={props.renderResourceReference}
       conversations={conversations}
       hasMoreConversations={hasMoreConversations}
       zIndex={props.zIndex}

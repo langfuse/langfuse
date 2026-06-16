@@ -14,6 +14,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
+import { ConnectedInAppAgentResourceReference } from "@/src/ee/features/in-app-agent/components/ConnectedInAppAgentResourceReference";
 import {
   InAppAgentWindowShell,
   useInAppAgentWindowShellPanelControl,
@@ -132,6 +133,17 @@ export const InAppAiAgentButton = () => {
                   isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
                   zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
                   isExpanded={isExpanded}
+                  renderResourceReference={({
+                    resource,
+                    label,
+                    presentation,
+                  }) => (
+                    <ConnectedInAppAgentResourceReference
+                      label={label}
+                      presentation={presentation}
+                      resource={resource}
+                    />
+                  )}
                   onExpandedChange={(nextIsExpanded) => {
                     previousPanelRectRef.current =
                       panelRef.current?.getBoundingClientRect() ?? null;
