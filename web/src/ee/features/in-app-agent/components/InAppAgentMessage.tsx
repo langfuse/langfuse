@@ -9,8 +9,10 @@ import {
   ThumbsUp,
   Wrench,
 } from "lucide-react";
+import Link from "next/link";
 import { Streamdown } from "streamdown";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
 import {
   forwardRef,
@@ -34,6 +36,7 @@ import {
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import styles from "./InAppAgentMessage.module.css";
 
 export type InAppAgentMessageRole = "assistant" | "user";
@@ -59,6 +62,74 @@ export type InAppAgentToolCallContent = {
   result?: string;
   error?: string;
 };
+
+const parseAbsoluteUrl = (href: string): URL | null => {
+  try {
+    return new URL(href);
+  } catch {
+    return null;
+  }
+};
+
+// Uses client-side navigation for links within the current project
+// and opens all other links in a new tab.
+function SmartLink({
+  children,
+  className,
+  href,
+}: {
+  children: ReactNode;
+  className?: string;
+  href?: string;
+}) {
+  const safeHref = getSafeLinkUrl(href);
+  const currentProjectId = useProjectIdFromURL();
+
+  if (!safeHref) {
+    return <span className="text-muted-foreground underline">{children}</span>;
+  }
+
+  try {
+    const currentOrigin =
+      typeof window === "undefined" ? null : window.location.origin;
+    const absoluteUrl = parseAbsoluteUrl(safeHref);
+    const parsedUrl = absoluteUrl ?? new URL(safeHref, currentOrigin ?? "");
+    const pathname = stripBasePath(parsedUrl.pathname);
+    const [, projectSegment, linkProjectId] = pathname.split("/");
+
+    if (
+      currentProjectId &&
+      projectSegment === "project" &&
+      decodeURIComponent(linkProjectId ?? "") === currentProjectId &&
+      (!absoluteUrl ||
+        ((parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") &&
+          currentOrigin &&
+          parsedUrl.origin === currentOrigin))
+    ) {
+      return (
+        <Link
+          href={`${pathname}${parsedUrl.search}${parsedUrl.hash}`}
+          className={className}
+        >
+          {children}
+        </Link>
+      );
+    }
+  } catch {
+    // Fall through to opening sanitized but non-routable URLs in a new tab.
+  }
+
+  return (
+    <a
+      href={safeHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+    >
+      {children}
+    </a>
+  );
+}
 
 export type InAppAgentMessageProps = {
   role: InAppAgentMessageRole;
@@ -648,23 +719,9 @@ function MessageText({
           h6: ({ children }) => <h6>{children}</h6>,
 
           p: ({ children }) => <p>{children}</p>,
-          a: ({ children, href }) => {
-            const safeHref = getSafeLinkUrl(href);
-
-            if (!safeHref) {
-              return (
-                <span className="text-muted-foreground underline">
-                  {children}
-                </span>
-              );
-            }
-
-            return (
-              <a href={safeHref} target="_blank" rel="noopener noreferrer">
-                {children}
-              </a>
-            );
-          },
+          a: ({ children, href }) => (
+            <SmartLink href={href}>{children}</SmartLink>
+          ),
           hr: ({ children }) => <hr>{children}</hr>,
           ul: ({ children }) => <ul>{children}</ul>,
           ol: ({ children }) => <ol>{children}</ol>,
