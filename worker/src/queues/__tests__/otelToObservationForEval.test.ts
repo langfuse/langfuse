@@ -656,6 +656,222 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
       expect(obs.input).toBe('[{"role":"user","content":"Say hello"}]');
       expect(obs.output).toBe("Hello! How can I help you today?");
     });
+
+    it("should extract AI SDK tool calls from stringified OTel toolCalls attributes", async () => {
+      const vercelAIToolCallSpan = {
+        resource: { attributes: [] },
+        scopeSpans: [
+          {
+            scope: { name: "ai" },
+            spans: [
+              {
+                traceId: createBufferId("a1e2d3c4b5a69788a1e2d3c4b5a69788"),
+                spanId: createBufferId("1122334455667799"),
+                name: "ai.generateText.doGenerate",
+                kind: 1,
+                startTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738241387865000000),
+                ),
+                endTimeUnixNano: createNanoTimestamp(
+                  BigInt(1738241389310000000),
+                ),
+                attributes: [
+                  {
+                    key: "ai.model.id",
+                    value: { stringValue: "claude-opus-4-6" },
+                  },
+                  {
+                    key: "ai.operationId",
+                    value: { stringValue: "ai.generateText.doGenerate" },
+                  },
+                  {
+                    key: "ai.prompt.messages",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          role: "user",
+                          content: "Check the weather in Berlin",
+                        },
+                      ]),
+                    },
+                  },
+                  {
+                    key: "ai.response.text",
+                    value: { stringValue: "I'll check the weather." },
+                  },
+                  {
+                    key: "ai.response.toolCalls",
+                    value: {
+                      stringValue: JSON.stringify([
+                        {
+                          toolCallId: "tooluse_weather",
+                          toolName: "getWeather",
+                          input: {
+                            location: "Berlin",
+                            unit: "celsius",
+                          },
+                        },
+                      ]),
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const observations =
+        await processOtelSpanToObservationForEval(vercelAIToolCallSpan);
+
+      expect(observations).toHaveLength(1);
+      const obs = observations[0];
+
+      const result = observationForEvalSchema.safeParse(obs);
+      expect(result.success).toBe(true);
+
+      expect(obs.tool_call_names).toEqual(["getWeather"]);
+      expect(obs.tool_calls).toHaveLength(1);
+      expect(JSON.parse(obs.tool_calls[0])).toMatchObject({
+        id: "tooluse_weather",
+        arguments: JSON.stringify({
+          location: "Berlin",
+          unit: "celsius",
+        }),
+      });
+    });
+
+    it("should create ClickHouse-valid event records for event-based OTel spans with available tools", async () => {
+      const tool = {
+        type: "function",
+        name: "calculator",
+        description: "Do math",
+        parameters: {
+          type: "object",
+          properties: {
+            expression: { type: "string" },
+          },
+          required: ["expression"],
+        },
+      };
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "agent-service" } },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "agent_framework", version: "1.0.0" },
+            spans: [
+              {
+                traceId: createBufferId("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                spanId: createBufferId("bbbbbbbbbbbbbbbb"),
+                name: "agent-event-span",
+                kind: 1,
+                startTimeUnixNano: createNanoTimestamp(
+                  BigInt(1714488530686000000),
+                ),
+                endTimeUnixNano: createNanoTimestamp(
+                  BigInt(1714488530687000000),
+                ),
+                attributes: [
+                  {
+                    key: "gen_ai.tool.definitions",
+                    value: { stringValue: JSON.stringify([tool]) },
+                  },
+                ],
+                events: [
+                  {
+                    name: "gen_ai.user.message",
+                    timeUnixNano: createNanoTimestamp(
+                      BigInt(1714488530686000000),
+                    ),
+                    attributes: [
+                      {
+                        key: "content",
+                        value: { stringValue: "What is 2 + 2?" },
+                      },
+                    ],
+                  },
+                  {
+                    name: "gen_ai.choice",
+                    timeUnixNano: createNanoTimestamp(
+                      BigInt(1714488530687000000),
+                    ),
+                    attributes: [
+                      {
+                        key: "tool_calls",
+                        value: {
+                          stringValue: JSON.stringify([
+                            {
+                              id: "call_1",
+                              name: "calculator",
+                              arguments: JSON.stringify({
+                                expression: "2 + 2",
+                              }),
+                            },
+                          ]),
+                        },
+                      },
+                    ],
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+
+      expect(eventInputs).toHaveLength(1);
+      expect(typeof eventInputs[0].input).toBe("object");
+      expect(
+        eventInputs[0].metadata.attributes?.["gen_ai.tool.definitions"],
+      ).toBeUndefined();
+      expect(eventInputs[0].toolDefinitions).toHaveProperty("calculator");
+      expect(eventInputs[0].toolCallNames).toEqual(["calculator"]);
+
+      const eventRecord = await ingestionService.createEventRecord(
+        eventInputs[0],
+        "test/otel/tools.json",
+      );
+
+      expect(typeof eventRecord.input).toBe("string");
+      expect(JSON.parse(eventRecord.input)).toEqual({
+        messages: [{ role: "user", content: "What is 2 + 2?" }],
+        tools: [tool],
+      });
+      expect(eventRecord.metadata_names).not.toContain(
+        "attributes.gen_ai.tool.definitions",
+      );
+      expect(eventRecord.tool_definitions).toHaveProperty("calculator");
+      expect(JSON.parse(eventRecord.tool_definitions.calculator)).toEqual({
+        description: "Do math",
+        parameters: JSON.stringify(tool.parameters),
+      });
+      expect(eventRecord.tool_call_names).toEqual(["calculator"]);
+      expect(eventRecord.tool_calls).toHaveLength(1);
+      expect(JSON.parse(eventRecord.tool_calls[0])).toEqual({
+        id: "call_1",
+        arguments: JSON.stringify({ expression: "2 + 2" }),
+        type: "",
+        index: 0,
+      });
+
+      const observation = convertEventRecordToObservationForEval(eventRecord);
+      const result = observationForEvalSchema.safeParse(observation);
+      expect(result.success).toBe(true);
+      expect(observation.tool_definitions).toEqual(
+        eventRecord.tool_definitions,
+      );
+    });
   });
 
   describe("Schema field coverage", () => {

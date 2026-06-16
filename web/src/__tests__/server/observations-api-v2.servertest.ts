@@ -11,6 +11,9 @@ import {
 import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
+// Shared env: the subquery-rewrite kill-switch is read by shouldUseObservationsSubqueryRewrite()
+// from the shared env object, not the web env above. Mutate this instance to toggle the flag.
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import waitForExpect from "wait-for-expect";
 
 let projectId: string;
@@ -28,7 +31,7 @@ const getObservations = (url: string) =>
 const getRaw = (url: string) => makeAPICall("GET", url, undefined, auth);
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -44,7 +47,41 @@ describe("/api/public/v2/observations API Endpoint", () => {
     // redis connection when everything else is skipped.
   });
 
+  it("rejects matches filters on v1 observations", async () => {
+    const filterParam = JSON.stringify([
+      {
+        type: "string",
+        column: "output",
+        operator: "matches",
+        value: "needle",
+      },
+    ]);
+
+    const response = await getRaw(
+      `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   maybe("GET /api/public/v2/observations", () => {
+    it("allows legacy v1 contains filters on IO", async () => {
+      const filterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+
+      const response = await getRaw(
+        `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+    });
+
     it("should fetch observations with only requested field groups", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
@@ -223,6 +260,94 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.name).toBe("unique-observation-name");
       expect(obs?.type).toBe("GENERATION");
       expect(obs?.level).toBe("WARNING");
+    });
+
+    it("should filter by multiple environment query params (any-of semantics)", async () => {
+      const traceId = randomUUID();
+      const envA = `env-a-${randomUUID()}`;
+      const envB = `env-b-${randomUUID()}`;
+      const envC = `env-c-${randomUUID()}`;
+      const observationIdA = randomUUID();
+      const observationIdB = randomUUID();
+      const observationIdC = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      const buildObservation = (
+        id: string,
+        environment: string,
+        offsetMicros: number,
+      ) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `env-filter-obs-${environment}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          environment,
+          start_time: timeValue + offsetMicros,
+          end_time: timeValue + offsetMicros + 1000 * 1000,
+        });
+
+      await createEventsCh([
+        buildObservation(observationIdA, envA, 0),
+        buildObservation(observationIdB, envB, 1000 * 1000),
+        buildObservation(observationIdC, envC, 2000 * 1000),
+      ]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: {
+              projectId,
+              ids: [observationIdA, observationIdB, observationIdC],
+            },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(3);
+        },
+        5000,
+        10,
+      );
+
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}&environment=${encodeURIComponent(envA)}&environment=${encodeURIComponent(envB)}`,
+      );
+
+      expect(response.status).toBe(200);
+      const returnedIds = response.body.data
+        .map((obs: any) => obs.id)
+        .filter((id: string) =>
+          [observationIdA, observationIdB, observationIdC].includes(id),
+        );
+      expect(returnedIds.sort()).toEqual(
+        [observationIdA, observationIdB].sort(),
+      );
+
+      for (const obs of response.body.data) {
+        expect([envA, envB]).toContain(obs.environment);
+      }
+
+      // Backwards-compat: single environment value (scalar string) must still
+      // behave as exact-match equality (previously `environment = 'foo'`, now
+      // `environment IN ('foo')`).
+      const singleEnvResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}&environment=${encodeURIComponent(envA)}`,
+      );
+
+      expect(singleEnvResponse.status).toBe(200);
+      const singleEnvReturnedIds = singleEnvResponse.body.data
+        .map((obs: any) => obs.id)
+        .filter((id: string) =>
+          [observationIdA, observationIdB, observationIdC].includes(id),
+        );
+      expect(singleEnvReturnedIds).toEqual([observationIdA]);
+
+      for (const obs of singleEnvResponse.body.data) {
+        expect(obs.environment).toBe(envA);
+      }
     });
 
     it("should support filter parameter on various columns without SQL crashes", async () => {
@@ -487,6 +612,628 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(matchedObs).toBeDefined();
       expect(matchedObs?.name).toBe("nested-metadata-obs-1");
     });
+
+    it("supports indexed literal matches filters for IO and metadata", async () => {
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+      const tokenMatchId = randomUUID();
+      const punctuationMatchId = randomUUID();
+      const embeddedOnlyId = randomUUID();
+      const ioPhraseMatchId = randomUUID();
+      const ioPhraseReverseId = randomUUID();
+      const ioPhraseGapId = randomUUID();
+      const metadataCaseMatchId = randomUUID();
+      const metadataCaseMismatchId = randomUUID();
+      const metadataWrongKeyId = randomUUID();
+      const metadataMultiTokenMatchId = randomUUID();
+      const metadataMultiTokenReverseId = randomUUID();
+      const metadataMultiTokenGapId = randomUUID();
+      const metadataSplitAcrossValuesId = randomUUID();
+      const metadataMultiTokenWrongKeyId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: tokenMatchId,
+          span_id: tokenMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-token-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue,
+          output: "Needle in mixed case",
+        }),
+        createEvent({
+          id: punctuationMatchId,
+          span_id: punctuationMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-punctuation-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 1000,
+          output: "needle@gmail.com",
+        }),
+        createEvent({
+          id: embeddedOnlyId,
+          span_id: embeddedOnlyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-embedded-only",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 2000,
+          output: "foobarneedle cadabra",
+        }),
+        createEvent({
+          id: ioPhraseMatchId,
+          span_id: ioPhraseMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 3000,
+          output: "prefix alpha beta suffix",
+        }),
+        createEvent({
+          id: ioPhraseReverseId,
+          span_id: ioPhraseReverseId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-reverse",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 4000,
+          output: "prefix beta alpha suffix",
+        }),
+        createEvent({
+          id: ioPhraseGapId,
+          span_id: ioPhraseGapId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-gap",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 5000,
+          output: "prefix alpha gap beta suffix",
+        }),
+        createEvent({
+          id: metadataCaseMatchId,
+          span_id: metadataCaseMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-case-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 6000,
+          metadata: { source: "needle API" },
+          metadata_names: ["source"],
+          metadata_values: ["needle API"],
+        }),
+        createEvent({
+          id: metadataCaseMismatchId,
+          span_id: metadataCaseMismatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-case-mismatch",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 7000,
+          metadata: { source: "Needle API" },
+          metadata_names: ["source"],
+          metadata_values: ["Needle API"],
+        }),
+        createEvent({
+          id: metadataWrongKeyId,
+          span_id: metadataWrongKeyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-wrong-key",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 8000,
+          metadata: { other: "needle API" },
+          metadata_names: ["other"],
+          metadata_values: ["needle API"],
+        }),
+        createEvent({
+          id: metadataMultiTokenMatchId,
+          span_id: metadataMultiTokenMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 9000,
+          metadata: { source: "alpha beta" },
+          metadata_names: ["source"],
+          metadata_values: ["alpha beta"],
+        }),
+        createEvent({
+          id: metadataMultiTokenReverseId,
+          span_id: metadataMultiTokenReverseId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-reverse",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 10000,
+          metadata: { source: "beta alpha" },
+          metadata_names: ["source"],
+          metadata_values: ["beta alpha"],
+        }),
+        createEvent({
+          id: metadataMultiTokenGapId,
+          span_id: metadataMultiTokenGapId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-gap",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 11000,
+          metadata: { source: "alpha gap beta" },
+          metadata_names: ["source"],
+          metadata_values: ["alpha gap beta"],
+        }),
+        createEvent({
+          id: metadataSplitAcrossValuesId,
+          span_id: metadataSplitAcrossValuesId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-split-across-values",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 12000,
+          metadata: { source: "alpha", other: "beta" },
+          metadata_names: ["source", "other"],
+          metadata_values: ["alpha", "beta"],
+        }),
+        createEvent({
+          id: metadataMultiTokenWrongKeyId,
+          span_id: metadataMultiTokenWrongKeyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-wrong-key",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 13000,
+          metadata: { source: "unrelated", other: "alpha beta" },
+          metadata_names: ["source", "other"],
+          metadata_values: ["unrelated", "alpha beta"],
+        }),
+      ]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(14);
+        },
+        5000,
+        10,
+      );
+
+      const ioFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+      ]);
+      const ioResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,io&filter=${encodeURIComponent(ioFilterParam)}`,
+      );
+      const ioIds = ioResponse.body.data.map((obs: any) => obs.id);
+
+      expect(ioResponse.status).toBe(200);
+      expect(ioIds).toEqual(
+        expect.arrayContaining([tokenMatchId, punctuationMatchId]),
+      );
+      expect(ioIds).not.toContain(embeddedOnlyId);
+
+      const ioPhraseFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "alpha beta",
+        },
+      ]);
+      const ioPhraseResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,io&filter=${encodeURIComponent(ioPhraseFilterParam)}`,
+      );
+      const ioPhraseIds = ioPhraseResponse.body.data.map((obs: any) => obs.id);
+
+      expect(ioPhraseResponse.status).toBe(200);
+      expect(ioPhraseIds).toContain(ioPhraseMatchId);
+      expect(ioPhraseIds).not.toContain(ioPhraseReverseId);
+      expect(ioPhraseIds).not.toContain(ioPhraseGapId);
+
+      const metadataFilterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "needle",
+        },
+      ]);
+      const metadataResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(metadataFilterParam)}`,
+      );
+      const metadataIds = metadataResponse.body.data.map((obs: any) => obs.id);
+
+      expect(metadataResponse.status).toBe(200);
+      expect(metadataIds).toContain(metadataCaseMatchId);
+      expect(metadataIds).not.toContain(metadataCaseMismatchId);
+      expect(metadataIds).not.toContain(metadataWrongKeyId);
+
+      const multiTokenMetadataFilterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "alpha beta",
+        },
+      ]);
+      const multiTokenMetadataResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(multiTokenMetadataFilterParam)}`,
+      );
+      const multiTokenMetadataIds = multiTokenMetadataResponse.body.data.map(
+        (obs: any) => obs.id,
+      );
+
+      expect(multiTokenMetadataResponse.status).toBe(200);
+      expect(multiTokenMetadataIds).toContain(metadataMultiTokenMatchId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenReverseId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenGapId);
+      expect(multiTokenMetadataIds).not.toContain(metadataSplitAcrossValuesId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenWrongKeyId);
+    });
+
+    it("rejects public v2 IO filters that are guaranteed to be slow", async () => {
+      const containsOnlyFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const containsOnlyResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(containsOnlyFilter)}`,
+      );
+      expect(containsOnlyResponse.status).toBe(400);
+
+      const matchesAndContainsFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const matchesAndContainsResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(matchesAndContainsFilter)}`,
+      );
+      expect(matchesAndContainsResponse.status).toBe(200);
+
+      const metadataMatchesAndIoContainsFilter = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "needle",
+        },
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const metadataMatchesAndIoContainsResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(metadataMatchesAndIoContainsFilter)}`,
+      );
+      expect(metadataMatchesAndIoContainsResponse.status).toBe(400);
+    });
+
+    it.each([
+      {
+        description: "null",
+        filter: {
+          type: "null",
+          column: "output",
+          operator: "is null",
+          value: "",
+        },
+      },
+      {
+        description: "stringOptions",
+        filter: {
+          type: "stringOptions",
+          column: "output",
+          operator: "any of",
+          value: ["needle"],
+        },
+      },
+    ])(
+      "rejects non-string public v2 IO $description filters",
+      async ({ filter }) => {
+        const filterParam = JSON.stringify([filter]);
+
+        const response = await getRaw(
+          `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(filterParam)}`,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Input/output filters only support filter type `string`.",
+        );
+      },
+    );
+
+    it.each([
+      {
+        description: "non-indexed event column",
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "matches",
+            value: "needle",
+          },
+        ],
+      },
+      {
+        description: "empty value",
+        filter: [
+          {
+            type: "string",
+            column: "output",
+            operator: "matches",
+            value: "",
+          },
+        ],
+      },
+      {
+        description: "tokenless value",
+        filter: [
+          {
+            type: "stringObject",
+            column: "metadata",
+            operator: "matches",
+            key: "source",
+            value: "!!!",
+          },
+        ],
+      },
+    ])("rejects matches filters with $description", async ({ filter }) => {
+      const response = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(JSON.stringify(filter))}`,
+      );
+
+      expect(response.status).toBe(400);
+    });
+  });
+
+  maybe("Field group contract", () => {
+    // Core fields always returned regardless of which group is requested
+    const CORE_FIELDS = [
+      "id",
+      "traceId",
+      "type",
+      "startTime",
+      "endTime",
+      "projectId",
+      "parentObservationId",
+    ] as const;
+
+    // All non-core fields across all groups — used to assert absence.
+    // Note: latency is computed from start_time/end_time (both in core). timeToFirstToken is computed from start_time
+    // and completion_start_time, but the converter spreads it when EITHER is defined; since start_time is in core and
+    // always selected, timeToFirstToken is always present (as null when completion_start_time is not selected).
+    const ALL_NON_CORE_FIELDS = [
+      // basic
+      "name",
+      "level",
+      "statusMessage",
+      "version",
+      "environment",
+      "bookmarked",
+      "public",
+      "userId",
+      "sessionId",
+      // time
+      "completionStartTime",
+      "createdAt",
+      "updatedAt",
+      // io
+      "input",
+      "output",
+      // metadata
+      "metadata",
+      // model — note: the API response uses "model" for the provided model name,
+      // not "providedModelName" (the domain type maps provided_model_name → model)
+      "model",
+      "internalModelId",
+      "modelParameters",
+      // usage
+      "usageDetails",
+      "costDetails",
+      "totalCost",
+      "usagePricingTierName",
+      // prompt
+      "promptId",
+      "promptName",
+      "promptVersion",
+      // trace_context
+      "traceName",
+      "tags",
+      "release",
+    ] as const;
+
+    let sharedObsId: string;
+    let sharedTraceId: string;
+
+    beforeEach(async () => {
+      sharedTraceId = randomUUID();
+      sharedObsId = randomUUID();
+      const now = new Date();
+      const timeValue = now.getTime() * 1000;
+
+      const obs = createEvent({
+        id: sharedObsId,
+        span_id: sharedObsId,
+        trace_id: sharedTraceId,
+        project_id: projectId,
+        name: "field-group-contract-obs",
+        type: "GENERATION",
+        level: "DEFAULT",
+        status_message: "ok",
+        version: "1.0",
+        environment: "production",
+        bookmarked: true,
+        public: true,
+        user_id: "test-user",
+        session_id: "test-session",
+        start_time: timeValue,
+        end_time: timeValue + 1000 * 1000,
+        completion_start_time: timeValue + 500 * 1000,
+        provided_model_name: "gpt-4",
+        model_id: randomUUID(),
+        model_parameters: '{"temperature":0.5}',
+        usage_details: { input: 10, output: 20, total: 30 },
+        cost_details: { input: 0.01, output: 0.02, total: 0.03 },
+        usage_pricing_tier_name: "contract-tier",
+        prompt_id: randomUUID(),
+        prompt_name: "contract-prompt",
+        prompt_version: 2,
+        input: "contract input",
+        output: "contract output",
+        metadata_names: ["key"],
+        metadata_values: ["val"],
+        trace_name: "contract-trace",
+        tags: ["tag-a", "tag-b"],
+        release: "1.2.3",
+      });
+
+      await createEventsCh([obs]);
+    });
+
+    // Known fixture values — used to assert exact values, not just presence.
+    // toBeDefined() passes for null; for fields the fixture explicitly sets we
+    // assert the stored value so a null regression is caught.
+    const knownValues: Record<string, unknown> = {
+      name: "field-group-contract-obs",
+      level: "DEFAULT",
+      statusMessage: "ok",
+      version: "1.0",
+      environment: "production",
+      bookmarked: true,
+      public: true,
+      userId: "test-user",
+      sessionId: "test-session",
+      model: "gpt-4",
+      modelParameters: { temperature: 0.5 },
+      promptName: "contract-prompt",
+      promptVersion: 2,
+      input: "contract input",
+      output: "contract output",
+      traceName: "contract-trace",
+      tags: ["tag-a", "tag-b"],
+      release: "1.2.3",
+      usagePricingTierName: "contract-tier",
+    };
+
+    const fieldsForGroup: Record<string, readonly string[]> = {
+      basic: [
+        "name",
+        "level",
+        "statusMessage",
+        "version",
+        "environment",
+        "bookmarked",
+        "public",
+        "userId",
+        "sessionId",
+      ],
+      time: ["completionStartTime", "createdAt", "updatedAt"],
+      io: ["input", "output"],
+      metadata: ["metadata"],
+      // "model" is the API response key for provided_model_name (see domain type)
+      model: ["model", "internalModelId", "modelParameters"],
+      usage: [
+        "usageDetails",
+        "costDetails",
+        "totalCost",
+        "usagePricingTierName",
+      ],
+      prompt: ["promptId", "promptName", "promptVersion"],
+      // latency and timeToFirstToken are always returned (computed from core start_time, completion_start_time,
+      // end_time), but the metrics group is still defined for documentation and to verify these fields are indeed
+      // present
+      metrics: ["latency", "timeToFirstToken"],
+      trace_context: ["traceName", "tags", "release"],
+    };
+
+    for (const [group, expectedFields] of Object.entries(fieldsForGroup)) {
+      it(`field group contract: ${group}`, async () => {
+        const response = await getObservations(
+          `/api/public/v2/observations?fields=${group}&traceId=${sharedTraceId}`,
+        );
+
+        expect(response.status).toBe(200);
+        const obs = response.body.data.find((o: any) => o.id === sharedObsId);
+        expect(obs).toBeDefined();
+        if (!obs) return; // narrow type; expect above already fails the test
+
+        // Core fields always present
+        for (const field of CORE_FIELDS) {
+          expect(obs[field]).toBeDefined();
+        }
+
+        // Requested group fields present — assert exact value when the fixture
+        // set one, toBeDefined() otherwise (e.g. dates, generated IDs).
+        for (const field of expectedFields) {
+          if (field in knownValues) {
+            expect(
+              obs[field],
+              `expected field "${field}" to equal fixture value for group "${group}"`,
+            ).toStrictEqual(knownValues[field]);
+          } else {
+            expect(
+              obs[field],
+              `expected field "${field}" to be defined for group "${group}"`,
+            ).toBeDefined();
+          }
+        }
+
+        // Fields from other groups must be absent from the response
+        const absentFields = ALL_NON_CORE_FIELDS.filter(
+          (f) => !(expectedFields as readonly string[]).includes(f),
+        );
+        for (const field of absentFields) {
+          expect(
+            obs[field],
+            `expected field "${field}" to be absent when only group "${group}" is requested`,
+          ).toBeUndefined();
+        }
+      });
+    }
   });
 
   maybe("Metadata expansion with expandMetadata parameter", () => {
@@ -994,6 +1741,259 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect((response.body as { message: string }).message).toContain(
         "Invalid cursor format",
       );
+    });
+  });
+
+  // Exercises the needsIOCTE branch (the only path the rewrite replaces)
+  // under both flag values: results must match the CTE path byte-identically
+  // and keep the canonical ORDER BY.
+  maybe("subquery rewrite", () => {
+    const originalFlag = sharedEnv.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE;
+
+    const setRewrite = (value: "true" | "false") => {
+      (
+        sharedEnv as { LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: string }
+      ).LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE = value;
+    };
+
+    afterEach(() => {
+      setRewrite(originalFlag);
+    });
+
+    const seedRichObservations = async (traceId: string, count: number) => {
+      const base = Date.now() * 1000;
+      const seeded = [] as Array<{ id: string; startMicros: number }>;
+      const events = Array.from({ length: count }, (_, i) => {
+        const obsId = randomUUID();
+        const startMicros = base + i * 1000 * 1000; // 1s apart, distinct order
+        seeded.push({ id: obsId, startMicros });
+        return createEvent({
+          id: obsId,
+          span_id: obsId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `rewrite-obs-${i}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: startMicros,
+          end_time: startMicros + 500 * 1000,
+          input: `input-${i}-${"x".repeat(300)}`, // > events_core truncation
+          output: `output-${i}-${"y".repeat(300)}`,
+          metadata: { source: "api", idx: String(i) },
+          metadata_names: ["source", "idx"],
+          metadata_values: ["api", String(i)],
+          provided_model_name: "gpt-4",
+        });
+      });
+      await createEventsCh(events);
+      return seeded;
+    };
+
+    it("returns identical results to the CTE path across field-group combos", async () => {
+      const traceId = randomUUID();
+      await seedRichObservations(traceId, 5);
+
+      // Each combo includes `io` (or expandMetadata) so the needsIOCTE branch —
+      // the only path the rewrite touches — is exercised.
+      const urls = [
+        `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,io`,
+        `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,model,usage,io,metadata`,
+        `/api/public/v2/observations?traceId=${traceId}&fields=io,metadata`,
+        `/api/public/v2/observations?traceId=${traceId}&fields=metadata&expandMetadata=source,idx`,
+      ];
+
+      for (const url of urls) {
+        setRewrite("false");
+        const ctePath = await getObservations(url);
+        setRewrite("true");
+        const subqueryPath = await getObservations(url);
+
+        expect(subqueryPath.status).toBe(200);
+        expect(ctePath.status).toBe(200);
+        expect(subqueryPath.body.data.length).toBe(5);
+        // Byte-identical rows (same values, same order) between both code paths.
+        expect(subqueryPath.body.data).toEqual(ctePath.body.data);
+      }
+    });
+
+    it("applies the canonical ORDER BY under the subquery path", async () => {
+      const traceId = randomUUID();
+      const base = Date.now() * 1000;
+
+      // Two observations share a start_time to exercise the span_id tiebreak.
+      const sharedStart = base + 1000 * 1000;
+      const specs = [
+        { id: randomUUID(), startMicros: base + 3 * 1000 * 1000 },
+        { id: randomUUID(), startMicros: sharedStart },
+        { id: randomUUID(), startMicros: sharedStart },
+        { id: randomUUID(), startMicros: base },
+      ];
+      await createEventsCh(
+        specs.map((s, i) =>
+          createEvent({
+            id: s.id,
+            span_id: s.id,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `order-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: s.startMicros,
+            input: `io-${i}`,
+            output: `io-${i}`,
+          }),
+        ),
+      );
+
+      // Canonical order within a single trace (xxHash32(trace_id) constant):
+      // start_time DESC, then span_id DESC.
+      const expectedIds = [...specs]
+        .sort((a, b) =>
+          b.startMicros !== a.startMicros
+            ? b.startMicros - a.startMicros
+            : a.id < b.id
+              ? 1
+              : a.id > b.id
+                ? -1
+                : 0,
+        )
+        .map((s) => s.id);
+
+      setRewrite("true");
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=io&limit=50`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((o: { id: string }) => o.id)).toEqual(
+        expectedIds,
+      );
+    });
+
+    it("returns identical results to the CTE path for trace-level (userId) filters", async () => {
+      // userId is a trace-level field denormalized onto events_*, so it
+      // filters inside the IN subquery without an external traces CTE.
+      const traceId = randomUUID();
+      const userId = `rewrite-user-${randomUUID()}`;
+      const base = Date.now() * 1000;
+
+      await createEventsCh(
+        Array.from({ length: 4 }, (_, i) => {
+          const obsId = randomUUID();
+          return createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            user_id: i < 2 ? userId : `other-user-${i}`,
+            name: `user-filter-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: base + i * 1000 * 1000,
+            input: `input-${i}-${"x".repeat(300)}`, // > events_core truncation
+            output: `output-${i}-${"y".repeat(300)}`,
+          });
+        }),
+      );
+
+      const url = `/api/public/v2/observations?traceId=${traceId}&userId=${userId}&fields=core,basic,io`;
+
+      setRewrite("false");
+      const ctePath = await getObservations(url);
+      setRewrite("true");
+      const subqueryPath = await getObservations(url);
+
+      expect(ctePath.status).toBe(200);
+      expect(subqueryPath.status).toBe(200);
+      expect(subqueryPath.body.data.length).toBe(2);
+      expect(subqueryPath.body.data).toEqual(ctePath.body.data);
+    });
+
+    it("paginates without skips or duplicates under the subquery path", async () => {
+      const traceId = randomUUID();
+      const seeded = await seedRichObservations(traceId, 5);
+      const expectedIds = [...seeded]
+        .sort((a, b) => b.startMicros - a.startMicros)
+        .map((s) => s.id);
+
+      setRewrite("true");
+      const collected: string[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 4; page++) {
+        const response = await getObservations(
+          `/api/public/v2/observations?traceId=${traceId}&fields=io&limit=2` +
+            (cursor ? `&cursor=${cursor}` : ""),
+        );
+        expect(response.status).toBe(200);
+        collected.push(...response.body.data.map((o: { id: string }) => o.id));
+        cursor = response.body.meta.cursor ?? undefined;
+        if (!cursor) break;
+      }
+
+      // Every seeded row exactly once, in canonical order across pages.
+      expect(collected).toEqual(expectedIds);
+    });
+
+    it("returns identical results to the CTE path for FTS filters (forceFullTable)", async () => {
+      // A `matches` filter on output is an FTS filter, which escalates the
+      // inner query from events_core to events_full.
+      const traceId = randomUUID();
+      const base = Date.now() * 1000;
+      const matching = [randomUUID(), randomUUID()];
+
+      await createEventsCh(
+        Array.from({ length: 5 }, (_, i) => {
+          const obsId = i < 2 ? matching[i] : randomUUID();
+          return createEvent({
+            id: obsId,
+            span_id: obsId,
+            trace_id: traceId,
+            project_id: projectId,
+            name: `fts-obs-${i}`,
+            type: "GENERATION",
+            level: "DEFAULT",
+            start_time: base + i * 1000 * 1000,
+            input: `input-${i}-${"x".repeat(300)}`,
+            output:
+              i < 2
+                ? `needle result ${i} ${"y".repeat(300)}`
+                : `plain result ${i} ${"y".repeat(300)}`,
+          });
+        }),
+      );
+
+      const filterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+      ]);
+      const url = `/api/public/v2/observations?traceId=${traceId}&fields=core,basic,io&filter=${encodeURIComponent(filterParam)}`;
+
+      setRewrite("false");
+      const ctePath = await getObservations(url);
+      setRewrite("true");
+      const subqueryPath = await getObservations(url);
+
+      expect(ctePath.status).toBe(200);
+      expect(subqueryPath.status).toBe(200);
+      expect(
+        subqueryPath.body.data.map((o: { id: string }) => o.id).sort(),
+      ).toEqual([...matching].sort());
+      expect(subqueryPath.body.data).toEqual(ctePath.body.data);
+    });
+
+    it("returns an empty page under the subquery path", async () => {
+      setRewrite("true");
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${randomUUID()}&fields=io`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
+      expect(response.body.meta.cursor).toBeUndefined();
     });
   });
 });

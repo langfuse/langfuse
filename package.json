@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.172.1",
+  "version": "3.187.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -20,6 +20,7 @@
     "db:seed": "turbo run db:seed",
     "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
+    "seed": "pnpm --filter=shared run seed:scenario",
     "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
@@ -48,7 +49,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.8.3",
     "release-it": "^19.2.4",
-    "turbo": "2.9.5"
+    "turbo": "2.9.14"
   },
   "release-it": {
     "git": {
@@ -97,22 +98,5 @@
       }
     }
   },
-  "packageManager": "pnpm@10.33.0",
-  "pnpm": {
-    "overrides": {
-      "zod": "4.3.6",
-      "nanoid": "^3.3.8",
-      "katex": "^0.16.21",
-      "tar-fs": "^2.1.2",
-      "rollup@^4.0.0": "^4.22.4",
-      "@types/node-fetch": "^2.6.13",
-      "@types/react-dom": "19.2.3",
-      "glob": "^10.5.0",
-      "qs": "6.14.1",
-      "path-to-regexp@0.1.12": "0.1.13"
-    },
-    "patchedDependencies": {
-      "next-auth@4.24.13": "patches/next-auth@4.24.13.patch"
-    }
-  }
+  "packageManager": "pnpm@11.4.0"
 }

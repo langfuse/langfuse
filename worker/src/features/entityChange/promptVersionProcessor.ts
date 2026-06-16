@@ -1,6 +1,5 @@
 import {
   type TriggerEventAction,
-  type FilterState,
   jsonSchemaNullable,
   InternalServerError,
 } from "@langfuse/shared";
@@ -11,7 +10,7 @@ import {
   WebhookQueue,
   QueueName,
   QueueJobs,
-  InMemoryFilterService,
+  matchesTriggerFilter,
   type PromptResult,
   getAutomations,
   EntityChangeEventType,
@@ -51,46 +50,9 @@ export const promptVersionProcessor = async (
     // Process each trigger
     for (const trigger of triggers) {
       try {
-        // Create a unified data object that includes both prompt data and the action
-        const eventData = {
-          ...event.prompt,
-          action: event.action,
-        };
-
-        // Create a field mapper for all data including action
-        const fieldMapper = (data: typeof eventData, column: string) => {
-          switch (column) {
-            case "action":
-              return data.action;
-            case "Name":
-              return data.name;
-            default:
-              return undefined;
-          }
-        };
-
-        // Merge eventActions into the filter so InMemoryFilterService handles
-        // everything in one place. Done here rather than in convertTriggerToDomain
-        // because that function also serves the UI — injecting a synthetic condition
-        // there would corrupt the edit form and write it back to the DB on save.
-        const mergedFilter: FilterState =
-          trigger.eventActions.length > 0
-            ? [
-                ...trigger.filter,
-                {
-                  column: "action",
-                  operator: "any of",
-                  type: "stringOptions",
-                  value: trigger.eventActions,
-                },
-              ]
-            : trigger.filter;
-
-        // Use InMemoryFilterService for all filtering including actions
-        const eventMatches = InMemoryFilterService.evaluateFilter(
-          eventData,
-          mergedFilter,
-          fieldMapper,
+        const eventMatches = matchesTriggerFilter(
+          { Name: event.prompt.name, action: event.action },
+          trigger,
         );
 
         if (!eventMatches) {

@@ -4,6 +4,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { z } from "zod";
+import { findDefaultModelEvalTemplateIds } from "./evaluatorRepository";
 import {
   EvaluatorBlockReason,
   ZodModelConfig,
@@ -57,15 +58,9 @@ export const defaultEvalModelRouter = createTRPCRouter({
       });
 
       const result = await ctx.prisma.$transaction(async (tx) => {
-        const evalTemplates = await tx.evalTemplate.findMany({
-          where: {
-            OR: [{ projectId: input.projectId }, { projectId: null }],
-            provider: null,
-            model: null,
-          },
-          select: {
-            id: true,
-          },
+        const evalTemplateIds = await findDefaultModelEvalTemplateIds({
+          tx,
+          projectId: input.projectId,
         });
 
         const blockResult = await blockEvaluatorConfigsInTx({
@@ -73,7 +68,7 @@ export const defaultEvalModelRouter = createTRPCRouter({
           projectId: input.projectId,
           where: {
             evalTemplateId: {
-              in: evalTemplates.map((template) => template.id),
+              in: evalTemplateIds,
             },
           },
           blockReason: EvaluatorBlockReason.DEFAULT_EVAL_MODEL_MISSING,

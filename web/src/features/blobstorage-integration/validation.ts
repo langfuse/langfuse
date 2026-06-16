@@ -1,5 +1,20 @@
 import type { z } from "zod";
 
+export function validateExportFieldGroups(
+  data: { exportSource: string; exportFieldGroups: unknown[] },
+  ctx: z.RefinementCtx,
+) {
+  // Field groups apply to all export sources (legacy observations honor them
+  // too), so core is required regardless of the selected source.
+  if (!data.exportFieldGroups.includes("core")) {
+    ctx.addIssue({
+      code: "custom",
+      message: "The Core field group is required",
+      path: ["exportFieldGroups"],
+    });
+  }
+}
+
 /**
  * Azure container names must be 3-63 characters, lowercase letters, numbers,
  * and hyphens only. Must start and end with a letter or number. No consecutive

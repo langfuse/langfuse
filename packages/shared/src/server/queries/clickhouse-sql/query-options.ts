@@ -33,3 +33,12 @@ export async function shouldSkipObservationsFinal(
 
   return false;
 }
+
+/**
+ * Whether the observations v2 public API should use the subquery-IN rewrite
+ * instead of the CTE+JOIN split query. Temporary kill-switch; both paths
+ * return identical result sets.
+ */
+export function shouldUseObservationsSubqueryRewrite(): boolean {
+  return env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE === "true";
+}

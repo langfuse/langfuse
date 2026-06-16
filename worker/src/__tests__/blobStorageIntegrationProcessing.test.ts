@@ -1,4 +1,20 @@
-import { expect, it, describe, beforeAll, beforeEach, afterEach } from "vitest";
+import {
+  expect,
+  it,
+  describe,
+  beforeAll,
+  beforeEach,
+  afterEach,
+  afterAll,
+  vi,
+} from "vitest";
+
+const originalCloudRegion = vi.hoisted(() => {
+  const cloudRegion = process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  return cloudRegion;
+});
+
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -34,7 +50,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 // and at least azurite doesn't handle them gracefully.
 const maybeIt = env.LANGFUSE_USE_AZURE_BLOB === "true" ? it.skip : it;
 const maybeDescribe =
-  process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -69,6 +85,14 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       forcePathStyle: true,
       useAzureBlob: false,
     });
+  });
+
+  afterAll(() => {
+    if (originalCloudRegion) {
+      process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    } else {
+      delete process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    }
   });
 
   afterEach(async () => {
@@ -379,6 +403,86 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       }
     });
 
+    it("should exclude columns for deselected exportFieldGroups", async () => {
+      // Regression test for two known ClickHouse/enrichment leaks:
+      // 1. ClickHouse always returns {} for unselected Map columns (metadata)
+      // 2. enrichObservationStream was writing latency:null even when metrics not selected
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "EVENTS",
+          exportFieldGroups: ["core", "io"],
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+        },
+      });
+
+      const traceId = randomUUID();
+      const event = createEvent({
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "Test Event",
+        start_time: dataTime * 1000,
+        end_time: (dataTime + 5000) * 1000,
+        metadata: { secret: "should-not-appear" },
+        metadata_names: ["secret"],
+        metadata_values: ["should-not-appear"],
+      });
+
+      await createEventsCh([event]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      const eventFile = files.find((f) => f.file.includes("/observations_v2/"));
+      expect(eventFile).toBeDefined();
+
+      if (eventFile) {
+        const content = await s3StorageService.download(eventFile.file);
+        const row = JSON.parse(content.trim().split("\n")[0]);
+
+        // core + io fields should be present
+        expect(row).toHaveProperty("id");
+        expect(row).toHaveProperty("trace_id");
+        expect(row).toHaveProperty("input");
+        expect(row).toHaveProperty("output");
+
+        // metadata group not selected → must not leak even as {}
+        expect(row).not.toHaveProperty("metadata");
+
+        // metrics group not selected → latency/time_to_first_token must not appear
+        expect(row).not.toHaveProperty("latency");
+        expect(row).not.toHaveProperty("time_to_first_token");
+
+        // non-selected groups must not appear
+        expect(row).not.toHaveProperty("name");
+        expect(row).not.toHaveProperty("level");
+        expect(row).not.toHaveProperty("usage_details");
+      }
+    });
+
     it("should respect export frequency when setting nextSyncAt", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
 
@@ -645,6 +749,90 @@ describe("BlobStorageIntegrationProcessingJob", () => {
               break;
           }
         }
+      }
+    });
+  });
+
+  describe("legacy observations export field groups", () => {
+    it("should exclude columns for deselected exportFieldGroups in the legacy observations export", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "TRACES_OBSERVATIONS",
+          exportFieldGroups: ["core", "io"],
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+        },
+      });
+
+      const traceId = randomUUID();
+      await createObservationsCh([
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          start_time: dataTime,
+          end_time: dataTime + 5000,
+          name: "Legacy Observation",
+          metadata: { secret: "should-not-appear" },
+          usage_details: { input: 100, output: 200, total: 300 },
+        }),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      const observationFile = files.find((f) =>
+        f.file.includes("/observations/"),
+      );
+      expect(observationFile).toBeDefined();
+
+      if (observationFile) {
+        const content = await s3StorageService.download(observationFile.file);
+        const row = JSON.parse(content.trim().split("\n")[0]);
+
+        // core + io fields should be present
+        expect(row).toHaveProperty("id");
+        expect(row).toHaveProperty("trace_id");
+        expect(row).toHaveProperty("input");
+        expect(row).toHaveProperty("output");
+
+        // metadata group not selected → must not leak
+        expect(row).not.toHaveProperty("metadata");
+
+        // metrics group not selected → computed fields must not appear
+        expect(row).not.toHaveProperty("latency");
+        expect(row).not.toHaveProperty("time_to_first_token");
+
+        // model group not selected → no model id or pricing enrichment
+        expect(row).not.toHaveProperty("model_id");
+        expect(row).not.toHaveProperty("input_price");
+
+        // other non-selected groups must not appear
+        expect(row).not.toHaveProperty("name");
+        expect(row).not.toHaveProperty("level");
+        expect(row).not.toHaveProperty("usage_details");
       }
     });
   });

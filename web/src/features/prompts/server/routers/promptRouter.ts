@@ -14,6 +14,7 @@ import {
 } from "../actions/createPrompt";
 import { checkHasProtectedLabels } from "../utils/checkHasProtectedLabels";
 import {
+  CommentObjectType,
   CreatePromptTRPCSchema,
   LATEST_PROMPT_LABEL,
   optionalPaginationZod,
@@ -1158,6 +1159,7 @@ export const promptRouter = createTRPCRouter({
           version: true,
           type: true,
           prompt: true,
+          config: true,
           labels: true,
         },
         where: {
@@ -1171,6 +1173,7 @@ export const promptRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         name: z.string(),
+        includeCommentCounts: z.boolean().optional(),
         ...optionalPaginationZod,
       }),
     )
@@ -1180,6 +1183,14 @@ export const promptRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "prompts:read",
       });
+      if (input.includeCommentCounts) {
+        throwIfNoProjectAccess({
+          session: ctx.session,
+          projectId: input.projectId,
+          scope: "comments:read",
+        });
+      }
+
       const [prompts, totalCount] = await Promise.all([
         ctx.prisma.prompt.findMany({
           where: {
@@ -1198,6 +1209,31 @@ export const promptRouter = createTRPCRouter({
           },
         }),
       ]);
+
+      let commentCounts = new Map<string, number>();
+      if (input.includeCommentCounts) {
+        const promptIds = prompts.map((p) => p.id);
+        if (promptIds.length > 0) {
+          const groupedCommentCounts = await ctx.prisma.comment.groupBy({
+            by: ["objectId"],
+            where: {
+              projectId: input.projectId,
+              objectType: CommentObjectType.PROMPT,
+              objectId: { in: promptIds },
+            },
+            _count: {
+              objectId: true,
+            },
+          });
+
+          commentCounts = new Map(
+            groupedCommentCounts.map(({ objectId, _count }) => [
+              objectId,
+              _count.objectId,
+            ]),
+          );
+        }
+      }
 
       const userIds = prompts
         .map((p) => p.createdBy)
@@ -1230,7 +1266,11 @@ export const promptRouter = createTRPCRouter({
           creator: user?.name,
         };
       });
-      return { promptVersions: joinedPromptAndUsers, totalCount };
+      return {
+        promptVersions: joinedPromptAndUsers,
+        totalCount,
+        ...(input.includeCommentCounts ? { commentCounts } : {}),
+      };
     }),
   versionMetrics: protectedProjectProcedure
     .input(

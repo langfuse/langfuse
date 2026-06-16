@@ -1,0 +1,102 @@
+import { LangfuseNotFoundError } from "@langfuse/shared";
+import { z } from "zod";
+import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
+import { defineTool } from "../../../core/define-tool";
+import { buildObservationUrl } from "@/src/utils/product-url";
+import { runMcpTool } from "../../../core/run-mcp-tool";
+import {
+  ExpandMetadataKeysSchema,
+  getMetadataExpansionForProjection,
+  ObservationFieldsSchema,
+  getProjectionFieldGroups,
+  getProjectionFields,
+  projectObservation,
+} from "../schema";
+
+const GetObservationBaseSchema = z.object({
+  observationId: z.string().min(1),
+  fields: ObservationFieldsSchema,
+  expandMetadataKeys: ExpandMetadataKeysSchema,
+});
+
+export const [getObservationTool, handleGetObservation] = defineTool({
+  name: "getObservation",
+  description: [
+    "Get the details for a single observation in the current Langfuse project by observation ID.",
+    "Use this when you already know the observation ID and want to inspect its timing, model, status, payload, metadata, usage, cost, or prompt fields.",
+    "",
+    'By default this returns compact summary fields. Use fields: ["*"] for the full observation, or pass specific field names to limit the response size.',
+    'Important: if you request metadata explicitly, for example fields: ["id", "metadata"], metadata values are truncated to 200 UTF-8 characters per key unless you also pass expandMetadataKeys with the keys that may need full values.',
+  ].join("\n"),
+  baseSchema: GetObservationBaseSchema,
+  inputSchema: GetObservationBaseSchema,
+  handler: async (input, context) => {
+    return await runMcpTool({
+      spanName: "mcp.observations.get",
+      context,
+      attributes: { "mcp.observation_id": input.observationId },
+      fn: async (span) => {
+        const projectionFields = getProjectionFields(input.fields);
+        const fieldGroups = getProjectionFieldGroups(projectionFields);
+
+        span.setAttributes({
+          "mcp.projection_fields": projectionFields.join(","),
+          "mcp.field_groups": fieldGroups.join(","),
+        });
+
+        const items = await getObservationsV2FromEventsTableForPublicApi({
+          projectId: context.projectId,
+          page: 0,
+          limit: 1,
+          fields: fieldGroups,
+          advancedFilters: [
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [input.observationId],
+            },
+          ],
+          expandMetadataKeys: getMetadataExpansionForProjection(
+            projectionFields,
+            input.expandMetadataKeys,
+          ),
+        });
+
+        const observation = items.find(
+          (item) => item.id === input.observationId,
+        );
+        if (!observation) {
+          throw new LangfuseNotFoundError(
+            `Observation ${input.observationId} not found`,
+          );
+        }
+
+        const projectedObservation = projectObservation(
+          {
+            ...observation,
+            parentObservationId:
+              observation.parentObservationId === ""
+                ? null
+                : observation.parentObservationId,
+          },
+          projectionFields,
+        );
+
+        return {
+          ...projectedObservation,
+          ...(observation.traceId
+            ? {
+                url: buildObservationUrl({
+                  projectId: context.projectId,
+                  traceId: observation.traceId,
+                  observationId: observation.id,
+                }),
+              }
+            : {}),
+        };
+      },
+    });
+  },
+  readOnlyHint: true,
+});

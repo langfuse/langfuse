@@ -14,6 +14,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/ui/password-input";
 import { Switch } from "@/src/components/ui/switch";
+import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -51,9 +52,14 @@ import {
   AnalyticsIntegrationExportSource,
   type BlobStorageIntegration,
   EXPORT_SOURCE_OPTIONS,
+  EXPORT_FIELD_GROUP_OPTIONS,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  type ObservationFieldGroupFull,
+  isLegacyBlobExportAllowed,
+  isLegacyBlobExporter,
 } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { Info, ExternalLink } from "lucide-react";
 
 export default function BlobStorageIntegrationSettings() {
@@ -75,23 +81,23 @@ export default function BlobStorageIntegrationSettings() {
   );
 
   const syncStatus =
-    state.isLoading || !hasAccess || !state.data
+    state.isLoading || !hasAccess || !state.data?.config
       ? undefined
       : deriveSyncStatus({
-          enabled: state.data.enabled,
-          lastError: state.data.lastError,
-          lastSyncAt: state.data.lastSyncAt
-            ? new Date(state.data.lastSyncAt)
+          enabled: state.data.config.enabled,
+          lastError: state.data.config.lastError,
+          lastSyncAt: state.data.config.lastSyncAt
+            ? new Date(state.data.config.lastSyncAt)
             : null,
-          nextSyncAt: state.data.nextSyncAt
-            ? new Date(state.data.nextSyncAt)
+          nextSyncAt: state.data.config.nextSyncAt
+            ? new Date(state.data.config.nextSyncAt)
             : null,
         });
 
   const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
     up_to_date: "active",
     queued: "queued",
-    idle: "inactive",
+    idle: "pending",
     disabled: "disabled",
     error: "error",
   };
@@ -134,19 +140,19 @@ export default function BlobStorageIntegrationSettings() {
           reach out to your project admin or owner.
         </p>
       )}
-      {state.data && (
+      {state.data?.config && (
         <>
           <Header title="Status" />
-          {state.data.lastError && (
+          {state.data.config.lastError && (
             <Alert variant="destructive" className="mb-4">
               <AlertTitle>Last export failed</AlertTitle>
               <AlertDescription>
-                {state.data.lastError}
-                {state.data.lastErrorAt && (
+                {state.data.config.lastError}
+                {state.data.config.lastErrorAt && (
                   <>
                     <br />
                     <span className="text-xs opacity-70">
-                      {new Date(state.data.lastErrorAt).toLocaleString()}
+                      {new Date(state.data.config.lastErrorAt).toLocaleString()}
                     </span>
                   </>
                 )}
@@ -157,42 +163,45 @@ export default function BlobStorageIntegrationSettings() {
             <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1 text-sm">
               <span className="text-muted-foreground">Data exported up to</span>
               <span>
-                {state.data.lastSyncAt
-                  ? new Date(state.data.lastSyncAt).toLocaleString()
+                {state.data.config.lastSyncAt
+                  ? new Date(state.data.config.lastSyncAt).toLocaleString()
                   : "Never (pending)"}
               </span>
-              {state.data.nextSyncAt && (
+              {state.data.config.nextSyncAt && (
                 <>
                   <span className="text-muted-foreground">
                     Next export scheduled
                   </span>
                   <span>
-                    {new Date(state.data.nextSyncAt).toLocaleString()}
+                    {new Date(state.data.config.nextSyncAt).toLocaleString()}
                   </span>
                 </>
               )}
               <span className="text-muted-foreground">Export mode</span>
               <span>
-                {state.data.exportMode === BlobStorageExportMode.FULL_HISTORY
+                {state.data.config.exportMode ===
+                BlobStorageExportMode.FULL_HISTORY
                   ? "Full history"
-                  : state.data.exportMode === BlobStorageExportMode.FROM_TODAY
+                  : state.data.config.exportMode ===
+                      BlobStorageExportMode.FROM_TODAY
                     ? "From setup date"
-                    : state.data.exportMode ===
+                    : state.data.config.exportMode ===
                         BlobStorageExportMode.FROM_CUSTOM_DATE
                       ? "From custom date"
                       : "Unknown"}
               </span>
-              {(state.data.exportMode ===
+              {(state.data.config.exportMode ===
                 BlobStorageExportMode.FROM_CUSTOM_DATE ||
-                state.data.exportMode === BlobStorageExportMode.FROM_TODAY) &&
-                state.data.exportStartDate && (
+                state.data.config.exportMode ===
+                  BlobStorageExportMode.FROM_TODAY) &&
+                state.data.config.exportStartDate && (
                   <>
                     <span className="text-muted-foreground">
                       Export start date
                     </span>
                     <span>
                       {new Date(
-                        state.data.exportStartDate,
+                        state.data.config.exportStartDate,
                       ).toLocaleDateString()}
                     </span>
                   </>
@@ -206,9 +215,12 @@ export default function BlobStorageIntegrationSettings() {
           <Header title="Configuration" className="mt-8" />
           <Card className="p-3">
             <BlobStorageIntegrationSettingsForm
-              state={state.data || undefined}
+              state={state.data?.config || undefined}
               projectId={projectId}
               isLoading={state.isLoading}
+              isEnrichedExportAvailable={
+                state.data?.isEnrichedExportAvailable ?? false
+              }
             />
           </Card>
         </>
@@ -221,19 +233,44 @@ const BlobStorageIntegrationSettingsForm = ({
   state,
   projectId,
   isLoading,
+  isEnrichedExportAvailable,
 }: {
   state?: Partial<BlobStorageIntegration>;
   projectId: string;
   isLoading: boolean;
+  isEnrichedExportAvailable: boolean;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isBetaEnabled } = useV4Beta();
+  const { project } = useQueryProject();
   const [integrationType, setIntegrationType] =
     useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
+
+  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS). The
+  // Export Source field is hidden in that case; the form value is pinned to
+  // EVENTS via the default below.
+  const isPostCutoffCloud =
+    project?.createdAt != null &&
+    !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
+  const eventsExportAvailable = isEnrichedExportAvailable;
+  // Integration-level cutoff (Cloud only): an existing row created before
+  // LEGACY_BLOB_EXPORTER_CUTOFF stays legacy (picker visible); a new row (no
+  // state yet) or a post-cutoff row is not legacy (picker hidden, pinned to
+  // EVENTS). Stable across revisits because the row's createdAt is immutable.
+  const isLegacyExporter = isLegacyBlobExporter(
+    state?.createdAt ? new Date(state.createdAt) : null,
+    isLangfuseCloud,
+  );
+  const forceEventsExport =
+    isPostCutoffCloud || (eventsExportAvailable && !isLegacyExporter);
+  // The picker only exists where the enriched events export is available
+  // (Cloud, or self-hosted with the V4 preview opt-in — server-computed flag).
+  // Where it isn't, the picker stays hidden and the form defaults to
+  // TRACES_OBSERVATIONS, since EVENTS is not provisioned there.
+  const showExportSourceField = eventsExportAvailable && !forceEventsExport;
 
   const blobStorageForm = useForm({
     resolver: zodResolver(blobStorageIntegrationFormSchema),
@@ -255,11 +292,25 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource:
-        state?.exportSource ||
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: forceEventsExport
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : (() => {
+            const persisted = state?.exportSource;
+            const isEnriched =
+              persisted === AnalyticsIntegrationExportSource.EVENTS ||
+              persisted ===
+                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
+            if (persisted && (!isEnriched || eventsExportAvailable))
+              return persisted;
+            return eventsExportAvailable
+              ? AnalyticsIntegrationExportSource.EVENTS
+              : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+          })(),
+      // Empty array in the DB means "export everything" (the worker falls back
+      // to all groups), so surface it as the full selection in the form.
+      exportFieldGroups: state?.exportFieldGroups?.length
+        ? (state.exportFieldGroups as ObservationFieldGroupFull[])
+        : [...OBSERVATION_FIELD_GROUPS_FULL],
       compressed: state?.compressed ?? true,
     },
     disabled: isLoading,
@@ -285,20 +336,52 @@ const BlobStorageIntegrationSettingsForm = ({
       fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
       exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
       exportStartDate: state?.exportStartDate || null,
-      exportSource:
-        state?.exportSource ||
-        (isBetaEnabled
-          ? AnalyticsIntegrationExportSource.EVENTS
-          : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
+      exportSource: forceEventsExport
+        ? AnalyticsIntegrationExportSource.EVENTS
+        : (() => {
+            const persisted = state?.exportSource;
+            const isEnriched =
+              persisted === AnalyticsIntegrationExportSource.EVENTS ||
+              persisted ===
+                AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
+            if (persisted && (!isEnriched || eventsExportAvailable))
+              return persisted;
+            return eventsExportAvailable
+              ? AnalyticsIntegrationExportSource.EVENTS
+              : AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+          })(),
+      // Empty array in the DB means "export everything" (the worker falls back
+      // to all groups), so surface it as the full selection in the form.
+      exportFieldGroups: state?.exportFieldGroups?.length
+        ? (state.exportFieldGroups as ObservationFieldGroupFull[])
+        : [...OBSERVATION_FIELD_GROUPS_FULL],
       compressed: state?.compressed ?? true,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, [state, isEnrichedExportAvailable, isPostCutoffCloud]);
+
+  const watchedExportMode = blobStorageForm.watch("exportMode");
+  const watchedExportSource = blobStorageForm.watch("exportSource");
+  // The legacy observations table contains fewer columns than the enriched
+  // observations, so the per-group field lists differ for legacy-only exports.
+  const isLegacyOnlyExport =
+    watchedExportSource ===
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS;
+  // Traces and legacy observations are only exported for the legacy and mixed
+  // sources; an EVENTS-only export produces scores and enriched observations.
+  const includesLegacyExport =
+    watchedExportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS ||
+    watchedExportSource ===
+      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS;
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
     onSuccess: () => {
       utils.blobStorageIntegration.invalidate();
+    },
+    onError: (error) => {
+      showErrorToast("Failed to save integration", error.message);
     },
   });
   const mutDelete = api.blobStorageIntegration.delete.useMutation({
@@ -651,7 +734,7 @@ const BlobStorageIntegrationSettingsForm = ({
           )}
         />
 
-        {isBetaEnabled && (
+        {showExportSourceField && (
           <FormField
             control={blobStorageForm.control}
             name="exportSource"
@@ -713,8 +796,84 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
-        {blobStorageForm.watch("exportMode") ===
-          BlobStorageExportMode.FROM_CUSTOM_DATE && (
+        <FormField
+          control={blobStorageForm.control}
+          name="exportFieldGroups"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Export Field Groups</FormLabel>
+              <FormDescription>
+                Choose which field groups to include in the observation exports.
+                Deselect large groups (e.g. Input / Output) to reduce export
+                size, or privacy-sensitive groups (e.g. Metadata) to avoid
+                storing user data.
+                {includesLegacyExport
+                  ? " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
+                  : " Scores are always exported in full."}
+              </FormDescription>
+              <div className="mt-2 space-y-2">
+                {EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
+                  const isCore = option.value === "core";
+                  return (
+                    <div key={option.value} className="flex items-start gap-2">
+                      <Checkbox
+                        id={`field-group-${option.value}`}
+                        checked={
+                          isCore
+                            ? true
+                            : (field.value ?? []).includes(option.value)
+                        }
+                        disabled={isCore}
+                        onCheckedChange={
+                          isCore
+                            ? undefined
+                            : (checked) => {
+                                const current = field.value ?? [];
+                                const next =
+                                  checked === true
+                                    ? current.includes(option.value)
+                                      ? current
+                                      : [...current, option.value]
+                                    : current.filter(
+                                        (v: ObservationFieldGroupFull) =>
+                                          v !== option.value,
+                                      );
+                                field.onChange(next);
+                              }
+                        }
+                      />
+                      <label
+                        htmlFor={`field-group-${option.value}`}
+                        className={
+                          isCore ? "space-y-0.5" : "cursor-pointer space-y-0.5"
+                        }
+                      >
+                        <div className="text-sm leading-none font-medium">
+                          {option.label}
+                          {isCore && (
+                            <span className="text-muted-foreground ml-1 font-normal">
+                              (required)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-muted-foreground text-xs">
+                          {isLegacyOnlyExport
+                            ? option.legacyDescription
+                            : option.description}
+                        </div>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              <FormMessage>
+                {blobStorageForm.formState.errors.exportFieldGroups?.message}
+              </FormMessage>
+            </FormItem>
+          )}
+        />
+
+        {watchedExportMode === BlobStorageExportMode.FROM_CUSTOM_DATE && (
           <FormField
             control={blobStorageForm.control}
             name="exportStartDate"

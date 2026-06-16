@@ -1,25 +1,20 @@
 import { useRouter } from "next/router";
-import { useEffect } from "react";
 import Page from "@/src/components/layouts/page";
-import { FlaskConical, Loader2 } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
 import {
   EXPERIMENT_RUN_TABS,
   getExperimentRunTabs,
 } from "@/src/features/navigation/utils/experiment-run-tabs";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { useEffect } from "react";
 
 export default function ExperimentAnalytics() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
 
-  const {
-    canAccessExperiments,
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaActive,
-    setExperimentsBetaEnabled,
-  } = useExperimentAccess();
+  const { isExperimentsBetaActive, isInitializing } = useExperimentAccess();
 
   const [lastResultsUrl] = useSessionStorage<string | null>(
     "experiment-results-url",
@@ -28,36 +23,20 @@ export default function ExperimentAnalytics() {
 
   const handleResultsClick = () => {
     const fallbackUrl = `/project/${projectId}/experiments/results`;
-    void router.push(lastResultsUrl ?? fallbackUrl);
+    router.push(lastResultsUrl ?? fallbackUrl);
   };
 
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaActive}
-      onEnabledChange={setExperimentsBetaEnabled}
-    />
-  ) : null;
-
-  // Auto-redirect when beta is off
   useEffect(() => {
-    if (canAccessExperiments && !isExperimentsBetaActive && lastResultsUrl) {
-      void router.push(lastResultsUrl);
-    }
-  }, [canAccessExperiments, isExperimentsBetaActive, lastResultsUrl, router]);
+    if (isInitializing || isExperimentsBetaActive || !projectId) return;
 
-  if (!canAccessExperiments) {
-    return (
-      <Page headerProps={{ title: "Analytics" }}>
-        <div className="p-4">Experiments Pages coming soon.</div>
-      </Page>
-    );
-  }
+    router.replace(`/project/${projectId}/datasets`);
+  }, [isExperimentsBetaActive, isInitializing, projectId, router]);
 
   if (!isExperimentsBetaActive) {
     return (
       <Page headerProps={{ title: "Analytics" }}>
         <div className="flex h-full items-center justify-center">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
+          <Spinner size="xl" variant="muted" />
         </div>
       </Page>
     );
@@ -75,7 +54,6 @@ export default function ExperimentAnalytics() {
           tabs: getExperimentRunTabs(projectId, handleResultsClick),
           activeTab: EXPERIMENT_RUN_TABS.ANALYTICS,
         },
-        actionButtonsLeft: betaSwitch,
       }}
     >
       <div className="flex h-full flex-col items-center justify-center p-8">

@@ -1,8 +1,8 @@
 import { Button } from "@/src/components/ui/button";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
-import { FlaskConical, List, Loader2 } from "lucide-react";
+import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import {
   Dialog,
@@ -17,10 +17,11 @@ import {
   RESOURCE_METRICS,
   isEmptyChart,
 } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { compareViewChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import {
+  compareViewChartDataToDataPoints,
+  getCompareViewChartUnit,
+} from "@/src/features/dashboard/lib/chart-data-adapters";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
-import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import Page from "@/src/components/layouts/page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
@@ -40,9 +41,6 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
-import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -52,12 +50,6 @@ export default function DatasetCompare() {
 
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-    isExperimentsBetaActive,
-  } = useExperimentAccess();
 
   const [selectedMetrics, setSelectedMetrics] = useLocalStorage<string[]>(
     `${projectId}-dataset-compare-metrics`,
@@ -91,57 +83,6 @@ export default function DatasetCompare() {
     await handleExperimentSettledBase(data);
   };
 
-  const handleBetaSwitchChange = (enabled: boolean) => {
-    setExperimentsBetaEnabled(enabled);
-
-    if (enabled && runIds && runIds.length > 0) {
-      void router.push(toExperimentsResultsUrl(projectId, runIds));
-    }
-  };
-
-  // Auto-redirect when experiments beta is active (e.g., user arrives via bookmark/back button)
-  useEffect(() => {
-    if (isExperimentsBetaActive && projectId && runIds && runIds.length > 0) {
-      void router.push(toExperimentsResultsUrl(projectId, runIds));
-    }
-  }, [isExperimentsBetaActive, projectId, runIds, router]);
-
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaEnabled}
-      onEnabledChange={handleBetaSwitchChange}
-    />
-  ) : null;
-
-  if (isExperimentsBetaActive) {
-    return (
-      <Page
-        headerProps={{
-          title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
-          tabsProps: {
-            tabs: getDatasetRunCompareTabs(projectId, datasetId),
-            activeTab: DATASET_RUN_COMPARE_TABS.CHARTS,
-          },
-          breadcrumb: [
-            {
-              name: "Datasets",
-              href: `/project/${projectId}/datasets`,
-            },
-            {
-              name: dataset.data?.name ?? datasetId,
-              href: `/project/${projectId}/datasets/${datasetId}`,
-            },
-          ],
-          actionButtonsLeft: betaSwitch,
-        }}
-      >
-        <div className="flex h-full items-center justify-center">
-          <Loader2 className="text-muted-foreground h-8 w-8 animate-spin" />
-        </div>
-      </Page>
-    );
-  }
-
   return (
     <Page
       headerProps={{
@@ -165,7 +106,6 @@ export default function DatasetCompare() {
         },
         actionButtonsRight: (
           <>
-            {betaSwitch}
             <Dialog
               key="create-experiment-dialog"
               open={isCreateExperimentDialogOpen}
@@ -259,19 +199,6 @@ export default function DatasetCompare() {
                     : (RESOURCE_METRICS.find((metric) => metric.key === key)
                         ?.label ?? key);
 
-                  // TODO: remove when revamping the datasets api for it to directly return ms
-                  const valueFormatter =
-                    key === "latency"
-                      ? formatIntervalSeconds
-                      : key === "cost"
-                        ? usdFormatter
-                        : (v: number) =>
-                            compactNumberFormatter(
-                              v,
-                              RESOURCE_METRICS.find((m) => m.key === key)
-                                ?.maxFractionDigits,
-                            );
-
                   if (isEmptyChart({ data: chartData })) {
                     return (
                       <div
@@ -289,17 +216,12 @@ export default function DatasetCompare() {
                     );
                   }
 
-                  const dataPoints =
-                    chartLabels.length === 1
-                      ? chartData.map((d) => ({
-                          time_dimension: d.binLabel,
-                          dimension: chartLabels[0]!,
-                          metric: (d[chartLabels[0]!] as number) ?? 0,
-                        }))
-                      : compareViewChartDataToDataPoints(
-                          chartData,
-                          chartLabels,
-                        );
+                  const dataPoints = compareViewChartDataToDataPoints(
+                    chartData,
+                    chartLabels,
+                    key,
+                  );
+
                   const chartType =
                     chartLabels.length === 1
                       ? "LINE_TIME_SERIES"
@@ -318,8 +240,10 @@ export default function DatasetCompare() {
                           chartType={chartType}
                           data={dataPoints}
                           rowLimit={Math.max(dataPoints.length, 1)}
-                          chartConfig={{ type: chartType }}
-                          valueFormatter={valueFormatter}
+                          chartConfig={{
+                            type: chartType,
+                            unit: getCompareViewChartUnit(key),
+                          }}
                           legendPosition={
                             chartLabels.length > 1 ? "above" : "none"
                           }

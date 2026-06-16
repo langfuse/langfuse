@@ -50,7 +50,7 @@ import TagList from "@/src/features/tag/components/TagList";
 import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
 import { InfoIcon, LightbulbIcon, PlusCircle } from "lucide-react";
 import { UpsertModelFormDialog } from "@/src/features/models/components/UpsertModelFormDialog";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
@@ -60,7 +60,10 @@ import TableIdOrName from "@/src/components/table/table-id";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { TablePeekViewObservationDetail } from "@/src/components/table/peek/peek-observation-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  detailPageListKeys,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useRouter } from "next/router";
 import { useFullTextSearch } from "@/src/components/table/use-cases/useFullTextSearch";
@@ -96,6 +99,8 @@ import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog/index";
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type EventsTableRow = {
   // Identity fields
@@ -252,12 +257,12 @@ export default function ObservationsEventsTable({
   // RE-ENABLING THE VIEW MODE TOGGLE:
   // To re-enable, uncomment the code below AND the viewModeFilter, viewModeToggle,
   // auto-switch logic, and imports further down. However, note that the sidebar now
-  // has an "Is Root Observation" boolean facet that also controls `hasParentObservation`.
+  // has an "Is Root Observation" boolean facet for `isRootObservation`.
   // Having BOTH active would create duplicate/conflicting filters. Pick one:
   //   - Sidebar facet only (current): remove this commented code entirely
   //   - Toolbar toggle only: uncomment this code, remove the boolean facet from
-  //     web/src/features/events/config/filter-config.ts, and re-add
-  //     `hasParentObservation` param to the useEventsFilterOptions call below
+  //     web/src/features/events/config/filter-config.ts, and scope filter options
+  //     by the active view mode
   //   - Both: would need deduplication logic to prevent conflicting filters
   //
   // View mode toggle (Trace vs Observation)
@@ -274,7 +279,7 @@ export default function ObservationsEventsTable({
   //   string | null
   // >(`eventsAutoSwitchRange-${projectId}`, null);
   //
-  // const hasParentObservation = viewMode === "observation" ? undefined : false;
+  // const isRootObservation = viewMode === "trace" ? true : undefined;
   //
   // const setViewMode = useCallback(
   //   (mode: EventsViewMode) => {
@@ -320,7 +325,7 @@ export default function ObservationsEventsTable({
 
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
-    void Promise.all([
+    Promise.all([
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
       utils.events.filterOptions.invalidate(),
@@ -331,7 +336,7 @@ export default function ObservationsEventsTable({
   // Include refreshTick to force recalculation on refresh
   const tableDateRange = useMemo(() => {
     // refreshTick forces recalculation but isn't used in computation
-    void refreshTick;
+    refreshTick;
     return toAbsoluteTimeRange(timeRange) ?? undefined;
   }, [timeRange, refreshTick]);
 
@@ -414,10 +419,10 @@ export default function ObservationsEventsTable({
   //   viewMode === "trace"
   //     ? [
   //         {
-  //           column: "hasParentObservation",
+  //           column: "isRootObservation",
   //           type: "boolean",
   //           operator: "=",
-  //           value: false,
+  //           value: true,
   //         },
   //       ]
   //     : [];
@@ -482,7 +487,7 @@ export default function ObservationsEventsTable({
   useEffect(() => {
     if (observations.status === "success") {
       setDetailPageList(
-        "observations",
+        detailPageListKeys.events,
         observations?.rows?.map((o) => ({
           id: o?.id,
           params: {
@@ -501,6 +506,7 @@ export default function ObservationsEventsTable({
       projectId,
       filter: scoreFilters.forObservations(),
       fromTimestamp: dateRange?.from,
+      defaultHidden: true,
     });
   const { scoreColumns: traceScoreColumns, isLoading: isTraceColumnLoading } =
     useScoreColumns<EventsTableRow>({
@@ -509,7 +515,10 @@ export default function ObservationsEventsTable({
       filter: scoreFilters.forTraceLevel(),
       fromTimestamp: dateRange?.from,
       prefix: "Trace",
+      defaultHidden: true,
     });
+
+  const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
 
   const { selectActionColumn } = TableSelectionManager<EventsTableRow>({
     projectId,
@@ -518,7 +527,72 @@ export default function ObservationsEventsTable({
     setSelectAll,
   });
 
+  const traceDeleteMutation = api.traces.deleteMany.useMutation({
+    onSuccess: () => {
+      showSuccessToast({
+        title: "Traces deleted",
+        description:
+          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
+      });
+    },
+    onSettled: () => {
+      utils.events.all.invalidate();
+      utils.events.countAll.invalidate();
+      utils.traces.all.invalidate();
+    },
+  });
+
+  const selectedTraceIds = useMemo(() => {
+    const visibleObservationsById = new Map(
+      (observations.rows ?? []).map((observation) => [
+        observation.id,
+        observation,
+      ]),
+    );
+    return [
+      ...new Set(
+        Object.keys(selectedRows)
+          .map(
+            (observationId) =>
+              visibleObservationsById.get(observationId)?.traceId,
+          )
+          .filter((traceId): traceId is string => Boolean(traceId)),
+      ),
+    ];
+  }, [observations.rows, selectedRows]);
+
+  const handleDeleteTraces = async ({ projectId }: { projectId: string }) => {
+    if (selectedTraceIds.length === 0) return;
+
+    await traceDeleteMutation.mutateAsync({
+      projectId,
+      traceIds: selectedTraceIds,
+      isBatchAction: false,
+    });
+    setSelectedRows({});
+  };
+
   const tableActions: TableAction[] = [
+    ...(hasTraceDeletionEntitlement
+      ? [
+          {
+            id: ActionId.TraceDelete,
+            type: BatchActionType.Delete,
+            label: "Delete Traces",
+            description:
+              "This permanently deletes all observations within this trace(s), as well as the trace(s), even if you only have single observations selected. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.",
+            disabled: selectAll || selectedTraceIds.length === 0,
+            disabledReason: selectAll
+              ? "Delete traces is only available for observations selected on the current page."
+              : "Selected observations are missing trace IDs.",
+            accessCheck: {
+              scope: "traces:delete",
+              entitlement: "trace-deletion",
+            },
+            execute: handleDeleteTraces,
+          } as TableAction,
+        ]
+      : []),
     {
       id: ActionId.ObservationAddToAnnotationQueue,
       type: BatchActionType.Create,
@@ -1218,6 +1292,7 @@ export default function ObservationsEventsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
       setSearchQuery: setSearchQuery,
@@ -1225,16 +1300,22 @@ export default function ObservationsEventsTable({
     validationContext: {
       columns,
       filterColumnDefinition: eventsFilterConfig.columnDefinitions,
+      expandableFilterColumns: eventsFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
+      migrateFilterState: eventsFilterConfig.migrateFilterState,
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
+    allowBackendSystemPresets: true,
   });
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
     if (hideControls) return undefined;
     return {
       itemType: "TRACE",
-      detailNavigationKey: "observations",
+      detailNavigationKey: detailPageListKeys.events,
       ...peekNavigationProps,
     };
   }, [peekNavigationProps, hideControls]);
@@ -1432,7 +1513,12 @@ export default function ObservationsEventsTable({
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           {!hideControls && (
-            <DataTableControls queryFilter={queryFilter} filterWithAI />
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.selectedViewId ?? "no-view"}
+              queryFilter={queryFilter}
+              filterWithAI
+            />
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">

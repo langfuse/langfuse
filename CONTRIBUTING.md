@@ -111,7 +111,7 @@ We built a monorepo using [pnpm](https://pnpm.io/motivation) and [turbo](https:/
 Requirements
 
 - Node.js 24 as specified in the [.nvmrc](.nvmrc)
-- Pnpm v.10.33.0
+- Pnpm v.11.4.0
 - Docker to run the database locally
 - Clickhouse client
 
@@ -210,6 +210,15 @@ When you change the shared MCP setup:
    pnpm install
    pnpm run prepare  # Sets up Husky pre-commit hooks for code formatting
    ```
+
+   The pre-commit hook runs formatting and lint checks. To skip only the lint
+   check for a commit, set `LANGFUSE_PRE_COMMIT_SKIP_LINT`, for example:
+
+   ```bash
+   LANGFUSE_PRE_COMMIT_SKIP_LINT=1 git commit -m "your commit message"
+   ```
+
+   CI still runs the required checks for pull requests.
 
 4. Create an env file
 
@@ -324,8 +333,8 @@ We're using Vitest in the `web` package. There are two types of unit tests:
 To run a specific test by name within a file, run:
 
 ```sh
-cd web  # or with --filter=web
-pnpm test -- prompts.v2.servertest -t "should handle special characters in prompt names"
+cd web  # or use `pnpm --filter web test ...` from the repository root
+pnpm test prompts.v2.servertest -t "should handle special characters in prompt names"
 ```
 
 To run all tests:
@@ -345,7 +354,7 @@ pnpm run test:watch
 For the `worker` package, we're also using Vitest to run unit tests.
 
 ```sh
-pnpm run test --filter=worker -- FILE_YOU_WANT_TO_TEST.ts -t "test name"
+pnpm --filter worker run test FILE_YOU_WANT_TO_TEST.ts -t "test name"
 ```
 
 ## CI/CD
@@ -496,15 +505,21 @@ Until the V3 release, both the JSON record must be updated **and** a migration m
 
 We maintain the API specifications manually to guarantee a high degree of understandability. If you made changes to the API, please update the respective `.yml` files in `fern/apis/...`.
 
-To generate the respective `openapi.yml` files which power the online API reference & SDKs, run:
+To export the respective `openapi.yml` files which power the online API reference, run:
 
 ```sh
-npx fern-api generate --api server  # for the server API
-npx fern-api generate --api client  # for the client API
-npx fern-api generate --api organizations  # for the organizations API
+npx fern-api export --api server web/public/generated/api/openapi.yml
+npx fern-api export --api client web/public/generated/api-client/openapi.yml
+npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml
 ```
 
-**Note:** You need a signed in fern account to run those commands.
+To generate the server SDKs, run:
+
+```sh
+npx fern-api generate --api server
+```
+
+**Note:** You need a signed in fern account to generate SDKs.
 
 ## License
 

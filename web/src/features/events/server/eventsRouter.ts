@@ -5,12 +5,16 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
-  type Observation,
   type OrderByState,
   normalizeOrderByForTable,
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
+import {
+  toDomainArrayWithStringifiedMetadata,
+  toDomainWithStringifiedMetadata,
+  type MetadataDomainClient,
+} from "@/src/utils/clientSideDomainTypes";
 import { EventsTableOptions } from "./types";
 import {
   getEventList,
@@ -39,10 +43,12 @@ const GetAllEventsInput = EventsTableOptions.extend({
   ...paginationZod,
 });
 
-export type EventBatchIOOutput = Pick<
-  Observation,
-  "id" | "input" | "output" | "metadata"
->;
+export type EventBatchIOOutput = {
+  id: string;
+  input: string | null;
+  output: string | null;
+  metadata: MetadataDomainClient;
+};
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
 
@@ -109,7 +115,7 @@ export const eventsRouter = createTRPCRouter({
       );
     }),
   countAll: protectedProjectProcedure
-    .input(GetAllEventsInput)
+    .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
@@ -147,6 +153,7 @@ export const eventsRouter = createTRPCRouter({
       zodSchema.object({
         projectId: zodSchema.string(),
         startTimeFilter: zodSchema.array(timeFilter).optional(),
+        isRootObservation: zodSchema.boolean().optional(),
         hasParentObservation: zodSchema.boolean().optional(),
       }),
     )
@@ -161,7 +168,11 @@ export const eventsRouter = createTRPCRouter({
           return getEventFilterOptions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
-            hasParentObservation: input.hasParentObservation,
+            isRootObservation:
+              input.isRootObservation ??
+              (input.hasParentObservation !== undefined
+                ? !input.hasParentObservation
+                : undefined), // backward compat for legacy hasParentObservation filterOption
           });
         },
       );
@@ -175,13 +186,37 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("project_id", input.projectId);
           span.setAttribute("observation_count", input.observations.length);
 
-          return getEventBatchIO({
+          const batchIO = await getEventBatchIO({
             projectId: ctx.session.projectId,
             observations: input.observations,
             minStartTime: input.minStartTime,
             maxStartTime: input.maxStartTime,
             truncated: input.truncated,
           });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
+  experimentBatchIO: protectedProjectProcedure
+    .input(BatchIOInput)
+    .query(async ({ input, ctx }) => {
+      return instrumentAsync(
+        { name: "get-experiment-batch-io-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", input.projectId);
+          span.setAttribute("observation_count", input.observations.length);
+
+          const batchIO = await getEventBatchIO({
+            projectId: ctx.session.projectId,
+            observations: input.observations,
+            minStartTime: input.minStartTime,
+            maxStartTime: input.maxStartTime,
+            truncated: input.truncated,
+            includeExperimentFields: true,
+          });
+
+          return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
     }),
@@ -240,7 +275,7 @@ export const eventsRouter = createTRPCRouter({
             });
 
           return {
-            observations,
+            observations: toDomainArrayWithStringifiedMetadata(observations),
             cutoffObservationsAfterMaxCount:
               totalCount > MAX_OBSERVATIONS_PER_TRACE,
           };

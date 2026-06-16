@@ -7,21 +7,60 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage-integration/types";
-import { validateAzureContainerName } from "@/src/features/blobstorage-integration/validation";
+import {
+  validateAzureContainerName,
+  validateExportFieldGroups,
+} from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { assertLegacyBlobExportSourceAllowedForUpsert } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowedForUpsert";
+import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { TRPCError } from "@trpc/server";
+import { env } from "@/src/env.mjs";
 import {
   logger,
   BlobStorageIntegrationProcessingQueue,
   QueueJobs,
   StorageServiceFactory,
+  blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   BlobStorageIntegrationType,
   InvalidRequestError,
+  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
+
+const getAuditLogErrorType = (error: unknown) =>
+  error instanceof TRPCError
+    ? error.code
+    : error instanceof Error
+      ? error.name
+      : "UnknownError";
+
+const formatRootCause = (err: Error): string => {
+  // SDK errors (e.g. S3, GCS) carry a descriptive name like
+  // "SignatureDoesNotMatch" while .message is often generic ("Invalid argument.").
+  const name = err.name && err.name !== "Error" ? err.name : "";
+  if (name && err.message) return `${name}: ${err.message}`;
+  return name || err.message;
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (!(error instanceof Error)) return fallback;
+  // Walk the full cause chain to find the deepest (most specific) error.
+  // StorageService wraps SDK errors in multiple layers of handleStorageError.
+  let deepest: Error = error;
+  while (deepest.cause instanceof Error) {
+    deepest = deepest.cause;
+  }
+  if (deepest !== error) {
+    const rootCause = formatRootCause(deepest);
+    if (rootCause) return `${error.message}: ${rootCause}`.slice(0, 500);
+  }
+  return error.message;
+};
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -33,6 +72,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
       try {
+        const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+        const isEnrichedExportAvailable = isEnrichedBlobExportAvailable(
+          isCloud,
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+        );
+
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
@@ -42,11 +87,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
 
-        if (!config) {
-          return null;
-        }
-
-        return config;
+        return { config: config ?? null, isEnrichedExportAvailable };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
         throw new TRPCError({
@@ -60,7 +101,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
     .input(
       blobStorageIntegrationFormSchemaBase
         .extend({ projectId: z.string() })
-        .superRefine(validateAzureContainerName),
+        .superRefine(validateAzureContainerName)
+        .superRefine(validateExportFieldGroups),
     )
     .mutation(async ({ input, ctx }) => {
       try {
@@ -69,6 +111,33 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           projectId: input.projectId,
           scope: "integrations:CRUD",
         });
+
+        if (input.exportSource) {
+          const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+          const [project, existingIntegration] = await Promise.all([
+            ctx.prisma.project.findUniqueOrThrow({
+              where: { id: input.projectId },
+              select: { createdAt: true },
+            }),
+            ctx.prisma.blobStorageIntegration.findUnique({
+              where: { projectId: input.projectId },
+              select: { createdAt: true },
+            }),
+          ]);
+          assertLegacyBlobExportSourceAllowedForUpsert({
+            project,
+            existingIntegration,
+            nextInternalExportSource: input.exportSource,
+            isCloud,
+          });
+          assertEnrichedBlobExportSourceAllowed({
+            nextInternalExportSource: input.exportSource,
+            isCloud,
+            isV4PreviewEnabled:
+              env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+          });
+        }
+
         await auditLog({
           session: ctx.session,
           action: "update",
@@ -81,6 +150,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
+          // In-transaction backstop closing the TOCTOU window: if a concurrent
+          // DELETE flips this upsert to the CREATE branch, refuse a legacy
+          // source so a new (post-cutoff) Cloud row can never be born legacy.
+          refuseLegacyOnCreate: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
           data: {
             type: rest.type,
             bucketName: rest.bucketName,
@@ -96,6 +169,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             exportMode: rest.exportMode,
             exportStartDate: rest.exportStartDate ?? null,
             exportSource: rest.exportSource,
+            exportFieldGroups: rest.exportFieldGroups,
             compressed: rest.compressed,
           },
         });
@@ -210,9 +284,40 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           `Manual blob storage integration job queued for project ${input.projectId}`,
         );
 
+        await auditLog({
+          session: ctx.session,
+          action: "runNow",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: {
+            outcome: "success",
+            jobId,
+          },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration run`,
+            auditLogError,
+          );
+        });
+
         return { success: true, jobId };
       } catch (e) {
         logger.error(`Failed to trigger blob storage integration run`, e);
+        await auditLog({
+          session: ctx.session,
+          action: "runNow",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: {
+            outcome: "failure",
+            error: getAuditLogErrorType(e),
+          },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration run`,
+            auditLogError,
+          );
+        });
         if (e instanceof TRPCError) {
           throw e;
         }
@@ -264,6 +369,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           ? decrypt(encryptedSecretAccessKey)
           : undefined;
 
+        if (endpoint) {
+          await validateBlobStorageEndpoint(endpoint);
+        }
+
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
           accessKeyId: accessKeyId || undefined,
@@ -279,6 +388,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           awsSse: undefined,
           awsSseKmsKeyId: undefined,
           externalEndpoint: undefined,
+          connectionValidation:
+            blobStorageEndpointConnectionValidationOptions(),
         });
 
         // Create a test file
@@ -302,6 +413,22 @@ This file can be safely deleted.`;
           `Blob storage validation successful for project ${input.projectId}`,
         );
 
+        await auditLog({
+          session: ctx.session,
+          action: "validate",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: {
+            outcome: "success",
+            testFileName,
+          },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration validation`,
+            auditLogError,
+          );
+        });
+
         return {
           success: true,
           message: "Validation successful! Test file uploaded.",
@@ -309,16 +436,31 @@ This file can be safely deleted.`;
           signedUrl: result.signedUrl,
         };
       } catch (e) {
+        const errorMessage = getErrorMessage(
+          e,
+          "Unknown error occurred during validation",
+        );
+
         logger.error(
-          `Blob storage validation failed for project ${input.projectId}`,
+          `Blob storage validation failed for project ${input.projectId}: ${errorMessage}`,
           e,
         );
 
-        // Extract meaningful error message
-        let errorMessage = "Unknown error occurred during validation";
-        if (e instanceof Error) {
-          errorMessage = e.message;
-        }
+        await auditLog({
+          session: ctx.session,
+          action: "validate",
+          resourceType: "blobStorageIntegration",
+          resourceId: input.projectId,
+          after: {
+            outcome: "failure",
+            error: getAuditLogErrorType(e),
+          },
+        }).catch((auditLogError) => {
+          logger.error(
+            `Failed to create audit log for blob storage integration validation`,
+            auditLogError,
+          );
+        });
 
         if (e instanceof TRPCError) {
           throw e;

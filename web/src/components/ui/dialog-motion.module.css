@@ -1,0 +1,67 @@
+.content {
+  transform-origin: center center;
+}
+
+.content[data-state="open"] {
+  animation: dialogContentIn 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.content[data-state="closed"] {
+  animation: dialogContentOut 180ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.overlay[data-state="open"] {
+  animation: dialogOverlayIn 200ms ease-out both;
+}
+
+.overlay[data-state="closed"] {
+  animation: dialogOverlayOut 150ms ease-in both;
+}
+
+@keyframes dialogContentIn {
+  0% {
+    opacity: 0;
+    scale: 0.95;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes dialogContentOut {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+
+  to {
+    opacity: 0;
+    scale: 0.95;
+  }
+}
+
+@keyframes dialogOverlayIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes dialogOverlayOut {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
+}

@@ -53,6 +53,14 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/src/components/ui/accordion";
+import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
+import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
 
 export default function ExperimentsTable({
   projectId,
@@ -482,14 +490,17 @@ export default function ExperimentsTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
     },
     validationContext: {
       columns,
       filterColumnDefinition: filterConfig.columnDefinitions,
+      expandableFilterColumns: filterConfig.facets.map((facet) => facet.column),
     },
-    currentFilterState: queryFilter.filterState,
+    currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
   });
 
   const rows: ExperimentsTableRow[] = useMemo(() => {
@@ -497,6 +508,15 @@ export default function ExperimentsTable({
       ? experiments.rows
       : [];
   }, [experiments]);
+
+  // Get experiments from the current query result (for charts)
+  const chartExperiments = useMemo(() => {
+    return rows.map((row) => ({ id: row.id, name: row.name }));
+  }, [rows]);
+
+  // Charts accordion collapsed state (persisted in session storage)
+  const { accordionValue, setAccordionValue } =
+    useExperimentChartsAccordion(projectId);
 
   // Get selected experiment IDs in the order they appear in the table
   const selectedExperimentIds = useMemo(() => {
@@ -546,7 +566,7 @@ export default function ExperimentsTable({
       params.append("c", id);
     });
 
-    void router.push(
+    router.push(
       `/project/${projectId}/experiments/results?${params.toString()}`,
     );
   }, [selectedExperimentIds, projectId, router]);
@@ -617,8 +637,8 @@ export default function ExperimentsTable({
             setRowHeight={setRowHeight}
             timeRange={timeRange}
             setTimeRange={setTimeRange}
-            actionButtons={
-              shouldShowActions
+            actionButtons={[
+              ...(shouldShowActions
                 ? [
                     <TableActionMenu
                       key="experiments-multi-select-actions"
@@ -638,13 +658,44 @@ export default function ExperimentsTable({
                       }}
                     />,
                   ]
-                : undefined
-            }
+                : []),
+            ]}
           />
+
+          {/* Charts section - Collapsible Accordion */}
+          {tableDateRange && (
+            <Accordion
+              type="single"
+              collapsible
+              value={accordionValue}
+              onValueChange={setAccordionValue}
+            >
+              <AccordionItem value="charts" className="border-t">
+                <AccordionTrigger className="px-3 pt-2 pb-1 hover:no-underline">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">Charts</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="max-h-[40dvh] overflow-x-auto px-3 pt-1 pb-1">
+                  <ExperimentChartsGrid
+                    projectId={projectId}
+                    experiments={chartExperiments}
+                    fromTimestamp={tableDateRange.from}
+                    toTimestamp={tableDateRange.to}
+                    isExternalLoading={experiments.status === "loading"}
+                  />
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          )}
 
           {/* Content area with sidebar and table */}
           <ResizableFilterLayout>
-            <DataTableControls queryFilter={queryFilter} />
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.selectedViewId ?? "no-view"}
+              queryFilter={queryFilter}
+            />
 
             <div className="flex flex-1 flex-col overflow-hidden">
               <DataTable
@@ -706,7 +757,7 @@ export default function ExperimentsTable({
                   }
                   // For normal clicks, navigate to experiment detail page
                   else {
-                    void router.push(
+                    router.push(
                       `/project/${projectId}/experiments/results?baseline=${encodeURIComponent(row.id)}`,
                     );
                   }

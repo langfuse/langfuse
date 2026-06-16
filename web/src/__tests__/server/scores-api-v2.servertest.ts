@@ -1164,6 +1164,91 @@ describe("/api/public/v2/scores API Endpoint", () => {
             );
           }
         });
+
+        // Regression tests for #8630: the value operator must not override
+        // the fixed >= / < operators of the fromTimestamp/toTimestamp filters.
+        describe("operator combined with timestamp window", () => {
+          const fromTimestamp = new Date(
+            Date.now() - 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const toTimestamp = new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const timestampWindow = `fromTimestamp=${fromTimestamp}&toTimestamp=${toTimestamp}`;
+
+          it("test operator > with timestamp window", async () => {
+            const getScore = await makeZodVerifiedAPICall(
+              GetScoresResponseV2,
+              "GET",
+              `/api/public/v2/scores?${queryUserName}&operator=>&value=100&${timestampWindow}`,
+              undefined,
+              authentication,
+            );
+            expect(getScore.status).toBe(200);
+            expect(getScore.body.meta).toMatchObject({
+              page: 1,
+              limit: 50,
+              totalItems: 1,
+              totalPages: 1,
+            });
+            expect(getScore.body.data).toMatchObject([
+              {
+                id: scoreId_3,
+                name: scoreName,
+                value: 100.8,
+              },
+            ]);
+          });
+
+          it("test operator < with timestamp window", async () => {
+            const getScore = await makeZodVerifiedAPICall(
+              GetScoresResponseV2,
+              "GET",
+              `/api/public/v2/scores?${queryUserName}&operator=<&value=50&${timestampWindow}`,
+              undefined,
+              authentication,
+            );
+            expect(getScore.status).toBe(200);
+            expect(getScore.body.meta).toMatchObject({
+              page: 1,
+              limit: 50,
+              totalItems: 1,
+              totalPages: 1,
+            });
+            expect(getScore.body.data).toMatchObject([
+              {
+                id: scoreId_1,
+                name: scoreName,
+                value: 10.5,
+              },
+            ]);
+          });
+        });
+      });
+
+      describe("should validate pagination", () => {
+        it("rejects limit > 100 with HTTP 400", async () => {
+          expect.assertions(5);
+          try {
+            await makeZodVerifiedAPICall(
+              z.object({
+                message: z.string(),
+                error: z.array(z.object({})),
+              }),
+              "GET",
+              `/api/public/v2/scores?limit=101`,
+              undefined,
+              authentication,
+            );
+          } catch (error) {
+            const msg = (error as Error).message;
+            expect(msg).toContain("status 400");
+            expect(msg).toContain('"message":"Invalid request data"');
+            expect(msg).toContain('"path":["limit"]');
+            expect(msg).toContain('"code":"too_big"');
+            expect(msg).toContain('"maximum":100');
+          }
+        });
       });
 
       it("should filter scores by score IDs", async () => {

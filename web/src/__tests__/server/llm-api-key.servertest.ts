@@ -108,7 +108,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
     await caller.llmApiKey.create({
@@ -200,7 +200,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
     await caller.llmApiKey.create({
@@ -240,6 +240,89 @@ describe("llmApiKey.all RPC", () => {
     // response must not contain the secret key itself
     const secretKey = llmApiKeys[0].secretKey;
     expect(secretKey).toBeUndefined();
+  });
+
+  it("should create and get an OpenAI llm api key with Responses API config", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "test-secret",
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: true },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({ useResponsesApi: true });
+    expect(llmApiKeys[0].customModels).toEqual(["openai.gpt-5.4"]);
+    expect(llmApiKeys[0].secretKey).toBeUndefined();
+  });
+
+  it("should update an OpenAI llm api key to disable Responses API config", async () => {
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: "test-secret",
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: true },
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider: "openai-responses",
+      },
+    });
+
+    await caller.llmApiKey.update({
+      id: existingKey.id,
+      projectId,
+      provider: "openai-responses",
+      adapter: LLMAdapter.OpenAI,
+      baseURL: "https://example.com/v1",
+      customModels: ["openai.gpt-5.4"],
+      withDefaultModels: false,
+      config: { useResponsesApi: false },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({ useResponsesApi: false });
+  });
+
+  it("should preserve empty VertexAI config without applying OpenAI defaults", async () => {
+    await prisma.llmApiKeys.create({
+      data: {
+        projectId,
+        provider: "vertex-empty-config",
+        adapter: LLMAdapter.VertexAI,
+        secretKey: encrypt("test-secret"),
+        displaySecretKey: "...cret",
+        customModels: ["gemini-2.5-flash"],
+        withDefaultModels: false,
+        extraHeaderKeys: [],
+        config: {},
+      },
+    });
+
+    const { data: llmApiKeys } = await caller.llmApiKey.all({
+      projectId,
+    });
+
+    expect(llmApiKeys).toHaveLength(1);
+    expect(llmApiKeys[0].config).toEqual({});
   });
 
   it("should derive the Bedrock auth method in llmApiKey.all without returning secrets", async () => {
@@ -490,13 +573,13 @@ describe("llmApiKey.all RPC", () => {
       provider: "openai",
       adapter: LLMAdapter.OpenAI,
       secretKey: "sk-rotated",
-      baseURL: "https://new-endpoint.example.com/v1",
+      baseURL: "https://example.net/v1",
     });
 
     expect(result).toEqual({ success: true });
     expect(mockFetchLLMCompletion).toHaveBeenCalledTimes(1);
     const llmConnection = mockFetchLLMCompletion.mock.calls[0][0].llmConnection;
-    expect(llmConnection.baseURL).toBe("https://new-endpoint.example.com/v1");
+    expect(llmConnection.baseURL).toBe("https://example.net/v1");
     expect(decrypt(llmConnection.secretKey)).toBe("sk-rotated");
     expect(llmConnection.extraHeaders).toBeUndefined();
   });
@@ -506,7 +589,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
     // Create initial key
@@ -539,7 +622,7 @@ describe("llmApiKey.all RPC", () => {
 
     // Update the key
     const newSecret = "new-test-secret";
-    const newBaseURL = "https://new-custom.openai.com/v1";
+    const newBaseURL = "https://example.org/v1";
     const newCustomModels = ["new-fancy-gpt-3.5-turbo"];
     const newWithDefaultModels = true;
 
@@ -570,6 +653,49 @@ describe("llmApiKey.all RPC", () => {
     expect(updatedKeys[0].baseURL).toBe(newBaseURL);
     expect(updatedKeys[0].customModels).toEqual(newCustomModels);
     expect(updatedKeys[0].withDefaultModels).toBe(newWithDefaultModels);
+  });
+
+  it("should scope the llm api key update write by project id", async () => {
+    const secret = "test-secret";
+    const provider = "openai";
+    const adapter = LLMAdapter.OpenAI;
+
+    await caller.llmApiKey.create({
+      projectId,
+      secretKey: secret,
+      provider,
+      adapter,
+    });
+
+    const existingKey = await prisma.llmApiKeys.findFirstOrThrow({
+      where: {
+        projectId,
+        provider,
+      },
+    });
+
+    const updateSpy = vi.spyOn(prisma.llmApiKeys, "update");
+
+    try {
+      await caller.llmApiKey.update({
+        id: existingKey.id,
+        projectId,
+        secretKey: "new-test-secret",
+        provider,
+        adapter,
+      });
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            id: existingKey.id,
+            projectId,
+          },
+        }),
+      );
+    } finally {
+      updateSpy.mockRestore();
+    }
   });
 
   it("should update a Bedrock Access key auth to a Bedrock API key", async () => {
@@ -858,7 +984,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
 
     // Create initial key
@@ -921,7 +1047,7 @@ describe("llmApiKey.all RPC", () => {
     const provider = "openai";
     const adapter = LLMAdapter.OpenAI;
     const customModels = ["fancy-gpt-3.5-turbo"];
-    const baseURL = "https://custom.openai.com/v1";
+    const baseURL = "https://example.com/v1";
     const withDefaultModels = false;
     const extraHeaders = {
       "X-Custom-Header": "custom-value",

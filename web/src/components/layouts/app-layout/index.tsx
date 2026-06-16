@@ -66,9 +66,9 @@ export function AppLayout(props: PropsWithChildren) {
   // Handle auth guard actions (redirect or sign-out)
   useEffect(() => {
     if (authGuard.action === "redirect") {
-      void router.replace(authGuard.url);
+      router.replace(authGuard.url);
     } else if (authGuard.action === "sign-out") {
-      void signOut({ redirect: false });
+      signOut({ redirect: false });
     }
   }, [authGuard, router]);
 

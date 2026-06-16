@@ -94,6 +94,7 @@ import {
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { BaseError, parseIO } from "@langfuse/shared";
+import { type Flag } from "@/src/features/feature-flags/types";
 
 setUpSuperjson();
 
@@ -108,6 +109,15 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
         ...shape.data,
         zodError:
           error.cause instanceof ZodError ? z.flattenError(error.cause) : null,
+        errorName:
+          error.cause instanceof ClickHouseResourceError
+            ? "ClickHouseResourceError"
+            : null,
+        // do not expose stack traces for CH errors as they may contain sensitive info
+        stack:
+          error.cause instanceof ClickHouseResourceError
+            ? null
+            : shape.data.stack,
       },
     };
   },
@@ -137,12 +147,20 @@ const resolveError = (error: TRPCError) => {
   return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
 };
 
-const logErrorByCode = (errorCode: TRPCError["code"], error: TRPCError) => {
+const logErrorByStatus = ({
+  errorCode,
+  httpStatus,
+  error,
+}: {
+  errorCode: TRPCError["code"];
+  httpStatus: number;
+  error: TRPCError;
+}) => {
   if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
-  } else if (errorCode === "UNPROCESSABLE_CONTENT") {
+  } else if (httpStatus >= 400 && httpStatus < 500) {
     logger.warn(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
@@ -161,10 +179,16 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     if (res.error.cause instanceof ClickHouseResourceError) {
       // Surface ClickHouse errors using an advice message
       // which is supposed to provide a bit of guidance to the user.
-      logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
+      logger.warn("ClickHouse resource limit exceeded", {
+        errorType: res.error.cause.errorType,
+        message: res.error.cause.message,
+        tags: res.error.cause.tags,
+      });
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+        // Keep the original error, it will be removed by `errorFormatter`
+        cause: res.error.cause,
       });
     } else {
       // Throw a new TRPC error with:
@@ -176,7 +200,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         ? "We have been notified and are working on it."
         : "Please check error logs in your self-hosted deployment.";
 
-      logErrorByCode(code, res.error);
+      logErrorByStatus({ errorCode: code, httpStatus, error: res.error });
       res.error = new TRPCError({
         code,
         cause: null, // do not expose stack traces
@@ -352,6 +376,31 @@ export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
 
+/** requireFeatureFlag gates a procedure behind a server-side feature flag. */
+export const requireFeatureFlag = (flag: Flag) =>
+  t.middleware(({ ctx, next }) => {
+    const session = ctx.session;
+    const enabled =
+      (session?.user?.featureFlags?.[flag] ?? false) ||
+      (session?.user?.admin ?? false) ||
+      (session?.environment?.enableExperimentalFeatures ?? false);
+    if (!enabled) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Feature "${flag}" is not enabled for this user`,
+      });
+    }
+    return next();
+  });
+
+/** requireLangfuseCloud rejects calls from non-Langfuse-Cloud deployments. */
+export const requireLangfuseCloud = t.middleware(({ next }) => {
+  if (!isLangfuseCloud) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+  return next();
+});
+
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
   .use(enforceUserIsAuthedAndProjectMember);
@@ -446,6 +495,7 @@ const enforceTraceAccess = t.middleware(async (opts) => {
   const fromTimestamp = result.data.fromTimestamp;
   const verbosity = result.data.verbosity;
 
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const clickhouseTrace = await getTraceById({
     traceId,
     projectId,
@@ -552,7 +602,9 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
   const { sessionId, projectId } = result.data;
 
-  // trace sessions are stored in postgres. No need to check for clickhouse eligibility.
+  // trace_sessions should be a sparse metadata side-table: a row only exists once a
+  // session has been bookmarked or published.
+  // If it's not marked as public, we fallback to the usual user-based project access check.
   const session = await ctx.prisma.traceSession.findFirst({
     where: {
       id: sessionId,
@@ -563,22 +615,14 @@ const enforceSessionAccess = t.middleware(async (opts) => {
     },
   });
 
-  if (!session) {
-    logger.error(
-      `Session with id ${sessionId} not found for project ${projectId}`,
-    );
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Session not found",
-    });
-  }
+  const isPublicSession = session?.public ?? false;
 
   const userSessionProject = ctx.session?.user?.organizations
     .flatMap((org) => org.projects)
     .find(({ id }) => id === projectId);
 
   if (
-    !session.public &&
+    !isPublicSession &&
     !userSessionProject &&
     ctx.session?.user?.admin !== true
   ) {

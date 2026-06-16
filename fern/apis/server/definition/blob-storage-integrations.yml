@@ -61,6 +61,34 @@ types:
       - daily
       - weekly
 
+  BlobStorageExportSource:
+    docs: |
+      What data the integration exports.
+      - `LEGACY_TRACES_OBSERVATIONS`: traces, observations, and scores tables. Observation columns are controlled by `exportFieldGroups`; field groups without a counterpart in this data model (e.g. `trace_context`) are omitted.
+      - `OBSERVATIONS_V2`: same data model as the `/api/public/v2/observations` endpoint, plus scores. Columns are controlled by `exportFieldGroups`.
+      - `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: both sets. Observation columns of both portions are controlled by `exportFieldGroups`.
+
+      **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched observations table (Langfuse Fast Preview / v4), which is currently available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+    enum:
+      - LEGACY_TRACES_OBSERVATIONS
+      - OBSERVATIONS_V2
+      - LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS
+
+  BlobStorageExportFieldGroup:
+    docs: Field group selecting which observation columns are included in the export. Applies to all export sources; groups without a counterpart in the legacy data model (e.g. `trace_context`) are omitted from the legacy observations export.
+    enum:
+      - core
+      - basic
+      - time
+      - io
+      - metadata
+      - model
+      - usage
+      - prompt
+      - metrics
+      - tools
+      - trace_context
+
   CreateBlobStorageIntegrationRequest:
     properties:
       projectId:
@@ -100,6 +128,21 @@ types:
       compressed:
         type: optional<boolean>
         docs: Enable gzip compression for exported files (.csv.gz, .json.gz, .jsonl.gz). Defaults to true.
+      exportSource:
+        type: optional<BlobStorageExportSource>
+        docs: |
+          Data to export. When omitted on update, the existing value is preserved. When omitted on create: integrations on Langfuse Cloud default to `OBSERVATIONS_V2`; self-hosted deployments fall back to `LEGACY_TRACES_OBSERVATIONS`. Required when `exportFieldGroups` is provided.
+
+          **Cloud-only project deprecation gate (effective 2026-05-20):** For projects created on or after 2026-05-20 on Langfuse Cloud, `LEGACY_TRACES_OBSERVATIONS` and `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP 400. Use `OBSERVATIONS_V2` for all new integrations. Self-hosted deployments are unaffected.
+
+          **Cloud-only integration deprecation gate (effective 2026-06-22):** On Langfuse Cloud, legacy export sources are only accepted for blob storage integrations created before 2026-06-22, regardless of project age. Requests that would create a new integration with `LEGACY_TRACES_OBSERVATIONS` or `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP 400. Use `OBSERVATIONS_V2` instead. Self-hosted deployments are unaffected.
+
+      exportFieldGroups:
+        type: optional<list<BlobStorageExportFieldGroup>>
+        docs: |
+          Field groups to include in each exported observation row. Applies to all export sources; must include `core` if provided. When omitted on create, the column default (all groups) applies. When omitted on update, the existing value is preserved.
+
+          `exportFieldGroups` requires `exportSource` to be provided in the same request.
 
   BlobStorageIntegrationResponse:
     properties:
@@ -118,6 +161,11 @@ types:
       exportMode: BlobStorageExportMode
       exportStartDate: nullable<datetime>
       compressed: boolean
+      exportSource: BlobStorageExportSource
+      exportFieldGroups:
+        type: nullable<list<BlobStorageExportFieldGroup>>
+        docs: |
+          Field groups included in each exported observation row. An empty list is treated as all groups during export.
       nextSyncAt: nullable<datetime>
       lastSyncAt: nullable<datetime>
       lastError: nullable<string>

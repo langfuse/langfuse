@@ -1,7 +1,8 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import eslintConfigPrettier from "eslint-config-prettier";
 import turboConfig from "eslint-config-turbo/flat";
 import "eslint-plugin-only-warn";
+import langfusePlugin from "@repo/eslint-plugin";
 
 export default [
   // Global ignores - include config files
@@ -53,8 +54,8 @@ export default [
     },
   },
 
-  // Prettier (last)
-  eslintPluginPrettierRecommended,
+  // Disable ESLint rules that conflict with Prettier formatting.
+  eslintConfigPrettier,
 
   // Layer repo-specific TS rules on top of Next's built-in flat TS config.
   // Next already provides the parser and @typescript-eslint plugin here.
@@ -77,23 +78,13 @@ export default [
         },
       },
     },
+    plugins: {
+      "@repo": langfusePlugin,
+    },
     rules: {
+      "no-void": "warn",
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
-      "no-restricted-syntax": [
-        "warn",
-        {
-          selector:
-            "Literal[value=/\\boverflow-scroll\\b|\\boverflow-x-scroll\\b|\\boverflow-y-scroll\\b/]",
-          message:
-            "Avoid Tailwind's forced scrollbars (`overflow-scroll`, `overflow-x-scroll`, `overflow-y-scroll`). Prefer an auto/hidden/clip variant instead.",
-        },
-        {
-          selector:
-            "TemplateElement[value.raw=/\\boverflow-scroll\\b|\\boverflow-x-scroll\\b|\\boverflow-y-scroll\\b/]",
-          message:
-            "Avoid Tailwind's forced scrollbars (`overflow-scroll`, `overflow-x-scroll`, `overflow-y-scroll`). Prefer an auto/hidden/clip variant instead.",
-        },
-      ],
+      "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
         "warn",
@@ -115,6 +106,17 @@ export default [
       "@typescript-eslint/no-deprecated": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
       "react/no-unused-prop-types": "warn",
+    },
+  },
+
+  // Vitest in-source testing should only be used while developing, not in committed code.
+  {
+    name: "langfuse/no-in-source-vitest",
+    plugins: {
+      "@repo": langfusePlugin,
+    },
+    rules: {
+      "@repo/no-in-source-vitest": "warn",
     },
   },
 ];

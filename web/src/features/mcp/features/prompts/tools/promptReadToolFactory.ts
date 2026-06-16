@@ -1,11 +1,11 @@
 import { z } from "zod";
-import { SpanKind } from "@opentelemetry/api";
-import { type Prompt } from "@langfuse/shared";
-import { instrumentAsync } from "@langfuse/shared/src/server";
+import { LATEST_PROMPT_LABEL, type Prompt } from "@langfuse/shared";
 
-import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
+import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 
 import { defineTool } from "../../../core/define-tool";
+import { buildPromptUrl } from "@/src/utils/product-url";
+import { runMcpTool } from "../../../core/run-mcp-tool";
 import { UserInputError } from "../../../core/errors";
 import {
   ParamPromptLabel,
@@ -40,6 +40,11 @@ const formatPromptResponse = (prompt: Prompt) => ({
   updatedAt: prompt.updatedAt,
   createdBy: prompt.createdBy,
   projectId: prompt.projectId,
+  url: buildPromptUrl({
+    projectId: prompt.projectId,
+    name: prompt.name,
+    version: prompt.version,
+  }),
 });
 
 const buildPromptNotFoundMessage = (params: {
@@ -68,34 +73,26 @@ export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
     baseSchema: PromptReadBaseSchema,
     inputSchema: PromptReadInputSchema,
     handler: async (input, context) => {
-      return await instrumentAsync(
-        { name: spanName, spanKind: SpanKind.INTERNAL },
-        async (span) => {
-          const { name, label, version } = input;
+      const effectiveLabel = input.version
+        ? input.label
+        : (input.label ?? LATEST_PROMPT_LABEL);
 
-          span.setAttributes({
-            "langfuse.project.id": context.projectId,
-            "langfuse.org.id": context.orgId,
-            "mcp.api_key_id": context.apiKeyId,
-            "mcp.prompt_name": name,
-          });
+      return await runMcpTool({
+        spanName,
+        context,
+        attributes: {
+          "mcp.prompt_name": input.name,
+          "mcp.unresolved": resolve ? undefined : true,
+          "mcp.prompt_label": effectiveLabel,
+          "mcp.prompt_version": input.version ?? undefined,
+        },
+        fn: async () => {
+          const { name, version } = input;
 
-          if (!resolve) {
-            span.setAttribute("mcp.unresolved", true);
-          }
-
-          if (label) {
-            span.setAttribute("mcp.prompt_label", label);
-          }
-
-          if (version) {
-            span.setAttribute("mcp.prompt_version", version);
-          }
-
-          const prompt = await getPromptByName({
+          const prompt = await getPromptForApi({
             promptName: name,
             projectId: context.projectId,
-            label,
+            label: effectiveLabel,
             version,
             resolve,
           });
@@ -104,7 +101,7 @@ export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
             throw new UserInputError(
               buildPromptNotFoundMessage({
                 name,
-                label,
+                label: effectiveLabel,
                 version,
               }),
             );
@@ -112,7 +109,7 @@ export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
 
           return formatPromptResponse(prompt);
         },
-      );
+      });
     },
     readOnlyHint: true,
   });

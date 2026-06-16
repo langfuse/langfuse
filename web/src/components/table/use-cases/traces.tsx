@@ -34,7 +34,10 @@ import {
   LevelSymbols,
 } from "@/src/components/level-colors";
 import { cn } from "@/src/utils/tailwind";
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
+import {
+  detailPageListKeys,
+  useDetailPageLists,
+} from "@/src/features/navigate-detail-pages/context";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   type FilterState,
@@ -54,7 +57,7 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import useColumnOrder from "@/src/features/column-visibility/hooks/useColumnOrder";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
-import { BreakdownTooltip } from "@/src/components/trace2/components/_shared/BreakdownToolTip";
+import { BreakdownTooltip } from "@/src/components/trace/components/_shared/BreakdownToolTip";
 import { InfoIcon, MoreVertical } from "lucide-react";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import React from "react";
@@ -204,7 +207,7 @@ export default function TracesTable({
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
     setManualRefreshTrigger((t) => t + 1);
-    void Promise.all([
+    Promise.all([
       utils.traces.all.invalidate(),
       utils.traces.metrics.invalidate(),
       utils.traces.countAll.invalidate(),
@@ -394,14 +397,23 @@ export default function TracesTable({
 
   const { searchQuery, searchType, setSearchQuery, setSearchType } =
     useFullTextSearch();
+  const legacyTracingSearchConfig = api.public.tracingSearchConfig.useQuery(
+    { projectId },
+    {
+      enabled: !hideControls,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+    },
+  );
+  const legacyTracingIoSearchEnabled =
+    legacyTracingSearchConfig.data?.legacyTracingIoSearchEnabled ?? true;
 
   const tracesAllCountFilter = {
     projectId,
     filter: filterState,
     searchQuery: searchQuery,
     searchType: searchType,
-    page: 0,
-    limit: 0,
     orderBy: null,
   };
 
@@ -423,7 +435,6 @@ export default function TracesTable({
     refetchOnMount: false,
     refetchOnWindowFocus: true,
   });
-
   const traceMetrics = api.traces.metrics.useQuery(
     {
       projectId,
@@ -454,7 +465,7 @@ export default function TracesTable({
   useEffect(() => {
     if (traces.isSuccess) {
       setDetailPageList(
-        "traces",
+        detailPageListKeys.traces,
         traces.data.traces.map((t) => ({
           id: t.id,
           params: { timestamp: t.timestamp.toISOString() },
@@ -502,7 +513,7 @@ export default function TracesTable({
       });
     },
     onSettled: () => {
-      void utils.traces.all.invalidate();
+      utils.traces.all.invalidate();
     },
   });
 
@@ -1294,7 +1305,7 @@ export default function TracesTable({
     if (hideControls) return undefined;
     return {
       itemType: "TRACE" as const,
-      detailNavigationKey: "traces",
+      detailNavigationKey: detailPageListKeys.traces,
       peekEventOptions: {
         ignoredSelectors: ['[role="checkbox"]', '[aria-label="bookmark"]'],
       },
@@ -1317,6 +1328,7 @@ export default function TracesTable({
     stateUpdaters: {
       setOrderBy: setOrderByState,
       setFilters: setFiltersWrapper,
+      setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibility,
       setSearchQuery: setSearchQuery,
@@ -1324,8 +1336,12 @@ export default function TracesTable({
     validationContext: {
       columns,
       filterColumnDefinition: tracesFilterConfig.columnDefinitions,
+      expandableFilterColumns: tracesFilterConfig.facets.map(
+        (facet) => facet.column,
+      ),
     },
     currentFilterState: queryFilter.explicitFilterState,
+    currentExpandedFilters: queryFilter.expanded,
     disabled: hideControls,
   });
 
@@ -1403,7 +1419,7 @@ export default function TracesTable({
               metadataSearchFields: ["ID", "Trace Name", "User ID"],
               updateQuery: setSearchQuery,
               currentQuery: searchQuery ?? undefined,
-              tableAllowsFullTextSearch: true,
+              tableAllowsFullTextSearch: legacyTracingIoSearchEnabled,
               setSearchType,
               searchType,
             }}
@@ -1466,7 +1482,12 @@ export default function TracesTable({
         {/* Content area with sidebar and table */}
         <ResizableFilterLayout>
           {!hideControls && (
-            <DataTableControls queryFilter={queryFilter} filterWithAI />
+            <DataTableControls
+              // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
+              key={viewControllers.selectedViewId ?? "no-view"}
+              queryFilter={queryFilter}
+              filterWithAI
+            />
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">

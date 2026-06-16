@@ -9,12 +9,12 @@ import { AnnotateDrawer } from "@/src/features/scores/components/AnnotateDrawer"
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { NewDatasetItemFromTraceId } from "@/src/components/session/NewDatasetItemFromTrace";
-import { AnnotationQueueObjectType, type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
-import { IOPreview } from "@/src/components/trace2/components/IOPreview/IOPreview";
+import { IOPreview } from "@/src/components/trace/components/IOPreview/IOPreview";
 import { api } from "@/src/utils/api";
 
-const TraceSkeleton = () => {
+export const TraceEventsSkeleton = () => {
   return (
     <Card className="border-border shadow-none">
       <div className="flex h-64 items-center justify-center p-4">
@@ -23,6 +23,32 @@ const TraceSkeleton = () => {
     </Card>
   );
 };
+
+type LazyTraceEventsRowProps = {
+  trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
+  projectId: string;
+  sessionId: string;
+  openPeek: (id: string, row: any) => void;
+  index: number;
+  traceCommentCounts: Map<string, number> | undefined;
+  showCorrections: boolean;
+  filterState: FilterState;
+  hideTracePanel?: boolean;
+};
+
+const areLazyTraceEventsRowPropsEqual = (
+  previous: LazyTraceEventsRowProps,
+  next: LazyTraceEventsRowProps,
+) =>
+  previous.trace === next.trace &&
+  previous.projectId === next.projectId &&
+  previous.sessionId === next.sessionId &&
+  previous.openPeek === next.openPeek &&
+  previous.index === next.index &&
+  previous.traceCommentCounts === next.traceCommentCounts &&
+  previous.showCorrections === next.showCorrections &&
+  previous.filterState === next.filterState &&
+  previous.hideTracePanel === next.hideTracePanel;
 
 export const TraceEventsRow = React.memo(
   ({
@@ -176,7 +202,7 @@ export const TraceEventsRow = React.memo(
                       <CreateNewAnnotationQueueItem
                         projectId={projectId}
                         objectId={trace.id}
-                        objectType={AnnotationQueueObjectType.TRACE}
+                        objectType="TRACE"
                         variant="outline"
                       />
                     </div>
@@ -206,22 +232,8 @@ export const TraceEventsRow = React.memo(
 
 TraceEventsRow.displayName = "TraceEventsRow";
 
-export const LazyTraceEventsRow = React.forwardRef<
-  HTMLDivElement,
-  {
-    trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
-    projectId: string;
-    sessionId: string;
-    openPeek: (id: string, row: any) => void;
-    index: number;
-    traceCommentCounts: Map<string, number> | undefined;
-    showCorrections: boolean;
-    filterState: FilterState;
-    hideTracePanel?: boolean;
-    onLoad?: (index: number) => void;
-  }
->((props, measureRef) => {
-  const { index, onLoad: onLoad, ...cardProps } = props;
+const LazyTraceEventsRowInner = (props: LazyTraceEventsRowProps) => {
+  const { index, ...cardProps } = props;
   const [shouldLoad, setShouldLoad] = React.useState(false);
   const internalRef = React.useRef<HTMLDivElement>(null);
 
@@ -230,28 +242,22 @@ export const LazyTraceEventsRow = React.forwardRef<
     return observe(internalRef.current, () => setShouldLoad(true));
   }, [shouldLoad]);
 
-  React.useLayoutEffect(() => {
-    if (shouldLoad && onLoad) {
-      onLoad(index);
-    }
-  }, [shouldLoad, onLoad, index]);
-
-  const combinedRef = React.useCallback(
-    (node: HTMLDivElement | null) => {
-      internalRef.current = node;
-      if (typeof measureRef === "function") measureRef(node);
-      else if (measureRef) measureRef.current = node;
-    },
-    [measureRef],
-  );
+  const setRowRef = React.useCallback((node: HTMLDivElement | null) => {
+    internalRef.current = node;
+  }, []);
 
   return (
-    <div ref={combinedRef} className="pb-3" data-index={index}>
-      {shouldLoad ? <TraceEventsRow {...cardProps} /> : <TraceSkeleton />}
+    <div ref={setRowRef} className="pb-3" data-session-row-index={index}>
+      {shouldLoad ? <TraceEventsRow {...cardProps} /> : <TraceEventsSkeleton />}
     </div>
   );
-});
+};
 
+LazyTraceEventsRowInner.displayName = "LazyTraceEventsRowInner";
+export const LazyTraceEventsRow = React.memo(
+  LazyTraceEventsRowInner,
+  areLazyTraceEventsRowPropsEqual,
+);
 LazyTraceEventsRow.displayName = "LazyTraceEventsRow";
 
 const listeners = new Map<Element, () => void>();

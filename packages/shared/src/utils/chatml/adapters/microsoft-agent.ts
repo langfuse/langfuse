@@ -4,6 +4,8 @@ import {
   getNestedProperty,
   stringifyToolResultContent,
   isRichToolResult,
+  attachToolDefinitionsToMessages,
+  normalizeToolDefinitionsForChatMl,
 } from "../helpers";
 import { z } from "zod";
 
@@ -29,6 +31,36 @@ const MicrosoftAgentMessageSchema = z.looseObject({
 
 // Array of Microsoft Agent messages
 const MicrosoftAgentMessagesSchema = z.array(MicrosoftAgentMessageSchema);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object";
+}
+
+function hasPydanticAiMessageMarkers(data: unknown): boolean {
+  const messages = Array.isArray(data)
+    ? data
+    : isRecord(data) && Array.isArray(data.messages)
+      ? data.messages
+      : isRecord(data)
+        ? [data]
+        : [];
+
+  return messages.some((msg) => {
+    if (!isRecord(msg)) return false;
+    if (!Array.isArray(msg.parts)) return false;
+
+    return msg.parts.some((part) => {
+      if (!isRecord(part)) return false;
+
+      return (
+        part.type === "thinking" ||
+        part.type === "redacted_thinking" ||
+        (part.type === "tool_call_response" &&
+          ("result" in part || msg.role === "user"))
+      );
+    });
+  });
+}
 
 /**
  * Extract tool calls and text content from parts array
@@ -218,10 +250,7 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
     if (toolDefinitions) {
       const tools = extractToolDefinitions(toolDefinitions);
       if (tools.length > 0) {
-        return normalized.map((msg) => ({
-          ...(msg as Record<string, unknown>),
-          tools,
-        }));
+        return attachToolDefinitionsToMessages(normalized, tools);
       }
     }
 
@@ -231,11 +260,21 @@ function preprocessData(data: unknown, ctx: NormalizerContext): unknown {
   // messages wrapper
   if (typeof data === "object" && "messages" in data) {
     const obj = data as Record<string, unknown>;
+    const messages = Array.isArray(obj.messages)
+      ? normalizeMessages(obj.messages)
+      : obj.messages;
+    const tools = normalizeToolDefinitionsForChatMl(obj.tools);
+
+    if (Array.isArray(messages) && tools.length > 0) {
+      return {
+        ...obj,
+        messages: attachToolDefinitionsToMessages(messages, tools),
+      };
+    }
+
     return {
       ...obj,
-      messages: Array.isArray(obj.messages)
-        ? normalizeMessages(obj.messages)
-        : obj.messages,
+      messages,
     };
   }
 
@@ -271,6 +310,13 @@ export const microsoftAgentAdapter: ProviderAdapter = {
       "gen_ai.provider.name",
     );
     if (providerName === "microsoft.agent_framework") return true;
+
+    if (
+      hasPydanticAiMessageMarkers(ctx.metadata) ||
+      hasPydanticAiMessageMarkers(ctx.data)
+    ) {
+      return false;
+    }
 
     // STRUCTURAL: Schema-based detection on metadata
     if (MicrosoftAgentMessagesSchema.safeParse(ctx.metadata).success)

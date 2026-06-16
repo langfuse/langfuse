@@ -1,6 +1,7 @@
 import { Job, Processor } from "bullmq";
 import {
   deleteEventsByProjectId,
+  deleteMediaLinkRowsByProjectId,
   deleteMediaFiles,
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
@@ -16,7 +17,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Prisma } from "@prisma/client";
-import { env } from "../env";
+import { env, v4WritesToEventsTable } from "../env";
 
 export const projectDeleteProcessor: Processor = async (
   job: Job<TQueueJobTypes[QueueName.ProjectDelete]>,
@@ -51,6 +52,8 @@ export const projectDeleteProcessor: Processor = async (
     });
   }
 
+  await deleteMediaLinkRowsByProjectId({ projectId });
+
   logger.info(
     `Deleting ClickHouse and S3 data for ${projectId} in org ${orgId}`,
   );
@@ -66,7 +69,7 @@ export const projectDeleteProcessor: Processor = async (
     deleteTracesByProjectId(projectId),
     deleteObservationsByProjectId(projectId),
     deleteScoresByProjectId(projectId),
-    env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    v4WritesToEventsTable(env)
       ? deleteEventsByProjectId(projectId)
       : Promise.resolve(),
   ]);

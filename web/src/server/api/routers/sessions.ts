@@ -21,7 +21,6 @@ import {
   type ScoreDomain,
   LISTABLE_SCORE_TYPES,
 } from "@langfuse/shared";
-import { Prisma } from "@langfuse/shared/src/db";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
 import {
@@ -39,7 +38,6 @@ import {
   getCostForTraces,
   getTracesGroupedByUsers,
   getPublicSessionsFilter,
-  logger,
   getSessionsWithMetrics,
   hasAnySession,
   getScoresForSessions,
@@ -54,10 +52,12 @@ import chunk from "lodash/chunk";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { toDomainArrayWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
-const SessionFilterOptions = z.object({
+const SessionCountOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
   filter: z.array(singleFilter).nullable(),
   orderBy: orderBy,
+});
+const SessionFilterOptions = SessionCountOptions.extend({
   ...paginationZod,
 });
 
@@ -89,6 +89,7 @@ const handleGetSessionById = async (input: {
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   const clickhouseTraces = await getTracesIdentifierForSession(
     input.projectId,
     input.sessionId,
@@ -293,7 +294,7 @@ export const sessionRouter = createTRPCRouter({
       };
     }),
   countAll: protectedProjectProcedure
-    .input(SessionFilterOptions)
+    .input(SessionCountOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
@@ -327,7 +328,7 @@ export const sessionRouter = createTRPCRouter({
       };
     }),
   countAllFromEvents: protectedProjectProcedure
-    .input(SessionFilterOptions)
+    .input(SessionCountOptions)
     .query(async ({ input, ctx }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
@@ -674,21 +675,7 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
-      const postgresSession = await ctx.prisma.traceSession.findFirst({
-        where: {
-          id: input.sessionId,
-          projectId: input.projectId,
-        },
-      });
-
-      if (!postgresSession) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Session not found in project",
-        });
-      }
-
-      const [scores, sessionMetrics] = await Promise.all([
+      const [scores, sessionMetrics, postgresSession] = await Promise.all([
         getScoresForSessions({
           projectId: input.projectId,
           sessionIds: [input.sessionId],
@@ -697,7 +684,24 @@ export const sessionRouter = createTRPCRouter({
           projectId: input.projectId,
           sessionIds: [input.sessionId],
         }).then((rows) => rows[0]),
+        ctx.prisma.traceSession.findFirst({
+          where: {
+            id: input.sessionId,
+            projectId: input.projectId,
+          },
+          select: {
+            bookmarked: true,
+            public: true,
+          },
+        }),
       ]);
+
+      if (!sessionMetrics) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Session not found in project",
+        });
+      }
 
       const validatedScores: ScoreDomain[] = filterAndValidateDbScoreList({
         scores,
@@ -706,7 +710,10 @@ export const sessionRouter = createTRPCRouter({
       });
 
       return {
-        ...postgresSession,
+        id: input.sessionId,
+        projectId: input.projectId,
+        bookmarked: postgresSession?.bookmarked ?? false,
+        public: postgresSession?.public ?? false,
         users:
           sessionMetrics?.user_ids?.filter(
             (userId) => userId !== null && userId !== "",
@@ -826,49 +833,36 @@ export const sessionRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      try {
-        throwIfNoProjectAccess({
-          session: ctx.session,
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "objects:bookmark",
+      });
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "session",
+        resourceId: input.sessionId,
+        action: "bookmark",
+        after: input.bookmarked,
+      });
+
+      return ctx.prisma.traceSession.upsert({
+        where: {
+          id_projectId: {
+            id: input.sessionId,
+            projectId: input.projectId,
+          },
+        },
+        create: {
+          id: input.sessionId,
           projectId: input.projectId,
-          scope: "objects:bookmark",
-        });
-
-        await auditLog({
-          session: ctx.session,
-          resourceType: "session",
-          resourceId: input.sessionId,
-          action: "bookmark",
-          after: input.bookmarked,
-        });
-
-        const session = await ctx.prisma.traceSession.update({
-          where: {
-            id_projectId: {
-              id: input.sessionId,
-              projectId: input.projectId,
-            },
-          },
-          data: {
-            bookmarked: input.bookmarked,
-          },
-        });
-        return session;
-      } catch (error) {
-        logger.error("Unable to call sessions.bookmark", error);
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2025" // Record to update not found
-        )
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Session not found in project",
-          });
-        else {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-          });
-        }
-      }
+          bookmarked: input.bookmarked,
+        },
+        update: {
+          bookmarked: input.bookmarked,
+        },
+      });
     }),
   publish: protectedProjectProcedure
     .input(
@@ -891,14 +885,19 @@ export const sessionRouter = createTRPCRouter({
         action: "publish",
         after: input.public,
       });
-      return ctx.prisma.traceSession.update({
+      return ctx.prisma.traceSession.upsert({
         where: {
           id_projectId: {
             id: input.sessionId,
             projectId: input.projectId,
           },
         },
-        data: {
+        create: {
+          id: input.sessionId,
+          projectId: input.projectId,
+          public: input.public,
+        },
+        update: {
           public: input.public,
         },
       });

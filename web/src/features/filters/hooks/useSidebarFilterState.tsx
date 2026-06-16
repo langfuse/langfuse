@@ -28,7 +28,7 @@ import {
 import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
-import type { FilterConfig } from "../lib/filter-config";
+import type { FilterConfig, FilterStateMigration } from "../lib/filter-config";
 import type { PeekTableStateContextValue } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 
 /**
@@ -42,6 +42,7 @@ import type { PeekTableStateContextValue } from "@/src/components/table/peek/con
 export function decodeAndNormalizeFilters(
   filtersQuery: string,
   columnDefinitions: ColumnDefinition[],
+  migrateFilterState?: FilterStateMigration,
 ): FilterState {
   try {
     const filters = decodeFiltersGeneric(filtersQuery);
@@ -59,10 +60,13 @@ export function decodeAndNormalizeFilters(
     // This prevents duplicates when old URLs use display names (e.g., "Environment")
     // and user adds new filters with column IDs (e.g., "environment")
     const normalized = normalizeFilterColumnNames(filters, columnDefinitions);
+    const migrated = migrateFilterState
+      ? migrateFilterState(normalized)
+      : normalized;
 
     // Validate normalized filters
     const result: FilterState = [];
-    for (const filter of normalized) {
+    for (const filter of migrated) {
       const validationResult = singleFilter.safeParse(filter);
       if (validationResult.success) {
         const canonicalColumnId = knownColumns.get(
@@ -248,6 +252,51 @@ export type UIFilter =
   | StringKeyValueUIFilter;
 
 const EMPTY_MAP: Map<string, number> = new Map();
+
+const mergeUniqueStrings = (...lists: (string[] | undefined)[]): string[] =>
+  Array.from(
+    new Set(
+      lists.flatMap((list) => (list ?? []).filter((value) => value.length > 0)),
+    ),
+  );
+
+const resolveKnownKeyOptions = (
+  facetKeyOptions: string[] | undefined,
+  availableKeys:
+    | (string | SingleValueOption)[]
+    | Record<string, string[]>
+    | undefined,
+  activeKeys: string[],
+): string[] | undefined => {
+  if (facetKeyOptions !== undefined) {
+    return mergeUniqueStrings(facetKeyOptions, activeKeys);
+  }
+
+  if (!Array.isArray(availableKeys)) {
+    return undefined;
+  }
+
+  return mergeUniqueStrings(
+    availableKeys.map((option) =>
+      typeof option === "string" ? option : option.value,
+    ),
+    activeKeys,
+  );
+};
+
+const mergeAvailableValuesWithActiveFilters = (
+  availableValues: Record<string, string[]>,
+  activeFilters: KeyValueFilterEntry[],
+): Record<string, string[]> => {
+  const merged: Record<string, string[]> = { ...availableValues };
+
+  for (const filter of activeFilters) {
+    if (!filter.key) continue;
+    merged[filter.key] = mergeUniqueStrings(merged[filter.key], filter.value);
+  }
+
+  return merged;
+};
 
 // extract values and counts from options array
 // for both string[] and SingleValueOption[]
@@ -471,9 +520,14 @@ export function useSidebarFilterState(
       return "";
     })();
 
-    return decodeAndNormalizeFilters(rawQuery, config.columnDefinitions);
+    return decodeAndNormalizeFilters(
+      rawQuery,
+      config.columnDefinitions,
+      config.migrateFilterState,
+    );
   }, [
     config.columnDefinitions,
+    config.migrateFilterState,
     stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
@@ -1146,14 +1200,22 @@ export function useSidebarFilterState(
 
           // Get available values from options
           const availableValues = options[facet.column] ?? {};
+          const mergedAvailableValues =
+            typeof availableValues === "object" &&
+            !Array.isArray(availableValues)
+              ? mergeAvailableValuesWithActiveFilters(
+                  availableValues as Record<string, string[]>,
+                  activeFilters,
+                )
+              : ({} as Record<string, string[]>);
 
           // Extract key options from availableValues if not defined in facet
           const keyOptions =
             facet.keyOptions ??
-            (typeof availableValues === "object" &&
-            !Array.isArray(availableValues)
-              ? Object.keys(availableValues as Record<string, string[]>)
-              : undefined);
+            mergeUniqueStrings(
+              Object.keys(mergedAvailableValues),
+              activeFilters.map((filter) => filter.key),
+            );
 
           return {
             type: "keyValue",
@@ -1163,11 +1225,7 @@ export function useSidebarFilterState(
 
             value: activeFilters,
             keyOptions,
-            availableValues:
-              typeof availableValues === "object" &&
-              !Array.isArray(availableValues)
-                ? (availableValues as Record<string, string[]>)
-                : ({} as Record<string, string[]>),
+            availableValues: mergedAvailableValues,
             loading: shouldShowLoading(facet.column),
             expanded: expandedSet.has(facet.column),
             isActive,
@@ -1236,13 +1294,11 @@ export function useSidebarFilterState(
 
           // Get available keys from options (should be array of score names)
           const availableKeys = options[facet.column];
-          const keyOptions =
-            facet.keyOptions ??
-            (Array.isArray(availableKeys)
-              ? availableKeys.map((opt) =>
-                  typeof opt === "string" ? opt : opt.value,
-                )
-              : undefined);
+          const keyOptions = resolveKnownKeyOptions(
+            facet.keyOptions,
+            availableKeys,
+            activeFilters.map((filter) => filter.key),
+          );
 
           return {
             type: "numericKeyValue",
@@ -1320,13 +1376,11 @@ export function useSidebarFilterState(
 
           // Get available keys from options
           const availableKeys = options[facet.column];
-          const keyOptions =
-            facet.keyOptions ??
-            (Array.isArray(availableKeys)
-              ? availableKeys.map((opt) =>
-                  typeof opt === "string" ? opt : opt.value,
-                )
-              : undefined);
+          const keyOptions = resolveKnownKeyOptions(
+            facet.keyOptions,
+            availableKeys,
+            activeFilters.map((filter) => filter.key),
+          );
 
           return {
             type: "stringKeyValue",
@@ -1486,6 +1540,8 @@ export function useSidebarFilterState(
           (c) => c.id === facet.column,
         );
         const isArrayOptions = colDef?.type === "arrayOptions";
+        const textFilterDisabled =
+          facet.type === "categorical" && facet.disableTextFilter === true;
 
         // Get the checkbox filter (stringOptions/arrayOptions) for this column
         const checkboxFilter = filterState.find(
@@ -1536,6 +1592,14 @@ export function useSidebarFilterState(
           }));
 
         const hasTextFilters = textFilters.length > 0;
+        const hasExplicitCheckboxFilter =
+          !!checkboxFilter &&
+          Array.isArray(checkboxFilter.value) &&
+          checkboxFilter.value.length > 0;
+        const hasExplicitCheckboxFilterWhileLoading =
+          hasExplicitCheckboxFilter &&
+          selectedValues.length === 0 &&
+          availableValues.length === 0;
         const hasCheckboxSelections =
           selectedValues.length > 0 &&
           selectedValues.length !== availableValues.length;
@@ -1564,9 +1628,12 @@ export function useSidebarFilterState(
           (isManagedEnvironmentFacet
             ? hasManagedEnvironmentSelectionOverride
             : (currentOperator === "all of" &&
-                selectedValues.length === availableValues.length) ||
-              (currentOperator === "none of" && selectedValues.length > 0) ||
-              hasCheckboxSelections);
+                (selectedValues.length === availableValues.length ||
+                  hasExplicitCheckboxFilterWhileLoading)) ||
+              (currentOperator === "none of" &&
+                hasExplicitCheckboxFilterWhileLoading) ||
+              hasCheckboxSelections ||
+              hasExplicitCheckboxFilterWhileLoading);
         const disableState = getFacetDisabledState(facet);
 
         return {
@@ -1619,14 +1686,18 @@ export function useSidebarFilterState(
                 updateOperator(facet.column, op)
             : undefined,
           // Text filter support - ONLY for stringOptions, NOT arrayOptions or boolean
-          textFilters: !isArrayOptions ? textFilters : undefined,
-          onTextFilterAdd: !isArrayOptions
-            ? (op, val) => addTextFilter(facet.column, op, val)
-            : undefined,
-          onTextFilterRemove: !isArrayOptions
-            ? (op, val) => removeTextFilter(facet.column, op, val)
-            : undefined,
-          hasTextFilters: !isArrayOptions ? hasTextFilters : undefined,
+          textFilters:
+            !isArrayOptions && !textFilterDisabled ? textFilters : undefined,
+          onTextFilterAdd:
+            !isArrayOptions && !textFilterDisabled
+              ? (op, val) => addTextFilter(facet.column, op, val)
+              : undefined,
+          onTextFilterRemove:
+            !isArrayOptions && !textFilterDisabled
+              ? (op, val) => removeTextFilter(facet.column, op, val)
+              : undefined,
+          hasTextFilters:
+            !isArrayOptions && !textFilterDisabled ? hasTextFilters : undefined,
           hasCheckboxSelections,
         };
       })

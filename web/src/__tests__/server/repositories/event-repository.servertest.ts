@@ -1,6 +1,7 @@
 import {
   createEvent,
   createEventsCh,
+  getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationsCountFromEventsTable,
   getObservationByIdFromEventsTable,
@@ -10,6 +11,7 @@ import {
   getTraceByIdFromEventsTable,
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
+  getTracesIdentifierForSessionFromEvents,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
@@ -20,7 +22,7 @@ import waitForExpect from "wait-for-expect";
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -358,6 +360,47 @@ describe("Clickhouse Events Repository Test", () => {
       expect(resultWithoutIO.length).toBeGreaterThanOrEqual(1);
       expect(resultWithIO[0]?.input).toBeDefined();
       expect(resultWithoutIO[0]?.output).toBeDefined();
+    });
+
+    it("should not throw when model_parameters is not valid JSON", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      const event = createEvent({
+        id: generationId,
+        span_id: generationId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "poisoned-model-parameters",
+        provided_model_name: "gpt-5-mini",
+        model_parameters: "<not serializable object of type: dict>",
+      });
+
+      await createEventsCh([event]);
+
+      const result = await getObservationsWithModelDataFromEventsTable({
+        projectId,
+        filter: [idFilter(generationId)],
+        limit: 1000,
+        offset: 0,
+        selectIOAndMetadata: true,
+      });
+
+      const observation = result.find((o) => o.id === generationId);
+      expect(observation).toBeDefined();
+      expect(observation?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
+
+      const byId = await getObservationByIdFromEventsTable({
+        id: generationId,
+        projectId,
+        fetchWithInputOutput: true,
+      });
+      expect(byId?.modelParameters).toBe(
+        "<not serializable object of type: dict>",
+      );
     });
   });
 
@@ -1675,6 +1718,42 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("getObservationsForTraceFromEventsTable", () => {
+    it("should return usage pricing tier fields even when tool payloads are omitted", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: generationId,
+          span_id: generationId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-trace-pricing-tier-export",
+          usage_pricing_tier_id: "tier-enterprise",
+          usage_pricing_tier_name: "Enterprise",
+        }),
+      ]);
+
+      const { observations, totalCount } =
+        await getObservationsForTraceFromEventsTable({
+          traceId,
+          projectId,
+          selectIOAndMetadata: false,
+          selectToolData: false,
+        });
+
+      expect(totalCount).toBe(1);
+      expect(observations).toHaveLength(1);
+      expect(observations[0]).toMatchObject({
+        id: generationId,
+        usagePricingTierId: "tier-enterprise",
+        usagePricingTierName: "Enterprise",
+      });
+    });
+  });
+
   maybe("getObservationsFromEventsTableForPublicApi", () => {
     it("should return observations with pagination", async () => {
       const uniqueProjectId = randomUUID();
@@ -2015,6 +2094,144 @@ describe("Clickhouse Events Repository Test", () => {
     });
   });
 
+  maybe("getTracesIdentifierForSessionFromEvents", () => {
+    it("should return distinct traces for a session ordered by earliest trace timestamp", async () => {
+      const uniqueProjectId = randomUUID();
+      const sessionId = randomUUID();
+      const otherSessionId = randomUUID();
+      const traceId1 = randomUUID();
+      const traceId2 = randomUUID();
+      const traceId3 = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          trace_name: "trace-one-initial",
+          session_id: sessionId,
+          user_id: "user-1-old",
+          environment: "staging",
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId1,
+          trace_name: "trace-one-latest",
+          session_id: sessionId,
+          user_id: "user-1-new",
+          environment: "production",
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId2,
+          trace_name: "trace-two",
+          session_id: sessionId,
+          user_id: "user-2",
+          environment: "default",
+          start_time: nowMicro + 5_000,
+          event_ts: nowMicro + 5_000,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId3,
+          trace_name: "trace-three-other-session",
+          session_id: otherSessionId,
+          user_id: "user-3",
+          start_time: nowMicro + 10_000,
+          event_ts: nowMicro + 10_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const traces = await getTracesIdentifierForSessionFromEvents(
+          uniqueProjectId,
+          sessionId,
+        );
+
+        expect(traces).toHaveLength(2);
+        expect(traces.map((trace) => trace.id)).toEqual([traceId1, traceId2]);
+        expect(traces[0]).toMatchObject({
+          id: traceId1,
+          name: "trace-one-latest",
+          userId: "user-1-new",
+          environment: "production",
+        });
+        expect(traces[0]?.timestamp.getTime()).toBe(nowMicro / 1000);
+        expect(traces[1]).toMatchObject({
+          id: traceId2,
+          name: "trace-two",
+          userId: "user-2",
+          environment: "default",
+        });
+        expect(traces[1]?.timestamp.getTime()).toBe((nowMicro + 5_000) / 1000);
+      });
+    });
+
+    it("should resolve session membership from the latest non-empty session_id in the trace aggregation", async () => {
+      const uniqueProjectId = randomUUID();
+      const originalSessionId = randomUUID();
+      const latestSessionId = randomUUID();
+      const traceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          trace_name: "trace-before-session-change",
+          session_id: originalSessionId,
+          start_time: nowMicro,
+          event_ts: nowMicro,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          trace_name: "trace-after-session-change",
+          session_id: latestSessionId,
+          start_time: nowMicro + 2_000,
+          event_ts: nowMicro + 2_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        await expect(
+          getTracesIdentifierForSessionFromEvents(
+            uniqueProjectId,
+            originalSessionId,
+          ),
+        ).resolves.toEqual([]);
+
+        await expect(
+          getTracesIdentifierForSessionFromEvents(
+            uniqueProjectId,
+            latestSessionId,
+          ),
+        ).resolves.toEqual([
+          expect.objectContaining({
+            id: traceId,
+            name: "trace-after-session-change",
+          }),
+        ]);
+      });
+    });
+  });
+
   maybe("Update methods", () => {
     it("should allow to set/unset bookmarked", async () => {
       const traceId = randomUUID();
@@ -2231,6 +2448,14 @@ describe("Clickhouse Events Repository Test", () => {
 
       const nowMicro = Date.now() * 1000;
       const timestamp = new Date(nowMicro / 1000);
+      const observation3Input = JSON.stringify({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      const observation3Output = JSON.stringify({
+        prototype: "output",
+        safeKey: "output-value",
+      });
 
       // Create events with different I/O content and metadata
       const events = [
@@ -2267,8 +2492,8 @@ describe("Clickhouse Events Repository Test", () => {
           trace_id: traceId,
           type: "GENERATION",
           name: "test-observation-3",
-          input: "This is input for observation 3",
-          output: "This is output for observation 3",
+          input: observation3Input,
+          output: observation3Output,
           metadata_names: ["key3"],
           metadata_values: ["value3"],
           start_time: nowMicro + 2000,
@@ -2313,8 +2538,16 @@ describe("Clickhouse Events Repository Test", () => {
       // Check observation 3
       const io3 = result.find((r) => r.id === observation3Id);
       expect(io3).toBeDefined();
-      expect(io3?.input).toBe("This is input for observation 3");
-      expect(io3?.output).toBe("This is output for observation 3");
+      expect(io3?.input).toBe(observation3Input);
+      expect(io3?.output).toBe(observation3Output);
+      expect(JSON.parse(io3?.input ?? "{}")).toEqual({
+        prototype: "input",
+        safeKey: "input-value",
+      });
+      expect(JSON.parse(io3?.output ?? "{}")).toEqual({
+        prototype: "output",
+        safeKey: "output-value",
+      });
       expect(io3?.metadata).toBeDefined();
       expect(io3?.metadata?.key3).toBe("value3");
     });

@@ -13,13 +13,15 @@ import { logger } from "@langfuse/shared/src/server";
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
 import { prisma } from "@langfuse/shared/src/db";
-import { query as customQuery, viewVersions } from "@/src/features/query/types";
 import {
   prepareExecuteQuery,
   toClickhouseQueryOpts,
+} from "@langfuse/shared/query/server";
+import {
+  query as customQuery,
   validateQuery,
-} from "@/src/features/query/server/queryExecutor";
-
+  viewVersions,
+} from "@langfuse/shared/query";
 export type SSEEvent =
   | { type: "progress"; progress: object }
   | { type: "row"; row: Record<string, unknown> }

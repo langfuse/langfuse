@@ -4,13 +4,13 @@
  * Used for all main application pages when user is authenticated
  */
 
-import type { PropsWithChildren } from "react";
+import { useState, type PropsWithChildren } from "react";
 import Head from "next/head";
 import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { Toaster } from "@/src/components/ui/sonner";
 import { TopBannerProvider } from "@/src/features/top-banner";
-import { ResizableContent } from "../components/ResizableContent";
+import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
   getAvailableCloudRegionOptions,
@@ -21,6 +21,7 @@ import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
+import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 
 const CommandMenu = dynamic(
   () =>
@@ -102,6 +103,7 @@ export function AuthenticatedLayout({
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+  const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -126,6 +128,8 @@ export function AuthenticatedLayout({
     }),
   );
 
+  const hasFeaturePreviews = isLangfuseCloud;
+
   // User navigation items for sidebar dropdown
   const userNavProps = {
     user: {
@@ -136,6 +140,14 @@ export function AuthenticatedLayout({
     items: [
       { name: "Account Settings", href: "/account/settings" },
       { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
+      ...(hasFeaturePreviews
+        ? [
+            {
+              name: "Feature Preview",
+              onClick: () => setFeaturePreviewOpen(true),
+            },
+          ]
+        : []),
       ...(isLangfuseCloud
         ? [
             {
@@ -183,11 +195,20 @@ export function AuthenticatedLayout({
                 userNavProps={userNavProps}
               />
               <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-                <ResizableContent>{children}</ResizableContent>
+                <AppContentWithRightDrawer>
+                  {children}
+                </AppContentWithRightDrawer>
                 <Toaster visibleToasts={1} />
                 <CommandMenu mainNavigation={navigation.navigation} />
               </SidebarInset>
             </div>
+            {hasFeaturePreviews ? (
+              <ControlledFeaturePreviewModal
+                session={session}
+                open={featurePreviewOpen}
+                onOpenChange={setFeaturePreviewOpen}
+              />
+            ) : null}
           </div>
         </SidebarProvider>
       </TopBannerProvider>

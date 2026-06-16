@@ -16,6 +16,7 @@ import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import { isPrismaException } from "@/src/utils/exceptions";
 import {
   createUnstablePublicApiAuthError,
   createUnstablePublicApiRequestValidationError,
@@ -59,6 +60,19 @@ export type AuthedProjectAPIRouteConfig<
    * (which receives accessLevel "scores").
    */
   allowedAccessLevels?: RouteAccessLevel[];
+  /**
+   * Whether in-app agent API keys can call this route without additional confirmation. Defaults to false.
+   * Only set this to true on non-mutating (GET) routes that should be callable by the in-app agent.
+   */
+  allowInAppAgentKey?: boolean;
+  /**
+   * When true, this route returns 404 if LANGFUSE_MIGRATION_V4_WRITE_MODE is
+   * "events_only". Set this on routes that read from the legacy traces or
+   * observations ClickHouse tables without an events_full fallback — those
+   * tables are no longer populated in events_only mode and would silently
+   * return stale or empty data.
+   */
+  rejectInEventsOnlyMode?: boolean;
   fn: (params: {
     query: z.infer<TQuery>;
     body: z.infer<TBody>;
@@ -85,6 +99,7 @@ export type AuthedProjectAPIRouteConfig<
 async function verifyApiKeyAuth(
   authHeader: string | undefined,
   allowedAccessLevels: RouteAccessLevel[] = ["project"],
+  allowInAppAgentKey = false,
 ): Promise<
   AuthHeaderValidVerificationResult & {
     scope: { projectId: string; accessLevel: RouteAccessLevel };
@@ -93,7 +108,7 @@ async function verifyApiKeyAuth(
   const regularAuth = await new ApiAuthService(
     prisma,
     redis,
-  ).verifyAuthHeaderAndReturnScope(authHeader);
+  ).verifyAuthHeaderAndReturnScope(authHeader, { allowInAppAgentKey });
 
   if (!regularAuth.validKey) {
     throw { status: 401, message: regularAuth.error };
@@ -223,6 +238,7 @@ async function verifyAdminApiKeyAuth(req: NextApiRequest): Promise<
       apiKeyId: "ADMIN_API_KEY", // Special identifier for audit logging
       publicKey: "ADMIN_API_KEY",
       isIngestionSuspended: false,
+      isInAppAgentKey: false,
     },
   };
 }
@@ -244,6 +260,7 @@ export async function verifyAuth(
   req: NextApiRequest,
   isAdminApiKeyAuthAllowed: boolean,
   allowedAccessLevels: RouteAccessLevel[] = ["project"],
+  allowInAppAgentKey = false,
 ): Promise<
   AuthHeaderValidVerificationResult & {
     scope: { projectId: string; accessLevel: RouteAccessLevel };
@@ -260,11 +277,16 @@ export async function verifyAuth(
     return await verifyApiKeyAuth(
       req.headers.authorization,
       allowedAccessLevels,
+      allowInAppAgentKey,
     );
   }
 
   // Only regular API key auth is allowed
-  return await verifyApiKeyAuth(req.headers.authorization, allowedAccessLevels);
+  return await verifyApiKeyAuth(
+    req.headers.authorization,
+    allowedAccessLevels,
+    allowInAppAgentKey,
+  );
 }
 
 export const createAuthedProjectAPIRoute = <
@@ -275,6 +297,21 @@ export const createAuthedProjectAPIRoute = <
   routeConfig: AuthedProjectAPIRouteConfig<TQuery, TBody, TResponse>,
 ): ((req: NextApiRequest, res: NextApiResponse) => Promise<void>) => {
   return async (req: NextApiRequest, res: NextApiResponse) => {
+    // Short-circuit routes that read from legacy traces/observations tables
+    // when the deployment is in events_only mode — those tables are no longer
+    // populated, so the response would be stale or empty. Returning 404 keeps
+    // the surface area consistent with "this endpoint is not available here".
+    if (
+      routeConfig.rejectInEventsOnlyMode &&
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only"
+    ) {
+      res.status(404).json({
+        message:
+          "This endpoint is not available on deployments running in Langfuse v4 events_only mode. Learn more about Langfuse v4 at: https://langfuse.com/docs/v4",
+      });
+      return;
+    }
+
     let auth: AuthHeaderValidVerificationResult & {
       scope: { projectId: string; accessLevel: RouteAccessLevel };
     };
@@ -285,10 +322,28 @@ export const createAuthedProjectAPIRoute = <
         req,
         routeConfig.isAdminApiKeyAuthAllowed || false,
         routeConfig.allowedAccessLevels || ["project"],
+        routeConfig.allowInAppAgentKey === true,
       );
     } catch (error: any) {
-      const statusCode = error.status || 401;
-      const message = error.message || "Authentication failed";
+      if (isPrismaException(error)) {
+        traceException(error);
+
+        if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
+          return sendUnstablePublicApiErrorResponse(
+            res,
+            createUnstablePublicApiAuthError({
+              statusCode: 503,
+              message: "Service Unavailable",
+            }),
+          );
+        }
+
+        res.status(503).json({ message: "Service Unavailable" });
+        return;
+      }
+
+      const statusCode = error.status ?? 401;
+      const message = error.message ?? "Authentication failed";
 
       if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
         return sendUnstablePublicApiErrorResponse(
@@ -370,6 +425,7 @@ export const createAuthedProjectAPIRoute = <
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       projectId: auth.scope.projectId,
+      apiKeyId: auth.scope.apiKeyId,
     });
     return opentelemetry.context.with(ctx, async () => {
       const response = await routeConfig.fn({

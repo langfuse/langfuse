@@ -6,15 +6,22 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateBlobStorageIntegrationRequest,
+  toInternalExportSource,
+  toPublicExportSource,
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
+  type ObservationFieldGroupFull,
   LangfuseNotFoundError,
   UnauthorizedError,
   ForbiddenError,
+  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
+import { assertLegacyBlobExportSourceAllowedForUpsert } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowedForUpsert";
+import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { env } from "@/src/env.mjs";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -87,6 +94,9 @@ async function handleGetBlobStorageIntegrations(
       exportMode: integration.exportMode,
       exportStartDate: integration.exportStartDate,
       compressed: integration.compressed,
+      exportSource: toPublicExportSource(integration.exportSource),
+      exportFieldGroups:
+        integration.exportFieldGroups as ObservationFieldGroupFull[],
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -142,11 +152,49 @@ async function handleUpsertBlobStorageIntegration(
   // Check if the project exists and belongs to the organization
   const project = await prisma.project.findUnique({
     where: { id: validatedData.projectId },
-    select: { id: true, orgId: true },
+    select: { id: true, orgId: true, createdAt: true },
   });
   if (!project || project.orgId !== authCheck.scope.orgId) {
     throw new LangfuseNotFoundError("Project not found");
   }
+
+  const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+  const isV4PreviewEnabled =
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
+  const internalExportSource =
+    validatedData.exportSource != null
+      ? toInternalExportSource(validatedData.exportSource)
+      : undefined;
+
+  // Single conditional read serving both write-time gates: the legacy upsert
+  // gate needs the row's createdAt when exportSource is provided; the enriched
+  // gate needs the persisted exportSource when it is omitted (partial PUT) and
+  // enriched export is unavailable, so a stale enriched value is rejected.
+  const existingIntegration =
+    internalExportSource !== undefined ||
+    !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
+      ? await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: validatedData.projectId },
+          select: { createdAt: true, exportSource: true },
+        })
+      : null;
+
+  if (internalExportSource) {
+    assertLegacyBlobExportSourceAllowedForUpsert({
+      project,
+      existingIntegration,
+      nextInternalExportSource: internalExportSource,
+      isCloud,
+    });
+  }
+
+  assertEnrichedBlobExportSourceAllowed({
+    nextInternalExportSource: internalExportSource,
+    existingExportSource: existingIntegration?.exportSource,
+    isCloud,
+    isV4PreviewEnabled,
+  });
 
   await auditLog({
     action: "update",
@@ -159,6 +207,14 @@ async function handleUpsertBlobStorageIntegration(
   const integration = await upsertBlobStorageIntegration({
     prisma,
     projectId: validatedData.projectId,
+    // New Cloud rows default to EVENTS when exportSource is omitted: a
+    // brand-new row is post-cutoff, so the legacy column default would trip
+    // refuseLegacyOnCreate and fail a partial PUT that never mentioned
+    // exportSource. Substituted in-transaction to avoid a TOCTOU window.
+    forceEventsOnCreate: validatedData.exportSource == null && isCloud,
+    // In-transaction backstop: a concurrent DELETE can flip this upsert to
+    // CREATE; never let a new Cloud row be born with a legacy source.
+    refuseLegacyOnCreate: isCloud,
     data: {
       type: validatedData.type,
       bucketName: validatedData.bucketName,
@@ -174,6 +230,8 @@ async function handleUpsertBlobStorageIntegration(
       exportMode: validatedData.exportMode,
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
+      exportSource: internalExportSource,
+      exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
     },
   });
 
@@ -194,6 +252,9 @@ async function handleUpsertBlobStorageIntegration(
     exportMode: integration.exportMode,
     exportStartDate: integration.exportStartDate,
     compressed: integration.compressed,
+    exportSource: toPublicExportSource(integration.exportSource),
+    exportFieldGroups:
+      integration.exportFieldGroups as ObservationFieldGroupFull[],
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
+import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server";
 
 describe("organization API keys trpc", () => {
   const organizationId = "seed-org-id";
@@ -59,11 +60,40 @@ describe("organization API keys trpc", () => {
     environment: {} as any,
   };
 
+  const adminSession: Session = {
+    expires: "1",
+    user: {
+      id: "user-3",
+      canCreateOrganizations: true,
+      name: "Admin User",
+      organizations: [
+        {
+          id: organizationId,
+          name: "Test Organization",
+          role: "ADMIN",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          projects: [],
+        },
+      ],
+      featureFlags: {
+        excludeClickhouseRead: false,
+        templateFlag: true,
+      },
+      admin: false,
+    },
+    environment: {} as any,
+  };
+
   const ownerCtx = createInnerTRPCContext({ session: ownerSession });
   const ownerCaller = appRouter.createCaller({ ...ownerCtx, prisma });
 
   const memberCtx = createInnerTRPCContext({ session: memberSession });
   const memberCaller = appRouter.createCaller({ ...memberCtx, prisma });
+
+  const adminCtx = createInnerTRPCContext({ session: adminSession });
+  const adminCaller = appRouter.createCaller({ ...adminCtx, prisma });
 
   const unAuthedCtx = createInnerTRPCContext({ session: null });
   const unAuthedCaller = appRouter.createCaller({ ...unAuthedCtx, prisma });
@@ -92,9 +122,36 @@ describe("organization API keys trpc", () => {
       expect(newKey?.displaySecretKey).toBeDefined();
     });
 
+    it("filters in-app agent API keys", async () => {
+      const inAppAgentKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: organizationId,
+        scope: "ORGANIZATION",
+        note: "In-app agent key hidden from org UI",
+        isInAppAgentKey: true,
+      });
+
+      const apiKeys = await ownerCaller.organizationApiKeys.byOrganizationId({
+        orgId: organizationId,
+      });
+
+      expect(apiKeys.map((key) => key.id)).not.toContain(inAppAgentKey.id);
+      expect(apiKeys.map((key) => key.note)).not.toContain(
+        "In-app agent key hidden from org UI",
+      );
+    });
+
     it("regular member cannot fetch organization API keys", async () => {
       await expect(
         memberCaller.organizationApiKeys.byOrganizationId({
+          orgId: organizationId,
+        }),
+      ).rejects.toThrow(TRPCError);
+    });
+
+    it("admin cannot fetch organization API keys", async () => {
+      await expect(
+        adminCaller.organizationApiKeys.byOrganizationId({
           orgId: organizationId,
         }),
       ).rejects.toThrow(TRPCError);
@@ -125,6 +182,15 @@ describe("organization API keys trpc", () => {
     it("regular member cannot create organization API keys", async () => {
       await expect(
         memberCaller.organizationApiKeys.create({
+          orgId: organizationId,
+          note: "Test API Key",
+        }),
+      ).rejects.toThrow(TRPCError);
+    });
+
+    it("admin cannot create organization API keys", async () => {
+      await expect(
+        adminCaller.organizationApiKeys.create({
           orgId: organizationId,
           note: "Test API Key",
         }),
@@ -166,6 +232,29 @@ describe("organization API keys trpc", () => {
       expect(updatedKey?.note).toBe("Updated Note");
     });
 
+    it("does not update in-app agent API keys", async () => {
+      const inAppAgentKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: organizationId,
+        scope: "ORGANIZATION",
+        note: "Original in-app agent note",
+        isInAppAgentKey: true,
+      });
+
+      await expect(
+        ownerCaller.organizationApiKeys.updateNote({
+          orgId: organizationId,
+          keyId: inAppAgentKey.id,
+          note: "Updated in-app agent note",
+        }),
+      ).rejects.toThrow();
+
+      const persistedKey = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: inAppAgentKey.id },
+      });
+      expect(persistedKey.note).toBe("Original in-app agent note");
+    });
+
     it("regular member cannot update API key note", async () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
@@ -176,6 +265,23 @@ describe("organization API keys trpc", () => {
       // Try to update as member
       await expect(
         memberCaller.organizationApiKeys.updateNote({
+          orgId: organizationId,
+          keyId: apiKeyResult.id,
+          note: "Updated Note",
+        }),
+      ).rejects.toThrow(TRPCError);
+    });
+
+    it("admin cannot update API key note", async () => {
+      // Create a key as owner
+      const apiKeyResult = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        note: "Original Note",
+      });
+
+      // Try to update as admin
+      await expect(
+        adminCaller.organizationApiKeys.updateNote({
           orgId: organizationId,
           keyId: apiKeyResult.id,
           note: "Updated Note",
@@ -207,6 +313,26 @@ describe("organization API keys trpc", () => {
       expect(deletedKey).toBeUndefined();
     });
 
+    it("does not delete in-app agent API keys", async () => {
+      const inAppAgentKey = await createAndAddApiKeysToDb({
+        prisma,
+        entityId: organizationId,
+        scope: "ORGANIZATION",
+        isInAppAgentKey: true,
+      });
+
+      await expect(
+        ownerCaller.organizationApiKeys.delete({
+          orgId: organizationId,
+          id: inAppAgentKey.id,
+        }),
+      ).resolves.toBe(false);
+
+      await expect(
+        prisma.apiKey.findUniqueOrThrow({ where: { id: inAppAgentKey.id } }),
+      ).resolves.toBeDefined();
+    });
+
     it("regular member cannot delete API key", async () => {
       // Create a key as owner
       const apiKeyResult = await ownerCaller.organizationApiKeys.create({
@@ -217,6 +343,22 @@ describe("organization API keys trpc", () => {
       // Try to delete as member
       await expect(
         memberCaller.organizationApiKeys.delete({
+          orgId: organizationId,
+          id: apiKeyResult.id,
+        }),
+      ).rejects.toThrow(TRPCError);
+    });
+
+    it("admin cannot delete API key", async () => {
+      // Create a key as owner
+      const apiKeyResult = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        note: "To Be Deleted",
+      });
+
+      // Try to delete as admin
+      await expect(
+        adminCaller.organizationApiKeys.delete({
           orgId: organizationId,
           id: apiKeyResult.id,
         }),

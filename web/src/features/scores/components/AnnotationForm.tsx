@@ -5,7 +5,6 @@ import {
   MessageCircle,
   X,
   Archive,
-  Loader2,
   Check,
   Trash,
 } from "lucide-react";
@@ -71,6 +70,7 @@ import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreCon
 import { useRouter } from "next/router";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
 import { Skeleton } from "@/src/components/ui/skeleton";
+import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 const CHAR_CUTOFF = 6;
 
@@ -191,7 +191,7 @@ function AnnotateHeader({
         <div className="flex items-center justify-end" key="saving-spinner">
           <div className="mr-1 items-center justify-center">
             {showSaving ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Spinner size="xxs" />
             ) : (
               <Check className="h-3 w-3" />
             )}
@@ -208,6 +208,16 @@ function AnnotateHeader({
 
 const isInputDisabled = (config: ScoreConfigDomain) => {
   return config.isArchived;
+};
+
+const getEmptySelectedConfigIdsStorageKey = (scoreTarget: ScoreTarget) => {
+  if (scoreTarget.type === "session") {
+    return "emptySelectedConfigIds:session";
+  }
+
+  return scoreTarget.observationId
+    ? "emptySelectedConfigIds:observation"
+    : "emptySelectedConfigIds:trace";
 };
 
 function InnerAnnotationForm<Target extends ScoreTarget>({
@@ -257,6 +267,8 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     isInputDisabled,
     insert,
     remove,
+    emptySelectedConfigIdsStorageKey:
+      configControl.emptySelectedConfigIdsStorageKey,
   });
 
   const [showSaving, setShowSaving] = useState(false);
@@ -926,10 +938,13 @@ export function AnnotationForm<Target extends ScoreTarget>({
   configSelection = { mode: "selectable" },
 }: AnnotationFormType<Target>) {
   const { projectId } = scoreMetadata;
+  const emptySelectedConfigIdsStorageKey =
+    getEmptySelectedConfigIdsStorageKey(scoreTarget);
   const { isLoading, availableConfigs, selectedConfigIds } =
     useAnnotationScoreConfigs({
       projectId,
       configSelection,
+      emptySelectedConfigIdsStorageKey,
     });
 
   // Step 1: Transform server scores to annotation scores
@@ -1003,6 +1018,7 @@ export function AnnotationForm<Target extends ScoreTarget>({
       configControl={{
         configs: availableConfigs,
         allowManualSelection: configSelection.mode === "selectable",
+        emptySelectedConfigIdsStorageKey,
       }}
     />
   );

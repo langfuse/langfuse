@@ -4,9 +4,16 @@ types:
     docs: |
       The evaluator engine type.
 
-      The unstable public API currently supports only LLM-as-a-judge evaluators.
+      The unstable public API supports LLM-as-a-judge and code evaluators.
     enum:
       - llm_as_judge
+      - code
+
+  CodeEvaluatorSourceCodeLanguage:
+    docs: Code evaluator runtime language.
+    enum:
+      - PYTHON
+      - TYPESCRIPT
 
   EvaluatorScope:
     docs: |
@@ -25,7 +32,7 @@ types:
       Choose the target first, because it changes both the valid filter columns and the valid variable-mapping sources:
       - `observation` evaluates live-ingested observations such as generations, spans, and events.
         It supports mapping from `input`, `output`, and `metadata`.
-      - `experiment` evaluates live experiment executions and can additionally map `expected_output`.
+      - `experiment` evaluates live experiment executions and can additionally map `expected_output` and `experiment_item_metadata`.
         It currently supports filtering by `datasetId`.
         Discover valid dataset IDs with `GET /api/public/v2/datasets`, then use the returned dataset `id` values in your filter.
     enum:
@@ -52,18 +59,20 @@ types:
 
       Target-specific rules:
       - `target=observation` supports `input`, `output`, and `metadata`
-      - `target=experiment` supports `input`, `output`, `metadata`, and `expected_output`
+      - `target=experiment` supports `input`, `output`, `metadata`, `expected_output`, and `experiment_item_metadata`
 
       Source semantics:
       - `input`: the observation or experiment input payload
       - `output`: the observation or experiment output payload
       - `metadata`: the metadata object for the target. Combine with `jsonPath` when you need one nested field instead of the whole object.
       - `expected_output`: the experiment item's expected output. Only valid for `target=experiment`.
+      - `experiment_item_metadata`: the experiment item's metadata object. Only valid for `target=experiment`.
     enum:
       - input
       - output
       - metadata
       - expected_output
+      - experiment_item_metadata
 
   EvaluatorModelConfig:
     docs: |
@@ -407,7 +416,9 @@ types:
 
   EvaluationRuleMapping:
     docs: |
-      Maps one evaluator prompt variable to one source field from the target object.
+      Maps one evaluator variable to one source field from the target object.
+
+      Manual mappings are used for `llm_as_judge` evaluators. `code` evaluators use a fixed runtime mapping managed by Langfuse.
 
       How to build a valid mapping list:
       1. Create the evaluator or fetch it with `GET /evaluators/{id}`.
@@ -420,7 +431,7 @@ types:
 
       Recovery guidance:
       - `invalid_variable_mapping`: the variable name is unknown for this evaluator, or the selected `source` is not valid for the chosen `target`
-      - `missing_variable_mapping`: one or more evaluator variables are not mapped yet
+      - `missing_variable_mapping`: one or more LLM-as-judge evaluator variables are not mapped yet
       - `duplicate_variable_mapping`: the same evaluator variable appears more than once
       - `invalid_json_path`: the JSONPath expression is malformed. Remove it or correct it.
     properties:
@@ -437,7 +448,7 @@ types:
 
           Quick reference:
           - `target=observation`: `input`, `output`, `metadata`
-          - `target=experiment`: `input`, `output`, `metadata`, `expected_output`
+          - `target=experiment`: `input`, `output`, `metadata`, `expected_output`, `experiment_item_metadata`
       jsonPath:
         type: optional<string>
         docs: |

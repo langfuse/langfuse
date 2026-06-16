@@ -7,15 +7,16 @@ RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
-RUN npm install turbo@2.9.5 --global
+RUN npm install turbo@2.9.14 --global
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
-RUN corepack prepare pnpm@10.33.0 --activate
+RUN corepack prepare pnpm@11.4.0 --activate
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
 # package managers and build-only CLIs only increase exposure to CVEs -> remove them
-RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm && \
+RUN rm -rf /usr/local/lib/node_modules/corepack /usr/local/lib/node_modules/npm \
+            /root/.cache/node/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS pruner
@@ -54,7 +55,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 # we only need the prod + generated prisma client plus .prisma artifacts
 # @langfuse/shared still pulls in next-auth transitively, so keep the deploy output
 # intact here instead of pruning node_modules in Docker.
-# also, pnpm v10 needs the pnpm legacy deploy implementation, we didn't upgrade that yet
+# Keep legacy deploy until the worker Docker image is verified with pnpm's default deploy implementation.
 RUN pnpm --filter worker deploy --legacy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \

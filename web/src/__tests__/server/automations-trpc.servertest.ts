@@ -291,6 +291,79 @@ describe("automations trpc", () => {
 
       expect(response).toEqual([]);
     });
+
+    describe("eventSource narrowing", () => {
+      async function createAutomation(opts: {
+        projectId: string;
+        name: string;
+        eventSource: "prompt" | "monitor";
+        filter: unknown[];
+        eventActions?: string[];
+      }) {
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId: opts.projectId,
+            eventSource: opts.eventSource,
+            eventActions: opts.eventActions ?? [],
+            filter: opts.filter as object,
+            status: JobConfigState.ACTIVE,
+          },
+        });
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId: opts.projectId,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              apiVersion: { prompt: "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+        await prisma.automation.create({
+          data: {
+            projectId: opts.projectId,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: opts.name,
+          },
+        });
+      }
+
+      it("filters by eventSource at the DB layer", async () => {
+        const { project, caller } = await prepare();
+
+        await createAutomation({
+          projectId: project.id,
+          name: "prompt-automation",
+          eventSource: "prompt",
+          filter: [],
+        });
+        await createAutomation({
+          projectId: project.id,
+          name: "monitor-automation",
+          eventSource: "monitor",
+          filter: [],
+        });
+
+        const monitor = await caller.automations.getAutomations({
+          projectId: project.id,
+          eventSource: "monitor",
+        });
+        expect(monitor.map((a) => a.name)).toEqual(["monitor-automation"]);
+
+        const prompt = await caller.automations.getAutomations({
+          projectId: project.id,
+          eventSource: "prompt",
+        });
+        expect(prompt.map((a) => a.name)).toEqual(["prompt-automation"]);
+      });
+    });
   });
 
   describe("automations.getAutomation", () => {

@@ -61,12 +61,24 @@ export const env = createEnv({
       // VERCEL_URL doesn't include `https` so it can't be validated as a URL
       process.env.VERCEL ? z.string().min(1) : z.url(),
     ),
+    LANGFUSE_MCP_ALLOWED_HOSTS: z
+      .string()
+      .optional()
+      .transform((val) =>
+        val
+          ? val
+              .split(",")
+              .map((host) => host.toLowerCase().trim())
+              .filter(Boolean)
+          : [],
+      ),
     NEXTAUTH_COOKIE_DOMAIN: z.string().optional(),
     LANGFUSE_TEAM_SLACK_WEBHOOK: z.url().optional(),
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK: z.url().optional(),
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
+    LANGFUSE_ENABLE_WEB_CALLOUTS: z.enum(["true", "false"]).default("false"),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -244,6 +256,9 @@ export const env = createEnv({
     AUTH_IGNORE_ACCOUNT_FIELDS: z.string().optional(),
     AUTH_DISABLE_USERNAME_PASSWORD: z.enum(["true", "false"]).optional(),
     AUTH_DISABLE_SIGNUP: z.enum(["true", "false"]).optional(),
+    AUTH_EMAIL_VERIFICATION_REQUIRED: z
+      .enum(["true", "false"])
+      .default("false"),
     AUTH_SESSION_MAX_AGE: z.coerce
       .number()
       .int()
@@ -280,20 +295,6 @@ export const env = createEnv({
     CLICKHOUSE_USER: z.string(),
     CLICKHOUSE_PASSWORD: z.string(),
     CLICKHOUSE_CLUSTER_ENABLED: z.enum(["true", "false"]).default("true"),
-    CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
-      .number()
-      .default(32_000_000_000), // ~32GB
-    CLICKHOUSE_USE_QUERY_CONDITION_CACHE: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION: z
-      .enum(["true", "false"])
-      .default("false"),
-    LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS: z.coerce
-      .number()
-      .int()
-      .nonnegative()
-      .default(168), // 7 days
 
     // EE ui customization
     LANGFUSE_UI_API_HOST: z.string().optional(),
@@ -382,7 +383,6 @@ export const env = createEnv({
       .positive()
       .default(50_000),
     PLAIN_AUTHENTICATION_SECRET: z.string().optional(),
-    PLAIN_API_KEY: z.string().optional(),
     PLAIN_CARDS_API_TOKEN: z.string().optional(),
     PYLON_API_KEY: z.string().optional(),
 
@@ -412,13 +412,6 @@ export const env = createEnv({
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
       .enum(["true", "false"])
       .default("false"),
-    // Whether to propagate the toTimestamp restriction (including a server-side offset)
-    // onto the observations CTE in GET /api/public/traces. Can be used to improve performance
-    // for self-hosters that have a trace known trace duration of less than multiple hours.
-    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS: z
-      .enum(["true", "false"])
-      .default("false"),
-
     // API Traces endpoint controls (may induce breaking changes on API when changed!)
     LANGFUSE_API_TRACES_DEFAULT_DATE_RANGE_DAYS: z.coerce
       .number()
@@ -431,20 +424,25 @@ export const env = createEnv({
     LANGFUSE_API_TRACES_DEFAULT_FIELDS: z.string().optional(),
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS: z.string().optional(),
 
-    // Events table migration
-    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS: z
+    // V4 preview opt-in. See LFE-9778.
+    LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: z
       .enum(["true", "false"])
       .default("false"),
 
-    // Events table for UI/tRPC routes (separate from public API flag)
-    LANGFUSE_ENABLE_EVENTS_TABLE_UI: z.enum(["true", "false"]).default("false"),
-
-    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS: z
+    // Legacy tracing search controls
+    LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH: z
       .enum(["true", "false"])
       .default("false"),
+    // V4 write mode. Mirrors worker/src/env.ts so the web package can gate
+    // public API routes that rely on the legacy traces/observations tables.
+    // The worker owns the writes; the web only needs to know whether legacy
+    // tables are still being populated to decide whether to serve reads.
+    LANGFUSE_MIGRATION_V4_WRITE_MODE: z
+      .enum(["legacy", "dual", "events_only"])
+      .default("legacy"),
 
-    // v2 APIs (events table based) - disabled by default for self-hosters
-    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS: z
+    // Temporary kill-switch for the observations v2 subquery-IN rewrite.
+    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
       .enum(["true", "false"])
       .default("false"),
 
@@ -463,6 +461,10 @@ export const env = createEnv({
         }
         return map;
       }),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    LANGFUSE_AWS_BEDROCK_REGION: z.string().optional(),
+    LANGFUSE_IN_APP_AGENT_AWS_PROFILE: z.string().optional(),
   },
 
   /**
@@ -479,6 +481,8 @@ export const env = createEnv({
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z
       .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
       .optional(),
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
     NEXT_PUBLIC_DEMO_PROJECT_ID: z.string().optional(),
     NEXT_PUBLIC_DEMO_ORG_ID: z.string().optional(),
     NEXT_PUBLIC_SIGN_UP_DISABLED: z.enum(["true", "false"]).default("false"),
@@ -508,11 +512,22 @@ export const env = createEnv({
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
     NEXTAUTH_COOKIE_DOMAIN: process.env.NEXTAUTH_COOKIE_DOMAIN,
     NEXTAUTH_URL: process.env.NEXTAUTH_URL,
+    LANGFUSE_MCP_ALLOWED_HOSTS: process.env.LANGFUSE_MCP_ALLOWED_HOSTS,
     NEXT_PUBLIC_LANGFUSE_CLOUD_REGION:
       process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF,
+    NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF:
+      process.env.NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF,
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
+    LANGFUSE_ENABLE_WEB_CALLOUTS: process.env.LANGFUSE_ENABLE_WEB_CALLOUTS,
+    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+    LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
+    LANGFUSE_IN_APP_AGENT_AWS_PROFILE:
+      process.env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE,
     LANGFUSE_TEAM_SLACK_WEBHOOK: process.env.LANGFUSE_TEAM_SLACK_WEBHOOK,
     LANGFUSE_NEW_USER_SIGNUP_WEBHOOK:
       process.env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK,
@@ -693,6 +708,8 @@ export const env = createEnv({
       process.env.AUTH_DOMAINS_WITH_SSO_ENFORCEMENT,
     AUTH_DISABLE_USERNAME_PASSWORD: process.env.AUTH_DISABLE_USERNAME_PASSWORD,
     AUTH_DISABLE_SIGNUP: process.env.AUTH_DISABLE_SIGNUP,
+    AUTH_EMAIL_VERIFICATION_REQUIRED:
+      process.env.AUTH_EMAIL_VERIFICATION_REQUIRED,
     AUTH_SESSION_MAX_AGE: process.env.AUTH_SESSION_MAX_AGE,
     AUTH_HTTP_PROXY: process.env.AUTH_HTTP_PROXY,
     AUTH_HTTPS_PROXY: process.env.AUTH_HTTPS_PROXY,
@@ -736,7 +753,6 @@ export const env = createEnv({
     // Other
     NEXT_PUBLIC_PLAIN_APP_ID: process.env.NEXT_PUBLIC_PLAIN_APP_ID,
     PLAIN_AUTHENTICATION_SECRET: process.env.PLAIN_AUTHENTICATION_SECRET,
-    PLAIN_API_KEY: process.env.PLAIN_API_KEY,
     PLAIN_CARDS_API_TOKEN: process.env.PLAIN_CARDS_API_TOKEN,
     PYLON_API_KEY: process.env.PYLON_API_KEY,
     // clickhouse
@@ -746,14 +762,6 @@ export const env = createEnv({
     CLICKHOUSE_USER: process.env.CLICKHOUSE_USER,
     CLICKHOUSE_PASSWORD: process.env.CLICKHOUSE_PASSWORD,
     CLICKHOUSE_CLUSTER_ENABLED: process.env.CLICKHOUSE_CLUSTER_ENABLED,
-    CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY:
-      process.env.CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY,
-    CLICKHOUSE_USE_QUERY_CONDITION_CACHE:
-      process.env.CLICKHOUSE_USE_QUERY_CONDITION_CACHE,
-    LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION:
-      process.env.LANGFUSE_ENABLE_SINGLE_LEVEL_QUERY_OPTIMIZATION,
-    LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS:
-      process.env.LANGFUSE_ROOT_EVENT_CONDITION_MAX_WINDOW_HOURS,
     // EE ui customization
     LANGFUSE_UI_API_HOST: process.env.LANGFUSE_UI_API_HOST,
     LANGFUSE_UI_DOCUMENTATION_HREF: process.env.LANGFUSE_UI_DOCUMENTATION_HREF,
@@ -822,8 +830,6 @@ export const env = createEnv({
     LANGFUSE_AI_FEATURES_HOST: process.env.LANGFUSE_AI_FEATURES_HOST,
 
     // Api Performance Flags
-    LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS:
-      process.env.LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS,
     LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS:
       process.env.LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS,
 
@@ -843,15 +849,15 @@ export const env = createEnv({
       process.env.LANGFUSE_API_TRACES_DEFAULT_FIELDS,
     LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS:
       process.env.LANGFUSE_API_TRACEBYID_DEFAULT_FIELDS,
-    // Events table migration
-    LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS:
-      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS,
-    LANGFUSE_ENABLE_EVENTS_TABLE_UI:
-      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_UI,
-    LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS:
-      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS,
-    LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS:
-      process.env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS,
+    LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN:
+      process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
+    LANGFUSE_MIGRATION_V4_WRITE_MODE:
+      process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    // Legacy tracing search controls
+    LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
+      process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
+    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
+      process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
