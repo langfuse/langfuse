@@ -37,11 +37,26 @@ function spliceSpan(
  * the surgical removal (which collapses the stranded `NOT`); otherwise
  * reserialize the surgery result.
  */
-function removeWithFallback(text: string, ast: ASTNode, span: Span): string {
+function removeWithFallback(
+  text: string,
+  ast: ASTNode,
+  span: Span,
+  originalValid: boolean,
+): string {
   const surgical = removeNodeBySpan(ast, span);
   const spliced = spliceSpan(text, span.from, span.to, "");
   const reparsed = parse(spliced);
-  if (reparsed.valid && astEquals(reparsed.ast, surgical)) return spliced;
+  // Accept the splice when it reparses to the SAME AST as the surgical removal
+  // AND it is no worse than before: either valid, or the query was ALREADY
+  // invalid so we're not introducing breakage. The latter preserves a fragment
+  // the user typed and the parser flags — `-foo` stays `-foo` (red), not
+  // silently canonicalized to a `foo` search the user never confirmed. A splice
+  // that NEWLY breaks a previously-valid query (a stranded `(OR …)`, empty
+  // parens) or whose AST differs (a stranded NOT rebinding onto the neighbor)
+  // reserializes the clean surgical AST instead.
+  if (astEquals(reparsed.ast, surgical) && (reparsed.valid || !originalValid)) {
+    return spliced;
+  }
   return serialize(surgical);
 }
 
@@ -158,9 +173,11 @@ function findParenExtent(node: ASTNode, target: Span): Span | null {
  * splice would not reparse.
  */
 export function removeToken(text: string, span: Span): string {
-  const { ast } = parse(text);
-  if (ast === null) return text;
+  const parsed = parse(text);
+  if (parsed.ast === null) return text;
   // Prefer the paren extent when the span identifies a parenthesized node.
-  const target = findParenExtent(ast, span) ?? span;
-  return tidyQueryText(removeWithFallback(text, ast, target));
+  const target = findParenExtent(parsed.ast, span) ?? span;
+  return tidyQueryText(
+    removeWithFallback(text, parsed.ast, target, parsed.valid),
+  );
 }

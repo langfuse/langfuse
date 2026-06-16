@@ -22,6 +22,16 @@ describe("removeToken — semantic preservation", () => {
     expect(removeToken(text, spanOf(text, "-level:ERROR"))).toBe("env:dev");
   });
 
+  it("keeps a surviving invalid `-foo` as-is instead of stripping the dash", () => {
+    // `-foo` is an invalid free-text negation. Removing the neighbor must leave
+    // `-foo` exactly (still red), NOT silently canonicalize to `foo` and commit
+    // a free-text search the user never confirmed.
+    const text = "-foo level:ERROR";
+    expect(removeToken(text, spanOf(text, "level:ERROR"))).toBe("-foo");
+    const text2 = "level:ERROR -foo";
+    expect(removeToken(text2, spanOf(text2, "level:ERROR"))).toBe("-foo");
+  });
+
   it("splices a plain adjacent filter, preserving the neighbor unchanged", () => {
     const text = "level:ERROR env:dev";
     expect(removeToken(text, spanOf(text, "level:ERROR"))).toBe("env:dev");
