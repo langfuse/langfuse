@@ -441,6 +441,11 @@ export const env = createEnv({
       .enum(["legacy", "dual", "events_only"])
       .default("legacy"),
 
+    // Temporary kill-switch for the observations v2 subquery-IN rewrite.
+    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
+      .enum(["true", "false"])
+      .default("false"),
+
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
       .string()
@@ -851,6 +856,8 @@ export const env = createEnv({
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
+    LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
+      process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
