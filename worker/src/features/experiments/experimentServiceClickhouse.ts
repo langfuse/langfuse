@@ -204,8 +204,17 @@ async function processLLMCall(
         itemMetadata: asRecord(datasetItem.metadata),
       },
       onRootEventRecordReady: async (rootEventRecord) => {
+        const observation =
+          convertEventRecordToObservationForEval(rootEventRecord);
+        // Enrich observation with the dataset item's input so that experiment
+        // evaluators can map `experimentItemInput` to a template variable.
+        // The observation's own `input` field contains the LLM messages array,
+        // not the raw dataset item value that users typically want to evaluate.
+        if (datasetItem.input !== undefined && datasetItem.input !== null) {
+          observation.experiment_item_input = datasetItem.input;
+        }
         await scheduleExperimentObservationEvals({
-          observation: convertEventRecordToObservationForEval(rootEventRecord),
+          observation,
         });
       },
     }),
