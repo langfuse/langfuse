@@ -9,6 +9,7 @@ import { Role, Prisma } from "@langfuse/shared/src/db";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { env } from "@/src/env.mjs";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -144,7 +145,7 @@ export const userAccountRouter = createTRPCRouter({
 
     // Wrap check and delete in a serializable transaction to prevent race conditions
     // when organization owners are removed concurrently
-    await ctx.prisma.$transaction(
+    const sfdcRemovals = await ctx.prisma.$transaction(
       async (tx) => {
         // Verify user can be deleted
         const { canDelete } = await checkUserCanBeDeleted(userId, tx);
@@ -157,14 +158,40 @@ export const userAccountRouter = createTRPCRouter({
           });
         }
 
+        // Capture org memberships before the cascade delete wipes them; they
+        // are synced to SFDC only after the transaction commits. NONE roles
+        // hold no SFDC org-member bridge, so there is nothing to remove.
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: { email: true },
+        });
+        const memberships = await tx.organizationMembership.findMany({
+          where: { userId, role: { not: Role.NONE } },
+          select: { orgId: true },
+        });
+
         // Delete the user (cascade will handle related records)
         await tx.user.delete({
           where: { id: userId },
         });
+
+        return memberships.map(({ orgId }) => ({
+          orgId,
+          email: user?.email,
+        }));
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
+    );
+
+    // SFDC: remove every org-member bridge the cascade just deleted. After
+    // commit so a rolled-back delete never desyncs SFDC; removeUser never
+    // throws, so per-org failures cannot fail the mutation.
+    await Promise.all(
+      sfdcRemovals.map(({ orgId, email }) =>
+        getSfdcService()?.removeUser({ orgId, userId, email }),
+      ),
     );
 
     return {
