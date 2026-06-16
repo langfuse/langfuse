@@ -39,8 +39,16 @@ const getAuditLogErrorType = (error: unknown) =>
       ? error.name
       : "UnknownError";
 
-const getErrorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (!(error instanceof Error)) return fallback;
+  // Walk one level of cause to surface the SDK error (e.g. "Access Denied")
+  // without exposing arbitrarily deep internal details.
+  const cause = error.cause;
+  if (cause instanceof Error && cause.message) {
+    return `${error.message}: ${cause.message}`.slice(0, 500);
+  }
+  return error.message;
+};
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
