@@ -89,9 +89,14 @@ export default function Traces() {
           ),
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        actionButtonsRight: searchBarActive ? (
-          <div ref={setHeaderActions} className="flex items-center gap-2" />
-        ) : undefined,
+        // Mirror observations/index.tsx: only mount the portal target when its
+        // consumer (the events table) does. Onboarding is handled by the early-
+        // return Page above; the remaining window to guard is the pre-beta-flag
+        // init transient.
+        actionButtonsRight:
+          searchBarActive && !isInitializing ? (
+            <div ref={setHeaderActions} className="flex items-center gap-2" />
+          ) : undefined,
         tabsProps:
           isBetaEnabled || isInitializing
             ? undefined
