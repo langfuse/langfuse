@@ -8,13 +8,18 @@ const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
 function parseAllowedMcpHostEntry(
   entry: string,
   fallbackProtocol: string,
-): { hostname: string; origin: string } {
+): { hostname: string; origin: string } | null {
   const trimmedEntry = entry.trim();
-  const url = new URL(
-    /^https?:\/\//i.test(trimmedEntry)
-      ? trimmedEntry
-      : `${fallbackProtocol}//${trimmedEntry}`,
-  );
+  let url: URL;
+  try {
+    url = new URL(
+      /^https?:\/\//i.test(trimmedEntry)
+        ? trimmedEntry
+        : `${fallbackProtocol}//${trimmedEntry}`,
+    );
+  } catch {
+    return null;
+  }
 
   if (
     url.username ||
@@ -24,9 +29,7 @@ function parseAllowedMcpHostEntry(
     url.hash ||
     url.hostname.includes("*")
   ) {
-    throw new Error(
-      `Invalid LANGFUSE_MCP_ALLOWED_HOSTS entry: ${trimmedEntry}`,
-    );
+    return null;
   }
 
   return {
@@ -47,6 +50,8 @@ function getAllowedMcpOriginsAndHostnames() {
 
   for (const entry of env.LANGFUSE_MCP_ALLOWED_HOSTS) {
     const allowedHost = parseAllowedMcpHostEntry(entry, baseUrl.protocol);
+    if (!allowedHost) continue;
+
     allowedHostnames.add(allowedHost.hostname);
     allowedOrigins.add(allowedHost.origin);
   }

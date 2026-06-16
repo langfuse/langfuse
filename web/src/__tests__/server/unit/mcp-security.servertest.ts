@@ -35,7 +35,10 @@ describe("MCP request security", () => {
   });
 
   it("rejects hosts that are not configured exactly", () => {
-    mockEnv.env.LANGFUSE_MCP_ALLOWED_HOSTS = ["internal-langfuse.example.com"];
+    mockEnv.env.LANGFUSE_MCP_ALLOWED_HOSTS = [
+      "*.example.com",
+      "internal-langfuse.example.com/api",
+    ];
 
     expect(() =>
       validateMcpRequestSecurity(mockRequest({ host: "evil.example.com" })),
