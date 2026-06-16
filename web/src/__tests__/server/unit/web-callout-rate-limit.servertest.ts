@@ -1,0 +1,150 @@
+import { RateLimiterRes } from "rate-limiter-flexible";
+
+import {
+  WEB_CALLOUT_RATE_LIMIT_REDIS_KEY_PREFIX,
+  WebCalloutRateLimitService,
+  resetWebCalloutInFlightLimitsForTests,
+  withWebCalloutInFlightLimit,
+} from "@/src/features/web-callouts/server/rateLimit";
+
+const mocks = vi.hoisted(() => ({
+  consume: vi.fn(),
+  options: [] as Array<Record<string, unknown>>,
+}));
+
+vi.mock("rate-limiter-flexible", () => {
+  class MockRateLimiterRes {
+    constructor(public msBeforeNext = 1000) {}
+  }
+
+  class MockRateLimiterRedis {
+    consume = mocks.consume;
+
+    constructor(options: Record<string, unknown>) {
+      mocks.options.push(options);
+    }
+  }
+
+  return {
+    RateLimiterRedis: MockRateLimiterRedis,
+    RateLimiterRes: MockRateLimiterRes,
+  };
+});
+
+vi.mock("@langfuse/shared/src/server", () => ({
+  ClickHouseClientManager: {
+    getInstance: () => ({ closeAllConnections: vi.fn() }),
+  },
+  createNewRedisInstance: vi.fn(),
+  logger: { debug: vi.fn(), warn: vi.fn() },
+  recordIncrement: vi.fn(),
+  redis: null,
+  redisQueueRetryOptions: {},
+}));
+
+describe("web callout rate limiting", () => {
+  const context = {
+    orgId: "org-1",
+    projectId: "project-1",
+    endpointId: "endpoint-1",
+    userId: "user-1",
+  };
+
+  const redis = () =>
+    ({
+      status: "ready",
+      disconnect: vi.fn(),
+    }) as any;
+
+  const pending = () => new Promise<never>(() => undefined);
+  const expectUnavailable = (promise: Promise<unknown>) =>
+    expect(promise).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+      message: "Web callout invocation is temporarily unavailable.",
+    });
+
+  beforeEach(() => {
+    WebCalloutRateLimitService.shutdown();
+    resetWebCalloutInFlightLimitsForTests();
+    mocks.consume.mockReset();
+    mocks.consume.mockResolvedValue({});
+    mocks.options.length = 0;
+  });
+
+  afterEach(() => {
+    WebCalloutRateLimitService.shutdown();
+    resetWebCalloutInFlightLimitsForTests();
+  });
+
+  it("uses scoped 10/60 Redis buckets and fails closed on limiter problems", async () => {
+    const client = redis();
+    await WebCalloutRateLimitService.getInstance(client).consume(context);
+
+    expect(mocks.options).toMatchObject([
+      {
+        keyPrefix: `${WEB_CALLOUT_RATE_LIMIT_REDIS_KEY_PREFIX}:user`,
+        points: 10,
+        duration: 60,
+      },
+      {
+        keyPrefix: `${WEB_CALLOUT_RATE_LIMIT_REDIS_KEY_PREFIX}:endpoint`,
+        points: 60,
+        duration: 60,
+      },
+    ]);
+    expect(mocks.options.map(({ storeClient }) => storeClient)).toEqual([
+      client,
+      client,
+    ]);
+    expect(mocks.consume.mock.calls).toEqual([
+      ["org-1:project-1:endpoint-1:user-1"],
+      ["org-1:project-1:endpoint-1"],
+    ]);
+
+    WebCalloutRateLimitService.shutdown();
+    await expectUnavailable(
+      WebCalloutRateLimitService.getInstance(null).consume(context),
+    );
+
+    WebCalloutRateLimitService.shutdown();
+    mocks.consume.mockRejectedValueOnce(new Error("redis down"));
+    await expectUnavailable(
+      WebCalloutRateLimitService.getInstance(redis()).consume(context),
+    );
+
+    WebCalloutRateLimitService.shutdown();
+    mocks.consume.mockRejectedValueOnce(new (RateLimiterRes as any)(2300));
+    await expect(
+      WebCalloutRateLimitService.getInstance(redis()).consume(context),
+    ).rejects.toMatchObject({
+      code: "TOO_MANY_REQUESTS",
+      message:
+        "Web callout invocation rate limit exceeded. Please retry in 3 seconds.",
+    });
+  });
+
+  it("rejects endpoint and process concurrency above local caps", async () => {
+    const endpointSlots = Array.from({ length: 5 }, () =>
+      withWebCalloutInFlightLimit(context, pending),
+    );
+    await expect(
+      withWebCalloutInFlightLimit(context, async () => "rejected"),
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    expect(endpointSlots).toHaveLength(5);
+
+    resetWebCalloutInFlightLimitsForTests();
+    const processSlots = Array.from({ length: 25 }, (_, index) =>
+      withWebCalloutInFlightLimit(
+        { ...context, endpointId: `endpoint-${index}` },
+        pending,
+      ),
+    );
+    await expect(
+      withWebCalloutInFlightLimit(
+        { ...context, endpointId: "endpoint-2" },
+        async () => "rejected",
+      ),
+    ).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+    expect(processSlots).toHaveLength(25);
+  });
+});
