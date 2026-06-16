@@ -1,4 +1,4 @@
-import { memo, type RefObject, useMemo, useRef, useState } from "react";
+import { type RefObject, useRef, useState } from "react";
 import type { EditorView, ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { type Extension } from "@codemirror/state";
 import { Check, Copy, Loader2, Paperclip } from "lucide-react";
@@ -8,7 +8,6 @@ import { createFileDropPasteExtension } from "@/src/components/editor";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { type PendingMediaUpload } from "../hooks/useDatasetItemMediaUpload";
 import {
-  MediaEnabledFields,
   type MediaContentType,
   type MediaReturnType,
 } from "@/src/features/media/validation";
@@ -242,16 +241,29 @@ function PendingMediaTile({ fileName }: { fileName: string }) {
  */
 function DatasetItemAttachments({
   media,
+  referenceStrings = [],
   pendingUploads = [],
 }: {
-  media: MediaReturnType[];
+  media: Omit<MediaReturnType, "field">[];
+  referenceStrings?: string[];
   pendingUploads?: PendingMediaUpload[];
 }) {
-  if (media.length === 0 && pendingUploads.length === 0) return null;
+  if (
+    media.length === 0 &&
+    referenceStrings.length === 0 &&
+    pendingUploads.length === 0
+  )
+    return null;
   return (
     <div className="flex flex-col gap-2">
       <span className="text-sm font-medium">Attachments</span>
       <div className="flex flex-wrap gap-2">
+        {referenceStrings.map((referenceString) => (
+          <LangfuseMediaView
+            key={referenceString}
+            mediaReferenceString={referenceString}
+          />
+        ))}
         {media.map((m) => (
           <LangfuseMediaView
             key={m.mediaId}
@@ -288,14 +300,12 @@ export function DatasetItemSavedMediaAttachments({
     { refetchOnWindowFocus: false, refetchOnMount: false },
   );
 
-  const mediaById = new Map<string, MediaReturnType>();
+  const mediaById = new Map<string, Omit<MediaReturnType, "field">>();
   for (const reference of data ?? []) {
     if (reference.media && !mediaById.has(reference.media.mediaId)) {
       mediaById.set(reference.media.mediaId, {
         ...reference.media,
         contentType: reference.media.contentType as MediaContentType,
-        // field is required on MediaReturnType but unused by the grid
-        field: MediaEnabledFields.Input,
       });
     }
   }
@@ -306,64 +316,24 @@ export function DatasetItemSavedMediaAttachments({
 /**
  * Attachment section for the create/edit forms. Collects the media references
  * from the live field JSON (which may include just-uploaded media not yet
- * persisted), resolves them to signed URLs for preview, and shows placeholders
- * for in-flight uploads. `jsonStrings` are the raw input/expectedOutput/metadata
- * values; collection lives here so callers don't need to know about it.
+ * persisted), and shows placeholders for in-flight uploads. `jsonStrings` are
+ * the raw input/expectedOutput/metadata values; collection lives here so callers
+ * don't need to know about it.
  */
 export function DatasetItemFormMediaAttachments({
-  projectId,
   jsonStrings,
   pendingUploads,
 }: {
-  projectId: string;
   jsonStrings: (string | undefined)[];
   pendingUploads?: PendingMediaUpload[];
 }) {
-  // Recomputed each render (cheap relative to the keystroke that triggers it),
-  // but its identity is stabilized by content so the memoized resolver below
-  // only re-renders when the set of media references actually changes — typing
-  // plain text into the fields no longer churns the media previews.
   const referenceStrings = collectMediaReferenceStrings(jsonStrings);
-  const referenceKey = referenceStrings.join("\n");
-  const stableReferenceStrings = useMemo(
-    () => referenceStrings,
-    // Keyed on the joined content, not the (always-new) array identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [referenceKey],
-  );
 
   return (
-    <ResolvedMediaAttachments
-      projectId={projectId}
-      referenceStrings={stableReferenceStrings}
+    <DatasetItemAttachments
+      media={[]}
+      referenceStrings={referenceStrings}
       pendingUploads={pendingUploads}
     />
   );
 }
-
-/**
- * Resolves media reference strings to signed URLs and renders the preview grid.
- * Memoized so it re-renders only when the reference set or pending uploads
- * change, not on every keystroke in the dataset item fields.
- */
-const ResolvedMediaAttachments = memo(function ResolvedMediaAttachments({
-  projectId,
-  referenceStrings,
-  pendingUploads,
-}: {
-  projectId: string;
-  referenceStrings: string[];
-  pendingUploads?: PendingMediaUpload[];
-}) {
-  const { data } = api.datasets.resolveItemMediaReferences.useQuery(
-    { projectId, referenceStrings },
-    { refetchOnWindowFocus: false, enabled: referenceStrings.length > 0 },
-  );
-
-  return (
-    <DatasetItemAttachments
-      media={data ?? []}
-      pendingUploads={pendingUploads}
-    />
-  );
-});

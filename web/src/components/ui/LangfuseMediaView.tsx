@@ -28,7 +28,8 @@ export const LangfuseMediaView = ({
   asFileIcon = false,
 }: {
   mediaReferenceString?: string | ParsedMediaReferenceType;
-  mediaAPIReturnValue?: MediaReturnType;
+  mediaAPIReturnValue?: Omit<MediaReturnType, "field"> &
+    Partial<Pick<MediaReturnType, "field">>;
   asFileIcon?: boolean;
 }) => {
   let mediaData: { id: string; type: MediaContentType } | null = null;

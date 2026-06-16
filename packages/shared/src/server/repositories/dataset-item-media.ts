@@ -197,33 +197,9 @@ export async function linkDatasetItemMedia(
   // For in-place (STATEFUL) updates the previously referenced media must be
   // released if the update dropped it; capture it before deleting the rows.
   const priorMediaIds = replaceExisting
-    ? (
-        await tx.datasetItemMedia.findMany({
-          select: { mediaId: true },
-          where: {
-            projectId,
-            OR: items.map((item) => ({
-              datasetItemId: item.datasetItemId,
-              datasetItemValidFrom: item.datasetItemValidFrom,
-            })),
-          },
-          distinct: ["mediaId"],
-        })
-      ).map((row) => row.mediaId)
+    ? await deleteDatasetItemMediaLinks(tx, { projectId, itemVersions: items })
     : [];
   const newRowMediaIds = new Set(rows.map((row) => row.mediaId));
-
-  if (replaceExisting) {
-    await tx.datasetItemMedia.deleteMany({
-      where: {
-        projectId,
-        OR: items.map((item) => ({
-          datasetItemId: item.datasetItemId,
-          datasetItemValidFrom: item.datasetItemValidFrom,
-        })),
-      },
-    });
-  }
 
   if (rows.length > 0) {
     await tx.datasetItemMedia.createMany({
@@ -243,6 +219,44 @@ export async function linkDatasetItemMedia(
   return {
     droppedMediaIds: priorMediaIds.filter((id) => !newRowMediaIds.has(id)),
   };
+}
+
+export async function deleteDatasetItemMediaLinks(
+  tx: Prisma.TransactionClient,
+  props: {
+    projectId: string;
+    itemVersions: Pick<
+      DatasetItemMediaSource,
+      "datasetItemId" | "datasetItemValidFrom"
+    >[];
+  },
+) {
+  const { projectId, itemVersions } = props;
+  if (itemVersions.length === 0) return [] as string[];
+
+  const versionFilters = itemVersions.map((itemVersion) => ({
+    datasetItemId: itemVersion.datasetItemId,
+    datasetItemValidFrom: itemVersion.datasetItemValidFrom,
+  }));
+  const priorMediaIds = (
+    await tx.datasetItemMedia.findMany({
+      select: { mediaId: true },
+      where: {
+        projectId,
+        OR: versionFilters,
+      },
+      distinct: ["mediaId"],
+    })
+  ).map((row) => row.mediaId);
+
+  await tx.datasetItemMedia.deleteMany({
+    where: {
+      projectId,
+      OR: versionFilters,
+    },
+  });
+
+  return priorMediaIds;
 }
 
 /**

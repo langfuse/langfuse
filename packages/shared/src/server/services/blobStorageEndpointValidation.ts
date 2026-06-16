@@ -18,7 +18,7 @@ const STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST: OutboundUrlValidationWhitelist = {
 function isLangfuseCloudEndpointValidationEnabled(): boolean {
   return (
     Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    env.NODE_ENV !== "development"
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
   );
 }
 

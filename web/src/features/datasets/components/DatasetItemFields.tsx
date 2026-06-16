@@ -198,7 +198,6 @@ export const DatasetItemFields = ({
       {isFormMode && control ? (
         <FormModeMediaAttachments
           control={control}
-          projectId={projectId}
           pendingUploads={pendingUploads}
         />
       ) : datasetItemId ? (
@@ -220,11 +219,9 @@ export const DatasetItemFields = ({
  */
 const FormModeMediaAttachments = ({
   control,
-  projectId,
   pendingUploads,
 }: {
   control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
-  projectId: string;
   pendingUploads?: PendingMediaUpload[];
 }) => {
   const [input, expectedOutput, metadata] = useWatch({
@@ -234,7 +231,6 @@ const FormModeMediaAttachments = ({
 
   return (
     <DatasetItemFormMediaAttachments
-      projectId={projectId}
       jsonStrings={[input, expectedOutput, metadata]}
       pendingUploads={pendingUploads}
     />

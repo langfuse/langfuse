@@ -1,4 +1,4 @@
-import { expect, describe, it, beforeAll } from "vitest";
+import { expect, describe, it, beforeAll, afterEach, vi } from "vitest";
 import {
   clickhouseClient,
   createObservation,
@@ -12,6 +12,7 @@ import {
   getObservationsForTrace,
   getScoresForTraces,
   getTracesByIds,
+  getS3MediaStorageClient,
   StorageService,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
@@ -42,6 +43,10 @@ describe("trace deletion", () => {
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("should delete all traces, observations, and scores from Clickhouse", async () => {
@@ -173,6 +178,53 @@ describe("trace deletion", () => {
     await expect(
       prisma.observationMedia.findMany({ where: { projectId } }),
     ).resolves.toHaveLength(0);
+  });
+
+  it("should keep media rows discoverable if S3 media deletion fails", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const traceId = randomUUID();
+    const mediaId = randomUUID();
+    const bucketPath = `${projectId}/trace-${traceId}.txt`;
+
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: "text/plain",
+        contentLength: 0,
+      },
+    });
+    await prisma.traceMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        traceId,
+        mediaId,
+        field: "test",
+      },
+    });
+
+    const deleteFilesSpy = vi
+      .spyOn(
+        getS3MediaStorageClient(String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)),
+        "deleteFiles",
+      )
+      .mockRejectedValueOnce(new Error("S3 unavailable"));
+
+    await expect(
+      processClickhouseTraceDelete(projectId, [traceId]),
+    ).rejects.toThrow("S3 unavailable");
+
+    expect(deleteFilesSpy).toHaveBeenCalledWith([bucketPath]);
+    await expect(
+      prisma.media.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(1);
+    await expect(
+      prisma.traceMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(1);
   });
 
   it("should NOT delete S3 media files for deleted traces if referenced by other entity", async () => {

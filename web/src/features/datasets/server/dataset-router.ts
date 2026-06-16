@@ -10,7 +10,6 @@ import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
 import {
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
-  resolveMediaReferenceStrings,
 } from "@/src/features/media/server/datasetItemMediaReferences";
 import { MediaContentType } from "@/src/features/media/validation";
 import {
@@ -830,22 +829,6 @@ export const datasetRouter = createTRPCRouter({
 
       return referencesByItem.get(datasetItemMediaReferenceKey(item)) ?? [];
     }),
-  // Resolve media reference strings (from the live create/edit form JSON) to
-  // signed download URLs for the attachment preview, since the item is not yet
-  // saved and has no dataset_item_media rows.
-  resolveItemMediaReferences: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        referenceStrings: z.array(z.string()),
-      }),
-    )
-    .query(async ({ input }) =>
-      resolveMediaReferenceStrings({
-        projectId: input.projectId,
-        referenceStrings: input.referenceStrings,
-      }),
-    ),
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input }) => {

@@ -15,7 +15,10 @@ import {
 } from "@/src/components/ui/dialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
-import { useDatasetItemMediaUpload } from "../hooks/useDatasetItemMediaUpload";
+import {
+  useDatasetItemMediaUpload,
+  type PendingMediaUpload,
+} from "../hooks/useDatasetItemMediaUpload";
 import type { DatasetItemDomain } from "@langfuse/shared";
 import {
   DatasetItemFields,
@@ -164,6 +167,7 @@ export const EditDatasetItemDialog = ({
                 dataset={dataset}
                 disabled={!form.formState.isDirty || !hasAccess}
                 isPending={updateDatasetItemMutation.isPending}
+                pendingUploads={pendingUploads}
               />
             </DialogFooter>
           </form>
@@ -184,11 +188,13 @@ const SaveChangesButton = ({
   dataset,
   disabled,
   isPending,
+  pendingUploads,
 }: {
   control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
   dataset: DatasetSchema | null;
   disabled: boolean;
   isPending: boolean;
+  pendingUploads: PendingMediaUpload[];
 }) => {
   const [input, expectedOutput] = useWatch({
     control,
@@ -202,7 +208,15 @@ const SaveChangesButton = ({
     <Button
       type="submit"
       loading={isPending}
-      disabled={disabled || (validation.hasSchemas && !validation.isValid)}
+      // Block submit while uploads are in flight: the media reference is only
+      // inserted into the form value after the upload resolves, so submitting
+      // early would persist the item without the attachment and orphan the
+      // uploaded bytes on S3.
+      disabled={
+        disabled ||
+        (validation.hasSchemas && !validation.isValid) ||
+        pendingUploads.length > 0
+      }
     >
       Save changes
     </Button>

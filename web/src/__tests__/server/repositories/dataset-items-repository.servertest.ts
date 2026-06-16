@@ -1817,5 +1817,49 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         },
       ]);
     });
+
+    it("removes current version media rows and releases media on delete", async () => {
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId },
+      });
+      const media = await createMediaRow();
+      await prisma.traceMedia.create({
+        data: {
+          id: v4(),
+          projectId,
+          traceId: v4(),
+          mediaId: media.mediaId,
+          field: "input",
+        },
+      });
+
+      const created = await upsertDatasetItem({
+        projectId,
+        datasetId,
+        input: { image: media.referenceString },
+        validateOpts: {},
+      });
+
+      await deleteDatasetItem({
+        projectId,
+        datasetItemId: created.id,
+        datasetId,
+      });
+
+      await expect(
+        prisma.datasetItemMedia.findMany({
+          where: {
+            projectId,
+            datasetItemId: created.id,
+            datasetItemValidFrom: created.validFrom,
+          },
+        }),
+      ).resolves.toEqual([]);
+      const retainedMedia = await prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: media.mediaId } },
+      });
+      expect(retainedMedia?.retainedByDatasetAt).toBeNull();
+    });
   });
 });

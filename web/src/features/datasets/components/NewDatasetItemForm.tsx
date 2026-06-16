@@ -521,7 +521,6 @@ export const NewDatasetItemForm = (props: {
             />
             <FormMediaAttachments
               control={form.control}
-              projectId={props.projectId}
               pendingUploads={pendingUploads}
             />
           </div>
@@ -533,6 +532,7 @@ export const NewDatasetItemForm = (props: {
               datasets={selectedDatasets}
               selectedDatasetCount={selectedDatasetCount}
               isPending={createManyDatasetItemsMutation.isPending}
+              pendingUploads={pendingUploads}
             />
             {formError ? (
               <p className="text-red mt-2 text-center">
@@ -586,11 +586,9 @@ const FieldSchemaErrors = ({
  */
 const FormMediaAttachments = ({
   control,
-  projectId,
   pendingUploads,
 }: {
   control: Control<NewDatasetItemFormValues>;
-  projectId: string;
   pendingUploads?: PendingMediaUpload[];
 }) => {
   const [input, expectedOutput, metadata] = useWatch({
@@ -600,7 +598,6 @@ const FormMediaAttachments = ({
 
   return (
     <DatasetItemFormMediaAttachments
-      projectId={projectId}
       jsonStrings={[input, expectedOutput, metadata]}
       pendingUploads={pendingUploads}
     />
@@ -616,11 +613,13 @@ const AddItemsButton = ({
   datasets,
   selectedDatasetCount,
   isPending,
+  pendingUploads,
 }: {
   control: Control<NewDatasetItemFormValues>;
   datasets: DatasetWithSchema[];
   selectedDatasetCount: number;
   isPending: boolean;
+  pendingUploads: PendingMediaUpload[];
 }) => {
   const [input, expectedOutput] = useWatch({
     control,
@@ -633,9 +632,14 @@ const AddItemsButton = ({
       type="submit"
       loading={isPending}
       className="w-full"
+      // Block submit while uploads are in flight: the media reference is only
+      // inserted into the form value after the upload resolves, so submitting
+      // early would persist the item without the attachment and orphan the
+      // uploaded bytes on S3.
       disabled={
         selectedDatasetCount === 0 ||
-        (validation.hasSchemas && !validation.isValid)
+        (validation.hasSchemas && !validation.isValid) ||
+        pendingUploads.length > 0
       }
     >
       Add

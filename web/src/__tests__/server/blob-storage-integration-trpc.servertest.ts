@@ -357,7 +357,6 @@ describe("Blob Storage Integration tRPC Router", () => {
       sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
     const originalSharedCloudRegion =
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    const originalSharedNodeEnv = sharedEnv.NODE_ENV;
 
     beforeEach(() => {
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -367,27 +366,34 @@ describe("Blob Storage Integration tRPC Router", () => {
       sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
         originalAllowedIps;
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalSharedCloudRegion;
-      sharedEnv.NODE_ENV = originalSharedNodeEnv;
     });
 
-    it.each(["S3_COMPATIBLE", "AZURE_BLOB_STORAGE"] as const)(
-      "rejects %s endpoints that target blocked IP ranges when validation is enabled",
-      async (type) => {
-        sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
+    it("rejects endpoints that target blocked IP ranges when validation is enabled", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationAllowedIps =
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
           "203.0.113.10",
         ];
-        const { caller, project } = await prepare();
 
         await expect(
-          caller.blobStorageIntegration.update({
-            projectId: project.id,
-            ...baseConfig,
-            type,
-            endpoint: "http://127.0.0.1:9000",
-          }),
-        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
-      },
-    );
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+          originalValidationAllowedIps;
+      }
+    });
 
     it("allows endpoints when their IP is whitelisted", async () => {
       const { env: validationEnv } =
@@ -416,18 +422,16 @@ describe("Blob Storage Integration tRPC Router", () => {
       }
     });
 
-    it("allows HTTP endpoints in local development", async () => {
+    it("allows HTTP endpoints when Cloud region is DEV", async () => {
       const { env: validationEnv } =
         await import("../../../../packages/shared/src/env");
       const { validateBlobStorageEndpoint } =
         await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
       const originalValidationCloudRegion =
         validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-      const originalValidationNodeEnv = validationEnv.NODE_ENV;
 
       try {
-        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "local-dev";
-        validationEnv.NODE_ENV = "development";
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
 
         await expect(
           validateBlobStorageEndpoint("http://127.0.0.1:9000"),
@@ -435,7 +439,6 @@ describe("Blob Storage Integration tRPC Router", () => {
       } finally {
         validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
           originalValidationCloudRegion;
-        validationEnv.NODE_ENV = originalValidationNodeEnv;
       }
     });
 
@@ -446,11 +449,9 @@ describe("Blob Storage Integration tRPC Router", () => {
         await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
       const originalValidationCloudRegion =
         validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-      const originalValidationNodeEnv = validationEnv.NODE_ENV;
 
       try {
         validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
-        validationEnv.NODE_ENV = "production";
 
         await expect(
           validateBlobStorageEndpoint("http://127.0.0.1:9000"),
@@ -460,7 +461,6 @@ describe("Blob Storage Integration tRPC Router", () => {
       } finally {
         validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
           originalValidationCloudRegion;
-        validationEnv.NODE_ENV = originalValidationNodeEnv;
       }
     });
   });

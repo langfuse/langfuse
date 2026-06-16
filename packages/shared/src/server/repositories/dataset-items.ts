@@ -15,6 +15,7 @@ import {
 } from "../datasets/executeWithDatasetServiceStrategy";
 import { v4 } from "uuid";
 import {
+  deleteDatasetItemMediaLinks,
   findUnresolvableMediaReferences,
   linkDatasetItemMedia,
   releaseDroppedDatasetMedia,
@@ -512,26 +513,21 @@ export async function deleteDatasetItem(props: {
             },
           },
         });
-        // Drop the deleted version's media rows in the same transaction as the
-        // item delete. STATEFUL items have a single version, so this covers all
-        // rows; release happens after commit because it may touch S3.
-        return linkDatasetItemMedia(tx, {
+        return deleteDatasetItemMediaLinks(tx, {
           projectId: props.projectId,
-          items: [
+          itemVersions: [
             {
-              datasetId: item.datasetId,
               datasetItemId: item.id,
               datasetItemValidFrom: item.validFrom,
             },
           ],
-          replaceExisting: true,
         });
       });
-      droppedMediaIds = result.droppedMediaIds;
+      droppedMediaIds = result;
     },
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: Invalidate old row, then create delete marker
-      await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
         const newValidFrom = new Date();
 
         // 1. Invalidate the current version
@@ -558,7 +554,18 @@ export async function deleteDatasetItem(props: {
             validFrom: newValidFrom,
           },
         });
+
+        return deleteDatasetItemMediaLinks(tx, {
+          projectId: props.projectId,
+          itemVersions: [
+            {
+              datasetItemId: item.id,
+              datasetItemValidFrom: item.validFrom,
+            },
+          ],
+        });
       });
+      droppedMediaIds = result;
     },
   });
 
