@@ -295,12 +295,14 @@ async function processMembershipInvitations(email: string, userId: string) {
   ]);
 
   // SFDC: link the freshly-created lead to each org as an org-member.
-  for (const invitation of invitationsForUser) {
-    await getSfdcService()?.setUserRole({
-      orgId: invitation.orgId,
-      userId,
-      email,
-      role: invitation.orgRole,
-    });
-  }
+  await Promise.all(
+    invitationsForUser.map((invitation) =>
+      getSfdcService()?.setUserRole({
+        orgId: invitation.orgId,
+        userId,
+        email,
+        role: invitation.orgRole,
+      }),
+    ),
+  );
 }
