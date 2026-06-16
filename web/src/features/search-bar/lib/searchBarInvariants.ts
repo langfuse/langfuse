@@ -43,7 +43,7 @@ export type RegistryUnderTest = {
   /**
    * Grammar-overlay keys that are not plain fields: dot-path examples
    * (`metadata.region`, `scores.accuracy`, `traceScores.nps`) and pseudo-fields
-   * (`has:endTime`, `in:content`). These exercise resolveField branches the
+   * (`has:endTime`, `content:`). These exercise resolveField branches the
    * field list alone does not reach.
    */
   extraKeys: string[];

@@ -19,7 +19,7 @@ describe("planCommit", () => {
     expect(r.canonical).toBe("level:ERROR content:timeout");
   });
 
-  it("defaults searchType to id when no in: scope is present", () => {
+  it("defaults searchType to id when no content: scope is present", () => {
     const r = planCommit("level:ERROR");
     expect(r.status).toBe("committed");
     if (r.status !== "committed") return;

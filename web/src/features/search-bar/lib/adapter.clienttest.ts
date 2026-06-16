@@ -382,6 +382,10 @@ describe("astToFilterState", () => {
     // Alone, or with field filters, is fine.
     expect(lower("content:refund").errors).toEqual([]);
     expect(lower("content:refund level:ERROR").errors).toEqual([]);
+    // Parens must not defeat the guard — nested AND free text flattens too.
+    expect(
+      lower("content:refund (kitten other)").errors.length,
+    ).toBeGreaterThan(0);
   });
 
   it("lowers input:/output: to real column filters (not searchType)", () => {

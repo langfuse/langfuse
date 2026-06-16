@@ -94,10 +94,14 @@ function isContentFilter(node: ASTNode): node is FilterNode {
 export function contentScopeConflict(
   ast: ASTNode,
 ): { node: FilterNode; message: string } | null {
-  const top = ast.kind === "and" ? ast.children : [ast];
-  const contentNode = top.find((n): n is FilterNode => isContentFilter(n));
+  // Flatten nested AND groups the way lowerTopLevel does — a parenthesized
+  // `(kitten other)` flattens its free text into searchTerms, so its leaves
+  // count too (else `content:refund (kitten other)` slips the per-child and
+  // top-level checks and silently fuses into one phrase).
+  const leaves = flattenAndLeaves(ast);
+  const contentNode = leaves.find((n): n is FilterNode => isContentFilter(n));
   if (contentNode === undefined) return null;
-  const textSources = top.filter(
+  const textSources = leaves.filter(
     (n) => n.kind === "text" || isContentFilter(n),
   ).length;
   if (textSources <= 1) return null;
@@ -106,6 +110,12 @@ export function contentScopeConflict(
     message:
       "content: searches the whole query as one phrase — use it alone, not alongside other free text",
   };
+}
+
+// The leaves lowerTopLevel's AND case flattens into the same query: nested AND
+// groups expand, everything else (filter/text/or/not) is a single leaf.
+function flattenAndLeaves(node: ASTNode): ASTNode[] {
+  return node.kind === "and" ? node.children.flatMap(flattenAndLeaves) : [node];
 }
 
 /**

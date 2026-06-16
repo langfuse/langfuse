@@ -419,8 +419,9 @@ export default function ObservationsEventsTable({
   // coexists with the facet sidebar and the two stay in sync (Datadog model).
   // The sidebar's FilterState (+ the table's full-text search) remains the
   // single source of truth — the bar reads from and writes to it. Only the
-  // legacy toolbar search field is replaced (free text + in: scopes go inline
-  // in the bar); the sidebar and time/refresh controls stay.
+  // legacy toolbar search field is replaced (full-text search — bare text and
+  // content:/input:/output: — goes inline in the bar); the sidebar and
+  // time/refresh controls stay.
   const { isEnabled: searchBarFlagEnabled, canToggle: canUseSearchBar } =
     useSearchBarEnabled();
   const searchBarMode =
@@ -1521,8 +1522,9 @@ export default function ObservationsEventsTable({
               rowClassName={searchBarMode ? "my-1" : undefined}
               filterState={queryFilter.explicitFilterState}
               searchConfig={
-                // In search-bar mode free text + in: scopes live inline in the
-                // bar, so the legacy toolbar search field is hidden.
+                // In search-bar mode full-text search (bare text +
+                // content:/input:/output:) lives inline in the bar, so the
+                // legacy toolbar search field is hidden.
                 searchBarMode
                   ? undefined
                   : {
