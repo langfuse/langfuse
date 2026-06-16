@@ -1642,6 +1642,23 @@ export class OtelIngestionProcessor {
                   return acc;
                 }, {}) ?? {};
 
+              // The OTel GenAI spec stores the response message as a JSON string
+              // in the `message` attribute of gen_ai.choice events.
+              // Parse it so downstream adapters (e.g. Gemini, OpenAI) can normalise it.
+              if (
+                typeof eventAttributes["message"] === "string" &&
+                eventAttributes["message"].trim().startsWith("{")
+              ) {
+                try {
+                  const parsed = JSON.parse(eventAttributes["message"]);
+                  if (parsed && typeof parsed === "object") {
+                    return parsed;
+                  }
+                } catch {
+                  // Malformed JSON — fall through and return raw attributes
+                }
+              }
+
               return eventAttributes;
             })
           : null;

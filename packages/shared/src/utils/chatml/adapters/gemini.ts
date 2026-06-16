@@ -452,6 +452,21 @@ function preprocessData(data: unknown): unknown {
     };
   }
 
+  // ========================================
+  // STEP 7: Handle single Gemini message object with role + parts
+  // ========================================
+  // This covers gen_ai.choice `message` payloads from the OTel GenAI spec
+  // that use Gemini-native format: {role: "model", parts: [{text: "..."}]}
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "role" in data &&
+    "parts" in data &&
+    Array.isArray((data as Record<string, unknown>).parts)
+  ) {
+    return normalizeGeminiMessage(data);
+  }
+
   return data;
 }
 
@@ -479,13 +494,27 @@ export const geminiAdapter: ProviderAdapter = {
     if (meta?.ls_provider === "google_vertexai") return true;
 
     // Metadata attributes check
+    // Covers multiple gen_ai.system values used by different Gemini/VertexAI integrations:
+    //   "gcp.vertex.agent"  — Google ADK (Agent Developer Kit)
+    //   "google_genai"      — opentelemetry-java-instrumentation v2.27+ (Gemini via Java OTel agent)
+    //   "vertexai"          — some Python and Java VertexAI OTel integrations
+    //   "google_vertex_ai"  — TraceLoop / OpenLLMetry VertexAI instrumentation
+    //   "vertex_ai"         — alternative casing used by some SDKs
+    const GEMINI_GEN_AI_SYSTEM_VALUES = new Set([
+      "gcp.vertex.agent",
+      "google_genai",
+      "vertexai",
+      "google_vertex_ai",
+      "vertex_ai",
+    ]);
     if (meta && typeof meta === "object" && "attributes" in meta) {
       const attributes = (meta as Record<string, unknown>).attributes;
       if (
         attributes &&
         typeof attributes === "object" &&
-        (attributes as Record<string, unknown>)["gen_ai.system"] ===
-          "gcp.vertex.agent"
+        GEMINI_GEN_AI_SYSTEM_VALUES.has(
+          (attributes as Record<string, unknown>)["gen_ai.system"] as string,
+        )
       ) {
         return true;
       }
