@@ -27,6 +27,9 @@ vi.mock("@langfuse/shared/src/db", async () => {
       jobConfiguration: {
         findFirst: vi.fn(),
       },
+      datasetItem: {
+        findFirst: vi.fn(),
+      },
     },
   };
 });
@@ -392,6 +395,76 @@ describe("processObservationEval", () => {
             expect.objectContaining({
               var: "output",
               value: '{"response": "World"}',
+            }),
+          ]),
+        }),
+      );
+    });
+
+    it("should retrieve dataset item details and override input/metadata when targetObject is EXPERIMENT", async () => {
+      const job = createMockJobExecution({
+        id: jobExecutionId,
+        projectId,
+        status: JobExecutionStatus.PENDING,
+        jobConfigurationId: "config-123",
+      });
+      const config = createMockJobConfiguration({
+        id: "config-123",
+        projectId,
+        targetObject: "experiment",
+        variableMapping: [
+          { templateVariable: "input", selectedColumnId: "input" },
+          { templateVariable: "metadata", selectedColumnId: "metadata" },
+        ],
+      });
+      const observation = createTestObservation({
+        project_id: projectId,
+        input: '[]',
+        metadata: { originalField: "originalValue" },
+        experiment_item_id: "dataset-item-123",
+        experiment_item_version: "2026-01-31T06:57:38.646Z",
+      });
+      const datasetItem = {
+        id: "dataset-item-123",
+        projectId,
+        input: { country: "Germany" },
+        metadata: { region: "EU", difficulty: "easy" },
+      };
+
+      (prisma.jobExecution.findFirst as Mock).mockResolvedValue(job);
+      (prisma.jobConfiguration.findFirst as Mock).mockResolvedValue(config);
+      (prisma.datasetItem.findFirst as Mock).mockResolvedValue(datasetItem);
+
+      const deps = createMockProcessorDeps({
+        downloadObservationFromS3: vi
+          .fn()
+          .mockResolvedValue(JSON.stringify(observation)),
+      });
+
+      await processObservationEval({ event: baseEvent, deps });
+
+      expect(prisma.datasetItem.findFirst).toHaveBeenCalledWith({
+        where: {
+          id: "dataset-item-123",
+          projectId,
+          validFrom: new Date("2026-01-31T06:57:38.646Z"),
+        },
+      });
+
+      expect(executeLLMAsJudgeEvaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          extractedVariables: expect.arrayContaining([
+            expect.objectContaining({
+              var: "input",
+              value: JSON.stringify({ country: "Germany" }),
+            }),
+            expect.objectContaining({
+              var: "metadata",
+              value: JSON.stringify({
+                originalField: "originalValue",
+                region: "EU",
+                difficulty: "easy",
+              }),
             }),
           ]),
         }),
