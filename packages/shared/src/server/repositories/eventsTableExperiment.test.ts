@@ -54,6 +54,28 @@ describe("diffResults", () => {
     expect(diffs[0]).toMatchObject({ field: "count", legacy: 1, events: 2 });
   });
 
+  it("compares Decimal-like values by number with epsilon tolerance", () => {
+    const decimal = (n: number) => ({ toNumber: () => n });
+    const legacy = { totalCost: decimal(0.08) };
+    const events = { totalCost: decimal(0.08 + 1e-9) };
+    expect(
+      diffResults(legacy, events, { numericFields: new Set(["totalCost"]) }),
+    ).toEqual([]);
+
+    const mismatch = diffResults(
+      { totalCost: decimal(0.08) },
+      { totalCost: decimal(0.09) },
+      { numericFields: new Set(["totalCost"]) },
+    );
+    expect(mismatch).toEqual([
+      expect.objectContaining({
+        field: "totalCost",
+        legacy: 0.08,
+        events: 0.09,
+      }),
+    ]);
+  });
+
   it("reports an array length mismatch as a diff", () => {
     const legacy = { data: ["o1", "o2"] };
     const events = { data: ["o1"] };

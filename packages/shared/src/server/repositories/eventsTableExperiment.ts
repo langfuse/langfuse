@@ -53,6 +53,15 @@ const normalize = (value: unknown): unknown => {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value.getTime();
 
+  // Decimal-like values (e.g. Decimal.js) -> number, so they compare by value
+  // and benefit from the numeric epsilon tolerance.
+  if (
+    typeof value === "object" &&
+    typeof (value as { toNumber?: unknown }).toNumber === "function"
+  ) {
+    return (value as { toNumber: () => number }).toNumber();
+  }
+
   if (typeof value === "string") {
     const trimmed = value.trim();
     const looksLikeJson =
@@ -232,13 +241,39 @@ const recordExperimentDiffs = (params: {
   });
 };
 
+type TimedResult<T> = { ok: true; value: T } | { ok: false; error: unknown };
+
+/** Run a read path, timing it and recording the latency histogram on success. */
+const timeRead = async <T>(
+  feature: string,
+  source: ExperimentSource,
+  fn: () => Promise<T>,
+): Promise<TimedResult<T>> => {
+  const start = Date.now();
+  try {
+    const value = await fn();
+    recordHistogram(
+      "langfuse.events_table_experiment.latency_ms",
+      Date.now() - start,
+      { feature, source },
+    );
+    return { ok: true, value };
+  } catch (error) {
+    return { ok: false, error };
+  }
+};
+
 /**
  * Runs the experiment for a single request.
  *
- * The `selected` path (matching `useEventsTable`) is always awaited and
- * returned. When sampled, the other path is also run as a shadow read, both
- * latencies are recorded, and the results are compared via `compare`. Shadow
- * failures never break the response.
+ * When NOT sampled, the `selected` path (matching `useEventsTable`) is run and
+ * returned with zero experiment overhead — no extra read, no metrics.
+ *
+ * When sampled, both read paths run CONCURRENTLY (so the added wall-clock cost
+ * is roughly the slower read rather than the sum), their latencies are
+ * recorded, and the results are compared via `compare`. The caller always
+ * receives the `selected` path's result; a shadow read failure never breaks the
+ * response, and the `selected` path's error always propagates.
  */
 export const runEventsTableExperiment = async <T>(params: {
   /** Low-cardinality feature label, e.g. "traces.list" or "traces.byId". */
@@ -255,32 +290,29 @@ export const runEventsTableExperiment = async <T>(params: {
     params;
 
   const selectedFn = selected === "events" ? events : legacy;
-  const selectedStart = Date.now();
-  const selectedResult = await selectedFn();
-  recordHistogram(
-    "langfuse.events_table_experiment.latency_ms",
-    Date.now() - selectedStart,
-    { feature, source: selected },
-  );
 
+  // Fast path: experiment disabled / not sampled. No second read, no metrics.
   if (!shouldRunEventsTableExperiment()) {
-    return selectedResult;
+    return selectedFn();
   }
 
   const otherSource: ExperimentSource =
     selected === "events" ? "legacy" : "events";
   const otherFn = selected === "events" ? legacy : events;
 
-  let otherResult: T;
-  try {
-    const otherStart = Date.now();
-    otherResult = await otherFn();
-    recordHistogram(
-      "langfuse.events_table_experiment.latency_ms",
-      Date.now() - otherStart,
-      { feature, source: otherSource },
-    );
-  } catch (error) {
+  // Run both paths concurrently so the shadow read does not add its full
+  // latency on top of the response we return.
+  const [selectedRes, otherRes] = await Promise.all([
+    timeRead(feature, selected, selectedFn),
+    timeRead(feature, otherSource, otherFn),
+  ]);
+
+  // The selected path is the real response: its failure must propagate.
+  if (!selectedRes.ok) {
+    throw selectedRes.error;
+  }
+
+  if (!otherRes.ok) {
     recordIncrement("langfuse.events_table_experiment.shadow_error", 1, {
       feature,
     });
@@ -288,15 +320,20 @@ export const runEventsTableExperiment = async <T>(params: {
       feature,
       projectId,
       shadowSource: otherSource,
-      error: error instanceof Error ? error.message : String(error),
+      error:
+        otherRes.error instanceof Error
+          ? otherRes.error.message
+          : String(otherRes.error),
       ...logContext,
     });
-    return selectedResult;
+    return selectedRes.value;
   }
 
   try {
-    const legacyResult = selected === "events" ? otherResult : selectedResult;
-    const eventsResult = selected === "events" ? selectedResult : otherResult;
+    const legacyResult =
+      selected === "events" ? otherRes.value : selectedRes.value;
+    const eventsResult =
+      selected === "events" ? selectedRes.value : otherRes.value;
     const diffs = compare(legacyResult, eventsResult);
     recordExperimentDiffs({ feature, projectId, diffs, logContext });
   } catch (error) {
@@ -308,5 +345,5 @@ export const runEventsTableExperiment = async <T>(params: {
     });
   }
 
-  return selectedResult;
+  return selectedRes.value;
 };
