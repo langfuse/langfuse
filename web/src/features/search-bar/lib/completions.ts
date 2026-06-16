@@ -359,34 +359,38 @@ function datetimeOperatorOptions(fieldId: string): CompletionOption[] {
 // (you type the value first, then anchor it). Caller only invokes this when
 // `typed` is non-empty.
 function matchOperatorOptions(typed: string): CompletionOption[] {
+  // Quote the value through the serializer so a value with whitespace/grammar
+  // chars (`My Test`) becomes `*"My Test"*` — one lexer token — instead of a
+  // raw `*My Test*` the lexer would tear in half.
+  const v = serializeValue(typed);
   return [
     {
       id: "vop:contains",
       kind: "pattern",
-      label: `*${typed}*`,
+      label: `*${v}*`,
       detail: "contains (same as the bare value)",
-      insert: `*${typed}*`,
+      insert: `*${v}*`,
     },
     {
       id: "vop:starts",
       kind: "pattern",
-      label: `${typed}*`,
+      label: `${v}*`,
       detail: "starts with",
-      insert: `${typed}*`,
+      insert: `${v}*`,
     },
     {
       id: "vop:ends",
       kind: "pattern",
-      label: `*${typed}`,
+      label: `*${v}`,
       detail: "ends with",
-      insert: `*${typed}`,
+      insert: `*${v}`,
     },
     {
       id: "vop:exact",
       kind: "pattern",
-      label: `=${typed}`,
+      label: `=${v}`,
       detail: "exact match",
-      insert: `=${typed}`,
+      insert: `=${v}`,
     },
   ];
 }

@@ -144,6 +144,16 @@ describe("planInputCompletions", () => {
     expect(labels).toContain("=rate"); // exact
   });
 
+  it("quotes glob refinements for values with whitespace", () => {
+    // `My Test` must serialize to `*"My Test"*`, not the raw `*My Test*` the
+    // lexer would split in half.
+    const p = plan('statusMessage:"My Test"', 23);
+    const inserts = flattenOptions(p).map((o) => o.insert);
+    expect(inserts).toContain('*"My Test"*'); // contains
+    expect(inserts).toContain('"My Test"*'); // starts with
+    expect(inserts).toContain('="My Test"'); // exact
+  });
+
   it("suggests score names for score dot paths", () => {
     const p = plan("scores.", 7);
     const labels = flattenOptions(p).map((o) => o.label);

@@ -633,7 +633,10 @@ export function parse(input: string): ParseResult {
             upcoming === null ||
             upcoming.type === "rparen" ||
             (upcoming.type === "term" && isKeyword(upcoming.raw) === "or");
-          if (ends) {
+          // Only the "missing left-hand" message fires for a bare `AND`; the
+          // dangling-AND message is for an AND that HAD a left operand but no
+          // right, so gate it on children so one typo gets one diagnostic.
+          if (ends && children.length > 0) {
             diagnostics.push({
               from: t.span.from,
               to: t.span.to,

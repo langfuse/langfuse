@@ -162,6 +162,11 @@ describe("langQ parser", () => {
     expect(parse('metadata."foo":bar').valid).toBe(false);
   });
 
+  it("emits a single diagnostic for a bare AND, not a doubled one", () => {
+    const errs = parse("AND").diagnostics.filter((d) => d.severity === "error");
+    expect(errs).toHaveLength(1);
+  });
+
   it("flags unknown fields with an error diagnostic", () => {
     const r = parse("nope:1");
     expect(r.valid).toBe(false);

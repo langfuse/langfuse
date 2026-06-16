@@ -112,10 +112,18 @@ export function createSearchBarStore(
             return;
           lastScoreTypes = scoreTypes;
           hasValidated = true;
+          const wasValid = get().draftValid;
           const res = validateQuery(get().draft, scoreTypes);
           set({
             draftDiagnostics: res.diagnostics,
             draftValid: res.valid,
+            // If newly-arrived score types unmask an already-committed draft as
+            // invalid (committed earlier against an empty context while
+            // filterOptions was loading), reveal the red state so the bad
+            // commit stops being silent.
+            ...(wasValid && !res.valid
+              ? { invalidRevealDraft: get().draft }
+              : {}),
           });
         },
       },

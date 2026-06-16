@@ -64,6 +64,24 @@ describe("searchBarStore (draft-only)", () => {
     expect(store.getState().draftValid).toBe(false);
   });
 
+  it("revalidate reveals the red state when a valid draft flips invalid", () => {
+    // Committed against an empty context while filterOptions loaded; once score
+    // types arrive and unmask it, the bar must paint red (not stay silently
+    // invalid with no AlertCircle).
+    let st = {
+      numericScoreNames: new Set<string>(),
+      categoricalScoreNames: new Set<string>(),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+    };
+    const store = createSearchBarStore(() => st);
+    store.getState().actions.setDraft("scores.accuracy:hello");
+    expect(store.getState().invalidRevealDraft).toBeNull();
+    st = { ...st, numericScoreNames: new Set<string>(["accuracy"]) };
+    store.getState().actions.revalidate();
+    expect(store.getState().invalidRevealDraft).toBe("scores.accuracy:hello");
+  });
+
   it("revalidate bails when scoreTypes are set-equal (no churn re-render)", () => {
     // observed identity rotates every auto-refresh tick, but when the score-name
     // sets are unchanged revalidate must NOT re-run validation / emit a fresh
