@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 
@@ -32,8 +33,15 @@ export function ControlledFeaturePreviewModal({
   const authSession = useSession();
   const { project, organization } = useQueryProjectOrOrganization();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  // Track in-flight toggles per flag. useMutation only remembers the LATEST
+  // .mutate() in `variables`, so toggling two previews in quick succession
+  // would let an earlier still-pending row look idle and re-enable its Switch.
+  const [pendingFlags, setPendingFlags] = useState<Set<PreviewFlag>>(new Set());
   const setFeaturePreviewEnabled =
     api.userAccount.setFeaturePreviewEnabled.useMutation({
+      onMutate: (variables) => {
+        setPendingFlags((prev) => new Set(prev).add(variables.flag));
+      },
       onSuccess: async (_data, variables) => {
         await authSession.update();
         showSuccessToast({
@@ -46,6 +54,13 @@ export function ControlledFeaturePreviewModal({
       onError: (error) => {
         showErrorToast("Failed to update feature preview", error.message);
       },
+      onSettled: (_data, _error, variables) => {
+        setPendingFlags((prev) => {
+          const next = new Set(prev);
+          next.delete(variables.flag);
+          return next;
+        });
+      },
     });
 
   const user = authSession.data?.user ?? session.user;
@@ -55,10 +70,8 @@ export function ControlledFeaturePreviewModal({
 
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
-  // Only the row being mutated shows its pending state.
-  const isToggling = (flag: PreviewFlag) =>
-    setFeaturePreviewEnabled.isPending &&
-    setFeaturePreviewEnabled.variables?.flag === flag;
+  // Each row reflects ITS OWN in-flight mutation, not just the latest one.
+  const isToggling = (flag: PreviewFlag) => pendingFlags.has(flag);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
     inAppAgent: {
