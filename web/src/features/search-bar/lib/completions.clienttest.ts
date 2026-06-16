@@ -180,9 +180,13 @@ describe("planInputCompletions", () => {
     ]);
   });
 
-  it("offers scoped full-text rewrites for free text", () => {
+  it("offers scoped full-text rewrites for free text, default scope first", () => {
     const p = plan("refund", 6);
-    const labels = flattenOptions(p).map((o) => o.label);
+    const opts = flattenOptions(p);
+    // The typed text itself (default scope = ids & names) is the first option —
+    // the anchor — ahead of the content:/input:/output: rewrites.
+    expect(opts[0]).toMatchObject({ id: "scope:default", label: "refund" });
+    const labels = opts.map((o) => o.label);
     expect(labels).toContain("content:refund");
     expect(labels).toContain("input:refund");
     expect(labels).toContain("output:refund");

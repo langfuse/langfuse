@@ -781,15 +781,22 @@ function freeTextRun(
 // bare free text (ids & names); content:/input:/output: are the scoped forms.
 type FullTextScope = "default" | "content" | "input" | "output";
 
-// Switch options that move a full-text value to the OTHER scopes, carrying the
-// value and replacing the WHOLE token/run (replaceSpan). Used in both
-// directions: forward (bare text → content:/input:/output:) and back/between
+// Switch options that move a full-text value between scopes, carrying the value
+// and replacing the WHOLE token/run (replaceSpan). Used in both directions:
+// forward (bare text → content:/input:/output:) and back/between
 // (content:/input:/output: → each other or default). `value` is the raw
 // (unquoted) text; it's serialized so a multi-word phrase stays one token.
+//
+// `keepCurrentFirst` keeps the current scope in the list, listed first, instead
+// of excluding it: for bare free text it surfaces the typed text itself as an
+// explicit "this is the default-scope search" option (the anchor) ahead of the
+// content:/input:/output: rewrites. Value-stage switches leave it off, so a
+// `content:` value never offers a no-op switch back to `content:`.
 function scopeSwitchOptions(
   current: FullTextScope,
   value: string,
   span: { from: number; to: number },
+  opts?: { keepCurrentFirst?: boolean },
 ): CompletionOption[] {
   const v = serializeValue(value);
   const defs: { scope: FullTextScope; insert: string; detail: string }[] = [
@@ -814,16 +821,20 @@ function scopeSwitchOptions(
       detail: "search ids & names (default scope)",
     },
   ];
-  return defs
-    .filter((d) => d.scope !== current)
-    .map((d) => ({
-      id: `scope:${d.scope}`,
-      kind: "pattern" as const,
-      label: d.insert,
-      detail: d.detail,
-      insert: d.insert,
-      replaceSpan: span,
-    }));
+  const ordered = opts?.keepCurrentFirst
+    ? [
+        ...defs.filter((d) => d.scope === current),
+        ...defs.filter((d) => d.scope !== current),
+      ]
+    : defs.filter((d) => d.scope !== current);
+  return ordered.map((d) => ({
+    id: `scope:${d.scope}`,
+    kind: "pattern" as const,
+    label: d.insert,
+    detail: d.detail,
+    insert: d.insert,
+    replaceSpan: span,
+  }));
 }
 
 /**
@@ -947,10 +958,14 @@ export function planInputCompletions(
         : null;
     const searchScopes: CompletionOption[] =
       run !== null
-        ? scopeSwitchOptions("default", stripValueQuotes(run.text), {
-            from: run.from,
-            to: run.to,
-          })
+        ? scopeSwitchOptions(
+            "default",
+            stripValueQuotes(run.text),
+            { from: run.from, to: run.to },
+            // Surface the typed text itself (default scope) as the first option,
+            // ahead of the content:/input:/output: rewrites.
+            { keepCurrentFirst: true },
+          )
         : [];
     if (
       fields.length +
