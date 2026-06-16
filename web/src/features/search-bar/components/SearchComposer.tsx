@@ -914,10 +914,15 @@ export function SearchComposer({
       return;
     }
 
-    // ArrowRight at the very end of the query "exits" the last token: enter
-    // append mode (the next keystroke starts a NEW token instead of extending
-    // the last pill) and open the field suggestions. Typing-induced caret
-    // moves never reach here, so active value typing is unaffected.
+    // ArrowRight at the very end of the query "exits" the last token, like
+    // Space — minus the inserted space. Enter append mode (the next keystroke
+    // space-prefixes into a NEW token via applyTextInsert), open the field
+    // suggestions, AND move the caret PAST the pill's trailing zero-width
+    // WORD_JOINER so it visibly leaves the pill: the joiner is a root-level node
+    // after the pill span, so the after-joiner spot renders outside it. (The
+    // old behavior pinned the caret at the logical end — inside the pill — so
+    // the exit was invisible and felt like a dead keypress.) Backspace from the
+    // after-joiner spot is handled by the trailing-joiner fall-through below.
     if (
       event.key === "ArrowRight" &&
       !event.shiftKey &&
@@ -928,11 +933,16 @@ export function SearchComposer({
       caret === draft.length &&
       draft.length > 0
     ) {
-      // Keep the caret at the logical end rather than letting it drift across
-      // the token's trailing zero-width WORD_JOINER — crossing it looks like a
-      // dead first keypress ("ArrowRight only works the second time") and lands
-      // the caret in the after-joiner spot that confuses backspace targeting.
       event.preventDefault();
+      const root = rootRef.current;
+      const selection = window.getSelection();
+      if (root !== null && selection !== null) {
+        const range = document.createRange();
+        range.selectNodeContents(root);
+        range.collapse(false); // to the very end, after the trailing joiner
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
       setAppendIntent(true);
       setAutocompleteOpen(true);
       setHighlightedOptionId(null);
