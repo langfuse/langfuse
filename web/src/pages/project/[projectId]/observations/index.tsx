@@ -19,11 +19,11 @@ export default function Generations() {
   const { isBetaEnabled, isInitializing } = useV4Beta();
   const { project } = useQueryProject();
   // The header-actions slot only has a consumer when the bar is actually
-  // active (admin + project opted in), so gate it the same way the table gates
-  // searchBarMode — otherwise it's a dead empty node in the header.
-  const { isEnabled: searchBarEnabled, canToggle: canUseSearchBar } =
-    useSearchBarEnabled();
-  const searchBarActive = isBetaEnabled && searchBarEnabled && canUseSearchBar;
+  // active, so gate it the same way the table gates searchBarMode — otherwise
+  // it's a dead empty node in the header. The bar is a per-user Feature Preview
+  // opt-in and only renders on the v4 table, so it needs the v4 beta too.
+  const searchBarEnabled = useSearchBarEnabled();
+  const searchBarActive = isBetaEnabled && searchBarEnabled;
   // Host for the events table's time-range + refresh controls, rendered into
   // the page header (which is otherwise under-utilized). The events table
   // portals into this node when the search bar is active.

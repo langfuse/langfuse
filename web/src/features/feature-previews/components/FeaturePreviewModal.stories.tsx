@@ -17,18 +17,25 @@ function StatefulFeaturePreviewModal(args: FeaturePreviewModalProps) {
         updateArgs({ open });
         args.onOpenChange(open);
       }}
-      inAppAgent={{
-        ...args.inAppAgent,
-        onToggle: (enabled) => {
-          updateArgs({
-            inAppAgent: {
-              ...args.inAppAgent,
-              enabled,
-            },
-          });
-          args.inAppAgent.onToggle(enabled);
-        },
-      }}
+      state={Object.fromEntries(
+        Object.entries(args.state).map(([flag, item]) => [
+          flag,
+          item
+            ? {
+                ...item,
+                onToggle: (enabled: boolean) => {
+                  updateArgs({
+                    state: {
+                      ...args.state,
+                      [flag]: { ...item, enabled },
+                    },
+                  });
+                  item.onToggle(enabled);
+                },
+              }
+            : item,
+        ]),
+      )}
     />
   );
 }
@@ -48,10 +55,9 @@ const meta = preview.meta({
   args: {
     open: true,
     onOpenChange: fn(),
-    inAppAgent: {
-      enabled: true,
-      onToggle: fn(),
-      isToggling: false,
+    state: {
+      inAppAgent: { enabled: true, onToggle: fn(), isToggling: false },
+      searchBar: { enabled: false, onToggle: fn(), isToggling: false },
     },
   },
   render: StatefulFeaturePreviewModal,
@@ -61,21 +67,28 @@ export const Default = meta.story({});
 
 export const Warning = meta.story({
   args: {
-    inAppAgent: {
-      enabled: false,
-      warningReason:
-        "The Assistant button is only shown inside a project. Open a project to use it after enabling the preview.",
-      onToggle: fn(),
+    state: {
+      inAppAgent: {
+        enabled: false,
+        warningReason:
+          "The Assistant button is only shown inside a project. Open a project to use it after enabling the preview.",
+        onToggle: fn(),
+      },
+      searchBar: {
+        enabled: false,
+        warningReason:
+          "The search bar appears on the new (v4) Observations and Traces tables. Turn on the v4 beta from this menu to use it after enabling this preview.",
+        onToggle: fn(),
+      },
     },
   },
 });
 
 export const Loading = meta.story({
   args: {
-    inAppAgent: {
-      enabled: true,
-      onToggle: fn(),
-      isToggling: true,
+    state: {
+      inAppAgent: { enabled: true, onToggle: fn(), isToggling: true },
+      searchBar: { enabled: false, onToggle: fn(), isToggling: false },
     },
   },
 });

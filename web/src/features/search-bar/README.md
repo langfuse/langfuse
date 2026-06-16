@@ -10,16 +10,20 @@ Project-level opt-in. Based on the `langfuse-search-bar` prototype.
 
 ## Enablement
 
-- Project settings → General → "Filter Search Bar (Beta)" switch, gated by
-  `project:update` (admins/owners). Stored as `searchBarEnabled` in
-  `Project.metadata` (`server/searchBarRouter.ts`); read from the session via
-  `hooks/useSearchBarEnabled.ts`.
-- `EventsTable` activates the bar only when the project flag is on, the viewer
-  is a project admin/owner (`canUseSearchBar` = `project:update`) with the v4
-  beta, and the table is a full-page surface
+- Per-user **Feature Preview** opt-in (sidebar user menu → Feature Preview →
+  "Filter Search Bar"), exactly like the Langfuse Assistant. Stored on
+  `user.featureFlags` (the `searchBar` flag, see
+  `features/feature-flags/available-flags.ts`); toggled via
+  `userAccount.setFeaturePreviewEnabled({ flag, enabled })`; read through the
+  session by `hooks/useSearchBarEnabled.ts`
+  (`session.user.featureFlags.searchBar`). No project metadata, no `project:update`
+  RBAC. The Feature Preview menu is Cloud-only, so the flag is Cloud-enableable.
+- `EventsTable` activates the bar only when the user enabled the preview, the
+  viewer has the **v4 beta** (the bar only renders on the v4 Observations
+  table), and the table is a full-page surface
   (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
-  During beta, bar _visibility_ — not just the toggle — is admin-only.
-  Default off — zero changes for projects that do not opt in.
+  Default off — zero changes for users who don't opt in. The Feature Preview
+  modal warns that the v4 beta is also required.
 
 ## Query language
 
@@ -167,7 +171,8 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
   - `EventsSearchBarRow.tsx` (full-width composer; `EventsTable` owns the
     sticky stack around the composer + toolbar),
     `EventsHeaderControls.tsx` (time range + refresh, portaled into the page
-    header), `SearchBarSettings.tsx` (settings card).
+    header). The enablement toggle lives in the shared Feature Preview modal
+    (`features/feature-previews/`), not in this feature.
 
 ## Integration (EventsTable)
 

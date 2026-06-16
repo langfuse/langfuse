@@ -33,7 +33,6 @@ import { env } from "@/src/env.mjs";
 import { NotificationSettings } from "@/src/features/notifications/components/NotificationSettings";
 import { WebCalloutIntegrationCard } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
 import { DeveloperToolsSettings } from "@/src/features/developer-tools/components/DeveloperToolsSettings";
-import { SearchBarSettings } from "@/src/features/search-bar/components/SearchBarSettings";
 
 type ProjectSettingsPage = {
   title: string;
@@ -50,11 +49,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
-  const showSearchBarSettings = useHasProjectAccess({
-    projectId: project?.id,
-    scope: "project:update",
-  });
-
   if (!project || !organization || !router.query.projectId) {
     return [];
   }
@@ -66,7 +60,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
     showRetentionSettings,
     showLLMConnectionsSettings: true,
     showProtectedLabelsSettings,
-    showSearchBarSettings,
   });
 }
 
@@ -77,7 +70,6 @@ export const getProjectSettingsPages = ({
   showRetentionSettings,
   showLLMConnectionsSettings,
   showProtectedLabelsSettings,
-  showSearchBarSettings,
 }: {
   project: { id: string; name: string; metadata: Record<string, unknown> };
   organization: { id: string; name: string; metadata: Record<string, unknown> };
@@ -85,25 +77,16 @@ export const getProjectSettingsPages = ({
   showRetentionSettings: boolean;
   showLLMConnectionsSettings: boolean;
   showProtectedLabelsSettings: boolean;
-  showSearchBarSettings: boolean;
 }): ProjectSettingsPage[] => [
   {
     title: "General",
     slug: "index",
-    cmdKKeywords: [
-      "name",
-      "id",
-      "delete",
-      "transfer",
-      "ownership",
-      ...(showSearchBarSettings ? ["search bar", "filters"] : []),
-    ],
+    cmdKKeywords: ["name", "id", "delete", "transfer", "ownership"],
     content: (
       <div className="flex flex-col gap-6">
         <HostNameProject />
         <RenameProject />
         {showRetentionSettings && <ConfigureRetention />}
-        {showSearchBarSettings && <SearchBarSettings />}
         <div>
           <Header title="Debug Information" />
           <JSONView

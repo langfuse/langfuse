@@ -7,12 +7,21 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 
-import { FeaturePreviewModal } from "./FeaturePreviewModal";
+import {
+  FeaturePreviewModal,
+  type PreviewFlag,
+  type PreviewState,
+} from "./FeaturePreviewModal";
 
 type ControlledFeaturePreviewModalProps = {
   session: Session;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+};
+
+const PREVIEW_LABEL: Record<PreviewFlag, string> = {
+  inAppAgent: "Langfuse Assistant",
+  searchBar: "Filter Search Bar",
 };
 
 export function ControlledFeaturePreviewModal({
@@ -23,15 +32,15 @@ export function ControlledFeaturePreviewModal({
   const authSession = useSession();
   const { project, organization } = useQueryProjectOrOrganization();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const setInAppAgentPreviewEnabled =
-    api.userAccount.setInAppAgentPreviewEnabled.useMutation({
+  const setFeaturePreviewEnabled =
+    api.userAccount.setFeaturePreviewEnabled.useMutation({
       onSuccess: async (_data, variables) => {
         await authSession.update();
         showSuccessToast({
           title: "Feature preview updated",
-          description: variables.enabled
-            ? "Langfuse Assistant preview has been enabled."
-            : "Langfuse Assistant preview has been disabled.",
+          description: `${PREVIEW_LABEL[variables.flag]} preview has been ${
+            variables.enabled ? "enabled" : "disabled"
+          }.`,
         });
       },
       onError: (error) => {
@@ -44,28 +53,41 @@ export function ControlledFeaturePreviewModal({
     return null;
   }
 
-  const inAppAgentEnabledByUser = user.featureFlags.inAppAgent === true;
-  const warningReason = getInAppAgentWarningReason({
-    hasOrganizationContext: Boolean(organization),
-    hasProjectContext: Boolean(project),
-    hasInAppAgentEntitlement,
-    organizationAiFeaturesEnabled: organization?.aiFeaturesEnabled,
-  });
+  const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
+    setFeaturePreviewEnabled.mutate({ flag, enabled });
+  // Only the row being mutated shows its pending state.
+  const isToggling = (flag: PreviewFlag) =>
+    setFeaturePreviewEnabled.isPending &&
+    setFeaturePreviewEnabled.variables?.flag === flag;
+
+  const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    inAppAgent: {
+      enabled: user.featureFlags.inAppAgent === true,
+      warningReason: getInAppAgentWarningReason({
+        hasOrganizationContext: Boolean(organization),
+        hasProjectContext: Boolean(project),
+        hasInAppAgentEntitlement,
+        organizationAiFeaturesEnabled: organization?.aiFeaturesEnabled,
+      }),
+      onToggle: onToggle("inAppAgent"),
+      isToggling: isToggling("inAppAgent"),
+    },
+    searchBar: {
+      enabled: user.featureFlags.searchBar === true,
+      // The bar only renders on the new (v4) Observations table, so flag it.
+      warningReason: user.v4BetaEnabled
+        ? undefined
+        : "The search bar appears on the new (v4) Observations table. Turn on the v4 beta from this menu to use it after enabling this preview.",
+      onToggle: onToggle("searchBar"),
+      isToggling: isToggling("searchBar"),
+    },
+  };
 
   return (
     <FeaturePreviewModal
       open={open}
       onOpenChange={onOpenChange}
-      inAppAgent={{
-        enabled: inAppAgentEnabledByUser,
-        warningReason,
-        onToggle: (enabled) => {
-          setInAppAgentPreviewEnabled.mutate({
-            enabled,
-          });
-        },
-        isToggling: setInAppAgentPreviewEnabled.isPending,
-      }}
+      state={state}
     />
   );
 }

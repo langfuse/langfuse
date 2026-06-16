@@ -95,9 +95,12 @@ export const userAccountRouter = createTRPCRouter({
       };
     }),
 
-  setInAppAgentPreviewEnabled: authenticatedProcedure
+  setFeaturePreviewEnabled: authenticatedProcedure
     .input(
       z.object({
+        // Allowlist of user-toggleable Feature Preview flags (the Feature
+        // Preview modal). Keep in sync with the modal's preview registry.
+        flag: z.enum(["inAppAgent", "searchBar"]),
         enabled: z.boolean(),
       }),
     )
@@ -119,14 +122,15 @@ export const userAccountRouter = createTRPCRouter({
         if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: "Assistant is not available in self-hosted deployments.",
+            message:
+              "Feature previews are not available in self-hosted deployments.",
           });
         }
       }
 
       const nextFeatureFlags = input.enabled
-        ? Array.from(new Set([...currentUser.featureFlags, "inAppAgent"]))
-        : currentUser.featureFlags.filter((flag) => flag !== "inAppAgent");
+        ? Array.from(new Set([...currentUser.featureFlags, input.flag]))
+        : currentUser.featureFlags.filter((flag) => flag !== input.flag);
 
       await ctx.prisma.user.update({
         where: { id: userId },
@@ -135,7 +139,8 @@ export const userAccountRouter = createTRPCRouter({
 
       return {
         success: true,
-        inAppAgentPreviewEnabled: input.enabled,
+        flag: input.flag,
+        enabled: input.enabled,
       };
     }),
 

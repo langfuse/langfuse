@@ -422,11 +422,9 @@ export default function ObservationsEventsTable({
   // legacy toolbar search field is replaced (full-text search — bare text and
   // content:/input:/output: — goes inline in the bar); the sidebar and
   // time/refresh controls stay.
-  const { isEnabled: searchBarFlagEnabled, canToggle: canUseSearchBar } =
-    useSearchBarEnabled();
+  const searchBarFlagEnabled = useSearchBarEnabled();
   const searchBarMode =
     searchBarFlagEnabled &&
-    canUseSearchBar &&
     !hideControls &&
     !externalFilterState &&
     !peekContext &&
