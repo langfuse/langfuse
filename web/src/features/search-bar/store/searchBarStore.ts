@@ -14,6 +14,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { ScoreTypeContext } from "../lib/adapter";
 import { astEquals } from "../lib/ast";
 import { removeToken } from "../lib/edits";
+import { foldDerivedNegation } from "../lib/filter-state-to-query";
 import { parse, type Diagnostic } from "../lib/langQ";
 import { scoreTypeContextEqual } from "../lib/observed-options";
 import { validateQuery } from "../lib/validate";
@@ -103,7 +104,17 @@ export function createSearchBarStore(
           // violating "no silent rewrites". An AST compare (which ignores
           // rawKey/casing) lets an equivalent draft stand; a genuinely different
           // commit (sidebar edit, saved view, external nav) still re-seeds.
-          if (astEquals(parse(committedText).ast, parse(draft).ast)) return;
+          // foldDerivedNegation additionally normalizes the negations the adapter
+          // folds into the value/operator (`-latency:>2` ↔ `latency:<=2`,
+          // `-isRoot:true` ↔ `isRoot:false`) so those typed forms also stand;
+          // it preserves structure/order, so free-text canonicalization is kept.
+          if (
+            astEquals(
+              foldDerivedNegation(parse(committedText).ast),
+              foldDerivedNegation(parse(draft).ast),
+            )
+          )
+            return;
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {

@@ -42,6 +42,38 @@ describe("searchBarStore (draft-only)", () => {
     expect(store.getState().draft).toBe("level:ERROR");
   });
 
+  it("resetTo keeps a typed negation that the adapter folds into the value/op", () => {
+    // The adapter folds `-` into the value/operator at lowering (no NOT left in
+    // FilterState), so the reverse adapter re-derives the canonical positive
+    // form: `-latency:>2` → `latency:<=2`, `-isRootObservation:true` →
+    // `isRootObservation:false`. resetTo must keep the user's typed form — same
+    // "no silent rewrite" guarantee as the alias case.
+    const numeric = createSearchBarStore();
+    numeric.getState().actions.setDraft("-latency:>2");
+    numeric.getState().actions.resetTo("latency:<=2");
+    expect(numeric.getState().draft).toBe("-latency:>2");
+
+    const bool = createSearchBarStore();
+    bool.getState().actions.setDraft("-isRootObservation:true");
+    bool.getState().actions.resetTo("isRootObservation:false");
+    expect(bool.getState().draft).toBe("-isRootObservation:true");
+
+    // A genuinely different committed text (sidebar edit) still re-seeds.
+    numeric.getState().actions.resetTo("latency:<=5");
+    expect(numeric.getState().draft).toBe("latency:<=5");
+  });
+
+  it("resetTo still canonicalizes free-text order (negation fold is order-preserving)", () => {
+    // The flat URL contract has no slot for filter-vs-free-text interleave, so
+    // the reverse adapter canonicalizes to `<filters> <freetext>`. The negation
+    // fold must NOT erase that re-seed: typing `refund level:ERROR` and pressing
+    // Enter re-renders as `level:ERROR refund` (documented behavior).
+    const store = createSearchBarStore();
+    store.getState().actions.setDraft("refund level:ERROR");
+    store.getState().actions.resetTo("level:ERROR refund");
+    expect(store.getState().draft).toBe("level:ERROR refund");
+  });
+
   it("revealInvalid marks the current draft; setDraft clears it", () => {
     const store = createSearchBarStore();
     store.getState().actions.setDraft("level:ERROR OR env:dev");

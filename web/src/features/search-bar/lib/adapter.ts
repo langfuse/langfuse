@@ -500,7 +500,9 @@ function lowerText(
   });
 }
 
-const INVERTED_COMPARISON = {
+// Exported so the reverse adapter's negation-fold normalizer (foldDerivedNegation)
+// inverts comparisons the SAME way this lowering does — keep them in one place.
+export const INVERTED_COMPARISON = {
   ">": "<=",
   "<": ">=",
   ">=": "<",

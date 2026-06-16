@@ -15,6 +15,7 @@ import {
   type TracingSearchType,
 } from "@langfuse/shared";
 
+import { INVERTED_COMPARISON } from "./adapter";
 import type { ASTNode, FilterNode } from "./ast";
 import { resolveField, SCORE_COLUMNS } from "./fields";
 import { NEEDS_QUOTES, serialize } from "./langQ";
@@ -287,4 +288,70 @@ export function filterStateToQueryText(
         ? nodes[0]!
         : { kind: "and", children: nodes };
   return { text: serialize(ast), skipped, skippedFilters };
+}
+
+// Fold the THREE negations the adapter collapses into the value/operator at
+// lowering — leaving no NOT in the resulting FilterState — back to the bare
+// positive form the reverse adapter above re-derives:
+//
+//   -num:>2       → num:<=2     (comparison inversion, INVERTED_COMPARISON)
+//   -bool:true    → bool:false  (boolean flip; only for boolean fields)
+//
+// The store's `resetTo` equivalence gate runs this on BOTH the typed draft and
+// the re-derived committed text before comparing ASTs, so a typed `-latency:>2`
+// / `-isRootObservation:true` stands instead of being clobbered by the canonical
+// `latency:<=2` / `isRootObservation:false` on the commit echo — the same
+// "no silent rewrite" carve-out already made for aliases (astEquals) and
+// metadata equality. Structure and order are preserved, so free-text
+// canonicalization and alias casing are untouched.
+//
+// Every OTHER negation (none-of, does-not-contain, is-null) keeps its dash when
+// re-derived, so it already round-trips and is left as a NOT here. Negated
+// datetime comparisons fold their operator too, but still re-seed because the
+// derived value is full ISO — that value-format round-trip is a separate matter
+// that affects positive datetimes the same way.
+export function foldDerivedNegation(node: ASTNode | null): ASTNode | null {
+  if (node === null) return null;
+  switch (node.kind) {
+    case "not": {
+      const child = foldDerivedNegation(node.child) ?? node.child;
+      if (child.kind === "filter") {
+        const folded = foldNegatedFilter(child);
+        if (folded !== null) return folded;
+      }
+      return { ...node, child };
+    }
+    case "and":
+    case "or":
+      return {
+        ...node,
+        children: node.children.map((c) => foldDerivedNegation(c) ?? c),
+      };
+    default:
+      return node;
+  }
+}
+
+function foldNegatedFilter(f: FilterNode): FilterNode | null {
+  // Comparison: NOT (key op v) === key INVERT(op) v. Comparisons only validly
+  // appear on numeric/datetime fields, so no field-kind check is needed.
+  if (f.op in INVERTED_COMPARISON) {
+    return {
+      ...f,
+      op: INVERTED_COMPARISON[f.op as keyof typeof INVERTED_COMPARISON],
+    };
+  }
+  // Boolean equality: NOT (key = true) === key = false — but ONLY for a boolean
+  // field. On an option field a "true" value lowers to a none-of, not a flip,
+  // so it must keep its NOT (which round-trips with the dash anyway).
+  if ((f.op === "=" || f.op === "exact") && f.values.length === 1) {
+    const ref = resolveField(f.key);
+    if (ref?.type === "field" && ref.field.kind === "boolean") {
+      const v = f.values[0]!.toLowerCase();
+      if (v === "true" || v === "false") {
+        return { ...f, op: "=", values: [v === "true" ? "false" : "true"] };
+      }
+    }
+  }
+  return null;
 }
