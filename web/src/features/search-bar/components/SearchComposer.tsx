@@ -61,6 +61,12 @@ const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 // are intentionally suppressed (popover closed or append mode).
 const NO_RECENTS: string[] = [];
 
+// Surrogate-pair guards: a non-BMP codepoint (emoji, supplementary CJK) is two
+// UTF-16 code units, so a ±1 caret step can split it. Used to step the whole
+// pair in the Arrow-key handler. (charCodeAt returns NaN past the end → false.)
+const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
+
 type LogicalRange = { start: number; end: number };
 
 function textFromRoot(root: HTMLElement): string {
@@ -968,10 +974,29 @@ export function SearchComposer({
       if (root === null) return;
       const { start, end } = selectionOffsets(root);
       if (start !== end) return; // let native collapse a selection
-      const target =
+      let target =
         event.key === "ArrowLeft"
           ? Math.max(0, end - 1)
           : Math.min(draft.length, end + 1);
+      // Step over a whole non-BMP character (emoji, supplementary CJK): offsets
+      // count UTF-16 code units, so a ±1 step can land BETWEEN a surrogate pair.
+      // Native arrow movement is grapheme-aware; restore that for the common
+      // single-codepoint case so one press crosses the character.
+      if (
+        event.key === "ArrowLeft" &&
+        target > 0 &&
+        isLowSurrogate(draft.charCodeAt(target)) &&
+        isHighSurrogate(draft.charCodeAt(target - 1))
+      ) {
+        target -= 1;
+      } else if (
+        event.key === "ArrowRight" &&
+        target < draft.length &&
+        isHighSurrogate(draft.charCodeAt(target - 1)) &&
+        isLowSurrogate(draft.charCodeAt(target))
+      ) {
+        target += 1;
+      }
       if (target === end) return; // at an edge — native no-op
       event.preventDefault();
       setSelectionRange(root, target, target);
