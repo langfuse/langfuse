@@ -177,6 +177,14 @@ export const transformDbToApiObservation = (
     bookmarked,
 
     public: _public,
+
+    // Exclude events-table-only aggregate/trace fields that are not part of the
+    // V1 APIObservation contract. These appear when observations are read via
+    // the by-trace events path (FullEventsObservation) but not in the legacy
+    // observation shape.
+    traceTimestamp,
+    toolDefinitionsCount,
+    toolCallsCount,
     ...rest
   } = observation as EventsObservation &
     ObservationPriceFields & {
@@ -185,6 +193,10 @@ export const transformDbToApiObservation = (
       // either `tags` or `traceTags` may exist on the input observation.
       // This is not part of the standard `EventsObservation` type.
       traceTags?: string[];
+      // Present only on FullEventsObservation (by-trace events read).
+      traceTimestamp?: unknown;
+      toolDefinitionsCount?: unknown;
+      toolCallsCount?: unknown;
     };
 
   return {

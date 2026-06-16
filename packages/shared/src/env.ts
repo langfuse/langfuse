@@ -276,6 +276,17 @@ const EnvSchema = z.object({
     .enum(["legacy", "dual", "events_only"])
     .default("legacy"),
 
+  // Shadow-comparison experiment for the Traces public API: on this fraction of
+  // requests (0..1), the API also runs the *other* read path (events table vs
+  // legacy traces/observations), compares the results field-by-field, and
+  // records latency + diff metrics. The data returned to the caller is
+  // unaffected. Default 0 = experiment off.
+  LANGFUSE_EVENTS_TABLE_EXPERIMENT_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0),
+
   LANGFUSE_S3_LIST_MAX_KEYS: z.coerce.number().positive().default(200),
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_ENABLED: z
     .enum(["true", "false"])

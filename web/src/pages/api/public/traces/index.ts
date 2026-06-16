@@ -21,6 +21,8 @@ import {
   traceDeletionProcessor,
   getTracesFromEventsTableForPublicApi,
   getTracesCountFromEventsTableForPublicApi,
+  runEventsTableExperiment,
+  diffResults,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
@@ -127,7 +129,9 @@ export default withMiddlewares(
           toTimestamp: query.toTimestamp ?? undefined,
         };
 
-        if (query.useEventsTable) {
+        // Events-table read path (new). Aggregates trace fields from the root
+        // observation; see eventsTableIsRootObservationSql.
+        const buildEventsResult = async () => {
           const [items, count] = await Promise.all([
             getTracesFromEventsTableForPublicApi({
               ...filterProps,
@@ -152,34 +156,64 @@ export default withMiddlewares(
               totalPages: Math.ceil(count / query.limit),
             },
           };
-        }
+        };
 
-        // Legacy code path using traces table
-        const [items, count] = await Promise.all([
-          generateTracesForPublicApi({
-            props: filterProps,
-            advancedFilters: query.filter,
-            orderBy: query.orderBy ?? null,
-          }),
-          getTracesCountForPublicApi({
-            props: filterProps,
-            advancedFilters: query.filter,
-          }),
-        ]);
+        // Legacy code path using traces + observations tables.
+        const buildLegacyResult = async () => {
+          const [items, count] = await Promise.all([
+            generateTracesForPublicApi({
+              props: filterProps,
+              advancedFilters: query.filter,
+              orderBy: query.orderBy ?? null,
+            }),
+            getTracesCountForPublicApi({
+              props: filterProps,
+              advancedFilters: query.filter,
+            }),
+          ]);
 
-        const finalCount = count || 0;
-        return {
-          data: items.map((item) => ({
-            ...item,
-            externalId: null,
-          })),
-          meta: {
+          const finalCount = count || 0;
+          return {
+            data: items.map((item) => ({
+              ...item,
+              externalId: null,
+            })),
+            meta: {
+              page: query.page,
+              limit: query.limit,
+              totalItems: finalCount,
+              totalPages: Math.ceil(finalCount / query.limit),
+            },
+          };
+        };
+
+        // The caller still gets the path it selected via `useEventsTable`.
+        // On a sampled fraction of requests we also run the other path as a
+        // shadow read and compare the two results (latency + field diffs).
+        return runEventsTableExperiment({
+          feature: "traces.list",
+          projectId: auth.scope.projectId,
+          selected: query.useEventsTable ? "events" : "legacy",
+          events: buildEventsResult,
+          legacy: buildLegacyResult,
+          compare: (legacyResult, eventsResult) =>
+            diffResults(
+              {
+                data: legacyResult.data,
+                totalItems: legacyResult.meta.totalItems,
+              },
+              {
+                data: eventsResult.data,
+                totalItems: eventsResult.meta.totalItems,
+              },
+              { numericFields: new Set(["totalCost", "latency"]) },
+            ),
+          logContext: {
             page: query.page,
             limit: query.limit,
-            totalItems: finalCount,
-            totalPages: Math.ceil(finalCount / query.limit),
+            fields: effectiveFields,
           },
-        };
+        });
       },
     }),
 

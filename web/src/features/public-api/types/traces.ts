@@ -134,6 +134,7 @@ export const GetTraceV1Query = z.object({
       return parsed.length > 0 ? parsed : null;
     })
     .pipe(z.array(z.enum(TRACE_FIELD_GROUPS)).nullable()),
+  useEventsTable: useEventsTableSchema,
 });
 export const GetTraceV1Response = APIExtendedTrace.extend({
   scores: z.array(APIScoreSchemaV1),

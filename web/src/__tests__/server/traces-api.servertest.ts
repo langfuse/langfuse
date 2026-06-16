@@ -2110,6 +2110,85 @@ describe("/api/public/traces API Endpoint", () => {
           expect(trace.latency).toBeGreaterThan(0);
         });
 
+        it("should fetch a single trace with all field groups via /traces/{id}", async () => {
+          const timestamp = new Date();
+          const traceId = randomUUID();
+          const createdTrace = createTrace({
+            id: traceId,
+            name: "single-trace-fields",
+            user_id: "user-single-test",
+            session_id: "session-single-test",
+            timestamp: timestamp.getTime(),
+            project_id: projectId,
+            metadata: { testKey: "testValue" },
+            release: "1.0.0",
+            version: "2.0.0",
+            environment: "production",
+          });
+
+          await createTraceWithObservations(useEventsTable, createdTrace, [
+            {
+              trace_id: traceId,
+              project_id: projectId,
+              name: "generation-1",
+              type: "GENERATION",
+              start_time: timestamp.getTime(),
+              end_time: timestamp.getTime() + 1000,
+              input: "What is the capital of France?",
+              output: "The capital of France is Paris.",
+              cost_details: {
+                total: 0.05,
+              },
+              total_cost: 0.05,
+              metadata: { testKey: "testValue" },
+            },
+            {
+              trace_id: traceId,
+              project_id: projectId,
+              name: "span-1",
+              type: "SPAN",
+              start_time: timestamp.getTime() + 500,
+              end_time: timestamp.getTime() + 2000,
+              cost_details: {
+                total: 0.03,
+              },
+              total_cost: 0.03,
+              metadata: { testKey: "testValue" },
+            },
+          ]);
+
+          const singleTracePath = useEventsTable
+            ? `/api/public/traces/${traceId}?useEventsTable=true&fields=core,io,observations,metrics`
+            : `/api/public/traces/${traceId}?fields=core,io,observations,metrics`;
+
+          const res = await makeZodVerifiedAPICall(
+            GetTraceV1Response,
+            "GET",
+            singleTracePath,
+            undefined,
+            auth,
+          );
+
+          expect(res.body.id).toBe(traceId);
+          expect(res.body.name).toBe("single-trace-fields");
+          expect(res.body.userId).toBe("user-single-test");
+          expect(res.body.sessionId).toBe("session-single-test");
+          expect(res.body.environment).toBe("production");
+          expect(res.body.version).toBe("2.0.0");
+          expect(res.body.metadata).toMatchObject({ testKey: "testValue" });
+          // >= 2 because the events-table model also surfaces the root trace
+          // event as an observation, whereas the legacy model keeps the trace
+          // separate from its observations.
+          expect(res.body.observations.length).toBeGreaterThanOrEqual(2);
+          // totalCost/latency come from the metrics field group; exact cost is
+          // asserted by the list-endpoint test (single-trace derives cost from
+          // cost_details, which the shared helper does not wire for the legacy
+          // path), so here we just assert the metrics field group is populated.
+          expect(typeof res.body.totalCost).toBe("number");
+          expect(res.body.totalCost).toBeGreaterThanOrEqual(0);
+          expect(res.body.latency).toBeGreaterThan(0);
+        });
+
         it("should filter traces by userId", async () => {
           const userId = randomUUID();
           const traceId = randomUUID();
