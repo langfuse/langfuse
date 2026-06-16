@@ -1471,6 +1471,19 @@ export const getObservationsFromEventsTableForPublicApi = async (
 
 // ── Shadow query validation (remove after subquery-rewrite rollout) ──────────
 
+export type ShadowQueryOutcome =
+  | "match"
+  | "row_count_mismatch"
+  | "order_mismatch"
+  | "error";
+
+/** Test-only hook: captures the last shadow promise. Set `forceShadow` to
+ *  bypass env checks (avoids module-identity issues in vitest). */
+export const _shadowQueryTestHook: {
+  promise: Promise<ShadowQueryOutcome> | null;
+  forceShadow: boolean;
+} = { promise: null, forceShadow: false };
+
 /**
  * Fire-and-forget: run the subquery-rewrite path alongside the authoritative
  * cte-join result and emit Datadog comparison metrics. Never throws; errors
@@ -1489,7 +1502,7 @@ function runSubqueryRewriteShadowQuery(
   const requestedFields = opts.fields ?? ["core", "basic"];
   const METRIC_PREFIX = "langfuse.observations_v2.shadow_query";
 
-  const run = async () => {
+  const run = async (): Promise<ShadowQueryOutcome> => {
     const { queryBuilder: shadowBuilder } = buildObservationsQueryComponents(
       opts,
       eventsTableNativeUiColumnDefinitions,
@@ -1530,20 +1543,24 @@ function runSubqueryRewriteShadowQuery(
         primaryCount: primaryIds.length,
         shadowCount: shadowIds.length,
       });
-    } else {
-      const orderMatch = primaryIds.every((id, i) => id === shadowIds[i]);
-      if (!orderMatch) {
-        recordIncrement(`${METRIC_PREFIX}.order_mismatch`, 1);
-        logger.warn("Shadow query order mismatch", { projectId });
-      } else {
-        recordIncrement(`${METRIC_PREFIX}.match`, 1);
-      }
+      return "row_count_mismatch";
     }
+
+    const orderMatch = primaryIds.every((id, i) => id === shadowIds[i]);
+    if (!orderMatch) {
+      recordIncrement(`${METRIC_PREFIX}.order_mismatch`, 1);
+      logger.warn("Shadow query order mismatch", { projectId });
+      return "order_mismatch";
+    }
+
+    recordIncrement(`${METRIC_PREFIX}.match`, 1);
+    return "match";
   };
 
-  run().catch((err) => {
+  _shadowQueryTestHook.promise = run().catch((err): ShadowQueryOutcome => {
     recordIncrement(`${METRIC_PREFIX}.error`, 1);
     logger.error("Shadow query failed", { projectId, error: err });
+    return "error";
   });
 }
 
@@ -1607,7 +1624,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   const shouldShadow =
     queryPath === "cte-join" &&
     externalCTEs.length === 0 &&
-    shouldRunObservationsShadowQuery();
+    (_shadowQueryTestHook.forceShadow || shouldRunObservationsShadowQuery());
 
   // Field groups projected on the base builder by the non-rewrite paths.
   // `io` (and `metadata` when it must come untruncated from events_full) is
