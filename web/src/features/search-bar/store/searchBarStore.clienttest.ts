@@ -29,6 +29,19 @@ describe("searchBarStore (draft-only)", () => {
     expect(notified).toBe(0);
   });
 
+  it("resetTo keeps a typed alias when the canonical echo is equivalent", () => {
+    // Commit bounces `env:dev` through canonical URL state and re-derives
+    // `environment:dev`; resetTo must NOT clobber the user's typed alias, since
+    // the two are semantically identical (no silent rewrite).
+    const store = createSearchBarStore();
+    store.getState().actions.setDraft("env:dev");
+    store.getState().actions.resetTo("environment:dev");
+    expect(store.getState().draft).toBe("env:dev");
+    // But a genuinely different committed text (external edit) still re-seeds.
+    store.getState().actions.resetTo("level:ERROR");
+    expect(store.getState().draft).toBe("level:ERROR");
+  });
+
   it("revealInvalid marks the current draft; setDraft clears it", () => {
     const store = createSearchBarStore();
     store.getState().actions.setDraft("level:ERROR OR env:dev");

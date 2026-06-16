@@ -12,8 +12,9 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { ScoreTypeContext } from "../lib/adapter";
+import { astEquals } from "../lib/ast";
 import { removeToken } from "../lib/edits";
-import { type Diagnostic } from "../lib/langQ";
+import { parse, type Diagnostic } from "../lib/langQ";
 import { scoreTypeContextEqual } from "../lib/observed-options";
 import { validateQuery } from "../lib/validate";
 
@@ -93,7 +94,16 @@ export function createSearchBarStore(
       actions: {
         setDraft: writeDraft,
         resetTo: (committedText) => {
-          if (committedText === get().draft) return;
+          const draft = get().draft;
+          if (committedText === draft) return;
+          // Keep the user's typed form when it is SEMANTICALLY identical to the
+          // re-derived committed text. The commit echo bounces through canonical
+          // URL filter state (no slot for a typed alias), so a string compare
+          // would clobber `env:dev` with `environment:dev` on every commit —
+          // violating "no silent rewrites". An AST compare (which ignores
+          // rawKey/casing) lets an equivalent draft stand; a genuinely different
+          // commit (sidebar edit, saved view, external nav) still re-seeds.
+          if (astEquals(parse(committedText).ast, parse(draft).ast)) return;
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {
