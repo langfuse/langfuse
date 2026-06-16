@@ -6,10 +6,10 @@
 // token and colons/commas inside quotes never split stages.
 //
 // Every filter type gets a guided value stage — numbers/datetimes offer their
-// operators with unit-aware examples, text fields offer the match operators
-// (= ~ ^ $ and * where FTS applies), metadata/scores suggest observed keys
-// and values, has:/in: enumerate their domains, and free text offers scoped
-// full-text search rewrites.
+// operators with unit-aware examples, text fields offer the positional `*` glob
+// match refinements (*v* contains, v* starts, *v ends, =v exact), metadata/
+// scores suggest observed keys and values, has: enumerates its domain, and free
+// text (plus content:/input:/output:) offers scoped full-text search rewrites.
 
 import {
   indexOfOutsideQuotes,
@@ -994,13 +994,15 @@ export function planInputCompletions(
   const activeValueText = grouped?.typed ?? seg!.text;
   // Comparison/exact operator prefixes belong to the op, not the typed value,
   // and put the value into free-form entry (valueStageSections bails on them).
-  // A `*` glob anchor is NOT such a prefix: `*ole*`/`ole*`/`*ole` are full-text
-  // match VALUES. Unwrapping the glob to its bare core keeps the value stage
-  // live (so clicking into `output:*ole*` still offers re-scope / re-form
-  // suggestions) instead of suppressing the popover entirely.
+  // This set MUST mirror langQ's OPERATOR_PREFIXES (>= <= > < =) — nothing more.
+  // After the glob migration `~`/`^`/`$` are LITERAL value chars (not ops) and
+  // `*` is a positional glob ANCHOR: treating any of them as a prefix wrongly
+  // suppressed the popover for the canonical `name:*chat*` contains form. The
+  // glob is instead unwrapped to its bare core below so the value stage stays
+  // live and offers re-scope / re-form suggestions.
   const valuePrefix =
     grouped === null
-      ? (activeValueText.match(/^(>=|<=|>|<|~|=|\^|\$)/)?.[0] ?? "")
+      ? (activeValueText.match(/^(>=|<=|>|<|=)/)?.[0] ?? "")
       : "";
   const glob =
     grouped === null && valuePrefix === "" ? parseGlob(activeValueText) : null;

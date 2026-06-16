@@ -272,6 +272,20 @@ describe("planInputCompletions", () => {
     expect(ids).not.toContain("scope:output");
   });
 
+  it("treats leading ~/^/$ as literal value chars, not suppressing prefixes", () => {
+    // The value-prefix regex must mirror langQ's OPERATOR_PREFIXES (>= <= > < =)
+    // and nothing more. After the glob migration `~`/`^`/`$` are literal chars,
+    // so a value starting with one must still plan the value stage (wrapping the
+    // literal), never bail to a blank popover.
+    for (const value of ["~chat", "^chat", "$chat"]) {
+      const p = plan(`statusMessage:${value}`, `statusMessage:${value}`.length);
+      expect(p?.stage).toBe("value");
+      // The match-op refinements wrap the WHOLE literal value (incl. the `~`).
+      const labels = flattenOptions(p).map((o) => o.label);
+      expect(labels).toContain(`*${value}*`);
+    }
+  });
+
   it("plans grouped value segments with keep-open for incomplete groups", () => {
     const p = plan("level:(ERROR OR ", 16);
     expect(p?.stage).toBe("value");
