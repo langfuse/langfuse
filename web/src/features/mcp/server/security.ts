@@ -5,6 +5,36 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 const LOCALHOST_HOSTNAMES = ["localhost", "127.0.0.1", "[::1]"] as const;
 const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
 
+function parseAllowedMcpHostEntry(
+  entry: string,
+  fallbackProtocol: string,
+): { hostname: string; origin: string } {
+  const trimmedEntry = entry.trim();
+  const url = new URL(
+    /^https?:\/\//i.test(trimmedEntry)
+      ? trimmedEntry
+      : `${fallbackProtocol}//${trimmedEntry}`,
+  );
+
+  if (
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash ||
+    url.hostname.includes("*")
+  ) {
+    throw new Error(
+      `Invalid LANGFUSE_MCP_ALLOWED_HOSTS entry: ${trimmedEntry}`,
+    );
+  }
+
+  return {
+    hostname: url.hostname.toLowerCase(),
+    origin: url.origin.toLowerCase(),
+  };
+}
+
 function getAllowedMcpOriginsAndHostnames() {
   const rawBaseUrl = env.NEXTAUTH_URL;
   const baseUrl = new URL(
@@ -14,6 +44,12 @@ function getAllowedMcpOriginsAndHostnames() {
   );
   const allowedHostnames = new Set([baseUrl.hostname.toLowerCase()]);
   const allowedOrigins = new Set([baseUrl.origin.toLowerCase()]);
+
+  for (const entry of env.LANGFUSE_MCP_ALLOWED_HOSTS) {
+    const allowedHost = parseAllowedMcpHostEntry(entry, baseUrl.protocol);
+    allowedHostnames.add(allowedHost.hostname);
+    allowedOrigins.add(allowedHost.origin);
+  }
 
   if (env.NODE_ENV !== "production") {
     const localPort =
