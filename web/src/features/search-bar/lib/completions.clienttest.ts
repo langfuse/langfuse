@@ -118,6 +118,13 @@ describe("planInputCompletions", () => {
   it("offers comparisons for numeric fields", () => {
     const p = plan("latency:", 8);
     expect(p?.sections.map((s) => s.title)).toContain(SECTION_COMPARE_OPS);
+    // No dead-end option: every comparison pick must insert a symbol. The old
+    // `=` entry inserted "" — picking it left the draft unchanged (silent).
+    const opts = flattenOptions(p);
+    expect(opts.length).toBeGreaterThan(0);
+    for (const o of opts) {
+      expect("insert" in o && o.insert, JSON.stringify(o)).toBeTruthy();
+    }
   });
 
   it("does not offer match operators for array fields (operatorIssue rejects them)", () => {

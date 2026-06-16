@@ -333,21 +333,17 @@ function numberOperatorOptions(
   example: string,
 ): CompletionOption[] {
   const unitNote = unit !== undefined ? ` (${unit})` : "";
-  const ops: CompletionOption[] = COMPARISON_LABELS.map(({ symbol, name }) => ({
+  // No explicit `=` entry: a bare value already means equality (`latency:2`),
+  // and an `=` option would either insert nothing (a silent dead-end pick) or
+  // produce `latency:=2`, which the reverse adapter re-derives to the bare
+  // `latency:2` — a visible rewrite echo. Typing the value is the equals path.
+  return COMPARISON_LABELS.map(({ symbol, name }) => ({
     id: `vop:${symbol}`,
     kind: "operator",
     label: symbol,
     detail: `${name} — e.g. ${fieldId}:${symbol}${example}${unitNote}`,
     insert: symbol,
   }));
-  ops.push({
-    id: "vop:=",
-    kind: "operator",
-    label: "=",
-    detail: `exactly — e.g. ${fieldId}:${example}${unitNote}`,
-    insert: "",
-  });
-  return ops;
 }
 
 function datetimeOperatorOptions(fieldId: string): CompletionOption[] {
