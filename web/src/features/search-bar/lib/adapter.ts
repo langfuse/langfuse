@@ -195,7 +195,9 @@ function lowerContent(node: FilterNode, ctx: LowerContext): void {
   }
   const value = node.values[0];
   if (value === undefined || value.length === 0) {
-    ctx.errors.push("content: needs search text (e.g. content:refund)");
+    // The parser already flags `content:` (empty) as `Missing value after
+    // "content:"`; a second message here would double the diagnostic. Return
+    // silently — the parser's wording is authoritative and blocks the commit.
     return;
   }
   ctx.searchTerms.push(value);
@@ -295,10 +297,11 @@ function lowerFilter(
   scoreTypes?: ScoreTypeContext,
 ): void {
   if (node.values.length === 0) {
-    // Match the parser's wording exactly (langQ parseTermNode) so
-    // dedupeMergedDiagnostics collapses the two layers into ONE diagnostic —
-    // otherwise every `key:` typo announces two messages for one problem.
-    errors.push(`Missing value after "${node.rawKey ?? node.key}:"`);
+    // The parser already flags every empty-value FilterNode at this span — and
+    // with the exact wording for each shape (bare key, operator prefix
+    // `key:=`, glob, grouped `key:()`), which a single adapter string can't
+    // match. Return silently so the parser's message is the sole diagnostic
+    // (validate.ts blocks the commit either way); pushing one here doubled it.
     return;
   }
 
