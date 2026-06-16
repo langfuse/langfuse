@@ -1247,7 +1247,14 @@ export function SearchComposer({
           aria-describedby={describedBy}
           contentEditable
           suppressContentEditableWarning
+          // The query is code-like grammar, not prose: suppress every mobile-
+          // keyboard mutation, not just the spellcheck squiggle. Without these,
+          // iOS/Android default autocorrect + sentence-capitalization can
+          // rewrite a partial token (`tps` → something) before commit.
           spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="none"
+          inputMode="text"
           data-testid="search-bar-input"
           className="min-h-6 font-mono text-xs leading-7 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
           onInput={(event) => {
