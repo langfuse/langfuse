@@ -26,6 +26,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { X as IconX, Search, WandSparkles, InfoIcon } from "lucide-react";
+import DocPopup from "@/src/components/layouts/doc-popup";
 import type {
   UIFilter,
   KeyValueFilterEntry,
@@ -201,6 +202,7 @@ export function DataTableControls({
                   filterKey={filter.column}
                   label={filter.label}
                   tooltip={filter.tooltip}
+                  tooltipHref={filter.tooltipHref}
                   expanded={filter.expanded}
                   options={filter.options}
                   counts={filter.counts}
@@ -230,6 +232,7 @@ export function DataTableControls({
                   filterKey={filter.column}
                   label={filter.label}
                   tooltip={filter.tooltip}
+                  tooltipHref={filter.tooltipHref}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   min={filter.min}
@@ -252,6 +255,7 @@ export function DataTableControls({
                   filterKey={filter.column}
                   label={filter.label}
                   tooltip={filter.tooltip}
+                  tooltipHref={filter.tooltipHref}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   value={filter.value}
@@ -271,6 +275,7 @@ export function DataTableControls({
                   filterKey={filter.column}
                   label={filter.label}
                   tooltip={filter.tooltip}
+                  tooltipHref={filter.tooltipHref}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -293,6 +298,7 @@ export function DataTableControls({
                   filterKey={filter.column}
                   label={filter.label}
                   tooltip={filter.tooltip}
+                  tooltipHref={filter.tooltipHref}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -314,6 +320,7 @@ export function DataTableControls({
                   filterKey={filter.column}
                   label={filter.label}
                   tooltip={filter.tooltip}
+                  tooltipHref={filter.tooltipHref}
                   expanded={filter.expanded}
                   loading={filter.loading}
                   keyOptions={filter.keyOptions}
@@ -338,6 +345,7 @@ export function DataTableControls({
 interface BaseFacetProps {
   label: string;
   tooltip?: string;
+  tooltipHref?: string;
   filterKey: string;
   filterKeyShort?: string | null;
   expanded?: boolean;
@@ -439,6 +447,7 @@ const FilterAccordionContent = ({
 interface FilterAccordionItemProps {
   label: string;
   tooltip?: string;
+  tooltipHref?: string;
   filterKey: string;
   filterKeyShort?: string | null;
   children: React.ReactNode;
@@ -451,6 +460,7 @@ interface FilterAccordionItemProps {
 export function FilterAccordionItem({
   label,
   tooltip,
+  tooltipHref,
   filterKey,
   filterKeyShort,
   children,
@@ -486,22 +496,34 @@ export function FilterAccordionItem({
               </TooltipContent>
             </Tooltip>
           ) : tooltip ? (
-            <Tooltip delayDuration={80}>
-              <TooltipTrigger asChild>
-                <span className="flex grow items-center gap-1">
-                  {label}
-                  <InfoIcon className="text-muted-foreground h-3 w-3 shrink-0" />
-                  {filterKeyShort && (
-                    <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                      {filterKeyShort}
-                    </code>
-                  )}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-80 text-xs">
-                {tooltip}
-              </TooltipContent>
-            </Tooltip>
+            tooltipHref ? (
+              <div className="flex grow items-center gap-1">
+                {label}
+                <DocPopup description={tooltip} href={tooltipHref} />
+                {filterKeyShort && (
+                  <code className="text-muted-foreground/70 hidden font-mono text-xs">
+                    {filterKeyShort}
+                  </code>
+                )}
+              </div>
+            ) : (
+              <Tooltip delayDuration={80}>
+                <TooltipTrigger asChild>
+                  <span className="flex grow items-center gap-1">
+                    {label}
+                    <InfoIcon className="text-muted-foreground h-3 w-3 shrink-0" />
+                    {filterKeyShort && (
+                      <code className="text-muted-foreground/70 hidden font-mono text-xs">
+                        {filterKeyShort}
+                      </code>
+                    )}
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-80 text-xs">
+                  {tooltip}
+                </TooltipContent>
+              </Tooltip>
+            )
           ) : (
             <span className="flex grow items-baseline gap-1">
               {label}
@@ -554,6 +576,7 @@ export function FilterAccordionItem({
 export function CategoricalFacet({
   label,
   tooltip,
+  tooltipHref,
   filterKey,
   filterKeyShort,
   expanded,
@@ -632,6 +655,7 @@ export function CategoricalFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      tooltipHref={tooltipHref}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -868,6 +892,7 @@ export function CategoricalFacet({
 export function NumericFacet({
   label,
   tooltip,
+  tooltipHref,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -951,6 +976,7 @@ export function NumericFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      tooltipHref={tooltipHref}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1032,6 +1058,7 @@ export function NumericFacet({
 export function StringFacet({
   label,
   tooltip,
+  tooltipHref,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1081,6 +1108,7 @@ export function StringFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      tooltipHref={tooltipHref}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1109,6 +1137,7 @@ export function StringFacet({
 export function KeyValueFacet({
   label,
   tooltip,
+  tooltipHref,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1127,6 +1156,7 @@ export function KeyValueFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      tooltipHref={tooltipHref}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1155,6 +1185,7 @@ export function KeyValueFacet({
 export function NumericKeyValueFacet({
   label,
   tooltip,
+  tooltipHref,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1172,6 +1203,7 @@ export function NumericKeyValueFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      tooltipHref={tooltipHref}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}
@@ -1199,6 +1231,7 @@ export function NumericKeyValueFacet({
 export function StringKeyValueFacet({
   label,
   tooltip,
+  tooltipHref,
   filterKey,
   filterKeyShort,
   expanded: _expanded,
@@ -1216,6 +1249,7 @@ export function StringKeyValueFacet({
     <FilterAccordionItem
       label={label}
       tooltip={tooltip}
+      tooltipHref={tooltipHref}
       filterKey={filterKey}
       filterKeyShort={filterKeyShort}
       isActive={isActive}

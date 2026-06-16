@@ -121,6 +121,7 @@ export interface BaseUIFilter {
   column: string;
   label: string;
   tooltip?: string;
+  tooltipHref?: string;
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
@@ -1127,6 +1128,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
+            tooltipHref: facet.tooltipHref,
 
             value: currentRange,
             min: facet.min,
@@ -1160,6 +1162,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
+            tooltipHref: facet.tooltipHref,
 
             value: currentValue,
             loading: false,
@@ -1222,6 +1225,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
+            tooltipHref: facet.tooltipHref,
 
             value: activeFilters,
             keyOptions,
@@ -1305,6 +1309,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
+            tooltipHref: facet.tooltipHref,
 
             value: activeFilters,
             keyOptions,
@@ -1387,6 +1392,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
+            tooltipHref: facet.tooltipHref,
 
             value: activeFilters,
             keyOptions,
@@ -1479,6 +1485,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
+            tooltipHref: facet.tooltipHref,
 
             value: selectedOptions,
             options: availableOptions,
@@ -1641,6 +1648,7 @@ export function useSidebarFilterState(
           column: facet.column,
           label: facet.label,
           tooltip: facet.tooltip,
+          tooltipHref: facet.tooltipHref,
 
           value: selectedValues,
           options: availableValues,

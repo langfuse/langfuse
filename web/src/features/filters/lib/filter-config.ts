@@ -5,6 +5,7 @@ interface BaseFacet {
   column: string;
   label: string;
   tooltip?: string;
+  tooltipHref?: string;
   isDisabled?: boolean;
   disabledReason?: string;
 }
