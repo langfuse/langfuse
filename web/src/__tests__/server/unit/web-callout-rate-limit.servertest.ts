@@ -6,6 +6,7 @@ import {
   resetWebCalloutInFlightLimitsForTests,
   withWebCalloutInFlightLimit,
 } from "@/src/features/web-callouts/server/rateLimit";
+import { env } from "@/src/env.mjs";
 
 const mocks = vi.hoisted(() => ({
   consume: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock("@langfuse/shared/src/server", () => ({
 }));
 
 describe("web callout rate limiting", () => {
+  const originalRateLimitsEnabled = env.LANGFUSE_RATE_LIMITS_ENABLED;
   const context = {
     orgId: "org-1",
     projectId: "project-1",
@@ -64,6 +66,7 @@ describe("web callout rate limiting", () => {
     });
 
   beforeEach(() => {
+    (env as any).LANGFUSE_RATE_LIMITS_ENABLED = "true";
     WebCalloutRateLimitService.shutdown();
     resetWebCalloutInFlightLimitsForTests();
     mocks.consume.mockReset();
@@ -72,11 +75,12 @@ describe("web callout rate limiting", () => {
   });
 
   afterEach(() => {
+    (env as any).LANGFUSE_RATE_LIMITS_ENABLED = originalRateLimitsEnabled;
     WebCalloutRateLimitService.shutdown();
     resetWebCalloutInFlightLimitsForTests();
   });
 
-  it("uses scoped 10/60 Redis buckets and fails closed on limiter problems", async () => {
+  it("uses scoped 10/60 Redis buckets, shares cold connects, and fails closed", async () => {
     const client = redis();
     await WebCalloutRateLimitService.getInstance(client).consume(context);
 
@@ -100,6 +104,39 @@ describe("web callout rate limiting", () => {
       ["org-1:project-1:endpoint-1:user-1"],
       ["org-1:project-1:endpoint-1"],
     ]);
+
+    WebCalloutRateLimitService.shutdown();
+    let resolveConnect: (() => void) | undefined;
+    const coldClient = {
+      status: "wait",
+      connect: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveConnect = () => {
+              coldClient.status = "ready";
+              resolve();
+            };
+          }),
+      ),
+      disconnect: vi.fn(),
+    } as any;
+    const service = WebCalloutRateLimitService.getInstance(coldClient);
+    const concurrentConsumes = Promise.all([
+      service.consume(context),
+      service.consume({ ...context, userId: "user-2" }),
+    ]);
+    expect(coldClient.connect).toHaveBeenCalledTimes(1);
+    resolveConnect?.();
+    await concurrentConsumes;
+
+    WebCalloutRateLimitService.shutdown();
+    mocks.options.length = 0;
+    (env as any).LANGFUSE_RATE_LIMITS_ENABLED = "false";
+    await expect(
+      WebCalloutRateLimitService.getInstance(null).consume(context),
+    ).resolves.toBeUndefined();
+    expect(mocks.options).toHaveLength(0);
+    (env as any).LANGFUSE_RATE_LIMITS_ENABLED = "true";
 
     WebCalloutRateLimitService.shutdown();
     await expectUnavailable(

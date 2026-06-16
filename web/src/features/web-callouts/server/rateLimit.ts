@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { type Cluster, type Redis } from "ioredis";
 
+import { env } from "@/src/env.mjs";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   createNewRedisInstance,
@@ -78,6 +79,7 @@ export class WebCalloutRateLimitService {
   private static redis: Redis | Cluster | null = null;
 
   private redisUnavailableUntilMs = 0;
+  private redisConnectPromise: Promise<void> | null = null;
 
   public static getInstance(redis?: Redis | Cluster | null) {
     if (!WebCalloutRateLimitService.instance || redis !== undefined) {
@@ -107,6 +109,10 @@ export class WebCalloutRateLimitService {
   }
 
   public async consume(context: WebCalloutLimitContext) {
+    if (env.LANGFUSE_RATE_LIMITS_ENABLED === "false") {
+      return;
+    }
+
     const redis = WebCalloutRateLimitService.redis;
 
     if (!redis) {
@@ -118,9 +124,7 @@ export class WebCalloutRateLimitService {
     }
 
     try {
-      if (redisStatus(redis) !== "ready") {
-        await redis.connect();
-      }
+      await this.ensureRedisReady(redis);
     } catch (error) {
       this.markRedisUnavailable(context, error);
     }
@@ -143,6 +147,18 @@ export class WebCalloutRateLimitService {
 
     await this.consumeLimiter(userLimiter, keys.user, context);
     await this.consumeLimiter(endpointLimiter, keys.endpoint, context);
+  }
+
+  private async ensureRedisReady(redis: Redis | Cluster) {
+    if (redisStatus(redis) === "ready") {
+      return;
+    }
+
+    this.redisConnectPromise ??= redis.connect().finally(() => {
+      this.redisConnectPromise = null;
+    });
+
+    await this.redisConnectPromise;
   }
 
   private async consumeLimiter(
