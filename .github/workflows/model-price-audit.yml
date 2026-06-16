@@ -1,0 +1,421 @@
+name: Default Model Price Audit
+
+on:
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      claude_model:
+        description: "Claude model alias to use for the audit"
+        required: false
+        default: "sonnet"
+        type: choice
+        options:
+          - sonnet
+          - opus
+      max_turns:
+        description: "Maximum Claude Code agent turns (1-20)"
+        required: false
+        default: "8"
+      max_budget_usd:
+        description: "Maximum Claude API spend for the audit (whole USD, 1-20)"
+        required: false
+        default: "5"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: default-model-price-audit
+  cancel-in-progress: true
+
+env:
+  BOT_BRANCH: model-price-audit-bot
+  PR_TITLE: "chore(pricing): update default model prices"
+
+jobs:
+  audit:
+    if: github.repository == 'langfuse/langfuse'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 45
+    outputs:
+      has_changes: ${{ steps.prepare.outputs.has_changes }}
+      branch_name: ${{ steps.prepare.outputs.branch_name }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Validate workflow inputs
+        env:
+          CLAUDE_MODEL: ${{ github.event.inputs.claude_model || 'sonnet' }}
+          CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '8' }}
+          CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '5' }}
+        run: |
+          set -euo pipefail
+
+          case "$CLAUDE_MODEL" in
+            sonnet | opus) ;;
+            *)
+              echo "::error::claude_model must be one of: sonnet, opus"
+              exit 1
+              ;;
+          esac
+
+          if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 20 ]; then
+            echo "::error::max_turns must be a whole number between 1 and 20"
+            exit 1
+          fi
+
+          if [[ ! "$CLAUDE_MAX_BUDGET_USD" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_BUDGET_USD" -gt 20 ]; then
+            echo "::error::max_budget_usd must be a whole USD amount between 1 and 20"
+            exit 1
+          fi
+
+      - name: Run pre-audit checks
+        run: |
+          set -euo pipefail
+
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
+            > "$RUNNER_TEMP/pricing-validation-before.txt"
+
+          {
+            echo "## Pre-audit checks"
+            echo
+            echo '```text'
+            cat "$RUNNER_TEMP/pricing-validation-before.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run Claude price audit
+        id: claude-audit
+        uses: anthropics/claude-code-action@4d7e1f0cd85743fdc93b1c8040ab54395da024e2 # v1
+        env:
+          API_TIMEOUT_MS: "900000"
+          BASH_DEFAULT_TIMEOUT_MS: "120000"
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ github.token }}
+          display_report: "true"
+          prompt: |
+            You are running Langfuse's scheduled default model price audit.
+
+            Read and follow:
+            - .agents/skills/add-model-price/SKILL.md
+            - .agents/skills/add-model-price/references/automated-audit.md
+            - .agents/skills/add-model-price/references/provider-sources-and-price-keys.md
+            - .agents/skills/add-model-price/references/workflow-and-validation.md
+
+            Allowed edit surface:
+            - worker/src/constants/default-model-prices.json
+            - packages/shared/src/server/llm/types.ts
+            - .agents/skills/add-model-price/references/*.md
+
+            Task:
+            1. Audit official provider pricing sources for stale prices, missing default prices, missing cache prices, and relevant selectable models that may not match any pricing regex.
+            2. Make only surgical edits with official provider evidence.
+            3. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
+            4. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
+            5. Re-run the deterministic validation script before finishing.
+            6. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
+
+            Hard constraints:
+            - Do not change generated files.
+            - Do not change package manager files.
+            - Do not run git push or create a PR.
+            - Do not add broad future-model wildcard regexes.
+            - Do not edit `.agents/skills/add-model-price/SKILL.md` or `.agents/skills/add-model-price/scripts/**`.
+            - Keep the first entry in every selectable model array unchanged unless the audit explicitly changes the default model.
+            - Use the allowed exact `date -u +%Y-%m-%dT00:00:00.000Z` command if you need the current timestamp.
+
+            Final response:
+            - If there is no diff, say that no pricing changes were made and list the notable unresolved findings.
+            - If there is a diff, list every changed model, the official source URL, the provider unit price, the converted per-token value, and the validation commands run.
+          claude_args: |
+            --model ${{ github.event.inputs.claude_model || 'sonnet' }}
+            --max-turns ${{ github.event.inputs.max_turns || '8' }}
+            --max-budget-usd ${{ github.event.inputs.max_budget_usd || '5' }}
+            --no-session-persistence
+            --allowedTools "Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
+            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","changedModels","skillReferenceUpdates","unresolvedFindings","validation"]}'
+
+      - name: Write Claude audit summary
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.claude-audit.outputs.structured_output }}
+        run: |
+          set -euo pipefail
+
+          printf '%s\n' "$STRUCTURED_OUTPUT" > "$RUNNER_TEMP/claude-model-price-audit.json"
+          node <<'NODE' | tee "$RUNNER_TEMP/claude-model-price-audit.txt"
+          const output = JSON.parse(process.env.STRUCTURED_OUTPUT);
+          const list = (items) =>
+            Array.isArray(items) && items.length > 0
+              ? items.map((item) => `- ${item}`).join("\n")
+              : "- None";
+
+          process.stdout.write(
+            [
+              "Summary:",
+              output.summary,
+              "",
+              "Changed models:",
+              list(output.changedModels),
+              "",
+              "Skill reference updates:",
+              list(output.skillReferenceUpdates),
+              "",
+              "Unresolved findings:",
+              list(output.unresolvedFindings),
+              "",
+              "Validation:",
+              list(output.validation),
+              "",
+            ].join("\n"),
+          );
+          NODE
+
+          {
+            echo "## Claude audit summary"
+            echo
+            cat "$RUNNER_TEMP/claude-model-price-audit.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate audit diff
+        run: |
+          set -euo pipefail
+
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
+          node scripts/agents/sync-agent-shims.mjs --check
+
+          mapfile -t changed_files < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No pricing changes detected after audit."
+            exit 0
+          fi
+
+          allowed_file_regex='^(worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
+          for changed_file in "${changed_files[@]}"; do
+            if [[ ! "$changed_file" =~ $allowed_file_regex ]]; then
+              echo "::error::Claude changed a file outside the allowed pricing surface: $changed_file"
+              exit 1
+            fi
+          done
+
+          mapfile -t untracked_files < <(git ls-files --others --exclude-standard)
+          if [ "${#untracked_files[@]}" -gt 0 ]; then
+            git add -N -- "${untracked_files[@]}"
+          fi
+
+          git diff --check -- "${changed_files[@]}"
+
+          changed_line_count="$(
+            git diff --numstat -- "${changed_files[@]}" \
+              | awk '{ added += $1; deleted += $2 } END { print added + deleted + 0 }'
+          )"
+          if [ "$changed_line_count" -gt 700 ]; then
+            echo "::error::Pricing audit diff is too large for a surgical bot update: ${changed_line_count} changed lines"
+            exit 1
+          fi
+
+          {
+            echo "## Diff stat"
+            echo
+            echo '```text'
+            git diff --stat
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare pull request artifact
+        id: prepare
+        run: |
+          set -euo pipefail
+
+          mapfile -t changed_files < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "branch_name=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          allowed_file_regex='^(worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
+          for changed_file in "${changed_files[@]}"; do
+            if [[ ! "$changed_file" =~ $allowed_file_regex ]]; then
+              echo "::error::Refusing to stage a file outside the allowed pricing surface: $changed_file"
+              exit 1
+            fi
+          done
+
+          mapfile -t untracked_files < <(git ls-files --others --exclude-standard)
+          if [ "${#untracked_files[@]}" -gt 0 ]; then
+            git add -N -- "${untracked_files[@]}"
+          fi
+
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
+          node scripts/agents/sync-agent-shims.mjs --check
+          git diff --check -- "${changed_files[@]}"
+
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
+          git -c core.hooksPath=/dev/null checkout -b "$BOT_BRANCH"
+
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -c core.hooksPath=/dev/null add -- "${changed_files[@]}"
+          mapfile -t staged_files < <(git diff --cached --name-only)
+          if [ "${#staged_files[@]}" -eq 0 ]; then
+            echo "::error::Refusing to commit because no files were staged"
+            exit 1
+          fi
+
+          for staged_file in "${staged_files[@]}"; do
+            if [[ ! "$staged_file" =~ $allowed_file_regex ]]; then
+              echo "::error::Refusing to commit a staged file outside the allowed pricing surface: $staged_file"
+              exit 1
+            fi
+          done
+
+          staged_blob_dir="$RUNNER_TEMP/model-price-audit-staged-blobs"
+          mkdir -p "$staged_blob_dir"
+          for staged_file in "${staged_files[@]}"; do
+            staged_blob="$staged_blob_dir/${staged_file//\//__}"
+            git show ":$staged_file" > "$staged_blob"
+            if ! cmp -s "$staged_file" "$staged_blob"; then
+              echo "::error::Staged blob differs from worktree content after git add: $staged_file"
+              exit 1
+            fi
+          done
+
+          staged_pricing_file="$RUNNER_TEMP/default-model-prices-staged.json"
+          git show ":worker/src/constants/default-model-prices.json" > "$staged_pricing_file"
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs "$staged_pricing_file"
+          git diff --cached --check -- "${staged_files[@]}"
+
+          git -c core.hooksPath=/dev/null commit --no-verify -m "$PR_TITLE"
+          node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
+          node scripts/agents/sync-agent-shims.mjs --check
+          git bundle create "$RUNNER_TEMP/model-price-audit.bundle" "$BOT_BRANCH"
+
+          {
+            echo "Automated default model price audit."
+            echo
+            echo "## Scope"
+            echo
+            echo "- Audits default model pricing data with official provider evidence."
+            echo "- Edits are restricted to pricing JSON, shared selectable model lists, and pricing skill reference docs."
+            echo
+            echo "## Validation"
+            echo
+            echo "- \`node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs\`"
+            echo "- \`node scripts/agents/sync-agent-shims.mjs --check\`"
+            echo "- \`git diff --check\`"
+            echo "- staged pricing blob validation"
+            echo
+            echo "## Diff Stat"
+            echo
+            echo '```text'
+            git show --stat --oneline HEAD
+            echo '```'
+            echo
+            echo "## Agent Summary"
+            echo
+            cat "$RUNNER_TEMP/claude-model-price-audit.txt"
+          } > "$RUNNER_TEMP/model-price-audit-pr-body.md"
+
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$BOT_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload pull request artifact
+        if: steps.prepare.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: model-price-audit-pr
+          path: |
+            ${{ runner.temp }}/model-price-audit.bundle
+            ${{ runner.temp }}/model-price-audit-pr-body.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: audit
+    if: needs.audit.outputs.has_changes == 'true'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Download pull request artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: model-price-audit-pr
+          path: ${{ runner.temp }}/model-price-audit-pr
+
+      - name: Push branch and create or update PR
+        env:
+          BRANCH_NAME: ${{ needs.audit.outputs.branch_name }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          GIT_BIN="$(command -v git)"
+          GH_BIN="$(command -v gh)"
+          BUNDLE_PATH="$RUNNER_TEMP/model-price-audit-pr/model-price-audit.bundle"
+          BODY_PATH="$RUNNER_TEMP/model-price-audit-pr/model-price-audit-pr-body.md"
+          PUSH_REPO="$RUNNER_TEMP/push-model-price-audit"
+
+          mkdir -p "$PUSH_REPO"
+          "$GIT_BIN" -C "$PUSH_REPO" init -q
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
+
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c credential.helper= \
+            -c credential.https://github.com.helper= \
+            -c core.hooksPath=/dev/null \
+            push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH_NAME"
+
+          pr_number="$(
+            "$GH_BIN" pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$BRANCH_NAME" \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [ -n "$pr_number" ]; then
+            "$GH_BIN" pr edit \
+              --repo "$GITHUB_REPOSITORY" \
+              "$pr_number" \
+              --title "$PR_TITLE" \
+              --body-file "$BODY_PATH"
+            "$GH_BIN" pr edit --repo "$GITHUB_REPOSITORY" "$pr_number" --add-reviewer hassiebp || true
+            pr_url="$("$GH_BIN" pr view --repo "$GITHUB_REPOSITORY" "$pr_number" --json url --jq '.url')"
+          else
+            pr_url="$(
+              "$GH_BIN" pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --head "$BRANCH_NAME" \
+                --base main \
+                --title "$PR_TITLE" \
+                --body-file "$BODY_PATH"
+            )"
+            "$GH_BIN" pr edit --repo "$GITHUB_REPOSITORY" "$pr_url" --add-reviewer hassiebp || true
+          fi
+
+          echo "Created or updated model price audit PR: $pr_url"
+          echo "## Pull request" >> "$GITHUB_STEP_SUMMARY"
+          echo "$pr_url" >> "$GITHUB_STEP_SUMMARY"
