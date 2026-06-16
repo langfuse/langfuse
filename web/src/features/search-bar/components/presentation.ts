@@ -9,7 +9,10 @@ export const COMPOSER_PLACEHOLDER =
 /** DOM id for an option row — referenced by aria-activedescendant. Option ids
  *  embed observed values (`value:My Test Trace`) and recent queries, which can
  *  contain whitespace; an id with whitespace is invalid HTML and breaks the
- *  aria-activedescendant IDREF, so collapse it. */
+ *  aria-activedescendant IDREF. encodeURIComponent escapes whitespace (→ `%20`)
+ *  while leaving underscore literal, so it is injective — distinct option ids
+ *  always map to distinct DOM ids (a `\s+ → _` collapse would alias
+ *  `My Test`/`My_Test` to the same duplicate id). */
 export function optionDomId(listboxId: string, optionId: string): string {
-  return `${listboxId}-opt-${optionId.replace(/\s+/g, "_")}`;
+  return `${listboxId}-opt-${encodeURIComponent(optionId)}`;
 }
