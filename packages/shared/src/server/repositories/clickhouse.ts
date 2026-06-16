@@ -276,6 +276,9 @@ export async function* queryClickhouseStream<T>(
       opts.tags,
     );
   } finally {
+    if (queryId) {
+      await recordQueryProfileOnSpan(span, queryId);
+    }
     span.end();
   }
 }
@@ -601,6 +604,88 @@ export {
 
 export function parseClickhouseUTCDateTimeFormat(dateStr: string): Date {
   return new Date(`${dateStr.replace(" ", "T")}Z`);
+}
+
+const PROFILE_EVENT_KEYS = [
+  "NetworkSendElapsedMicroseconds",
+  "NetworkSendBytes",
+  "OSCPUVirtualTimeMicroseconds",
+  "UserTimeMicroseconds",
+  "SystemTimeMicroseconds",
+  "OSIOWaitMicroseconds",
+  "DiskS3ReadMicroseconds",
+  "ReadBufferFromS3Bytes",
+  "SelectedRows",
+  "SelectedBytes",
+  "RealTimeMicroseconds",
+] as const;
+
+function systemQueryLogRef(): string {
+  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
+    return `clusterAllReplicas('${env.CLICKHOUSE_CLUSTER_NAME}', 'system.query_log')`;
+  }
+  return "system.query_log";
+}
+
+async function recordQueryProfileOnSpan(
+  span: Span,
+  queryId: string,
+): Promise<void> {
+  try {
+    const result = await queryClickhouse<{
+      query_duration_ms: string;
+      read_rows: string;
+      read_bytes: string;
+      result_rows: string;
+      result_bytes: string;
+      memory_usage: string;
+      profile_events: Record<string, number>;
+    }>({
+      query: `
+        SELECT
+          query_duration_ms,
+          read_rows,
+          read_bytes,
+          result_rows,
+          result_bytes,
+          memory_usage,
+          ProfileEvents as profile_events
+        FROM ${systemQueryLogRef()}
+        WHERE query_id = {queryId: String}
+          AND type = 'QueryFinish'
+        ORDER BY event_time_microseconds DESC
+        LIMIT 1
+      `,
+      params: { queryId },
+      clickhouseConfigs: { request_timeout: 10_000 },
+      clickhouseSettings: { skip_unavailable_shards: 1 },
+      tags: {
+        feature: "query-tracking",
+        operation: "recordQueryProfileOnSpan",
+      },
+    });
+
+    if (result.length === 0) return;
+
+    const row = result[0];
+    span.setAttribute("ch.final.query_duration_ms", row.query_duration_ms);
+    span.setAttribute("ch.final.read_rows", row.read_rows);
+    span.setAttribute("ch.final.read_bytes", row.read_bytes);
+    span.setAttribute("ch.final.result_rows", row.result_rows);
+    span.setAttribute("ch.final.result_bytes", row.result_bytes);
+    span.setAttribute("ch.final.memory_usage", row.memory_usage);
+
+    if (row.profile_events) {
+      for (const key of PROFILE_EVENT_KEYS) {
+        const value = row.profile_events[key];
+        if (value !== undefined) {
+          span.setAttribute(`ch.final.pe.${key}`, String(value));
+        }
+      }
+    }
+  } catch (error) {
+    logger.debug("Failed to record query profile on span", error);
+  }
 }
 
 export function clickhouseCompliantRandomCharacters() {
