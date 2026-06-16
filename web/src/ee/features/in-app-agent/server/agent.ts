@@ -579,11 +579,16 @@ async function createMastraAdapter(params: {
       },
     });
 
+    const adapter = new MastraAgent({
+      agent,
+      resourceId: params.input.threadId,
+    });
+    // @ag-ui/mastra@1.0.3 does not understand Mastra's newer streaming
+    // tool-call chunks yet, so translate them locally to avoid warning noise.
+    patchMastraToolCallInputStreaming(adapter);
+
     return {
-      adapter: new MastraAgent({
-        agent,
-        resourceId: params.input.threadId,
-      }),
+      adapter,
       interrupt: () => agent.abortRunStream(params.input.runId),
       cleanup: () => mcpClient.disconnect(),
     };
@@ -609,6 +614,161 @@ function prefixToolsetTools<TTool>(
       tool,
     ]),
   );
+}
+
+type MastraChunkProcessor = {
+  handleChunk: (chunk: unknown) => boolean;
+  flush: () => void;
+};
+
+type MastraStreamCallbacks = {
+  onError: (error: Error) => void;
+};
+
+type PatchableMastraAgent = {
+  createChunkProcessor?: (
+    callbacks: MastraStreamCallbacks,
+  ) => MastraChunkProcessor;
+};
+
+type MastraStreamChunk = {
+  type?: string;
+  payload?: {
+    toolCallId?: string;
+    toolName?: string;
+    argsTextDelta?: string;
+    args?: unknown;
+  };
+};
+
+type StreamingToolCall = {
+  toolCallId: string;
+  toolName: string;
+  argsText: string;
+};
+
+export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
+  const patchableAdapter = adapter as unknown as PatchableMastraAgent;
+  const createChunkProcessor = patchableAdapter.createChunkProcessor;
+
+  if (typeof createChunkProcessor !== "function") {
+    return;
+  }
+
+  patchableAdapter.createChunkProcessor = function patchedCreateChunkProcessor(
+    this: PatchableMastraAgent,
+    callbacks: MastraStreamCallbacks,
+  ) {
+    const processor = createChunkProcessor.call(this, callbacks);
+    const streamingToolCalls = new Map<string, StreamingToolCall>();
+    const synthesizedToolCallIds = new Set<string>();
+
+    const parseStreamingToolCallArgs = (argsText: string): unknown => {
+      try {
+        return JSON.parse(argsText || "{}");
+      } catch {
+        return {};
+      }
+    };
+
+    return {
+      handleChunk(chunk: unknown) {
+        const mastraChunk = chunk as MastraStreamChunk;
+
+        switch (mastraChunk.type) {
+          case "tool-call-input-streaming-start": {
+            const { toolCallId, toolName } = mastraChunk.payload ?? {};
+            if (!toolCallId || !toolName) {
+              callbacks.onError(
+                new Error(
+                  "Malformed tool-call-input-streaming-start: missing toolCallId or toolName in payload",
+                ),
+              );
+              return true;
+            }
+
+            streamingToolCalls.set(toolCallId, {
+              toolCallId,
+              toolName,
+              argsText: "",
+            });
+            return false;
+          }
+          case "tool-call-delta": {
+            const { toolCallId, toolName, argsTextDelta } =
+              mastraChunk.payload ?? {};
+            if (!toolCallId) {
+              callbacks.onError(
+                new Error(
+                  "Malformed tool-call-delta: missing toolCallId in payload",
+                ),
+              );
+              return true;
+            }
+
+            let streamingToolCall = streamingToolCalls.get(toolCallId);
+            if (!streamingToolCall) {
+              if (!toolName) {
+                callbacks.onError(
+                  new Error(
+                    "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
+                  ),
+                );
+                return true;
+              }
+
+              streamingToolCall = { toolCallId, toolName, argsText: "" };
+              streamingToolCalls.set(toolCallId, streamingToolCall);
+            }
+
+            streamingToolCall.argsText += argsTextDelta ?? "";
+            return false;
+          }
+          case "tool-call-input-streaming-end": {
+            const { toolCallId } = mastraChunk.payload ?? {};
+            const streamingToolCall = toolCallId
+              ? streamingToolCalls.get(toolCallId)
+              : undefined;
+            if (streamingToolCall) {
+              synthesizedToolCallIds.add(streamingToolCall.toolCallId);
+              const shouldStop = processor.handleChunk({
+                type: "tool-call",
+                payload: {
+                  toolCallId: streamingToolCall.toolCallId,
+                  toolName: streamingToolCall.toolName,
+                  args: parseStreamingToolCallArgs(streamingToolCall.argsText),
+                },
+              });
+              streamingToolCalls.delete(streamingToolCall.toolCallId);
+              return shouldStop;
+            }
+            return false;
+          }
+          case "tool-call": {
+            const { toolCallId } = mastraChunk.payload ?? {};
+            if (toolCallId && synthesizedToolCallIds.has(toolCallId)) {
+              synthesizedToolCallIds.delete(toolCallId);
+              return false;
+            }
+            break;
+          }
+          case "tool-call-suspended": {
+            const { toolCallId } = mastraChunk.payload ?? {};
+            if (toolCallId) {
+              streamingToolCalls.delete(toolCallId);
+              synthesizedToolCallIds.delete(toolCallId);
+            }
+            break;
+          }
+        }
+
+        return processor.handleChunk(chunk);
+      },
+      flush() {
+        processor.flush();
+      },
+    };
+  };
 }
 
 function normalizeAdapterEvent(
