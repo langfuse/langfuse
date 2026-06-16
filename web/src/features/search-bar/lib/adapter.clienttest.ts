@@ -373,6 +373,16 @@ describe("astToFilterState", () => {
     expect(lower("content:refund,cancel").errors.length).toBeGreaterThan(0);
   });
 
+  it("routes a same-field content: OR through the canonical single-phrase error", () => {
+    // `content:a OR content:b` collapses to a multi-value content node; it must
+    // hit lowerContent's single-phrase error — NOT the old pseudo-branch message
+    // that referenced the removed `in:` token.
+    const r = lower("content:refund OR content:cancel");
+    expect(r.errors.length).toBeGreaterThan(0);
+    expect(r.errors.join(" ")).toContain("single-phrase");
+    expect(r.errors.join(" ")).not.toContain("in:");
+  });
+
   it("rejects content: sharing the query with bare free text", () => {
     // content: is one global-scope phrase; a bare sibling (or a second
     // content:) would silently fuse into one phrase under the content scope.

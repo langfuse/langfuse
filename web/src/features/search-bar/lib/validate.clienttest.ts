@@ -58,4 +58,19 @@ describe("validateQuery — merged-diagnostic dedup", () => {
       expect(new Set(messages).size).toBe(messages.length);
     },
   );
+
+  // A `key:` typo (no value) is flagged by BOTH the parser and the adapter; the
+  // two messages must be identical so dedup collapses them to ONE (two
+  // different strings would both survive — the prior bug).
+  it.each([
+    ["level:", 'Missing value after "level:"'],
+    ["tags:", 'Missing value after "tags:"'],
+    ["metadata.region:", 'Missing value after "metadata.region:"'],
+    ["has:", 'Missing value after "has:"'],
+  ])(
+    "surfaces exactly one empty-value diagnostic for %s",
+    (query, expected) => {
+      expect(errorMessages(query)).toEqual([expected]);
+    },
+  );
 });

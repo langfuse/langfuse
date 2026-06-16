@@ -248,13 +248,11 @@ function lowerTopLevel(
     case "or": {
       const collapsed = collapseSameFieldOr(node);
       if (collapsed !== null) {
-        lowerFilter(
-          collapsed,
-          negated,
-          ctx.filters,
-          ctx.errors,
-          ctx.scoreTypes,
-        );
+        // Route the collapsed node the SAME way as a directly-typed filter, so
+        // a same-field content: OR (`content:a OR content:b`) hits the canonical
+        // single-phrase error in lowerContent instead of bypassing it into
+        // lowerFilter's pseudo branch.
+        lowerFilterNode(collapsed, negated, ctx);
         return;
       }
       ctx.errors.push(
@@ -263,19 +261,30 @@ function lowerTopLevel(
       return;
     }
     case "filter":
-      if (isContentFilter(node)) {
-        if (negated) {
-          ctx.errors.push(
-            "content: is a full-text search and cannot be negated — search text is global",
-          );
-          return;
-        }
-        lowerContent(node, ctx);
-        return;
-      }
-      lowerFilter(node, negated, ctx.filters, ctx.errors, ctx.scoreTypes);
+      lowerFilterNode(node, negated, ctx);
       return;
   }
+}
+
+// Route a single FilterNode: content: → the full-text path (lowerContent),
+// everything else → lowerFilter. Both the direct `filter` case and the
+// OR-collapse path go through here so content: routing can't drift between them.
+function lowerFilterNode(
+  node: FilterNode,
+  negated: boolean,
+  ctx: LowerContext,
+): void {
+  if (isContentFilter(node)) {
+    if (negated) {
+      ctx.errors.push(
+        "content: is a full-text search and cannot be negated — search text is global",
+      );
+      return;
+    }
+    lowerContent(node, ctx);
+    return;
+  }
+  lowerFilter(node, negated, ctx.filters, ctx.errors, ctx.scoreTypes);
 }
 
 function lowerFilter(
@@ -286,7 +295,10 @@ function lowerFilter(
   scoreTypes?: ScoreTypeContext,
 ): void {
   if (node.values.length === 0) {
-    errors.push(`Filter "${node.key}" has no value`);
+    // Match the parser's wording exactly (langQ parseTermNode) so
+    // dedupeMergedDiagnostics collapses the two layers into ONE diagnostic —
+    // otherwise every `key:` typo announces two messages for one problem.
+    errors.push(`Missing value after "${node.rawKey ?? node.key}:"`);
     return;
   }
 
@@ -315,9 +327,12 @@ function lowerFilter(
         lowerHas(node, negated, out, errors);
         return;
       }
-      // `in:` is consumed at the top level; nested it is not representable.
+      // content: is the only other pseudo; lowerTopLevel routes it to
+      // lowerContent (the full-text path) before it can reach here, so this is a
+      // defensive fallback only. Keep the message content-accurate, not the
+      // removed `in:` token.
       errors.push(
-        "in: applies to the whole search — it cannot be used inside groups or negations",
+        "content: is a single-phrase search — it takes one value; search alternatives in separate queries, not content:(a OR b)",
       );
       return;
     case "metadata":
