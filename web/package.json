@@ -212,7 +212,7 @@
     "storybook": "^10.3.6",
     "tailwindcss": "^4.2.2",
     "typescript": "^5.7.2",
-    "vite": "^7.0.5",
+    "vite": "^7.3.5",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.4",
     "wait-for-expect": "^3.0.2"
