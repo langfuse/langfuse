@@ -774,7 +774,17 @@ function freeTextRun(
     hi++;
   const from = terms[lo]!.span.from;
   const to = terms[hi]!.span.to;
-  return { from, to, text: input.slice(from, to) };
+  // `text` is the LOGICAL phrase: each term unquoted and joined by single
+  // spaces — NOT the raw slice. So a run that already mixes a quoted phrase with
+  // bare words (`"abc abc" abc`) reconstructs to `abc abc abc`, and the scope
+  // rewrite re-serializes it as ONE clean `"abc abc abc"` instead of compounding
+  // escaped quotes (`"abc abc\" abc"`). `from`/`to` stay the raw span so the
+  // pick replaces the whole run, original quotes and all.
+  const text = terms
+    .slice(lo, hi + 1)
+    .map((t) => stripValueQuotes(t.raw))
+    .join(" ");
+  return { from, to, text };
 }
 
 // The four full-text scopes the bar can switch a value between. `default` is
@@ -960,7 +970,9 @@ export function planInputCompletions(
       run !== null
         ? scopeSwitchOptions(
             "default",
-            stripValueQuotes(run.text),
+            // run.text is already the logical (unquoted) phrase; serializeValue
+            // re-quotes it once.
+            run.text,
             { from: run.from, to: run.to },
             // Surface the typed text itself (default scope) as the first option,
             // ahead of the content:/input:/output: rewrites.

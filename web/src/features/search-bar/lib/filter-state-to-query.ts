@@ -241,8 +241,12 @@ export function filterStateToQueryText(
   // scoped token: `content:"…"` (input + output) reparses to searchType=content;
   // `input:"…"`/`output:"…"` reparse to their real column filters (so a legacy
   // input/output searchType normalizes to a column filter on the next commit —
-  // the deliberate (a) canonicalization). The default scope (ids & names) stays
-  // as bare free-text terms (whitespace-split so each lexes as one token).
+  // the deliberate (a) canonicalization). The default scope (ids & names) is a
+  // single contiguous-substring phrase (ILIKE %query%), so it renders as ONE
+  // token — quoted iff it has whitespace via serializeValue. NOT whitespace-
+  // split: separate tokens would misleadingly read as independent AND terms,
+  // disagree with the scope-rewrite suggestions (which serialize the whole
+  // phrase), and strip a user's own quotes on every derive.
   const searchQuery = options.searchQuery?.trim() ?? "";
   if (searchQuery.length > 0) {
     const scopeField = scopedSearchField(options.searchType);
@@ -253,15 +257,8 @@ export function filterStateToQueryText(
         op: "=",
         values: [searchQuery],
       });
-    } else if (/\s{2,}/.test(searchQuery)) {
-      // An intentional multi-space phrase ("a   b") must stay one token —
-      // splitting on \s+ would collapse it to "a b" and change matched rows on
-      // the next commit. NEEDS_QUOTES forces serializeValue to quote it.
-      nodes.push({ kind: "text", value: searchQuery });
     } else {
-      for (const term of searchQuery.split(/\s+/)) {
-        nodes.push({ kind: "text", value: term });
-      }
+      nodes.push({ kind: "text", value: searchQuery });
     }
   }
 

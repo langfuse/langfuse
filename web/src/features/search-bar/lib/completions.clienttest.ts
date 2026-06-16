@@ -210,14 +210,34 @@ describe("planInputCompletions", () => {
   });
 
   it("does not double-quote an already-quoted free-text phrase on scope rewrite", () => {
-    // `"hello world"` already carries quotes; the rewrite must strip them before
-    // re-serializing, so the insert is `content:"hello world"` — not the broken
-    // doubly-quoted `content:"\"hello world\""` that searches for literal quotes.
+    // `"hello world"` already carries quotes; the rewrite reconstructs the
+    // logical phrase and re-serializes it once, so the insert is
+    // `content:"hello world"` — not the broken doubly-quoted
+    // `content:"\"hello world\""` that searches for literal quotes.
     const p = plan('"hello world"', 6);
     const content = flattenOptions(p).find((o) => o.id === "scope:content");
     expect(content && "insert" in content && content.insert).toBe(
       'content:"hello world"',
     );
+  });
+
+  it("coalesces a quoted phrase + bare words into ONE clean phrase (no escaped quotes)", () => {
+    // The compounding bug: a run that mixes an already-quoted phrase with bare
+    // words (`"abc abc" abc`) must reconstruct to the logical `abc abc abc` and
+    // re-serialize as a single `"abc abc abc"` — never `"abc abc\" abc"`.
+    const p = plan('"abc abc" abc', 11);
+    const opts = flattenOptions(p);
+    const def = opts.find((o) => o.id === "scope:default");
+    const content = opts.find((o) => o.id === "scope:content");
+    expect(def && "insert" in def && def.insert).toBe('"abc abc abc"');
+    expect(content && "insert" in content && content.insert).toBe(
+      'content:"abc abc abc"',
+    );
+    // The whole raw run (quotes and all) is the replace span.
+    expect(def && "replaceSpan" in def && def.replaceSpan).toEqual({
+      from: 0,
+      to: 13,
+    });
   });
 
   it("teaches the positional-glob contains form, not the retired ~value", () => {

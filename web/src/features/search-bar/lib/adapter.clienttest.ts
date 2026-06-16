@@ -717,6 +717,25 @@ describe("filterStateToQueryText", () => {
     expect(r.searchQuery).toBe("hello   world");
   });
 
+  it("renders a default multi-word phrase as ONE quoted token, not split terms", () => {
+    // A default-scope searchQuery is a contiguous-substring phrase (ILIKE
+    // %query%), so it derives to a single quoted token — consistent with the
+    // scope-rewrite suggestions and preserving the user's quotes — rather than
+    // whitespace-split bare terms that read as independent AND filters.
+    expect(
+      filterStateToQueryText([], { searchQuery: "abc abc abc" }).text,
+    ).toBe('"abc abc abc"');
+    // A single word needs no quotes.
+    expect(filterStateToQueryText([], { searchQuery: "abc" }).text).toBe("abc");
+    // Still round-trips to the same phrase.
+    const r = astToFilterState(
+      validateQuery(
+        filterStateToQueryText([], { searchQuery: "abc abc abc" }).text,
+      ).ast,
+    );
+    expect(r.searchQuery).toBe("abc abc abc");
+  });
+
   it('round-trips an empty-value metadata filter (:="")', () => {
     const filters: FilterState = [
       {
