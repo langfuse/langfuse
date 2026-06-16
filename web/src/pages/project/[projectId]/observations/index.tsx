@@ -58,9 +58,14 @@ export default function Generations() {
             "An observation captures a single function call in an application. See docs to learn more.",
           href: "https://langfuse.com/docs/observability/data-model",
         },
-        actionButtonsRight: searchBarActive ? (
-          <div ref={setHeaderActions} className="flex items-center gap-2" />
-        ) : undefined,
+        // Only render the portal target when its sole consumer
+        // (ObservationsEventsTable) actually mounts — i.e. not during onboarding
+        // or the pre-beta-flag init window, where the slot would otherwise be a
+        // dead, empty <div> with a callback ref that never receives a portal.
+        actionButtonsRight:
+          searchBarActive && !showOnboarding && !isInitializing ? (
+            <div ref={setHeaderActions} className="flex items-center gap-2" />
+          ) : undefined,
         tabsProps:
           isBetaEnabled || isInitializing
             ? undefined
