@@ -54,6 +54,11 @@ export const BatchExportQuerySchema = z.object({
   orderBy,
   limit: z.number().optional(),
   page: z.number().optional(),
+  // Snapshotted at dispatch time from the user's v4 beta flag. When true, the
+  // sessions export reads from the ClickHouse events table instead of the
+  // legacy traces path. Persisted in the job's query column so the worker reads
+  // the snapshot, never the live user record.
+  useEventsTable: z.boolean().optional(),
 });
 
 export type BatchExportQueryType = z.infer<typeof BatchExportQuerySchema>;

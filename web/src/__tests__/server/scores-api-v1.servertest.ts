@@ -1124,6 +1124,66 @@ describe("/api/public/scores API Endpoint", () => {
             );
           }
         });
+
+        // Regression tests for #8630: the value operator must not override
+        // the fixed >= / < operators of the fromTimestamp/toTimestamp filters.
+        describe("operator combined with timestamp window", () => {
+          const fromTimestamp = new Date(
+            Date.now() - 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const toTimestamp = new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const timestampWindow = `fromTimestamp=${fromTimestamp}&toTimestamp=${toTimestamp}`;
+
+          it("test operator > with timestamp window", async () => {
+            const getScore = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?${queryUserName}&operator=>&value=100&${timestampWindow}`,
+              undefined,
+              authentication,
+            );
+            expect(getScore.status).toBe(200);
+            expect(getScore.body.meta).toMatchObject({
+              page: 1,
+              limit: 50,
+              totalItems: 1,
+              totalPages: 1,
+            });
+            expect(getScore.body.data).toMatchObject([
+              {
+                id: scoreId_3,
+                name: scoreName,
+                value: 100.8,
+              },
+            ]);
+          });
+
+          it("test operator < with timestamp window", async () => {
+            const getScore = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?${queryUserName}&operator=<&value=50&${timestampWindow}`,
+              undefined,
+              authentication,
+            );
+            expect(getScore.status).toBe(200);
+            expect(getScore.body.meta).toMatchObject({
+              page: 1,
+              limit: 50,
+              totalItems: 1,
+              totalPages: 1,
+            });
+            expect(getScore.body.data).toMatchObject([
+              {
+                id: scoreId_1,
+                name: scoreName,
+                value: 10.5,
+              },
+            ]);
+          });
+        });
       });
 
       it("should filter scores by score IDs", async () => {

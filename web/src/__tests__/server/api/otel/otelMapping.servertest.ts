@@ -3670,6 +3670,39 @@ describe("OTel Resource Span Mapping", () => {
           entityAttributeValue: '{"temperature": 75, "condition": "sunny"}',
         },
       ],
+      [
+        // OTLP/JSON encodes int64 attribute values as decimal strings (e.g. "100")
+        // rather than the Long object produced by the protobuf decoder. See
+        // https://opentelemetry.io/docs/specs/otlp/#json-protobuf-encoding
+        "should convert OTLP/JSON string-encoded intValue (max_tokens)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.request.max_tokens",
+          otelAttributeValue: { intValue: "100" },
+          entityAttributeKey: "modelParameters.max_tokens",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should convert OTLP/JSON string-encoded intValue (usage input)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.input_tokens",
+          otelAttributeValue: { intValue: "100" },
+          entityAttributeKey: "usageDetails.input",
+          entityAttributeValue: 100,
+        },
+      ],
+      [
+        "should convert OTLP/JSON string-encoded doubleValue (cost)",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.cost",
+          otelAttributeValue: { doubleValue: "0.000151" },
+          entityAttributeKey: "costDetails.total",
+          entityAttributeValue: 0.000151,
+        },
+      ],
     ])(
       "Attributes: %s",
       async (
@@ -3728,6 +3761,46 @@ describe("OTel Resource Span Mapping", () => {
         ).toEqual(spec.entityAttributeValue);
       },
     );
+
+    // Regression: OTLP/JSON exporters (e.g. the OpenTelemetry PHP SDK) send
+    // int64 resource attributes as decimal strings (intValue: "7") rather than
+    // the Long object produced by the protobuf decoder. Previously these were
+    // converted to NaN, which failed ingestion validation on body.metadata.
+    it("should convert OTLP/JSON string-encoded int resource attributes without producing NaN", async () => {
+      // Setup - resource attributes as emitted by an OTLP/JSON exporter
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "langfuse-demo" } },
+            { key: "process.pid", value: { intValue: "7" } },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "demo-tracer" },
+            spans: [defaultSpanProps],
+          },
+        ],
+      };
+
+      // When
+      const langfuseEvents = await convertOtelSpanToIngestionEvent(
+        resourceSpan,
+        new Set(),
+      );
+
+      // Then - the int is parsed to a number, not NaN
+      const resourceAttributes =
+        langfuseEvents[1].body.metadata.resourceAttributes;
+      expect(resourceAttributes["process.pid"]).toBe(7);
+      expect(resourceAttributes["service.name"]).toBe("langfuse-demo");
+
+      // And - the events pass ingestion validation (previously rejected with an
+      // invalid_union error on body.metadata because of the NaN value)
+      const schema = createIngestionEventSchema();
+      const parsedEvents = langfuseEvents.map((event) => schema.parse(event));
+      expect(parsedEvents).toHaveLength(2);
+    });
 
     it.each([
       [

@@ -752,7 +752,6 @@ export function WidgetForm({
     viewVersion === "v2"
       ? eventsFilterOptions.data?.calledToolNames || []
       : generationsFilterOptions.data?.calledToolNames || [];
-
   // Experiment options only available in v2 (from events table)
   const experimentNameOptions =
     viewVersion === "v2" ? eventsFilterOptions.data?.experimentName || [] : [];

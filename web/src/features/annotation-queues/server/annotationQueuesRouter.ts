@@ -527,7 +527,8 @@ export const queueRouter = createTRPCRouter({
                 id: item.objectId,
                 projectId: input.projectId,
               })
-            : await getObservationById({
+            : // eslint-disable-next-line @typescript-eslint/no-deprecated
+              await getObservationById({
                 id: item.objectId,
                 projectId: input.projectId,
               });

@@ -49,6 +49,10 @@ export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
+export {
+  getClickHouseCompatibilitySettings,
+  initializeClickhouseCompatibility,
+} from "./clickhouse/compatibility";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
 export * from "./clickhouse/queryTracking";
@@ -69,6 +73,7 @@ export * from "./redis/cloudSpendAlertQueue";
 export * from "./redis/cloudFreeTierUsageThresholdQueue";
 export * from "./redis/getQueue";
 export * from "./redis/webhookQueue";
+export * from "./redis/monitorQueue";
 export * from "./redis/traceDelete";
 export * from "./redis/projectDelete";
 export * from "./redis/scoreDelete";
@@ -121,7 +126,6 @@ export * from "./redis/codeEvalExecutionQueue";
 export * from "./services/sessions-ui-table-service";
 export * from "./services/sessions-ui-table-events-service";
 export * from "./services/DashboardService";
-export * from "../features/monitors/server";
 export * from "./services/TableViewService";
 export * from "./services/DefaultViewService";
 export * from "./services/DefaultEvaluationModelService";

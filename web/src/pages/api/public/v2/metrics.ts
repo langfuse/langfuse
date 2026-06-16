@@ -20,7 +20,7 @@ export default withMiddlewares({
     fn: async ({ query, auth }) => {
       if (env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN !== "true") {
         throw new LangfuseNotFoundError(
-          "v2 APIs are currently in beta and only available on Langfuse Cloud",
+          "The metrics v2 API is only available in a Langfuse v4 write mode. Learn more at: https://langfuse.com/docs/v4",
         );
       }
 
