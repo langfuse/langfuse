@@ -63,6 +63,10 @@ export type CompletionOption =
       label: string;
       detail?: string;
       insert: string;
+      /** When set, the pick replaces THIS span instead of the plan's — used by
+       *  scope rewrites that wrap the whole coalesced free-text run, not just
+       *  the token under the caret. */
+      replaceSpan?: { from: number; to: number };
     }
   | { id: string; kind: "recent"; label: string; query: string };
 
@@ -710,6 +714,48 @@ export type InputCompletionContext = {
   currentQueryText: string;
 };
 
+// The contiguous free-text run containing `caret` — the same block the composer
+// coalesces visually. A scope rewrite (content:/input:/output:) wraps this WHOLE
+// run, not just the token under the caret, so picking it on a multi-word block
+// produces `content:"abc abc abc"` rather than a `content:abc` that strands the
+// rest as free text (which the content-scope guard then rejects). Returns null
+// when the caret isn't on a bare free-text word.
+function freeTextRun(
+  input: string,
+  caret: number,
+): { from: number; to: number; text: string } | null {
+  const isFreeText = (raw: string) =>
+    !raw.startsWith("-") &&
+    indexOfOutsideQuotes(raw, ":") === -1 &&
+    !["AND", "OR", "NOT"].includes(raw) &&
+    resolveField(raw) === null;
+  const terms = lexTokens(input).filter((t) => t.type === "term");
+  const idx = terms.findIndex(
+    (t) => caret >= t.span.from && caret <= t.span.to,
+  );
+  if (idx === -1 || !isFreeText(terms[idx]!.raw)) return null;
+  // Expand over adjacent free-text terms separated only by whitespace (a paren
+  // or any other token between two words breaks the run).
+  let lo = idx;
+  let hi = idx;
+  const gapIsBlank = (a: number, b: number) => input.slice(a, b).trim() === "";
+  while (
+    lo > 0 &&
+    isFreeText(terms[lo - 1]!.raw) &&
+    gapIsBlank(terms[lo - 1]!.span.to, terms[lo]!.span.from)
+  )
+    lo--;
+  while (
+    hi < terms.length - 1 &&
+    isFreeText(terms[hi + 1]!.raw) &&
+    gapIsBlank(terms[hi]!.span.to, terms[hi + 1]!.span.from)
+  )
+    hi++;
+  const from = terms[lo]!.span.from;
+  const to = terms[hi]!.span.to;
+  return { from, to, text: input.slice(from, to) };
+}
+
 /**
  * The completion plan for the caret context, or null when nothing matches.
  * The plan is a pure function of (text, caret, data) — never of HOW the
@@ -819,36 +865,46 @@ export function planInputCompletions(
             (p) => !(negated && p.id === "pat:negation"),
           )
         : [];
-    // Free-text guidance: a bare word can become a scoped full-text search
-    // ("how do I search inside input?" answered at the moment of typing).
+    // Free-text guidance: a bare word (or a coalesced multi-word run) can become
+    // a scoped full-text search. The rewrite wraps the WHOLE run — so it scopes
+    // the block the user sees, not one word — and quotes via serializeValue so a
+    // multi-word phrase stays one token.
+    const run =
+      colon === -1 && !negated
+        ? freeTextRun(ctx.currentQueryText, caret)
+        : null;
     const searchScopes: CompletionOption[] =
-      colon === -1 &&
-      !negated &&
-      resolveField(tokenBody) === null &&
-      !["AND", "OR", "NOT"].includes(tokenBody)
-        ? [
-            {
-              id: "search:content",
-              kind: "pattern",
-              label: `content:${tokenBody}`,
-              detail: "Full-text search in input + output",
-              insert: `content:${tokenBody}`,
-            },
-            {
-              id: "search:input",
-              kind: "pattern",
-              label: `input:${tokenBody}`,
-              detail: "Search the input payload",
-              insert: `input:${tokenBody}`,
-            },
-            {
-              id: "search:output",
-              kind: "pattern",
-              label: `output:${tokenBody}`,
-              detail: "Search the output payload",
-              insert: `output:${tokenBody}`,
-            },
-          ]
+      run !== null
+        ? (() => {
+            const v = serializeValue(run.text);
+            const span = { from: run.from, to: run.to };
+            return [
+              {
+                id: "search:content",
+                kind: "pattern",
+                label: `content:${v}`,
+                detail: "Full-text search in input + output",
+                insert: `content:${v}`,
+                replaceSpan: span,
+              },
+              {
+                id: "search:input",
+                kind: "pattern",
+                label: `input:${v}`,
+                detail: "Search the input payload",
+                insert: `input:${v}`,
+                replaceSpan: span,
+              },
+              {
+                id: "search:output",
+                kind: "pattern",
+                label: `output:${v}`,
+                detail: "Search the output payload",
+                insert: `output:${v}`,
+                replaceSpan: span,
+              },
+            ];
+          })()
         : [];
     if (
       fields.length +

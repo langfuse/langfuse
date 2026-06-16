@@ -188,6 +188,23 @@ describe("planInputCompletions", () => {
     expect(labels).toContain("output:refund");
   });
 
+  it("scopes the WHOLE coalesced free-text run, not just the caret word", () => {
+    // Caret inside the middle word of `abc abc abc` — the rewrite must wrap the
+    // whole run as a quoted phrase and carry its span, so picking it doesn't
+    // strand the other words as free text.
+    const p = plan("abc abc abc", 5);
+    const opts = flattenOptions(p);
+    const content = opts.find((o) => o.id === "search:content");
+    expect(content?.label).toBe('content:"abc abc abc"');
+    expect(content && "insert" in content && content.insert).toBe(
+      'content:"abc abc abc"',
+    );
+    expect(content && "replaceSpan" in content && content.replaceSpan).toEqual({
+      from: 0,
+      to: 11,
+    });
+  });
+
   it("plans grouped value segments with keep-open for incomplete groups", () => {
     const p = plan("level:(ERROR OR ", 16);
     expect(p?.stage).toBe("value");

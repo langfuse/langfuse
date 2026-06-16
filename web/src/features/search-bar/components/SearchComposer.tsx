@@ -720,6 +720,7 @@ export function SearchComposer({
       const current = draftRef.current;
       let insert: string;
       let keepOpen: boolean;
+      let replaceFrom = currentPlan.from;
       let replaceTo = currentPlan.to;
       if (option.kind === "field") {
         // Replacing the key of an existing filter: the span ends AT the colon,
@@ -752,6 +753,12 @@ export function SearchComposer({
         keepOpen = currentPlan.keepOpenOnPick ?? false;
       } else {
         insert = option.insert;
+        // A scope rewrite carries its own span (the whole coalesced free-text
+        // run), so it replaces that, not just the token under the caret.
+        if (option.kind === "pattern" && option.replaceSpan) {
+          replaceFrom = option.replaceSpan.from;
+          replaceTo = option.replaceSpan.to;
+        }
         // A trailing `:`, ` `, or `(` drops the caret into an interactive
         // context (value stage, next field, or an open array group like
         // `tags:(`) — keep the popover open so the next pick is immediate.
@@ -775,10 +782,10 @@ export function SearchComposer({
           : "";
       const next = appendIntent
         ? `${current}${prefix}${insert}`
-        : replaceRange(current, currentPlan.from, replaceTo, insert);
+        : replaceRange(current, replaceFrom, replaceTo, insert);
       const caretAt = appendIntent
         ? current.length + prefix.length + insert.length
-        : currentPlan.from + insert.length;
+        : replaceFrom + insert.length;
       setDraftWithSelection(next, caretAt);
       if (advanceAfterValue) {
         // Caret sits at the end of the just-completed token. appendIntent
