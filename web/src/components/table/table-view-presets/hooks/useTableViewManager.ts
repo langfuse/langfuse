@@ -305,7 +305,10 @@ export function useTableViewManager({
       }
 
       if (setSearchQueryRef.current) {
-        setSearchQueryRef.current(viewData.searchQuery ?? null);
+        // `||` (not `??`): a persisted empty string — the common case for views
+        // saved without a free-text search — must map to null too, or it
+        // serializes as a literal empty `?search=` param in the URL.
+        setSearchQueryRef.current(viewData.searchQuery || null);
       }
 
       // Apply column order and visibility without validation since UI will handle gracefully
