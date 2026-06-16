@@ -6,7 +6,7 @@ coexists with the sidebar and stays in sync with it (Datadog model). The facet
 sidebar's `FilterState` (+ the table's full-text search) remains the single
 source of truth; the bar reads from and writes to it. Only the legacy toolbar
 search field is replaced (full-text search goes inline in the bar).
-Project-level opt-in. Based on the `langfuse-search-bar` prototype.
+Per-user **Feature Preview** opt-in. Based on the `langfuse-search-bar` prototype.
 
 ## Enablement
 
