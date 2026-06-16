@@ -634,6 +634,24 @@ describe("filterStateToQueryText", () => {
     expect(filterStateToQueryText([eq]).text).toBe("metadata.region:eu");
   });
 
+  it("serializes a textSearch contains as the bare form, not *value*", () => {
+    // `input:refund` lowers to a string `contains` filter; serializing it back
+    // must stay bare (`input:refund`), the documented contains-default — the
+    // `input:*refund*` glob form would visibly rewrite the user's text on every
+    // commit echo. Symmetric inverse of the metadata-equality carve-out.
+    const contains: FilterState[number] = {
+      type: "string",
+      column: "input",
+      operator: "contains",
+      value: "refund",
+    };
+    expect(filterStateToQueryText([contains]).text).toBe("input:refund");
+    // starts/ends-with stay as globs (no bare form expresses them).
+    expect(
+      filterStateToQueryText([{ ...contains, operator: "starts with" }]).text,
+    ).toBe("input:refund*");
+  });
+
   it("round-trips bare boolean keywords and leading-hyphen free text", () => {
     // serialize() must quote AND/OR/NOT (any case), !-prefix tokens, and -foo
     // so they reparse as free text rather than as operators/negation/reserved

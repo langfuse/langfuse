@@ -104,6 +104,17 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
           return filterNode(id, "=", [filter.value]);
         }
       }
+      // Bare `field:value` is the documented contains-default for textSearch
+      // fields, so emit it bare rather than the `*value*` glob — otherwise the
+      // commit echo visibly rewrites the user's typed `input:refund` to
+      // `input:*refund*` (op `=` vs `~` aren't astEqual, so resetTo re-seeds).
+      // Symmetric inverse of the metadata-equality carve-out.
+      if (op === "~") {
+        const ref = resolveField(id);
+        if (ref?.type === "field" && ref.field.syncMode === "textSearch") {
+          return filterNode(id, "=", [filter.value]);
+        }
+      }
       return filterNode(id, op, [filter.value]);
     }
     case "number": {
