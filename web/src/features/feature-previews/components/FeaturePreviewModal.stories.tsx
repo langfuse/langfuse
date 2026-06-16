@@ -77,7 +77,7 @@ export const Warning = meta.story({
       searchBar: {
         enabled: false,
         warningReason:
-          "The search bar appears on the new (v4) Observations and Traces tables. Turn on the v4 beta from this menu to use it after enabling this preview.",
+          "The search bar appears on the new (v4) Observations and Traces tables. Turn on Fast (Preview) in the sidebar to use it after enabling this preview.",
         onToggle: fn(),
       },
     },

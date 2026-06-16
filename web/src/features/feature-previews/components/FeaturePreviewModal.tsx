@@ -47,8 +47,8 @@ export type PreviewState = {
   isToggling?: boolean;
 };
 
-// Static registry — one entry per preview. Order = sidebar order. The
-// search bar ships a single (dark) illustration, used in both themes.
+// Static registry — one entry per preview. Order = sidebar order; each
+// preview ships separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
     flag: "inAppAgent",
@@ -70,14 +70,14 @@ const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
     title: "Filter Search Bar",
     sidebarLabel: "Filter Search Bar",
     description:
-      "A keyboard-driven query bar on the Observations table — type filters like level:ERROR -env:dev latency:>2 with inline suggestions, alongside the existing filter sidebar.",
+      "A keyboard-driven query bar on the Observations and Traces tables — type filters like level:ERROR -env:dev latency:>2 with inline suggestions, alongside the existing filter sidebar.",
     details:
-      "The search bar lets you build and edit filters by typing a compact query language with autocomplete, instead of clicking through the sidebar. It stays in sync with the sidebar (both read and write the same filter state) and supports field filters, comparisons, any-of groups, negation, metadata/score paths, and full-text search across input/output. It is available on the new (v4) Observations table.",
+      "The search bar lets you build and edit filters by typing a compact query language with autocomplete, instead of clicking through the sidebar. It stays in sync with the sidebar (both read and write the same filter state) and supports field filters, comparisons, any-of groups, negation, metadata/score paths, and full-text search across input/output. It is available on the new (v4) Observations and Traces tables.",
     feedbackUrl: "https://github.com/orgs/langfuse/discussions/14196",
     illustration: {
       light: filterSearchBarLightIllustration,
       dark: filterSearchBarDarkIllustration,
-      alt: "The filter search bar turns typed queries like level:ERROR -env:dev into Observations table filters with inline suggestions.",
+      alt: "The filter search bar turns typed queries like level:ERROR -env:dev into Observations and Traces table filters with inline suggestions.",
     },
   },
 ];

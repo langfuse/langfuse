@@ -74,10 +74,10 @@ export function ControlledFeaturePreviewModal({
     },
     searchBar: {
       enabled: user.featureFlags.searchBar === true,
-      // The bar only renders on the new (v4) Observations table, so flag it.
+      // The bar renders on the new (v4) Observations and Traces tables, so flag it.
       warningReason: user.v4BetaEnabled
         ? undefined
-        : "The search bar appears on the new (v4) Observations table. Turn on the v4 beta from this menu to use it after enabling this preview.",
+        : "The search bar appears on the new (v4) Observations and Traces tables. Turn on Fast (Preview) in the sidebar to use it after enabling this preview.",
       onToggle: onToggle("searchBar"),
       isToggling: isToggling("searchBar"),
     },
