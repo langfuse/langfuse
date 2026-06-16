@@ -4,6 +4,7 @@ import {
 } from "@/src/features/public-api/types/models";
 import { listModelsForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
+import { buildModelUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [listModelsTool, handleListModels] = defineTool({
@@ -27,7 +28,18 @@ export const [listModelsTool, handleListModels] = defineTool({
           limit: input.limit,
         });
 
-        return GetModelsV1Response.parse(result);
+        const parsed = GetModelsV1Response.parse(result);
+
+        return {
+          ...parsed,
+          data: parsed.data.map((model) => ({
+            ...model,
+            url: buildModelUrl({
+              projectId: context.projectId,
+              modelId: model.id,
+            }),
+          })),
+        };
       },
     }),
   readOnlyHint: true,
