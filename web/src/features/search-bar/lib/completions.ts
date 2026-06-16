@@ -408,10 +408,15 @@ type PathKind = {
   level?: "observation" | "trace";
 };
 
+// Must mirror fields.ts TRACE_SCORE_PREFIXES / resolveField — every alias the
+// parser resolves needs a suggestion entry, or that spelling parses but offers
+// no score-name dropdown. (`tracescore.` singular matches the `score.`/`scores.`
+// observation-level pair.)
 const PATH_PREFIXES: PathKind[] = [
   { prefix: "metadata.", canonical: "metadata." },
   { prefix: "tracescores.", canonical: "traceScores.", level: "trace" },
   { prefix: "trace_scores.", canonical: "traceScores.", level: "trace" },
+  { prefix: "tracescore.", canonical: "traceScores.", level: "trace" },
   { prefix: "scores.", canonical: "scores.", level: "observation" },
   { prefix: "score.", canonical: "scores.", level: "observation" },
 ];

@@ -161,6 +161,18 @@ describe("planInputCompletions", () => {
     expect(labels).toContain("scores.feedback");
   });
 
+  it("suggests trace-score names for every accepted alias incl. singular tracescore.", () => {
+    // The parser resolves tracescore./tracescores./trace_scores.; each must also
+    // produce the score-name dropdown, or that spelling parses but suggests
+    // nothing. (The singular form was previously missing from PATH_PREFIXES.)
+    const observed = { ...OBSERVED, trace_scores_avg: [{ value: "nps" }] };
+    for (const prefix of ["tracescore.", "tracescores.", "trace_scores."]) {
+      const p = plan(prefix, prefix.length, { observed });
+      const labels = flattenOptions(p).map((o) => o.label);
+      expect(labels, prefix).toContain("traceScores.nps");
+    }
+  });
+
   it("suggests categorical score values", () => {
     const p = plan("scores.feedback:", 16);
     expect(p?.sections.map((s) => s.title)).toContain(SECTION_VALUES);
