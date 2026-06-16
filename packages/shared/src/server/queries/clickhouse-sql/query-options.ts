@@ -42,3 +42,7 @@ export async function shouldSkipObservationsFinal(
 export function shouldUseObservationsSubqueryRewrite(): boolean {
   return env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE === "true";
 }
+
+export function shouldRunObservationsShadowQuery(): boolean {
+  return env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY === "true";
+}
