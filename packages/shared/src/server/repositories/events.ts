@@ -1,5 +1,6 @@
 import { prisma } from "../../db";
 import { Readable } from "stream";
+import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type {
   EventsObservation,
   MetadataDomain,
@@ -22,7 +23,10 @@ import {
   convertClickhouseToDomain,
   convertClickhouseTracesListToDomain,
 } from "./traces_converters";
-import { getTraceByIdFromTracesTable } from "./traces";
+import {
+  getTraceByIdFromTracesTable,
+  getTracesIdentifierForSessionFromTracesTable,
+} from "./traces";
 import {
   DateTimeFilter,
   type Filter,
@@ -102,6 +106,7 @@ import {
   eventsTableCols,
   eventsTableHasParentObservationSql,
   eventsTableIsRootObservationSql,
+  type NumericEventsTableColumnId,
 } from "../../eventsTable";
 import {
   findUiColumnMapping,
@@ -1099,6 +1104,10 @@ export const getTraceById = async (
  *
  * If data is only written into the events tables, we look there and go to the
  * legacy observations table otherwise.
+ *
+ * @deprecated Please prefer `getObservationByIdFromEventsTable` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
  */
 export const getObservationById = async (
   params: Parameters<typeof getObservationByIdFromObservationsTable>[0],
@@ -1107,6 +1116,26 @@ export const getObservationById = async (
     return getObservationByIdFromObservationsTable(params);
   }
   return getObservationByIdFromEventsTable(params);
+};
+
+/**
+ * Routing wrapper for "trace identifiers for session" reads.
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise.
+ *
+ * @deprecated Please prefer `getTracesIdentifierForSessionFromEvents` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+export const getTracesIdentifierForSession = async (
+  projectId: string,
+  sessionId: string,
+) => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getTracesIdentifierForSessionFromTracesTable(projectId, sessionId);
+  }
+  return getTracesIdentifierForSessionFromEvents(projectId, sessionId);
 };
 
 type PublicApiObservationsQuery = {
@@ -2273,6 +2302,71 @@ export const getEventsGroupedByVersion = async (
     preferredClickhouseService: "EventsReadOnly",
   });
   return res;
+};
+
+export const getEventsNumericStatsByFilterColumn = async (
+  projectId: string,
+  filter: FilterState,
+  columnId: Exclude<
+    NumericEventsTableColumnId,
+    "inputTokens" | "outputTokens" | "inputCost" | "outputCost"
+  >,
+) => {
+  const column = eventsTableCols.find((col) => col.id === columnId);
+
+  if (!column || column.type !== "number") {
+    throw new Error(`Column ${columnId} is not supported for numeric stats`);
+  }
+
+  const eventsFilter = new FilterList(
+    createFilterFromFilterState(
+      filter,
+      eventsTableUiColumnDefinitions,
+      eventsTableCols,
+    ),
+  );
+
+  const valueExpression = column.internal;
+  const appliedEventsFilter = eventsFilter.apply();
+
+  const queryBuilder = new EventsAggQueryBuilder({
+    projectId,
+    groupByColumn: "tuple()",
+    selectExpression: `min(${valueExpression}) as min, max(${valueExpression}) as max, avg(${valueExpression}) as avg, count(${valueExpression}) as count`,
+  })
+    .where(appliedEventsFilter)
+    .whereRaw(`isNotNull(${valueExpression})`);
+
+  const { query, params } = queryBuilder.buildWithParams();
+
+  const res = await queryClickhouse<{
+    min: number | null;
+    max: number | null;
+    avg: number | null;
+    count: number;
+  }>({
+    query,
+    params,
+    tags: {
+      feature: "tracing",
+      type: "events",
+      kind: "analytic",
+      projectId,
+    },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+  const range = res[0];
+
+  if (
+    !range ||
+    range.min === null ||
+    range.max === null ||
+    range.avg === null
+  ) {
+    return null;
+  }
+
+  return range;
 };
 
 /**
@@ -3554,6 +3648,7 @@ export const hasAnySessionFromEventsTable = async (
 export const getTraceMetadataByIdsFromEvents = async (props: {
   projectId: string;
   traceIds: string[];
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
 }) => {
   if (props.traceIds.length === 0) return [];
 
@@ -3585,6 +3680,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        clickhouseConfigs: props.clickhouseConfigs,
         preferredClickhouseService: "EventsReadOnly",
       }),
   });

@@ -56,6 +56,7 @@ export default withMiddlewares(
         const includeScores = requestedFields.includes("scores");
         const includeMetrics = requestedFields.includes("metrics");
 
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const trace = await getTraceById({
           traceId,
           projectId: auth.scope.projectId,

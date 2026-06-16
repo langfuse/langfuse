@@ -6,9 +6,13 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { DatasetJSONSchema } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
+import { buildDatasetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
+const idField = z.string().min(1).optional();
+
 const UpsertDatasetBaseSchema = z.object({
+  id: idField,
   name: z.string(),
   description: z.string().optional(),
   metadata: z.any().optional(),
@@ -38,6 +42,7 @@ const DatasetJSONSchemaInput = z
 const UpsertDatasetInputSchema = PostDatasetsV2Body.extend({
   inputSchema: DatasetJSONSchemaInput,
   expectedOutputSchema: DatasetJSONSchemaInput,
+  id: idField,
 });
 
 export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
@@ -58,7 +63,15 @@ export const [upsertDatasetTool, handleUpsertDataset] = defineTool({
           auditScope: context,
         });
 
-        return PostDatasetsV2Response.parse(dataset);
+        const parsed = PostDatasetsV2Response.parse(dataset);
+
+        return {
+          ...parsed,
+          url: buildDatasetUrl({
+            projectId: context.projectId,
+            datasetId: parsed.id,
+          }),
+        };
       },
     }),
   destructiveHint: true,

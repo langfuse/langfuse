@@ -1,4 +1,5 @@
 import { VERSION } from "@/src/constants";
+import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   convertDateToClickhouseDateTime,
@@ -45,52 +46,89 @@ export const runHealthCheck = async ({
         const now = new Date();
         const clickhouseNow = convertDateToClickhouseDateTime(now);
 
-        const traces = await measureAndReturn({
-          operationName: "healthCheckTraces",
-          projectId: "__CROSS_PROJECT__",
-          input: {
-            now: clickhouseNow,
-          },
-          fn: async (params: { now: string }) =>
-            queryClickhouse<{ id: string }>({
-              query: `
-                SELECT id
-                FROM traces
-                WHERE timestamp <= {now: DateTime64(3)}
-                AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
-                LIMIT 1
-              `,
-              params,
-              tags: {
-                feature: "health-check",
-                type: "trace",
-              },
-            }),
-        });
+        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
+          // In events_only mode the legacy traces/observations tables are no
+          // longer written, so they would always look stale. Ingestion
+          // completeness is instead reflected by recent rows in events_core
+          // (the query-optimized projection of events_full).
+          const events = await measureAndReturn({
+            operationName: "healthCheckEvents",
+            projectId: "__CROSS_PROJECT__",
+            input: {
+              now: clickhouseNow,
+            },
+            fn: async (params: { now: string }) =>
+              queryClickhouse<{ span_id: string }>({
+                query: `
+                  SELECT span_id
+                  FROM events_core
+                  WHERE start_time <= {now: DateTime64(3)}
+                  AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+                  LIMIT 1
+                `,
+                params,
+                tags: {
+                  feature: "health-check",
+                  type: "event",
+                },
+              }),
+          });
 
-        const observations = await queryClickhouse<{ id: string }>({
-          query: `
-            SELECT id
-            FROM observations
-            WHERE start_time <= {now: DateTime64(3)}
-            AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
-            LIMIT 1
-          `,
-          params: {
-            now: clickhouseNow,
-          },
-          tags: {
-            feature: "health-check",
-            type: "observation",
-          },
-        });
+          if (events.length === 0) {
+            return {
+              isHealthy: false,
+              status: "No events within the last 3 minutes",
+              version,
+            };
+          }
+        } else {
+          const traces = await measureAndReturn({
+            operationName: "healthCheckTraces",
+            projectId: "__CROSS_PROJECT__",
+            input: {
+              now: clickhouseNow,
+            },
+            fn: async (params: { now: string }) =>
+              queryClickhouse<{ id: string }>({
+                query: `
+                  SELECT id
+                  FROM traces
+                  WHERE timestamp <= {now: DateTime64(3)}
+                  AND timestamp >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+                  LIMIT 1
+                `,
+                params,
+                tags: {
+                  feature: "health-check",
+                  type: "trace",
+                },
+              }),
+          });
 
-        if (traces.length === 0 || observations.length === 0) {
-          return {
-            isHealthy: false,
-            status: `No ${traces.length === 0 ? "traces" : "observations"} within the last 3 minutes`,
-            version,
-          };
+          const observations = await queryClickhouse<{ id: string }>({
+            query: `
+              SELECT id
+              FROM observations
+              WHERE start_time <= {now: DateTime64(3)}
+              AND start_time >= {now: DateTime64(3)} - INTERVAL 3 MINUTE
+              LIMIT 1
+            `,
+            params: {
+              now: clickhouseNow,
+            },
+            tags: {
+              feature: "health-check",
+              type: "observation",
+            },
+          });
+
+          if (traces.length === 0 || observations.length === 0) {
+            return {
+              isHealthy: false,
+              status: `No ${traces.length === 0 ? "traces" : "observations"} within the last 3 minutes`,
+              version,
+            };
+          }
         }
       }
     } catch (error) {

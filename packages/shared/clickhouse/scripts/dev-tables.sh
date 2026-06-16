@@ -27,6 +27,7 @@
 
 # When making changes below, treat them like migrations, i.e. DO NOT modify the column inline.
 # Instead add a table mutation adding a net new column.
+# Also, populate the migrations in https://docs.google.com/document/d/1bvz3FUFn3T4rfJ_U1qIh36FcJGfUVQwdAIOAHa3wPnA.
 
 # Load environment variables
 [ -f ../../.env ] && source ../../.env
@@ -405,6 +406,7 @@ SETTINGS
     prewarm_mark_cache = 1,
     prewarm_primary_key_cache = 1,
     enable_full_text_index = 1;
+     -- cache_populated_by_fetch = 1; -- Not available in OSS ClickHouse
 
 -- Materialized view to populate events_core from events_full.
 CREATE MATERIALIZED VIEW IF NOT EXISTS events_core_mv TO events_core AS
@@ -476,6 +478,11 @@ SELECT
     event_ts,
     is_deleted
 FROM events_full;
+
+-- Event metadata substring acceleration. Keep this as a post-create mutation
+-- while events tables are managed through this dev-table workflow.
+ALTER TABLE events_full ADD INDEX IF NOT EXISTS idx_fts_metadata_values_ngram arrayStringConcat(metadata_values) TYPE ngrambf_v1(4, 32000, 3, 0) GRANULARITY 2 SETTINGS enable_full_text_index = 1;
+ALTER TABLE events_core ADD INDEX IF NOT EXISTS idx_fts_metadata_values_ngram arrayStringConcat(metadata_values) TYPE ngrambf_v1(4, 32000, 3, 0) GRANULARITY 2 SETTINGS enable_full_text_index = 1;
 
 -- Diagnostic table to track event size distributions across projects.
 -- Every insert (including updates) produces a row — no deduplication.

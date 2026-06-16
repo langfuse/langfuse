@@ -122,6 +122,9 @@ const EnvSchema = z.object({
     .default(25),
   LANGFUSE_TRACE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_SCORE_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
+  // Delay (ms) inserted after each Mixpanel flush to throttle analytics exports
+  // and avoid overwhelming the target instance (see issue #12786).
+  LANGFUSE_MIXPANEL_FLUSH_DELAY_MS: z.coerce.number().min(0).default(100),
   LANGFUSE_DATASET_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_PROJECT_DELETE_CONCURRENCY: z.coerce.number().positive().default(1),
   LANGFUSE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
@@ -185,7 +188,13 @@ const EnvSchema = z.object({
     .optional()
     .transform((s) => (s ? s.split(",").map((id) => id.trim()) : [])),
 
+  LANGFUSE_MONITOR_SCHEDULER_ENABLED: z.enum(["true", "false"]).default("true"),
+  LANGFUSE_MONITOR_SCHEDULERS: z.coerce.number().int().min(1).default(1),
+
   // Flags to toggle queue consumers on or off.
+  QUEUE_CONSUMER_MONITOR_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_CLOUD_USAGE_METERING_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),
@@ -405,6 +414,22 @@ const EnvSchema = z.object({
     .positive()
     .default(3_600_000), // 1 hour for DELETE operations
 
+  // ClickHouse deleted-mask cleaner configuration
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_INTERVAL_MS: z.coerce
+    .number()
+    .positive()
+    .default(3_600_000), // 1 hour between runs
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_SUBMIT_TIMEOUT_MS: z.coerce
+    .number()
+    .positive()
+    .default(60_000), // Wait up to 1 minute for ALTER submission; mutation can run for hours
+  LANGFUSE_CLICKHOUSE_DELETED_MASK_CLEANER_CLUSTER_MODE_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"), // Use ON CLUSTER and clusterAllReplicas for cleaner operations
+
   // Media Retention Cleaner configuration (S3/PostgreSQL)
   LANGFUSE_MEDIA_RETENTION_CLEANER_ITEM_LIMIT: z.coerce
     .number()
@@ -463,6 +488,10 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(2),
+  LANGFUSE_MONITOR_QUEUE_PROCESSING_CONCURRENCY: z.coerce
+    .number()
+    .positive()
+    .default(10),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()

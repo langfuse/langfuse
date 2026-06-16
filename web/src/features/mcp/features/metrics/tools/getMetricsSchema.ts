@@ -1,9 +1,9 @@
 import {
   getValidAggregationsForMeasureType,
-  granularities,
   viewsV2,
   viewDeclarations,
 } from "@langfuse/shared/query";
+import { publicGranularities } from "@/src/features/public-api/types/metrics";
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -31,7 +31,7 @@ export const [getMetricsSchemaTool, handleGetMetricsSchema] = defineTool({
 
         return {
           supportedViews,
-          granularities: granularities.options,
+          granularities: publicGranularities.options,
           config: {
             bins: { min: 1, max: 100 },
             row_limit: { min: 1, max: 1000, default: 100 },

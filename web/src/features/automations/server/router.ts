@@ -144,7 +144,6 @@ export const automationsRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         eventSource: TriggerEventSourceSchema.optional(),
-        matches: z.record(z.string(), z.unknown()).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -158,7 +157,6 @@ export const automationsRouter = createTRPCRouter({
       return await getAutomations({
         projectId: input.projectId,
         eventSource: input.eventSource,
-        matches: input.matches,
       });
     }),
 
