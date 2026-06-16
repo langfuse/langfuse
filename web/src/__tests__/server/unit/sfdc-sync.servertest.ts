@@ -189,10 +189,10 @@ describe("SfdcService.upsertUser", () => {
       userId: "u1",
       email: "u@example.com",
       name: "U",
-      companyName: "Acme Corp",
+      companyName: "Acme Inc",
     });
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body.companyName).toBe("Acme Corp");
+    expect(body.companyName).toBe("Acme Inc");
   });
 
   it.each([null, undefined, ""])(
