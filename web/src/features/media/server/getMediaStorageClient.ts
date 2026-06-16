@@ -18,11 +18,6 @@ const getMediaStorageParams = (bucketName: string) => ({
   awsSseKmsKeyId: env.LANGFUSE_S3_MEDIA_UPLOAD_SSE_KMS_KEY_ID,
 });
 
-/**
- * Storage client for media uploads and all server-side S3 operations. Upload
- * (PUT) presigned URLs and server-side operations always target the internal
- * LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT.
- */
 export const getMediaStorageServiceClient = (
   bucketName: string,
 ): StorageService => {
@@ -34,16 +29,6 @@ export const getMediaStorageServiceClient = (
   return s3StorageServiceClient;
 };
 
-/**
- * Storage client for presigning media download (GET) URLs handed to browsers and
- * API consumers (e.g. the UI media player and GET /api/public/media/:mediaId).
- *
- * When LANGFUSE_S3_MEDIA_UPLOAD_EXTERNAL_ENDPOINT is set, GET URLs are signed
- * against that public host. The SigV4 presigned URL binds the signature to the
- * Host header only (X-Amz-SignedHeaders=host), so the download host may differ
- * from the internal one used for server-side operations. When the external
- * endpoint is unset this returns the internal client, so behaviour is unchanged.
- */
 export const getMediaDownloadStorageServiceClient = (
   bucketName: string,
 ): StorageService => {
