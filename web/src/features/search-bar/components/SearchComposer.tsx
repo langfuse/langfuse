@@ -743,9 +743,20 @@ export function SearchComposer({
         if (!appendIntent && option.fieldId.endsWith(".") && colonFollows) {
           replaceTo = termAt(current, currentPlan.from)?.to ?? currentPlan.to;
         }
-        if (appendIntent && current.trimEnd().endsWith(insert)) {
-          const caretAt = current.trimEnd().length;
-          setDraftWithSelection(current, caretAt);
+        // Re-picking the same field that's already the last token: collapse to
+        // a no-op instead of double-appending (`… level:` + pick `level` would
+        // give `… level: level:`). The matched suffix must sit at a TOKEN
+        // boundary (start-of-draft or after whitespace) — a bare `endsWith`
+        // false-fires when the field name is a raw suffix of a longer key
+        // (`metadata.level:` + pick `level`), silently discarding the pick.
+        const trimmed = current.trimEnd();
+        if (
+          appendIntent &&
+          trimmed.endsWith(insert) &&
+          (trimmed.length === insert.length ||
+            /\s/.test(trimmed[trimmed.length - insert.length - 1] ?? " "))
+        ) {
+          setDraftWithSelection(current, trimmed.length);
           setAppendIntent(false);
           setAutocompleteOpen(true);
           setHighlightedOptionId(null);
