@@ -174,7 +174,10 @@ function replaceRange(
 // punctuation are separate words, so Alt+Arrow stops at `level|:|ERROR`
 // boundaries instead of jumping across the whole token.
 function isSearchWordChar(char: string): boolean {
-  return /[A-Za-z0-9_-]/.test(char);
+  // Unicode-aware: \p{L}/\p{N} cover CJK, Cyrillic, Greek, accented Latin, etc.
+  // so Alt/Ctrl+Arrow and Alt+Backspace treat non-ASCII identifiers as words
+  // (an ASCII-only class folded them into the punctuation bucket).
+  return /[\p{L}\p{N}_-]/u.test(char);
 }
 
 function previousSearchWordBoundary(text: string, offset: number): number {
