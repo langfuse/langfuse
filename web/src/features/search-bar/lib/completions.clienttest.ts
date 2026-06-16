@@ -194,7 +194,7 @@ describe("planInputCompletions", () => {
     // strand the other words as free text.
     const p = plan("abc abc abc", 5);
     const opts = flattenOptions(p);
-    const content = opts.find((o) => o.id === "search:content");
+    const content = opts.find((o) => o.id === "scope:content");
     expect(content?.label).toBe('content:"abc abc abc"');
     expect(content && "insert" in content && content.insert).toBe(
       'content:"abc abc abc"',
@@ -203,6 +203,73 @@ describe("planInputCompletions", () => {
       from: 0,
       to: 11,
     });
+  });
+
+  it("offers scope switches when the caret is in a content: value", () => {
+    // The reverse of free-text → content:: clicking into content:"abc" offers
+    // input:/output:/default, each rewriting the WHOLE content: token.
+    const p = plan('content:"abc"', 10);
+    const opts = flattenOptions(p);
+    expect(opts.map((o) => o.id)).toEqual(
+      expect.arrayContaining(["scope:input", "scope:output", "scope:default"]),
+    );
+    // content: must NOT offer a switch back to itself.
+    expect(opts.map((o) => o.id)).not.toContain("scope:content");
+    const toInput = opts.find((o) => o.id === "scope:input");
+    expect(toInput && "insert" in toInput && toInput.insert).toBe("input:abc");
+    expect(toInput && "replaceSpan" in toInput && toInput.replaceSpan).toEqual({
+      from: 0,
+      to: 13,
+    });
+    const toDefault = opts.find((o) => o.id === "scope:default");
+    expect(toDefault && "insert" in toDefault && toDefault.insert).toBe("abc");
+  });
+
+  it("offers scope switches when the caret is in an input: value", () => {
+    // input:/output: are full-text scopes too — clicking into input:abc must
+    // offer content:/output:/default (and the glob refinements), each rewriting
+    // the WHOLE token, never a switch back to input:.
+    const p = plan("input:abc", 9);
+    const opts = flattenOptions(p);
+    const ids = opts.map((o) => o.id);
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "scope:content",
+        "scope:output",
+        "scope:default",
+      ]),
+    );
+    expect(ids).not.toContain("scope:input");
+    const toOutput = opts.find((o) => o.id === "scope:output");
+    expect(toOutput && "insert" in toOutput && toOutput.insert).toBe(
+      "output:abc",
+    );
+    expect(
+      toOutput && "replaceSpan" in toOutput && toOutput.replaceSpan,
+    ).toEqual({ from: 0, to: 9 });
+    // Glob refinements still ride alongside the scope switches.
+    const labels = opts.map((o) => o.label);
+    expect(labels).toContain("*abc*");
+  });
+
+  it("keeps the value stage live for a glob value (re-form + re-scope)", () => {
+    // `output:*ole*` is a contains glob. Clicking into the value must still
+    // plan the value stage: a leading `*` is a glob ANCHOR, not a value-
+    // suppressing operator prefix. Regression for the popover going dead on
+    // any glob-wrapped full-text value.
+    const p = plan("output:*ole*", 9);
+    expect(p?.stage).toBe("value");
+    const opts = flattenOptions(p);
+    const labels = opts.map((o) => o.label);
+    // Match-op refinements operate on the BARE core (`ole`), not `*ole*`.
+    expect(labels).toContain("*ole*"); // contains (current form)
+    expect(labels).toContain("ole*"); // starts with
+    expect(labels).toContain("=ole"); // exact
+    const ids = opts.map((o) => o.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(["scope:content", "scope:input", "scope:default"]),
+    );
+    expect(ids).not.toContain("scope:output");
   });
 
   it("plans grouped value segments with keep-open for incomplete groups", () => {

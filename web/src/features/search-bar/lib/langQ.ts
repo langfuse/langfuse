@@ -229,7 +229,9 @@ const OPERATOR_PREFIXES: Array<{ prefix: string; op: CompareOp }> = [
 // only as the first/last char of the raw segment (a quoted value's edges are
 // `"`, and stars inside quotes are literal), so `"a*b"` and `a*b` stay literal.
 // Returns null when there is no anchoring star or no value survives stripping.
-function parseGlob(rawSegment: string): { op: CompareOp; core: string } | null {
+export function parseGlob(
+  rawSegment: string,
+): { op: CompareOp; core: string } | null {
   const leading = rawSegment.startsWith("*");
   const trailing = rawSegment.endsWith("*") && rawSegment.length > 1;
   if (!leading && !trailing) return null;

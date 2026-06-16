@@ -14,6 +14,7 @@
 import {
   indexOfOutsideQuotes,
   lexTokens,
+  parseGlob,
   serializeValue,
   splitOutsideQuotes,
   termAt,
@@ -482,13 +483,15 @@ type ValueStageInput = {
   typed: string;
   valuePrefix: string;
   observed: ObservedOptions | undefined;
+  /** Whole-token span, for rewrites that replace the entire `key:value`. */
+  tokenSpan: { from: number; to: number };
 };
 
 /** Sections for the caret-in-value context, or null when free-form entry. */
 function valueStageSections(
   input: ValueStageInput,
 ): { sections: CompletionSection[]; loading: boolean } | null {
-  const { ref, typed, valuePrefix, observed } = input;
+  const { ref, typed, valuePrefix, observed, tokenSpan } = input;
 
   // An operator prefix was already typed: the rest is free-form entry.
   if (valuePrefix.length > 0) return null;
@@ -508,9 +511,18 @@ function valueStageSections(
           loading: false,
         };
       }
-      // content: is a free-form full-text search — no enumerated values to
-      // suggest; the user just types the query.
-      return null;
+      // content: is free-form text (no enumerated values), but the caret being
+      // in its value is the moment to offer moving the WHOLE block to another
+      // scope — the reverse of the free-text → content: rewrite. Each switch
+      // carries the value and replaces the entire `content:…` token.
+      if (typed.length === 0) return null;
+      return {
+        sections: section(
+          SECTION_SEARCH_IN,
+          scopeSwitchOptions("content", typed, tokenSpan),
+        ),
+        loading: false,
+      };
     }
 
     case "metadata": {
@@ -617,8 +629,17 @@ function valueStageSections(
         // No enumerable values. Once a value is typed, offer glob/exact
         // refinements that wrap it (bare value already means contains).
         if (typed.length === 0) return null;
+        // input:/output: are full-text scopes too, so also offer switching the
+        // whole token to the other scopes (mirrors content: and free text).
+        const scopeSwitches =
+          f.id === "input" || f.id === "output"
+            ? scopeSwitchOptions(f.id, typed, tokenSpan)
+            : [];
         return {
-          sections: section(SECTION_MATCH_OPS, matchOperatorOptions(typed)),
+          sections: [
+            ...section(SECTION_MATCH_OPS, matchOperatorOptions(typed)),
+            ...section(SECTION_SEARCH_IN, scopeSwitches),
+          ],
           loading: false,
         };
       }
@@ -756,6 +777,55 @@ function freeTextRun(
   return { from, to, text: input.slice(from, to) };
 }
 
+// The four full-text scopes the bar can switch a value between. `default` is
+// bare free text (ids & names); content:/input:/output: are the scoped forms.
+type FullTextScope = "default" | "content" | "input" | "output";
+
+// Switch options that move a full-text value to the OTHER scopes, carrying the
+// value and replacing the WHOLE token/run (replaceSpan). Used in both
+// directions: forward (bare text → content:/input:/output:) and back/between
+// (content:/input:/output: → each other or default). `value` is the raw
+// (unquoted) text; it's serialized so a multi-word phrase stays one token.
+function scopeSwitchOptions(
+  current: FullTextScope,
+  value: string,
+  span: { from: number; to: number },
+): CompletionOption[] {
+  const v = serializeValue(value);
+  const defs: { scope: FullTextScope; insert: string; detail: string }[] = [
+    {
+      scope: "content",
+      insert: `content:${v}`,
+      detail: "full-text search in input + output",
+    },
+    {
+      scope: "input",
+      insert: `input:${v}`,
+      detail: "search the input payload",
+    },
+    {
+      scope: "output",
+      insert: `output:${v}`,
+      detail: "search the output payload",
+    },
+    {
+      scope: "default",
+      insert: v,
+      detail: "search ids & names (default scope)",
+    },
+  ];
+  return defs
+    .filter((d) => d.scope !== current)
+    .map((d) => ({
+      id: `scope:${d.scope}`,
+      kind: "pattern" as const,
+      label: d.insert,
+      detail: d.detail,
+      insert: d.insert,
+      replaceSpan: span,
+    }));
+}
+
 /**
  * The completion plan for the caret context, or null when nothing matches.
  * The plan is a pure function of (text, caret, data) — never of HOW the
@@ -875,36 +945,10 @@ export function planInputCompletions(
         : null;
     const searchScopes: CompletionOption[] =
       run !== null
-        ? (() => {
-            const v = serializeValue(run.text);
-            const span = { from: run.from, to: run.to };
-            return [
-              {
-                id: "search:content",
-                kind: "pattern",
-                label: `content:${v}`,
-                detail: "Full-text search in input + output",
-                insert: `content:${v}`,
-                replaceSpan: span,
-              },
-              {
-                id: "search:input",
-                kind: "pattern",
-                label: `input:${v}`,
-                detail: "Search the input payload",
-                insert: `input:${v}`,
-                replaceSpan: span,
-              },
-              {
-                id: "search:output",
-                kind: "pattern",
-                label: `output:${v}`,
-                detail: "Search the output payload",
-                insert: `output:${v}`,
-                replaceSpan: span,
-              },
-            ];
-          })()
+        ? scopeSwitchOptions("default", run.text, {
+            from: run.from,
+            to: run.to,
+          })
         : [];
     if (
       fields.length +
@@ -947,17 +991,27 @@ export function planInputCompletions(
         ) ?? segments[segments.length - 1]!)
       : null;
   const segFromBase = grouped?.from ?? valueStart + seg!.offset;
-  // Operator prefixes belong to the op, not the typed value.
   const activeValueText = grouped?.typed ?? seg!.text;
+  // Comparison/exact operator prefixes belong to the op, not the typed value,
+  // and put the value into free-form entry (valueStageSections bails on them).
+  // A `*` glob anchor is NOT such a prefix: `*ole*`/`ole*`/`*ole` are full-text
+  // match VALUES. Unwrapping the glob to its bare core keeps the value stage
+  // live (so clicking into `output:*ole*` still offers re-scope / re-form
+  // suggestions) instead of suppressing the popover entirely.
   const valuePrefix =
     grouped === null
-      ? (activeValueText.match(/^(>=|<=|>|<|~|=|\^|\$|\*)/)?.[0] ?? "")
+      ? (activeValueText.match(/^(>=|<=|>|<|~|=|\^|\$)/)?.[0] ?? "")
       : "";
+  const glob =
+    grouped === null && valuePrefix === "" ? parseGlob(activeValueText) : null;
   const segFrom = segFromBase + valuePrefix.length;
   const segTo = grouped?.to ?? segFromBase + seg!.text.length;
   // Drop quotes so the typed text matches observed values (both the grouped
-  // and non-grouped value segments go through the same helper).
-  const typed = stripValueQuotes(activeValueText.slice(valuePrefix.length));
+  // and non-grouped value segments go through the same helper). For a glob
+  // value the typed text is the bare core inside the `*`s.
+  const typed = stripValueQuotes(
+    glob !== null ? glob.core : activeValueText.slice(valuePrefix.length),
+  );
   const groupedPlanAttrs =
     grouped === null ? {} : { keepOpenOnPick: !grouped.completeGroup };
 
@@ -966,6 +1020,7 @@ export function planInputCompletions(
     typed,
     valuePrefix,
     observed: ctx.observed,
+    tokenSpan: { from: start, to: term?.to ?? caret },
   });
   if (staged === null) return null;
   if (staged.loading) {
