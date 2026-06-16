@@ -89,6 +89,13 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       const id = columnIdOf(filter.column);
       if (id === null) return null;
       if (filter.operator === "does not contain") {
+        // Mirror the positive contains carve-out below: a textSearch field emits
+        // the bare `-input:refund`, not the `-input:*refund*` glob, so the
+        // negated form round-trips stably (no visible rewrite on commit echo).
+        const ref = resolveField(id);
+        if (ref?.type === "field" && ref.field.syncMode === "textSearch") {
+          return negate(filterNode(id, "=", [filter.value]));
+        }
         return negate(filterNode(id, "~", [filter.value]));
       }
       const op = STRING_OP_SYMBOL[filter.operator];

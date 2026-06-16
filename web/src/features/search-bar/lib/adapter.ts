@@ -194,10 +194,16 @@ function lowerContent(node: FilterNode, ctx: LowerContext): void {
     return;
   }
   const value = node.values[0];
-  if (value === undefined || value.length === 0) {
-    // The parser already flags `content:` (empty) as `Missing value after
-    // "content:"`; a second message here would double the diagnostic. Return
-    // silently — the parser's wording is authoritative and blocks the commit.
+  if (value === undefined) {
+    // Bare `content:` — the parser already flags it ("Missing value after
+    // content:"); a second message here would double the diagnostic.
+    return;
+  }
+  if (value.length === 0) {
+    // Quoted-empty `content:""` is NOT flagged by the parser (the intentional
+    // quoted-empty carve-out), so without this it would silently commit an
+    // empty content search and wipe existing filter state. Flag it here.
+    ctx.errors.push("content: needs a search value (e.g. content:refund)");
     return;
   }
   ctx.searchTerms.push(value);
@@ -258,7 +264,7 @@ function lowerTopLevel(
         return;
       }
       ctx.errors.push(
-        "OR between different filters is not supported — filters combine with AND; use field:(a OR b) for any-of values",
+        "OR is not supported yet, filters combine with AND. Use field:(a OR b) for any-of values",
       );
       return;
     }

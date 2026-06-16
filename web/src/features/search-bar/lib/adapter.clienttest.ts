@@ -650,6 +650,20 @@ describe("filterStateToQueryText", () => {
     expect(
       filterStateToQueryText([{ ...contains, operator: "starts with" }]).text,
     ).toBe("input:refund*");
+    // The NEGATED form must stay bare too (`-input:refund`, not `-input:*refund*`).
+    expect(
+      filterStateToQueryText([{ ...contains, operator: "does not contain" }])
+        .text,
+    ).toBe("-input:refund");
+  });
+
+  it('rejects quoted-empty content:"" instead of silently wiping state', () => {
+    // The parser allows quoted-empty values, so `content:""` is NOT flagged
+    // there; lowerContent must reject it, or it commits an empty content search
+    // and wipes existing filters with no diagnostic.
+    expect(lower('content:""').errors.length).toBeGreaterThan(0);
+    // Bare `content:` is left to the parser (adapter stays silent — no double).
+    expect(lower("content:").errors).toEqual([]);
   });
 
   it("round-trips bare boolean keywords and leading-hyphen free text", () => {
