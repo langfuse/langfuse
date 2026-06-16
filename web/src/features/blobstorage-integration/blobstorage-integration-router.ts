@@ -39,13 +39,25 @@ const getAuditLogErrorType = (error: unknown) =>
       ? error.name
       : "UnknownError";
 
+const formatRootCause = (err: Error): string => {
+  // SDK errors (e.g. S3, GCS) carry a descriptive name like
+  // "SignatureDoesNotMatch" while .message is often generic ("Invalid argument.").
+  const name = err.name && err.name !== "Error" ? err.name : "";
+  if (name && err.message) return `${name}: ${err.message}`;
+  return name || err.message;
+};
+
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (!(error instanceof Error)) return fallback;
-  // Walk one level of cause to surface the SDK error (e.g. "Access Denied")
-  // without exposing arbitrarily deep internal details.
-  const cause = error.cause;
-  if (cause instanceof Error && cause.message) {
-    return `${error.message}: ${cause.message}`.slice(0, 500);
+  // Walk the full cause chain to find the deepest (most specific) error.
+  // StorageService wraps SDK errors in multiple layers of handleStorageError.
+  let deepest: Error = error;
+  while (deepest.cause instanceof Error) {
+    deepest = deepest.cause;
+  }
+  if (deepest !== error) {
+    const rootCause = formatRootCause(deepest);
+    if (rootCause) return `${error.message}: ${rootCause}`.slice(0, 500);
   }
   return error.message;
 };
@@ -424,15 +436,14 @@ This file can be safely deleted.`;
           signedUrl: result.signedUrl,
         };
       } catch (e) {
-        logger.error(
-          `Blob storage validation failed for project ${input.projectId}`,
-          e,
-        );
-
-        // Extract meaningful error message
         const errorMessage = getErrorMessage(
           e,
           "Unknown error occurred during validation",
+        );
+
+        logger.error(
+          `Blob storage validation failed for project ${input.projectId}: ${errorMessage}`,
+          e,
         );
 
         await auditLog({
