@@ -308,6 +308,25 @@ describe("planInputCompletions", () => {
     expect(labels).toContain("*abc*");
   });
 
+  it("does NOT offer scope switches for a negated input/output value", () => {
+    // tokenSpan covers the leading `-`, so a scope rewrite would splice it away
+    // and flip `does not contain` → `contains` (the complement). The value
+    // stage must suppress the switches when negated (match-op refinements stay).
+    for (const q of ["-input:refund", "-output:refund"]) {
+      const opts = flattenOptions(plan(q, q.length));
+      const ids = opts.map((o) => o.id);
+      expect(ids, q).not.toContain("scope:content");
+      expect(ids, q).not.toContain("scope:output");
+      expect(ids, q).not.toContain("scope:input");
+      expect(ids, q).not.toContain("scope:default");
+      // The glob match-op refinements still ride alongside.
+      expect(
+        opts.map((o) => o.label),
+        q,
+      ).toContain("*refund*");
+    }
+  });
+
   it("keeps the value stage live for a glob value (re-form + re-scope)", () => {
     // `output:*ole*` is a contains glob. Clicking into the value must still
     // plan the value stage: a leading `*` is a glob ANCHOR, not a value-

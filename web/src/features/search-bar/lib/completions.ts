@@ -490,13 +490,17 @@ type ValueStageInput = {
   observed: ObservedOptions | undefined;
   /** Whole-token span, for rewrites that replace the entire `key:value`. */
   tokenSpan: { from: number; to: number };
+  /** The token carries a leading `-` (a negated filter). Scope rewrites must be
+   *  suppressed: tokenSpan covers the `-`, so a rewrite would splice it away and
+   *  silently flip `does not contain` → `contains` (the complement). */
+  negated: boolean;
 };
 
 /** Sections for the caret-in-value context, or null when free-form entry. */
 function valueStageSections(
   input: ValueStageInput,
 ): { sections: CompletionSection[]; loading: boolean } | null {
-  const { ref, typed, valuePrefix, observed, tokenSpan } = input;
+  const { ref, typed, valuePrefix, observed, tokenSpan, negated } = input;
 
   // An operator prefix was already typed: the rest is free-form entry.
   if (valuePrefix.length > 0) return null;
@@ -519,8 +523,9 @@ function valueStageSections(
       // content: is free-form text (no enumerated values), but the caret being
       // in its value is the moment to offer moving the WHOLE block to another
       // scope — the reverse of the free-text → content: rewrite. Each switch
-      // carries the value and replaces the entire `content:…` token.
-      if (typed.length === 0) return null;
+      // carries the value and replaces the entire `content:…` token. Suppress
+      // when negated, so the rewrite can't splice away the leading `-`.
+      if (typed.length === 0 || negated) return null;
       return {
         sections: section(
           SECTION_SEARCH_IN,
@@ -635,9 +640,12 @@ function valueStageSections(
         // refinements that wrap it (bare value already means contains).
         if (typed.length === 0) return null;
         // input:/output: are full-text scopes too, so also offer switching the
-        // whole token to the other scopes (mirrors content: and free text).
+        // whole token to the other scopes (mirrors content: and free text). NOT
+        // when negated: tokenSpan covers the leading `-`, so the rewrite would
+        // drop it and flip the filter to its complement (mirrors the free-text →
+        // scope path, which is likewise gated on !negated).
         const scopeSwitches =
-          f.id === "input" || f.id === "output"
+          !negated && (f.id === "input" || f.id === "output")
             ? scopeSwitchOptions(f.id, typed, tokenSpan)
             : [];
         return {
@@ -1057,6 +1065,7 @@ export function planInputCompletions(
     valuePrefix,
     observed: ctx.observed,
     tokenSpan: { from: start, to: term?.to ?? caret },
+    negated,
   });
   if (staged === null) return null;
   if (staged.loading) {
