@@ -15,8 +15,15 @@ const STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST: OutboundUrlValidationWhitelist = {
   ip_ranges: [],
 };
 
+function isLangfuseCloudEndpointValidationEnabled(): boolean {
+  return (
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
+    env.NODE_ENV !== "development"
+  );
+}
+
 export function blobStorageEndpointWhitelistFromEnv(): OutboundUrlValidationWhitelist {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+  if (isLangfuseCloudEndpointValidationEnabled()) {
     return STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST;
   }
 
@@ -43,7 +50,7 @@ export async function validateBlobStorageEndpoint(
     throw new Error("Only HTTP and HTTPS protocols are allowed");
   }
 
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && url.protocol !== "https:") {
+  if (isLangfuseCloudEndpointValidationEnabled() && url.protocol !== "https:") {
     throw new Error(
       "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
     );
@@ -83,7 +90,7 @@ export function blobStorageEndpointConnectionValidationOptions(
 function getEffectiveWhitelist(
   whitelist: OutboundUrlValidationWhitelist,
 ): OutboundUrlValidationWhitelist {
-  return env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
+  return isLangfuseCloudEndpointValidationEnabled()
     ? STRICT_BLOB_STORAGE_ENDPOINT_WHITELIST
     : whitelist;
 }
@@ -91,7 +98,7 @@ function getEffectiveWhitelist(
 function isBlobStorageEndpointValidationEnabled(
   whitelist: OutboundUrlValidationWhitelist,
 ): boolean {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return true;
+  if (isLangfuseCloudEndpointValidationEnabled()) return true;
 
   // Compatibility rollout: self-hosted deployments may already point blob
   // exports at private MinIO/Azure endpoints. Keep the stricter SSRF/rebind
@@ -106,7 +113,7 @@ function isBlobStorageEndpointValidationEnabled(
 }
 
 function getSelfHostedWhitelistGuidance(): string {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) return "";
+  if (isLangfuseCloudEndpointValidationEnabled()) return "";
 
   return " For self-hosted deployments with internal blob storage endpoints, configure LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_HOST, LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS, or LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IP_SEGMENTS.";
 }

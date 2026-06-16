@@ -14,23 +14,37 @@ import {
 } from "@/src/features/media/validation";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { findMediaReferences } from "@langfuse/shared";
+import {
+  findMediaReferences,
+  MEDIA_REFERENCE_PATTERN,
+  MediaReferenceStringSchema,
+} from "@langfuse/shared";
 
 /**
- * Extracts the media reference strings from the live dataset item field JSON
- * (input/expectedOutput/metadata), deduped by media id. Invalid JSON (common
- * mid-edit) contributes nothing rather than throwing.
+ * Extracts media references from live dataset item fields, deduped by media id.
+ * Valid JSON uses the backend-style collector; invalid mid-edit JSON falls back
+ * to regex so previews do not disappear while typing.
  */
 export function collectMediaReferenceStrings(
   jsonStrings: (string | undefined)[],
 ): string[] {
   const byMediaId = new Map<string, string>();
+  const addReferenceString = (referenceString: string) => {
+    const parsed = MediaReferenceStringSchema.safeParse(referenceString);
+    if (parsed.success && !byMediaId.has(parsed.data.id)) {
+      byMediaId.set(parsed.data.id, parsed.data.referenceString);
+    }
+  };
+
   for (const jsonString of jsonStrings) {
     if (!jsonString) continue;
     let parsed: unknown;
     try {
       parsed = JSON.parse(jsonString);
     } catch {
+      for (const match of jsonString.matchAll(MEDIA_REFERENCE_PATTERN)) {
+        addReferenceString(match[0]);
+      }
       continue;
     }
     for (const reference of findMediaReferences(parsed)) {

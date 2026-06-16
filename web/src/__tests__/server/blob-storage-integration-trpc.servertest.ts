@@ -357,6 +357,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
     const originalSharedCloudRegion =
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalSharedNodeEnv = sharedEnv.NODE_ENV;
 
     beforeEach(() => {
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -366,6 +367,7 @@ describe("Blob Storage Integration tRPC Router", () => {
       sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
         originalAllowedIps;
       sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalSharedCloudRegion;
+      sharedEnv.NODE_ENV = originalSharedNodeEnv;
     });
 
     it.each(["S3_COMPATIBLE", "AZURE_BLOB_STORAGE"] as const)(
@@ -411,6 +413,54 @@ describe("Blob Storage Integration tRPC Router", () => {
           originalValidationCloudRegion;
         validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
           originalValidationAllowedIps;
+      }
+    });
+
+    it("allows HTTP endpoints in local development", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationNodeEnv = validationEnv.NODE_ENV;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "local-dev";
+        validationEnv.NODE_ENV = "development";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).resolves.not.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.NODE_ENV = originalValidationNodeEnv;
+      }
+    });
+
+    it("rejects HTTP endpoints on Langfuse Cloud outside local development", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationNodeEnv = validationEnv.NODE_ENV;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
+        validationEnv.NODE_ENV = "production";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow(
+          "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
+        );
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.NODE_ENV = originalValidationNodeEnv;
       }
     });
   });
