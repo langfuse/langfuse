@@ -128,7 +128,6 @@ export const env = createEnv({
     MULESOFT_SFDC_ORG_URL: z.url().optional(),
     MULESOFT_SFDC_BASIC_AUTH_USER: z.string().optional(),
     MULESOFT_SFDC_BASIC_AUTH_PASSWORD: z.string().optional(),
-    MULESOFT_SFDC_CAMPAIGN_ID: z.string().optional(),
     MULESOFT_SFDC_DEFAULT_COMPANY_NAME: z.string().default("[not provided]"),
     MULESOFT_SFDC_REQUEST_TIMEOUT_MS: z.coerce.number().int().default(10_000),
     // AUTH
@@ -542,7 +541,6 @@ export const env = createEnv({
     MULESOFT_SFDC_BASIC_AUTH_USER: process.env.MULESOFT_SFDC_BASIC_AUTH_USER,
     MULESOFT_SFDC_BASIC_AUTH_PASSWORD:
       process.env.MULESOFT_SFDC_BASIC_AUTH_PASSWORD,
-    MULESOFT_SFDC_CAMPAIGN_ID: process.env.MULESOFT_SFDC_CAMPAIGN_ID,
     MULESOFT_SFDC_DEFAULT_COMPANY_NAME:
       process.env.MULESOFT_SFDC_DEFAULT_COMPANY_NAME,
     MULESOFT_SFDC_REQUEST_TIMEOUT_MS:

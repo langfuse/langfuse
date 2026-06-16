@@ -15,7 +15,6 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       MULESOFT_SFDC_ORG_URL: "https://mulesoft.test/manage-org",
       MULESOFT_SFDC_BASIC_AUTH_USER: "mule-user",
       MULESOFT_SFDC_BASIC_AUTH_PASSWORD: "mule-pass",
-      MULESOFT_SFDC_CAMPAIGN_ID: "campaign-test-id",
       MULESOFT_SFDC_DEFAULT_COMPANY_NAME: "Acme Corp",
     } as Record<string, unknown> & {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: string | undefined;
@@ -23,7 +22,6 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       MULESOFT_SFDC_ORG_URL: string | undefined;
       MULESOFT_SFDC_BASIC_AUTH_USER: string | undefined;
       MULESOFT_SFDC_BASIC_AUTH_PASSWORD: string | undefined;
-      MULESOFT_SFDC_CAMPAIGN_ID: string | undefined;
       MULESOFT_SFDC_DEFAULT_COMPANY_NAME: string | undefined;
     },
     prismaMock: {
@@ -131,7 +129,6 @@ beforeEach(() => {
   envMock.MULESOFT_SFDC_ORG_URL = "https://mulesoft.test/manage-org";
   envMock.MULESOFT_SFDC_BASIC_AUTH_USER = "mule-user";
   envMock.MULESOFT_SFDC_BASIC_AUTH_PASSWORD = "mule-pass";
-  envMock.MULESOFT_SFDC_CAMPAIGN_ID = "campaign-test-id";
   envMock.MULESOFT_SFDC_DEFAULT_COMPANY_NAME = "Acme Corp";
 });
 
@@ -143,7 +140,6 @@ describe("SfdcService — factory gating", () => {
     "MULESOFT_SFDC_ORG_URL",
     "MULESOFT_SFDC_BASIC_AUTH_USER",
     "MULESOFT_SFDC_BASIC_AUTH_PASSWORD",
-    "MULESOFT_SFDC_CAMPAIGN_ID",
   ] as const)("returns null when %s is missing", (key) => {
     envMock[key] = undefined;
     expect(SfdcService.tryCreate()).toBeNull();
@@ -270,7 +266,7 @@ describe("SfdcService.upsertUser", () => {
 });
 
 describe("SfdcService.upsertOrg", () => {
-  it("sends type:updateOrg + campaign + isLangfuse + mapped role", async () => {
+  it("sends type:updateOrg + isLangfuse + mapped role", async () => {
     fetchMock.mockResolvedValueOnce(emptyOkResponse());
     await SfdcService.tryCreate()!.upsertOrg({
       orgId: "org-1",
@@ -290,7 +286,6 @@ describe("SfdcService.upsertOrg", () => {
       userId: "user-1",
       email: "u@example.com",
       role: "ADMIN",
-      campaign: "campaign-test-id",
       // Mulesoft's updateOrg flow 500s when the CH service counts are
       // missing (null > 0 comparison in DataWeave) — must always be sent.
       numServicesAws: 0,
@@ -391,7 +386,6 @@ describe("SfdcService.setUserRole — Langfuse roles map onto the SFDC picklist"
       userId: "user-1",
       email: "u@example.com",
       role: sfdcRole,
-      campaign: "campaign-test-id",
     });
   });
 

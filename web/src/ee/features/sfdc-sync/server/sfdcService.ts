@@ -122,11 +122,6 @@ interface SfdcConfig {
   userUrl: string;
   orgUrl: string;
   basicAuthHeader: string;
-  /**
-   * Salesforce Campaign that incoming Langfuse leads / orgs are attached to.
-   * Per-deployment, hence env-provided rather than hard-coded.
-   */
-  campaignId: string;
 }
 
 export class SfdcService {
@@ -138,8 +133,7 @@ export class SfdcService {
       !env.MULESOFT_SFDC_USER_URL ||
       !env.MULESOFT_SFDC_ORG_URL ||
       !env.MULESOFT_SFDC_BASIC_AUTH_USER ||
-      !env.MULESOFT_SFDC_BASIC_AUTH_PASSWORD ||
-      !env.MULESOFT_SFDC_CAMPAIGN_ID
+      !env.MULESOFT_SFDC_BASIC_AUTH_PASSWORD
     ) {
       return null;
     }
@@ -152,7 +146,6 @@ export class SfdcService {
       userUrl: env.MULESOFT_SFDC_USER_URL,
       orgUrl: env.MULESOFT_SFDC_ORG_URL,
       basicAuthHeader,
-      campaignId: env.MULESOFT_SFDC_CAMPAIGN_ID,
     });
   }
 
@@ -214,7 +207,6 @@ export class SfdcService {
         payload: {
           isLangfuse: true,
           type: "updateOrg" as const,
-          campaign: this.config.campaignId,
           // The Mulesoft updateOrg flow runs `numServices* > 0` comparisons
           // and 500s on null — always send 0
           numServicesAws: 0,
@@ -270,7 +262,6 @@ export class SfdcService {
           payload: {
             isLangfuse: true,
             type: "setUserRole" as const,
-            campaign: this.config.campaignId,
             ...parsed.data,
           },
           context: {
