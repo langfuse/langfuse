@@ -18,22 +18,22 @@ dependency once → every provider works with it.
 
 ```mermaid
 flowchart LR
-  subgraph P["① Providers — mint a token (thin, cloud-specific)"]
+  subgraph P["1 - Providers: mint a token (thin, cloud-specific)"]
     direction TB
     AZ["azure-managed-identity<br/>@azure/identity (lazy)"]
-    AWS["aws-iam (planned)<br/>@aws-sdk/rds-signer"]
-    GCP["gcp-workload-identity (planned)<br/>google-auth-library"]
-    FILE["file<br/>zero-dep · Vault/CSI/sidecar"]
+    AWS["aws-iam, planned<br/>@aws-sdk/rds-signer"]
+    GCP["gcp-workload-identity, planned<br/>google-auth-library"]
+    FILE["file<br/>zero-dep: Vault / CSI / sidecar"]
   end
 
-  subgraph C["② Generic core — provider-agnostic"]
+  subgraph C["2 - Generic core: provider-agnostic"]
     direction TB
-    IFACE["ManagedCredentialProvider<br/>fetchToken() → { token, expiresOnTimestamp }"]
-    MGR["RefreshingTokenManager<br/>cache · refresh-ahead @ 80% TTL · single-flight"]
+    IFACE["ManagedCredentialProvider<br/>fetchToken returns token + expiresOnTimestamp"]
+    MGR["RefreshingTokenManager<br/>cache, refresh-ahead at 80% TTL, single-flight"]
     IFACE --> MGR
   end
 
-  subgraph B["③ Bindings — apply to a live connection"]
+  subgraph B["3 - Bindings: apply to a live connection"]
     direction TB
     RB["Redis binding<br/>set password + live AUTH"]
     PB["Postgres binding<br/>pg async password callback"]
@@ -57,7 +57,7 @@ flowchart LR
 The cloud-specific surface is tiny — only `fetchToken()` differs per provider.
 Everything else (caching, refresh-ahead, single-flight, re-auth scheduling) is
 shared. `static` (the default) bypasses the whole thing and keeps today's
-username/password behaviour byte-for-byte.
+username/password behaviour byte-for-byte (see "Why static is a bypass" below).
 
 ## Two axes: providers × dependencies
 
@@ -66,15 +66,15 @@ What changes per **provider** is only token acquisition; what changes per
 
 | Provider | Mint mechanism | Net-new dep | Username | Token TTL |
 | --- | --- | --- | --- | --- |
-| `azure-managed-identity` | `@azure/identity` `getToken(scope)` | `@azure/identity` (lazy) | identity **object id** | ~60–90 min |
+| `azure-managed-identity` | `@azure/identity` `getToken(scope)` | `@azure/identity` (lazy) | identity **object id** | ~60-90 min |
 | `aws-iam` *(planned)* | `@aws-sdk/rds-signer` / SigV4 presign | none (`@aws-sdk/*` present) | DB user / cache user id | 15 min |
 | `gcp-workload-identity` *(planned)* | `google-auth-library` / cloud-sql-connector | none (already present) | IAM principal | ~60 min |
 | `file` | read file kept fresh by an external rotator | **none** | configurable | advisory |
 
 | Dependency | Client | Refresh model | Mechanism |
 | --- | --- | --- | --- |
-| Redis | ioredis (no provider hook) | **push** — re-AUTH the open socket | `onRefresh` → set `options.password` + `AUTH` |
-| Postgres | `pg` via Prisma driver adapter | **pull** — fresh token per new connection | async `password` callback → `getToken()` |
+| Redis | ioredis (no provider hook) | **push** — re-AUTH the open socket | `onRefresh` -> set `options.password` + `AUTH` |
+| Postgres | `pg` via Prisma driver adapter | **pull** — fresh token per new connection | async `password` callback -> `getToken()` |
 
 Per-dependency the Azure provider just uses a different **scope**:
 `https://redis.azure.com/.default` for Redis,
@@ -92,23 +92,23 @@ sequenceDiagram
   autonumber
   participant App
   participant Mgr as RefreshingTokenManager
-  participant Prov as Provider (e.g. Azure MI)
+  participant Prov as Provider (Azure MI)
   participant R as ioredis client
-
   App->>Mgr: start()
   Mgr->>Prov: fetchToken()
-  Prov-->>Mgr: { token, expiresOnTimestamp }
+  Prov-->>Mgr: token + expiresOnTimestamp
   Mgr-->>App: token
-  App->>R: options.password = token; connect()
+  App->>R: set options.password = token
+  App->>R: connect()
   Note over Mgr: timer fires at 80% of TTL
-  Mgr->>Prov: fetchToken()  (refresh-ahead)
-  Prov-->>Mgr: { token₂, … }
-  Mgr-->>App: onRefresh(token₂)
-  App->>R: options.password = token₂
-  App->>R: AUTH token₂   (live, no reconnect)
+  Mgr->>Prov: fetchToken() refresh-ahead
+  Prov-->>Mgr: token2
+  Mgr-->>App: onRefresh(token2)
+  App->>R: set options.password = token2
+  App->>R: AUTH token2 live, no reconnect
 ```
 
-Entry points: `getRedisManagedCredentialProviderFromEnv()` (env → provider, or
+Entry points: `getRedisManagedCredentialProviderFromEnv()` (env -> provider, or
 `null` for static) and `bindManagedCredentialToRedis(client, provider)`. Wired
 into `createNewRedisInstance` for the single-node path; cluster/sentinel are a
 follow-up.
@@ -130,18 +130,17 @@ sequenceDiagram
   participant Mgr as RefreshingTokenManager
   participant Prov as Provider
   participant PG as PostgreSQL
-
   Note over Pool: needs a new physical connection
   Pool->>Mgr: getToken()
-  alt cached & still valid
+  alt cached and still valid
     Mgr-->>Pool: cached token
-  else empty / expired
+  else empty or expired
     Mgr->>Prov: fetchToken()
-    Prov-->>Mgr: { token, expiresOnTimestamp }
+    Prov-->>Mgr: token + expiresOnTimestamp
     Mgr-->>Pool: token
   end
-  Pool->>PG: connect (password = token, TLS required)
-  Note over Pool,PG: connection lifetime capped < TTL,<br/>so recycled connections pick up new tokens
+  Pool->>PG: connect with password = token (TLS)
+  Note over Pool,PG: lifetime capped below TTL, recycled connections get new tokens
 ```
 
 Sketch of the wiring (follow-up PR):
@@ -162,6 +161,20 @@ if (provider) {
 
 Notes: `prisma migrate` / seeding keep a separate static `DATABASE_URL`; a sidecar
 proxy (cloud-sql-proxy / RDS Proxy) is an alternative that needs no app changes.
+
+## Why `static` is a bypass, not a provider
+
+`static` deliberately returns `null` instead of being modelled as a
+"`StaticCredentialProvider` that never refreshes". The abstraction exists for
+credentials that *rotate*; a static secret has no expiry, no refresh, and no
+re-AUTH. Routing it through the manager would add a redundant timer and, more
+importantly, push every existing deployment onto the new `lazyConnect` +
+async-bootstrap path — changing connection timing and the password-setting
+mechanism for the 99% who don't need any of it. Keeping `static` as a bypass is
+what makes the change *byte-for-byte* backward compatible. If you have a static
+secret that *is* rotated out-of-band (mounted secret, Vault template), use the
+**`file`** provider — that's the "static but refreshable" case, and it flows
+through the normal manager path.
 
 ## Extending
 
