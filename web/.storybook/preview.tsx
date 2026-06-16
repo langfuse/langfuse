@@ -1,6 +1,6 @@
 import { definePreview } from "@storybook/nextjs-vite";
 import addonA11y from "@storybook/addon-a11y";
-import { createElement, useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import "../src/styles/globals.css";
 
@@ -8,7 +8,7 @@ function StorybookThemeProvider({
   children,
   theme,
 }: {
-  children: ReactNode;
+  children?: ReactNode;
   theme: "light" | "dark";
 }) {
   useEffect(() => {
@@ -19,10 +19,8 @@ function StorybookThemeProvider({
     };
   }, [theme]);
 
-  return createElement(
-    "div",
-    { className: "min-h-screen bg-background text-foreground" },
-    children,
+  return (
+    <div className="bg-background text-foreground min-h-screen">{children}</div>
   );
 }
 
@@ -49,10 +47,12 @@ export default definePreview({
     (Story, context) => {
       const theme = context.globals.theme === "dark" ? "dark" : "light";
 
-      return createElement(
-        StorybookThemeProvider,
-        { theme },
-        createElement(TooltipProvider, null, createElement(Story)),
+      return (
+        <StorybookThemeProvider theme={theme}>
+          <TooltipProvider>
+            <Story />
+          </TooltipProvider>
+        </StorybookThemeProvider>
       );
     },
   ],
