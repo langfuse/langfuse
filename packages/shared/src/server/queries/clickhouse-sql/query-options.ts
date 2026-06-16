@@ -44,5 +44,8 @@ export function shouldUseObservationsSubqueryRewrite(): boolean {
 }
 
 export function shouldRunObservationsShadowQuery(): boolean {
-  return env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY === "true";
+  return (
+    env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY === "true" &&
+    Math.random() < env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE
+  );
 }

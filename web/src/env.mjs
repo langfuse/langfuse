@@ -448,6 +448,11 @@ export const env = createEnv({
     LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .default(0.01),
 
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
@@ -863,6 +868,8 @@ export const env = createEnv({
       process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
     LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:
       process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY,
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE:
+      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },
