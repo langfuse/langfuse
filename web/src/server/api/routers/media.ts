@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
+import { getMediaDownloadStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -44,7 +44,9 @@ export const mediaRouter = createTRPCRouter({
           message: `Media upload failed`,
         });
 
-      const mediaStorageClient = getMediaStorageServiceClient(media.bucketName);
+      const mediaStorageClient = getMediaDownloadStorageServiceClient(
+        media.bucketName,
+      );
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
       const urlExpiry = new Date(Date.now() + ttlSeconds * 1000).toISOString();
 
@@ -144,7 +146,7 @@ export const mediaRouter = createTRPCRouter({
         return [];
       }
 
-      const mediaStorageClient = getMediaStorageServiceClient(
+      const mediaStorageClient = getMediaDownloadStorageServiceClient(
         media[0].bucket_name,
       );
       const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;

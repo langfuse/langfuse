@@ -2,7 +2,10 @@ import { randomUUID } from "crypto";
 
 import { env } from "@/src/env.mjs";
 import { getFileExtensionFromContentType } from "@/src/features/media/server/getFileExtensionFromContentType";
-import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
+import {
+  getMediaDownloadStorageServiceClient,
+  getMediaStorageServiceClient,
+} from "@/src/features/media/server/getMediaStorageClient";
 import {
   GetMediaResponseSchema,
   type GetMediaUploadUrlQuery,
@@ -135,11 +138,9 @@ export async function getMedia(params: { projectId: string; mediaId: string }) {
   }
 
   const ttlSeconds = env.LANGFUSE_S3_MEDIA_DOWNLOAD_URL_EXPIRY_SECONDS;
-  const url = await getMediaStorageServiceClient(media.bucketName).getSignedUrl(
-    media.bucketPath,
-    ttlSeconds,
-    false,
-  );
+  const url = await getMediaDownloadStorageServiceClient(
+    media.bucketName,
+  ).getSignedUrl(media.bucketPath, ttlSeconds, false);
 
   return GetMediaResponseSchema.parse({
     mediaId,
