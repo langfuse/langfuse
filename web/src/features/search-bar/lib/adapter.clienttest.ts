@@ -609,6 +609,21 @@ describe("filterStateToQueryText", () => {
     ).toBe("metadata.region:*x*");
   });
 
+  it("serializes metadata equality as the bare form, not :=value", () => {
+    // `metadata.region:eu` lowers to a stringObject `=` filter; serializing it
+    // back must produce the bare `metadata.region:eu` the user typed — the
+    // explicit `metadata.region:=eu` would visibly rewrite the pill. Mirrors the
+    // plain `string` exact carve-out.
+    const eq: FilterState[number] = {
+      type: "stringObject",
+      column: "metadata",
+      key: "region",
+      operator: "=",
+      value: "eu",
+    };
+    expect(filterStateToQueryText([eq]).text).toBe("metadata.region:eu");
+  });
+
   it("round-trips bare boolean keywords and leading-hyphen free text", () => {
     // serialize() must quote AND/OR/NOT (any case), !-prefix tokens, and -foo
     // so they reparse as free text rather than as operators/negation/reserved

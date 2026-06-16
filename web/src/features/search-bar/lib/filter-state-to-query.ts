@@ -140,6 +140,11 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       }
       const op = STRING_OP_SYMBOL[filter.operator];
       if (op === undefined) return null;
+      // Mirror the `string` carve-out: metadata only supports
+      // exact/contains/starts/ends (no contains-default ambiguity), so equality
+      // reads as the bare `metadata.key:value` the user typed and the README
+      // documents — not the explicit `metadata.key:=value` `exact` would emit.
+      if (op === "exact") return filterNode(key, "=", [filter.value]);
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
