@@ -148,7 +148,9 @@ describe("planInputCompletions", () => {
     // `My Test` must serialize to `*"My Test"*`, not the raw `*My Test*` the
     // lexer would split in half.
     const p = plan('statusMessage:"My Test"', 23);
-    const inserts = flattenOptions(p).map((o) => o.insert);
+    const inserts = flattenOptions(p).flatMap((o) =>
+      "insert" in o ? [o.insert] : [],
+    );
     expect(inserts).toContain('*"My Test"*'); // contains
     expect(inserts).toContain('"My Test"*'); // starts with
     expect(inserts).toContain('="My Test"'); // exact
