@@ -374,7 +374,7 @@ function lowerText(
     // Negated multi-value IS flat: AND of does-not-contain.
     if (!negated && node.values.length > 1) {
       errors.push(
-        `"${field.id}" supports a single ~value — multiple contains terms cannot be combined with OR in the filter contract`,
+        `"${field.id}" supports a single *value* — multiple contains terms cannot be combined with OR in the filter contract`,
       );
       return;
     }
@@ -392,7 +392,8 @@ function lowerText(
   if (node.op === "^" || node.op === "$") {
     // negationIssue blocks negated forms before this point.
     if (node.values.length > 1) {
-      errors.push(`"${field.id}" supports a single ${node.op}value`);
+      const form = node.op === "^" ? "value*" : "*value";
+      errors.push(`"${field.id}" supports a single ${form}`);
       return;
     }
     out.push({
@@ -641,7 +642,7 @@ function lowerMetadata(
   // surface the same suggestion.
   if (negated) {
     errors.push(
-      `negated equality on metadata is not representable — use -metadata.${key}:~value (does not contain)`,
+      `negated equality on metadata is not representable — use -metadata.${key}:*value* (does not contain)`,
     );
     return;
   }

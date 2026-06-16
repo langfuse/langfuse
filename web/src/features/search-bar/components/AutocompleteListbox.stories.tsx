@@ -82,11 +82,11 @@ const valuePlan: CompletionPlan = {
       title: "Match operators",
       options: [
         {
-          id: "vop:~",
-          kind: "operator",
-          label: "~",
-          detail: "contains — e.g. level:~refund",
-          insert: "~",
+          id: "vop:contains",
+          kind: "pattern",
+          label: "*value*",
+          detail: "contains — e.g. level:*refund*",
+          insert: "*refund*",
         },
       ],
     },

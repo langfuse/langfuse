@@ -119,9 +119,9 @@ const PATTERN_OPTIONS: CompletionOption[] = [
   {
     id: "pat:contains",
     kind: "pattern",
-    label: "field:~value",
+    label: "field:*value*",
     detail: "contains",
-    insert: "name:~chat",
+    insert: "name:*chat*",
   },
   {
     id: "pat:anyof",
@@ -938,14 +938,16 @@ export function planInputCompletions(
     // Free-text guidance: a bare word (or a coalesced multi-word run) can become
     // a scoped full-text search. The rewrite wraps the WHOLE run — so it scopes
     // the block the user sees, not one word — and quotes via serializeValue so a
-    // multi-word phrase stays one token.
+    // multi-word phrase stays one token. Strip any quotes the user already typed
+    // (`"hello world"`) first, mirroring the value-stage path, so serializeValue
+    // re-quotes once instead of emitting a doubly-quoted `content:"\"…\""`.
     const run =
       colon === -1 && !negated
         ? freeTextRun(ctx.currentQueryText, caret)
         : null;
     const searchScopes: CompletionOption[] =
       run !== null
-        ? scopeSwitchOptions("default", run.text, {
+        ? scopeSwitchOptions("default", stripValueQuotes(run.text), {
             from: run.from,
             to: run.to,
           })

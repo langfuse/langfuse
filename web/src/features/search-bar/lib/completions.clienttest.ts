@@ -205,6 +205,26 @@ describe("planInputCompletions", () => {
     });
   });
 
+  it("does not double-quote an already-quoted free-text phrase on scope rewrite", () => {
+    // `"hello world"` already carries quotes; the rewrite must strip them before
+    // re-serializing, so the insert is `content:"hello world"` — not the broken
+    // doubly-quoted `content:"\"hello world\""` that searches for literal quotes.
+    const p = plan('"hello world"', 6);
+    const content = flattenOptions(p).find((o) => o.id === "scope:content");
+    expect(content && "insert" in content && content.insert).toBe(
+      'content:"hello world"',
+    );
+  });
+
+  it("teaches the positional-glob contains form, not the retired ~value", () => {
+    // pat:contains must advertise + insert the `*value*` glob the parser now
+    // understands; the old `name:~chat` lowered to a literal any-of on `~chat`.
+    const p = plan("field", 5);
+    const pat = flattenOptions(p).find((o) => o.id === "pat:contains");
+    expect(pat?.label).toBe("field:*value*");
+    expect(pat && "insert" in pat && pat.insert).toBe("name:*chat*");
+  });
+
   it("offers scope switches when the caret is in a content: value", () => {
     // The reverse of free-text → content:: clicking into content:"abc" offers
     // input:/output:/default, each rewriting the WHOLE content: token.
