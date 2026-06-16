@@ -106,36 +106,41 @@ export const userAccountRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
-      const currentUser = await ctx.prisma.user.findUnique({
-        where: { id: userId },
-        select: { featureFlags: true },
-      });
 
-      if (!currentUser) {
+      if (input.enabled && !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "User not found",
+          code: "PRECONDITION_FAILED",
+          message:
+            "Feature previews are not available in self-hosted deployments.",
         });
       }
 
-      if (input.enabled) {
-        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message:
-              "Feature previews are not available in self-hosted deployments.",
+      // Serializable transaction: the read-modify-write of the featureFlags
+      // array is not atomic on its own, so two parallel toggles of DIFFERENT
+      // flags from one tab (the modal only disables the in-flight row) would
+      // last-write-wins and silently drop one. Mirrors the `delete` mutation.
+      await ctx.prisma.$transaction(
+        async (tx) => {
+          const currentUser = await tx.user.findUnique({
+            where: { id: userId },
+            select: { featureFlags: true },
           });
-        }
-      }
-
-      const nextFeatureFlags = input.enabled
-        ? Array.from(new Set([...currentUser.featureFlags, input.flag]))
-        : currentUser.featureFlags.filter((flag) => flag !== input.flag);
-
-      await ctx.prisma.user.update({
-        where: { id: userId },
-        data: { featureFlags: { set: nextFeatureFlags } },
-      });
+          if (!currentUser) {
+            throw new TRPCError({
+              code: "NOT_FOUND",
+              message: "User not found",
+            });
+          }
+          const nextFeatureFlags = input.enabled
+            ? Array.from(new Set([...currentUser.featureFlags, input.flag]))
+            : currentUser.featureFlags.filter((flag) => flag !== input.flag);
+          await tx.user.update({
+            where: { id: userId },
+            data: { featureFlags: { set: nextFeatureFlags } },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
 
       return {
         success: true,
