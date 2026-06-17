@@ -1002,7 +1002,17 @@ export function planInputCompletions(
       from: bodyStart,
       to,
       loading: false,
-      autoHighlight: resolvedKey === null && fields.length > 0,
+      // Arm Enter on a field only when a bare word EXACTLY names a field
+      // (id/alias) — `name` → `name:`. A mere prefix/substring match (`n`,
+      // `ess`) must NOT hijack Enter: the user is likely typing a free-text
+      // search (e.g. `ess` to find "messages"), so Enter commits the text. The
+      // field still appears in the dropdown for arrow/click selection. Inside an
+      // existing `key:` (caret before the colon) the prefix-complete behavior is
+      // unchanged.
+      autoHighlight:
+        colon === -1
+          ? resolveField(keyPart) !== null
+          : resolvedKey === null && fields.length > 0,
       sections: [
         ...section(SECTION_FIELDS, fields),
         ...section(SECTION_OPERATORS, operators),

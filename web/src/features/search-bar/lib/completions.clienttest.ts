@@ -46,12 +46,27 @@ describe("planInputCompletions", () => {
     expect(titles).toContain(SECTION_RECENT);
   });
 
-  it("ranks fields against the typed key prefix and arms Enter", () => {
+  it("ranks fields against the typed key prefix but does NOT arm Enter (free-text-first)", () => {
+    // A bare prefix lists the field but must not hijack Enter — the user may be
+    // typing a free-text search. Enter commits the text; the field is one
+    // arrow-press away.
     const p = plan("lev", 3);
     expect(p?.stage).toBe("field");
-    expect(p?.autoHighlight).toBe(true);
+    expect(p?.autoHighlight).toBe(false);
     const first = flattenOptions(p);
     expect(first[0]).toMatchObject({ kind: "field", fieldId: "level" });
+  });
+
+  it("arms Enter only when a bare word EXACTLY names a field", () => {
+    // Exact field/alias name → arm Enter to start the filter (`level` → `level:`).
+    expect(plan("level", 5)?.autoHighlight).toBe(true);
+    expect(plan("env", 3)?.autoHighlight).toBe(true); // alias of environment
+    // Prefix / substring matches must stay free-text-first (the reported bug:
+    // `n` → name:, `ess` → sessionId:).
+    expect(plan("n", 1)?.autoHighlight).toBe(false);
+    expect(plan("ess", 3)?.autoHighlight).toBe(false); // substring of sessionId
+    // No field match at all is already free-text-first.
+    expect(plan("abc", 3)?.autoHighlight ?? false).toBe(false);
   });
 
   it("plans observed values in the value stage", () => {
