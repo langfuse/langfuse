@@ -1652,7 +1652,7 @@ export class OtelIngestionProcessor {
                 try {
                   const parsed = JSON.parse(eventAttributes["message"]);
                   if (parsed && typeof parsed === "object") {
-                    return parsed;
+                    return { ...eventAttributes, message: parsed };
                   }
                 } catch {
                   // Malformed JSON — fall through and return raw attributes

@@ -191,9 +191,38 @@ function extractToolDeclarations(tools: unknown[]): Array<{
   return declarations;
 }
 
+// Detects gen_ai.choice-style payloads where the parsed Gemini message
+// (role/parts) is nested under a `message` key alongside sibling
+// attributes such as finish_reason/index, e.g.
+//   {finish_reason: "stop", index: 0, message: {role: "model", parts: [...]}}
+function hasNestedGeminiMessage(data: unknown): boolean {
+  if (typeof data !== "object" || data === null) return false;
+  const nestedMessage = (data as Record<string, unknown>).message;
+  return (
+    typeof nestedMessage === "object" &&
+    nestedMessage !== null &&
+    "role" in nestedMessage &&
+    "parts" in nestedMessage &&
+    Array.isArray((nestedMessage as Record<string, unknown>).parts)
+  );
+}
+
 // normalize a single Gemini message to ChatML format
 function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
   if (!msg || typeof msg !== "object") return {};
+
+  // Unwrap gen_ai.choice-style nested `message: {role, parts}` payloads,
+  // preserving sibling attributes like finish_reason/index.
+  if (hasNestedGeminiMessage(msg)) {
+    const { message: nestedMessage, ...siblingAttributes } = msg as Record<
+      string,
+      unknown
+    >;
+    return normalizeGeminiMessage({
+      ...siblingAttributes,
+      ...(nestedMessage as Record<string, unknown>),
+    });
+  }
 
   const message = msg as Record<string, unknown>;
   let normalized = { ...message };
@@ -457,12 +486,16 @@ function preprocessData(data: unknown): unknown {
   // ========================================
   // This covers gen_ai.choice `message` payloads from the OTel GenAI spec
   // that use Gemini-native format: {role: "model", parts: [{text: "..."}]}
+  // (or, when sibling attributes like finish_reason/index exist, nested as
+  // {finish_reason: "stop", index: 0, message: {role: "model", parts: [...]}} —
+  // see the `message.{role,parts}` handling in normalizeGeminiMessage.)
   if (
     typeof data === "object" &&
     data !== null &&
-    "role" in data &&
-    "parts" in data &&
-    Array.isArray((data as Record<string, unknown>).parts)
+    (("role" in data &&
+      "parts" in data &&
+      Array.isArray((data as Record<string, unknown>).parts)) ||
+      hasNestedGeminiMessage(data))
   ) {
     return normalizeGeminiMessage(data);
   }

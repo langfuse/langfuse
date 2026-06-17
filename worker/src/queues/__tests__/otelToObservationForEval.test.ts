@@ -872,6 +872,94 @@ describe("OTEL to ObservationForEval Schema Validation", () => {
         eventRecord.tool_definitions,
       );
     });
+
+    it("should preserve finish_reason/index when parsing a JSON `message` attribute on gen_ai.choice", () => {
+      // Per the OTel GenAI spec, the response message can be stored as a
+      // JSON string in the `message` attribute of a gen_ai.choice event,
+      // e.g. {role: "model", parts: [...]} for Gemini/VertexAI. Parsing it
+      // must not discard sibling attributes like finish_reason/index.
+      const resourceSpan = {
+        resource: {
+          attributes: [
+            { key: "service.name", value: { stringValue: "agent-service" } },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: { name: "gemini", version: "1.0.0" },
+            spans: [
+              {
+                traceId: createBufferId("cccccccccccccccccccccccccccccccc"),
+                spanId: createBufferId("dddddddddddddddd"),
+                name: "gemini-event-span",
+                kind: 1,
+                startTimeUnixNano: createNanoTimestamp(
+                  BigInt(1714488530686000000),
+                ),
+                endTimeUnixNano: createNanoTimestamp(
+                  BigInt(1714488530687000000),
+                ),
+                attributes: [],
+                events: [
+                  {
+                    name: "gen_ai.user.message",
+                    timeUnixNano: createNanoTimestamp(
+                      BigInt(1714488530686000000),
+                    ),
+                    attributes: [
+                      {
+                        key: "content",
+                        value: { stringValue: "Hello" },
+                      },
+                    ],
+                  },
+                  {
+                    name: "gen_ai.choice",
+                    timeUnixNano: createNanoTimestamp(
+                      BigInt(1714488530687000000),
+                    ),
+                    attributes: [
+                      {
+                        key: "finish_reason",
+                        value: { stringValue: "stop" },
+                      },
+                      {
+                        key: "index",
+                        value: { intValue: 0 },
+                      },
+                      {
+                        key: "message",
+                        value: {
+                          stringValue: JSON.stringify({
+                            role: "model",
+                            parts: [{ text: "Hi there!" }],
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const processor = new OtelIngestionProcessor({
+        projectId: "test-project",
+      });
+      const eventInputs = processor.processToEvent([resourceSpan]);
+
+      expect(eventInputs).toHaveLength(1);
+      const output = eventInputs[0].output as Record<string, unknown>;
+      expect(output.finish_reason).toBe("stop");
+      expect(output.index).toBe(0);
+      expect(output.message).toEqual({
+        role: "model",
+        parts: [{ text: "Hi there!" }],
+      });
+    });
   });
 
   describe("Schema field coverage", () => {

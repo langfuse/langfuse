@@ -268,5 +268,67 @@ describe("geminiAdapter", () => {
       expect(result.data?.[3].role).toBe("user");
       expect(result.data?.[3].content).toBeDefined();
     });
+
+    it("should unwrap gen_ai.choice message nested under `message`, preserving finish_reason/index", () => {
+      // Shape produced by OtelIngestionProcessor when it parses the
+      // `message` JSON string attribute of a gen_ai.choice event: the
+      // parsed Gemini message ends up nested under `message`, alongside
+      // sibling attributes like finish_reason/index.
+      const input = {
+        finish_reason: "stop",
+        index: 0,
+        message: {
+          role: "model",
+          parts: [{ text: "Hello from Gemini" }],
+        },
+      };
+
+      const result = geminiAdapter.preprocess(input, "output", {}) as Record<
+        string,
+        unknown
+      >;
+
+      expect(result.role).toBe("model");
+      expect(result.content).toBe("Hello from Gemini");
+      expect(result.finish_reason).toBe("stop");
+      expect(result.index).toBe(0);
+      expect(result.message).toBeUndefined();
+      expect(result.parts).toBeUndefined();
+    });
+
+    it("should unwrap an array of gen_ai.choice events, preserving finish_reason/index per event", () => {
+      const input = [
+        {
+          finish_reason: "stop",
+          index: 0,
+          message: {
+            role: "model",
+            parts: [{ text: "First choice" }],
+          },
+        },
+        {
+          finish_reason: "length",
+          index: 1,
+          message: {
+            role: "model",
+            parts: [{ text: "Second choice" }],
+          },
+        },
+      ];
+
+      const result = geminiAdapter.preprocess(input, "output", {}) as Record<
+        string,
+        unknown
+      >[];
+
+      expect(result).toHaveLength(2);
+      expect(result[0].role).toBe("model");
+      expect(result[0].content).toBe("First choice");
+      expect(result[0].finish_reason).toBe("stop");
+      expect(result[0].index).toBe(0);
+      expect(result[1].content).toBe("Second choice");
+      expect(result[1].finish_reason).toBe("length");
+      expect(result[1].index).toBe(1);
+    });
   });
 });
