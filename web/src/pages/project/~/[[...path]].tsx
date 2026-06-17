@@ -65,7 +65,7 @@ const signInRedirect = async ({ getSession, resolvedUrl }: SentinelContext) => {
     );
 };
 
-/** projectRedirect resolves to the last visited project, the first accessible project, or home if no projects are availalbe. */
+/** projectRedirect resolves to the last visited project, the first accessible project, or home if no projects are available. */
 const projectRedirect = async ({
   cookie,
   origin,
