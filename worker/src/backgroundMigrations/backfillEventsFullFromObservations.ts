@@ -34,7 +34,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
   ];
   protected readonly predecessor = {
     id: "9c2d5a4f-7b8e-4f6a-a91c-3e5d7f8a2b1c",
-    name: "20260521_v4_step_2_rewrite_observations_to_pid_tid_sorting",
+    name: "20260617_v4_step_2_rewrite_observations_to_pid_tid_sorting",
   };
 
   // ==========================================================================

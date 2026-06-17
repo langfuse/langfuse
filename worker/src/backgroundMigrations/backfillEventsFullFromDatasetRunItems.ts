@@ -514,7 +514,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
     const predecessor = await checkPredecessorMigrationFinalized(
       "7a3f8d6e-2c91-4b5e-8d72-f4a5b6c7d8e9",
-      "20260521_v4_step_3_backfill_events_full_from_observations",
+      "20260617_v4_step_3_backfill_events_full_from_observations",
     );
     if (!predecessor.valid) {
       return predecessor;

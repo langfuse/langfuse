@@ -16,7 +16,7 @@
 INSERT INTO background_migrations (id, name, script, args)
 VALUES (
   '9d4f8a12-7b35-4e6c-9f48-a2b3c4d5e6f7',
-  '20260521_v4_step_4_backfill_events_full_from_dataset_run_items',
+  '20260617_v4_step_4_backfill_events_full_from_dataset_run_items',
   'backfillEventsFullFromDatasetRunItems',
   '{"envGate": "LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL"}'::jsonb
 );
