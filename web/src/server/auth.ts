@@ -762,6 +762,10 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               admin: true,
               v4BetaEnabled: true,
               organizationMemberships: {
+                // Newest first so demo project is last for the `project/~/` sentinal
+                orderBy: {
+                  createdAt: "desc",
+                },
                 include: {
                   organization: {
                     include: {
@@ -770,6 +774,9 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                           deletedAt: {
                             equals: null,
                           },
+                        },
+                        orderBy: {
+                          createdAt: "desc",
                         },
                       },
                     },
