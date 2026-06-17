@@ -429,11 +429,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   try {
-    // A persisted enriched export source on a deployment without the enriched
-    // export path (e.g. left behind by a V4-preview rollback on self-hosted)
-    // would silently export from unpopulated tables. Fail the job instead —
-    // the catch below persists lastError (surfaced in the settings UI) and
-    // notifies the project admins (LFE-10296).
+    // Fail loudly rather than export from unpopulated tables when an enriched
+    // source survives on a deployment without the enriched path, e.g. after a
+    // V4-preview rollback. The catch persists lastError and notifies admins
+    // (LFE-10296).
     if (
       isEnrichedBlobExportSource(blobStorageIntegration.exportSource) &&
       !isEnrichedBlobExportAvailable(

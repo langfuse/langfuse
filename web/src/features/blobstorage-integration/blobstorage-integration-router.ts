@@ -83,9 +83,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
       blobStorageIntegrationFormSchemaBase
         .extend({
           projectId: z.string(),
-          // Override the base schema's default: an omitted exportSource must
-          // preserve the persisted value (parity with the public REST
-          // handler), not silently rewrite it to the legacy default.
+          // Drop the base schema default so an omitted value preserves the
+          // persisted source instead of rewriting it to the legacy default.
           exportSource: z.enum(AnalyticsIntegrationExportSource).optional(),
         })
         .superRefine(validateAzureContainerName)
@@ -103,13 +102,9 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         const isV4PreviewEnabled =
           env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
-        // Single conditional read serving both write-time gates (mirrors the
-        // public REST handler): the legacy upsert gate needs the row's
-        // createdAt when exportSource is provided; the enriched gate needs the
-        // persisted exportSource when it is omitted (the persisted value stays
-        // in effect) and enriched export is unavailable, so a stale enriched
-        // value left behind by a V4-preview rollback is rejected instead of
-        // silently driving the worker against unpopulated tables.
+        // One read feeds both gates (mirrors the REST handler): the legacy gate
+        // needs createdAt for an explicit source; the enriched gate needs the
+        // persisted source to reject a stale enriched value on an omitted update.
         const existingIntegration =
           input.exportSource !== undefined ||
           !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
@@ -119,9 +114,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
               })
             : null;
 
-        // Like the public REST handler, the legacy gate only checks explicit
-        // values: an omitted exportSource preserves a persisted legacy row,
-        // while CREATE is covered by forceEventsOnCreate below.
+        // Legacy gate checks explicit values only; omitted preserves the row,
+        // CREATE is covered by forceEventsOnCreate below.
         if (input.exportSource) {
           const project = await ctx.prisma.project.findUniqueOrThrow({
             where: { id: input.projectId },
@@ -154,14 +148,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
-          // New Cloud rows default to EVENTS when exportSource is omitted: a
-          // brand-new row follows new-customer rules, so the legacy Prisma
-          // column default would trip refuseLegacyOnCreate. Substituted
-          // in-transaction (no TOCTOU window). Mirrors the public REST handler.
+          // Mirror the REST handler: substitute EVENTS for an omitted source on
+          // a new Cloud row, and refuse a legacy source if a concurrent DELETE
+          // flips this upsert to CREATE.
           forceEventsOnCreate: input.exportSource === undefined && isCloud,
-          // In-transaction backstop: a concurrent DELETE can flip this upsert
-          // to the CREATE branch; never let a new Cloud row be born with a
-          // legacy source.
           refuseLegacyOnCreate: isCloud,
           data: {
             type: rest.type,

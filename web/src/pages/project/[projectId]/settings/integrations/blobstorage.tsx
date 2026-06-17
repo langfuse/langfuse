@@ -254,22 +254,16 @@ const BlobStorageIntegrationSettingsForm = ({
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
 
-  // Post-cutoff Cloud projects may only use OBSERVATIONS_V2 (EVENTS); the
-  // Export Source picker is rendered disabled in that case.
   const isPostCutoffCloud =
     project?.createdAt != null &&
     !isLegacyBlobExportAllowed(new Date(project.createdAt), isLangfuseCloud);
   const eventsExportAvailable = isEnrichedExportAvailable;
-  // Integration-level cutoff (Cloud only): an existing row created before
-  // LEGACY_BLOB_EXPORTER_CUTOFF stays legacy (legacy options selectable); a
-  // new row (no state yet) or a post-cutoff row is not legacy (picker locked
-  // to EVENTS). Stable across revisits because the row's createdAt is
-  // immutable.
+  // Integration-level cutoff (Cloud only): a row predating the exporter cutoff
+  // keeps legacy options; a new or post-cutoff row is locked to EVENTS.
   const isLegacyExporter = isLegacyBlobExporter(
     state?.createdAt ? new Date(state.createdAt) : null,
     isLangfuseCloud,
   );
-  // Legacy sources are not selectable when either Cloud cutoff applies.
   const forceEventsExport =
     isPostCutoffCloud || (eventsExportAvailable && !isLegacyExporter);
   const availability = useMemo(
@@ -277,10 +271,8 @@ const BlobStorageIntegrationSettingsForm = ({
     [eventsExportAvailable, forceEventsExport],
   );
 
-  // The persisted export source is kept in the form even when it is not
-  // selectable on this deployment (e.g. an enriched source after a V4-preview
-  // rollback); this refine blocks the save until the user resolves the
-  // conflict, instead of silently rewriting the persisted value (LFE-10296).
+  // Block the save when the persisted source is no longer selectable rather
+  // than silently rewriting it (LFE-10296).
   const formSchema = useMemo(
     () =>
       blobStorageIntegrationFormSchema.superRefine((data, ctx) => {
@@ -364,8 +356,7 @@ const BlobStorageIntegrationSettingsForm = ({
     state?.exportSource,
     availability,
   );
-  // With a single selectable option there is no choice to make; the picker
-  // stays visible (so the configured source is always legible) but locked.
+  // Visible but locked when there is only one selectable option.
   const exportSourceLocked = exportSourceOptions.length === 1;
   const exportSourceUnavailable =
     watchedExportSource != null &&

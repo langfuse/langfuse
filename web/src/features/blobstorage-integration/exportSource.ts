@@ -7,19 +7,12 @@ import {
 } from "@langfuse/shared";
 
 export type ExportSourceAvailability = {
-  // Deployment has the enriched events export path (Cloud, or self-hosted
-  // with the V4 preview opt-in).
   eventsExportAvailable: boolean;
-  // Legacy sources are blocked: post-cutoff Cloud project, or a Cloud
-  // integration that is not a legacy exporter (new row, or created after the
-  // exporter cutoff). Only the enriched EVENTS source remains selectable.
   forceEventsExport: boolean;
 };
 
-// A source must satisfy both deployment constraints, mirroring the two server
-// asserts: its enriched part requires the events export path, and its legacy
-// part is blocked when either Cloud cutoff applies. TRACES_OBSERVATIONS_EVENTS
-// is in both lists, so it needs both checks to pass.
+// Mirrors the two server asserts: TRACES_OBSERVATIONS_EVENTS is both enriched
+// and legacy, so it must clear both checks.
 export function isExportSourceSelectable(
   source: AnalyticsIntegrationExportSource,
   availability: ExportSourceAvailability,
@@ -32,9 +25,8 @@ export function isExportSourceSelectable(
   return !(isLegacy && availability.forceEventsExport);
 }
 
-// The persisted value always wins so that initializing and then saving the
-// form can never silently rewrite it (LFE-10296); when the persisted source is
-// not selectable on this deployment, form validation blocks the save instead.
+// The persisted value always wins so initialize+save can never silently
+// rewrite it (LFE-10296); validation blocks the save if it is not selectable.
 export function getExportSourceFormValue(
   persisted: AnalyticsIntegrationExportSource | null | undefined,
   availability: ExportSourceAvailability,
@@ -49,9 +41,8 @@ export type SelectableExportSourceOption = ExportSourceOption & {
   unavailable: boolean;
 };
 
-// All sources selectable on this deployment, plus the persisted source when it
-// is no longer selectable — shown (marked unavailable) so the user can see the
-// conflict and resolve it explicitly instead of having it rewritten silently.
+// Selectable sources, plus the persisted one (marked unavailable) when it is
+// no longer selectable, so the conflict is visible rather than silently rewritten.
 export function getExportSourceOptions(
   persisted: AnalyticsIntegrationExportSource | null | undefined,
   availability: ExportSourceAvailability,
