@@ -57,6 +57,7 @@ import {
   upsertDatasetItem,
   deleteDatasetItem,
   createManyDatasetItems,
+  linkDatasetItemMedia,
   markDatasetMediaUploadComplete,
   validateAllDatasetItems,
   DatasetJSONSchema,
@@ -1273,16 +1274,39 @@ export const datasetRouter = createTRPCRouter({
           validFrom: validFrom,
         }));
 
+        const mediaItems = preparedItems.map((item) => ({
+          datasetId: item.datasetId,
+          datasetItemId: item.id,
+          datasetItemValidFrom: validFrom,
+          input: item.input,
+          expectedOutput: item.expectedOutput,
+          metadata: item.metadata,
+        }));
+
         await executeWithDatasetServiceStrategy(OperationType.WRITE, {
           [Implementation.STATEFUL]: async () => {
-            await ctx.prisma.datasetItem.createMany({
-              data: preparedItems,
+            await ctx.prisma.$transaction(async (tx) => {
+              await tx.datasetItem.createMany({
+                data: preparedItems,
+              });
+              await linkDatasetItemMedia(tx, {
+                projectId: input.projectId,
+                items: mediaItems,
+                replaceExisting: false,
+              });
             });
           },
           [Implementation.VERSIONED]: async () => {
             // always creates new dataset; hence no need to invalidate old rows
-            await ctx.prisma.datasetItem.createMany({
-              data: preparedItems,
+            await ctx.prisma.$transaction(async (tx) => {
+              await tx.datasetItem.createMany({
+                data: preparedItems,
+              });
+              await linkDatasetItemMedia(tx, {
+                projectId: input.projectId,
+                items: mediaItems,
+                replaceExisting: false,
+              });
             });
           },
         });

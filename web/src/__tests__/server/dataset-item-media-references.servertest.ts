@@ -418,4 +418,45 @@ describe("Dataset item media tRPC procedures", () => {
       }),
     ]);
   });
+
+  it("links media for items copied by duplicateDataset", async () => {
+    const media = await createMediaRow();
+    const dataset = await prisma.dataset.create({
+      data: { id: v4(), name: v4(), projectId },
+    });
+    const sourceItem = await createDatasetItem({
+      projectId,
+      datasetId: dataset.id,
+      input: { image: media.referenceString },
+    });
+    if (!sourceItem.success) throw new Error(sourceItem.message);
+
+    const { id: duplicateDatasetId } = await caller.datasets.duplicateDataset({
+      projectId,
+      datasetId: dataset.id,
+    });
+
+    // The duplicate's item has a fresh id/validFrom; it must own its own
+    // dataset_item_media rows so the reference resolves and the media stays
+    // retention-protected if the source dataset is later deleted.
+    const duplicatedItem = await prisma.datasetItem.findFirstOrThrow({
+      where: { projectId, datasetId: duplicateDatasetId },
+    });
+    expect(duplicatedItem.id).not.toBe(sourceItem.datasetItem.id);
+
+    await expect(
+      caller.datasets.itemMediaByItemId({
+        projectId,
+        datasetItemId: duplicatedItem.id,
+        datasetItemValidFrom: duplicatedItem.validFrom,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        field: "input",
+        jsonPath: "$['image']",
+        referenceString: media.referenceString,
+        media: expect.objectContaining({ mediaId: media.mediaId }),
+      }),
+    ]);
+  });
 });
