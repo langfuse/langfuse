@@ -415,8 +415,8 @@ export default function ObservationsEventsTable({
     queryFilterOptions,
   );
 
-  // Grammar search bar (project-level beta toggle): an ADDITIONAL editor that
-  // coexists with the facet sidebar and the two stay in sync (Datadog model).
+  // Grammar search bar (per-user Feature Preview opt-in): an ADDITIONAL editor
+  // that coexists with the facet sidebar and the two stay in sync (Datadog model).
   // The sidebar's FilterState (+ the table's full-text search) remains the
   // single source of truth — the bar reads from and writes to it. Only the
   // legacy toolbar search field is replaced (full-text search — bare text and
