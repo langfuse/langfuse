@@ -6,12 +6,24 @@ vi.mock("@/src/features/audit-logs/auditLog", () => ({
   auditLog: auditLogMock,
 }));
 
-import { type Prisma, Role } from "@langfuse/shared/src/db";
+import { type Prisma, Role, SurveyName } from "@langfuse/shared/src/db";
 import {
+  completeCloudSignupOnboarding,
+  getCloudSignupOnboardingStatus,
   provisionStarterOrganizationForNewUser,
   resolveOnboardingRedirectTarget,
   type RealOrganizationMembership,
 } from "@/src/features/onboarding/server/onboardingService";
+
+type CompletionPrisma = Parameters<
+  typeof completeCloudSignupOnboarding
+>[0]["prisma"];
+type RedirectPrisma = Parameters<
+  typeof resolveOnboardingRedirectTarget
+>[0]["prisma"];
+type StatusPrisma = Parameters<
+  typeof getCloudSignupOnboardingStatus
+>[0]["prisma"];
 
 const makeMembership = ({
   orgId,
@@ -45,9 +57,33 @@ const makePrisma = (organizationMemberships: RealOrganizationMembership[]) =>
     organizationMembership: {
       findMany: vi.fn().mockResolvedValue(organizationMemberships),
     },
-  }) as unknown as Parameters<
-    typeof resolveOnboardingRedirectTarget
-  >[0]["prisma"];
+  }) as unknown as RedirectPrisma;
+
+const makeCompletionPrisma = ({
+  existingSurvey = null,
+  memberships = [],
+}: {
+  existingSurvey?: { id: string } | null;
+  memberships?: RealOrganizationMembership[];
+} = {}) => {
+  const tx = {
+    $queryRaw: vi.fn().mockResolvedValue([{ id: "user-1" }]),
+    survey: {
+      findFirst: vi.fn().mockResolvedValue(existingSurvey),
+      create: vi.fn().mockResolvedValue({ id: "survey-1" }),
+    },
+    organizationMembership: {
+      findMany: vi.fn().mockResolvedValue(memberships),
+    },
+  };
+
+  return {
+    tx,
+    prisma: {
+      $transaction: vi.fn(async (callback) => callback(tx)),
+    } as unknown as CompletionPrisma,
+  };
+};
 
 describe("resolveOnboardingRedirectTarget", () => {
   it("routes the auto-created starter project to tracing", async () => {
@@ -67,8 +103,9 @@ describe("resolveOnboardingRedirectTarget", () => {
       userId: "user-1",
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       redirectTo: "/project/project-1/traces",
+      orgId: "org-1",
     });
   });
 
@@ -83,9 +120,107 @@ describe("resolveOnboardingRedirectTarget", () => {
       userId: "user-1",
     });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       redirectTo: "/project/project-1",
     });
+  });
+});
+
+describe("getCloudSignupOnboardingStatus", () => {
+  const getStatus = (prisma: StatusPrisma) =>
+    getCloudSignupOnboardingStatus({
+      prisma,
+      userId: "user-1",
+      canCreateOrganizations: true,
+    });
+
+  it("uses the onboarding survey as the completion marker", async () => {
+    const incomplete = makeCompletionPrisma();
+    await expect(getStatus(incomplete.tx)).resolves.toEqual({
+      completed: false,
+    });
+
+    const completed = makeCompletionPrisma({
+      existingSurvey: { id: "survey-1" },
+      memberships: [
+        makeMembership({
+          orgId: "org-1",
+          projects: [{ id: "project-1" }],
+        }),
+      ],
+    });
+
+    await expect(getStatus(completed.tx)).resolves.toEqual({
+      completed: true,
+      redirectTo: "/project/project-1",
+    });
+  });
+});
+
+describe("completeCloudSignupOnboarding", () => {
+  it("locks the user row and writes one trimmed onboarding survey once", async () => {
+    const { prisma, tx } = makeCompletionPrisma({
+      memberships: [
+        makeMembership({
+          orgId: "org-1",
+          orgMetadata: {
+            langfuseOnboarding: {
+              starterOrganization: true,
+            },
+          },
+          projects: [{ id: "project-1" }],
+        }),
+      ],
+    });
+
+    await expect(
+      completeCloudSignupOnboarding({
+        prisma,
+        userId: "user-1",
+        userEmail: "user@example.com",
+        canCreateOrganizations: true,
+        referralSource: "  Reddit  ",
+      }),
+    ).resolves.toEqual({
+      redirectTo: "/project/project-1/traces",
+    });
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.survey.findFirst.mock.invocationCallOrder[0],
+    );
+    expect(tx.survey.findFirst).toHaveBeenCalledWith({
+      where: {
+        userId: "user-1",
+        surveyName: SurveyName.USER_ONBOARDING,
+      },
+      select: {
+        id: true,
+      },
+    });
+    expect(tx.survey.create).toHaveBeenCalledWith({
+      data: {
+        surveyName: SurveyName.USER_ONBOARDING,
+        response: {
+          referralSource: "Reddit",
+        },
+        userId: "user-1",
+        userEmail: "user@example.com",
+        orgId: "org-1",
+      },
+    });
+
+    tx.survey.findFirst.mockResolvedValue({ id: "survey-1" });
+
+    await completeCloudSignupOnboarding({
+      prisma,
+      userId: "user-1",
+      userEmail: "user@example.com",
+      canCreateOrganizations: true,
+      referralSource: "Hacker News",
+    });
+
+    expect(tx.survey.create).toHaveBeenCalledTimes(1);
   });
 });
 
