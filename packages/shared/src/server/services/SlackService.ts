@@ -7,6 +7,7 @@
  * - Metadata-based project-to-team mapping
  */
 
+import { createHash, randomBytes } from "node:crypto";
 import { WebClient } from "@slack/web-api";
 import { InstallProvider } from "@slack/oauth";
 import { logger } from "../logger";
@@ -35,6 +36,19 @@ export const SLACK_BOT_SCOPES = [
   "chat:write", // send messages to channels the bot is a member of
   "chat:write.public", // send messages to public channels that the bot is not a member of
 ] as const;
+
+/**
+ * How long an unlinked Marketplace installation is held before being purged.
+ * Short because the row holds a bot token; the user links it to a project in the
+ * onboarding flow within this window.
+ */
+export const SLACK_PENDING_INSTALL_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+const generatePendingInstallClaimToken = () =>
+  randomBytes(32).toString("base64url");
+
+export const hashSlackPendingInstallClaimToken = (claimToken: string) =>
+  createHash("sha256").update(claimToken).digest("hex");
 
 // Types for Slack integration
 export interface SlackChannel {
@@ -121,6 +135,45 @@ export function parseSlackInstallationMetadata(
 }
 
 /**
+ * Lenient variant of parseSlackInstallationMetadata. Returns the projectId when
+ * the OAuth metadata carries one (in-app "Connect" flow), or undefined for
+ * Marketplace installs that complete OAuth before a project is chosen.
+ */
+export function tryGetProjectIdFromMetadata(
+  metadata: unknown,
+): string | undefined {
+  if (typeof metadata !== "string" || metadata.length === 0) return undefined;
+  try {
+    const parsed = JSON.parse(metadata);
+    return isSlackInstallationMetadata(parsed) ? parsed.projectId : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Column set shared by the two paths that link a Slack workspace to a project:
+ * the in-app "Connect" install and the Marketplace link step. botToken must
+ * already be encrypted.
+ */
+function projectInstallationFields(params: {
+  teamId: string;
+  teamName: string;
+  encryptedBotToken: string;
+  botUserId: string;
+}) {
+  return {
+    teamId: params.teamId,
+    teamName: params.teamName,
+    botToken: params.encryptedBotToken,
+    botUserId: params.botUserId,
+    installingSlackUserId: null,
+    expiresAt: null,
+    claimTokenHash: null,
+  };
+}
+
+/**
  * Slack Service Class
  *
  * Uses InstallProvider for OAuth flow and metadata-based project mapping.
@@ -135,45 +188,86 @@ export class SlackService {
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
+      // 302 straight to Slack's authorize URL (Marketplace "Direct Install URL"
+      // behavior) instead of rendering an intermediate "Add to Slack" page. Both
+      // flows go through handleInstallPath, which sets the OAuth state cookie
+      // that handleCallback verifies.
+      directInstall: true,
       installUrlOptions: {
         scopes: SLACK_BOT_SCOPES as unknown as string[],
       },
       installationStore: {
         storeInstallation: async (installation) => {
           try {
-            const metadata = parseSlackInstallationMetadata(
+            const projectId = tryGetProjectIdFromMetadata(
               installation.metadata,
             );
-            const projectId = metadata.projectId;
+            const teamId = installation.team?.id;
+            const teamName = installation.team?.name;
+            const botToken = installation.bot?.token;
+            const botUserId = installation.bot?.userId;
 
-            logger.info("Storing Slack installation for project", {
-              projectId,
-              teamId: installation.team?.id,
-              teamName: installation.team?.name,
-            });
+            if (!teamId || !teamName || !botToken || !botUserId) {
+              throw new Error(
+                "Incomplete Slack installation payload (missing team or bot details)",
+              );
+            }
 
-            // Store by projectId (one integration per project)
-            await prisma.slackIntegration.upsert({
-              where: { projectId },
-              create: {
+            if (projectId) {
+              // In-app "Connect" flow: the project is known up front (passed via
+              // OAuth metadata), so link directly. One integration per project.
+              const fields = projectInstallationFields({
+                teamId,
+                teamName,
+                encryptedBotToken: encrypt(botToken),
+                botUserId,
+              });
+              await prisma.slackIntegration.upsert({
+                where: { projectId },
+                create: { projectId, ...fields },
+                update: fields,
+              });
+
+              logger.info("Slack installation stored for project", {
                 projectId,
-                teamId: installation.team?.id!,
-                teamName: installation.team?.name!,
-                botToken: encrypt(installation.bot?.token!),
-                botUserId: installation.bot?.userId!,
-              },
-              update: {
-                teamId: installation.team?.id!,
-                teamName: installation.team?.name!,
-                botToken: encrypt(installation.bot?.token!),
-                botUserId: installation.bot?.userId!,
-              },
-            });
+                teamId,
+              });
+            } else {
+              // Marketplace flow: no project yet (the Direct Install URL must
+              // 302 straight to OAuth). Hold the install as a pending row until
+              // the onboarding flow links it to a project. There is no team_id
+              // uniqueness, so emulate latest-wins by clearing prior pending
+              // rows for this workspace before inserting the new one.
+              // Latest-wins: drop any prior pending install for this workspace
+              // (projectId: null guards linked rows), then store the fresh one.
+              await prisma.$transaction([
+                prisma.slackIntegration.deleteMany({
+                  where: { teamId, projectId: null },
+                }),
+                prisma.slackIntegration.create({
+                  data: {
+                    projectId: null,
+                    teamId,
+                    teamName,
+                    botToken: encrypt(botToken),
+                    botUserId,
+                    installingSlackUserId: installation.user?.id,
+                    expiresAt: new Date(
+                      Date.now() + SLACK_PENDING_INSTALL_TTL_MS,
+                    ),
+                  },
+                }),
+              ]);
 
-            logger.info("Slack installation stored successfully", {
-              projectId,
-              teamId: installation.team?.id,
-            });
+              // Opportunistically purge other workspaces' expired pending rows
+              // so abandoned installs can't accumulate (no dedicated cron; reads
+              // also filter on expiry). Reuses the shared cleanup query.
+              await this.deleteExpiredPendingInstallations();
+
+              logger.info("Slack installation stored as pending (no project)", {
+                teamId,
+              });
+            }
           } catch (error) {
             logger.error("Failed to store Slack installation", { error });
             throw error;
@@ -192,6 +286,9 @@ export class SlackService {
 
             const integration = await prisma.slackIntegration.findFirst({
               where: {
+                // Only resolve linked installations; a pending (unlinked) row
+                // must never be returned as an active integration.
+                projectId: { not: null },
                 OR: [
                   { teamId: lookupId }, // Actual team ID lookup
                   { projectId: lookupId }, // Project ID lookup (our custom usage)
@@ -302,6 +399,153 @@ export class SlackService {
         `Failed to delete integration: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }
+  }
+
+  /**
+   * Get the current (non-expired) pending installation for a Slack workspace.
+   * Used by the Marketplace onboarding flow to show which workspace is being
+   * linked. Returns null if there is no pending install or it has expired.
+   */
+  async getPendingInstallation(teamId: string): Promise<{
+    teamId: string;
+    teamName: string;
+    expiresAt: Date | null;
+  } | null> {
+    return prisma.slackIntegration.findFirst({
+      where: { teamId, projectId: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+      select: { teamId: true, teamName: true, expiresAt: true },
+    });
+  }
+
+  /**
+   * Get pending installation details only when the caller presents the one-time
+   * claim token issued by the OAuth callback.
+   */
+  async getClaimedPendingInstallation(
+    teamId: string,
+    claimToken: string,
+  ): Promise<{
+    teamId: string;
+    teamName: string;
+    expiresAt: Date | null;
+  } | null> {
+    // Enforce the claim in the query: a workspace can have several pending
+    // installs (multiple people in the same org), so match on teamId AND the
+    // claim hash to return the right row, rather than fetching the latest and
+    // comparing the hash in app code. A null claimTokenHash never matches.
+    return prisma.slackIntegration.findFirst({
+      where: {
+        teamId,
+        projectId: null,
+        expiresAt: { gt: new Date() },
+        claimTokenHash: hashSlackPendingInstallClaimToken(claimToken),
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        teamId: true,
+        teamName: true,
+        expiresAt: true,
+      },
+    });
+  }
+
+  /**
+   * Issue a one-time claim token for the latest active pending installation.
+   * Only the hash is stored; the raw token is carried by the onboarding URL and
+   * required when the user links the install to a project.
+   */
+  async issuePendingInstallationClaim(teamId: string): Promise<string | null> {
+    const pending = await prisma.slackIntegration.findFirst({
+      where: { teamId, projectId: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: "desc" },
+      select: { id: true },
+    });
+    if (!pending) return null;
+
+    const claimToken = generatePendingInstallClaimToken();
+    await prisma.slackIntegration.update({
+      where: { id: pending.id },
+      data: {
+        claimTokenHash: hashSlackPendingInstallClaimToken(claimToken),
+      },
+    });
+
+    return claimToken;
+  }
+
+  /**
+   * Link a pending (unlinked) Marketplace installation to a project. Moves the
+   * pending row in place: sets projectId and clears the pending-only fields. If
+   * the project already has an integration it is replaced (the new install
+   * wins). Returns the linked integration, or null if no valid pending install
+   * exists for the workspace.
+   */
+  async linkPendingInstallation(
+    teamId: string,
+    projectId: string,
+    claimToken: string,
+  ): Promise<{ id: string; teamId: string; teamName: string } | null> {
+    const linked = await prisma.$transaction(async (tx) => {
+      // Resolve the pending row inside the transaction so the claim + expiry are
+      // validated atomically with the link — no TOCTOU window where the row
+      // could expire or be purged between the check and the write. Enforced in
+      // the query (see getClaimedPendingInstallation): match on teamId AND the
+      // claim hash so the right row is linked even when several exist.
+      const pending = await tx.slackIntegration.findFirst({
+        where: {
+          teamId,
+          projectId: null,
+          expiresAt: { gt: new Date() },
+          claimTokenHash: hashSlackPendingInstallClaimToken(claimToken),
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      if (!pending) return null;
+
+      // Upsert the integration for the project (same shape as the in-app
+      // "Connect" path), copying the already-encrypted token from the pending
+      // row, then consume all pending rows for this workspace.
+      const fields = projectInstallationFields({
+        teamId: pending.teamId,
+        teamName: pending.teamName,
+        encryptedBotToken: pending.botToken,
+        botUserId: pending.botUserId,
+      });
+      const result = await tx.slackIntegration.upsert({
+        where: { projectId },
+        create: { projectId, ...fields },
+        update: fields,
+      });
+      await tx.slackIntegration.deleteMany({
+        where: { teamId, projectId: null },
+      });
+      return result;
+    });
+
+    if (!linked) return null;
+
+    logger.info("Linked pending Slack installation to project", {
+      teamId,
+      projectId,
+    });
+    return { id: linked.id, teamId: linked.teamId, teamName: linked.teamName };
+  }
+
+  /**
+   * Purge expired pending (unlinked) installations. The projectId IS NULL guard
+   * is mandatory so this can never delete a linked integration.
+   */
+  async deleteExpiredPendingInstallations(
+    now: Date = new Date(),
+  ): Promise<number> {
+    const { count } = await prisma.slackIntegration.deleteMany({
+      where: { projectId: null, expiresAt: { lt: now } },
+    });
+    if (count > 0) {
+      logger.info("Purged expired pending Slack installations", { count });
+    }
+    return count;
   }
 
   /**
