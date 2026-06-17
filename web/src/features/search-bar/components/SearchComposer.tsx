@@ -934,15 +934,12 @@ export function SearchComposer({
       return;
     }
 
-    // ArrowRight at the very end of the query "exits" the last token, like
-    // Space — minus the inserted space. Enter append mode (the next keystroke
-    // space-prefixes into a NEW token via applyTextInsert), open the field
-    // suggestions, AND move the caret PAST the pill's trailing zero-width
-    // WORD_JOINER so it visibly leaves the pill: the joiner is a root-level node
-    // after the pill span, so the after-joiner spot renders outside it. (The
-    // old behavior pinned the caret at the logical end — inside the pill — so
-    // the exit was invisible and felt like a dead keypress.) Backspace from the
-    // after-joiner spot is handled by the trailing-joiner fall-through below.
+    // ArrowRight at the very end of the query inserts a trailing space to start
+    // a NEW token — matching the muscle-memory of typing a space at the end.
+    // (The old behavior set appendIntent and nudged the caret past the trailing
+    // joiner, which read as a dead keypress.) Skip when
+    // the draft already ends in whitespace so a repeat press doesn't pile up
+    // spaces. The trailing space is trimmed on commit.
     if (
       event.key === "ArrowRight" &&
       !event.shiftKey &&
@@ -951,19 +948,13 @@ export function SearchComposer({
       !event.metaKey &&
       selectionCollapsed &&
       caret === draft.length &&
-      draft.length > 0
+      draft.length > 0 &&
+      !/\s$/.test(draft)
     ) {
       event.preventDefault();
-      const root = rootRef.current;
-      const selection = window.getSelection();
-      if (root !== null && selection !== null) {
-        const range = document.createRange();
-        range.selectNodeContents(root);
-        range.collapse(false); // to the very end, after the trailing joiner
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-      setAppendIntent(true);
+      const next = `${draft} `;
+      setDraftWithSelection(next, next.length);
+      setAppendIntent(false);
       setAutocompleteOpen(true);
       setHighlightedOptionId(null);
       return;
@@ -1339,7 +1330,12 @@ export function SearchComposer({
           autoCapitalize="none"
           inputMode="text"
           data-testid="search-bar-input"
-          className="min-h-6 font-mono text-xs leading-7 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          // leading-6 (not 7): WebKit/Safari sizes the text caret to the line
+          // box, so a 28px (leading-7) line made the caret tower ~4px above/
+          // below the ~24px pills ("too big"). 24px matches the pill height so
+          // the caret aligns with the pills. Trade-off: tighter gap between
+          // wrapped lines of pills (single-line is unaffected).
+          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}

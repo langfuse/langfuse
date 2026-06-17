@@ -1,4 +1,6 @@
 export * from "./services/StorageService";
+export * from "./services/safeBlobKeySegment";
+export * from "./ingestion/eventBucketPath";
 export * from "./cache";
 export * from "./services/BufferedStreamUploader";
 export * from "./services/S3ChunkedUploadStrategy";
