@@ -695,6 +695,10 @@ export function SearchComposer({
       setAppendIntent(false);
       setAutocompleteOpen(false);
       setHighlightedOptionId(null);
+      // Close the undo-coalesce window at the commit boundary, mirroring undo()/
+      // redo()/the external-draft sync. Otherwise a post-commit keystroke keeps
+      // coalescing across the commit, so Cmd+Z jumps past the natural break.
+      historyRef.current.coalesce = null;
     }
   }, [storeApi, commitToFilterState]);
 

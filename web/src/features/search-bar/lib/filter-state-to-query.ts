@@ -380,8 +380,23 @@ function normalizeFilterValues(
   const ref = resolveField(f.key);
   if (ref === null) return f;
   // `:=` (exact) folds to `:` (=) everywhere the two lower identically.
-  const op: FilterNode["op"] =
+  let op: FilterNode["op"] =
     f.op === "exact" && exactEqualsBareForm(ref) ? "=" : f.op;
+  // On a textSearch text field, the explicit contains glob `*v*` (op `~`) and
+  // the bare form `v` (op `=`) lower to the IDENTICAL contains filter, and the
+  // reverse adapter emits the bare form — so fold a single-value `~` to `=` too.
+  // Otherwise typing/picking `input:*foo*` (or `id:*foo*`, `name:*foo*`) is
+  // silently rewritten to `input:foo` on the commit echo. Inverse condition to
+  // the `exact` fold above (which excludes textSearch).
+  if (
+    op === "~" &&
+    f.values.length === 1 &&
+    ref.type === "field" &&
+    ref.field.kind === "text" &&
+    ref.field.syncMode === "textSearch"
+  ) {
+    op = "=";
+  }
   const values = normalizeValuesFor(ref, f.values, scoreTypes);
   return { ...f, op, values };
 }

@@ -63,6 +63,19 @@ describe("searchBarStore (draft-only)", () => {
     expect(numeric.getState().draft).toBe("latency:<=5");
   });
 
+  it("resetTo keeps an explicit contains glob on a textSearch field (no silent *v* → v)", () => {
+    // `*foo*` (op `~`) and bare `foo` (op `=`) lower to the IDENTICAL contains
+    // filter; the reverse adapter re-derives the bare form. resetTo must keep the
+    // user's typed glob — same "no silent rewrite" guarantee. Covers the fields
+    // this PR moved to textSearch (id/name) plus a pre-existing one.
+    for (const column of ["statusMessage", "id", "name"]) {
+      const store = createSearchBarStore();
+      store.getState().actions.setDraft(`${column}:*foo*`);
+      store.getState().actions.resetTo(`${column}:foo`);
+      expect(store.getState().draft, column).toBe(`${column}:*foo*`);
+    }
+  });
+
   it("resetTo keeps a typed value whose only difference is canonical formatting", () => {
     // The lowering canonicalizes boolean case + numeric/datetime format, so the
     // reverse adapter re-derives a normalized value. resetTo must keep the typed
