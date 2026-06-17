@@ -63,6 +63,38 @@ describe("searchBarStore (draft-only)", () => {
     expect(numeric.getState().draft).toBe("latency:<=5");
   });
 
+  it("resetTo keeps a typed value whose only difference is canonical formatting", () => {
+    // The lowering canonicalizes boolean case + numeric/datetime format, so the
+    // reverse adapter re-derives a normalized value. resetTo must keep the typed
+    // form — the symmetric positive case of the negation-fold preservation.
+    const bool = createSearchBarStore();
+    bool.getState().actions.setDraft("isRootObservation:TRUE");
+    bool.getState().actions.resetTo("isRootObservation:true");
+    expect(bool.getState().draft).toBe("isRootObservation:TRUE");
+
+    for (const [typed, derived] of [
+      ["latency:2.0", "latency:2"],
+      ["latency:.5", "latency:0.5"],
+      ["latency:2.5e1", "latency:25"],
+    ] as const) {
+      const s = createSearchBarStore();
+      s.getState().actions.setDraft(typed);
+      s.getState().actions.resetTo(derived);
+      expect(s.getState().draft, typed).toBe(typed);
+    }
+
+    const dt = createSearchBarStore();
+    dt.getState().actions.setDraft("startTime:>2026-06-01");
+    dt.getState().actions.resetTo('startTime:>"2026-06-01T00:00:00.000Z"');
+    expect(dt.getState().draft).toBe("startTime:>2026-06-01");
+
+    // A genuinely different value still re-seeds.
+    const diff = createSearchBarStore();
+    diff.getState().actions.setDraft("latency:2.0");
+    diff.getState().actions.resetTo("latency:3");
+    expect(diff.getState().draft).toBe("latency:3");
+  });
+
   it("resetTo still canonicalizes free-text order (negation fold is order-preserving)", () => {
     // The flat URL contract has no slot for filter-vs-free-text interleave, so
     // the reverse adapter canonicalizes to `<filters> <freetext>`. The negation

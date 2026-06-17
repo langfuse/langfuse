@@ -104,10 +104,12 @@ export function createSearchBarStore(
           // violating "no silent rewrites". An AST compare (which ignores
           // rawKey/casing) lets an equivalent draft stand; a genuinely different
           // commit (sidebar edit, saved view, external nav) still re-seeds.
-          // foldDerivedNegation additionally normalizes the negations the adapter
-          // folds into the value/operator (`-latency:>2` ↔ `latency:<=2`,
-          // `-isRoot:true` ↔ `isRoot:false`) so those typed forms also stand;
-          // it preserves structure/order, so free-text canonicalization is kept.
+          // foldDerivedNegation additionally normalizes what the lowering
+          // canonicalizes — value format (`latency:2.0`↔`latency:2`,
+          // `isRoot:TRUE`↔`isRoot:true`) and the negations folded into the
+          // value/operator (`-latency:>2`↔`latency:<=2`) — so those typed forms
+          // stand too. It preserves structure/order, so free-text canonicalization
+          // is kept.
           if (
             astEquals(
               foldDerivedNegation(parse(committedText).ast),

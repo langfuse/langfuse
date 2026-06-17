@@ -290,26 +290,23 @@ export function filterStateToQueryText(
   return { text: serialize(ast), skipped, skippedFilters };
 }
 
-// Fold the THREE negations the adapter collapses into the value/operator at
-// lowering — leaving no NOT in the resulting FilterState — back to the bare
-// positive form the reverse adapter above re-derives:
+// Normalize an editor AST so a typed draft compares equal (via astEquals) to the
+// canonical text the reverse adapter above re-derives, letting the typed form
+// stand instead of being clobbered on the commit echo. Two equivalences the
+// adapter introduces by lowering + re-deriving are reconciled here:
 //
-//   -num:>2       → num:<=2     (comparison inversion, INVERTED_COMPARISON)
-//   -bool:true    → bool:false  (boolean flip; only for boolean fields)
+//   - VALUE FORMAT (positive or negated): the lowering canonicalizes boolean
+//     case (`TRUE`→`true`), numeric format (`2.0`→`2`, `.5`→`0.5`, `2.5e1`→`25`),
+//     and datetime to full ISO — so the derived text differs from what was typed.
+//   - NEGATION FOLD: `-` is folded into the value/operator (`-num:>2`→`num:<=2`,
+//     `-bool:true`→`bool:false`), leaving no NOT in FilterState to re-derive.
 //
-// The store's `resetTo` equivalence gate runs this on BOTH the typed draft and
-// the re-derived committed text before comparing ASTs, so a typed `-latency:>2`
-// / `-isRootObservation:true` stands instead of being clobbered by the canonical
-// `latency:<=2` / `isRootObservation:false` on the commit echo — the same
-// "no silent rewrite" carve-out already made for aliases (astEquals) and
-// metadata equality. Structure and order are preserved, so free-text
-// canonicalization and alias casing are untouched.
-//
-// Every OTHER negation (none-of, does-not-contain, is-null) keeps its dash when
-// re-derived, so it already round-trips and is left as a NOT here. Negated
-// datetime comparisons fold their operator too, but still re-seed because the
-// derived value is full ISO — that value-format round-trip is a separate matter
-// that affects positive datetimes the same way.
+// The store's `resetTo` gate runs this on BOTH sides before astEquals, so typed
+// forms like `latency:2.0` / `isRootObservation:TRUE` / `-latency:>2` stand —
+// the same "no silent rewrite" carve-out already made for aliases/metadata. It
+// preserves structure and order, so free-text canonicalization and alias casing
+// are untouched. Negations WITHOUT a value/op fold (none-of, does-not-contain,
+// is-null) keep their dash on re-derive, so they already round-trip and stay NOT.
 export function foldDerivedNegation(node: ASTNode | null): ASTNode | null {
   if (node === null) return null;
   switch (node.kind) {
@@ -327,11 +324,45 @@ export function foldDerivedNegation(node: ASTNode | null): ASTNode | null {
         ...node,
         children: node.children.map((c) => foldDerivedNegation(c) ?? c),
       };
+    case "filter":
+      return normalizeFilterValues(node);
     default:
       return node;
   }
 }
 
+// Canonicalize a filter's values the same way the lowering + reverse derive do:
+// lowercase booleans, Number-normalize numerics, ISO-normalize datetimes. Keyed
+// on the resolved field kind so metadata/score/text values are left verbatim.
+function normalizeFilterValues(f: FilterNode): FilterNode {
+  const ref = resolveField(f.key);
+  if (ref?.type !== "field") return f;
+  if (ref.field.kind === "boolean") {
+    return { ...f, values: f.values.map((v) => v.toLowerCase()) };
+  }
+  if (ref.field.kind === "number") {
+    return {
+      ...f,
+      values: f.values.map((v) => {
+        const n = Number(v);
+        return v.trim().length > 0 && Number.isFinite(n) ? String(n) : v;
+      }),
+    };
+  }
+  if (ref.field.kind === "datetime") {
+    return {
+      ...f,
+      values: f.values.map((v) => {
+        const ms = Date.parse(v);
+        return Number.isNaN(ms) ? v : new Date(ms).toISOString();
+      }),
+    };
+  }
+  return f;
+}
+
+// `f` arrives value-normalized (foldDerivedNegation normalizes the NOT's child
+// before this runs), so only the op/boolean is inverted here.
 function foldNegatedFilter(f: FilterNode): FilterNode | null {
   // Comparison: NOT (key op v) === key INVERT(op) v. Comparisons only validly
   // appear on numeric/datetime fields, so no field-kind check is needed.
@@ -347,7 +378,7 @@ function foldNegatedFilter(f: FilterNode): FilterNode | null {
   if ((f.op === "=" || f.op === "exact") && f.values.length === 1) {
     const ref = resolveField(f.key);
     if (ref?.type === "field" && ref.field.kind === "boolean") {
-      const v = f.values[0]!.toLowerCase();
+      const v = f.values[0]!;
       if (v === "true" || v === "false") {
         return { ...f, op: "=", values: [v === "true" ? "false" : "true"] };
       }
