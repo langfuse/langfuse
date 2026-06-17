@@ -18,6 +18,7 @@ import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
 import { AlertCircle, X } from "lucide-react";
 
+import { Layer } from "@/src/components/ui/layer";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -1221,10 +1222,15 @@ export function SearchComposer({
   } | null>(null);
   // Anchors for the per-token error tooltip — left edge of the token, plus its
   // bottom (default placement, just under the block) and top (used to flip the
-  // tooltip ABOVE the block while the suggestions popover is open below).
+  // tooltip ABOVE the block while the suggestions popover is open below). These
+  // are VIEWPORT coordinates (not container-relative): the tooltip portals to
+  // document.body and is positioned `fixed`, so it reads the token's own
+  // getClientRects() directly. The bar's band is sticky (it doesn't scroll out
+  // from under the token), so a fixed anchor stays put; it re-measures on draft
+  // change and the container ResizeObserver below, same as the X button.
   const [errorPosition, setErrorPosition] = React.useState<{
     left: number;
-    top: number;
+    belowTop: number;
     aboveTop: number;
   } | null>(null);
   const removeTargetIdActual = removeTarget?.id ?? null;
@@ -1254,9 +1260,9 @@ export function SearchComposer({
       top: rect.top - containerRect.top - 8,
     });
     setErrorPosition({
-      left: firstRect.left - containerRect.left,
-      top: firstRect.bottom - containerRect.top + 6,
-      aboveTop: firstRect.top - containerRect.top,
+      left: firstRect.left,
+      belowTop: firstRect.bottom + 6,
+      aboveTop: firstRect.top,
     });
   }, [removeTargetIdActual]);
 
@@ -1360,41 +1366,21 @@ export function SearchComposer({
             scoreTypes={scoreTypes}
           />
         </div>
-        {/* Bar-local overlay stacking ladder (hardcoded for now — a proper
-            app-wide layer system is a separate ticket): token text (base) <
-            remove-X (z-20) < error tooltip (z-30) < autocomplete popover
-            (z-50). The popover drops BELOW the bar; when it's open the error
-            tooltip flips ABOVE the offending block (see errorAbove), so the two
-            never overlap and the z order only needs to be self-consistent. */}
+        {/* Bar-local overlay stacking ladder: token text (base) < remove-X
+            (z-20) < autocomplete popover (z-50). Both the X and the popover drop
+            BELOW the bar, staying in-flow inside the table. The error tooltip is
+            the exception: when the popover is open it flips ABOVE the offending
+            block, into the page header's band — an ancestor it can't beat
+            in-flow (`#page > main` is overflow:hidden and the header is its own
+            z-50 stacking context). So it renders through the "tooltip" <Layer>,
+            which portals it to a body-level layer container (see the render
+            below + components/ui/layer.tsx). */}
         {removeTarget !== null && removePosition !== null && (
           <RemoveTokenButton
             segment={removeTarget}
             position={removePosition}
             onRemove={removeSegment}
           />
-        )}
-        {errorTarget !== null && errorPosition !== null && (
-          <div
-            role="tooltip"
-            style={
-              plan !== null
-                ? {
-                    left: errorPosition.left,
-                    top: errorPosition.aboveTop,
-                    transform: "translateY(calc(-100% - 6px))",
-                  }
-                : { left: errorPosition.left, top: errorPosition.top }
-            }
-            // pointer-events-none so moving onto the tooltip doesn't change the
-            // hovered token (which would make it flicker away).
-            className={cn(
-              "pointer-events-none absolute z-30 max-w-[min(360px,calc(100vw-32px))]",
-              "border-destructive/40 bg-popover text-destructive rounded-md border",
-              "px-2 py-1 font-sans text-xs leading-snug shadow-md",
-            )}
-          >
-            {errorTarget.message}
-          </div>
         )}
       </div>
 
@@ -1426,6 +1412,36 @@ export function SearchComposer({
           anchorLeft={0}
           containerRef={containerRef}
         />
+      )}
+
+      {/* Per-token error tooltip. The "tooltip" <Layer> renders it on a
+          body-level container so it escapes the page header's overflow:hidden
+          clip and z-50 stacking context when it flips above the bar — an
+          in-flow z-index can't win against either. `fixed` + viewport anchors.
+          pointer-events-none so moving onto it doesn't change the hovered token
+          (which would flicker it away). */}
+      {errorTarget !== null && errorPosition !== null && (
+        <Layer name="tooltip">
+          <div
+            role="tooltip"
+            style={
+              plan !== null
+                ? {
+                    left: errorPosition.left,
+                    top: errorPosition.aboveTop,
+                    transform: "translateY(calc(-100% - 6px))",
+                  }
+                : { left: errorPosition.left, top: errorPosition.belowTop }
+            }
+            className={cn(
+              "pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
+              "border-destructive/40 bg-popover text-destructive rounded-md border",
+              "px-2 py-1 font-sans text-xs leading-snug shadow-md",
+            )}
+          >
+            {errorTarget.message}
+          </div>
+        </Layer>
       )}
     </div>
   );

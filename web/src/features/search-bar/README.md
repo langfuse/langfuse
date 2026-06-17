@@ -341,10 +341,18 @@ unused planners).
     operators, or leave it. Entangled with `tidyQueryText`/chip-removal (which
     strips redundant parens and would bail on a now-"invalid" paren) and
     removes documented top-level grouping — needs its own pass.
-- App-wide **layer system** (z-index): the bar's overlays use a hardcoded local
-  ladder (X z-20 < error tooltip z-30 < popover z-50) because the app has no
-  shared z scale (overlays are just `z-50` + Radix portals). A proper layering
-  system is a separate, app-level ticket.
+- **Layer system**: the bar's in-flow overlays use a hardcoded local ladder (X
+  z-20 < autocomplete popover z-50, both drop into the table below the bar). The
+  **error tooltip is the exception**: when the popover is open it flips ABOVE
+  the bar, into the page header's band, where no in-flow z-index can win —
+  `#page > main` is `overflow:hidden` (clips anything above the bar) and the
+  header is inside the app's isolated stacking context. So that one tooltip
+  renders through the `"tooltip"` `<Layer>` (`components/ui/layer.tsx`), which
+  puts it in a `<body>`-level overlay layer that paints above the whole app by
+  DOM order — no z-index needed. `<Layer>` is the seed of an app-wide layer
+  system (one layer today, ordered by `LAYER_ORDER`). New overlays that must
+  escape clipping/stacking should reuse `<Layer>` rather than a one-off portal +
+  z-index.
 - Optional: extract `SearchComposer`'s contenteditable selection/`beforeinput`
   machinery into a `useContentEditableController` hook to fully separate the
   imperative integration from the React component.
