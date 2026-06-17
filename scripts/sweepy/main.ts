@@ -328,8 +328,9 @@ function extractPropExpressionVariants(
     return extractPropExpressionVariants(expression.getExpression());
   }
 
-  if (!Node.isConditionalExpression(expression))
+  if (!Node.isConditionalExpression(expression)) {
     return expression.getKindName();
+  }
 
   const conditionText = expression.getCondition().getText();
   const trueValues = extractPropExpressionVariants(expression.getWhenTrue());
@@ -796,6 +797,103 @@ function replaceStaticPropValueUsages(
   return { replacedUsages, updatedDefinition: false, unsupportedUsages };
 }
 
+function liftStaticPropValueToWrapperUsages(
+  sourceFiles: SourceFile[],
+  componentName: string,
+  fromPropName: string,
+  fromValue: PropValue,
+  wrapperName: string,
+): ReplacementSummary {
+  const unsupportedUsages: UnsupportedUsage[] = [];
+  let replacedUsages = 0;
+
+  for (const sourceFile of sourceFiles) {
+    const jsxNodes = [
+      ...sourceFile.getDescendantsOfKind(SyntaxKind.JsxOpeningElement),
+      ...sourceFile.getDescendantsOfKind(SyntaxKind.JsxSelfClosingElement),
+    ];
+
+    for (const jsxNode of jsxNodes) {
+      if (
+        jsxNode.wasForgotten() ||
+        jsxNode.getTagNameNode().getText() !== componentName
+      ) {
+        continue;
+      }
+
+      const fromAttribute = jsxNode
+        .getAttributes()
+        .find(
+          (attr): attr is JsxAttribute =>
+            Node.isJsxAttribute(attr) &&
+            attr.getNameNode().getText() === fromPropName,
+        );
+      if (!fromAttribute) continue;
+
+      const line = sourceFile.getLineAndColumnAtPos(
+        fromAttribute.getStart(),
+      ).line;
+      const initializer = fromAttribute.getInitializer();
+      if (!initializer) {
+        unsupportedUsages.push({
+          filePath: sourceFile.getFilePath(),
+          line,
+          reason: `${fromPropName} has no initializer`,
+        });
+        continue;
+      }
+
+      const extractedValues = extractPropValues(initializer, fromPropName);
+      if (typeof extractedValues === "string") {
+        unsupportedUsages.push({
+          filePath: sourceFile.getFilePath(),
+          line,
+          reason: `${fromPropName} ${extractedValues}`,
+        });
+        continue;
+      }
+
+      if (
+        !isSingleMatchingPropValue(extractedValues, fromPropName, fromValue)
+      ) {
+        continue;
+      }
+
+      fromAttribute.remove();
+      const wrapperAttributeText = `${fromPropName}=${renderPropInitializer(
+        fromValue,
+      )}`;
+
+      if (Node.isJsxSelfClosingElement(jsxNode)) {
+        const componentText = jsxNode.getText();
+        jsxNode.replaceWithText(
+          `<${wrapperName} ${wrapperAttributeText}>${componentText}</${wrapperName}>`,
+        );
+        replacedUsages += 1;
+        continue;
+      }
+
+      const jsxElement = jsxNode.getParent();
+      if (!Node.isJsxElement(jsxElement)) {
+        unsupportedUsages.push({
+          filePath: sourceFile.getFilePath(),
+          line,
+          reason: `could not find full ${componentName} JSX element`,
+        });
+        continue;
+      }
+
+      const componentText = jsxElement.getText();
+      jsxElement.replaceWithText(
+        `<${wrapperName} ${wrapperAttributeText}>${componentText}</${wrapperName}>`,
+      );
+      replacedUsages += 1;
+    }
+  }
+
+  return { replacedUsages, updatedDefinition: false, unsupportedUsages };
+}
+
 function replaceStaticPropValueDefinition(
   sourceFile: SourceFile,
   propsTypeName: string,
@@ -861,6 +959,52 @@ function replaceStaticPropValueDefinition(
     ) {
       toProperty.setType(createPropUnionType([...toValues, toValue]));
       updatedDefinition = true;
+    }
+  }
+
+  return { replacedUsages: 0, updatedDefinition, unsupportedUsages };
+}
+
+function removeStaticPropValueFromDefinition(
+  sourceFile: SourceFile,
+  propsTypeName: string,
+  fromPropName: string,
+  fromValue: PropValue,
+): ReplacementSummary {
+  const unsupportedUsages: UnsupportedUsage[] = [];
+  let updatedDefinition = false;
+
+  const fromProperty = getPropsProperty(
+    sourceFile,
+    propsTypeName,
+    fromPropName,
+  );
+  if (!fromProperty) {
+    unsupportedUsages.push({
+      filePath: sourceFile.getFilePath(),
+      line: 1,
+      reason: `could not find ${propsTypeName}.${fromPropName}`,
+    });
+  } else {
+    const fromValues = getStrictPropTypeValues(fromProperty);
+    if (!fromValues) {
+      unsupportedUsages.push({
+        filePath: sourceFile.getFilePath(),
+        line: sourceFile.getLineAndColumnAtPos(fromProperty.getStart()).line,
+        reason: `unsupported ${propsTypeName}.${fromPropName} type`,
+      });
+    } else {
+      const nextFromValues = fromValues.filter(
+        (value) => !isMatchingPropValue(fromPropName, value, fromValue),
+      );
+      if (nextFromValues.length !== fromValues.length) {
+        if (nextFromValues.length === 0) {
+          fromProperty.remove();
+        } else {
+          fromProperty.setType(createPropUnionType(nextFromValues));
+        }
+        updatedDefinition = true;
+      }
     }
   }
 
@@ -1550,6 +1694,70 @@ async function replacePropValue(
   return await askToSaveChanges(project);
 }
 
+async function liftPropValueToWrapper(
+  context: ComponentDoctorContext,
+): Promise<SaveDecision | undefined> {
+  const { componentName, propsTypeName, project, definitionFile } = context;
+  const propsProperties = getPropsProperties(definitionFile, propsTypeName);
+  if (propsProperties.length === 0) {
+    console.log(`Could not find props on ${propsTypeName}.`);
+    return undefined;
+  }
+
+  const fromProperty = askToSelectProp("From prop", propsProperties);
+  const fromPropName = fromProperty.getName();
+  const fromValues = getStrictPropTypeValues(fromProperty);
+  if (!fromValues) {
+    printPropMustBeFrozen(fromPropName);
+    return undefined;
+  }
+  const fromValue = askToSelectOption(
+    `From ${fromPropName} value`,
+    fromValues,
+    renderPropValue,
+  );
+  const wrapperName = askWithDefault("Wrapper component/tag", "div");
+
+  const usageSummary = await withStatus(
+    `Lifting ${componentName} ${fromPropName}=${renderPropValue(
+      fromValue,
+    )} to ${wrapperName}`,
+    () =>
+      liftStaticPropValueToWrapperUsages(
+        project.getSourceFiles(),
+        componentName,
+        fromPropName,
+        fromValue,
+        wrapperName,
+      ),
+  );
+  const definitionSummary = removeStaticPropValueFromDefinition(
+    definitionFile,
+    propsTypeName,
+    fromPropName,
+    fromValue,
+  );
+  const replacedUsages = usageSummary.replacedUsages;
+  const updatedDefinition = definitionSummary.updatedDefinition;
+  const unsupportedUsages = [
+    ...usageSummary.unsupportedUsages,
+    ...definitionSummary.unsupportedUsages,
+  ];
+
+  printReplacementSummary(replacedUsages, updatedDefinition, unsupportedUsages);
+
+  if (replacedUsages === 0 && !updatedDefinition) return undefined;
+
+  if (unsupportedUsages.length > 0) {
+    if (!confirm("Continue and leave unsupported usages unchanged?")) {
+      console.log("No files were written.");
+      return "discard";
+    }
+  }
+
+  return await askToSaveChanges(project);
+}
+
 async function reactComponentDoctor() {
   console.log(banner);
 
@@ -1560,7 +1768,13 @@ async function reactComponentDoctor() {
     console.log(`\nComponent: ${context.componentName}`);
     const action = askToSelectOption(
       "Action",
-      ["freeze prop", "replace prop value", "change component", "exit"],
+      [
+        "freeze prop",
+        "replace prop value",
+        "lift prop value to wrapper",
+        "change component",
+        "exit",
+      ],
       (value) => value,
     );
 
@@ -1575,7 +1789,9 @@ async function reactComponentDoctor() {
     const decision =
       action === "freeze prop"
         ? await freezeProp(context)
-        : await replacePropValue(context);
+        : action === "replace prop value"
+          ? await replacePropValue(context)
+          : await liftPropValueToWrapper(context);
 
     if (decision === "discard") {
       context = await createComponentDoctorContext(settings);
@@ -1686,7 +1902,9 @@ function getUniqueProps(properties: PropertySignature[]): PropertySignature[] {
 }
 
 function renderPropOption(property: PropertySignature): string {
-  return `${property.getName()}: ${property.getTypeNode()?.getText() ?? "unknown"}`;
+  return `${property.getName()}: ${
+    property.getTypeNode()?.getText() ?? "unknown"
+  }`;
 }
 
 function printPropMustBeFrozen(propName: string) {
@@ -1700,8 +1918,9 @@ function askToSelectOption<T>(
   options: T[],
   renderOption: (option: T) => string,
 ): T {
-  if (options.length === 0)
+  if (options.length === 0) {
     throw new Error(`No options available for ${label}.`);
+  }
 
   console.log(`\n${label}:`);
   options.forEach((option, index) => {

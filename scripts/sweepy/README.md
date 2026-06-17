@@ -16,8 +16,8 @@ This prints the available commands.
 
 ### `react-component-doctor`
 
-Interactively inspects and refactors React component props. The command asks
-for a component once, then lets you run multiple actions against that component
+Interactively inspects and refactors React component props. The command asks for
+a component once, then lets you run multiple actions against that component
 without restarting the CLI.
 
 ```sh
@@ -37,8 +37,9 @@ After setup, choose one of these actions:
 
 1. `freeze prop`
 2. `replace prop value`
-3. `change component`
-4. `exit`
+3. `lift prop value to wrapper`
+4. `change component`
+5. `exit`
 
 Relative paths entered in prompts are resolved from the repository root.
 
@@ -50,9 +51,8 @@ for the prop name, defaulting to `className`.
 1. Finds JSX usages and destructured prop defaults with supported string or
    numeric prop values. For `className`, this also includes simple `cn(...)`
    wrappers.
-2. Rewrites the prop type to a strict union of discovered values.
-   Inline object props are first extracted to a named `type` above the
-   component.
+2. Rewrites the prop type to a strict union of discovered values. Inline object
+   props are first extracted to a named `type` above the component.
 3. Rewrites supported JSX usages so finite dynamic expressions become explicit
    prop variants.
 4. Asks before saving files.
@@ -86,13 +86,13 @@ the action stops and asks you to run `freeze prop` first.
 For example, the defaults rewrite:
 
 ```tsx
-<LangfuseIcon className="h-8 w-8" />
+<LangfuseIcon className="h-8 w-8" />;
 ```
 
 to:
 
 ```tsx
-<LangfuseIcon size={32} />
+<LangfuseIcon size={32} />;
 ```
 
 If the target prop already exists with the requested value, the source prop is
@@ -101,6 +101,38 @@ unchanged.
 
 The source value is also removed from the component prop definition. The target
 value is added to the target prop definition when it is missing.
+
+## Lift Prop Value To Wrapper Action
+
+Moves one static component prop value from matching component usages to a
+wrapper component or tag.
+
+The action reads the selected component props type/interface and prompts from
+the definition:
+
+1. Source prop.
+2. Source value from the source prop literal values.
+3. Wrapper component/tag, defaulting to `div`.
+
+For example, this rewrites:
+
+```tsx
+<LangfuseIcon
+  size={28}
+  className="hidden scale-120 group-data-[collapsible=icon]:block"
+/>;
+```
+
+to:
+
+```tsx
+<div className="hidden scale-120 group-data-[collapsible=icon]:block">
+  <LangfuseIcon size={28} />
+</div>;
+```
+
+The source value is removed from the component prop definition. Dynamic or
+unsupported usages are reported and left unchanged.
 
 ## Verify
 
