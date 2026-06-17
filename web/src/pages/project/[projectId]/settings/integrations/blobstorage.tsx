@@ -54,7 +54,6 @@ import {
   EXPORT_FIELD_GROUP_OPTIONS,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
-  isEnrichedBlobExportSource,
   isLegacyBlobExportAllowed,
   isLegacyBlobExporter,
 } from "@langfuse/shared";
@@ -807,11 +806,13 @@ const BlobStorageIntegrationSettingsForm = ({
           <Alert variant="destructive">
             <AlertTitle>Saved export source is no longer available</AlertTitle>
             <AlertDescription>
-              {/* The picker can hold an unavailable value for two distinct
-                  reasons; the guidance differs. */}
-              {isEnrichedBlobExportSource(watchedExportSource)
+              {/* Two distinct rejection reasons; key on the deployment, not the
+                  source, since TRACES_OBSERVATIONS_EVENTS is both enriched and
+                  legacy. !eventsExportAvailable means enriched is genuinely
+                  unavailable; otherwise the block is the Cloud legacy cutoff. */}
+              {!availability.eventsExportAvailable
                 ? "This integration is configured to export enriched observations, but enriched export is not available on this deployment. Saving is blocked until you select an available export source above. To keep the current configuration instead, re-enable enriched export (V4 preview opt-in) on your deployment."
-                : "This integration is configured to export the legacy traces and observations, which is not available for this project. Saving is blocked until you select an available export source above."}
+                : "This integration is configured to export legacy traces and observations, which is no longer available for this project. Saving is blocked until you select an available export source above."}
             </AlertDescription>
           </Alert>
         )}
