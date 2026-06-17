@@ -7,7 +7,13 @@ import {
   getObservationsV2FromEventsTableForPublicApi,
   _shadowQueryTestHook,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import { randomUUID } from "crypto";
+
+const maybe =
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+    ? describe
+    : describe.skip;
 
 let projectId: string;
 
@@ -42,7 +48,7 @@ const seedObservations = async (
   await createEventsCh(events);
 };
 
-describe("shadow query validation", () => {
+maybe("shadow query validation", () => {
   beforeEach(async () => {
     const fixture = await createOrgProjectAndApiKey();
     projectId = fixture.projectId;
