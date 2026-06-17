@@ -95,6 +95,49 @@ describe("searchBarStore (draft-only)", () => {
     expect(diff.getState().draft).toBe("latency:3");
   });
 
+  it("resetTo keeps a typed `:=` where it lowers identically to the bare `:`", () => {
+    // `key:=value` (exact) and `key:value` (=) lower to the same filter for every
+    // field except textSearch, and the reverse adapter emits the bare form — so
+    // the typed `:=` must stand instead of being rewritten to `:`.
+    for (const [typed, derived] of [
+      ["level:=ERROR", "level:ERROR"],
+      ["latency:=2", "latency:2"],
+      ["isRootObservation:=true", "isRootObservation:true"],
+      ["metadata.region:=eu", "metadata.region:eu"],
+      ["scores.feedback:=positive", "scores.feedback:positive"],
+    ] as const) {
+      const s = createSearchBarStore();
+      s.getState().actions.setDraft(typed);
+      s.getState().actions.resetTo(derived);
+      expect(s.getState().draft, typed).toBe(typed);
+    }
+  });
+
+  it("resetTo re-seeds a textSearch `:=` (exact != contains, not foldable)", () => {
+    // For textSearch fields `:` means contains and `:=` means exact — different
+    // ops, NOT interchangeable. A bare derived form must re-seed (no silent
+    // equivalence), unlike the option/number/metadata fields above.
+    const store = createSearchBarStore();
+    store.getState().actions.setDraft("statusMessage:=foo");
+    store.getState().actions.resetTo("statusMessage:foo");
+    expect(store.getState().draft).toBe("statusMessage:foo");
+  });
+
+  it("resetTo Number-normalizes a numeric score value (not categorical)", () => {
+    // accuracy is numeric → `scores.accuracy:2.0` lowers + re-derives to `:2`;
+    // keep the typed `.0`, mirroring `latency:2.0`.
+    const scoreTypes = {
+      numericScoreNames: new Set<string>(["accuracy"]),
+      categoricalScoreNames: new Set<string>(),
+      traceNumericScoreNames: new Set<string>(),
+      traceCategoricalScoreNames: new Set<string>(),
+    };
+    const store = createSearchBarStore(() => scoreTypes);
+    store.getState().actions.setDraft("scores.accuracy:2.0");
+    store.getState().actions.resetTo("scores.accuracy:2");
+    expect(store.getState().draft).toBe("scores.accuracy:2.0");
+  });
+
   it("resetTo still canonicalizes free-text order (negation fold is order-preserving)", () => {
     // The flat URL contract has no slot for filter-vs-free-text interleave, so
     // the reverse adapter canonicalizes to `<filters> <freetext>`. The negation

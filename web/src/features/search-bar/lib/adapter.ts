@@ -56,7 +56,7 @@ export type ScoreTypeContext = {
   traceCategoricalScoreNames?: ReadonlySet<string>;
 };
 
-function resolveScoreType(
+export function resolveScoreType(
   ctx: ScoreTypeContext | undefined,
   level: "observation" | "trace",
   name: string,

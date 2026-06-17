@@ -15,9 +15,13 @@ import {
   type TracingSearchType,
 } from "@langfuse/shared";
 
-import { INVERTED_COMPARISON } from "./adapter";
+import {
+  INVERTED_COMPARISON,
+  resolveScoreType,
+  type ScoreTypeContext,
+} from "./adapter";
 import type { ASTNode, FilterNode } from "./ast";
-import { resolveField, SCORE_COLUMNS } from "./fields";
+import { resolveField, SCORE_COLUMNS, type FieldRef } from "./fields";
 import { NEEDS_QUOTES, serialize } from "./langQ";
 
 // Legacy filters address columns by id ("userId") or display name ("User ID").
@@ -292,26 +296,33 @@ export function filterStateToQueryText(
 
 // Normalize an editor AST so a typed draft compares equal (via astEquals) to the
 // canonical text the reverse adapter above re-derives, letting the typed form
-// stand instead of being clobbered on the commit echo. Two equivalences the
+// stand instead of being clobbered on the commit echo. Three equivalences the
 // adapter introduces by lowering + re-deriving are reconciled here:
 //
 //   - VALUE FORMAT (positive or negated): the lowering canonicalizes boolean
 //     case (`TRUE`→`true`), numeric format (`2.0`→`2`, `.5`→`0.5`, `2.5e1`→`25`),
 //     and datetime to full ISO — so the derived text differs from what was typed.
+//   - EXACT-OP (`:=` ↔ `:`): for every field except textSearch, `key:=value`
+//     and `key:value` lower to the IDENTICAL filter and the reverse adapter emits
+//     the bare `=` form — so a typed `level:=ERROR` must fold to match it.
 //   - NEGATION FOLD: `-` is folded into the value/operator (`-num:>2`→`num:<=2`,
 //     `-bool:true`→`bool:false`), leaving no NOT in FilterState to re-derive.
 //
 // The store's `resetTo` gate runs this on BOTH sides before astEquals, so typed
-// forms like `latency:2.0` / `isRootObservation:TRUE` / `-latency:>2` stand —
-// the same "no silent rewrite" carve-out already made for aliases/metadata. It
-// preserves structure and order, so free-text canonicalization and alias casing
-// are untouched. Negations WITHOUT a value/op fold (none-of, does-not-contain,
-// is-null) keep their dash on re-derive, so they already round-trip and stay NOT.
-export function foldDerivedNegation(node: ASTNode | null): ASTNode | null {
+// forms like `latency:2.0` / `isRootObservation:TRUE` / `level:=ERROR` /
+// `-latency:>2` stand — the same "no silent rewrite" carve-out already made for
+// aliases/metadata. It preserves structure and order, so free-text
+// canonicalization and alias casing are untouched. Negations WITHOUT a value/op
+// fold (none-of, does-not-contain, is-null) keep their dash on re-derive, so
+// they already round-trip and stay NOT.
+export function foldDerivedNegation(
+  node: ASTNode | null,
+  scoreTypes?: ScoreTypeContext,
+): ASTNode | null {
   if (node === null) return null;
   switch (node.kind) {
     case "not": {
-      const child = foldDerivedNegation(node.child) ?? node.child;
+      const child = foldDerivedNegation(node.child, scoreTypes) ?? node.child;
       if (child.kind === "filter") {
         const folded = foldNegatedFilter(child);
         if (folded !== null) return folded;
@@ -322,43 +333,82 @@ export function foldDerivedNegation(node: ASTNode | null): ASTNode | null {
     case "or":
       return {
         ...node,
-        children: node.children.map((c) => foldDerivedNegation(c) ?? c),
+        children: node.children.map(
+          (c) => foldDerivedNegation(c, scoreTypes) ?? c,
+        ),
       };
     case "filter":
-      return normalizeFilterValues(node);
+      return normalizeFilterValues(node, scoreTypes);
     default:
       return node;
   }
 }
 
-// Canonicalize a filter's values the same way the lowering + reverse derive do:
-// lowercase booleans, Number-normalize numerics, ISO-normalize datetimes. Keyed
-// on the resolved field kind so metadata/score/text values are left verbatim.
-function normalizeFilterValues(f: FilterNode): FilterNode {
+// Canonicalize a positive filter's op + values the same way the lowering + reverse
+// derive do, so the typed form compares equal to the re-derived committed form.
+function normalizeFilterValues(
+  f: FilterNode,
+  scoreTypes?: ScoreTypeContext,
+): FilterNode {
   const ref = resolveField(f.key);
-  if (ref?.type !== "field") return f;
-  if (ref.field.kind === "boolean") {
-    return { ...f, values: f.values.map((v) => v.toLowerCase()) };
+  if (ref === null) return f;
+  // `:=` (exact) folds to `:` (=) everywhere the two lower identically.
+  const op: FilterNode["op"] =
+    f.op === "exact" && exactEqualsBareForm(ref) ? "=" : f.op;
+  const values = normalizeValuesFor(ref, f.values, scoreTypes);
+  return { ...f, op, values };
+}
+
+// Fields where `key:=value` and `key:value` lower to the identical filter (so
+// the reverse adapter always emits the bare `=`). textSearch is excluded — there
+// `:` is contains and `:=` is exact, two different ops — as is datetime, which
+// has only comparison forms.
+function exactEqualsBareForm(ref: FieldRef): boolean {
+  if (ref.type === "metadata" || ref.type === "scores") return true;
+  if (ref.type === "field") {
+    const k = ref.field.kind;
+    return (
+      k === "number" ||
+      k === "boolean" ||
+      (k === "text" && ref.field.syncMode !== "textSearch")
+    );
   }
-  if (ref.field.kind === "number") {
-    return {
-      ...f,
-      values: f.values.map((v) => {
-        const n = Number(v);
-        return v.trim().length > 0 && Number.isFinite(n) ? String(n) : v;
-      }),
-    };
+  return false;
+}
+
+function normalizeValuesFor(
+  ref: FieldRef,
+  values: string[],
+  scoreTypes?: ScoreTypeContext,
+): string[] {
+  if (ref.type === "field") {
+    const k = ref.field.kind;
+    if (k === "boolean") return values.map((v) => v.toLowerCase());
+    if (k === "number") return values.map(normalizeNumberString);
+    if (k === "datetime") return values.map(normalizeIsoString);
+    return values; // text — verbatim
   }
-  if (ref.field.kind === "datetime") {
-    return {
-      ...f,
-      values: f.values.map((v) => {
-        const ms = Date.parse(v);
-        return Number.isNaN(ms) ? v : new Date(ms).toISOString();
-      }),
-    };
+  if (ref.type === "scores") {
+    // Numeric / unknown scores get Number-canonicalized by lowerNumeric; a
+    // known-CATEGORICAL score keeps its label verbatim (a numeric-looking label
+    // like "2.0" must NOT be rewritten to "2"). normalizeNumberString only
+    // touches finite-number strings, but gate on type so a decimal category is
+    // never folded.
+    if (resolveScoreType(scoreTypes, ref.level, ref.key) === "categorical")
+      return values;
+    return values.map(normalizeNumberString);
   }
-  return f;
+  return values; // metadata text / pseudo — verbatim
+}
+
+function normalizeNumberString(v: string): string {
+  const n = Number(v);
+  return v.trim().length > 0 && Number.isFinite(n) ? String(n) : v;
+}
+
+function normalizeIsoString(v: string): string {
+  const ms = Date.parse(v);
+  return Number.isNaN(ms) ? v : new Date(ms).toISOString();
 }
 
 // `f` arrives value-normalized (foldDerivedNegation normalizes the NOT's child

@@ -106,14 +106,16 @@ export function createSearchBarStore(
           // commit (sidebar edit, saved view, external nav) still re-seeds.
           // foldDerivedNegation additionally normalizes what the lowering
           // canonicalizes — value format (`latency:2.0`↔`latency:2`,
-          // `isRoot:TRUE`↔`isRoot:true`) and the negations folded into the
-          // value/operator (`-latency:>2`↔`latency:<=2`) — so those typed forms
-          // stand too. It preserves structure/order, so free-text canonicalization
-          // is kept.
+          // `isRoot:TRUE`↔`isRoot:true`), the exact op (`level:=ERROR`↔`level:ERROR`),
+          // and the negations folded into the value/operator (`-latency:>2`↔
+          // `latency:<=2`) — so those typed forms stand too. scoreTypes lets it
+          // Number-normalize numeric (not categorical) score values. It preserves
+          // structure/order, so free-text canonicalization is kept.
+          const scoreTypes = resolveScoreTypes?.();
           if (
             astEquals(
-              foldDerivedNegation(parse(committedText).ast),
-              foldDerivedNegation(parse(draft).ast),
+              foldDerivedNegation(parse(committedText).ast, scoreTypes),
+              foldDerivedNegation(parse(draft).ast, scoreTypes),
             )
           )
             return;
