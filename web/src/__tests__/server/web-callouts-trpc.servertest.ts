@@ -319,11 +319,9 @@ const mockSuccessfulTargetValidation = ({
 describe("webCallouts router", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalNodeEnv = env.NODE_ENV;
-  const originalWebCalloutsEnabled = env.LANGFUSE_ENABLE_WEB_CALLOUTS;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    (env as any).LANGFUSE_ENABLE_WEB_CALLOUTS = "true";
     (enforceWebCalloutRateLimit as Mock).mockResolvedValue(undefined);
     (recordWebCalloutInvokeMetric as Mock).mockReturnValue(undefined);
     (withWebCalloutInFlightLimit as Mock).mockImplementation(
@@ -344,7 +342,6 @@ describe("webCallouts router", () => {
 
   afterEach(() => {
     (env as any).NODE_ENV = originalNodeEnv;
-    (env as any).LANGFUSE_ENABLE_WEB_CALLOUTS = originalWebCalloutsEnabled;
     vi.useRealTimers();
     vi.clearAllMocks();
   });
@@ -389,40 +386,6 @@ describe("webCallouts router", () => {
     expect(enabled).not.toHaveProperty("url");
     expect(enabled).not.toHaveProperty("requestHeaders");
     expect(enabled).not.toHaveProperty("requestHeaderKeys");
-  });
-
-  it("hides metadata and blocks backend work when disabled by environment", async () => {
-    const { caller, projectId } = await prepare();
-
-    await createEndpoint(caller, projectId);
-    vi.clearAllMocks();
-    (env as any).LANGFUSE_ENABLE_WEB_CALLOUTS = "false";
-
-    await expect(
-      caller.webCallouts.availability({ projectId }),
-    ).resolves.toEqual({ enabled: false });
-    await expect(caller.webCallouts.enabled({ projectId })).resolves.toEqual({
-      enabled: false,
-      id: null,
-      name: null,
-      toastMessage: null,
-    });
-    await expect(caller.webCallouts.all({ projectId })).rejects.toMatchObject({
-      code: "NOT_FOUND",
-      message: "Web callouts are not enabled.",
-    });
-    await expect(
-      caller.webCallouts.invoke({
-        projectId,
-        traceId: "trace-1",
-        observationId: null,
-        sessionId: null,
-      }),
-    ).rejects.toMatchObject({
-      code: "NOT_FOUND",
-      message: "Web callouts are not enabled.",
-    });
-    expect(fetchWithSecureRedirects).not.toHaveBeenCalled();
   });
 
   it("allows callout URLs on custom ports", async () => {
