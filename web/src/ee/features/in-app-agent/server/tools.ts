@@ -1,16 +1,26 @@
 import { createTool } from "@mastra/core/tools";
-import type { FilterState } from "@langfuse/shared";
-import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
-import { rangeToString } from "@/src/utils/date-range-utils";
 import { assertUnreachable } from "@/src/utils/types";
+import {
+  buildDashboardsPath,
+  buildDatasetsPath,
+  buildEvalsPath,
+  buildExperimentsPath,
+  buildModelsPath,
+  buildMonitorsPath,
+  buildPlaygroundPath,
+  buildProjectMembersPath,
+  buildProjectSettingsPath,
+  buildPromptsPath,
+  buildScoresPath,
+  buildSessionPath,
+  buildSessionsPath,
+  buildTracePath,
+  buildTracesPath,
+} from "@/src/utils/product-url";
 import {
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   InAppAgentRedirectToolInputSchema,
   type InAppAgentRedirectToolInput,
-  type InAppAgentTracesRedirectFilters,
-  type InAppAgentTracesRedirectInput,
-  type InAppAgentTracesRedirectOrderBy,
-  type InAppAgentTracesRedirectTimeRange,
 } from "@/src/ee/features/in-app-agent/schema";
 
 export function createRedirectActionTool({
@@ -59,258 +69,85 @@ function getRedirectHref(
   projectId: string,
   isV4Enabled: boolean,
 ): string {
-  const encodedProjectId = encodeURIComponent(projectId);
-  const projectRoute = `/project/${encodedProjectId}`;
-
   if (input.destination === "dashboards") {
-    return `${projectRoute}/dashboards`;
+    return buildDashboardsPath({ projectId });
   }
 
   if (input.destination === "datasets") {
-    return appendQuery(`${projectRoute}/datasets`, {
+    return buildDatasetsPath({
+      projectId,
       folder: input.params?.folder,
     });
   }
 
   if (input.destination === "evals") {
-    return `${projectRoute}/evals`;
+    return buildEvalsPath({ projectId });
   }
 
   if (input.destination === "experiments") {
-    return `${projectRoute}/experiments`;
+    return buildExperimentsPath({ projectId });
   }
 
   if (input.destination === "models") {
-    return `${projectRoute}/models`;
+    return buildModelsPath({ projectId });
   }
 
   if (input.destination === "monitors") {
-    return `${projectRoute}/monitors`;
+    return buildMonitorsPath({ projectId });
   }
 
   if (input.destination === "playground") {
-    return `${projectRoute}/playground`;
+    return buildPlaygroundPath({ projectId });
   }
 
   if (input.destination === "projectMembers") {
-    return `${projectRoute}/settings/members`;
+    return buildProjectMembersPath({ projectId });
   }
 
   if (input.destination === "projectSettings") {
-    return input.params?.page && input.params.page !== "index"
-      ? `${projectRoute}/settings/${input.params.page}`
-      : `${projectRoute}/settings`;
+    return buildProjectSettingsPath({
+      projectId,
+      page: input.params?.page,
+    });
   }
 
   if (input.destination === "prompts") {
-    return appendQuery(`${projectRoute}/prompts`, {
+    return buildPromptsPath({
+      projectId,
       folder: input.params?.folder,
     });
   }
 
   if (input.destination === "scores") {
-    return `${projectRoute}/scores`;
+    return buildScoresPath({ projectId });
   }
 
   if (input.destination === "session") {
-    return `${projectRoute}/sessions/${encodeURIComponent(input.params.sessionId)}`;
+    return buildSessionPath({
+      projectId,
+      sessionId: input.params.sessionId,
+    });
   }
 
   if (input.destination === "sessions") {
-    return `${projectRoute}/sessions`;
+    return buildSessionsPath({ projectId });
   }
 
   if (input.destination === "trace") {
-    return appendQuery(
-      `${projectRoute}/traces/${encodeURIComponent(input.params.traceId)}`,
-      { timestamp: input.params.timestamp },
-    );
+    return buildTracePath({
+      projectId,
+      traceId: input.params.traceId,
+      timestamp: input.params.timestamp,
+    });
   }
 
   if (input.destination === "traces") {
-    return getTracesRedirectHref(
-      `${projectRoute}/traces`,
-      input.params,
+    return buildTracesPath({
+      projectId,
       isV4Enabled,
-    );
+      params: input.params,
+    });
   }
 
   return assertUnreachable(input);
-}
-
-function getTracesRedirectHref(
-  basePath: string,
-  params: InAppAgentTracesRedirectInput["params"],
-  isV4Enabled: boolean,
-): string {
-  if (!params) {
-    return basePath;
-  }
-
-  const filters = params.filters
-    ? getTracesFilterState(params.filters, isV4Enabled)
-    : [];
-  const orderBy = params.orderBy
-    ? normalizeTracesOrderBy(params.orderBy, isV4Enabled)
-    : undefined;
-
-  return appendQuery(basePath, {
-    dateRange: params.timeRange
-      ? getDateRangeQueryValue(params.timeRange)
-      : undefined,
-    filter: filters.length > 0 ? encodeFiltersGeneric(filters) : undefined,
-    orderBy: orderBy
-      ? `column-${orderBy.column}_order-${orderBy.order}`
-      : undefined,
-    search: params.search?.query,
-    searchType: params.search?.type,
-  });
-}
-
-function getDateRangeQueryValue(timeRange: InAppAgentTracesRedirectTimeRange) {
-  if ("preset" in timeRange) {
-    return rangeToString({ range: timeRange.preset });
-  }
-
-  return rangeToString({
-    from: new Date(timeRange.from),
-    to: new Date(timeRange.to),
-  });
-}
-
-function getTracesFilterState(
-  filters: InAppAgentTracesRedirectFilters,
-  isV4Enabled: boolean,
-): FilterState {
-  const filterState: FilterState = [];
-
-  const addStringOptionsFilter = (
-    column: string,
-    value: string[] | undefined,
-  ) => {
-    if (!value || value.length === 0) {
-      return;
-    }
-
-    filterState.push({
-      column,
-      operator: "any of",
-      type: "stringOptions",
-      value,
-    });
-  };
-
-  const addArrayOptionsFilter = (
-    column: string,
-    value: string[] | undefined,
-  ) => {
-    if (!value || value.length === 0) {
-      return;
-    }
-
-    filterState.push({
-      column,
-      operator: "any of",
-      type: "arrayOptions",
-      value,
-    });
-  };
-
-  addStringOptionsFilter("environment", filters.environment);
-  addStringOptionsFilter("level", filters.level);
-  if (!isV4Enabled) {
-    addStringOptionsFilter("sessionId", filters.sessionId);
-  }
-  addStringOptionsFilter("traceName", filters.traceName);
-  addStringOptionsFilter("userId", filters.userId);
-  addArrayOptionsFilter(isV4Enabled ? "tags" : "traceTags", filters.tags);
-
-  if (!isV4Enabled && filters.bookmarked !== undefined) {
-    filterState.push({
-      column: "bookmarked",
-      operator: "=",
-      type: "boolean",
-      value: filters.bookmarked,
-    });
-  }
-
-  if (filters.traceId) {
-    filterState.push({
-      column: isV4Enabled ? "traceId" : "id",
-      operator: "=",
-      type: "string",
-      value: filters.traceId,
-    });
-  }
-
-  if (filters.version) {
-    if (isV4Enabled) {
-      filterState.push({
-        column: "version",
-        operator: "any of",
-        type: "stringOptions",
-        value: [filters.version],
-      });
-    } else {
-      filterState.push({
-        column: "version",
-        operator: "=",
-        type: "string",
-        value: filters.version,
-      });
-    }
-  }
-
-  for (const metadataFilter of filters.metadata ?? []) {
-    filterState.push({
-      column: "metadata",
-      key: metadataFilter.key,
-      operator: "=",
-      type: "stringObject",
-      value: metadataFilter.value,
-    });
-  }
-
-  return filterState;
-}
-
-function normalizeTracesOrderBy(
-  orderBy: InAppAgentTracesRedirectOrderBy,
-  isV4Enabled: boolean,
-) {
-  if (orderBy.column === "timestamp" || orderBy.column === "startTime") {
-    return {
-      column: isV4Enabled ? "startTime" : "timestamp",
-      order: orderBy.order,
-    };
-  }
-
-  return orderBy;
-}
-
-function appendQuery(
-  path: string,
-  query: Record<string, string | string[] | undefined>,
-): string {
-  const searchParams = new URLSearchParams();
-
-  Object.entries(query).forEach(([key, value]) => {
-    if (!value) {
-      return;
-    }
-
-    if (Array.isArray(value)) {
-      value.forEach((item) => {
-        if (item) {
-          searchParams.append(key, item);
-        }
-      });
-    } else {
-      searchParams.set(key, value);
-    }
-  });
-
-  const queryString = searchParams.toString();
-
-  return queryString ? `${path}?${queryString}` : path;
 }
