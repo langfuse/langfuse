@@ -1,5 +1,5 @@
 import { Button, type ButtonProps } from "@/src/components/ui/button";
-import { Edit, LockIcon, PlusIcon, Trash } from "lucide-react";
+import { Edit, LockIcon, Pen, PlusIcon, Trash } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { cn } from "@/src/utils/tailwind";
 
 interface BaseDatasetButtonProps {
   mode: "create" | "update" | "delete";
@@ -31,6 +32,7 @@ interface DeleteDatasetButtonProps extends BaseDatasetButtonProps {
   mode: "delete";
   datasetId: string;
   datasetName: string;
+  icon?: boolean;
 }
 
 interface UpdateDatasetButtonProps extends BaseDatasetButtonProps {
@@ -70,14 +72,17 @@ export const DatasetActionButton = forwardRef<
               variant={props.variant || "outline-solid"}
               size={props.size || "icon"}
               className={props.className}
+              title="Edit"
+              aria-label="edit"
               disabled={!hasAccess}
-              onClick={() =>
+              onClick={(e) => {
+                e.stopPropagation();
                 capture("datasets:update_form_open", {
                   source: "dataset",
-                })
-              }
+                });
+              }}
             >
-              <Edit className="h-4 w-4" />
+              <Pen className="h-4 w-4" />
             </Button>
           ) : (
             <Button
@@ -107,8 +112,11 @@ export const DatasetActionButton = forwardRef<
             variant={props.variant || "ghost"}
             size={props.size}
             className={props.className}
+            title={props.icon ? "Delete" : undefined}
+            aria-label={props.icon ? "delete" : undefined}
             disabled={!hasAccess}
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setOpen(true);
               capture("datasets:delete_form_open", {
                 source: "table-single-row",
@@ -116,11 +124,14 @@ export const DatasetActionButton = forwardRef<
             }}
           >
             {hasAccess ? (
-              <Trash className="mr-2 h-4 w-4" />
+              <Trash className={cn("h-4 w-4", !props.icon && "mr-2")} />
             ) : (
-              <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+              <LockIcon
+                className={cn("h-4 w-4", !props.icon && "mr-2")}
+                aria-hidden="true"
+              />
             )}
-            Delete
+            {props.icon ? null : "Delete"}
           </Button>
         ) : (
           <Button

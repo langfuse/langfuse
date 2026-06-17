@@ -27,6 +27,7 @@ export type DeleteButtonProps = {
   icon?: boolean;
   enabled?: boolean;
   variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
   title?: string;
   className?: string;
   // forwarded explicitly because the base component does not spread unknown
@@ -69,6 +70,7 @@ export function DeleteButton({
   enabled = true,
   title,
   className,
+  size,
   captureDeleteOpen,
   captureDeleteSuccess,
   entityToDeleteName,
@@ -108,7 +110,7 @@ export function DeleteButton({
       <PopoverTrigger asChild>
         <Button
           variant={variant ?? (icon ? "outline-solid" : "ghost")}
-          size={icon ? "icon" : "default"}
+          size={size ?? (icon ? "icon" : "default")}
           title={title}
           aria-label={ariaLabel}
           className={className}
@@ -119,7 +121,11 @@ export function DeleteButton({
           }}
         >
           {icon ? (
-            <TrashIcon className="h-4 w-4" />
+            hasAccess ? (
+              <TrashIcon className="h-4 w-4" />
+            ) : (
+              <LockIcon className="h-4 w-4" aria-hidden="true" />
+            )
           ) : (
             <>
               {hasAccess ? (

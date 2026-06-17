@@ -35,15 +35,19 @@ export const DeleteAnnotationQueueButton = ({
   });
 
   const button = (
-    <Button variant="ghost" disabled={!hasAccess}>
-      <div className="flex w-full flex-row items-center gap-1">
-        {hasAccess ? (
-          <Trash className="mr-1.5 -ml-0.5 h-4 w-4" />
-        ) : (
-          <LockIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
-        )}
-        <span className="text-sm font-normal">Delete</span>
-      </div>
+    <Button
+      variant="ghost"
+      size="icon-xs"
+      title="Delete"
+      aria-label="delete"
+      disabled={!hasAccess}
+      onClick={(event) => event.stopPropagation()}
+    >
+      {hasAccess ? (
+        <Trash className="h-4 w-4" />
+      ) : (
+        <LockIcon className="h-4 w-4" aria-hidden="true" />
+      )}
     </Button>
   );
 

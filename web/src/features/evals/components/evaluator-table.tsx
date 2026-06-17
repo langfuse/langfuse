@@ -24,17 +24,10 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { MoreVertical, ExternalLinkIcon, Edit, Info } from "lucide-react";
+import { ExternalLinkIcon, Info, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
-import {
-  DropdownMenu,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { Button } from "@/src/components/ui/button";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
@@ -371,42 +364,33 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       cell: ({ row }) => {
         const id = row.original.id;
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                className="h-8 w-8 p-0"
-                aria-label="actions"
-              >
-                <span className="sr-only relative">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem
-                key={id}
-                aria-label="edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setEditConfigId(id);
-                }}
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <DeleteEvalConfigButton
-                  aria-label="delete"
-                  itemId={id}
-                  projectId={projectId}
-                  redirectUrl={`/project/${projectId}/evals`}
-                  deleteConfirmation={row.original.scoreName}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <Button
+              key={id}
+              variant="ghost"
+              size="icon-xs"
+              aria-label="edit"
+              title="Edit"
+              disabled={!hasAccess}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (id) setEditConfigId(id);
+              }}
+            >
+              <Pen className="h-4 w-4" />
+            </Button>
+            <DeleteEvalConfigButton
+              aria-label="delete"
+              itemId={id}
+              projectId={projectId}
+              redirectUrl={`/project/${projectId}/evals`}
+              deleteConfirmation={row.original.scoreName}
+              icon
+              variant="ghost"
+              size="icon-xs"
+              title="Delete"
+            />
+          </div>
         );
       },
     }),
@@ -426,7 +410,7 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       detailNavigationKey: "evals",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='edit'], [aria-label='actions'], [aria-label='view-logs'], [aria-label='delete']",
+          "[aria-label='edit'], [aria-label='view-logs'], [aria-label='delete']",
         ],
       },
       ...peekNavigationProps,

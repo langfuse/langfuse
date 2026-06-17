@@ -21,7 +21,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Edit, PlusIcon } from "lucide-react";
+import { Edit, Pen, PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -53,11 +53,13 @@ export const CreateOrEditAnnotationQueueButton = ({
   queueId,
   variant = "secondary",
   size,
+  isTableAction = false,
 }: {
   projectId: string;
   queueId?: string;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
+  isTableAction?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -215,11 +217,18 @@ export const CreateOrEditAnnotationQueueButton = ({
       <DialogTrigger asChild>
         <ActionButton
           variant={variant}
-          onClick={() => setIsOpen(true)}
-          className="justify-start"
+          onClick={(event) => {
+            if (isTableAction) event.stopPropagation();
+            setIsOpen(true);
+          }}
+          className={isTableAction ? "p-0 [&>div]:mr-0" : "justify-start"}
           icon={
             queueId ? (
-              <Edit className="h-4 w-4" aria-hidden="true" />
+              isTableAction ? (
+                <Pen className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Edit className="h-4 w-4" aria-hidden="true" />
+              )
             ) : (
               <PlusIcon className="h-4 w-4" aria-hidden="true" />
             )
@@ -228,10 +237,14 @@ export const CreateOrEditAnnotationQueueButton = ({
           limitValue={queueCountData.data}
           limit={queueLimit}
           size={size}
+          title={isTableAction ? "Edit" : undefined}
+          aria-label={isTableAction ? "edit" : undefined}
         >
-          <span className="ml-1 text-sm font-normal">
-            {queueId ? "Edit" : "New queue"}
-          </span>
+          {isTableAction ? null : (
+            <span className="ml-1 text-sm font-normal">
+              {queueId ? "Edit" : "New queue"}
+            </span>
+          )}
         </ActionButton>
       </DialogTrigger>
       {configsData.data && (
