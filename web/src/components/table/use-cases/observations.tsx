@@ -104,6 +104,7 @@ import {
   useObservationsTableStore,
 } from "@/src/features/tracing-tables/observations/ObservationsTableStoreProvider";
 import { useObservationsTableView } from "@/src/features/tracing-tables/observations/useObservationsTableView";
+import { getDefaultObservationTypeFilter } from "@/src/components/table/use-cases/observationsDefaultTypeFilter";
 
 export type ObservationsTableRow = {
   // Shown by default
@@ -264,16 +265,9 @@ export default function ObservationsTable({
             column: "type",
             type: "stringOptions",
             operator: "any of",
-            value: [
-              "GENERATION",
-              "AGENT",
-              "TOOL",
-              "CHAIN",
-              "RETRIEVER",
-              "EVALUATOR",
-              "EMBEDDING",
-              "GUARDRAIL",
-            ],
+            value: getDefaultObservationTypeFilter({
+              hasPromptFilter: Boolean(promptName || promptVersion),
+            }),
           },
         ]
       : [],
