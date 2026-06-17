@@ -144,10 +144,14 @@ export function ComposerTokens({
         ) : (
           segment.raw
         )}
+        {/* Word-joiner INSIDE the pill. The caret at the token's trailing edge
+            lands on this joiner, which sits BEFORE the pill's right padding — so
+            WebKit/Safari paints the caret inside the pill at the glyph instead
+            of past the chrome. A sibling joiner (outside the span) made Safari
+            paint the caret past the padding + margin (the "caret renders outside
+            the block" bug). */}
+        {WORD_JOINER}
       </span>,
-    );
-    out.push(
-      <React.Fragment key={`wj:${segment.id}`}>{WORD_JOINER}</React.Fragment>,
     );
     cursor = segment.to;
   }
