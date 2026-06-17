@@ -8,7 +8,10 @@ import {
   MediaReferenceStringSchema,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import { ResizableImage } from "@/src/components/ui/resizable-image";
+import {
+  COMPACT_IMAGE_MAX_HEIGHT_REM,
+  ResizableImage,
+} from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
@@ -90,13 +93,11 @@ export const LangfuseMediaView = ({
 
   if (mediaData.type.startsWith("image")) {
     return (
-      <div>
-        <ResizableImage
-          src={mediaUrl}
-          isDefaultVisible={true}
-          shouldValidateImageSource={false}
-        />
-      </div>
+      <ResizableImage
+        src={mediaUrl}
+        isDefaultVisible={true}
+        shouldValidateImageSource={false}
+      />
     );
   } else if (mediaData.type.startsWith("audio")) {
     return <AudioPlayer src={mediaUrl} />;
@@ -115,6 +116,7 @@ function FileViewer({
   contentType: MediaContentType;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [compactImageWidth, setCompactImageWidth] = useState<string>();
 
   if (!src) return null;
 
@@ -130,6 +132,26 @@ function FileViewer({
 
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");
+  };
+
+  const expandPreview = () => {
+    if (!isImage || compactImageWidth) {
+      setIsExpanded(true);
+      return;
+    }
+
+    const image = new window.Image();
+    image.onload = () => {
+      const { naturalWidth, naturalHeight } = image;
+      if (naturalWidth && naturalHeight) {
+        setCompactImageWidth(
+          `${COMPACT_IMAGE_MAX_HEIGHT_REM * (naturalWidth / naturalHeight)}rem`,
+        );
+      }
+      setIsExpanded(true);
+    };
+    image.onerror = () => setIsExpanded(true);
+    image.src = src;
   };
 
   const iconTile = (
@@ -159,6 +181,8 @@ function FileViewer({
       alt={fileName}
       isDefaultVisible={true}
       shouldValidateImageSource={false}
+      fitContent
+      compactWidth={compactImageWidth}
     />
   ) : isAudio ? (
     <AudioPlayer src={src} />
@@ -175,7 +199,7 @@ function FileViewer({
     >
       {isPreviewable && isExpanded ? (
         <div className="flex max-w-3xl items-start gap-2">
-          <div className="min-w-0 flex-1">
+          <div className={cn(isImage ? "contents" : "min-w-0 flex-1")}>
             {isAudio ? (
               <div className="max-w-xl min-w-72">{previewContent}</div>
             ) : (
@@ -185,7 +209,7 @@ function FileViewer({
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
+            size="icon"
             onClick={openInNewTab}
             aria-label={`Open ${fileName} in new tab`}
             title={`Open ${fileName} in new tab`}
@@ -196,7 +220,7 @@ function FileViewer({
         </div>
       ) : (
         <button
-          onClick={() => (isPreviewable ? setIsExpanded(true) : openInNewTab())}
+          onClick={() => (isPreviewable ? expandPreview() : openInNewTab())}
           aria-label={
             isPreviewable
               ? `Show ${fileName} inline`

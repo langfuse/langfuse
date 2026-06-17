@@ -262,13 +262,14 @@ function DatasetItemAttachments({
           <LangfuseMediaView
             key={referenceString}
             mediaReferenceString={referenceString}
+            asFileIcon={true}
           />
         ))}
         {media.map((m) => (
           <LangfuseMediaView
             key={m.mediaId}
             mediaAPIReturnValue={m}
-            asFileIcon={!m.contentType.startsWith("image")}
+            asFileIcon={true}
           />
         ))}
         {pendingUploads.map((u) => (
