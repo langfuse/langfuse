@@ -25,12 +25,19 @@ export class RefreshingTokenManager {
     options: RefreshingTokenManagerOptions = {},
   ) {
     this.provider = provider;
-    this.expirationRefreshRatio =
+    const ratio =
       options.expirationRefreshRatio ?? DEFAULT_EXPIRATION_REFRESH_RATIO;
+    if (ratio <= 0 || ratio >= 1) {
+      throw new RangeError(
+        `expirationRefreshRatio must be in the range (0, 1), got ${ratio}`,
+      );
+    }
+    this.expirationRefreshRatio = ratio;
   }
 
   // Fetch the first token and arm the refresh-ahead timer.
   public async start(): Promise<ManagedAccessToken> {
+    this.stopped = false;
     const token = await this.provider.fetchToken();
     this.scheduleRefresh(token);
     return token;
