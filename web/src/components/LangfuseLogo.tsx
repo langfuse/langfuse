@@ -8,7 +8,6 @@ import { PlusIcon } from "lucide-react";
 type LangfuseIconProps = {
   size?: 14 | 16 | 28 | 32 | 42;
   className?:
-    | "h-8 w-8"
     | "hidden scale-120 group-data-[collapsible=icon]:block"
     | "mx-auto motion-safe:animate-spin"
     | "mx-auto";
