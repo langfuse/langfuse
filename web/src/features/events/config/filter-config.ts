@@ -96,10 +96,11 @@ export const observationEventsFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "type",
       label: getEventsColumnName("type"),
-      tooltip:
-        "Observation types classify the work captured within a trace, such as generations, spans, tools, chains, and agents.",
-      tooltipHref:
-        "https://langfuse.com/docs/observability/features/observation-types",
+      help: {
+        description:
+          "Observation types classify the work captured within a trace, such as generations, spans, tools, chains, and agents.",
+        href: "https://langfuse.com/docs/observability/features/observation-types",
+      },
       renderIcon: renderFilterIcon,
     },
     {

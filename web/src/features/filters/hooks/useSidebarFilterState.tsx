@@ -121,7 +121,10 @@ export interface BaseUIFilter {
   column: string;
   label: string;
   tooltip?: string;
-  tooltipHref?: string;
+  help?: {
+    description: React.ReactNode;
+    href?: string;
+  };
   loading: boolean;
   expanded: boolean;
   isActive: boolean;
@@ -1128,7 +1131,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
-            tooltipHref: facet.tooltipHref,
+            help: facet.help,
 
             value: currentRange,
             min: facet.min,
@@ -1162,7 +1165,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
-            tooltipHref: facet.tooltipHref,
+            help: facet.help,
 
             value: currentValue,
             loading: false,
@@ -1225,7 +1228,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
-            tooltipHref: facet.tooltipHref,
+            help: facet.help,
 
             value: activeFilters,
             keyOptions,
@@ -1309,7 +1312,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
-            tooltipHref: facet.tooltipHref,
+            help: facet.help,
 
             value: activeFilters,
             keyOptions,
@@ -1392,7 +1395,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
-            tooltipHref: facet.tooltipHref,
+            help: facet.help,
 
             value: activeFilters,
             keyOptions,
@@ -1485,7 +1488,7 @@ export function useSidebarFilterState(
             column: facet.column,
             label: facet.label,
             tooltip: facet.tooltip,
-            tooltipHref: facet.tooltipHref,
+            help: facet.help,
 
             value: selectedOptions,
             options: availableOptions,
@@ -1648,7 +1651,7 @@ export function useSidebarFilterState(
           column: facet.column,
           label: facet.label,
           tooltip: facet.tooltip,
-          tooltipHref: facet.tooltipHref,
+          help: facet.help,
 
           value: selectedValues,
           options: availableValues,
