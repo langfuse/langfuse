@@ -2,7 +2,7 @@
 
 Grammar-based query bar for the observations (v4 events) table. It does NOT
 replace the facet sidebar — it is an ADDITIONAL keyboard-driven editor that
-coexists with the sidebar and stays in sync with it (Datadog model). The facet
+coexists with the sidebar and stays in sync with it. The facet
 sidebar's `FilterState` (+ the table's full-text search) remains the single
 source of truth; the bar reads from and writes to it. Only the legacy toolbar
 search field is replaced (full-text search goes inline in the bar).
@@ -204,7 +204,7 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
 
 - `searchType` as three separate params) has no slot for the relative position
   of filters vs free text, so on commit the reverse adapter canonicalizes to
-  `<filters> <freetext>` (Datadog-style): typing `refund level:ERROR`
+  `<filters> <freetext>`: typing `refund level:ERROR`
   and pressing Enter re-renders the bar as `level:ERROR refund`. The typed
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.

@@ -1,4 +1,4 @@
-// Grammar-aware search composer (Datadog-style).
+// Grammar-aware search composer.
 //
 // The per-mount store owns draft/committed query state. This component owns
 // autocomplete state and projects the draft string into inline token spans
@@ -1212,7 +1212,7 @@ export function SearchComposer({
   const removeTarget =
     segments.find((s) => s.editable && s.id === removeTargetId) ?? null;
   // The hovered/caret token's diagnostic, shown as a styled per-token tooltip
-  // once diagnostics are revealed (Datadog-style) — replaces the native title.
+  // once diagnostics are revealed — replaces the native title.
   // Shown even while the suggestions popover is open (you still need to see why
   // the block is red); the tooltip flips ABOVE the block then, so it doesn't
   // collide with the popover that drops BELOW the bar (see the render below).

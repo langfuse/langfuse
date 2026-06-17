@@ -1,7 +1,7 @@
 // Reverse adapter: flat Langfuse `FilterState` (+ full-text searchQuery and
 // searchType scopes) → query text.
 //
-// Drives the Datadog-style sync: the facet sidebar owns the canonical
+// Drives the bar/sidebar sync: the facet sidebar owns the canonical
 // `FilterState`, and whenever it changes the search bar re-seeds its text from
 // here. Builds editor AST nodes and reuses the canonical serializer, so the
 // produced text always reparses and round-trips through astToFilterState back
