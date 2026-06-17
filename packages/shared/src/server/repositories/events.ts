@@ -97,10 +97,12 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
+  buildEventsFullTableSubqueryQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
+import { shouldUseObservationsSubqueryRewrite } from "../queries/clickhouse-sql/query-options";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
@@ -1360,6 +1362,7 @@ async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
   operationName: string = "getObservationsFromEventsTableForPublicApi_rows",
+  extraTags: Record<string, string> = {},
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1373,6 +1376,7 @@ async function getObservationsRowsFromBuilder<T>(
         type: "events",
         kind: "publicApiRows",
         projectId,
+        ...extraTags,
       },
     },
     fn: async (input) => {
@@ -1501,38 +1505,72 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       options,
     );
 
-  baseBuilder.selectFieldSet("core");
-  const excludeFromBase = new Set<string>(["core", "io"]);
-  if (metadataFromFullTable) excludeFromBase.add("metadata");
-  requestedFields
-    .filter((fg) => !excludeFromBase.has(fg))
-    .forEach((fg) => baseBuilder.selectFieldSet(fg));
-
+  // Shared steps: ordering and pagination apply to every path and are
+  // independent of which columns each path projects.
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
-  let builder: QueryWithParams;
+  // Pick the query shape. The rewrite only replaces the CTE+JOIN split query
+  // (needsIOCTE); the simple path is untouched. External CTEs keep the
+  // CTE+JOIN path: their resolution inside the IN subquery is unverified, and
+  // no v2 filter currently produces one.
+  const queryPath: "simple" | "cte-join" | "subquery-rewrite" = !needsIOCTE
+    ? "simple"
+    : externalCTEs.length === 0 && shouldUseObservationsSubqueryRewrite()
+      ? "subquery-rewrite"
+      : "cte-join";
 
-  if (!needsIOCTE) {
-    // Simple path: add CTEs back to the builder and use directly
-    for (const cte of externalCTEs) {
-      baseBuilder.withCTE(cte.name, cte.queryWithParams);
-    }
-    builder = baseBuilder;
-  } else {
-    builder = buildEventsFullTableSplitQuery({
-      projectId,
-      baseBuilder,
-      includeIO: needsIO,
-      includeMetadata: metadataFromFullTable,
-      externalCTEs,
-    }).orderByColumns(orderByForObservationsQuery("b", "id"));
+  // Field groups projected on the base builder by the non-rewrite paths.
+  // `io` (and `metadata` when it must come untruncated from events_full) is
+  // fetched by the io CTE instead; selecting it on events_core would return
+  // truncated values.
+  const selectBaseFieldSets = () => {
+    baseBuilder.selectFieldSet("core");
+    const excludeFromBase = new Set<string>(["core", "io"]);
+    if (metadataFromFullTable) excludeFromBase.add("metadata");
+    requestedFields
+      .filter((fg) => !excludeFromBase.has(fg))
+      .forEach((fg) => baseBuilder.selectFieldSet(fg));
+  };
+
+  let builder: QueryWithParams;
+  switch (queryPath) {
+    case "simple":
+      // Everything from events_core; CTEs attach directly to the builder.
+      selectBaseFieldSets();
+      for (const cte of externalCTEs) {
+        baseBuilder.withCTE(cte.name, cte.queryWithParams);
+      }
+      builder = baseBuilder;
+      break;
+    case "cte-join":
+      // Scalar groups from events_core, IO/metadata joined from events_full.
+      selectBaseFieldSets();
+      builder = buildEventsFullTableSplitQuery({
+        projectId,
+        baseBuilder,
+        includeIO: needsIO,
+        includeMetadata: metadataFromFullTable,
+        externalCTEs,
+      }).orderByColumns(orderByForObservationsQuery("b", "id"));
+      break;
+    case "subquery-rewrite":
+      // No projection on the base builder: it becomes the inner IN-subquery,
+      // which projects only the identity tuple (added by the build function).
+      builder = buildEventsFullTableSubqueryQuery({
+        projectId,
+        innerBuilder: baseBuilder,
+        fieldSetNames: ["core", ...requestedFields],
+      });
+      break;
   }
 
   const records =
     await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
       projectId,
       builder,
+      undefined,
+      { queryPath },
     );
 
   return await enrichObservationsWithModelData(
