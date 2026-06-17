@@ -1474,6 +1474,7 @@ export const getObservationsFromEventsTableForPublicApi = async (
 export type ShadowQueryOutcome =
   | "match"
   | "row_count_mismatch"
+  | "content_mismatch"
   | "order_mismatch"
   | "error";
 
@@ -1542,12 +1543,25 @@ function runSubqueryRewriteShadowQuery(
         projectId,
         primaryCount: primaryIds.length,
         shadowCount: shadowIds.length,
+        primarySample: primaryIds.slice(0, 5),
+        shadowSample: shadowIds.slice(0, 5),
       });
       return "row_count_mismatch";
     }
 
     const orderMatch = primaryIds.every((id, i) => id === shadowIds[i]);
     if (!orderMatch) {
+      const primarySet = new Set(primaryIds);
+      const sameContent = shadowIds.every((id) => primarySet.has(id));
+      if (!sameContent) {
+        recordIncrement(`${METRIC_PREFIX}.content_mismatch`, 1);
+        logger.warn("Shadow query content mismatch", {
+          projectId,
+          primarySample: primaryIds.slice(0, 5),
+          shadowSample: shadowIds.slice(0, 5),
+        });
+        return "content_mismatch";
+      }
       recordIncrement(`${METRIC_PREFIX}.order_mismatch`, 1);
       logger.warn("Shadow query order mismatch", { projectId });
       return "order_mismatch";
