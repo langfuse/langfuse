@@ -61,7 +61,17 @@ export function AutocompletePopover({
   }, [clamp, containerRef]);
 
   return (
-    <div ref={popRef} className="absolute top-full z-50 mt-1" style={{ left }}>
+    // Suppress focus moves across the WHOLE popover surface, not just the option
+    // rows: a mousedown on a section title / divider / padding would otherwise
+    // blur the composer and fire its onBlur commit, flashing the red invalid
+    // state on a mid-completion draft (`level:`, `tags:(`, …). The per-option
+    // guard in AutocompleteListbox stays (preventDefault is idempotent).
+    <div
+      ref={popRef}
+      className="absolute top-full z-50 mt-1"
+      style={{ left }}
+      onMouseDown={(e) => e.preventDefault()}
+    >
       <AutocompleteListbox {...listbox} />
     </div>
   );
