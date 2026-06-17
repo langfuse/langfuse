@@ -792,13 +792,32 @@ export function SearchComposer({
           option.insert.endsWith("(");
       }
 
-      // Picking a terminal value completes the filter: advance to "append
-      // next" so the caret is ready for the next field (a fresh keystroke
-      // starts a new token) and field suggestions reopen — instead of leaving
-      // the caret inside the value where typing would edit what was just
-      // picked. Grouped value entry (`field:(a OR …)`) stays put.
-      const advanceAfterValue =
-        option.kind === "value" && !(currentPlan.keepOpenOnPick ?? false);
+      // A pick that COMPLETES a filter token — a value (`name:checkout`) or a
+      // ready-to-run suggestion (`level:DEFAULT`) — and sits at the END of the
+      // draft advances to a fresh token: append a trailing space, drop the caret
+      // AFTER it (OUTSIDE the just-completed pill), and reopen field suggestions
+      // for the next filter, instead of leaving the caret inside the pill where
+      // typing would edit what was just picked. Picks that invite more input (a
+      // bare `field:` key, a `metadata.` prefix, an open `tags:(` group), grouped
+      // value entry, and mid-query edits (non-whitespace follows) stay put. This
+      // reuses the space-ending-insert path rather than the deferred appendIntent
+      // that rendered the caret inside the pill with no space.
+      const grouped = currentPlan.keepOpenOnPick ?? false;
+      const invitesMoreInput =
+        option.kind === "field" || // a `field:` key always needs a value next
+        insert.endsWith(":") ||
+        insert.endsWith(" ") ||
+        insert.endsWith("(");
+      const completesFilterAtEnd =
+        !grouped &&
+        !invitesMoreInput &&
+        current.slice(replaceTo).trim().length === 0;
+      if (completesFilterAtEnd) {
+        insert += " ";
+        // Consume any existing trailing whitespace so the space never doubles.
+        if (!appendIntent) replaceTo = current.length;
+        keepOpen = true;
+      }
 
       const prefix =
         appendIntent && current.trim().length > 0 && !/\s$/.test(current)
@@ -811,17 +830,8 @@ export function SearchComposer({
         ? current.length + prefix.length + insert.length
         : replaceFrom + insert.length;
       setDraftWithSelection(next, caretAt);
-      if (advanceAfterValue) {
-        // Caret sits at the end of the just-completed token. appendIntent
-        // makes the next insert start a new token; the selectionchange mirror
-        // clears it automatically if the caret is not at the very end (e.g.
-        // editing a value mid-query), so this only advances when appropriate.
-        setAppendIntent(true);
-        setAutocompleteOpen(true);
-      } else {
-        setAppendIntent(false);
-        setAutocompleteOpen(keepOpen);
-      }
+      setAppendIntent(false);
+      setAutocompleteOpen(keepOpen);
       setHighlightedOptionId(null);
       // Apply when the pick produced a valid query; a partial draft (e.g. a
       // bare `level:` field pick) commits nothing and shows no error. A
