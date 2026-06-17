@@ -3,6 +3,7 @@ import {
   type FormatMetricOptions,
   type MetricFormatterFunction,
   type DataPoint,
+  type ChartThreshold,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
@@ -38,6 +39,7 @@ export const Chart = ({
   legendPosition,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
+  thresholds,
 }: {
   chartType: DashboardWidgetChartType;
   data: DataPoint[];
@@ -62,6 +64,7 @@ export const Chart = ({
   legendPosition?: "above" | "none";
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
+  thresholds?: ChartThreshold[];
 }) => {
   const [forceRender, setForceRender] = useState(overrideWarning);
   const shouldWarn = data.length > 2000 && !forceRender;
@@ -137,6 +140,7 @@ export const Chart = ({
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
             showDataPointDots={chartConfig?.show_data_point_dots ?? true}
+            thresholds={thresholds}
           />
         );
       case "AREA_TIME_SERIES":

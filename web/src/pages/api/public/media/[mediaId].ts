@@ -35,7 +35,7 @@ export default withMiddlewares({
     }),
     bodySchema: PatchMediaBodySchema,
     responseSchema: z.void(),
-    rateLimitResource: "ingestion",
+    rateLimitResource: "media-upload",
     fn: async ({ query, body, auth }) => {
       if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
 

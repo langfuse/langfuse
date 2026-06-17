@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.179.1",
+  "version": "3.188.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -62,6 +62,7 @@
     "p-limit": "^7.3.0",
     "pg": "^8.13.0",
     "posthog-node": "^5.32.0",
+    "slackify-markdown": "^5.0.0",
     "stripe": "^17.4.0",
     "tiktoken": "^1.0.20",
     "uuid": "^14.0.0",

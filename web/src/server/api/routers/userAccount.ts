@@ -95,6 +95,50 @@ export const userAccountRouter = createTRPCRouter({
       };
     }),
 
+  setInAppAgentPreviewEnabled: authenticatedProcedure
+    .input(
+      z.object({
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      const userId = ctx.session.user.id;
+      const currentUser = await ctx.prisma.user.findUnique({
+        where: { id: userId },
+        select: { featureFlags: true },
+      });
+
+      if (!currentUser) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "User not found",
+        });
+      }
+
+      if (input.enabled) {
+        if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Assistant is not available in self-hosted deployments.",
+          });
+        }
+      }
+
+      const nextFeatureFlags = input.enabled
+        ? Array.from(new Set([...currentUser.featureFlags, "inAppAgent"]))
+        : currentUser.featureFlags.filter((flag) => flag !== "inAppAgent");
+
+      await ctx.prisma.user.update({
+        where: { id: userId },
+        data: { featureFlags: { set: nextFeatureFlags } },
+      });
+
+      return {
+        success: true,
+        inAppAgentPreviewEnabled: input.enabled,
+      };
+    }),
+
   delete: authenticatedProcedure.mutation(async ({ ctx }) => {
     const userId = ctx.session.user.id;
 

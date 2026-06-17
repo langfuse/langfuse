@@ -48,6 +48,11 @@ import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import isEqual from "lodash/isEqual";
 import { useRouter } from "next/router";
 import { useColumnSizing } from "@/src/components/table/hooks/useColumnSizing";
+import {
+  type TableSelectionStoreLike,
+  useTableRowIsSelected,
+  useTableSelectAll,
+} from "@/src/components/table/table-selection-store";
 
 interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
@@ -62,6 +67,8 @@ interface DataTableProps<TData, TValue> {
   };
   rowSelection?: RowSelectionState;
   setRowSelection?: OnChangeFn<RowSelectionState>;
+  /** External selection store; row highlight/checkbox state reads from it instead of TanStack rowSelection */
+  selectionStore?: TableSelectionStoreLike;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
@@ -173,6 +180,7 @@ export function DataTable<TData extends object, TValue>({
   pagination,
   rowSelection,
   setRowSelection,
+  selectionStore,
   columnVisibility,
   onColumnVisibilityChange,
   columnOrder,
@@ -334,12 +342,14 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = isValidCssVariableName({
-                      name: header.id,
-                      includesHyphens: false,
-                    })
-                      ? `calc(var(--header-${header.id}-size) * 1px)`
-                      : 150;
+                    const width = columnDef.isFlexWidth
+                      ? "auto"
+                      : isValidCssVariableName({
+                            name: header.id,
+                            includesHyphens: false,
+                          })
+                        ? `calc(var(--header-${header.id}-size) * 1px)`
+                        : 150;
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -350,8 +360,8 @@ export function DataTable<TData extends object, TValue>({
                           getPinningClasses(header.column),
                         )}
                         style={{
-                          width,
                           ...getCommonPinningStyles(header.column),
+                          width,
                         }}
                         onClick={(event) => {
                           event.preventDefault();
@@ -444,6 +454,7 @@ export function DataTable<TData extends object, TValue>({
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
+                selectionStore={selectionStore}
                 topAlignCells={topAlignCells}
                 cellPadding={cellPadding}
                 tableSnapshot={{
@@ -464,6 +475,7 @@ export function DataTable<TData extends object, TValue>({
                 onRowClick={hasRowClickAction ? handleOnRowClick : undefined}
                 getRowClassName={getRowClassName}
                 highlightAllRows={highlightAllRows}
+                selectionStore={selectionStore}
                 topAlignCells={topAlignCells}
                 cellPadding={cellPadding}
               />
@@ -512,6 +524,7 @@ interface TableBodyComponentProps<TData> {
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
+  selectionStore?: TableSelectionStoreLike;
   topAlignCells?: boolean;
   cellPadding?: DataTableCellPadding;
   /** Used for React.memo comparison only */
@@ -527,16 +540,27 @@ function TableRowComponent<TData>({
   onRowClick,
   getRowClassName,
   highlightAllRows = false,
+  selectionStore,
   children,
 }: {
   row: Row<TData>;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
   getRowClassName?: (row: TData) => string;
   highlightAllRows?: boolean;
+  selectionStore?: TableSelectionStoreLike;
   children: React.ReactNode;
 }) {
   const router = useRouter();
   const selectedRowId = router.query.peek as string | undefined;
+  const rowIsSelected = useTableRowIsSelected(
+    selectionStore,
+    row.id,
+    row.getIsSelected(),
+  );
+  const shouldHighlightAllRows = useTableSelectAll(
+    selectionStore,
+    highlightAllRows,
+  );
 
   return (
     <TableRow
@@ -554,7 +578,7 @@ function TableRowComponent<TData>({
       className={cn(
         "hover:bg-accent",
         !!onRowClick ? "cursor-pointer" : "cursor-default",
-        (row.getIsSelected() || highlightAllRows) &&
+        (rowIsSelected || shouldHighlightAllRows) &&
           "bg-muted/40 dark:bg-muted",
         selectedRowId && selectedRowId === row.id
           ? "bg-muted/40 dark:bg-muted"
@@ -578,14 +602,17 @@ function TableBodyComponent<TData>({
   onRowClick,
   getRowClassName,
   highlightAllRows,
+  selectionStore,
   topAlignCells = false,
   cellPadding = "compact",
   tableSnapshot: _tableSnapshot,
 }: TableBodyComponentProps<TData>) {
   const visibleColumns = table.getVisibleLeafColumns();
+  const rowModelRows = table.getRowModel().rows;
+  const tableState = table.getState();
   const skeletonRowCount = Math.max(
     1,
-    Math.min(table.getState().pagination?.pageSize ?? 8, 8),
+    Math.min(tableState.pagination?.pageSize ?? 8, 8),
   );
 
   return (
@@ -608,8 +635,10 @@ function TableBodyComponent<TData>({
                     getPinningClasses(column),
                   )}
                   style={{
-                    width: `calc(var(--col-${column.id}-size) * 1px)`,
                     ...getCommonPinningStyles(column),
+                    width: columnDef.isFlexWidth
+                      ? "auto"
+                      : `calc(var(--col-${column.id}-size) * 1px)`,
                   }}
                 >
                   <div
@@ -651,14 +680,15 @@ function TableBodyComponent<TData>({
             })}
           </TableRow>
         ))
-      ) : table.getRowModel().rows.length ? (
-        table.getRowModel().rows.map((row) => (
+      ) : rowModelRows.length ? (
+        rowModelRows.map((row) => (
           <TableRowComponent
             key={row.id}
             row={row}
             onRowClick={onRowClick}
             getRowClassName={getRowClassName}
             highlightAllRows={highlightAllRows}
+            selectionStore={selectionStore}
           >
             {row.getVisibleCells().map((cell) => {
               const cellValue = cell.getValue();
@@ -679,8 +709,10 @@ function TableBodyComponent<TData>({
                     getPinningClasses(cell.column),
                   )}
                   style={{
-                    width: `calc(var(--col-${cell.column.id}-size) * 1px)`,
                     ...getCommonPinningStyles(cell.column),
+                    width: columnDef.isFlexWidth
+                      ? "auto"
+                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
                   }}
                 >
                   <div
@@ -767,6 +799,7 @@ const MemoizedTableBody = React.memo(TableBodyComponent, (prev, next) => {
   if (prev.rowheighttw !== next.rowheighttw) return false;
   if (prev.rowHeight !== next.rowHeight) return false;
   if (prev.highlightAllRows !== next.highlightAllRows) return false;
+  if (prev.selectionStore !== next.selectionStore) return false;
   if (prev.cellPadding !== next.cellPadding) return false;
 
   // Then do more expensive deep equality checks

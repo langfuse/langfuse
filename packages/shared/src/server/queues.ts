@@ -11,6 +11,12 @@ import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
 import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
+import {
+  type MonitorQueueEvent,
+  MonitorWebhookQueueEventSchema,
+} from "../features/monitors/scheduler/types";
+
+export type { MonitorQueueEvent };
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -232,10 +238,10 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
-export const WebhookOutboundEnvelopeSchema = z.object({
+export const promptVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  type: z.literal("prompt-version"),
   user: z
     .object({
       id: z.string(),
@@ -244,6 +250,12 @@ export const WebhookOutboundEnvelopeSchema = z.object({
     })
     .optional(),
 });
+
+/** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert variant is the unified envelope (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
+export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
+  promptVersionWebhookEnvelopeSchema,
+  MonitorWebhookQueueEventSchema,
+]);
 
 export const WebhookInputSchema = z.object({
   projectId: z.string(),
@@ -358,6 +370,7 @@ export enum QueueName {
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
   NotificationQueue = "notification-queue",
+  MonitorQueue = "monitor-queue",
 }
 
 export enum QueueJobs {
@@ -394,6 +407,7 @@ export enum QueueJobs {
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
   NotificationJob = "notification-job",
+  MonitorJob = "monitor-job",
 }
 
 export type TQueueJobTypes = {
@@ -574,5 +588,11 @@ export type TQueueJobTypes = {
     id: string;
     payload: NotificationEventType;
     name: QueueJobs.NotificationJob;
+  };
+  [QueueName.MonitorQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: MonitorQueueEvent;
+    name: QueueJobs.MonitorJob;
   };
 };

@@ -1,10 +1,23 @@
+import { globalIgnores } from "eslint/config";
 import storybook from "eslint-plugin-storybook";
 
 import nextConfig from "@repo/eslint-config/next";
 
 export default [
+  globalIgnores(["**/storybook-static/"]),
+
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
+
+  // Design-system component APIs must use explicit variants instead of styling escape hatches.
+  {
+    name: "langfuse/web/design-system-no-style-props",
+    files: ["src/components/design-system/**/*.{ts,tsx}"],
+    ignores: ["src/components/design-system/**/*.stories.tsx"],
+    rules: {
+      "@repo/no-style-props": "error",
+    },
+  },
 
   // Tests legitimately exercise backwards-compatible (deprecated) read paths
   // such as getTraceById/getObservationById, so allow them in test code.
