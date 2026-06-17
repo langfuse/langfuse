@@ -148,6 +148,19 @@ describe("web callout rate limiting", () => {
 
     WebCalloutRateLimitService.shutdown();
     mocks.consume.mockReset();
+    mocks.consume
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error("redis down"));
+    await expect(
+      WebCalloutRateLimitService.getInstance(redis()).consume(context),
+    ).resolves.toBeUndefined();
+    expect(mocks.consume.mock.calls).toEqual([
+      ["org-1:project-1:endpoint-1:user-1"],
+      ["org-1:project-1:endpoint-1"],
+    ]);
+
+    WebCalloutRateLimitService.shutdown();
+    mocks.consume.mockReset();
     mocks.consume.mockRejectedValueOnce(new (RateLimiterRes as any)(2300));
     await expect(
       WebCalloutRateLimitService.getInstance(redis()).consume(context),
