@@ -28,6 +28,7 @@ import { cn } from "@/src/utils/tailwind";
 import {
   InAppAgentMessage,
   type InAppAgentMessageContent,
+  type InAppAgentResourceReferenceRenderer,
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
@@ -93,6 +94,7 @@ export type InAppAgentWindowProps = {
   isInputDisabled: boolean;
   isLoadingMoreConversations: boolean;
   messages: InAppAgentWindowMessage[];
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
   onExpandedChange: (isExpanded: boolean) => void;
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
@@ -118,6 +120,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     isInputDisabled,
     isLoadingMoreConversations,
     messages,
+    renderResourceReference,
     onExpandedChange,
     onLoadMoreConversations,
     onNewConversation,
@@ -424,6 +427,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       content={message.content}
                       isCompact={!isExpanded}
                       isFeedbackDisabled={isInputDisabled}
+                      renderResourceReference={renderResourceReference}
                       windowZIndex={zIndex}
                       onSubmitFeedback={
                         feedbackRunId

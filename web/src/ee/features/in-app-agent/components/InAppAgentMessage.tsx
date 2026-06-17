@@ -16,10 +16,14 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
 import {
   forwardRef,
+  Children,
+  Fragment,
+  isValidElement,
   useMemo,
   useRef,
   useState,
   type ButtonHTMLAttributes,
+  type ReactElement,
   type ReactNode,
 } from "react";
 import type {
@@ -37,6 +41,11 @@ import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+import {
+  parseInAppAgentResourceHref,
+  type InAppAgentResourceReference as ParsedResourceReference,
+} from "@/src/ee/features/in-app-agent/components/utils/resourceReference";
+import type { InAppAgentResourceReferencePresentation } from "@/src/ee/features/in-app-agent/components/InAppAgentResourceReference";
 import styles from "./InAppAgentMessage.module.css";
 
 export type InAppAgentMessageRole = "assistant" | "user";
@@ -62,6 +71,12 @@ export type InAppAgentToolCallContent = {
   result?: string;
   error?: string;
 };
+
+export type InAppAgentResourceReferenceRenderer = (props: {
+  resource: ParsedResourceReference;
+  label: ReactNode;
+  presentation: InAppAgentResourceReferencePresentation;
+}) => ReactNode;
 
 const parseAbsoluteUrl = (href: string): URL | null => {
   try {
@@ -136,6 +151,7 @@ export type InAppAgentMessageProps = {
   content: InAppAgentMessageContent;
   isCompact?: boolean;
   isFeedbackDisabled?: boolean;
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
   windowZIndex?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
@@ -148,6 +164,7 @@ export function InAppAgentMessage({
   content,
   isCompact = false,
   isFeedbackDisabled = false,
+  renderResourceReference,
   windowZIndex,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
@@ -176,13 +193,21 @@ export function InAppAgentMessage({
         content={content}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
+        renderResourceReference={renderResourceReference}
         windowZIndex={windowZIndex}
         onSubmitFeedback={onSubmitFeedback}
       />
     );
   }
 
-  return <MessageCard role={role} content={content} isCompact={isCompact} />;
+  return (
+    <MessageCard
+      role={role}
+      content={content}
+      isCompact={isCompact}
+      renderResourceReference={renderResourceReference}
+    />
+  );
 }
 
 const MessageCard = forwardRef<
@@ -191,8 +216,12 @@ const MessageCard = forwardRef<
     role: InAppAgentMessageRole;
     content: Exclude<InAppAgentMessageContent, { type: "toolGroup" }>;
     isCompact: boolean;
+    renderResourceReference?: InAppAgentResourceReferenceRenderer;
   }
->(function MessageCard({ role, content, isCompact }, ref) {
+>(function MessageCard(
+  { role, content, isCompact, renderResourceReference },
+  ref,
+) {
   const isUser = role === "user";
 
   return (
@@ -211,7 +240,12 @@ const MessageCard = forwardRef<
       {content.type === "loading" ? (
         <ThinkingIndicator label={content.label} isCompact={isCompact} />
       ) : (
-        <MessageText role={role} text={content.text} isCompact={isCompact} />
+        <MessageText
+          role={role}
+          text={content.text}
+          isCompact={isCompact}
+          renderResourceReference={renderResourceReference}
+        />
       )}
     </div>
   );
@@ -221,12 +255,14 @@ function AssistantMessageWithFeedback({
   content,
   isCompact,
   isFeedbackDisabled,
+  renderResourceReference,
   windowZIndex,
   onSubmitFeedback,
 }: {
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
   windowZIndex?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
@@ -245,6 +281,7 @@ function AssistantMessageWithFeedback({
         role="assistant"
         content={content}
         isCompact={isCompact}
+        renderResourceReference={renderResourceReference}
       />
       {hasActions ? (
         <div
@@ -685,10 +722,12 @@ function MessageText({
   role,
   text,
   isCompact,
+  renderResourceReference,
 }: {
   role: InAppAgentMessageRole;
   text: string;
   isCompact: boolean;
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
 }) {
   if (role === "user") {
     return (
@@ -718,14 +757,45 @@ function MessageText({
           h5: ({ children }) => <h5>{children}</h5>,
           h6: ({ children }) => <h6>{children}</h6>,
 
-          p: ({ children }) => <p>{children}</p>,
+          p: ({ children }) => (
+            <ResourceAwareParagraph
+              renderResourceReference={renderResourceReference}
+            >
+              {children}
+            </ResourceAwareParagraph>
+          ),
           a: ({ children, href }) => (
-            <SmartLink href={href}>{children}</SmartLink>
+            <ResourceMarkdownLink
+              href={href}
+              renderResourceReference={renderResourceReference}
+            >
+              {children}
+            </ResourceMarkdownLink>
           ),
           hr: ({ children }) => <hr>{children}</hr>,
-          ul: ({ children }) => <ul>{children}</ul>,
-          ol: ({ children }) => <ol>{children}</ol>,
-          li: ({ children }) => <li>{children}</li>,
+          ul: ({ children }) => (
+            <ResourceAwareList
+              as="ul"
+              renderResourceReference={renderResourceReference}
+            >
+              {children}
+            </ResourceAwareList>
+          ),
+          ol: ({ children }) => (
+            <ResourceAwareList
+              as="ol"
+              renderResourceReference={renderResourceReference}
+            >
+              {children}
+            </ResourceAwareList>
+          ),
+          li: ({ children }) => (
+            <ResourceAwareListItem
+              renderResourceReference={renderResourceReference}
+            >
+              {children}
+            </ResourceAwareListItem>
+          ),
           b: ({ children }) => <b>{children}</b>,
           strong: ({ children }) => <strong>{children}</strong>,
           i: ({ children }) => <i>{children}</i>,
@@ -749,6 +819,238 @@ function MessageText({
     </div>
   );
 }
+
+type ResourceMarkdownLinkProps = {
+  children: ReactNode;
+  href?: string;
+  presentation?: InAppAgentResourceReferencePresentation;
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
+};
+
+type NormalizedResourceLink = {
+  label: ReactNode;
+  resource: ParsedResourceReference;
+};
+
+function ResourceMarkdownLink({
+  children,
+  href,
+  presentation = "inline",
+  renderResourceReference,
+}: ResourceMarkdownLinkProps) {
+  const resource = parseInAppAgentResourceHref(href);
+
+  if (!resource || !renderResourceReference) {
+    return <SmartLink href={href}>{children}</SmartLink>;
+  }
+
+  return renderResourceReference({
+    label: children,
+    presentation,
+    resource,
+  });
+}
+
+function ResourceAwareParagraph({
+  children,
+  renderResourceReference,
+}: {
+  children: ReactNode;
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
+}) {
+  const standaloneResource = getStandaloneResourceLink(
+    children,
+    renderResourceReference,
+  );
+
+  if (standaloneResource) {
+    return <ResourceRowGroup>{standaloneResource}</ResourceRowGroup>;
+  }
+
+  return <p>{children}</p>;
+}
+
+function ResourceAwareList({
+  as: ListTag,
+  children,
+  renderResourceReference,
+}: {
+  as: "ul" | "ol";
+  children: ReactNode;
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
+}) {
+  const resourceLinks = getStandaloneResourceListLinks(
+    children,
+    renderResourceReference,
+  );
+
+  if (renderResourceReference && resourceLinks && resourceLinks.length > 1) {
+    return (
+      <ResourceRowGroup>
+        {resourceLinks.map(({ label, resource }, index) => (
+          <Fragment key={index}>
+            {renderResourceReference({
+              label,
+              presentation: "row",
+              resource,
+            })}
+          </Fragment>
+        ))}
+      </ResourceRowGroup>
+    );
+  }
+
+  if (resourceLinks) {
+    return (
+      <ListTag className="not-prose m-0 list-none p-0">{children}</ListTag>
+    );
+  }
+
+  return <ListTag>{children}</ListTag>;
+}
+
+function ResourceAwareListItem({
+  children,
+  renderResourceReference,
+}: {
+  children: ReactNode;
+  renderResourceReference?: InAppAgentResourceReferenceRenderer;
+}) {
+  const standaloneResource = getStandaloneResourceLink(
+    children,
+    renderResourceReference,
+  );
+
+  if (standaloneResource) {
+    return (
+      <li className="list-none p-0">
+        <ResourceRowGroup>{standaloneResource}</ResourceRowGroup>
+      </li>
+    );
+  }
+
+  return <li>{children}</li>;
+}
+
+const getStandaloneResourceLink = (
+  children: ReactNode,
+  renderResourceReference?: InAppAgentResourceReferenceRenderer,
+) => {
+  if (!renderResourceReference) {
+    return null;
+  }
+
+  const resourceLink = getResourceLinkFromChildren(children);
+  if (!resourceLink) {
+    return null;
+  }
+
+  return renderResourceReference({
+    label: resourceLink.label,
+    presentation: "row",
+    resource: resourceLink.resource,
+  });
+};
+
+function ResourceRowGroup({ children }: { children: ReactNode }) {
+  return (
+    <div className="not-prose border-border bg-background my-2 overflow-hidden rounded-lg border">
+      {children}
+    </div>
+  );
+}
+
+const getStandaloneResourceListLinks = (
+  children: ReactNode,
+  renderResourceReference?: InAppAgentResourceReferenceRenderer,
+) => {
+  if (!renderResourceReference) {
+    return null;
+  }
+
+  const listItems = Children.toArray(children).filter((child) => {
+    return typeof child === "string" ? child.trim().length > 0 : true;
+  });
+
+  if (listItems.length < 2) {
+    return null;
+  }
+
+  const resourceRows: NormalizedResourceLink[] = [];
+  let resourceType: ParsedResourceReference["type"] | undefined;
+
+  for (const item of listItems) {
+    const resourceLink = getResourceLinkFromListItem(item);
+
+    if (!resourceLink) {
+      return null;
+    }
+
+    if (resourceType && resourceType !== resourceLink.resource.type) {
+      return null;
+    }
+
+    resourceType = resourceLink.resource.type;
+
+    resourceRows.push(resourceLink);
+  }
+
+  return resourceRows;
+};
+
+const getResourceLinkFromListItem = (
+  item: ReactNode,
+): NormalizedResourceLink | null => {
+  if (!isValidElement<{ children?: ReactNode }>(item)) {
+    return null;
+  }
+
+  return getResourceLinkFromChildren(item.props.children);
+};
+
+const getResourceLinkFromChildren = (children: ReactNode) => {
+  const child = getOnlyMeaningfulChild(children);
+  return child ? getResourceLinkFromNode(child) : null;
+};
+
+const getResourceLinkFromNode = (
+  value: ReactNode,
+): NormalizedResourceLink | null => {
+  if (isResourceMarkdownLinkElement(value)) {
+    return getResourceLinkFromHref(value.props.href, value.props.children);
+  }
+
+  if (!isValidElement<{ children?: ReactNode; href?: unknown }>(value)) {
+    return null;
+  }
+
+  if (typeof value.props.href === "string") {
+    return getResourceLinkFromHref(value.props.href, value.props.children);
+  }
+
+  return getResourceLinkFromChildren(value.props.children);
+};
+
+const getResourceLinkFromHref = (
+  href: string | undefined,
+  label: ReactNode,
+): NormalizedResourceLink | null => {
+  const resource = parseInAppAgentResourceHref(href);
+  return resource ? { label, resource } : null;
+};
+
+const getOnlyMeaningfulChild = (children: ReactNode) => {
+  const meaningfulChildren = Children.toArray(children).filter((child) => {
+    return typeof child === "string" ? child.trim().length > 0 : true;
+  });
+
+  return meaningfulChildren.length === 1 ? meaningfulChildren[0] : null;
+};
+
+const isResourceMarkdownLinkElement = (
+  value: ReactNode,
+): value is ReactElement<ResourceMarkdownLinkProps> =>
+  isValidElement(value) && value.type === ResourceMarkdownLink;
 
 function CodeBlock({ children }: { children: ReactNode }) {
   const { copy, isCopied } = useCopyToClipboard({ successDuration: 1_500 });

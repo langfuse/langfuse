@@ -1,10 +1,143 @@
 import preview from "../../../../../.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { InAppAgentMessage } from "./InAppAgentMessage";
+import {
+  InAppAgentResourceReferenceObservation,
+  InAppAgentResourceReferenceScore,
+  InAppAgentResourceReferenceTrace,
+} from "./InAppAgentResourceReference";
+import {
+  InAppAgentMessage,
+  type InAppAgentResourceReferenceRenderer,
+} from "./InAppAgentMessage";
 
 const meta = preview.meta({
   component: InAppAgentMessage,
 });
+
+const fakeResourceReferenceRenderer: InAppAgentResourceReferenceRenderer = ({
+  resource,
+  label,
+  presentation,
+}) => {
+  if (resource.id.includes("loading")) {
+    if (resource.type === "trace") {
+      return (
+        <InAppAgentResourceReferenceTrace
+          id={resource.id}
+          label={label}
+          presentation={presentation}
+          state="loading"
+        />
+      );
+    }
+
+    if (resource.type === "observation") {
+      return (
+        <InAppAgentResourceReferenceObservation
+          id={resource.id}
+          label={label}
+          presentation={presentation}
+          state="loading"
+        />
+      );
+    }
+
+    return (
+      <InAppAgentResourceReferenceScore
+        id={resource.id}
+        label={label}
+        presentation={presentation}
+        state="loading"
+      />
+    );
+  }
+
+  if (resource.id.includes("deleted")) {
+    if (resource.type === "trace") {
+      return (
+        <InAppAgentResourceReferenceTrace
+          id={resource.id}
+          label={label}
+          presentation={presentation}
+          state="unavailable"
+        />
+      );
+    }
+
+    if (resource.type === "observation") {
+      return (
+        <InAppAgentResourceReferenceObservation
+          id={resource.id}
+          label={label}
+          presentation={presentation}
+          state="unavailable"
+        />
+      );
+    }
+
+    return (
+      <InAppAgentResourceReferenceScore
+        id={resource.id}
+        label={label}
+        presentation={presentation}
+        state="unavailable"
+      />
+    );
+  }
+
+  if (resource.type === "trace") {
+    return (
+      <InAppAgentResourceReferenceTrace
+        href={`/project/project-demo/traces/${resource.id}`}
+        id={resource.id}
+        label={label}
+        presentation={presentation}
+        resource={{
+          environment: "production",
+          name: "checkout-agent",
+          timestamp: "2026-06-16T14:00:00.000Z",
+          userId: "user-42",
+        }}
+        state="loaded"
+      />
+    );
+  }
+
+  if (resource.type === "observation") {
+    return (
+      <InAppAgentResourceReferenceObservation
+        href={`/project/project-demo/traces/${resource.traceId}?observation=${resource.id}`}
+        id={resource.id}
+        label={label}
+        presentation={presentation}
+        resource={{
+          model: "gpt-4.1",
+          name: "OpenAI generation",
+          startTime: "2026-06-16T14:00:00.000Z",
+          type: "GENERATION",
+        }}
+        state="loaded"
+      />
+    );
+  }
+
+  return (
+    <InAppAgentResourceReferenceScore
+      href={`/project/project-demo/scores?scoreId=${resource.id}`}
+      id={resource.id}
+      label={label}
+      presentation={presentation}
+      resource={{
+        dataType: "NUMERIC",
+        name: "quality",
+        source: "API",
+        timestamp: "2026-06-16T14:00:00.000Z",
+        value: 0.92,
+      }}
+      state="loaded"
+    />
+  );
+};
 
 export const AssistantText = meta.story({
   args: {
@@ -142,6 +275,96 @@ export const AssistantMarkdown = meta.story({
         '  "next": "content still arriving"',
       ].join("\n"),
     },
+  },
+});
+
+export const AssistantResourceReferences = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: [
+        "The latency spike starts in [trace trace-demo](https://cloud.langfuse.com/project/project-demo/traces/trace-demo) and appears related to the generation step.",
+        "",
+        "https://cloud.langfuse.com/project/project-demo/traces/trace-demo",
+        "",
+        "- [observation obs-demo](https://cloud.langfuse.com/project/project-demo/traces/trace-demo?observation=obs-demo)",
+        "- [score score-demo](https://cloud.langfuse.com/project/project-demo/scores?scoreId=score-demo)",
+        "- [deleted trace](https://cloud.langfuse.com/project/project-demo/traces/deleted-trace)",
+        "- [loading score](https://cloud.langfuse.com/project/project-demo/scores?scoreId=loading-score)",
+        "",
+        "Regular links still render normally: [Langfuse docs](https://langfuse.com/docs).",
+      ].join("\n"),
+    },
+    renderResourceReference: fakeResourceReferenceRenderer,
+  },
+});
+
+export const AssistantTraceList = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: [
+        "These traces had the highest latency:",
+        "",
+        "- [trace trace-demo](https://cloud.langfuse.com/project/project-demo/traces/trace-demo)",
+        "- [trace trace-demo-2](https://cloud.langfuse.com/project/project-demo/traces/trace-demo-2)",
+        "- [trace trace-demo-3](https://cloud.langfuse.com/project/project-demo/traces/trace-demo-3)",
+      ].join("\n"),
+    },
+    renderResourceReference: fakeResourceReferenceRenderer,
+  },
+});
+
+export const AssistantObservationList = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: [
+        "The slow path is concentrated in these observations:",
+        "",
+        "- [generation obs-demo](https://cloud.langfuse.com/project/project-demo/traces/trace-demo?observation=obs-demo)",
+        "- [tool obs-demo-2](https://cloud.langfuse.com/project/project-demo/traces/trace-demo?observation=obs-demo-2)",
+        "- [span obs-demo-3](https://cloud.langfuse.com/project/project-demo/traces/trace-demo?observation=obs-demo-3)",
+      ].join("\n"),
+    },
+    renderResourceReference: fakeResourceReferenceRenderer,
+  },
+});
+
+export const AssistantMixedResourceList = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: [
+        "Mixed resource types stay as normal markdown:",
+        "",
+        "- [trace trace-demo](https://cloud.langfuse.com/project/project-demo/traces/trace-demo)",
+        "- [observation obs-demo](https://cloud.langfuse.com/project/project-demo/traces/trace-demo?observation=obs-demo)",
+        "- [score score-demo](https://cloud.langfuse.com/project/project-demo/scores?scoreId=score-demo)",
+      ].join("\n"),
+    },
+    renderResourceReference: fakeResourceReferenceRenderer,
+  },
+});
+
+export const AssistantMixedList = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: [
+        "Mixed lists stay as normal markdown:",
+        "",
+        "- Check the latency trend first",
+        "- [trace trace-demo](https://cloud.langfuse.com/project/project-demo/traces/trace-demo)",
+        "- Then compare the generation output",
+      ].join("\n"),
+    },
+    renderResourceReference: fakeResourceReferenceRenderer,
   },
 });
 
