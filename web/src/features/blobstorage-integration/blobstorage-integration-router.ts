@@ -102,17 +102,14 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         const isV4PreviewEnabled =
           env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true";
 
-        // One read feeds both gates (mirrors the REST handler): the legacy gate
-        // needs createdAt for an explicit source; the enriched gate needs the
-        // persisted source to reject a stale enriched value on an omitted update.
+        // Feeds both gates: the legacy gate needs createdAt for an explicit
+        // source; the enriched gate needs the persisted source to reject a
+        // stale enriched value on an omitted update.
         const existingIntegration =
-          input.exportSource !== undefined ||
-          !isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)
-            ? await ctx.prisma.blobStorageIntegration.findUnique({
-                where: { projectId: input.projectId },
-                select: { createdAt: true, exportSource: true },
-              })
-            : null;
+          await ctx.prisma.blobStorageIntegration.findUnique({
+            where: { projectId: input.projectId },
+            select: { createdAt: true, exportSource: true },
+          });
 
         // Legacy gate checks explicit values only; omitted preserves the row,
         // CREATE is covered by forceEventsOnCreate below.
