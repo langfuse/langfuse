@@ -14,27 +14,38 @@ This prints the available commands.
 
 ## Commands
 
-### `freeze-prop`
+### `react-component-doctor`
 
-Refactors component props into stricter component variants.
+Interactively inspects and refactors React component props. The command asks
+for a component once, then lets you run multiple actions against that component
+without restarting the CLI.
 
 ```sh
-./scripts/sweepy/main.ts freeze-prop
+./scripts/sweepy/main.ts react-component-doctor
 ```
 
 The script prompts for:
 
 1. Component name, defaulting to `Button`.
-2. Prop name, defaulting to `className`.
-3. Props type/interface name, defaulting to `${ComponentName}Props`.
-4. Usage search root, defaulting to `web/src`.
-5. TypeScript config path, defaulting to `web/tsconfig.json`.
-6. Component definition file selection if multiple candidates are found. Choose
+2. Props type/interface name, defaulting to `${ComponentName}Props`.
+3. Usage search root, defaulting to `web/src`.
+4. TypeScript config path, defaulting to `web/tsconfig.json`.
+5. Component definition file selection if multiple candidates are found. Choose
    `other` to manually input a path.
+
+After setup, choose one of these actions:
+
+1. `freeze prop`
+2. `replace prop value`
+3. `change component`
+4. `exit`
 
 Relative paths entered in prompts are resolved from the repository root.
 
-## What It Does
+## Freeze Prop Action
+
+Refactors a component prop into stricter component variants. The action prompts
+for the prop name, defaulting to `className`.
 
 1. Finds JSX usages and destructured prop defaults with supported string or
    numeric prop values. For `className`, this also includes simple `cn(...)`
@@ -57,26 +68,20 @@ Other props support string and numeric literals, plus ternaries whose branches
 are also supported literal values. Constants and function calls are reported and
 left unchanged.
 
-### `replace-prop-value`
+## Replace Prop Value Action
 
 Replaces one static component prop value with another prop value.
 
-```sh
-./scripts/sweepy/main.ts replace-prop-value
-```
+The action reads the selected component props type/interface and prompts from
+the definition:
 
-The script prompts for:
+1. Source prop.
+2. Source value from the source prop literal values.
+3. Target prop.
+4. Target value from the target prop literal values.
 
-1. Component name, defaulting to `LangfuseIcon`.
-2. Source prop, defaulting to `className`.
-3. Source value, defaulting to `h-8 w-8`.
-4. Target prop, defaulting to `size`.
-5. Target value, defaulting to `32`.
-6. Props type/interface name, defaulting to `${ComponentName}Props`.
-7. Usage search root, defaulting to `web/src`.
-8. TypeScript config path, defaulting to `web/tsconfig.json`.
-9. Component definition file selection if multiple candidates are found. Choose
-   `other` to manually input a path.
+If a selected prop is typed as `string`, `number`, or another non-literal type,
+the action stops and asks you to run `freeze prop` first.
 
 For example, the defaults rewrite:
 

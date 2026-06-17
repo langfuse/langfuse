@@ -60,6 +60,20 @@ type CollectedValues = {
 
 type SaveDecision = "write" | "discard";
 
+type ComponentDoctorContext = {
+  componentName: string;
+  propsTypeName: string;
+  usageRoot: string;
+  tsConfigPath: string;
+  project: Project;
+  definitionFile: SourceFile;
+};
+
+type ComponentDoctorSettings = Pick<
+  ComponentDoctorContext,
+  "componentName" | "propsTypeName" | "usageRoot" | "tsConfigPath"
+>;
+
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
@@ -67,8 +81,7 @@ const repoRoot = path.resolve(
 const defaultPropName = "className";
 const maxClassValueVariants = 16;
 const otherDefinitionFileOption = "other";
-const freezePropCommand = "freeze-prop";
-const replacePropValueCommand = "replace-prop-value";
+const reactComponentDoctorCommand = "react-component-doctor";
 const banner = String.raw`
      _______  _     _  _______  _______  _______  __   __ 
     |       || | _ | ||       ||       ||       ||  | |  |
@@ -85,8 +98,7 @@ function printHelp() {
   console.log(`Usage: ./scripts/sweepy/main.ts <command>
 
 Commands:
-  ${freezePropCommand}        Refactor component props into strict variants
-  ${replacePropValueCommand}  Replace one static component prop value with another prop value`);
+  ${reactComponentDoctorCommand}  Inspect and refactor React component props interactively`);
 }
 
 export function createStringUnionType(values: string[]): string {
@@ -879,6 +891,27 @@ function getPropsProperty(
   return undefined;
 }
 
+function getPropsProperties(
+  sourceFile: SourceFile,
+  propsTypeName: string,
+): PropertySignature[] {
+  const interfaceDeclaration = sourceFile.getInterface(propsTypeName);
+  if (interfaceDeclaration) return interfaceDeclaration.getProperties();
+
+  const typeAliasDeclaration = sourceFile.getTypeAlias(propsTypeName);
+  const typeNode = typeAliasDeclaration?.getTypeNode();
+  if (typeNode && Node.isTypeLiteral(typeNode)) return typeNode.getProperties();
+
+  if (typeNode && Node.isIntersectionTypeNode(typeNode)) {
+    return typeNode
+      .getTypeNodes()
+      .filter((node): node is TypeLiteralNode => Node.isTypeLiteral(node))
+      .flatMap((node) => node.getProperties());
+  }
+
+  return [];
+}
+
 function getStrictPropTypeValues(
   property: PropertySignature,
 ): PropValue[] | undefined {
@@ -1317,20 +1350,10 @@ function printChangedFiles(project: Project, heading = "\nFiles to edit:") {
   for (const file of getChangedFiles(project)) console.log(`- ${file}`);
 }
 
-async function freezeProp() {
-  console.log(banner);
-
-  const componentName = askWithDefault("Component name", "Button");
-  const propName = askWithDefault("Prop name", defaultPropName);
-  const propsTypeName = askWithDefault(
-    "Props type/interface name",
-    `${componentName}Props`,
-  );
-  const usageRoot = askWithDefault("Usage search root", "web/src");
-  const tsConfigPath = askWithDefault(
-    "TypeScript config path",
-    "web/tsconfig.json",
-  );
+async function createComponentDoctorContext(
+  settings: ComponentDoctorSettings,
+): Promise<ComponentDoctorContext> {
+  const { componentName, propsTypeName, usageRoot, tsConfigPath } = settings;
 
   const project = await withStatus(
     "Loading TypeScript project",
@@ -1353,6 +1376,45 @@ async function freezeProp() {
     componentName,
     usageRoot,
   );
+
+  return {
+    componentName,
+    propsTypeName,
+    usageRoot,
+    tsConfigPath,
+    project,
+    definitionFile,
+  };
+}
+
+function askForComponentDoctorSettings(
+  defaults?: Partial<ComponentDoctorSettings>,
+): ComponentDoctorSettings {
+  const componentName = askWithDefault(
+    "Component name",
+    defaults?.componentName ?? "Button",
+  );
+  const propsTypeName = askWithDefault(
+    "Props type/interface name",
+    defaults?.propsTypeName ?? `${componentName}Props`,
+  );
+  const usageRoot = askWithDefault(
+    "Usage search root",
+    defaults?.usageRoot ?? "web/src",
+  );
+  const tsConfigPath = askWithDefault(
+    "TypeScript config path",
+    defaults?.tsConfigPath ?? "web/tsconfig.json",
+  );
+
+  return { componentName, propsTypeName, usageRoot, tsConfigPath };
+}
+
+async function freezeProp(
+  context: ComponentDoctorContext,
+): Promise<SaveDecision | undefined> {
+  const { componentName, propsTypeName, project, definitionFile } = context;
+  const propName = askWithDefault("Prop name", defaultPropName);
 
   const { usages, unsupportedUsages } = await withStatus(
     `Collecting ${componentName} ${propName} usages`,
@@ -1374,7 +1436,7 @@ async function freezeProp() {
 
   if (values.length === 0) {
     console.log(`No supported ${propName} usages found for ${componentName}.`);
-    return;
+    return undefined;
   }
 
   printDiscoverySummary(values, usages, [
@@ -1385,7 +1447,7 @@ async function freezeProp() {
   if (unsupportedUsages.length + defaultValues.unsupportedUsages.length > 0) {
     if (!confirm("Continue and leave unsupported usages unchanged?")) {
       console.log("No files were written.");
-      return;
+      return undefined;
     }
   }
 
@@ -1402,51 +1464,47 @@ async function freezeProp() {
     propName,
   );
 
-  await askToSaveChanges(project);
+  return await askToSaveChanges(project);
 }
 
-async function replacePropValue() {
-  console.log(banner);
-
-  const componentName = askWithDefault("Component name", "LangfuseIcon");
-  const fromPropName = askWithDefault("From prop", defaultPropName);
-  const fromValue = askForPropValue("From value", "h-8 w-8");
-  const toPropName = askWithDefault("To prop", "size");
-  const toValue = askForPropValue("To value", "32");
-  const propsTypeName = askWithDefault(
-    "Props type/interface name",
-    `${componentName}Props`,
-  );
-  const usageRoot = askWithDefault("Usage search root", "web/src");
-  const tsConfigPath = askWithDefault(
-    "TypeScript config path",
-    "web/tsconfig.json",
-  );
-
-  if (fromPropName === toPropName) {
-    throw new Error("From prop and to prop must be different.");
+async function replacePropValue(
+  context: ComponentDoctorContext,
+): Promise<SaveDecision | undefined> {
+  const { componentName, propsTypeName, project, definitionFile } = context;
+  const propsProperties = getPropsProperties(definitionFile, propsTypeName);
+  if (propsProperties.length === 0) {
+    console.log(`Could not find props on ${propsTypeName}.`);
+    return undefined;
   }
 
-  const project = await withStatus(
-    "Loading TypeScript project",
-    () =>
-      new Project({
-        tsConfigFilePath: resolveRepoPath(tsConfigPath),
-        manipulationSettings: { quoteKind: QuoteKind.Double },
-      }),
+  const fromProperty = askToSelectProp("From prop", propsProperties);
+  const fromPropName = fromProperty.getName();
+  const fromValues = getStrictPropTypeValues(fromProperty);
+  if (!fromValues) {
+    printPropMustBeFrozen(fromPropName);
+    return undefined;
+  }
+  const fromValue = askToSelectOption(
+    `From ${fromPropName} value`,
+    fromValues,
+    renderPropValue,
   );
 
-  await withStatus("Loading usage files", () => {
-    project.addSourceFilesAtPaths([
-      path.join(resolveRepoPath(usageRoot), "**/*.ts"),
-      path.join(resolveRepoPath(usageRoot), "**/*.tsx"),
-    ]);
-  });
-
-  const definitionFile = await selectComponentDefinitionFile(
-    project,
-    componentName,
-    usageRoot,
+  const toProperty = askToSelectDifferentProp(
+    "To prop",
+    propsProperties,
+    fromPropName,
+  );
+  const toPropName = toProperty.getName();
+  const toValues = getStrictPropTypeValues(toProperty);
+  if (!toValues) {
+    printPropMustBeFrozen(toPropName);
+    return undefined;
+  }
+  const toValue = askToSelectOption(
+    `To ${toPropName} value`,
+    toValues,
+    renderPropValue,
   );
 
   const usageSummary = await withStatus(
@@ -1480,16 +1538,49 @@ async function replacePropValue() {
 
   printReplacementSummary(replacedUsages, updatedDefinition, unsupportedUsages);
 
-  if (replacedUsages === 0 && !updatedDefinition) return;
+  if (replacedUsages === 0 && !updatedDefinition) return undefined;
 
   if (unsupportedUsages.length > 0) {
     if (!confirm("Continue and leave unsupported usages unchanged?")) {
       console.log("No files were written.");
-      return;
+      return "discard";
     }
   }
 
-  await askToSaveChanges(project);
+  return await askToSaveChanges(project);
+}
+
+async function reactComponentDoctor() {
+  console.log(banner);
+
+  let settings = askForComponentDoctorSettings();
+  let context = await createComponentDoctorContext(settings);
+
+  while (true) {
+    console.log(`\nComponent: ${context.componentName}`);
+    const action = askToSelectOption(
+      "Action",
+      ["freeze prop", "replace prop value", "change component", "exit"],
+      (value) => value,
+    );
+
+    if (action === "exit") return;
+
+    if (action === "change component") {
+      settings = askForComponentDoctorSettings(settings);
+      context = await createComponentDoctorContext(settings);
+      continue;
+    }
+
+    const decision =
+      action === "freeze prop"
+        ? await freezeProp(context)
+        : await replacePropValue(context);
+
+    if (decision === "discard") {
+      context = await createComponentDoctorContext(settings);
+    }
+  }
 }
 
 async function main() {
@@ -1506,13 +1597,8 @@ async function main() {
     return;
   }
 
-  if (command === freezePropCommand) {
-    await freezeProp();
-    return;
-  }
-
-  if (command === replacePropValueCommand) {
-    await replacePropValue();
+  if (command === reactComponentDoctorCommand) {
+    await reactComponentDoctor();
     return;
   }
 
@@ -1565,13 +1651,79 @@ function printReplacementSummary(
   }
 }
 
-function askForPropValue(label: string, defaultValue: string): PropValue {
-  const answer = askWithDefault(label, defaultValue);
-  const numericValue = Number(answer);
-  if (answer.trim() !== "" && Number.isFinite(numericValue))
-    return numericValue;
+function askToSelectProp(
+  label: string,
+  properties: PropertySignature[],
+): PropertySignature {
+  return askToSelectOption(label, getUniqueProps(properties), renderPropOption);
+}
 
-  return answer;
+function askToSelectDifferentProp(
+  label: string,
+  properties: PropertySignature[],
+  selectedPropName: string,
+): PropertySignature {
+  const options = getUniqueProps(properties).filter(
+    (property) => property.getName() !== selectedPropName,
+  );
+  if (options.length === 0) {
+    throw new Error(`No prop other than ${selectedPropName} found.`);
+  }
+
+  return askToSelectOption(label, options, renderPropOption);
+}
+
+function getUniqueProps(properties: PropertySignature[]): PropertySignature[] {
+  const uniqueProperties = new Map<string, PropertySignature>();
+  for (const property of properties) {
+    const name = property.getName();
+    if (!uniqueProperties.has(name)) uniqueProperties.set(name, property);
+  }
+
+  return [...uniqueProperties.values()].sort((left, right) =>
+    left.getName().localeCompare(right.getName()),
+  );
+}
+
+function renderPropOption(property: PropertySignature): string {
+  return `${property.getName()}: ${property.getTypeNode()?.getText() ?? "unknown"}`;
+}
+
+function printPropMustBeFrozen(propName: string) {
+  console.log(
+    `${propName} is not frozen to literal values yet. Run the freeze prop action first, then retry replace prop value.`,
+  );
+}
+
+function askToSelectOption<T>(
+  label: string,
+  options: T[],
+  renderOption: (option: T) => string,
+): T {
+  if (options.length === 0)
+    throw new Error(`No options available for ${label}.`);
+
+  console.log(`\n${label}:`);
+  options.forEach((option, index) => {
+    console.log(`${index + 1}. ${renderOption(option)}`);
+  });
+
+  while (true) {
+    const answer = askWithDefault(
+      `Select ${label.toLowerCase()} (number)`,
+      "1",
+    );
+    const selectedIndex = Number.parseInt(answer, 10) - 1;
+    if (
+      Number.isInteger(selectedIndex) &&
+      selectedIndex >= 0 &&
+      selectedIndex < options.length
+    ) {
+      return options[selectedIndex];
+    }
+
+    console.log(`Please enter a number from 1 to ${options.length}.`);
+  }
 }
 
 function askWithDefault(label: string, defaultValue: string): string {
