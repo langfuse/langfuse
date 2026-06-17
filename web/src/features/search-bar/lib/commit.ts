@@ -13,8 +13,12 @@ import { astToFilterState, type ScoreTypeContext } from "./adapter";
 import { serialize, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
-/** Search scope applied when the query carries no explicit `in:` token. */
-export const DEFAULT_SEARCH_TYPE: TracingSearchType[] = ["id"];
+// The full-text scope a bare query (no scope token) applies: ids & names
+// (`id` lane) PLUS input & output (`content` lane). Typing plain text searches
+// all of them. `input:`/`output:` narrow to one column; `name:`/`id:` narrow to
+// those. `content` here is the backend searchType lane (input ∪ output), not a
+// user-typed token — the `content:` grammar token has been removed.
+export const DEFAULT_SEARCH_TYPE: TracingSearchType[] = ["id", "content"];
 
 export type CommitResult =
   | {

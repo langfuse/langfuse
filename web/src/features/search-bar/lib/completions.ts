@@ -9,7 +9,7 @@
 // operators with unit-aware examples, text fields offer the positional `*` glob
 // match refinements (*v* contains, v* starts, *v ends, =v exact), metadata/
 // scores suggest observed keys and values, has: enumerates its domain, and free
-// text (plus content:/input:/output:) offers scoped full-text search rewrites.
+// text (plus input:/output:) offers scoped full-text search rewrites.
 
 import {
   indexOfOutsideQuotes,
@@ -220,13 +220,6 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
         label: "has",
         detail: "field has a value, e.g. has:endTime (-has: for missing)",
         fieldId: "has",
-      },
-      {
-        id: "field:content",
-        kind: "field",
-        label: "content",
-        detail: "full-text search in input + output, e.g. content:refund",
-        fieldId: "content",
       },
     );
   }
@@ -521,30 +514,16 @@ function valueStageSections(
 
   switch (ref.type) {
     case "pseudo": {
-      if (ref.id === "has") {
-        const all = nullableFields().map((f) => ({
-          id: `value:${f.id}`,
-          kind: "value" as const,
-          label: f.id,
-          detail: f.description,
-          value: f.id,
-        }));
-        return {
-          sections: section(SECTION_VALUES, valueOptions(all, typed)),
-          loading: false,
-        };
-      }
-      // content: is free-form text (no enumerated values), but the caret being
-      // in its value is the moment to offer moving the WHOLE block to another
-      // scope — the reverse of the free-text → content: rewrite. Each switch
-      // carries the value and replaces the entire `content:…` token. Suppress
-      // when negated, so the rewrite can't splice away the leading `-`.
-      if (typed.length === 0 || negated) return null;
+      // `has` is the only pseudo-field: suggest the nullable fields it can name.
+      const all = nullableFields().map((f) => ({
+        id: `value:${f.id}`,
+        kind: "value" as const,
+        label: f.id,
+        detail: f.description,
+        value: f.id,
+      }));
       return {
-        sections: section(
-          SECTION_SEARCH_IN,
-          scopeSwitchOptions("content", typed, tokenSpan),
-        ),
+        sections: section(SECTION_VALUES, valueOptions(all, typed)),
         loading: false,
       };
     }
@@ -648,16 +627,17 @@ function valueStageSections(
           loading: false,
         };
       }
-      // text
-      if (f.syncMode === "textSearch") {
+      // text. A pure textSearch field (input/output) has no value list; an
+      // observed-value picker is offered only when `suggestObservedValues` is
+      // set (id/name), which fall through to the picker branch below.
+      if (f.syncMode === "textSearch" && !f.suggestObservedValues) {
         // No enumerable values. Once a value is typed, offer glob/exact
         // refinements that wrap it (bare value already means contains).
         if (typed.length === 0) return null;
         // input:/output: are full-text scopes too, so also offer switching the
-        // whole token to the other scopes (mirrors content: and free text). NOT
-        // when negated: tokenSpan covers the leading `-`, so the rewrite would
-        // drop it and flip the filter to its complement (mirrors the free-text →
-        // scope path, which is likewise gated on !negated).
+        // whole token to the other scope. NOT when negated: tokenSpan covers the
+        // leading `-`, so the rewrite would drop it and flip the filter to its
+        // complement (mirrors the free-text → scope path, gated on !negated).
         const scopeSwitches =
           !negated && (f.id === "input" || f.id === "output")
             ? scopeSwitchOptions(f.id, typed, tokenSpan)
@@ -670,6 +650,9 @@ function valueStageSections(
           loading: false,
         };
       }
+      // Observed-value picker: exactOption/arrayOption fields, plus textSearch
+      // fields flagged `suggestObservedValues` (id/name — they search as
+      // substring but still suggest existing values).
       if (observed === undefined) return { sections: [], loading: true };
       const all = observedValues(observed, f.id).map((o) => ({
         id: `value:${o.value}`,
@@ -765,11 +748,10 @@ export type InputCompletionContext = {
 };
 
 // The contiguous free-text run containing `caret` — the same block the composer
-// coalesces visually. A scope rewrite (content:/input:/output:) wraps this WHOLE
-// run, not just the token under the caret, so picking it on a multi-word block
-// produces `content:"abc abc abc"` rather than a `content:abc` that strands the
-// rest as free text (which the content-scope guard then rejects). Returns null
-// when the caret isn't on a bare free-text word.
+// coalesces visually. A scope rewrite (input:/output:) wraps this WHOLE run, not
+// just the token under the caret, so picking it on a multi-word block produces
+// `input:"abc abc abc"` rather than an `input:abc` that strands the rest as free
+// text. Returns null when the caret isn't on a bare free-text word.
 function freeTextRun(
   input: string,
   caret: number,
@@ -778,7 +760,7 @@ function freeTextRun(
   // field alias — the parser (parseTermNode) and composer (coalesceFreeText)
   // both treat `tags`/`env`/… as text, so the run must too. Without this, a run
   // like `tags hello` stops expanding at `tags`, the scope rewrite wraps only
-  // `hello`, and picking `content:hello` strands `tags` → contentScopeConflict.
+  // `hello`, and picking `input:hello` would strand `tags` as separate free text.
   const isFreeText = (raw: string) =>
     !raw.startsWith("-") &&
     indexOfOutsideQuotes(raw, ":") === -1 &&
@@ -820,21 +802,21 @@ function freeTextRun(
   return { from, to, text };
 }
 
-// The four full-text scopes the bar can switch a value between. `default` is
-// bare free text (ids & names); content:/input:/output: are the scoped forms.
-type FullTextScope = "default" | "content" | "input" | "output";
+// The full-text scopes the bar can switch a value between. `default` is bare
+// free text (ids, names, input & output); input:/output: are the scoped forms.
+type FullTextScope = "default" | "input" | "output";
 
 // Switch options that move a full-text value between scopes, carrying the value
 // and replacing the WHOLE token/run (replaceSpan). Used in both directions:
-// forward (bare text → content:/input:/output:) and back/between
-// (content:/input:/output: → each other or default). `value` is the raw
-// (unquoted) text; it's serialized so a multi-word phrase stays one token.
+// forward (bare text → input:/output:) and back/between (input:/output: → each
+// other or default). `value` is the raw (unquoted) text; it's serialized so a
+// multi-word phrase stays one token.
 //
 // `keepCurrentFirst` keeps the current scope in the list, listed first, instead
 // of excluding it: for bare free text it surfaces the typed text itself as an
 // explicit "this is the default-scope search" option (the anchor) ahead of the
-// content:/input:/output: rewrites. Value-stage switches leave it off, so a
-// `content:` value never offers a no-op switch back to `content:`.
+// input:/output: rewrites. Value-stage switches leave it off, so an `input:`
+// value never offers a no-op switch back to `input:`.
 function scopeSwitchOptions(
   current: FullTextScope,
   value: string,
@@ -844,24 +826,19 @@ function scopeSwitchOptions(
   const v = serializeValue(value);
   const defs: { scope: FullTextScope; insert: string; detail: string }[] = [
     {
-      scope: "content",
-      insert: `content:${v}`,
-      detail: "full-text search in input + output",
-    },
-    {
       scope: "input",
       insert: `input:${v}`,
-      detail: "search the input payload",
+      detail: "search only the input payload",
     },
     {
       scope: "output",
       insert: `output:${v}`,
-      detail: "search the output payload",
+      detail: "search only the output payload",
     },
     {
       scope: "default",
       insert: v,
-      detail: "search ids & names (default scope)",
+      detail: "default: ids, names, input & output",
     },
   ];
   const ordered = opts?.keepCurrentFirst
@@ -994,7 +971,7 @@ export function planInputCompletions(
     // the block the user sees, not one word — and quotes via serializeValue so a
     // multi-word phrase stays one token. Strip any quotes the user already typed
     // (`"hello world"`) first, mirroring the value-stage path, so serializeValue
-    // re-quotes once instead of emitting a doubly-quoted `content:"\"…\""`.
+    // re-quotes once instead of emitting a doubly-quoted `input:"\"…\""`.
     const run =
       colon === -1 && !negated
         ? freeTextRun(ctx.currentQueryText, caret)
@@ -1008,7 +985,7 @@ export function planInputCompletions(
             run.text,
             { from: run.from, to: run.to },
             // Surface the typed text itself (default scope) as the first option,
-            // ahead of the content:/input:/output: rewrites.
+            // ahead of the input:/output: rewrites.
             { keepCurrentFirst: true },
           )
         : [];

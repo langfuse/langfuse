@@ -18,7 +18,6 @@ const eventsView: RegistryUnderTest = {
     "metadata.region",
     "scores.accuracy",
     "traceScores.nps",
-    "content",
     "has:endTime",
     "has:latency",
   ],

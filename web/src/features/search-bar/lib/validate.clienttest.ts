@@ -67,9 +67,9 @@ describe("validateQuery — merged-diagnostic dedup", () => {
     ["tags:", 'Missing value after "tags:"'],
     ["metadata.region:", 'Missing value after "metadata.region:"'],
     ["has:", 'Missing value after "has:"'],
-    // content: routes through lowerContent; operator-prefix forms carry the
-    // prefix in the parser's wording — both previously doubled.
-    ["content:", 'Missing value after "content:"'],
+    // textSearch column with no value; operator-prefix forms carry the prefix
+    // in the parser's wording — both previously doubled.
+    ["input:", 'Missing value after "input:"'],
     ["level:=", 'Missing value after "level:="'],
     ["latency:>", 'Missing value after "latency:>"'],
   ])(

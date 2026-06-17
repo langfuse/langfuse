@@ -357,45 +357,38 @@ describe("astToFilterState", () => {
     expect(lower("has:(endTime OR userId)").errors.length).toBeGreaterThan(0);
   });
 
-  it("lowers content: to the content search scope + query", () => {
-    const r = lower('content:"refund policy"');
+  it("lowers bare free text to searchQuery with the default scope", () => {
+    // The bar emits no scope token; searchType is null and the caller applies
+    // the default (ids+names+input+output). Multiple bare words are one phrase.
+    const r = lower("refund policy");
     expect(r.errors).toEqual([]);
-    expect(r.searchType).toEqual(["content"]);
+    expect(r.searchType).toBeNull();
     expect(r.searchQuery).toBe("refund policy");
+    expect(r.filters).toEqual([]);
   });
 
-  it("rejects multi-value content: instead of joining it into a phrase", () => {
-    // content:(a OR b) / content:a,b can't mean OR — joining would search the
-    // literal phrase "a b". Reject rather than silently rewrite the boolean.
-    expect(lower("content:(refund OR cancel)").errors.length).toBeGreaterThan(
-      0,
-    );
-    expect(lower("content:refund,cancel").errors.length).toBeGreaterThan(0);
-  });
-
-  it("routes a same-field content: OR through the canonical single-phrase error", () => {
-    // `content:a OR content:b` collapses to a multi-value content node; it must
-    // hit lowerContent's single-phrase error — NOT the old pseudo-branch message
-    // that referenced the removed `in:` token.
-    const r = lower("content:refund OR content:cancel");
-    expect(r.errors.length).toBeGreaterThan(0);
-    expect(r.errors.join(" ")).toContain("single-phrase");
-    expect(r.errors.join(" ")).not.toContain("in:");
-  });
-
-  it("rejects content: sharing the query with bare free text", () => {
-    // content: is one global-scope phrase; a bare sibling (or a second
-    // content:) would silently fuse into one phrase under the content scope.
-    expect(lower("content:refund kitten").errors.length).toBeGreaterThan(0);
-    expect(lower("kitten content:refund").errors.length).toBeGreaterThan(0);
-    expect(lower("content:a content:b").errors.length).toBeGreaterThan(0);
-    // Alone, or with field filters, is fine.
-    expect(lower("content:refund").errors).toEqual([]);
-    expect(lower("content:refund level:ERROR").errors).toEqual([]);
-    // Parens must not defeat the guard — nested AND free text flattens too.
-    expect(
-      lower("content:refund (kitten other)").errors.length,
-    ).toBeGreaterThan(0);
+  it("lowers id:/name: to contains string filters (not exact any-of)", () => {
+    // id/name are textSearch now: bare `key:value` is a substring search.
+    for (const column of ["id", "name"]) {
+      const r = lower(`${column}:chat`);
+      expect(r.errors).toEqual([]);
+      expect(r.filters).toEqual([
+        { type: "string", column, operator: "contains", value: "chat" },
+      ]);
+    }
+    // `key:=value` is the explicit exact match.
+    expect(lower("name:=checkout").filters).toEqual([
+      { type: "string", column: "name", operator: "=", value: "checkout" },
+    ]);
+    // Negation is does-not-contain (flat-representable).
+    expect(lower("-id:abc").filters).toEqual([
+      {
+        type: "string",
+        column: "id",
+        operator: "does not contain",
+        value: "abc",
+      },
+    ]);
   });
 
   it("lowers input:/output: to real column filters (not searchType)", () => {
@@ -443,7 +436,7 @@ describe("validateQuery / adapter parity", () => {
       "-env:dev latency:>2",
       "scores.accuracy:>0.8 traceScores.nps:positive",
       "metadata.region:*eu* has:endTime -has:userId",
-      "content:refund tags:(a AND b)",
+      "input:refund tags:(a AND b)",
       "isRootObservation:true name:*chat*",
       "(level:ERROR OR level:WARNING) env:dev",
     ];
@@ -657,12 +650,14 @@ describe("filterStateToQueryText", () => {
     ).toBe("-input:refund");
   });
 
-  it('rejects quoted-empty content:"" instead of silently wiping state', () => {
-    // The parser allows quoted-empty values, so `content:""` is NOT flagged
-    // there; lowerContent must reject it, or it commits an empty content search
-    // and wipes existing filters with no diagnostic.
-    expect(lower('content:""').errors.length).toBeGreaterThan(0);
-    // Bare `content:` is left to the parser (adapter stays silent — no double).
+  it("rejects content: as an unknown field (the pseudo-field was removed)", () => {
+    // `content:` is no longer a field, so a value form errors as "Unknown field".
+    const r = lower('content:"refund"');
+    expect(r.errors).toEqual(['Unknown field "content"']);
+    expect(r.searchQuery).toBeNull();
+    expect(r.searchType).toBeNull();
+    // Bare `content:` (no value) is left to the parser — the adapter stays silent
+    // (empty-value FilterNode returns before resolveField), so no double.
     expect(lower("content:").errors).toEqual([]);
   });
 
@@ -693,35 +688,96 @@ describe("filterStateToQueryText", () => {
     }
   });
 
-  it("encodes free text and non-default search scopes; round-trips them", () => {
-    const filters: FilterState = [
-      {
-        type: "stringOptions",
-        column: "level",
-        operator: "any of",
-        value: ["ERROR"],
-      },
-    ];
-    const { text } = filterStateToQueryText(filters, {
+  it("normalizes a residual input scope to an input: column filter", () => {
+    // A residual input/output searchType (legacy URL or the legacy toolbar)
+    // renders as the scoped token, which reparses to a real column filter — the
+    // deliberate canonicalization (searchType → column filter on next commit).
+    const { text } = filterStateToQueryText([], {
       searchQuery: "refund policy",
-      searchType: ["content"],
+      searchType: ["input"],
     });
     const r = astToFilterState(validateQuery(text).ast);
     expect(r.errors).toEqual([]);
-    expect(r.filters).toEqual(filters);
-    expect(r.searchQuery).toBe("refund policy");
-    expect(r.searchType).toEqual(["content"]);
+    expect(r.filters).toEqual([
+      {
+        type: "string",
+        column: "input",
+        operator: "contains",
+        value: "refund policy",
+      },
+    ]);
+    expect(r.searchQuery).toBeNull();
+    expect(r.searchType).toBeNull();
   });
 
-  it("omits an in: token for the default (id) search scope", () => {
-    const { text } = filterStateToQueryText([], {
-      searchQuery: "hello",
-      searchType: ["id"],
-    });
-    expect(text).toBe("hello");
-    const r = astToFilterState(validateQuery(text).ast);
-    expect(r.searchType).toBeNull();
-    expect(r.searchQuery).toBe("hello");
+  it("renders the default scope (ids+names+input+output) as bare free text", () => {
+    // Any subset of {id, content} is the default scope — no scope token, so it
+    // round-trips to bare free text (and the caller re-applies the default).
+    for (const searchType of [
+      ["id"],
+      ["id", "content"],
+      ["content"],
+    ] as const) {
+      const { text } = filterStateToQueryText([], {
+        searchQuery: "hello",
+        searchType: [...searchType],
+      });
+      expect(text, `${searchType}`).toBe("hello");
+      const r = astToFilterState(validateQuery(text).ast);
+      expect(r.searchType).toBeNull();
+      expect(r.searchQuery).toBe("hello");
+    }
+  });
+
+  it("preserves EXACT semantics for a single-value stringOptions any-of on id/name", () => {
+    // id/name are stringOptions columns in eventsTable (the facet sidebar emits
+    // this shape), but textSearch fields in the bar. A single-value any-of must
+    // NOT silently re-lower to `contains` — it must keep exact-match semantics.
+    for (const column of ["id", "name"]) {
+      const filters: FilterState = [
+        { type: "stringOptions", column, operator: "any of", value: ["abc"] },
+      ];
+      const { text, skipped } = filterStateToQueryText(filters);
+      expect(skipped).toEqual([]);
+      expect(text).toBe(`${column}:=abc`); // explicit exact, not bare `id:abc`
+      const r = astToFilterState(validateQuery(text).ast);
+      // Stabilizes to {string,=} — same semantics (exact equality), never contains.
+      expect(r.filters).toEqual([
+        { type: "string", column, operator: "=", value: "abc" },
+      ]);
+      // And the stabilized form is a fixpoint (no further drift).
+      const echo = filterStateToQueryText(r.filters);
+      expect(echo.text).toBe(`${column}:=abc`);
+    }
+  });
+
+  it("round-trips a multi-value stringOptions any-of on id/name losslessly", () => {
+    const filters: FilterState = [
+      {
+        type: "stringOptions",
+        column: "id",
+        operator: "any of",
+        value: ["a", "b"],
+      },
+    ];
+    const { text, skipped } = filterStateToQueryText(filters);
+    expect(skipped).toEqual([]);
+    expect(astToFilterState(validateQuery(text).ast).filters).toEqual(filters);
+  });
+
+  it("preserves a single-value stringOptions none-of on id/name via skippedFilters", () => {
+    // `-id:=abc` (negated exact) is not representable, so rather than rewrite it
+    // to `does not contain` (a substring flip), the bar must skip + preserve it.
+    const filters: FilterState = [
+      {
+        type: "stringOptions",
+        column: "name",
+        operator: "none of",
+        value: ["abc"],
+      },
+    ];
+    const { skippedFilters } = filterStateToQueryText(filters);
+    expect(skippedFilters).toEqual(filters);
   });
 
   it("round-trips option values with operator-prefix, keyword, and empty forms", () => {

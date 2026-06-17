@@ -10,7 +10,11 @@
 // Sync modes:
 //   exactOption — option-backed column; '=' lowers to stringOptions any-of
 //   arrayOption — array column (traceTags, toolNames); supports all-of
-//   textSearch  — plain text/number/datetime column; no observed value list
+//   textSearch  — plain text/number/datetime column; '=' lowers to contains
+//
+// `syncMode` drives the LOWERING shape; `suggestObservedValues` drives the
+// AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
+// is a substring search) yet keep their observed-value picker.
 
 import type { CompareOp } from "./ast";
 
@@ -29,13 +33,20 @@ export type FieldDef = {
   unit?: string;
   /** Column can be unset in the dataset — `has:`/`-has:` (null checks) apply. */
   nullable?: boolean;
+  /**
+   * Offer the observed-value picker in autocomplete even when `syncMode` is
+   * `textSearch` (which otherwise has no value list). Lets `id`/`name` search
+   * as substring while still suggesting existing values. Implied for
+   * `exactOption`; only set this on `textSearch` fields that should suggest.
+   */
+  suggestObservedValues?: boolean;
 };
 
 // prettier-ignore
 export const FIELDS: FieldDef[] = [
-  { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "exactOption", description: "Observation/span identifier" },
+  { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation/span identifier" },
   { id: "traceId", aliases: ["traceid", "trace_id"], kind: "text", syncMode: "textSearch", description: "Trace identifier" },
-  { id: "name", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation name", nullable: true },
+  { id: "name", aliases: [], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation name", nullable: true },
   { id: "traceName", aliases: ["tracename", "trace_name"], kind: "text", syncMode: "exactOption", description: "Trace name", nullable: true },
   { id: "type", aliases: [], kind: "text", syncMode: "exactOption", description: "Observation type" },
   { id: "environment", aliases: ["env"], kind: "text", syncMode: "exactOption", description: "Environment", nullable: true },
@@ -88,13 +99,10 @@ export const METADATA_PREFIX = "metadata.";
 const SCORE_PREFIXES = ["scores.", "score."];
 const TRACE_SCORE_PREFIXES = ["tracescores.", "trace_scores.", "tracescore."];
 
-// Pseudo-fields: not columns — `has:<field>` lowers to a null filter, and
-// `content:<text>` is a full-text search over input + output combined. There
-// is no single "content" column, so it lowers to searchQuery + searchType
-// (the only cross-column path); `input:`/`output:` are real text columns and
-// the default (bare free text) searches ids & names.
+// Pseudo-fields: not columns — `has:<field>` lowers to a null filter. (The
+// former `content:` pseudo-field has been removed: a bare query now searches
+// input + output by default, and `input:`/`output:` narrow to one column.)
 export const HAS_KEY = "has";
-export const CONTENT_KEY = "content";
 
 /** Langfuse score filter columns (filter by score NAME via key-value ops). */
 export const SCORE_COLUMNS = {
@@ -109,7 +117,7 @@ export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "metadata"; key: string }
   | { type: "scores"; key: string; level: "observation" | "trace" }
-  | { type: "pseudo"; id: typeof HAS_KEY | typeof CONTENT_KEY };
+  | { type: "pseudo"; id: typeof HAS_KEY };
 
 /**
  * Resolve a user-typed key (case-insensitive, alias-aware) to a field, a
@@ -136,8 +144,7 @@ export function resolveField(name: string): FieldRef | null {
         : null;
     }
   }
-  if (lower === HAS_KEY || lower === CONTENT_KEY)
-    return { type: "pseudo", id: lower };
+  if (lower === HAS_KEY) return { type: "pseudo", id: lower };
   const field = byName.get(lower);
   return field ? { type: "field", field } : null;
 }
@@ -207,10 +214,9 @@ export function operatorIssue(
 
   switch (ref.type) {
     case "pseudo":
+      // `has` is the only pseudo-field.
       if (op !== "=") {
-        return ref.id === "has"
-          ? `has: lists fields that have a value — it does not support ${label(op)}`
-          : `content: is a full-text search — just type the text (e.g. content:refund), not ${label(op)}`;
+        return `has: lists fields that have a value — it does not support ${label(op)}`;
       }
       return null;
     case "metadata":
@@ -274,9 +280,7 @@ export function negationIssue(
     return `negated all-of groups on "${refName(ref)}" are not representable — negate single values instead`;
   }
   if (ref.type === "pseudo") {
-    return ref.id === "content"
-      ? "content: is a full-text search and cannot be negated — search text is global"
-      : null; // -has: is valid (missing value)
+    return null; // `has` is the only pseudo; -has: is valid (missing value)
   }
   if (op === "^" || op === "$") {
     return `negation of ${label(op)} is not representable in the Langfuse filter contract`;

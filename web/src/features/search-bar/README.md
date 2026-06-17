@@ -37,11 +37,11 @@ Per-user **Feature Preview** opt-in. Based on the `langfuse-search-bar` prototyp
   bare form defaults to contains): `statusMessage:*chat*` contains,
   `statusMessage:chat*` starts-with, `statusMessage:*chat` ends-with,
   `statusMessage:chat` bare (contains default), `statusMessage:=chat` exact
-  (quote a literal `*`, e.g. `statusMessage:"a*b"`). On option-backed fields like
-  `name` the bare form is an exact any-of match, not contains.
+  (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
+  way (bare = contains, `:=` = exact) but still suggest observed values.
 - `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
 - `has:endTime` / `-has:endTime` null checks
-- full-text search (see below): bare text, or `content:`/`input:`/`output:`
+- full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
 
 Cross-field OR, negated groups, and other shapes the flat contract cannot
 represent are commit-blocking diagnostics, not silent drops. There is no
@@ -50,37 +50,42 @@ FTS `*` operator: the events tRPC filter contract has none.
 **Full-text search.** It matches as a **contiguous substring** server-side
 (`clickhouse-sql/search.ts`, `ILIKE %query%`) and is expressed field-style:
 
-- **bare text** (`refund policy`) → `searchQuery`, default scope: `id` +
-  `user_id` + `name`.
-- **`content:"refund"`** → input **OR** output combined. There is no single
-  "content" column, so this is the one full-text form that lowers to
-  `searchQuery` + `searchType=content` (a pseudo-field, like `has:`).
+- **bare text** (`refund policy`) → `searchQuery`, default scope:
+  `searchType=['id','content']` — i.e. `id` + `user_id` + `name` (the `id`
+  lane) **and** `input` + `output` (the `content` lane). Typing plain text
+  searches all of them. The adapter emits a `null` searchType (no scope token);
+  `commit.ts`'s `DEFAULT_SEARCH_TYPE` supplies `['id','content']`.
 - **`input:"refund"` / `output:"refund"`** → real `string` "contains" **column
-  filters** on `e.input`/`e.output` (not `searchType`). They round-trip as
-  `FilterState` like any other column filter.
+  filters** on `e.input`/`e.output` (not `searchType`). Use them to narrow the
+  search to one payload channel. They round-trip as `FilterState` like any
+  other column filter, and support operators (`:=`, `*`/glob, `-` negation).
+- **`name:"checkout"` / `id:"abc"`** → `string` "contains" column filters on
+  `name`/`id`. Use them to narrow to that column. They are `textSearch` fields
+  (bare = contains, `:=` = exact) but keep their observed-value autocomplete.
 
-Typing bare text offers the scope rewrites (`content:`/`input:`/`output:`) with
-hover explanations. Scope is global per query (`searchType` is one value), so
+Typing bare text offers the scope rewrites (`input:`/`output:`) with hover
+explanations. Scope is global per query (`searchType` is one value), so
 multi-word free text is a **phrase**, not token-AND — `test media` matches
 "Test Media" but not "Media — Test run" (open Decision A below).
 
-Historical note: the old `in:<scope>` token is **gone**. It overlapped the
-`input:`/`output:` column filters (token-indexed search vs plain ILIKE) and
-read as a cryptic detached pill. The reverse adapter canonicalizes a legacy
+Historical note: the old `in:<scope>` token and the `content:` pseudo-field are
+both **gone**. `content:` searched input + output combined; that is now simply
+the default (a bare query already searches both), so the token was removed (the
+one capability it uniquely had — "payloads but NOT ids/names" — is dropped,
+pending feedback). The reverse adapter canonicalizes a legacy
 `searchType=input|output` to the `input:`/`output:` **column filter** on the
-next commit (the chosen normalization); `content` stays the searchType path.
+next commit (the chosen normalization), and treats any `id`/`content` searchType
+as the default — rendered as bare text, no token.
 
 **Known limitation (multi-scope legacy state).** The bar's scope is a single
-value per query; the legacy toolbar's `searchType` was a _set_. All three legacy
-multi-scope states (each from a pre-bar radio that searched ids/names **and** a
-payload channel at once) drop the id channel on the next commit:
-`['id','content']` collapses to a single `content:"…"` token and narrows the URL
-to `searchType=['content']`; `['id','input']` / `['id','output']` canonicalize
-to `input:"…"` / `output:"…"` **column filters** (per the historical note above)
-and drop the id-scope `searchType`/`searchQuery` entirely. Every single-token
-projection drops _some_ channel, so there's no lossless fix without a real "all
-fields" scope token — deferred past beta. Trigger is narrow (a legacy URL from
-the old dropdown + the bar enabled + a commit).
+value per query; the legacy toolbar's `searchType` was a _set_. `['id','content']`
+now round-trips losslessly — it **is** the default, rendered as bare text. The
+two remaining multi-scope states still drop their id channel on the next commit:
+`['id','input']` / `['id','output']` canonicalize to `input:"…"` / `output:"…"`
+**column filters** (per the historical note above) and drop the id-scope
+`searchType`/`searchQuery`. There's no lossless single-token projection of those
+two without a real per-column "all fields" scope — deferred past beta. Trigger is
+narrow (a legacy URL from the old dropdown + the bar enabled + a commit).
 
 Operator-looking tokens that aren't supported yet are **reserved** — they emit
 an explicit "not supported yet" diagnostic instead of silently becoming free
@@ -269,7 +274,7 @@ refactor; everything after it is data, not code.
 **What stays grammar-global — do not make per-view:** tokenizing, quoting
 (`serializeValue` ↔ `reservedTokenIssue` is a **mirror invariant**: add a
 reserved token to one, add it to the other, or the round-trip test fails),
-operator precedence, and the `has:`/`content:` pseudo-fields. These are language, not
+operator precedence, and the `has:` pseudo-field. These are language, not
 data — a new view inherits them unchanged.
 
 **Do not couple to `ColumnDefinition` speculatively.** Build the derivation +

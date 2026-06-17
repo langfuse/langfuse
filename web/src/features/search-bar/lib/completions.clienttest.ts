@@ -64,6 +64,30 @@ describe("planInputCompletions", () => {
     ]);
   });
 
+  it("keeps the observed-value picker for name:/id: while searching as contains", () => {
+    // name/id are textSearch (so `name:chat` is a substring search) but carry
+    // suggestObservedValues, so the value stage still LISTS observed values and
+    // — once a value is typed — offers the glob/exact refinements alongside.
+    for (const column of ["name", "id"]) {
+      const p = plan(`${column}:`, column.length + 1, {
+        observed: { ...OBSERVED, [column]: [{ value: "checkout" }] },
+      });
+      expect(p?.stage, column).toBe("value");
+      const values = flattenOptions(p).filter((o) => o.kind === "value");
+      expect(
+        values.map((o) => o.kind === "value" && o.value),
+        column,
+      ).toEqual(["checkout"]);
+    }
+    const labels = flattenOptions(
+      plan("name:chat", 9, {
+        observed: { ...OBSERVED, name: [{ value: "chat" }] },
+      }),
+    ).map((o) => o.label);
+    expect(labels).toContain("*chat*"); // contains (the bare-value default)
+    expect(labels).toContain("=chat"); // exact
+  });
+
   it("marks a complete typed value active without arming Enter", () => {
     const p = plan("level:ERROR", 11);
     expect(p?.autoHighlight).toBe(false);
@@ -204,13 +228,14 @@ describe("planInputCompletions", () => {
   it("offers scoped full-text rewrites for free text, default scope first", () => {
     const p = plan("refund", 6);
     const opts = flattenOptions(p);
-    // The typed text itself (default scope = ids & names) is the first option —
-    // the anchor — ahead of the content:/input:/output: rewrites.
+    // The typed text itself (default scope = ids+names+input+output) is the
+    // first option — the anchor — ahead of the input:/output: rewrites.
     expect(opts[0]).toMatchObject({ id: "scope:default", label: "refund" });
     const labels = opts.map((o) => o.label);
-    expect(labels).toContain("content:refund");
     expect(labels).toContain("input:refund");
     expect(labels).toContain("output:refund");
+    // content: was removed — the default already searches input + output.
+    expect(labels).not.toContain("content:refund");
   });
 
   it("scopes the WHOLE coalesced free-text run, not just the caret word", () => {
@@ -219,12 +244,12 @@ describe("planInputCompletions", () => {
     // strand the other words as free text.
     const p = plan("abc abc abc", 5);
     const opts = flattenOptions(p);
-    const content = opts.find((o) => o.id === "scope:content");
-    expect(content?.label).toBe('content:"abc abc abc"');
-    expect(content && "insert" in content && content.insert).toBe(
-      'content:"abc abc abc"',
+    const input = opts.find((o) => o.id === "scope:input");
+    expect(input?.label).toBe('input:"abc abc abc"');
+    expect(input && "insert" in input && input.insert).toBe(
+      'input:"abc abc abc"',
     );
-    expect(content && "replaceSpan" in content && content.replaceSpan).toEqual({
+    expect(input && "replaceSpan" in input && input.replaceSpan).toEqual({
       from: 0,
       to: 11,
     });
@@ -235,9 +260,9 @@ describe("planInputCompletions", () => {
     // — the parser/composer treat it so, and the run must expand across it.
     // Otherwise the rewrite wraps only `hello` and picking it strands `tags`.
     const p = plan("tags hello", 8);
-    const content = flattenOptions(p).find((o) => o.id === "scope:content");
-    expect(content?.label).toBe('content:"tags hello"');
-    expect(content && "replaceSpan" in content && content.replaceSpan).toEqual({
+    const input = flattenOptions(p).find((o) => o.id === "scope:input");
+    expect(input?.label).toBe('input:"tags hello"');
+    expect(input && "replaceSpan" in input && input.replaceSpan).toEqual({
       from: 0,
       to: 10,
     });
@@ -246,12 +271,12 @@ describe("planInputCompletions", () => {
   it("does not double-quote an already-quoted free-text phrase on scope rewrite", () => {
     // `"hello world"` already carries quotes; the rewrite reconstructs the
     // logical phrase and re-serializes it once, so the insert is
-    // `content:"hello world"` — not the broken doubly-quoted
-    // `content:"\"hello world\""` that searches for literal quotes.
+    // `input:"hello world"` — not the broken doubly-quoted
+    // `input:"\"hello world\""` that searches for literal quotes.
     const p = plan('"hello world"', 6);
-    const content = flattenOptions(p).find((o) => o.id === "scope:content");
-    expect(content && "insert" in content && content.insert).toBe(
-      'content:"hello world"',
+    const input = flattenOptions(p).find((o) => o.id === "scope:input");
+    expect(input && "insert" in input && input.insert).toBe(
+      'input:"hello world"',
     );
   });
 
@@ -262,10 +287,10 @@ describe("planInputCompletions", () => {
     const p = plan('"abc abc" abc', 11);
     const opts = flattenOptions(p);
     const def = opts.find((o) => o.id === "scope:default");
-    const content = opts.find((o) => o.id === "scope:content");
+    const input = opts.find((o) => o.id === "scope:input");
     expect(def && "insert" in def && def.insert).toBe('"abc abc abc"');
-    expect(content && "insert" in content && content.insert).toBe(
-      'content:"abc abc abc"',
+    expect(input && "insert" in input && input.insert).toBe(
+      'input:"abc abc abc"',
     );
     // The whole raw run (quotes and all) is the replace span.
     expect(def && "replaceSpan" in def && def.replaceSpan).toEqual({
@@ -283,41 +308,19 @@ describe("planInputCompletions", () => {
     expect(pat && "insert" in pat && pat.insert).toBe("name:*chat*");
   });
 
-  it("offers scope switches when the caret is in a content: value", () => {
-    // The reverse of free-text → content:: clicking into content:"abc" offers
-    // input:/output:/default, each rewriting the WHOLE content: token.
-    const p = plan('content:"abc"', 10);
-    const opts = flattenOptions(p);
-    expect(opts.map((o) => o.id)).toEqual(
-      expect.arrayContaining(["scope:input", "scope:output", "scope:default"]),
-    );
-    // content: must NOT offer a switch back to itself.
-    expect(opts.map((o) => o.id)).not.toContain("scope:content");
-    const toInput = opts.find((o) => o.id === "scope:input");
-    expect(toInput && "insert" in toInput && toInput.insert).toBe("input:abc");
-    expect(toInput && "replaceSpan" in toInput && toInput.replaceSpan).toEqual({
-      from: 0,
-      to: 13,
-    });
-    const toDefault = opts.find((o) => o.id === "scope:default");
-    expect(toDefault && "insert" in toDefault && toDefault.insert).toBe("abc");
-  });
-
   it("offers scope switches when the caret is in an input: value", () => {
     // input:/output: are full-text scopes too — clicking into input:abc must
-    // offer content:/output:/default (and the glob refinements), each rewriting
-    // the WHOLE token, never a switch back to input:.
+    // offer output:/default (and the glob refinements), each rewriting the WHOLE
+    // token, never a switch back to input:.
     const p = plan("input:abc", 9);
     const opts = flattenOptions(p);
     const ids = opts.map((o) => o.id);
     expect(ids).toEqual(
-      expect.arrayContaining([
-        "scope:content",
-        "scope:output",
-        "scope:default",
-      ]),
+      expect.arrayContaining(["scope:output", "scope:default"]),
     );
     expect(ids).not.toContain("scope:input");
+    // content: was removed — never offered as a switch target.
+    expect(ids).not.toContain("scope:content");
     const toOutput = opts.find((o) => o.id === "scope:output");
     expect(toOutput && "insert" in toOutput && toOutput.insert).toBe(
       "output:abc",
@@ -401,9 +404,10 @@ describe("planInputCompletions", () => {
     expect(labels).toContain("=ole"); // exact
     const ids = opts.map((o) => o.id);
     expect(ids).toEqual(
-      expect.arrayContaining(["scope:content", "scope:input", "scope:default"]),
+      expect.arrayContaining(["scope:input", "scope:default"]),
     );
     expect(ids).not.toContain("scope:output");
+    expect(ids).not.toContain("scope:content");
   });
 
   it("treats leading ~/^/$ as literal value chars, not suppressing prefixes", () => {

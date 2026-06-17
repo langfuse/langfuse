@@ -11,9 +11,9 @@
 // guaranteed to lower.
 //
 // Rules:
-// - Top-level AND chain: bare text nodes become searchQuery terms; `in:`
-//   nodes become the request searchType (scopes for those terms); everything
-//   else lowers into one or more single filters.
+// - Top-level AND chain: bare text nodes become searchQuery terms (the default
+//   scope searches ids+names+input+output); everything else lowers into one or
+//   more single filters. The bar emits no scope token, so searchType is null.
 // - A top-level OR of same-field `key:v` equalities collapses to one any-of
 //   filter (`level:ERROR OR level:WARNING` === `level:(ERROR OR WARNING)`).
 //   Any other OR/nested group is not representable.
@@ -37,7 +37,12 @@ export type SingleEventsFilter = FilterState[number];
 export type AstToFilterStateResult = {
   filters: FilterState;
   searchQuery: string | null;
-  /** Scopes from `in:` tokens; null = caller's default. */
+  /**
+   * Full-text scope. Always null today: the bar has no scope tokens — bare free
+   * text uses the caller's default (ids+names+input+output), and `input:`/
+   * `output:`/`name:`/`id:` are column filters, not scopes. Kept as the seam for
+   * caller-default resolution (commit.ts) and any future scope token.
+   */
   searchType: TracingSearchType[] | null;
   errors: string[];
 };
@@ -76,48 +81,6 @@ export function resolveScoreType(
   return "unknown";
 }
 
-function isContentFilter(node: ASTNode): node is FilterNode {
-  if (node.kind !== "filter") return false;
-  const ref = resolveField(node.key);
-  return ref !== null && ref.type === "pseudo" && ref.id === "content";
-}
-
-/**
- * `content:` is a single-phrase full-text search with ONE global scope, so it
- * can't share a query with a bare free-text sibling (which wants the default id
- * scope) or a second `content:` — both lower into the same `searchTerms` and
- * would silently fuse into one phrase under the content scope. Returns the
- * offending content node + message (so the diagnostic can point at it), or
- * null. Checked at the whole-query level by BOTH astToFilterState (commit) and
- * semanticDiagnostics (validate), so the two gates agree.
- */
-export function contentScopeConflict(
-  ast: ASTNode,
-): { node: FilterNode; message: string } | null {
-  // Flatten nested AND groups the way lowerTopLevel does — a parenthesized
-  // `(kitten other)` flattens its free text into searchTerms, so its leaves
-  // count too (else `content:refund (kitten other)` slips the per-child and
-  // top-level checks and silently fuses into one phrase).
-  const leaves = flattenAndLeaves(ast);
-  const contentNode = leaves.find((n): n is FilterNode => isContentFilter(n));
-  if (contentNode === undefined) return null;
-  const textSources = leaves.filter(
-    (n) => n.kind === "text" || isContentFilter(n),
-  ).length;
-  if (textSources <= 1) return null;
-  return {
-    node: contentNode,
-    message:
-      "content: searches the whole query as one phrase — use it alone, not alongside other free text",
-  };
-}
-
-// The leaves lowerTopLevel's AND case flattens into the same query: nested AND
-// groups expand, everything else (filter/text/or/not) is a single leaf.
-function flattenAndLeaves(node: ASTNode): ASTNode[] {
-  return node.kind === "and" ? node.children.flatMap(flattenAndLeaves) : [node];
-}
-
 /**
  * A top-level OR whose children are all same-field single-value `=` filters
  * collapses to one any-of filter node. Null otherwise.
@@ -147,7 +110,6 @@ function collapseSameFieldOr(node: ASTNode): FilterNode | null {
 type LowerContext = {
   filters: SingleEventsFilter[];
   searchTerms: string[];
-  scopes: TracingSearchType[];
   errors: string[];
   scoreTypes?: ScoreTypeContext;
 };
@@ -159,60 +121,26 @@ export function astToFilterState(
   const ctx: LowerContext = {
     filters: [],
     searchTerms: [],
-    scopes: [],
     errors: [],
     scoreTypes,
   };
 
   if (ast !== null) {
-    const conflict = contentScopeConflict(ast);
-    if (conflict !== null) ctx.errors.push(conflict.message);
     lowerTopLevel(ast, false, ctx);
   }
 
   return {
     filters: ctx.filters,
     searchQuery: ctx.searchTerms.length > 0 ? ctx.searchTerms.join(" ") : null,
-    searchType: ctx.scopes.length > 0 ? ctx.scopes : null,
+    // The bar has no scope tokens; the caller (commit.ts) applies the default.
+    searchType: null,
     errors: ctx.errors,
   };
 }
 
-// `content:<text>` is a full-text search over input + output combined. There
-// is no flat-contract filter for "input OR output", so it lowers to the
-// searchQuery + searchType=content path (input:/output: alone are real column
-// filters; the default scope, bare free text, searches ids & names).
-function lowerContent(node: FilterNode, ctx: LowerContext): void {
-  // content: is a single-phrase full-text search (ILIKE %phrase%), so a
-  // grouped/comma form like content:(a OR b) or content:a,b cannot mean "a OR
-  // b" — joining them would silently search the literal phrase "a b". Reject it
-  // rather than rewrite a user-typed boolean into a phrase.
-  if (node.values.length > 1) {
-    ctx.errors.push(
-      "content: is a single-phrase search — it takes one value; search alternatives in separate queries, not content:(a OR b)",
-    );
-    return;
-  }
-  const value = node.values[0];
-  if (value === undefined) {
-    // Bare `content:` — the parser already flags it ("Missing value after
-    // content:"); a second message here would double the diagnostic.
-    return;
-  }
-  if (value.length === 0) {
-    // Quoted-empty `content:""` is NOT flagged by the parser (the intentional
-    // quoted-empty carve-out), so without this it would silently commit an
-    // empty content search and wipe existing filter state. Flag it here.
-    ctx.errors.push("content: needs a search value (e.g. content:refund)");
-    return;
-  }
-  ctx.searchTerms.push(value);
-  if (!ctx.scopes.includes("content")) ctx.scopes.push("content");
-}
-
 // AND chains (top-level or parenthesized — semantically identical in the
-// flat contract) accept free text (-> searchQuery) and `content:` (-> the
-// content searchType scope).
+// flat contract) accept free text (-> searchQuery; the default scope searches
+// ids, names, input, and output) and lower everything else into single filters.
 function lowerTopLevel(
   node: ASTNode,
   negated: boolean,
@@ -256,10 +184,8 @@ function lowerTopLevel(
     case "or": {
       const collapsed = collapseSameFieldOr(node);
       if (collapsed !== null) {
-        // Route the collapsed node the SAME way as a directly-typed filter, so
-        // a same-field content: OR (`content:a OR content:b`) hits the canonical
-        // single-phrase error in lowerContent instead of bypassing it into
-        // lowerFilter's pseudo branch.
+        // Route the collapsed node the SAME way as a directly-typed filter so
+        // the two paths can't drift.
         lowerFilterNode(collapsed, negated, ctx);
         return;
       }
@@ -274,24 +200,13 @@ function lowerTopLevel(
   }
 }
 
-// Route a single FilterNode: content: → the full-text path (lowerContent),
-// everything else → lowerFilter. Both the direct `filter` case and the
-// OR-collapse path go through here so content: routing can't drift between them.
+// Route a single FilterNode into a flat filter. Both the direct `filter` case
+// and the OR-collapse path go through here so the two can't drift.
 function lowerFilterNode(
   node: FilterNode,
   negated: boolean,
   ctx: LowerContext,
 ): void {
-  if (isContentFilter(node)) {
-    if (negated) {
-      ctx.errors.push(
-        "content: is a full-text search and cannot be negated — search text is global",
-      );
-      return;
-    }
-    lowerContent(node, ctx);
-    return;
-  }
   lowerFilter(node, negated, ctx.filters, ctx.errors, ctx.scoreTypes);
 }
 
@@ -332,17 +247,8 @@ function lowerFilter(
 
   switch (ref.type) {
     case "pseudo":
-      if (ref.id === "has") {
-        lowerHas(node, negated, out, errors);
-        return;
-      }
-      // content: is the only other pseudo; lowerTopLevel routes it to
-      // lowerContent (the full-text path) before it can reach here, so this is a
-      // defensive fallback only. Keep the message content-accurate, not the
-      // removed `in:` token.
-      errors.push(
-        "content: is a single-phrase search — it takes one value; search alternatives in separate queries, not content:(a OR b)",
-      );
+      // `has` is the only pseudo-field.
+      lowerHas(node, negated, out, errors);
       return;
     case "metadata":
       lowerMetadata(node, ref.key, negated, out, errors);

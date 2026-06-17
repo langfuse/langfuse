@@ -77,7 +77,20 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
     case "arrayOptions": {
       const id = columnIdOf(filter.column);
       if (id === null || filter.value.length === 0) return null;
+      // A stringOptions/arrayOptions filter is EXACT-set semantics. On a
+      // `textSearch` field (id/name) the bar reads a bare single value as
+      // `contains`, so a single-value any-of would silently flip exact→substring
+      // on the next commit (and a single-value none-of → does-not-contain). The
+      // grouped multi-value forms reparse to exact any-of/none-of, so only the
+      // single-value forms need care.
+      const ref = resolveField(id);
+      const isTextSearch =
+        ref?.type === "field" && ref.field.syncMode === "textSearch";
       if (filter.operator === "none of") {
+        // `-id:=abc` (negated exact) is not representable, so a single none-of on
+        // a textSearch field has no faithful grammar form — skip it (preserved via
+        // skippedFilters) rather than rewrite it to `does not contain`.
+        if (isTextSearch && filter.value.length === 1) return null;
         return negate(filterNode(id, "=", filter.value));
       }
       if (filter.operator === "all of") {
@@ -87,6 +100,12 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
         // rewrite; multi-value all-of serializes to the `(a AND b)` group.
         if (filter.value.length < 2) return null;
         return filterNode(id, "=", filter.value, "and");
+      }
+      // Single-value any-of on a textSearch field: emit the explicit exact form
+      // (`id:=abc`) so it round-trips to `{string,=}` (exact preserved), not the
+      // bare `id:abc` that would re-lower to `contains`.
+      if (isTextSearch && filter.value.length === 1) {
+        return filterNode(id, "exact", filter.value);
       }
       return filterNode(id, "=", filter.value);
     }
@@ -208,15 +227,23 @@ export type FilterStateToQueryResult = {
 export type FilterStateToQueryOptions = {
   /** Global full-text query — rendered as bare text or a scoped field token. */
   searchQuery?: string | null;
-  /** Search scope — rendered as content:/input:/output: when non-default;
-   *  the default (`["id"]`/empty) renders as bare free text. */
+  /** Search scope — a residual input/output searchType renders as input:/output:;
+   *  the default (`["id","content"]` and any id/content subset) renders as bare
+   *  free text. */
   searchType?: TracingSearchType[] | null;
 };
 
-// The default full-text scope (ids & names), rendered as bare free text.
-// astToFilterState returns `null` searchType for a query with no scope field;
-// the sync layer maps that back to this default.
-const DEFAULT_SEARCH_TYPE = "id";
+// The default full-text scope searches ids, names, input, and output — the
+// `id` and `content` searchType lanes together. There is no scope token for it
+// (the `content:` token was removed), so it renders as bare free text.
+// astToFilterState returns `null` searchType for the bar (no scope tokens); the
+// sync layer maps that back to this default, hence `["id","content"]` (and any
+// subset) must also be recognized as "default" so it round-trips to bare text
+// rather than a stray scope token.
+const DEFAULT_SEARCH_TYPES: ReadonlySet<TracingSearchType> = new Set([
+  "id",
+  "content",
+]);
 
 function isDefaultSearchType(
   searchType: TracingSearchType[] | null | undefined,
@@ -224,20 +251,19 @@ function isDefaultSearchType(
   return (
     searchType == null ||
     searchType.length === 0 ||
-    (searchType.length === 1 && searchType[0] === DEFAULT_SEARCH_TYPE)
+    searchType.every((t) => DEFAULT_SEARCH_TYPES.has(t))
   );
 }
 
-// The bar field that expresses a non-default search scope: content (input +
-// output, or both selected) → the content: pseudo; input/output alone → their
-// real text columns; id / empty → null (the default, rendered as bare text).
+// The bar field that expresses a non-default search scope. input/output alone
+// (e.g. from a pre-existing URL or the legacy toolbar) render as their real
+// text columns, which reparse to column filters — the intended convergence.
+// The default (ids+names+input+output) and id/content combos → null (bare text).
 function scopedSearchField(
   searchType: TracingSearchType[] | null | undefined,
-): "content" | "input" | "output" | null {
+): "input" | "output" | null {
   if (isDefaultSearchType(searchType)) return null;
   const set = new Set(searchType ?? []);
-  if (set.has("content") || (set.has("input") && set.has("output")))
-    return "content";
   if (set.has("input")) return "input";
   if (set.has("output")) return "output";
   return null;
@@ -260,16 +286,17 @@ export function filterStateToQueryText(
     nodes.push(node);
   }
 
-  // Full-text search. A non-default scope bundles the whole query into one
-  // scoped token: `content:"…"` (input + output) reparses to searchType=content;
-  // `input:"…"`/`output:"…"` reparse to their real column filters (so a legacy
-  // input/output searchType normalizes to a column filter on the next commit —
-  // the deliberate (a) canonicalization). The default scope (ids & names) is a
-  // single contiguous-substring phrase (ILIKE %query%), so it renders as ONE
-  // token — quoted iff it has whitespace via serializeValue. NOT whitespace-
-  // split: separate tokens would misleadingly read as independent AND terms,
-  // disagree with the scope-rewrite suggestions (which serialize the whole
-  // phrase), and strip a user's own quotes on every derive.
+  // Full-text search. The default scope (ids+names+input+output) has no scope
+  // token, so it renders as bare free text. A residual input/output searchType
+  // (from a pre-existing URL or the legacy toolbar) bundles the whole query into
+  // one `input:"…"`/`output:"…"` token, which reparses to its real column filter
+  // — so such a searchType normalizes to a column filter on the next commit (the
+  // deliberate canonicalization). The query is a single contiguous-substring
+  // phrase (ILIKE %query%), so it renders as ONE token — quoted iff it has
+  // whitespace via serializeValue. NOT whitespace-split: separate tokens would
+  // misleadingly read as independent AND terms, disagree with the scope-rewrite
+  // suggestions (which serialize the whole phrase), and strip a user's own
+  // quotes on every derive.
   const searchQuery = options.searchQuery?.trim() ?? "";
   if (searchQuery.length > 0) {
     const scopeField = scopedSearchField(options.searchType);

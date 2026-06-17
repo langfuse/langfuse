@@ -139,10 +139,10 @@ export function useEventsSearchBar({
     );
     setSearchQuery(result.searchQuery);
     // Only write searchType when it actually changed. planCommit coerces a
-    // draft with no `in:` token to the default (`["id"]`); writing that
-    // unconditionally would serialize `?searchType=id` on every commit, even
-    // though the legacy toolbar never writes a default — making bar-mode URLs
-    // and saved views diverge from sidebar mode for the same logical state.
+    // draft with no scope token to the default (`["id","content"]` — ids+names
+    // +input+output); the bar's default deliberately differs from the legacy
+    // toolbar's `["id"]`, so it IS written to the URL (that's how the content
+    // lane persists). The guard just avoids a redundant rewrite when unchanged.
     if (!sameScopes(result.searchType, searchTypeRef.current)) {
       setSearchType(result.searchType);
     }

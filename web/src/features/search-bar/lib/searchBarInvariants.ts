@@ -42,9 +42,9 @@ export type RegistryUnderTest = {
   fields: FieldDef[];
   /**
    * Grammar-overlay keys that are not plain fields: dot-path examples
-   * (`metadata.region`, `scores.accuracy`, `traceScores.nps`) and pseudo-fields
-   * (`has:endTime`, `content:`). These exercise resolveField branches the
-   * field list alone does not reach.
+   * (`metadata.region`, `scores.accuracy`, `traceScores.nps`) and the `has:`
+   * pseudo-field. These exercise resolveField branches the field list alone does
+   * not reach.
    */
   extraKeys: string[];
   /** Score-type contexts to vary (routes scores.<name> numeric vs categorical). */
@@ -98,7 +98,7 @@ export function generateQueryCases(view: RegistryUnderTest): string[] {
   const keys = [...view.fields.map((f) => f.id), ...view.extraKeys];
   const cases: string[] = [];
   for (const key of keys) {
-    // `has:`/`in:` already carry their own value in extraKeys.
+    // `has:` entries already carry their own value in extraKeys.
     if (key.includes(":")) {
       cases.push(key, `-${key}`);
       continue;
