@@ -510,6 +510,14 @@ abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected havingClauses: string[] = [];
   protected orderByClause: string = "";
+
+  /**
+   * The built ORDER BY clause (empty string if none was set). Lets wrapper
+   * queries re-apply an inner builder's exact sort.
+   */
+  getOrderByClause(): string {
+    return this.orderByClause;
+  }
   protected limitByClause: string = "";
   protected limitClause: string = "";
   protected params: Record<string, any> = {};
@@ -986,6 +994,18 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     this.rawSelectExpressions.push(...expressions);
 
     return this;
+  }
+
+  /**
+   * True if any projection (field set, raw expression, or IO selection) has
+   * been added.
+   */
+  hasSelectExpressions(): boolean {
+    return (
+      this.selectFields.size > 0 ||
+      this.rawSelectExpressions.length > 0 ||
+      this.ioFields !== null
+    );
   }
 
   /**
@@ -1977,4 +1997,80 @@ export function buildEventsFullTableSplitQuery(opts: {
   if (opts.includeMetadata) cteBuilder.select("i.metadata as metadata");
 
   return cteBuilder as unknown as SplitQueryBuilder;
+}
+
+/**
+ * Identity tuple for the subquery-IN rewrite. The inner subquery projects
+ * exactly these columns; the outer IN clause matches them positionally.
+ */
+const SUBQUERY_IDENTITY_TUPLE = [
+  "e.span_id",
+  "e.trace_id",
+  "e.start_time",
+  "e.project_id",
+] as const;
+
+/**
+ * Build the observations v2 subquery-IN late-materialization query: an outer
+ * SELECT on events_full gated by an identity-tuple IN subquery that runs the
+ * filter/sort/limit on the inner builder's table. No JOIN — ClickHouse builds
+ * the inner hash set once and prunes the outer scan.
+ *
+ * The inner builder must carry filters, ORDER BY, and LIMIT but no SELECTs;
+ * this function projects the identity tuple itself. Counterpart of
+ * buildEventsFullTableSplitQuery; both must return identical result sets.
+ */
+export function buildEventsFullTableSubqueryQuery(opts: {
+  projectId: string;
+  innerBuilder: EventsQueryBuilder;
+  fieldSetNames: FieldSetName[];
+}): QueryWithParams {
+  // A pre-existing projection on the inner builder would misalign the
+  // positional IN-tuple match — fail fast.
+  if (opts.innerBuilder.hasSelectExpressions()) {
+    throw new Error(
+      "buildEventsFullTableSubqueryQuery requires an inner builder without SELECT expressions; it projects the identity tuple itself",
+    );
+  }
+  const { query: innerQuery, params: innerParams } = opts.innerBuilder
+    .selectRaw(...SUBQUERY_IDENTITY_TUPLE)
+    .buildWithParams();
+
+  // Outer SELECT: core + requested field groups from events_full, deduped.
+  const fieldKeys = Array.from(
+    new Set(opts.fieldSetNames.flatMap((name) => FIELD_SETS[name])),
+  );
+  const outerSelect = fieldKeys.flatMap((key) => {
+    const expr = EVENTS_FIELDS[key as keyof typeof EVENTS_FIELDS];
+    return expr ? [expr] : [];
+  });
+
+  // Re-apply the inner builder's ORDER BY verbatim (same `e.` prefix);
+  // IN does not preserve order, and the cursor is derived from the last
+  // returned row, so keyset pagination depends on this sort.
+  const outerOrderBy = opts.innerBuilder.getOrderByClause();
+  if (!outerOrderBy) {
+    throw new Error(
+      "buildEventsFullTableSubqueryQuery requires the inner builder to carry an ORDER BY; keyset pagination depends on it",
+    );
+  }
+
+  // Inner params last so the inner subquery's bindings win on overlap.
+  const params: Record<string, any> = {
+    projectId: opts.projectId,
+    ...innerParams,
+  };
+
+  const tuple = `(${SUBQUERY_IDENTITY_TUPLE.join(", ")})`;
+  const queryParts: string[] = [];
+  queryParts.push(
+    `SELECT\n  ${outerSelect.join(",\n  ")}`,
+    "FROM events_full e",
+    "WHERE e.project_id = {projectId: String}",
+    `  AND ${tuple} IN (\n${innerQuery}\n)`,
+    outerOrderBy,
+  );
+
+  const query = queryParts.join("\n");
+  return { buildWithParams: () => ({ query, params }) };
 }

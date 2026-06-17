@@ -505,15 +505,21 @@ Until the V3 release, both the JSON record must be updated **and** a migration m
 
 We maintain the API specifications manually to guarantee a high degree of understandability. If you made changes to the API, please update the respective `.yml` files in `fern/apis/...`.
 
-To generate the respective `openapi.yml` files which power the online API reference & SDKs, run:
+To export the respective `openapi.yml` files which power the online API reference, run:
 
 ```sh
-npx fern-api generate --api server  # for the server API
-npx fern-api generate --api client  # for the client API
-npx fern-api generate --api organizations  # for the organizations API
+npx fern-api export --api server web/public/generated/api/openapi.yml
+npx fern-api export --api client web/public/generated/api-client/openapi.yml
+npx fern-api export --api organizations web/public/generated/organizations-api/openapi.yml
 ```
 
-**Note:** You need a signed in fern account to run those commands.
+To generate the server SDKs, run:
+
+```sh
+npx fern-api generate --api server
+```
+
+**Note:** You need a signed in fern account to generate SDKs.
 
 ## License
 

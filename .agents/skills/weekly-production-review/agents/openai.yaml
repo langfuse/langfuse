@@ -1,4 +1,4 @@
 interface:
   display_name: "Weekly Production Review"
-  short_description: "Review Datadog, incident.io, and Linear production signals"
-  default_prompt: "Use $weekly-production-review to prepare a source-grounded production review across Datadog alert/page signals, Datadog error log patterns, incident.io incidents and pager load, and Linear bugs."
+  short_description: "Production review plus alert load"
+  default_prompt: "Use $weekly-production-review to prepare a weekly production review with incident.io incidents and alert load by engineer/time bucket, Linear bugs, Datadog alerts, and exact Datadog log patterns."

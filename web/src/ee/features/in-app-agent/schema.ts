@@ -1,3 +1,9 @@
+// This module should contained ag-ui base schemas OR shared schemas,
+// do not add any one-off schemas here.
+// This module is shared by browser and server in-app-agent code. Keep it
+// runtime-neutral: Zod schemas and TypeScript types only, with no React,
+// browser-only, server-only, database, or Mastra imports.
+
 import type { EventType } from "@ag-ui/core";
 import { ObservationLevelDomain, TracingSearchType } from "@langfuse/shared";
 import { z } from "zod";
@@ -144,6 +150,40 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
 ]);
 
 export type AgUiMessage = z.infer<typeof AgUiMessageSchema>;
+
+const AbsoluteHttpUrlSchema = z.string().transform((value, ctx) => {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(value);
+  } catch {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL must be absolute",
+    });
+    return z.NEVER;
+  }
+
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL protocol must be http or https",
+    });
+    return z.NEVER;
+  }
+
+  return parsedUrl.href;
+});
+
+export const InAppAgentMessageSourceSchema = z.object({
+  title: z.string(),
+  url: AbsoluteHttpUrlSchema,
+  faviconUrl: AbsoluteHttpUrlSchema,
+});
+
+export type InAppAgentMessageSource = z.infer<
+  typeof InAppAgentMessageSourceSchema
+>;
 
 const AgUiToolSchema = z.object({
   name: z.string(),

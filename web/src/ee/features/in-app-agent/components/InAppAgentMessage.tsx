@@ -4,15 +4,18 @@ import {
   ArrowRight,
   Check,
   Copy,
+  BookOpenText,
   Loader2,
   ThumbsDown,
   ThumbsUp,
   Wrench,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/router";
 import { Streamdown } from "streamdown";
 import { Button } from "@/src/components/ui/button";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
 import {
   forwardRef,
@@ -25,15 +28,18 @@ import {
 import type {
   InAppAgentMessageFeedback,
   InAppAgentMessageFeedbackValue,
+  InAppAgentMessageSource,
 } from "@/src/ee/features/in-app-agent/schema";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
+  PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import styles from "./InAppAgentMessage.module.css";
 
 export type InAppAgentMessageRole = "assistant" | "user";
@@ -51,6 +57,7 @@ export type InAppAgentMessageContent =
       text: string;
       feedback?: InAppAgentMessageFeedback;
       redirectAction?: InAppAgentRedirectActionContent;
+      sources?: InAppAgentMessageSource[];
     }
   | InAppAgentRedirectActionContent
   | {
@@ -66,6 +73,74 @@ export type InAppAgentToolCallContent = {
   result?: string;
   error?: string;
 };
+
+const parseAbsoluteUrl = (href: string): URL | null => {
+  try {
+    return new URL(href);
+  } catch {
+    return null;
+  }
+};
+
+// Uses client-side navigation for links within the current project
+// and opens all other links in a new tab.
+function SmartLink({
+  children,
+  className,
+  href,
+}: {
+  children: ReactNode;
+  className?: string;
+  href?: string;
+}) {
+  const safeHref = getSafeLinkUrl(href);
+  const currentProjectId = useProjectIdFromURL();
+
+  if (!safeHref) {
+    return <span className="text-muted-foreground underline">{children}</span>;
+  }
+
+  try {
+    const currentOrigin =
+      typeof window === "undefined" ? null : window.location.origin;
+    const absoluteUrl = parseAbsoluteUrl(safeHref);
+    const parsedUrl = absoluteUrl ?? new URL(safeHref, currentOrigin ?? "");
+    const pathname = stripBasePath(parsedUrl.pathname);
+    const [, projectSegment, linkProjectId] = pathname.split("/");
+
+    if (
+      currentProjectId &&
+      projectSegment === "project" &&
+      decodeURIComponent(linkProjectId ?? "") === currentProjectId &&
+      (!absoluteUrl ||
+        ((parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") &&
+          currentOrigin &&
+          parsedUrl.origin === currentOrigin))
+    ) {
+      return (
+        <Link
+          href={`${pathname}${parsedUrl.search}${parsedUrl.hash}`}
+          className={className}
+        >
+          {children}
+        </Link>
+      );
+    }
+  } catch {
+    // Fall through to opening sanitized but non-routable URLs in a new tab.
+  }
+
+  return (
+    <a
+      href={safeHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+    >
+      {children}
+    </a>
+  );
+}
 
 export type InAppAgentMessageProps = {
   role: InAppAgentMessageRole;
@@ -110,7 +185,7 @@ export function InAppAgentMessage({
     );
   }
 
-  if (content.type === "text" && role === "assistant" && onSubmitFeedback) {
+  if (content.type === "text" && role === "assistant") {
     return (
       <AssistantMessageWithFeedback
         content={content}
@@ -181,12 +256,15 @@ function AssistantMessageWithFeedback({
   isCompact: boolean;
   isFeedbackDisabled: boolean;
   windowZIndex?: number;
-  onSubmitFeedback: (params: {
+  onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
   }) => Promise<void>;
 }) {
   const [messageCardRef, messageCardSize] = useElementSize<HTMLDivElement>();
+  const sources = content.sources ?? [];
+  const hasSources = sources.length > 0;
+  const hasActions = Boolean(onSubmitFeedback || hasSources);
 
   return (
     <div className="flex max-w-full flex-col items-start">
@@ -196,14 +274,38 @@ function AssistantMessageWithFeedback({
         content={content}
         isCompact={isCompact}
       />
-      <MessageFeedbackControls
-        feedback={content.feedback}
-        isCompact={isCompact}
-        isFeedbackDisabled={isFeedbackDisabled}
-        windowZIndex={windowZIndex}
-        maxWidth={messageCardSize?.width}
-        onSubmitFeedback={onSubmitFeedback}
-      />
+      {hasActions ? (
+        <div
+          style={
+            messageCardSize?.width
+              ? { width: messageCardSize.width, maxWidth: "100%" }
+              : undefined
+          }
+          className={cn(
+            "flex max-w-full min-w-50 flex-col items-start overflow-hidden",
+            isCompact ? "mt-1.5" : "mt-2",
+          )}
+        >
+          <div className="flex w-full min-w-0 items-center gap-1">
+            {onSubmitFeedback ? (
+              <MessageFeedbackControls
+                feedback={content.feedback}
+                isCompact={isCompact}
+                isFeedbackDisabled={isFeedbackDisabled}
+                windowZIndex={windowZIndex}
+                onSubmitFeedback={onSubmitFeedback}
+              />
+            ) : null}
+            {hasSources ? (
+              <SourcesPopover
+                sources={sources}
+                isCompact={isCompact}
+                windowZIndex={windowZIndex}
+              />
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -213,14 +315,12 @@ function MessageFeedbackControls({
   isCompact,
   isFeedbackDisabled,
   windowZIndex,
-  maxWidth,
   onSubmitFeedback,
 }: {
   feedback?: InAppAgentMessageFeedback;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
   windowZIndex?: number;
-  maxWidth?: number;
   onSubmitFeedback: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -297,99 +397,147 @@ function MessageFeedbackControls({
   };
 
   return (
-    <div
-      style={maxWidth ? { width: maxWidth, maxWidth: "100%" } : undefined}
-      className={cn(
-        "flex max-w-full min-w-50 flex-col items-start overflow-hidden",
-        isCompact ? "mt-1.5" : "mt-2",
-      )}
+    <Popover
+      open={!isFeedbackDisabled && isCommentPopoverOpen}
+      onOpenChange={(open) => {
+        if (!isFeedbackDisabled) {
+          setIsCommentPopoverOpen(open);
+        }
+      }}
     >
-      <Popover
-        open={!isFeedbackDisabled && isCommentPopoverOpen}
-        onOpenChange={(open) => {
-          if (!isFeedbackDisabled) {
-            setIsCommentPopoverOpen(open);
-          }
-        }}
+      <PopoverAnchor className="inline-flex">
+        <FeedbackButton
+          label="Good response"
+          isSelected={selectedValue === "thumbs_up"}
+          disabled={isDisabled}
+          onClick={() => handleSelectFeedback("thumbs_up")}
+        >
+          <ThumbsUp
+            className={cn(
+              isCompact ? "size-3" : "size-3.5",
+              selectedValue === "thumbs_up" && "text-foreground",
+            )}
+          />
+        </FeedbackButton>
+      </PopoverAnchor>
+      <FeedbackButton
+        label="Bad response"
+        isSelected={selectedValue === "thumbs_down"}
+        disabled={isDisabled}
+        onClick={() => handleSelectFeedback("thumbs_down")}
       >
-        <div className="flex w-full min-w-0 items-center gap-1">
-          <PopoverAnchor className="inline-flex">
-            <FeedbackButton
-              label="Good response"
-              isSelected={selectedValue === "thumbs_up"}
+        <ThumbsDown
+          className={cn(
+            isCompact ? "size-3" : "size-3.5",
+            selectedValue === "thumbs_down" && "text-foreground",
+          )}
+        />
+      </FeedbackButton>
+      {committedComment ? (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={isDisabled}
+          onClick={() => setIsCommentPopoverOpen(true)}
+        >
+          Comment: {committedComment}
+        </button>
+      ) : null}
+      {selectedValue ? (
+        <PopoverContent
+          align="start"
+          side="top"
+          className="w-72 space-y-1.5 p-2"
+          style={
+            typeof windowZIndex === "number"
+              ? { zIndex: windowZIndex + 1 }
+              : undefined
+          }
+        >
+          <div>
+            <textarea
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
               disabled={isDisabled}
-              onClick={() => handleSelectFeedback("thumbs_up")}
-            >
-              <ThumbsUp
-                className={cn(
-                  isCompact ? "size-3" : "size-3.5",
-                  selectedValue === "thumbs_up" && "text-foreground",
-                )}
-              />
-            </FeedbackButton>
-          </PopoverAnchor>
-          <FeedbackButton
-            label="Bad response"
-            isSelected={selectedValue === "thumbs_down"}
-            disabled={isDisabled}
-            onClick={() => handleSelectFeedback("thumbs_down")}
-          >
-            <ThumbsDown
+              placeholder="Optional feedback comment"
+              rows={3}
+              maxLength={500}
               className={cn(
-                isCompact ? "size-3" : "size-3.5",
-                selectedValue === "thumbs_down" && "text-foreground",
+                "border-input bg-background text-foreground placeholder:text-muted-foreground w-full resize-none rounded-md border px-2 py-1",
+                isCompact ? "text-xs" : "text-sm",
               )}
             />
-          </FeedbackButton>
-          {committedComment ? (
-            <button
-              type="button"
-              className="text-muted-foreground hover:text-foreground ml-1 min-w-0 flex-1 truncate text-left text-xs disabled:cursor-not-allowed disabled:opacity-60"
+            <CommentButton
               disabled={isDisabled}
-              onClick={() => setIsCommentPopoverOpen(true)}
+              className={cn(!isCompact && "px-2 py-1.5 text-sm")}
+              onClick={() => {
+                handleSubmitComment().catch(() => undefined);
+              }}
             >
-              Comment: {committedComment}
-            </button>
-          ) : null}
-        </div>
-        {selectedValue ? (
-          <PopoverContent
-            align="start"
-            side="top"
-            className="w-72 space-y-1.5 p-2"
-            style={
-              typeof windowZIndex === "number"
-                ? { zIndex: windowZIndex + 1 }
-                : undefined
-            }
-          >
-            <div>
-              <textarea
-                value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                disabled={isDisabled}
-                placeholder="Optional feedback comment"
-                rows={3}
-                maxLength={500}
-                className={cn(
-                  "border-input bg-background text-foreground placeholder:text-muted-foreground w-full resize-none rounded-md border px-2 py-1",
-                  isCompact ? "text-xs" : "text-sm",
-                )}
+              {isSubmittingComment ? "Saving..." : "Save comment"}
+            </CommentButton>
+          </div>
+        </PopoverContent>
+      ) : null}
+    </Popover>
+  );
+}
+
+function SourcesPopover({
+  sources,
+  isCompact,
+  windowZIndex,
+}: {
+  sources: InAppAgentMessageSource[];
+  isCompact: boolean;
+  windowZIndex?: number;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "text-muted-foreground/70 hover:text-muted-foreground inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-xs font-medium",
+            isCompact && "py-0.5",
+          )}
+        >
+          <BookOpenText className={cn(isCompact ? "size-3" : "size-3.5")} />
+          Sources
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        side="top"
+        className="w-72 p-1.5"
+        style={
+          typeof windowZIndex === "number"
+            ? { zIndex: windowZIndex + 1 }
+            : undefined
+        }
+      >
+        <div className="space-y-0.5">
+          {sources.map((source) => (
+            <a
+              key={source.url}
+              href={source.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:bg-muted flex min-w-0 items-center gap-1.5 rounded-md px-1 py-1 no-underline"
+            >
+              <span
+                aria-hidden="true"
+                className="bg-muted size-3.5 shrink-0 rounded-sm bg-cover bg-center"
+                style={{ backgroundImage: `url("${source.faviconUrl}")` }}
               />
-              <CommentButton
-                disabled={isDisabled}
-                className={cn(!isCompact && "px-2 py-1.5 text-sm")}
-                onClick={() => {
-                  handleSubmitComment().catch(() => undefined);
-                }}
-              >
-                {isSubmittingComment ? "Saving..." : "Save comment"}
-              </CommentButton>
-            </div>
-          </PopoverContent>
-        ) : null}
-      </Popover>
-    </div>
+              <span className="text-foreground min-w-0 flex-1 truncate text-xs">
+                {source.title}
+              </span>
+            </a>
+          ))}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -624,23 +772,9 @@ function MessageText({
           h6: ({ children }) => <h6>{children}</h6>,
 
           p: ({ children }) => <p>{children}</p>,
-          a: ({ children, href }) => {
-            const safeHref = getSafeLinkUrl(href);
-
-            if (!safeHref) {
-              return (
-                <span className="text-muted-foreground underline">
-                  {children}
-                </span>
-              );
-            }
-
-            return (
-              <a href={safeHref} target="_blank" rel="noopener noreferrer">
-                {children}
-              </a>
-            );
-          },
+          a: ({ children, href }) => (
+            <SmartLink href={href}>{children}</SmartLink>
+          ),
           hr: ({ children }) => <hr>{children}</hr>,
           ul: ({ children }) => <ul>{children}</ul>,
           ol: ({ children }) => <ol>{children}</ol>,

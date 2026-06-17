@@ -27,6 +27,29 @@ export const AssistantTextWithFeedback = meta.story({
   },
 });
 
+export const AssistantTextWithSources = meta.story({
+  args: {
+    role: "assistant" as const,
+    content: {
+      type: "text" as const,
+      text: "Scores are Langfuse's universal data object for storing evaluation results.",
+      sources: [
+        {
+          title: "Scores",
+          url: "https://langfuse.com/docs/evaluation/scores/overview",
+          faviconUrl: "https://langfuse.com/favicon.ico",
+        },
+        {
+          title: "Scores Data Model",
+          url: "https://langfuse.com/docs/evaluation/scores/data-model",
+          faviconUrl: "https://langfuse.com/favicon.ico",
+        },
+      ],
+    },
+    onSubmitFeedback: fn(),
+  },
+});
+
 export const ShortAssistantTextWithFeedback = meta.story({
   args: {
     role: "assistant",

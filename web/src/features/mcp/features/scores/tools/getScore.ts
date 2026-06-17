@@ -6,6 +6,7 @@ import {
 } from "@langfuse/shared";
 import { logger, traceException } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
+import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 
@@ -40,7 +41,15 @@ export const [getScoreTool, handleGetScore] = defineTool({
           throw new InternalServerError("Requested score is corrupted");
         }
 
-        return parsedScore.data;
+        const { traceId, observationId, sessionId } = parsedScore.data;
+        const url = buildScoreTargetUrl({
+          projectId: context.projectId,
+          traceId,
+          observationId,
+          sessionId,
+        });
+
+        return url ? { ...parsedScore.data, url } : parsedScore.data;
       },
     });
   },

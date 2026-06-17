@@ -4,6 +4,7 @@ import {
   GetCommentV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
+import { buildCommentObjectUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [getCommentTool, handleGetComment] = defineTool({
@@ -22,7 +23,14 @@ export const [getCommentTool, handleGetComment] = defineTool({
           projectId: context.projectId,
         });
 
-        return GetCommentV1Response.parse(result);
+        const comment = GetCommentV1Response.parse(result);
+        const url = buildCommentObjectUrl({
+          projectId: context.projectId,
+          objectType: comment.objectType,
+          objectId: comment.objectId,
+        });
+
+        return url ? { ...comment, url } : comment;
       },
     }),
   readOnlyHint: true,
