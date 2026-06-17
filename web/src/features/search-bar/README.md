@@ -33,9 +33,12 @@ Per-user **Feature Preview** opt-in. Based on the `langfuse-search-bar` prototyp
 - `level:(ERROR OR WARNING)` any-of, `-env:dev` none-of,
   `tags:(a AND b)` array all-of
 - `latency:>2`, `startTime:>2026-06-01` comparisons
-- text match via positional `*` globs: `name:*chat*` contains, `name:chat*`
-  starts-with, `name:*chat` ends-with, `name:chat` bare (contains default),
-  `name:=chat` exact (quote a literal `*`, e.g. `name:"a*b"`)
+- text match via positional `*` globs (shown on a textSearch field, where the
+  bare form defaults to contains): `statusMessage:*chat*` contains,
+  `statusMessage:chat*` starts-with, `statusMessage:*chat` ends-with,
+  `statusMessage:chat` bare (contains default), `statusMessage:=chat` exact
+  (quote a literal `*`, e.g. `statusMessage:"a*b"`). On option-backed fields like
+  `name` the bare form is an exact any-of match, not contains.
 - `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `content:`/`input:`/`output:`
