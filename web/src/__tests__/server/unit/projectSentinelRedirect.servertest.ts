@@ -19,35 +19,39 @@ vi.mock("@/src/server/auth", () => ({
 }));
 
 import {
-  lastProjectCookieName,
-  type LastProjectCookie,
+  projectCookieName,
+  type ProjectCookie,
 } from "@/src/server/utils/cookies";
 import { getServerSideProps } from "@/src/pages/project/~/[[...path]]";
 import { type GetServerSidePropsContext } from "next";
 
 const makeCtx = (
   params?: Record<string, string | string[]>,
-  resolvedUrl = "/project/~/",
+  resolvedUrl?: string,
   req: {
     host?: string;
     proto?: string;
-    cookie?: LastProjectCookie;
+    cookie?: ProjectCookie;
   } = {},
-): GetServerSidePropsContext =>
-  ({
+): GetServerSidePropsContext => {
+  const path = (params?.path as string[] | undefined) ?? [];
+  const url =
+    resolvedUrl ??
+    `/project/~${path.length ? `/${path.map(encodeURIComponent).join("/")}` : ""}`;
+  return {
     req: {
       headers: {
         host: req.host ?? "us.cloud.langfuse.com",
         "x-forwarded-proto": req.proto ?? "https",
       },
       cookies: req.cookie
-        ? { [lastProjectCookieName]: JSON.stringify(req.cookie) }
+        ? { [projectCookieName]: JSON.stringify(req.cookie) }
         : {},
     },
     res: {},
-    params,
-    resolvedUrl,
-  }) as unknown as GetServerSidePropsContext;
+    resolvedUrl: url,
+  } as unknown as GetServerSidePropsContext;
+};
 
 const makeSession = (projectIds: string[]) => ({
   user: {
@@ -225,6 +229,28 @@ describe("sentinel redirect /project/~/", () => {
         permanent: false,
       },
     });
+  });
+
+  it("unauthenticated cross-region cookie: bounces to cookie origin before sign-in", async () => {
+    getServerAuthSessionMock.mockResolvedValue(null);
+
+    const result = await getServerSideProps(
+      makeCtx({ path: ["traces"] }, "/project/~/traces", {
+        host: "us.cloud.langfuse.com",
+        cookie: {
+          origin: "https://eu.cloud.langfuse.com",
+          projectId: "proj-eu",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      redirect: {
+        destination: "https://eu.cloud.langfuse.com/project/~/traces",
+        permanent: false,
+      },
+    });
+    expect(getServerAuthSessionMock).not.toHaveBeenCalled();
   });
 
   it("cross-origin cookie, different parent domain: falls back to first project", async () => {

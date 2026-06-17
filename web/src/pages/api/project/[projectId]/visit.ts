@@ -1,17 +1,12 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import {
   getRequestOrigin,
-  serializeLastProjectCookie,
+  serializeProjectCookie,
 } from "@/src/server/utils/cookies";
 
-const requestSchema = z.object({
-  projectId: z.string().min(1),
-});
-
-/** handler persists the user's current project in the region-unscoped last-project cookie. */
+/** handler persists the user's current project in the region-unscoped project cookie. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -24,24 +19,19 @@ export default async function handler(
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const validBody = requestSchema.safeParse(req.body);
-  if (!validBody.success) {
-    return res.status(400).json({ message: "Invalid request body" });
+  const projectId = req.query.projectId;
+  if (typeof projectId !== "string" || projectId.length === 0) {
+    return res.status(400).json({ message: "Invalid project id" });
   }
 
   const isMember = session.user.organizations
     .flatMap((org) => org.projects)
-    .some((project) => project.id === validBody.data.projectId);
+    .some((project) => project.id === projectId);
+
   const origin = getRequestOrigin(req);
 
   if (isMember && origin) {
-    res.setHeader(
-      "Set-Cookie",
-      serializeLastProjectCookie({
-        origin,
-        projectId: validBody.data.projectId,
-      }),
-    );
+    res.setHeader("Set-Cookie", serializeProjectCookie({ origin, projectId }));
   }
 
   return res.status(204).end();

@@ -18,7 +18,7 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: getServerAuthSessionMock,
 }));
 
-import handler from "@/src/pages/api/last-project";
+import handler from "@/src/pages/api/project/[projectId]/visit";
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 const makeSession = (projectIds: string[]) => ({
@@ -31,7 +31,7 @@ const makeSession = (projectIds: string[]) => ({
 
 const makeReqRes = (opts: {
   method?: string;
-  body?: unknown;
+  query?: Record<string, string | string[]>;
   headers?: Record<string, string>;
 }) => {
   const setHeader = vi.fn();
@@ -40,14 +40,14 @@ const makeReqRes = (opts: {
   const status = vi.fn().mockReturnValue({ json, end });
   const req = {
     method: opts.method ?? "POST",
-    body: opts.body,
+    query: opts.query ?? {},
     headers: opts.headers ?? { host: "us.cloud.langfuse.com" },
   } as unknown as NextApiRequest;
   const res = { setHeader, status } as unknown as NextApiResponse;
   return { req, res, setHeader, status, json, end };
 };
 
-describe("POST /api/last-project", () => {
+describe("POST /api/project/visit", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("non-POST method: returns 405 without setting a cookie", async () => {
@@ -62,7 +62,7 @@ describe("POST /api/last-project", () => {
   it("unauthenticated: returns 401 without setting a cookie", async () => {
     getServerAuthSessionMock.mockResolvedValue(null);
     const { req, res, status, setHeader } = makeReqRes({
-      body: { projectId: "proj-abc" },
+      query: { projectId: "proj-abc" },
     });
 
     await handler(req, res);
@@ -74,7 +74,7 @@ describe("POST /api/last-project", () => {
   it("member project: sets cookie with server-derived origin", async () => {
     getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-abc"]));
     const { req, res, status, setHeader } = makeReqRes({
-      body: { projectId: "proj-abc" },
+      query: { projectId: "proj-abc" },
       headers: {
         host: "us.cloud.langfuse.com",
         "x-forwarded-proto": "https",
@@ -87,7 +87,7 @@ describe("POST /api/last-project", () => {
     expect(setHeader).toHaveBeenCalledTimes(1);
     const [header, value] = setHeader.mock.calls[0];
     expect(header).toBe("Set-Cookie");
-    expect(value).toContain("langfuse.last-project=");
+    expect(value).toContain("langfuse.project=");
     const cookieJson = JSON.parse(
       decodeURIComponent((value as string).split("=")[1].split(";")[0]),
     );
@@ -99,29 +99,10 @@ describe("POST /api/last-project", () => {
     expect(value).toContain("HttpOnly");
   });
 
-  it("server-derived origin ignores client-supplied origin in body", async () => {
-    getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-abc"]));
-    const { req, res, setHeader } = makeReqRes({
-      body: { projectId: "proj-abc", origin: "https://evil.example.com" },
-      headers: {
-        host: "us.cloud.langfuse.com",
-        "x-forwarded-proto": "https",
-      },
-    });
-
-    await handler(req, res);
-
-    const value = setHeader.mock.calls[0][1] as string;
-    const cookieJson = JSON.parse(
-      decodeURIComponent(value.split("=")[1].split(";")[0]),
-    );
-    expect(cookieJson.origin).toBe("https://us.cloud.langfuse.com");
-  });
-
   it("non-member project: no-op (no cookie), returns 204", async () => {
     getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-abc"]));
     const { req, res, status, setHeader } = makeReqRes({
-      body: { projectId: "proj-other" },
+      query: { projectId: "proj-other" },
     });
 
     await handler(req, res);
@@ -130,9 +111,21 @@ describe("POST /api/last-project", () => {
     expect(setHeader).not.toHaveBeenCalled();
   });
 
-  it("invalid body: returns 400", async () => {
+  it("missing project id: returns 400", async () => {
     getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-abc"]));
-    const { req, res, status, setHeader } = makeReqRes({ body: {} });
+    const { req, res, status, setHeader } = makeReqRes({ query: {} });
+
+    await handler(req, res);
+
+    expect(status).toHaveBeenCalledWith(400);
+    expect(setHeader).not.toHaveBeenCalled();
+  });
+
+  it("array project id: returns 400", async () => {
+    getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-abc"]));
+    const { req, res, status, setHeader } = makeReqRes({
+      query: { projectId: ["proj-abc", "proj-xyz"] },
+    });
 
     await handler(req, res);
 

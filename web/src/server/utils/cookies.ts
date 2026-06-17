@@ -2,11 +2,11 @@ import { type IncomingMessage } from "http";
 
 import { env } from "@/src/env.mjs";
 
-/** lastProjectCookieName names the region-unscoped cookie recording a user's most recent project. */
-export const lastProjectCookieName = "langfuse.last-project";
+/** projectCookieName names the region-unscoped cookie recording a user's most recent project. */
+export const projectCookieName = "langfuse.project";
 
-/** lastProjectCookieMaxAgeSeconds keeps the last-project cookie alive for 30 days. */
-const lastProjectCookieMaxAgeSeconds = 60 * 60 * 24 * 30;
+/** projectCookieMaxAgeSeconds keeps the project cookie alive for 30 days. */
+const projectCookieMaxAgeSeconds = 60 * 60 * 24 * 30;
 
 // Use secure cookies on https hostnames, exception for Vercel which sets NEXTAUTH_URL without the protocol
 const shouldSecureCookies = () =>
@@ -29,8 +29,8 @@ export const getCookieName = (name: string) =>
       : "",
   ].join("");
 
-/** LastProjectCookie carries the server-stamped origin and project id of a user's most recent project. */
-export type LastProjectCookie = {
+/** ProjectCookie carries the server-stamped origin and project id of a user's most recent project. */
+export type ProjectCookie = {
   origin: string;
   projectId: string;
 };
@@ -57,11 +57,11 @@ export const getRequestOrigin = (req: IncomingMessage): string | null => {
   }
 };
 
-/** readLastProjectCookie parses the last-project cookie, returning null when absent or malformed. */
-export const readLastProjectCookie = (
+/** readProjectCookie parses the project cookie, returning null when absent or malformed. */
+export const readProjectCookie = (
   cookies: Partial<Record<string, string>>,
-): LastProjectCookie | null => {
-  const raw = cookies[lastProjectCookieName];
+): ProjectCookie | null => {
+  const raw = cookies[projectCookieName];
   if (!raw) return null;
 
   try {
@@ -69,10 +69,10 @@ export const readLastProjectCookie = (
     if (
       typeof parsed === "object" &&
       parsed !== null &&
-      typeof (parsed as LastProjectCookie).origin === "string" &&
-      typeof (parsed as LastProjectCookie).projectId === "string"
+      typeof (parsed as ProjectCookie).origin === "string" &&
+      typeof (parsed as ProjectCookie).projectId === "string"
     ) {
-      const { origin, projectId } = parsed as LastProjectCookie;
+      const { origin, projectId } = parsed as ProjectCookie;
       return { origin, projectId };
     }
   } catch {
@@ -81,16 +81,14 @@ export const readLastProjectCookie = (
   return null;
 };
 
-/** serializeLastProjectCookie builds the Set-Cookie header value for the last-project cookie. */
-export const serializeLastProjectCookie = (
-  value: LastProjectCookie,
-): string => {
+/** serializeProjectCookie builds the Set-Cookie header value for the project cookie. */
+export const serializeProjectCookie = (value: ProjectCookie): string => {
   const options = getCookieOptions();
   const parts = [
-    `${lastProjectCookieName}=${encodeURIComponent(JSON.stringify(value))}`,
+    `${projectCookieName}=${encodeURIComponent(JSON.stringify(value))}`,
     `Path=${options.path}`,
     "SameSite=Lax",
-    `Max-Age=${lastProjectCookieMaxAgeSeconds}`,
+    `Max-Age=${projectCookieMaxAgeSeconds}`,
   ];
   if (options.domain) parts.push(`Domain=${options.domain}`);
   if (options.httpOnly) parts.push("HttpOnly");
