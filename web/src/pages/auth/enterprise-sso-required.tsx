@@ -143,7 +143,9 @@ export default function EnterpriseSsoRequiredPage() {
       </Head>
       <div className="min-h-screen-with-banner bg-background flex flex-col justify-center px-6 py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <LangfuseIcon className="mx-auto" />
+          <div className="mx-auto">
+            <LangfuseIcon />
+          </div>
           <h1 className="text-primary mt-6 text-center text-2xl font-bold">
             Use your Enterprise SSO
           </h1>
