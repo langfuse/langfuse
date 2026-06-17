@@ -220,6 +220,7 @@ function FileViewer({
         </div>
       ) : (
         <button
+          type="button"
           onClick={() => (isPreviewable ? expandPreview() : openInNewTab())}
           aria-label={
             isPreviewable
