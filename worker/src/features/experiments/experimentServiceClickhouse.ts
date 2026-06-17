@@ -210,6 +210,10 @@ async function processLLMCall(
         // evaluators can map `experimentItemInput` to a template variable.
         // The observation's own `input` field contains the LLM messages array,
         // not the raw dataset item value that users typically want to evaluate.
+        // Note: by this point `datasetItem.input` has already been through
+        // `parseDatasetItemInput` (see getItemsToProcess), so it only contains
+        // keys matching prompt template variable names and values have been
+        // run through `stringifyValue` -- it is not the raw original item input.
         if (datasetItem.input !== undefined && datasetItem.input !== null) {
           observation.experiment_item_input = datasetItem.input;
         }

@@ -173,7 +173,8 @@ export const experimentTargetEvalVariableColumns: ObservationEvalVariableColumn[
     {
       id: "experimentItemInput",
       name: "Dataset Item Input",
-      description: "Input from the dataset item used in the experiment",
+      description:
+        "Input from the dataset item used in the experiment, filtered to prompt template variables",
       internal: "experiment_item_input",
     },
     {
