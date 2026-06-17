@@ -25,6 +25,8 @@ export default withMiddlewares(
     GET: createAuthedProjectAPIRoute({
       name: "Get Observations",
       allowInAppAgentKey: true,
+      rateLimitMigrationMessage:
+        "Migrate to the v2/traces endpoint (GET /api/public/v2/traces) for improved performance and higher rate limits. Learn more at https://langfuse.com/docs/v4",
       querySchema: GetObservationsV1Query,
       responseSchema: GetObservationsV1Response,
       rejectInEventsOnlyMode: true,

@@ -177,6 +177,7 @@ export class RateLimitHelper {
   sendRestResponseIfLimited(
     nextResponse: NextApiResponse,
     errorContract?: PublicApiErrorContract,
+    migrationMessage?: string,
   ) {
     if (!this.res || !this.isRateLimited()) {
       logger.error("Trying to send rate limit response without being limited.");
@@ -184,7 +185,12 @@ export class RateLimitHelper {
         "Trying to send rate limit response without being limited.",
       );
     }
-    return sendRateLimitResponse(nextResponse, this.res, errorContract);
+    return sendRateLimitResponse(
+      nextResponse,
+      this.res,
+      errorContract,
+      migrationMessage,
+    );
   }
 }
 
@@ -192,6 +198,7 @@ export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
   errorContract?: PublicApiErrorContract,
+  migrationMessage?: string,
 ) => {
   const httpHeader = createHttpHeaderFromRateLimit(rateLimitRes);
 
@@ -206,7 +213,11 @@ export const sendRateLimitResponse = (
     );
   }
 
-  res.status(429).end("429 - rate limit exceeded");
+  const body = migrationMessage
+    ? `429 - rate limit exceeded. ${migrationMessage}`
+    : "429 - rate limit exceeded";
+
+  res.status(429).end(body);
 };
 
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {

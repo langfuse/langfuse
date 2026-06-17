@@ -2,7 +2,9 @@ import {
   createHttpHeaderFromRateLimit,
   RATE_LIMIT_REDIS_KEY_PREFIX,
   RateLimitService,
+  sendRateLimitResponse,
 } from "@/src/features/public-api/server/RateLimitService";
+import { type NextApiResponse } from "next";
 import { randomUUID } from "crypto";
 import {
   clearRedisKeysByPatternSafely,
@@ -389,5 +391,61 @@ describe("RateLimitService", () => {
     await expect(
       redis.get(`${RATE_LIMIT_REDIS_KEY_PREFIX}:ingestion:${orgId}`),
     ).resolves.toBeDefined();
+  });
+
+  describe("sendRateLimitResponse migration message", () => {
+    const rateLimitRes = {
+      points: 30,
+      remainingPoints: 0,
+      msBeforeNext: 1000,
+      resource: "public-api" as const,
+      scope: {
+        orgId,
+        plan: "cloud:hobby" as const,
+        projectId,
+        accessLevel: "project" as const,
+        rateLimitOverrides: [],
+      },
+      consumedPoints: 31,
+      isFirstInDuration: false,
+    };
+
+    const createMockResponse = () => {
+      const captured: { status?: number; body?: string } = {};
+      const res = {
+        setHeader: () => {},
+        status: (code: number) => {
+          captured.status = code;
+          return res;
+        },
+        end: (body?: string) => {
+          captured.body = body;
+          return res;
+        },
+      } as unknown as NextApiResponse;
+      return { res, captured };
+    };
+
+    it("returns the default 429 body when no migration message is provided", () => {
+      const { res, captured } = createMockResponse();
+
+      sendRateLimitResponse(res, rateLimitRes);
+
+      expect(captured.status).toBe(429);
+      expect(captured.body).toBe("429 - rate limit exceeded");
+    });
+
+    it("appends the migration message to the 429 body when provided", () => {
+      const { res, captured } = createMockResponse();
+      const migrationMessage =
+        "Migrate to the v2/traces endpoint (GET /api/public/v2/traces) for improved performance and higher rate limits. Learn more at https://langfuse.com/docs/v4";
+
+      sendRateLimitResponse(res, rateLimitRes, undefined, migrationMessage);
+
+      expect(captured.status).toBe(429);
+      expect(captured.body).toBe(
+        `429 - rate limit exceeded. ${migrationMessage}`,
+      );
+    });
   });
 });

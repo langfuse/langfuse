@@ -14,6 +14,8 @@ export default withMiddlewares(
     GET: createAuthedProjectAPIRoute({
       name: "Get Metrics",
       rateLimitResource: "public-api-metrics",
+      rateLimitMigrationMessage:
+        "Migrate to the v2/metrics endpoint (GET /api/public/v2/metrics) for improved performance and higher rate limits. Learn more at https://langfuse.com/docs/v4",
       querySchema: GetMetricsV1Query,
       responseSchema: GetMetricsV1Response,
       // v1 metrics executes QueryBuilder against the legacy traces/observations

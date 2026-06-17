@@ -40,6 +40,12 @@ export type AuthedProjectAPIRouteConfig<
   successStatusCode?: number;
   rateLimitResource?: z.infer<typeof RateLimitResource>; // defaults to public-api
   /**
+   * Optional message appended to the 429 plain-text rate limit response body.
+   * Use this to point callers of legacy endpoints at their v2 successor (e.g.
+   * the v2/metrics and v2/traces endpoints) which offer higher rate limits.
+   */
+  rateLimitMigrationMessage?: string;
+  /**
    * Allow authentication via ADMIN_API_KEY for self-hosted instances only.
    * When enabled, the endpoint will accept admin API key authentication in addition to regular API keys.
    *
@@ -367,6 +373,7 @@ export const createAuthedProjectAPIRoute = <
       return rateLimitResponse.sendRestResponseIfLimited(
         res,
         routeConfig.errorContract,
+        routeConfig.rateLimitMigrationMessage,
       );
     }
 
