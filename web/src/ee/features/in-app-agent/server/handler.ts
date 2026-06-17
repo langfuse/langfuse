@@ -320,6 +320,10 @@ export default async function handler(request: Request) {
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
               },
+              redirectAction: {
+                projectId,
+                isV4Enabled: session.user?.v4BetaEnabled ?? false,
+              },
               langfuseTracing:
                 project.organization.aiTelemetryEnabled && targetProjectId
                   ? {

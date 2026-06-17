@@ -5,13 +5,15 @@ import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
 
-import type {
-  AgUiEvent,
-  AgUiRunAgentInput,
+import {
+  type AgUiEvent,
+  type AgUiRunAgentInput,
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import { createRedirectActionTool } from "@/src/ee/features/in-app-agent/server/tools";
 import { logger } from "@langfuse/shared/src/server";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const getAssistantSystemPrompt = (
@@ -53,6 +55,14 @@ If the user asks you to perform an action, you have two options:
 - If the action is available via the CLI, suggest that the user can ask their own agent (Claude, Codex or similar) to perform the action for them using the CLI, for that they should use the Langfuse skill: https://github.com/langfuse/skills. When suggesting this, provide a prompt the user can use as a code block.
 </permissions>
 
+<user_navigation>
+When a relevant Langfuse page would help the user, answer the question normally and call ${IN_APP_AGENT_REDIRECT_TOOL_NAME} to propose opening that page.
+The tool call should be the last thing in your response before ending your turn, and should not be mentioned in the text of your response.
+Use the redirect proposal only for known in-app destinations from the tool schema. Never invent URLs or ask the user to paste links.
+When the user asks for a trace view with specific state, use the typed trace params for time ranges, search, filters, and ordering instead of describing URL query parameters.
+Use a short action label, for example "Open members" or "Open traces".
+</user_navigation>
+
 <world_knowledge>
 The current time is ${new Date().toDateString()}.
 </world_knowledge>
@@ -93,6 +103,10 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
+  };
+  redirectAction: {
+    projectId: string;
+    isV4Enabled: boolean;
   };
   langfuseTracing?: InAppAgentTracingConfig;
 };
@@ -545,6 +559,10 @@ async function createMastraAdapter(params: {
     const tools = {
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
       ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+        projectId: params.options.redirectAction.projectId,
+        isV4Enabled: params.options.redirectAction.isV4Enabled,
+      }),
     };
 
     const agent = new Agent({
