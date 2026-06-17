@@ -230,6 +230,19 @@ describe("planInputCompletions", () => {
     });
   });
 
+  it("scopes the WHOLE run even when a bare word matches a field alias", () => {
+    // `tags` is a registered alias (traceTags), but with no `:` it is free text
+    // — the parser/composer treat it so, and the run must expand across it.
+    // Otherwise the rewrite wraps only `hello` and picking it strands `tags`.
+    const p = plan("tags hello", 8);
+    const content = flattenOptions(p).find((o) => o.id === "scope:content");
+    expect(content?.label).toBe('content:"tags hello"');
+    expect(content && "replaceSpan" in content && content.replaceSpan).toEqual({
+      from: 0,
+      to: 10,
+    });
+  });
+
   it("does not double-quote an already-quoted free-text phrase on scope rewrite", () => {
     // `"hello world"` already carries quotes; the rewrite reconstructs the
     // logical phrase and re-serializes it once, so the insert is

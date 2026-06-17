@@ -774,11 +774,15 @@ function freeTextRun(
   input: string,
   caret: number,
 ): { from: number; to: number; text: string } | null {
+  // A bare token (no `:`) is free text regardless of whether it collides with a
+  // field alias — the parser (parseTermNode) and composer (coalesceFreeText)
+  // both treat `tags`/`env`/… as text, so the run must too. Without this, a run
+  // like `tags hello` stops expanding at `tags`, the scope rewrite wraps only
+  // `hello`, and picking `content:hello` strands `tags` → contentScopeConflict.
   const isFreeText = (raw: string) =>
     !raw.startsWith("-") &&
     indexOfOutsideQuotes(raw, ":") === -1 &&
-    !["AND", "OR", "NOT"].includes(raw) &&
-    resolveField(raw) === null;
+    !["AND", "OR", "NOT"].includes(raw);
   const terms = lexTokens(input).filter((t) => t.type === "term");
   const idx = terms.findIndex(
     (t) => caret >= t.span.from && caret <= t.span.to,
