@@ -1,4 +1,9 @@
-import { type Prisma, type PrismaClient, Role } from "@langfuse/shared/src/db";
+import {
+  type Prisma,
+  type PrismaClient,
+  Role,
+  SurveyName,
+} from "@langfuse/shared/src/db";
 import { resolveProjectRole } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
@@ -99,6 +104,11 @@ export type RealOrganizationMembership = Awaited<
   ReturnType<typeof getRealOrganizationMemberships>
 >[number];
 
+export type OnboardingRedirectTarget = {
+  redirectTo: string;
+  orgId?: string;
+};
+
 const getAccessibleProjects = (
   organizationMemberships: RealOrganizationMembership[],
 ) =>
@@ -134,7 +144,7 @@ export const resolveOnboardingRedirectTarget = async ({
 }: {
   prisma: Pick<PrismaClient, "organizationMembership">;
   userId: string;
-}) => {
+}): Promise<OnboardingRedirectTarget | null> => {
   const organizationMemberships = await getRealOrganizationMemberships({
     prisma,
     userId,
@@ -159,6 +169,7 @@ export const resolveOnboardingRedirectTarget = async ({
     if (projectRoleAccessRights[starterProjectRole].includes("project:read")) {
       return {
         redirectTo: `/project/${starterProject.id}/traces`,
+        orgId: starterOrganizationMembership.organization.id,
       };
     }
   }
@@ -181,6 +192,7 @@ export const resolveOnboardingRedirectTarget = async ({
       redirectTo: createProjectRoute(
         firstOrganizationWithProjectCreationAccess.organization.id,
       ),
+      orgId: firstOrganizationWithProjectCreationAccess.organization.id,
     };
   }
 
@@ -189,11 +201,122 @@ export const resolveOnboardingRedirectTarget = async ({
   if (firstOrganization) {
     return {
       redirectTo: `/organization/${firstOrganization.organization.id}`,
+      orgId: firstOrganization.organization.id,
     };
   }
 
   return null;
 };
+
+export const resolveOnboardingRedirectTargetWithFallback = async ({
+  prisma,
+  userId,
+  canCreateOrganizations,
+}: {
+  prisma: Pick<PrismaClient, "organizationMembership">;
+  userId: string;
+  canCreateOrganizations: boolean;
+}): Promise<OnboardingRedirectTarget> =>
+  (await resolveOnboardingRedirectTarget({ prisma, userId })) ?? {
+    redirectTo: canCreateOrganizations ? "/setup" : "/",
+  };
+
+export const getCloudSignupOnboardingStatus = async ({
+  prisma,
+  userId,
+  canCreateOrganizations,
+}: {
+  prisma: Pick<PrismaClient, "organizationMembership" | "survey">;
+  userId: string;
+  canCreateOrganizations: boolean;
+}) => {
+  const completedSurvey = await prisma.survey.findFirst({
+    where: {
+      userId,
+      surveyName: SurveyName.USER_ONBOARDING,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!completedSurvey) {
+    return {
+      completed: false as const,
+    };
+  }
+
+  const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
+    prisma,
+    userId,
+    canCreateOrganizations,
+  });
+
+  return {
+    completed: true as const,
+    redirectTo: redirectTarget.redirectTo,
+  };
+};
+
+export const completeCloudSignupOnboarding = async ({
+  prisma,
+  userId,
+  userEmail,
+  canCreateOrganizations,
+  referralSource,
+}: {
+  prisma: PrismaClient;
+  userId: string;
+  userEmail?: string | null;
+  canCreateOrganizations: boolean;
+  referralSource?: string;
+}) =>
+  prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`
+      SELECT id
+      FROM users
+      WHERE id = ${userId}
+      FOR UPDATE
+    `;
+
+    const existingSurvey = await tx.survey.findFirst({
+      where: {
+        userId,
+        surveyName: SurveyName.USER_ONBOARDING,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const redirectTarget = await resolveOnboardingRedirectTargetWithFallback({
+      prisma: tx,
+      userId,
+      canCreateOrganizations,
+    });
+
+    if (!existingSurvey) {
+      const normalizedReferralSource = referralSource?.trim();
+
+      await tx.survey.create({
+        data: {
+          surveyName: SurveyName.USER_ONBOARDING,
+          response: normalizedReferralSource
+            ? {
+                referralSource: normalizedReferralSource,
+              }
+            : {},
+          userId,
+          userEmail: userEmail ?? undefined,
+          orgId: redirectTarget.orgId,
+        },
+      });
+    }
+
+    return {
+      redirectTo: redirectTarget.redirectTo,
+    };
+  });
 
 export const provisionStarterOrganizationForNewUser = async ({
   prisma,
