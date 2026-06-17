@@ -49,7 +49,6 @@ export function useProjectSettingsPages(): ProjectSettingsPage[] {
   const showProtectedLabelsSettings = useHasEntitlement(
     "prompt-protected-labels",
   );
-
   if (!project || !organization || !router.query.projectId) {
     return [];
   }

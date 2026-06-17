@@ -140,7 +140,9 @@ function InAppAiAgentProjectProvider({
   children,
   projectId,
   defaultOpen,
-}: InAppAiAgentProviderProps & { projectId: string }) {
+}: InAppAiAgentProviderProps & {
+  projectId: string;
+}) {
   const [open, setOpen] = useSessionStorage<boolean>(
     `${OPEN_STORAGE_KEY_PREFIX}:${projectId}`,
     defaultOpen ?? false,
@@ -391,7 +393,7 @@ function InAppAiAgentProviderInner({
       resetAgent();
 
       const agent = new HttpAgent({
-        url: `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`,
+        url: getInAppAgentUrl(),
         threadId: conversationId,
         initialMessages,
         initialState: getConversationAgentState(
@@ -720,6 +722,10 @@ function attachActiveRunIdToAssistantMessages(
 
     return { ...message, runId };
   });
+}
+
+function getInAppAgentUrl() {
+  return `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/in-app-agent`;
 }
 
 function getAgentErrorMessage(error: unknown): string {

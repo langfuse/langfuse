@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";
@@ -11,12 +11,22 @@ import {
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { useQueryProject } from "@/src/features/projects/hooks";
+import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 
 export default function Traces() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const { isBetaEnabled, isInitializing } = useV4Beta();
   const { project } = useQueryProject();
+  // The header-actions slot only has a consumer when the bar is actually
+  // active, so gate it the same way the table gates searchBarMode — otherwise
+  // it's a dead empty node in the header. The bar is a per-user Feature Preview
+  // opt-in and only renders on the v4 table, so it needs the v4 beta too.
+  const searchBarEnabled = useSearchBarEnabled();
+  const searchBarActive = isBetaEnabled && searchBarEnabled;
+  // Host for the events table's time-range + refresh controls in the page
+  // header (the events table is shown here in v4 mode and portals into it).
+  const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null);
 
   // Check if the user has tracing configured
   // Skip polling entirely if the project flag is already set in the session
@@ -79,6 +89,14 @@ export default function Traces() {
           ),
           href: "https://langfuse.com/docs/observability/data-model",
         },
+        // Mirror observations/index.tsx: only mount the portal target when its
+        // consumer (the events table) does. Onboarding is handled by the early-
+        // return Page above; the remaining window to guard is the pre-beta-flag
+        // init transient.
+        actionButtonsRight:
+          searchBarActive && !isInitializing ? (
+            <div ref={setHeaderActions} className="flex items-center gap-2" />
+          ) : undefined,
         tabsProps:
           isBetaEnabled || isInitializing
             ? undefined
@@ -96,7 +114,10 @@ export default function Traces() {
               resolves. */}
         </>
       ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
+        <ObservationsEventsTable
+          projectId={projectId}
+          headerActionsContainer={headerActions}
+        />
       ) : (
         <TracesTable projectId={projectId} />
       )}
