@@ -8,22 +8,14 @@ export interface FileCredentialProviderOptions {
   path: string;
   /** Username / principal to present alongside the token, if required. */
   username?: string;
-  /**
-   * Advisory lifetime of the file's contents. The {@link RefreshingTokenManager}
-   * uses it to schedule re-reads / re-AUTH, since a plain file carries no expiry.
-   */
+  /** Advisory lifetime; the manager uses it to schedule re-reads. */
   ttlMs?: number;
 }
 
 /**
- * Cloud-agnostic, zero-dependency credential provider.
- *
- * Reads the token (password) from a file that an *external* mechanism keeps
- * fresh — HashiCorp Vault Agent templating, the Kubernetes CSI Secrets Store
- * driver, a cloud workload-identity sidecar, or any rotation job. The file is
- * re-read on every fetch, so the manager picks up rotations transparently and
- * Langfuse never has to bundle a cloud SDK. This is the recommended path for
- * regulated environments that already run such a refresher.
+ * Zero-dependency provider that reads the password from a file kept fresh by an
+ * external rotator (Vault Agent, the k8s CSI Secrets Store driver, a
+ * workload-identity sidecar). Re-read on every fetch so rotations are picked up.
  */
 export class FileCredentialProvider implements ManagedCredentialProvider {
   public readonly name = "file";

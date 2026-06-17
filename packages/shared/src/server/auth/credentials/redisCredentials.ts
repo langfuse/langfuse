@@ -10,9 +10,8 @@ import { RefreshingTokenManager } from "./RefreshingTokenManager";
 import type { ManagedAccessToken, ManagedCredentialProvider } from "./types";
 
 /**
- * Build the Redis credential provider from the environment, or `null` for the
- * default static username/password auth. Returning `null` is what keeps this
- * feature fully backward compatible — the existing code path is taken verbatim.
+ * Build the Redis credential provider from env, or null for the default static
+ * username/password auth (which leaves the existing behaviour unchanged).
  */
 export function getRedisManagedCredentialProviderFromEnv(): ManagedCredentialProvider | null {
   switch (env.REDIS_AUTH_METHOD) {
@@ -41,17 +40,10 @@ export function getRedisManagedCredentialProviderFromEnv(): ManagedCredentialPro
 }
 
 /**
- * Wire a short-lived credential provider into an ioredis client.
- *
- * ioredis (v5) has no native credentials-provider hook, so we drive it
- * externally — the documented pattern for Azure Entra / ElastiCache IAM:
- *  1. Fetch the first token and set it as `options.password` before connecting.
- *  2. On every refresh, update `options.password` (so future reconnects use the
- *     fresh token) AND issue a live `AUTH` so the open connection re-authenticates
- *     without dropping.
- *
- * The client is created with `lazyConnect: true` by the caller so we can install
- * the first token before the socket opens.
+ * Wire a credential provider into an ioredis client. ioredis v5 has no native
+ * credentials hook, so on each refresh we update options.password (for future
+ * reconnects) and issue a live AUTH on the open connection. The caller creates
+ * the client with lazyConnect so the first token is installed before connecting.
  */
 export async function bindManagedCredentialToRedis(
   client: Redis,

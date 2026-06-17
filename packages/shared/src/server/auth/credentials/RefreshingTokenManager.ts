@@ -1,20 +1,6 @@
 import { logger } from "../../logger";
 import type { ManagedAccessToken, ManagedCredentialProvider } from "./types";
 
-/**
- * Provider-agnostic token cache with refresh-ahead scheduling.
- *
- * It owns three responsibilities so individual providers and consumers don't
- * have to: (1) cache the current token, (2) refresh it *before* it expires and
- * notify subscribers so a live connection can re-authenticate without dropping,
- * and (3) single-flight concurrent fetches.
- *
- * The refresh-ahead strategy matches the prior art: schedule the next refresh
- * after `expirationRefreshRatio` of the token's remaining lifetime has elapsed
- * (Redis `@redis/entraid` uses 0.8; Grafana keeps a ~2-minute window). The AWS
- * JDBC wrapper achieves the same with a fixed sub-lifetime TTL (870s for a 900s
- * token); a ratio generalises across providers with different lifetimes.
- */
 export interface RefreshingTokenManagerOptions {
   /**
    * Refresh once this fraction (0..1) of the token lifetime has elapsed.
@@ -33,6 +19,11 @@ const DEFAULT_EXPIRATION_REFRESH_RATIO = 0.8;
 const DEFAULT_MIN_REFRESH_DELAY_MS = 1_000;
 const DEFAULT_RETRY_DELAY_MS = 5_000;
 
+/**
+ * Caches a provider's token, refreshes it ahead of expiry, and single-flights
+ * concurrent fetches. Subscribers (onRefresh) can re-authenticate a live
+ * connection when the token rotates.
+ */
 export class RefreshingTokenManager {
   private readonly provider: ManagedCredentialProvider;
   private readonly expirationRefreshRatio: number;
@@ -64,8 +55,7 @@ export class RefreshingTokenManager {
 
   /**
    * Return a currently-valid token, fetching one if the cache is empty or
-   * expired. Concurrent callers share a single in-flight fetch. Safe to call on
-   * a hot path (e.g. node-postgres' per-connection async `password` callback).
+   * expired. Concurrent callers share a single in-flight fetch.
    */
   public async getToken(): Promise<ManagedAccessToken> {
     if (this.current && Date.now() < this.current.expiresOnTimestamp) {

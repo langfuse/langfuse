@@ -1,6 +1,5 @@
-// Type-only import: erased at compile time, so `@azure/identity` is NOT loaded
-// unless a deployment actually selects the azure-managed-identity method. The
-// concrete credential classes are pulled in lazily in `getCredential()` below.
+// Type-only import so @azure/identity loads lazily in getCredential() below,
+// not for deployments that don't select this method.
 import type { TokenCredential } from "@azure/identity";
 import type { ManagedAccessToken, ManagedCredentialProvider } from "../types";
 
@@ -13,31 +12,15 @@ export const AZURE_POSTGRES_SCOPE =
 export interface AzureManagedIdentityProviderOptions {
   /** The Entra scope/resource to request a token for (see scope constants). */
   scope: string;
-  /**
-   * Principal presented as the username. For Azure Cache for Redis this is the
-   * object id of the managed identity / service principal.
-   */
+  /** Principal presented as the username (the identity object id for Redis). */
   username?: string;
-  /**
-   * Client id of a *user-assigned* managed identity. Omit for system-assigned
-   * identity, where `DefaultAzureCredential` is used (which also covers Workload
-   * Identity Federation on AKS, env-based service principals, and `az login`).
-   */
+  /** User-assigned managed identity client id. Omit for DefaultAzureCredential. */
   clientId?: string;
-  /**
-   * Inject a pre-built credential. Primarily for tests; also lets callers supply
-   * a more specific `@azure/identity` credential when the defaults don't fit.
-   */
+  /** Inject a pre-built credential (used in tests). */
   credential?: TokenCredential;
 }
 
-/**
- * Mints short-lived Microsoft Entra access tokens via `@azure/identity`.
- *
- * `@azure/identity` is imported lazily so the SDK is only loaded when this
- * provider is actually constructed and used. If the optional dependency is not
- * installed, a clear, actionable error is thrown.
- */
+/** Mints short-lived Microsoft Entra access tokens via @azure/identity. */
 export class AzureManagedIdentityCredentialProvider implements ManagedCredentialProvider {
   public readonly name = "azure-managed-identity";
   public readonly username?: string;
