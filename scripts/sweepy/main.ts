@@ -6,6 +6,7 @@ import {
   JsxAttribute,
   Node,
   Project,
+  PropertySignature,
   QuoteKind,
   SourceFile,
   SyntaxKind,
@@ -46,6 +47,12 @@ type UnsupportedUsage = {
   reason: string;
 };
 
+type ReplacementSummary = {
+  replacedUsages: number;
+  updatedDefinition: boolean;
+  unsupportedUsages: UnsupportedUsage[];
+};
+
 type CollectedValues = {
   values: PropValue[];
   unsupportedUsages: UnsupportedUsage[];
@@ -61,6 +68,7 @@ const defaultPropName = "className";
 const maxClassValueVariants = 16;
 const otherDefinitionFileOption = "other";
 const freezePropCommand = "freeze-prop";
+const replacePropValueCommand = "replace-prop-value";
 const banner = String.raw`
      _______  _     _  _______  _______  _______  __   __ 
     |       || | _ | ||       ||       ||       ||  | |  |
@@ -77,7 +85,8 @@ function printHelp() {
   console.log(`Usage: ./scripts/sweepy/main.ts <command>
 
 Commands:
-  ${freezePropCommand}  Refactor component props into strict variants`);
+  ${freezePropCommand}        Refactor component props into strict variants
+  ${replacePropValueCommand}  Replace one static component prop value with another prop value`);
 }
 
 export function createStringUnionType(values: string[]): string {
@@ -673,6 +682,259 @@ function rewriteSupportedPropExpressionUsages(
   }
 }
 
+function replaceStaticPropValueUsages(
+  sourceFiles: SourceFile[],
+  componentName: string,
+  fromPropName: string,
+  fromValue: PropValue,
+  toPropName: string,
+  toValue: PropValue,
+): ReplacementSummary {
+  const unsupportedUsages: UnsupportedUsage[] = [];
+  let replacedUsages = 0;
+
+  for (const sourceFile of sourceFiles) {
+    const jsxNodes = [
+      ...sourceFile.getDescendantsOfKind(SyntaxKind.JsxOpeningElement),
+      ...sourceFile.getDescendantsOfKind(SyntaxKind.JsxSelfClosingElement),
+    ];
+
+    for (const jsxNode of jsxNodes) {
+      if (
+        jsxNode.wasForgotten() ||
+        jsxNode.getTagNameNode().getText() !== componentName
+      ) {
+        continue;
+      }
+
+      const attributes = jsxNode.getAttributes();
+      const fromAttribute = attributes.find(
+        (attr): attr is JsxAttribute =>
+          Node.isJsxAttribute(attr) &&
+          attr.getNameNode().getText() === fromPropName,
+      );
+      if (!fromAttribute) continue;
+
+      const line = sourceFile.getLineAndColumnAtPos(
+        fromAttribute.getStart(),
+      ).line;
+      const initializer = fromAttribute.getInitializer();
+      if (!initializer) {
+        unsupportedUsages.push({
+          filePath: sourceFile.getFilePath(),
+          line,
+          reason: `${fromPropName} has no initializer`,
+        });
+        continue;
+      }
+
+      const extractedValues = extractPropValues(initializer, fromPropName);
+      if (typeof extractedValues === "string") {
+        unsupportedUsages.push({
+          filePath: sourceFile.getFilePath(),
+          line,
+          reason: `${fromPropName} ${extractedValues}`,
+        });
+        continue;
+      }
+
+      if (
+        !isSingleMatchingPropValue(extractedValues, fromPropName, fromValue)
+      ) {
+        continue;
+      }
+
+      const toAttribute = attributes.find(
+        (attr): attr is JsxAttribute =>
+          Node.isJsxAttribute(attr) &&
+          attr.getNameNode().getText() === toPropName,
+      );
+      if (toAttribute) {
+        const toInitializer = toAttribute.getInitializer();
+        const toExtractedValues = toInitializer
+          ? extractPropValues(toInitializer, toPropName)
+          : `${toPropName} has no initializer`;
+
+        if (
+          typeof toExtractedValues === "string" ||
+          !isSingleMatchingPropValue(toExtractedValues, toPropName, toValue)
+        ) {
+          unsupportedUsages.push({
+            filePath: sourceFile.getFilePath(),
+            line,
+            reason: `${toPropName} already exists with a different value`,
+          });
+          continue;
+        }
+
+        fromAttribute.remove();
+        replacedUsages += 1;
+        continue;
+      }
+
+      jsxNode.addAttribute({
+        name: toPropName,
+        initializer: renderPropInitializer(toValue),
+      });
+      fromAttribute.remove();
+      replacedUsages += 1;
+    }
+  }
+
+  return { replacedUsages, updatedDefinition: false, unsupportedUsages };
+}
+
+function replaceStaticPropValueDefinition(
+  sourceFile: SourceFile,
+  propsTypeName: string,
+  fromPropName: string,
+  fromValue: PropValue,
+  toPropName: string,
+  toValue: PropValue,
+): ReplacementSummary {
+  const unsupportedUsages: UnsupportedUsage[] = [];
+  let updatedDefinition = false;
+
+  const fromProperty = getPropsProperty(
+    sourceFile,
+    propsTypeName,
+    fromPropName,
+  );
+  if (!fromProperty) {
+    unsupportedUsages.push({
+      filePath: sourceFile.getFilePath(),
+      line: 1,
+      reason: `could not find ${propsTypeName}.${fromPropName}`,
+    });
+  } else {
+    const fromValues = getStrictPropTypeValues(fromProperty);
+    if (!fromValues) {
+      unsupportedUsages.push({
+        filePath: sourceFile.getFilePath(),
+        line: sourceFile.getLineAndColumnAtPos(fromProperty.getStart()).line,
+        reason: `unsupported ${propsTypeName}.${fromPropName} type`,
+      });
+    } else {
+      const nextFromValues = fromValues.filter(
+        (value) => !isMatchingPropValue(fromPropName, value, fromValue),
+      );
+      if (nextFromValues.length !== fromValues.length) {
+        if (nextFromValues.length === 0) {
+          fromProperty.remove();
+        } else {
+          fromProperty.setType(createPropUnionType(nextFromValues));
+        }
+        updatedDefinition = true;
+      }
+    }
+  }
+
+  const toProperty = getPropsProperty(sourceFile, propsTypeName, toPropName);
+  if (!toProperty) {
+    unsupportedUsages.push({
+      filePath: sourceFile.getFilePath(),
+      line: 1,
+      reason: `could not find ${propsTypeName}.${toPropName}`,
+    });
+  } else {
+    const toValues = getStrictPropTypeValues(toProperty);
+    if (!toValues) {
+      unsupportedUsages.push({
+        filePath: sourceFile.getFilePath(),
+        line: sourceFile.getLineAndColumnAtPos(toProperty.getStart()).line,
+        reason: `unsupported ${propsTypeName}.${toPropName} type`,
+      });
+    } else if (
+      !toValues.some((value) => isMatchingPropValue(toPropName, value, toValue))
+    ) {
+      toProperty.setType(createPropUnionType([...toValues, toValue]));
+      updatedDefinition = true;
+    }
+  }
+
+  return { replacedUsages: 0, updatedDefinition, unsupportedUsages };
+}
+
+function getPropsProperty(
+  sourceFile: SourceFile,
+  propsTypeName: string,
+  propName: string,
+): PropertySignature | undefined {
+  const interfaceDeclaration = sourceFile.getInterface(propsTypeName);
+  if (interfaceDeclaration) return interfaceDeclaration.getProperty(propName);
+
+  const typeAliasDeclaration = sourceFile.getTypeAlias(propsTypeName);
+  const typeNode = typeAliasDeclaration?.getTypeNode();
+  if (typeNode && Node.isTypeLiteral(typeNode)) {
+    return typeNode.getProperty(propName);
+  }
+
+  if (typeNode && Node.isIntersectionTypeNode(typeNode)) {
+    return typeNode
+      .getTypeNodes()
+      .find((node): node is TypeLiteralNode => Node.isTypeLiteral(node))
+      ?.getProperty(propName);
+  }
+
+  return undefined;
+}
+
+function getStrictPropTypeValues(
+  property: PropertySignature,
+): PropValue[] | undefined {
+  const typeNode = property.getTypeNode();
+  if (!typeNode) return undefined;
+
+  const typeNodes = Node.isUnionTypeNode(typeNode)
+    ? typeNode.getTypeNodes()
+    : [typeNode];
+
+  const values = typeNodes.map(getStrictPropTypeValue);
+  if (values.some((value) => value === undefined)) return undefined;
+
+  return values as PropValue[];
+}
+
+function getStrictPropTypeValue(typeNode: Node): PropValue | undefined {
+  if (!Node.isLiteralTypeNode(typeNode)) return undefined;
+
+  const literal = typeNode.getLiteral();
+  if (Node.isStringLiteral(literal)) return literal.getLiteralText();
+  if (Node.isNumericLiteral(literal)) return Number(literal.getText());
+
+  return undefined;
+}
+
+function isSingleMatchingPropValue(
+  extractedValues: ExtractedPropValues,
+  propName: string,
+  value: PropValue,
+): boolean {
+  if (extractedValues.kind !== "single") return false;
+
+  return isMatchingPropValue(
+    propName,
+    extractedValues.variants[0].value,
+    value,
+  );
+}
+
+function isMatchingPropValue(
+  propName: string,
+  extractedValue: PropValue,
+  value: PropValue,
+): boolean {
+  if (propName === defaultPropName) {
+    return (
+      typeof extractedValue === "string" &&
+      typeof value === "string" &&
+      joinClassValues([extractedValue]) === joinClassValues([value])
+    );
+  }
+
+  return extractedValue === value;
+}
+
 function rewriteConditionalPropValue(
   attribute: JsxAttribute,
   extractedValues: Extract<ExtractedPropValues, { kind: "conditional" }>,
@@ -1143,6 +1405,93 @@ async function freezeProp() {
   await askToSaveChanges(project);
 }
 
+async function replacePropValue() {
+  console.log(banner);
+
+  const componentName = askWithDefault("Component name", "LangfuseIcon");
+  const fromPropName = askWithDefault("From prop", defaultPropName);
+  const fromValue = askForPropValue("From value", "h-8 w-8");
+  const toPropName = askWithDefault("To prop", "size");
+  const toValue = askForPropValue("To value", "32");
+  const propsTypeName = askWithDefault(
+    "Props type/interface name",
+    `${componentName}Props`,
+  );
+  const usageRoot = askWithDefault("Usage search root", "web/src");
+  const tsConfigPath = askWithDefault(
+    "TypeScript config path",
+    "web/tsconfig.json",
+  );
+
+  if (fromPropName === toPropName) {
+    throw new Error("From prop and to prop must be different.");
+  }
+
+  const project = await withStatus(
+    "Loading TypeScript project",
+    () =>
+      new Project({
+        tsConfigFilePath: resolveRepoPath(tsConfigPath),
+        manipulationSettings: { quoteKind: QuoteKind.Double },
+      }),
+  );
+
+  await withStatus("Loading usage files", () => {
+    project.addSourceFilesAtPaths([
+      path.join(resolveRepoPath(usageRoot), "**/*.ts"),
+      path.join(resolveRepoPath(usageRoot), "**/*.tsx"),
+    ]);
+  });
+
+  const definitionFile = await selectComponentDefinitionFile(
+    project,
+    componentName,
+    usageRoot,
+  );
+
+  const usageSummary = await withStatus(
+    `Replacing ${componentName} ${fromPropName}=${renderPropValue(
+      fromValue,
+    )} with ${toPropName}=${renderPropValue(toValue)}`,
+    () =>
+      replaceStaticPropValueUsages(
+        project.getSourceFiles(),
+        componentName,
+        fromPropName,
+        fromValue,
+        toPropName,
+        toValue,
+      ),
+  );
+  const definitionSummary = replaceStaticPropValueDefinition(
+    definitionFile,
+    propsTypeName,
+    fromPropName,
+    fromValue,
+    toPropName,
+    toValue,
+  );
+  const replacedUsages = usageSummary.replacedUsages;
+  const updatedDefinition = definitionSummary.updatedDefinition;
+  const unsupportedUsages = [
+    ...usageSummary.unsupportedUsages,
+    ...definitionSummary.unsupportedUsages,
+  ];
+
+  printReplacementSummary(replacedUsages, updatedDefinition, unsupportedUsages);
+
+  if (replacedUsages === 0 && !updatedDefinition) return;
+
+  if (unsupportedUsages.length > 0) {
+    if (!confirm("Continue and leave unsupported usages unchanged?")) {
+      console.log("No files were written.");
+      return;
+    }
+  }
+
+  await askToSaveChanges(project);
+}
+
 async function main() {
   const [command] = Deno.args;
 
@@ -1159,6 +1508,11 @@ async function main() {
 
   if (command === freezePropCommand) {
     await freezeProp();
+    return;
+  }
+
+  if (command === replacePropValueCommand) {
+    await replacePropValue();
     return;
   }
 
@@ -1188,6 +1542,36 @@ function printDiscoverySummary(
       );
     }
   }
+}
+
+function printReplacementSummary(
+  replacedUsages: number,
+  updatedDefinition: boolean,
+  unsupportedUsages: UnsupportedUsage[],
+) {
+  console.log(`\nSupported replacements: ${replacedUsages}`);
+  console.log(`Definition updated: ${updatedDefinition ? "yes" : "no"}`);
+
+  if (unsupportedUsages.length > 0) {
+    console.log("\nUnsupported usages left unchanged:");
+    for (const usage of unsupportedUsages) {
+      console.log(
+        `- ${path.relative(
+          repoRoot,
+          usage.filePath,
+        )}:${usage.line} ${usage.reason}`,
+      );
+    }
+  }
+}
+
+function askForPropValue(label: string, defaultValue: string): PropValue {
+  const answer = askWithDefault(label, defaultValue);
+  const numericValue = Number(answer);
+  if (answer.trim() !== "" && Number.isFinite(numericValue))
+    return numericValue;
+
+  return answer;
 }
 
 function askWithDefault(label: string, defaultValue: string): string {
