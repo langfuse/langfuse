@@ -407,7 +407,7 @@ function VerifiedSignupFlow({
         </Head>
         <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
           <div className="sm:mx-auto sm:w-full sm:max-w-md">
-            <div className="mx-auto">
+            <div className="mx-auto w-fit">
               <LangfuseIcon />
             </div>
             <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
@@ -554,7 +554,7 @@ function SignupPageShell({ children }: { children: React.ReactNode }) {
       </Head>
       <div className="flex flex-1 flex-col py-6 sm:min-h-full sm:justify-center sm:px-6 sm:py-12 lg:px-8">
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="mx-auto">
+          <div className="mx-auto w-fit">
             <LangfuseIcon />
           </div>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">
