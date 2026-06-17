@@ -11,12 +11,12 @@ import type {
 
 import {
   AgUiMessageSchema,
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
   InAppAgentRedirectActionToolResultSchema,
   type AgUiEvent,
   type AgUiMessage,
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.

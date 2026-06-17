@@ -4,8 +4,8 @@ import { Agent } from "@mastra/core/agent";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/schema";
 import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],

@@ -7,12 +7,12 @@ import type {
 import { deduplicateBy } from "@/src/utils/arrays";
 import {
   AgUiMessageSchema,
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
   type AgUiMessage,
   type InAppAgentMessageSource,
   InAppAgentRedirectActionToolResultSchema,
   InAppAgentMessageSourceSchema,
 } from "@/src/ee/features/in-app-agent/schema";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 const LangfuseDocsDocumentSchema = z.object({
   type: z.literal("document"),

@@ -8,12 +8,12 @@ import { MCPClient } from "@mastra/mcp";
 import {
   type AgUiEvent,
   type AgUiRunAgentInput,
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createRedirectActionTool } from "@/src/ee/features/in-app-agent/server/tools";
 import { logger } from "@langfuse/shared/src/server";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const getAssistantSystemPrompt = (

@@ -10,10 +10,7 @@ import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
-import {
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
-  type AgUiEvent,
-} from "@/src/ee/features/in-app-agent/schema";
+import { type AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
 import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 import {
   createRun,
@@ -25,6 +22,7 @@ import {
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
