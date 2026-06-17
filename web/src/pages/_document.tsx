@@ -10,7 +10,10 @@ import { LAYER_ORDER } from "@/src/components/ui/layer";
 // container and portals into it. Styling lives in globals.css.
 export default function Document() {
   return (
-    <Html>
+    // lang is set explicitly (not left to the i18n config, which is being
+    // phased out in App Router) so screen readers always get the document
+    // language — WCAG 2.1 SC 3.1.1.
+    <Html lang="en">
       <Head />
       <body>
         <Main />

@@ -15,6 +15,12 @@ import { createPortal } from "react-dom";
  * a LOCAL tool for ordering content WITHIN one layer (or within the app), never
  * a global escalation. To add a layer, append its name here — `_document.tsx`
  * maps this list to the containers — and render `<Layer name="…">`.
+ *
+ * TODO (follow-up): integrate Radix overlays into this system. Today they
+ * portal to `<body>` at `z-50` and so sit above these (z-index-less) layers by
+ * virtue of that number. The end state is to route them through layers too
+ * (e.g. a `popover`/`modal`/`toast` layer above `tooltip`), retiring the last
+ * app-wide z-index numbers so ordering everywhere is layer order.
  */
 export const LAYER_ORDER = ["tooltip"] as const;
 export type LayerName = (typeof LAYER_ORDER)[number];
