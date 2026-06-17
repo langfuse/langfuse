@@ -123,4 +123,19 @@ describe("sentinel redirect /project/~/", () => {
       },
     });
   });
+
+  it("path segment with reserved chars: encodes each segment", async () => {
+    getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-abc"]));
+
+    const result = await getServerSideProps(
+      makeCtx({ path: ["prompts", "What is X?"] }),
+    );
+
+    expect(result).toEqual({
+      redirect: {
+        destination: "/project/proj-abc/prompts/What%20is%20X%3F",
+        permanent: false,
+      },
+    });
+  });
 });

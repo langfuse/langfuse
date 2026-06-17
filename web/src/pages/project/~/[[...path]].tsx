@@ -31,7 +31,11 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   }
 
   const path = (ctx.params?.path as string[] | undefined) ?? [];
-  const destination = ["/project", firstProject.id, ...path].join("/");
+  const destination = [
+    "/project",
+    firstProject.id,
+    ...path.map(encodeURIComponent),
+  ].join("/");
 
   return { redirect: { destination, permanent: false } };
 };
