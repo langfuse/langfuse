@@ -749,10 +749,7 @@ export async function createManyDatasetItems(props: {
       CreateManyValidationError
     >();
     for (const r of unresolvableMedia) {
-      // dataset_item_media uses snake_case; validation errors use the dataset
-      // item's property names.
-      const field: CreateManyValidationError["field"] =
-        r.field === "expected_output" ? "expectedOutput" : r.field;
+      const field: CreateManyValidationError["field"] = r.field;
       const itemIndex = preparedOriginalIndices[r.itemIndex];
       const key = `${itemIndex}-${field}`;
       const error = {

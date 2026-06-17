@@ -129,7 +129,7 @@ describe("Dataset item media references (public API read path)", () => {
 
     expect(GetDatasetItemV1Response.parse(item).mediaReferences).toEqual([
       {
-        field: "expected_output",
+        field: "expectedOutput",
         referenceString: outputMedia.referenceString,
         jsonPath: "$['reference']",
         media: expect.objectContaining({ mediaId: outputMedia.mediaId }),

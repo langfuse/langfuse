@@ -660,7 +660,7 @@ types:
     enum:
       - value: input
         name: INPUT
-      - value: expected_output
+      - value: expectedOutput
         name: EXPECTED_OUTPUT
       - value: metadata
         name: METADATA

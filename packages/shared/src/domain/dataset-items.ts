@@ -1,12 +1,12 @@
 import { DatasetItem, DatasetStatus } from "../db";
 
 /**
- * Dataset item fields that can hold media references.
- * Used as `field` discriminator in dataset_item_media and the public API.
+ * Dataset item fields that can hold media references. Stored as the
+ * `dataset_item_media.field` column value and exposed on the public API.
  */
 export const datasetItemMediaFields = [
   "input",
-  "expected_output",
+  "expectedOutput",
   "metadata",
 ] as const;
 export type DatasetItemMediaField = (typeof datasetItemMediaFields)[number];

@@ -133,9 +133,12 @@ export async function deleteMediaFiles(params: {
  * Release media that may have lost its last dataset reference. For each given
  * mediaId with no remaining dataset_item_media row: media still referenced by
  * a trace or observation is unmarked as dataset-retained (retention takes over
- * again), media with no references at all is deleted from Postgres and from S3
- * when a storage client is available. Media still referenced by another dataset
- * item is left untouched.
+ * again), media with no references at all is deleted from S3 (when a storage
+ * client is available) and then from Postgres. Media still referenced by
+ * another dataset item is left untouched.
+ *
+ * S3 is deleted before Postgres so a storage failure leaves the media row for a
+ * later retention sweep to retry rather than orphaning the bucket object.
  *
  * Call after the relevant dataset_item_media rows have been deleted.
  */
@@ -149,12 +152,53 @@ export async function releaseDatasetMedia(params: {
   for (const batch of chunk(mediaIds, 1000)) {
     if (batch.length === 0) continue;
 
-    // One query to avoid race issues
-    const deletedMedia = await prisma.$queryRaw<{ bucketPath: string }[]>`
+    // Capture the releasable media and their bucket paths without mutating, so
+    // an S3 failure below leaves the Postgres row intact for a later retention
+    // sweep to retry (mirrors the trace-delete path, which also deletes S3
+    // before Postgres). The dataset_item_media guard is re-checked in the
+    // mutating statement to stay race-safe against a concurrent re-link.
+    const releasable = await prisma.$queryRaw<
+      { bucketPath: string; hasOtherRefs: boolean }[]
+    >`
+      SELECT
+        m.bucket_path AS "bucketPath",
+        (
+          EXISTS (
+            SELECT 1 FROM trace_media tm
+            WHERE tm.project_id = m.project_id AND tm.media_id = m.id
+          )
+          OR EXISTS (
+            SELECT 1 FROM observation_media om
+            WHERE om.project_id = m.project_id AND om.media_id = m.id
+          )
+        ) AS "hasOtherRefs"
+      FROM media m
+      WHERE m.project_id = ${projectId}
+        AND m.id IN (${Prisma.join(batch)})
+        AND NOT EXISTS (
+          SELECT 1 FROM dataset_item_media dim
+          WHERE dim.project_id = m.project_id AND dim.media_id = m.id
+        )
+    `;
+
+    // Delete S3 bytes first for media kept alive by nothing else; a storage
+    // failure throws here, before any Postgres mutation, leaving the row for
+    // retry discovery.
+    const bucketPathsToDelete = releasable
+      .filter((m) => !m.hasOtherRefs)
+      .map((m) => m.bucketPath);
+    if (bucketPathsToDelete.length > 0 && storageClient) {
+      await storageClient.deleteFiles(bucketPathsToDelete);
+    }
+
+    // Then mutate Postgres in a single statement: clear the dataset retention
+    // marker for media kept alive by trace/observation references, and delete
+    // the now-orphaned media. Both branches re-check the dataset_item_media
+    // guard so a re-link committed since the SELECT is honored.
+    await prisma.$executeRaw`
       WITH releasable AS (
         SELECT
           m.id,
-          m.bucket_path,
           (
             EXISTS (
               SELECT 1 FROM trace_media tm
@@ -178,19 +222,11 @@ export async function releaseDatasetMedia(params: {
         SET retained_by_dataset_at = NULL
         FROM releasable r
         WHERE m.id = r.id AND m.project_id = ${projectId} AND r.has_other_refs
-      ),
-      deleted AS (
-        DELETE FROM media m
-        USING releasable r
-        WHERE m.id = r.id AND m.project_id = ${projectId} AND NOT r.has_other_refs
-        RETURNING m.bucket_path AS "bucketPath"
       )
-      SELECT "bucketPath" FROM deleted
+      DELETE FROM media m
+      USING releasable r
+      WHERE m.id = r.id AND m.project_id = ${projectId} AND NOT r.has_other_refs
     `;
-
-    if (deletedMedia.length > 0 && storageClient) {
-      await storageClient.deleteFiles(deletedMedia.map((m) => m.bucketPath));
-    }
   }
 }
 

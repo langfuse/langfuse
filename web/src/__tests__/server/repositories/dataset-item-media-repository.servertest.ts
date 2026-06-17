@@ -87,7 +87,7 @@ describe("Dataset Item Media Associations", () => {
     const rows = await getItemMediaRows(itemId);
     expect(rows).toMatchObject([
       {
-        field: "expected_output",
+        field: "expectedOutput",
         jsonPath: "$['references'][0]",
         mediaId: outputMedia.mediaId,
       },
@@ -292,7 +292,7 @@ describe("Dataset Item Media Associations", () => {
     await expect(getItemMediaRows(second.id)).resolves.toEqual([]);
     await expect(getItemMediaRows(third.id)).resolves.toMatchObject([
       {
-        field: "expected_output",
+        field: "expectedOutput",
         jsonPath: "$[0]",
         mediaId: secondMedia.mediaId,
       },
@@ -410,7 +410,7 @@ describe("Dataset Item Media Associations", () => {
 
       await expect(getItemMediaRows(datasetItemId)).resolves.toMatchObject([
         {
-          field: "expected_output",
+          field: "expectedOutput",
           jsonPath: "$['reference']",
           mediaId: keptMedia.mediaId,
         },
@@ -652,6 +652,47 @@ describe("Dataset Item Media Associations", () => {
           where: { projectId_id: { projectId, id: media.mediaId } },
         }),
       ).resolves.toBeNull();
+    });
+
+    it("keeps the media row when the S3 delete fails", async () => {
+      const media = await createMediaRow();
+      await linkDatasetItemMediaForTest({
+        projectId,
+        items: [
+          {
+            datasetId: v4(),
+            datasetItemId: v4(),
+            datasetItemValidFrom: new Date(),
+            input: { image: media.referenceString },
+          },
+        ],
+        replaceExisting: false,
+      });
+      await prisma.datasetItemMedia.deleteMany({
+        where: { projectId, mediaId: media.mediaId },
+      });
+
+      const failingClient = {
+        deleteFiles: async () => {
+          throw new Error("S3 unavailable");
+        },
+      };
+
+      // The storage failure must propagate before any Postgres mutation, so the
+      // media row survives for a later retention sweep to retry.
+      await expect(
+        releaseDatasetMedia({
+          projectId,
+          mediaIds: [media.mediaId],
+          storageClient: failingClient,
+        }),
+      ).rejects.toThrow("S3 unavailable");
+
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: media.mediaId } },
+        }),
+      ).resolves.not.toBeNull();
     });
 
     it("un-retains media still referenced by a trace instead of deleting it", async () => {

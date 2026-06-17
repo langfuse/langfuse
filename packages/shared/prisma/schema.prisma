@@ -1412,7 +1412,7 @@ model DatasetItemMedia {
   datasetId            String   @map("dataset_id")
   datasetItemId        String   @map("dataset_item_id")
   datasetItemValidFrom DateTime @map("dataset_item_valid_from")
-  // dataset item field containing the reference: input | expected_output | metadata
+  // dataset item field containing the reference: input | expectedOutput | metadata
   field                String   @map("field")
   // JSONPath of the string holding the media reference within the field, e.g. $['images'][0]
   jsonPath             String   @map("json_path")

@@ -25,7 +25,7 @@ type DatasetItemMediaSource = DatasetItemMediaValues & {
 function collectMediaReferences(item: DatasetItemMediaValues) {
   const fieldValues: { field: DatasetItemMediaField; value: unknown }[] = [
     { field: "input", value: item.input },
-    { field: "expected_output", value: item.expectedOutput },
+    { field: "expectedOutput", value: item.expectedOutput },
     { field: "metadata", value: item.metadata },
   ];
 
