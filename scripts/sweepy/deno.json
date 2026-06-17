@@ -1,0 +1,7 @@
+{
+  "lock": "deno.lock",
+  "tasks": {
+    "start": "deno run --allow-read --allow-write --allow-env main.ts",
+    "check": "deno check main.ts"
+  }
+}
