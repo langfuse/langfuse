@@ -762,7 +762,7 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
               admin: true,
               v4BetaEnabled: true,
               organizationMemberships: {
-                // Newest first so demo project is last for the `project/~/` sentinal
+                // Newest first so demo project is last for the `project/~/` sentinel
                 orderBy: {
                   createdAt: "desc",
                 },
