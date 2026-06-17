@@ -1552,7 +1552,10 @@ function runSubqueryRewriteShadowQuery(
     const orderMatch = primaryIds.every((id, i) => id === shadowIds[i]);
     if (!orderMatch) {
       const primarySet = new Set(primaryIds);
-      const sameContent = shadowIds.every((id) => primarySet.has(id));
+      const shadowSet = new Set(shadowIds);
+      const sameContent =
+        primarySet.size === shadowSet.size &&
+        shadowIds.every((id) => primarySet.has(id));
       if (!sameContent) {
         recordIncrement(`${METRIC_PREFIX}.content_mismatch`, 1);
         logger.warn("Shadow query content mismatch", {
