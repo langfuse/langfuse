@@ -1339,7 +1339,12 @@ export function SearchComposer({
           autoCapitalize="none"
           inputMode="text"
           data-testid="search-bar-input"
-          className="min-h-6 font-mono text-xs leading-7 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          // leading-6 (not 7): WebKit/Safari sizes the text caret to the line
+          // box, so a 28px (leading-7) line made the caret tower ~4px above/
+          // below the ~24px pills ("too big"). 24px matches the pill height so
+          // the caret aligns with the pills. Trade-off: tighter gap between
+          // wrapped lines of pills (single-line is unaffected).
+          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}
