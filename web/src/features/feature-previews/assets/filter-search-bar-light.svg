@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="650" height="300" viewBox="0 0 650 300">
+  <defs>
+    <linearGradient id="barGlow" x1="62" y1="52" x2="595" y2="104" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="hsl(243, 75.4%, 58.6%)" stop-opacity="0.14"/>
+      <stop offset="0.58" stop-color="hsl(210, 40%, 94%)" stop-opacity="0.72"/>
+      <stop offset="1" stop-color="hsl(188, 60%, 42%)" stop-opacity="0.08"/>
+    </linearGradient>
+    <linearGradient id="rowGlow" x1="255" y1="173" x2="574" y2="196" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="hsl(243, 75.4%, 58.6%)" stop-opacity="0.2"/>
+      <stop offset="1" stop-color="hsl(210, 40%, 95%)" stop-opacity="0.74"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="650" height="300" fill="hsl(0, 0%, 100%)"/>
+
+  <g stroke="hsl(222.2, 47.4%, 11.2%)" stroke-width="1.5" fill="none" opacity="0.4">
+    <path d="M14 32 V14 H32"/>
+    <path d="M636 32 V14 H618"/>
+    <path d="M14 268 V286 H32"/>
+    <path d="M636 268 V286 H618"/>
+  </g>
+
+  <g opacity="0.22" fill="none" stroke="hsl(214.3, 31.8%, 82%)" stroke-width="1">
+    <path d="M83 41 L584 40 L610 77 L560 118 L118 110 L55 76 Z"/>
+    <path d="M153 41 L124 111"/>
+    <path d="M321 41 L304 109"/>
+    <path d="M476 40 L514 113"/>
+  </g>
+
+  <rect x="48" y="54" width="554" height="54" rx="10" fill="url(#barGlow)" stroke="hsl(214.3, 31.8%, 86%)"/>
+  <polygon points="87,60 158,54 133,108 63,104" fill="hsl(243, 75.4%, 58.6%)" fill-opacity="0.06"/>
+  <polygon points="420,54 589,54 559,108 455,108" fill="hsl(188, 60%, 42%)" fill-opacity="0.05"/>
+
+  <circle cx="77" cy="78" r="7" fill="none" stroke="hsl(222.2, 47.4%, 11.2%)" stroke-width="2.2"/>
+  <path d="M82 83 L90 91" stroke="hsl(222.2, 47.4%, 11.2%)" stroke-width="2.2" stroke-linecap="round"/>
+
+  <g font-family="'Geist Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="600" letter-spacing="0.01em" text-anchor="middle">
+    <rect x="112" y="69" width="108" height="25" rx="6" fill="hsl(243, 75.4%, 58.6%)" fill-opacity="0.16" stroke="hsl(243, 75.4%, 58.6%)" stroke-opacity="0.8"/>
+    <text x="166" y="86" fill="hsl(243, 75.4%, 45%)">level<tspan fill-opacity="0.5">:</tspan>ERROR</text>
+
+    <rect x="230" y="69" width="86" height="25" rx="6" fill="hsl(210, 40%, 96.1%)" stroke="hsl(214.3, 31.8%, 82%)"/>
+    <text x="273" y="86" fill="hsl(222.2, 47.4%, 11.2%)">env<tspan fill-opacity="0.5">:</tspan>prod</text>
+
+    <rect x="326" y="69" width="100" height="25" rx="6" fill="hsl(210, 40%, 96.1%)" stroke="hsl(214.3, 31.8%, 82%)"/>
+    <text x="376" y="86" fill="hsl(222.2, 47.4%, 11.2%)">latency<tspan fill-opacity="0.5">&gt;</tspan>2s</text>
+
+    <rect x="436" y="69" width="86" height="25" rx="6" fill="hsl(210, 40%, 96.1%)" stroke="hsl(214.3, 31.8%, 82%)"/>
+    <text x="479" y="86" fill="hsl(222.2, 47.4%, 11.2%)">score<tspan fill-opacity="0.5">&gt;</tspan>.8</text>
+
+    <rect x="534" y="75" width="3" height="18" rx="1.5" fill="hsl(222.2, 47.4%, 11.2%)" opacity="0.85"/>
+  </g>
+
+  <g stroke="hsl(222.2, 47.4%, 11.2%)" stroke-width="1" stroke-dasharray="3 6" opacity="0.28" fill="none">
+    <path d="M166 108 C 156 124, 139 135, 122 151"/>
+    <path d="M273 108 C 277 129, 269 145, 274 165"/>
+    <path d="M376 108 C 393 133, 411 149, 452 167"/>
+    <path d="M479 108 C 487 131, 506 148, 540 168"/>
+  </g>
+
+  <g font-family="'Geist Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace">
+    <rect x="54" y="135" width="160" height="115" rx="8" fill="hsl(0, 0%, 100%)" stroke="hsl(214.3, 31.8%, 88%)"/>
+    <polygon points="54,135 214,135 183,169 72,176" fill="hsl(210, 40%, 96.1%)" fill-opacity="0.4"/>
+    <path d="M86 135 L122 250" stroke="hsl(214.3, 31.8%, 91.4%)" opacity="0.6"/>
+    <path d="M183 135 L154 250" stroke="hsl(214.3, 31.8%, 88%)" opacity="0.6"/>
+
+    <text x="72" y="156" font-size="9.5" font-weight="600" letter-spacing="0.16em" fill="hsl(215.4, 16.3%, 46.9%)">FILTER FIELD</text>
+    <line x1="72" y1="168" x2="194" y2="168" stroke="hsl(214.3, 31.8%, 91.4%)"/>
+
+    <circle cx="82" cy="194" r="4" fill="hsl(243, 75.4%, 58.6%)"/>
+    <text x="100" y="198" font-size="12" font-weight="500" fill="hsl(222.2, 47.4%, 11.2%)">level</text>
+    <polygon points="150,184 190,184 198,204 155,204" fill="hsl(243, 75.4%, 58.6%)" fill-opacity="0.16" stroke="hsl(243, 75.4%, 58.6%)" stroke-opacity="0.68"/>
+    <text x="173" y="198" font-size="10" font-weight="600" letter-spacing="0.04em" text-anchor="middle" fill="hsl(243, 75.4%, 45%)">ERR</text>
+
+    <circle cx="82" cy="228" r="4" fill="hsl(215.4, 16.3%, 55%)"/>
+    <text x="100" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">environment</text>
+  </g>
+
+  <g font-family="'Geist Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace">
+    <rect x="244" y="135" width="352" height="115" rx="8" fill="hsl(0, 0%, 100%)" stroke="hsl(214.3, 31.8%, 88%)"/>
+    <polygon points="244,135 596,135 574,167 256,171" fill="hsl(210, 40%, 96.1%)" fill-opacity="0.34"/>
+    <path d="M430 135 L406 250" stroke="hsl(214.3, 31.8%, 88%)" opacity="0.6"/>
+    <path d="M550 135 L525 250" stroke="hsl(214.3, 31.8%, 88%)" opacity="0.6"/>
+
+    <text x="266" y="156" font-size="9.5" font-weight="600" letter-spacing="0.16em" fill="hsl(215.4, 16.3%, 46.9%)">MATCHED TRACE</text>
+    <line x1="266" y1="168" x2="574" y2="168" stroke="hsl(214.3, 31.8%, 91.4%)"/>
+
+    <path d="M262 180 H574 L566 208 H262 Z" fill="url(#rowGlow)" stroke="hsl(243, 75.4%, 58.6%)" stroke-opacity="0.7"/>
+    <rect x="262" y="217" width="304" height="22" rx="5" fill="hsl(0, 0%, 100%)" stroke="hsl(214.3, 31.8%, 91.4%)"/>
+
+    <circle cx="282" cy="194" r="4" fill="hsl(243, 75.4%, 58.6%)"/>
+    <text x="302" y="198" font-size="12" font-weight="500" fill="hsl(222.2, 84%, 4.9%)">checkout-flow</text>
+    <text x="434" y="198" font-size="12" font-weight="600" fill="hsl(243, 75.4%, 45%)">ERROR</text>
+    <text x="502" y="198" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 35%)">2.4s</text>
+    <polygon points="544,187 572,187 568,203 540,203" fill="hsl(243, 75.4%, 58.6%)" fill-opacity="0.22"/>
+    <text x="556" y="198" font-size="10.5" font-weight="600" letter-spacing="0.02em" text-anchor="middle" fill="hsl(243, 75.4%, 45%)">.91</text>
+
+    <circle cx="282" cy="228" r="3.5" fill="hsl(215.4, 16.3%, 55%)"/>
+    <text x="302" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">refund-agent</text>
+    <text x="434" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">WARN</text>
+    <text x="502" y="232" font-size="12" font-weight="500" fill="hsl(215.4, 16.3%, 46.9%)">1.7s</text>
+  </g>
+
+  <g opacity="0.72">
+    <path d="M214 195 C 226 194, 234 192, 244 190" stroke="hsl(243, 75.4%, 58.6%)" stroke-dasharray="3 5" fill="none"/>
+    <circle cx="214" cy="195" r="3.5" fill="hsl(243, 75.4%, 58.6%)"/>
+  </g>
+</svg>
