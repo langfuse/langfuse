@@ -4,6 +4,7 @@ import {
 } from "@/src/features/public-api/types/models";
 import { getModelForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
+import { buildModelUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [getModelTool, handleGetModel] = defineTool({
@@ -22,7 +23,15 @@ export const [getModelTool, handleGetModel] = defineTool({
           modelId: input.modelId,
         });
 
-        return GetModelV1Response.parse(result);
+        const model = GetModelV1Response.parse(result);
+
+        return {
+          ...model,
+          url: buildModelUrl({
+            projectId: context.projectId,
+            modelId: model.id,
+          }),
+        };
       },
     }),
   readOnlyHint: true,

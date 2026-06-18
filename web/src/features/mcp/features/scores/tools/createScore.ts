@@ -8,6 +8,7 @@ import {
 } from "@langfuse/shared";
 import { ScoresApiService } from "@/src/features/public-api/server/scores-api-service";
 import { defineTool } from "../../../core/define-tool";
+import { buildScoreTargetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { ApiServerError } from "../../../core/errors";
 import { z } from "zod";
@@ -113,7 +114,15 @@ export const [createScoreTool, handleCreateScore] = defineTool({
           throw new ApiServerError("Failed to create score");
         }
 
-        return PostScoresResponseV1.parse({ id: scoreId });
+        const score = PostScoresResponseV1.parse({ id: scoreId });
+        const url = buildScoreTargetUrl({
+          projectId: context.projectId,
+          traceId: input.traceId,
+          observationId: input.observationId,
+          sessionId: input.sessionId,
+        });
+
+        return url ? { ...score, url } : score;
       },
     });
   },

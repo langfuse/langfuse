@@ -16,7 +16,7 @@ import {
   EvaluatorBlockSource,
   finalizeBlockedEvaluatorConfigBlocks,
 } from "@langfuse/shared/src/server";
-import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/defaultModelEvalTemplateRepository";
+import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/evaluatorRepository";
 
 export default withMiddlewares({
   DELETE: createAuthedProjectAPIRoute({

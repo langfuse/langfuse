@@ -409,10 +409,34 @@ export class ObservationTypeMapperRegistry {
       () => "TOOL",
     ),
 
-    // Priority 8: LiveKit spans: use span name to determine observation type
+    // Priority 8: Flue (https://flueframework.com) tool and delegated-task spans.
+    // The @flue/opentelemetry adapter emits model-turn spans with
+    // gen_ai.operation.name (handled above as GENERATION); tool and task spans
+    // only carry flue.* attributes, so they are detected here.
+    new CustomAttributeMapper(
+      "Flue",
+      8,
+      (attributes) =>
+        hasMeaningfulValue(attributes["flue.tool.name"]) ||
+        hasMeaningfulValue(attributes["flue.tool.call_id"]) ||
+        hasMeaningfulValue(attributes["flue.task.id"]) ||
+        hasMeaningfulValue(attributes["flue.task.agent"]),
+      (attributes) => {
+        if (
+          hasMeaningfulValue(attributes["flue.tool.name"]) ||
+          hasMeaningfulValue(attributes["flue.tool.call_id"])
+        ) {
+          return "TOOL";
+        }
+        // A Flue `task` is a delegated sub-agent run.
+        return "AGENT";
+      },
+    ),
+
+    // Priority 9: LiveKit spans: use span name to determine observation type
     new CustomAttributeMapper(
       "LiveKit_SpanName",
-      8,
+      9,
       (_attributes, _resourceAttributes, scopeData, spanName) => {
         if (scopeData?.name !== "livekit-agents") return false;
 
@@ -430,10 +454,10 @@ export class ObservationTypeMapperRegistry {
       },
     ),
 
-    // Priority 9: Model-based fallback
+    // Priority 10: Model-based fallback
     new CustomAttributeMapper(
       "ModelBased",
-      9,
+      10,
       (attributes, _resourceAttributes, _scopeData) => {
         const modelKeys = [
           LangfuseOtelSpanAttributes.OBSERVATION_MODEL,

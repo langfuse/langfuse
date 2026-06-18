@@ -4,6 +4,7 @@ import {
 } from "@/src/features/public-api/types/datasets";
 import { getDatasetItemForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
+import { buildDatasetItemUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
@@ -23,7 +24,16 @@ export const [getDatasetItemTool, handleGetDatasetItem] = defineTool({
           projectId: context.projectId,
         });
 
-        return GetDatasetItemV1Response.parse(result);
+        const datasetItem = GetDatasetItemV1Response.parse(result);
+
+        return {
+          ...datasetItem,
+          url: buildDatasetItemUrl({
+            projectId: context.projectId,
+            datasetId: datasetItem.datasetId,
+            datasetItemId: datasetItem.id,
+          }),
+        };
       },
     }),
   readOnlyHint: true,

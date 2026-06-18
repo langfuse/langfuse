@@ -47,6 +47,13 @@ export type InAppAgentMessageFeedback = z.infer<
   typeof InAppAgentMessageFeedbackSchema
 >;
 
+// Changes to this schema need to be backwards-compatible as messages with this are already persisted.
+export const InAppAgentRedirectActionToolResultSchema = z.object({
+  type: z.literal("redirectAction"),
+  label: z.string().min(1).max(80),
+  href: z.string().min(1),
+});
+
 const AgUiInputContentSourceSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("data"),

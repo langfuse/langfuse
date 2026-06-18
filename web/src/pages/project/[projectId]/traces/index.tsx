@@ -1,4 +1,3 @@
-import React from "react";
 import { useRouter } from "next/router";
 import TracesTable from "@/src/components/table/use-cases/traces";
 import Page from "@/src/components/layouts/page";

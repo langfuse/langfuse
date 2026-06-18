@@ -13,6 +13,7 @@ import {
   RESOURCE_LIMIT_ERROR_MESSAGE,
 } from "@langfuse/shared";
 import {
+  monitorEvaluationOffsetMs,
   type MonitorThresholdOperator,
   type MonitorView,
   type MonitorWindow,
@@ -46,7 +47,7 @@ export const MonitorChartPreview = ({
   alertThreshold: number | null | undefined;
   warningThreshold: number | null | undefined;
 }) => {
-  /** fromTimestamp and toTimestamp span 20 complete window buckets ending at the last floored boundary. */
+  /** bucketRange spans 20 complete window buckets ending at the last floored boundary. */
   const { fromTimestamp, toTimestamp } = useMemo(() => {
     const ms = Number(windowToMs(window));
     const to = Math.floor(Date.now() / ms) * ms;
@@ -57,7 +58,13 @@ export const MonitorChartPreview = ({
     };
   }, [window]);
 
-  /** queryResult runs the preview query for the draft monitor. */
+  /** leadingRange is the [now−offset−windowMs, now−offset] scalar query range matching the processor's evaluationWindow. */
+  const leadingRange = useMemo(
+    () => leadingWindowRange(window, Date.now()),
+    [window],
+  );
+
+  /** queryResult runs the 20-bucket time-series preview query. */
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
       projectId,
@@ -81,11 +88,39 @@ export const MonitorChartPreview = ({
     },
   );
 
-  /** data reshapes the query rows into chart points. */
-  const data: DataPoint[] = useMemo(
-    () => toChartPoints(queryResult.data ?? [], measure, aggregation),
-    [queryResult.data, measure, aggregation],
+  /** scalarResult runs the full-window scalar query for the leading point. */
+  const scalarResult = api.dashboard.executeQuery.useQuery(
+    {
+      projectId,
+      version: "v2",
+      query: {
+        view,
+        dimensions: [],
+        metrics: [{ measure, aggregation }],
+        filters,
+        timeDimension: null,
+        fromTimestamp: leadingRange.fromTimestamp,
+        toTimestamp: leadingRange.toTimestamp,
+        orderBy: null,
+        chartConfig: { type: "LINE_TIME_SERIES" },
+      },
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      meta: { silentHttpCodes: [422] },
+      refetchOnWindowFocus: false,
+    },
   );
+
+  /** data merges the 20-bucket series with an optional leading point. */
+  const data: DataPoint[] = useMemo(() => {
+    const points = toChartPoints(queryResult.data ?? [], measure, aggregation);
+    const scalarRow = scalarResult.data?.[0];
+    if (scalarRow !== undefined) {
+      points.push(toLeadingPoint(scalarRow, toTimestamp, measure, aggregation));
+    }
+    return points;
+  }, [queryResult.data, scalarResult.data, toTimestamp, measure, aggregation]);
 
   /** thresholds lists the warning and alert bands to draw on the chart. */
   const thresholds = useMemo(() => {
@@ -177,3 +212,35 @@ const toChartPoints = (
     } satisfies DataPoint;
   });
 };
+
+/** leadingWindowRange returns the [now−offset−windowMs, now−offset] range for the scalar leading-point query. */
+const leadingWindowRange = (
+  window: MonitorWindow,
+  now: number,
+): { fromTimestamp: string; toTimestamp: string } => {
+  const windowMs = Number(windowToMs(window));
+  const to = now - monitorEvaluationOffsetMs;
+  const from = to - windowMs;
+  return {
+    toTimestamp: new Date(to).toISOString(),
+    fromTimestamp: new Date(from).toISOString(),
+  };
+};
+
+/** toLeadingPoint converts a scalar executeQuery row into a DataPoint pinned to toTimestamp. */
+const toLeadingPoint = (
+  row: Record<string, unknown>,
+  toTimestamp: string,
+  measure: string,
+  aggregation: z.infer<typeof metricAggregations>,
+): DataPoint => {
+  const metricField = `${aggregation}_${measure}`;
+  const metric = row[metricField];
+  return {
+    time_dimension: toTimestamp,
+    dimension: "metric",
+    metric: Array.isArray(metric) ? metric : Number(metric || 0),
+  } satisfies DataPoint;
+};
+
+export const __test = { leadingWindowRange, toLeadingPoint };

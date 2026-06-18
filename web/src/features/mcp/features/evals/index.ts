@@ -9,6 +9,10 @@ import {
   handleUpsertEvaluator,
 } from "./tools/upsertEvaluator";
 import {
+  deleteEvaluatorTool,
+  handleDeleteEvaluator,
+} from "./tools/deleteEvaluator";
+import {
   listEvaluationRulesTool,
   handleListEvaluationRules,
 } from "./tools/listEvaluationRules";
@@ -45,6 +49,10 @@ export const evalsFeature: McpFeatureModule = {
       allowInAppAgentKey: true,
     },
     { definition: upsertEvaluatorTool, handler: handleUpsertEvaluator },
+    {
+      definition: deleteEvaluatorTool,
+      handler: handleDeleteEvaluator,
+    },
     {
       definition: listEvaluationRulesTool,
       handler: handleListEvaluationRules,

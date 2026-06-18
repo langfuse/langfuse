@@ -10,6 +10,7 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { ParamPromptName, ParamNewLabels } from "../validation";
 import { updatePromptLabelsForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { buildPromptUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 import { PROMPT_NAME_MAX_LENGTH } from "@langfuse/shared";
@@ -94,6 +95,11 @@ export const [updatePromptLabelsTool, handleUpdatePromptLabels] = defineTool({
           name: updatedPrompt.name,
           version: updatedPrompt.version,
           labels: updatedPrompt.labels,
+          url: buildPromptUrl({
+            projectId: context.projectId,
+            name: updatedPrompt.name,
+            version: updatedPrompt.version,
+          }),
           message: `Successfully updated labels for '${updatedPrompt.name}' version ${updatedPrompt.version}. Labels are now: ${updatedPrompt.labels.length > 0 ? updatedPrompt.labels.join(", ") : "(none)"}`,
         };
       },

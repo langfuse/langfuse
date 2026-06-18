@@ -14,6 +14,7 @@ import {
 } from "../validation";
 import { ParamLimit, ParamPage } from "../../../core/validation";
 import { listPromptsForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { buildPromptUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { paginationMeta } from "../../publicApi";
 
@@ -121,15 +122,27 @@ export const [listPromptsTool, handleListPrompts] = defineTool({
 
         // Return formatted response
         return {
-          data: result.data.map((prompt) => ({
-            name: prompt.name,
-            type: prompt.type,
-            versions: prompt.versions,
-            labels: prompt.labels,
-            tags: prompt.tags,
-            lastUpdatedAt: prompt.lastUpdatedAt,
-            lastConfig: prompt.lastConfig,
-          })),
+          data: result.data.map((prompt) => {
+            const latestVersion =
+              prompt.versions.length > 0
+                ? Math.max(...prompt.versions)
+                : undefined;
+
+            return {
+              name: prompt.name,
+              type: prompt.type,
+              versions: prompt.versions,
+              labels: prompt.labels,
+              tags: prompt.tags,
+              lastUpdatedAt: prompt.lastUpdatedAt,
+              lastConfig: prompt.lastConfig,
+              url: buildPromptUrl({
+                projectId: context.projectId,
+                name: prompt.name,
+                version: latestVersion,
+              }),
+            };
+          }),
           meta: paginationMeta({
             page: result.pagination.page,
             limit: result.pagination.limit,

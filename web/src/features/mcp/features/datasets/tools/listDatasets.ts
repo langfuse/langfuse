@@ -1,5 +1,6 @@
 import { GetDatasetsV2Response } from "@/src/features/public-api/types/datasets";
 import { defineTool } from "../../../core/define-tool";
+import { buildDatasetUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { listDatasetsForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { GetDatasetsMcpInput } from "../schema";
@@ -27,7 +28,18 @@ export const [listDatasetsTool, handleListDatasets] = defineTool({
           limit: input.limit,
         });
 
-        return GetDatasetsV2Response.parse(result);
+        const parsed = GetDatasetsV2Response.parse(result);
+
+        return {
+          ...parsed,
+          data: parsed.data.map((dataset) => ({
+            ...dataset,
+            url: buildDatasetUrl({
+              projectId: context.projectId,
+              datasetId: dataset.id,
+            }),
+          })),
+        };
       },
     }),
   readOnlyHint: true,

@@ -4,6 +4,7 @@ import {
 } from "@/src/features/public-api/types/annotation-queues";
 import { listAnnotationQueuesForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { defineTool } from "../../../core/define-tool";
+import { buildAnnotationQueueUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
@@ -28,7 +29,18 @@ export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
             limit: input.limit,
           });
 
-          return GetAnnotationQueuesResponse.parse(result);
+          const parsed = GetAnnotationQueuesResponse.parse(result);
+
+          return {
+            ...parsed,
+            data: parsed.data.map((queue) => ({
+              ...queue,
+              url: buildAnnotationQueueUrl({
+                projectId: context.projectId,
+                queueId: queue.id,
+              }),
+            })),
+          };
         },
       }),
     readOnlyHint: true,

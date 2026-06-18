@@ -5,7 +5,8 @@ description: |
   fixed, what remains open, and where Datadog, incident.io, or Linear tracking
   needs cleanup. Use when asked for a production review, "what broke last week",
   fixed/open production bugs, Datadog alerted monitors/pages, Datadog error log
-  patterns, incident.io incidents, or a four-table engineering review across
+  patterns, incident.io incidents, incident.io alert load, pager load by
+  engineer or time of day, or a source-table engineering review across
   incident.io, Linear bugs, Datadog alerts, and Datadog logs.
 ---
 
@@ -48,50 +49,59 @@ audit from the linked source rows.
    for accepted incidents, public incident visibility, follow-ups, and incident
    status. Always produce the incident.io table below, even when no rows are
    found.
-3. Gather Linear bugs from the `bug` label first. Include all `bug`-labeled
+3. Gather incident.io alert load for the same review window. Prefer
+   incident.io alert or escalation stats for the primary Langfuse escalation
+   path/team. If the user provides an incident.io pager-load dashboard URL, use
+   its `escalation_path` parameter as a scope hint; use the dashboard date range
+   only when the user explicitly scopes the review to that range instead of the
+   default weekly window. Group by paged engineer and incident.io time-of-day
+   bucket so the table shows working-hours, evening, and night load. Always
+   produce the incident.io alert load table below.
+4. Gather Linear bugs from the `bug` label first. Include all `bug`-labeled
    tickets created, updated, completed, or still open with production evidence
    during the window. Inspect likely production bugs with issue details and
    comments when status, owner, or evidence is unclear. Always produce the
    Linear bug table below.
-4. Gather Datadog alert/page signals for the window. Use incident.io alerts or
+5. Gather Datadog alert/page signals for the window. Use incident.io alerts or
    escalations when they represent pages; use Datadog monitor/event data when
    available. Build the exhaustive alert universe by paginating until no more
    results remain for the window. Cover every production environment in scope.
    Group repeated firings by monitor/page title or ID, environment, service/team,
    and trigger reason.
-5. For every Datadog alert/page cluster, perform the deep dive before writing the
+6. For every Datadog alert/page cluster, perform the deep dive before writing the
    final row. Do not stop at the monitor title or count. Inspect matching APM
    spans, representative traces, related logs, error records, exception details,
    failed job logs, dependency spans, queue backlog/delay context, and monitor
    time windows. Put the relevant trace/span evidence and relevant logs/errors
    directly in the Datadog alerts table. Do not create a separate Datadog Issue
    Deep Dives table.
-6. Gather Datadog error log patterns for the window. Use logs with
+7. Gather Datadog error log patterns for the window. Use logs with
    `status:error`, scope to production environments, and group by the clustered
    `message` pattern plus service/env where available. Always produce the
    Datadog logs table below. Preserve exact Datadog patterns, including wildcard
    tokens, instead of paraphrasing them.
-7. Classify each incident, bug, alert, and log pattern. Separate production
-   breakage from self-hosted, internal-only, duplicate, canceled, expected/test,
-   staging/dev, monitor-noise, or unknown signals.
-8. Cross-reference source rows on a best-effort basis. Link Datadog rows to
+8. Classify each incident, bug, alert, alert-load row, and log pattern. Separate
+   production breakage from self-hosted, internal-only, duplicate, canceled,
+   expected/test, staging/dev, monitor-noise, or unknown signals.
+9. Cross-reference source rows on a best-effort basis. Link Datadog rows to
    matching incident.io incidents or Linear bugs when evidence supports the
    relationship. Link incident.io and Linear rows back to Datadog evidence when
    available. If a relationship is inferential, say so in the row.
 
 ## Output Contract
 
-Return one short scope line followed by exactly these four source tables, in
+Return one short scope line followed by exactly these five source tables, in
 this order:
 
 1. incident.io
-2. Linear Bugs
-3. Datadog Alerts
-4. Datadog Logs
+2. incident.io Alert Load
+3. Linear Bugs
+4. Datadog Alerts
+5. Datadog Logs
 
 Do not add an executive summary, narrative summary, event-centric view, summary
-table, source synthesis table, pager-load day/night table, or separate Datadog
-Issue Deep Dives table. Put counts and classifications inside the source tables.
+table, source synthesis table, or separate Datadog Issue Deep Dives table. Put
+counts and classifications inside the source tables.
 
 If a table has no rows, keep the table heading and write one row or sentence
 with `No rows found` or `No measurements found` plus the scoped source/query.
@@ -100,9 +110,9 @@ instead of dropping it.
 
 ## Cross-Source Linking
 
-Keep incident.io, Linear, Datadog alerts, and Datadog logs as separate output
-tables. Use links inside each table to show relationships instead of
-synthesizing a separate cross-source table.
+Keep incident.io incidents, incident.io alert load, Linear, Datadog alerts, and
+Datadog logs as separate output tables. Use links inside each table to show
+relationships instead of synthesizing a separate cross-source table.
 
 Use Linear as the source of truth for deduplication across weeks and workflows.
 Before reporting a bug, security finding, cost concern, or alert as new, search
@@ -117,6 +127,7 @@ Use short stable link labels:
 - `Datadog spans: <env/route/symptom>`
 - `Datadog trace: <trace id or route>`
 - `incident.io: <INC reference>`
+- `incident.io alert load: <escalation path or team>`
 - `Linear: <issue key>`
 
 Do not write links, create follow-ups, or update external systems unless the
@@ -145,6 +156,42 @@ Column rules:
 - `Linked Sources`: Datadog alerts/pages, Datadog logs/spans, Linear issues, or
   `none found`.
 - `Follow-ups / Notes`: follow-up count/status or `none found`.
+
+## incident.io Alert Load Table
+
+Use this table for incident.io alert and pager load in the review window.
+Prefer incident.io alert or escalation stats filtered to the Langfuse escalation
+path or team. If the user provides a pager-load dashboard URL, parse and apply
+the `escalation_path[one_of]` filter when available. Count alerts when the
+source returns alert counts; otherwise count escalations/pages and label the
+count source in `Source / Notes`.
+
+incident.io time-of-day buckets are UTC:
+
+- `working_hours`: 09:00-18:00 Monday-Friday.
+- `late_evening`: 18:00-23:00 any day plus weekend daytime.
+- `overnight`: 23:00-09:00.
+
+Render one row per paged engineer, sorted by total descending, and include a
+final `All engineers` row when measurements exist. If user identity is missing,
+use `Unassigned / no responder`. Do not collapse this table into a narrative
+summary.
+
+| Engineer | Working Hours | Late Evening | Overnight | Total Alerts / Pages | Share | Source / Notes |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+
+Column rules:
+
+- `Engineer`: paged user or escalation target. Use the engineer's display name
+  when available.
+- `Working Hours`: count in the `working_hours` bucket.
+- `Late Evening`: count in the `late_evening` bucket.
+- `Overnight`: count in the `overnight` bucket.
+- `Total Alerts / Pages`: row total. Label pages versus alerts in
+  `Source / Notes` when the source does not expose alert counts directly.
+- `Share`: row total divided by the measured alert/page total.
+- `Source / Notes`: source query, escalation path/team filter, dashboard link,
+  or `No measurements found`.
 
 ## Linear Bugs Table
 

@@ -6,6 +6,7 @@ import {
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
+import { buildCommentObjectUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 const CreateCommentToolBaseSchema = z
@@ -45,7 +46,14 @@ export const [createCommentTool, handleCreateComment] = defineTool({
           auditScope: context,
         });
 
-        return PostCommentsV1Response.parse(result);
+        const comment = PostCommentsV1Response.parse(result);
+        const url = buildCommentObjectUrl({
+          projectId: context.projectId,
+          objectType: input.objectType,
+          objectId: input.objectId,
+        });
+
+        return url ? { ...comment, url } : comment;
       },
     }),
 });

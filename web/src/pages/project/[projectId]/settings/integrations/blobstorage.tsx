@@ -97,7 +97,7 @@ export default function BlobStorageIntegrationSettings() {
   const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
     up_to_date: "active",
     queued: "queued",
-    idle: "inactive",
+    idle: "pending",
     disabled: "disabled",
     error: "error",
   };

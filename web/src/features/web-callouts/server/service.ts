@@ -15,6 +15,12 @@ import {
   validateWebCalloutUrl,
   webCalloutWhitelist,
 } from "@/src/features/web-callouts/server/urlValidation";
+import {
+  enforceWebCalloutRateLimit,
+  recordWebCalloutInvokeMetric,
+  withWebCalloutInFlightLimit,
+  type WebCalloutLimitContext,
+} from "@/src/features/web-callouts/server/rateLimit";
 import { fetchWithSecureRedirects, logger } from "@langfuse/shared/src/server";
 import {
   type PrismaClient,
@@ -141,10 +147,15 @@ export const invokeWebCalloutEndpoint = async ({
   prisma,
   input,
   useEventsTable,
+  invoker,
 }: {
   prisma: PrismaClient;
   input: WebCalloutInvokeInput;
   useEventsTable: boolean;
+  invoker: {
+    orgId: string;
+    userId: string;
+  };
 }) => {
   const endpoint = await prisma.webCalloutEndpoint.findFirst({
     where: {
@@ -161,103 +172,119 @@ export const invokeWebCalloutEndpoint = async ({
     });
   }
 
-  await assertTargetBelongsToProject({
-    prisma,
-    input,
-    useEventsTable,
-  });
-  await assertValidCalloutUrl(endpoint.url);
-
-  const payload: WebCalloutPayload = {
-    version: 1,
-    items: [
-      {
-        projectId: input.projectId,
-        traceId: input.traceId,
-        observationId: input.observationId,
-        sessionId: input.sessionId,
-      },
-    ],
+  const limitContext: WebCalloutLimitContext = {
+    orgId: invoker.orgId,
+    projectId: input.projectId,
+    endpointId: endpoint.id,
+    userId: invoker.userId,
   };
-  const body = JSON.stringify(payload);
-  const decryptedHeaders = decryptWebCalloutHeaders(endpoint.requestHeaders);
-  const outboundHeaders = new Headers();
-  outboundHeaders.set("Content-Type", "application/json");
-  outboundHeaders.set("User-Agent", "Langfuse/1.0");
 
-  for (const [name, value] of Object.entries(decryptedHeaders)) {
-    outboundHeaders.set(name, value);
-  }
+  recordWebCalloutInvokeMetric("attempted", limitContext);
+  await enforceWebCalloutRateLimit(limitContext);
 
-  const abortController = new AbortController();
-  const timeout = setTimeout(
-    () => abortController.abort(),
-    WEB_CALLOUT_TIMEOUT_MS,
-  );
+  return await withWebCalloutInFlightLimit(limitContext, async () => {
+    await assertTargetBelongsToProject({
+      prisma,
+      input,
+      useEventsTable,
+    });
+    await assertValidCalloutUrl(endpoint.url);
 
-  try {
-    const { response } = await fetchWithSecureRedirects(
-      endpoint.url,
-      {
-        method: "POST",
-        body,
-        headers: outboundHeaders,
-        signal: abortController.signal,
-      },
-      {
-        maxRedirects: WEB_CALLOUT_MAX_REDIRECTS,
-        additionalSensitiveHeaders: Object.keys(decryptedHeaders),
-        redirectValidation: {
-          validateUrl: validateWebCalloutUrl,
-          whitelist: webCalloutWhitelist(),
-          logContext: "Web callout",
+    const payload: WebCalloutPayload = {
+      version: 1,
+      items: [
+        {
+          projectId: input.projectId,
+          traceId: input.traceId,
+          observationId: input.observationId,
+          sessionId: input.sessionId,
         },
-      },
-    );
-    await discardResponseBody(response);
+      ],
+    };
+    const body = JSON.stringify(payload);
+    const decryptedHeaders = decryptWebCalloutHeaders(endpoint.requestHeaders);
+    const outboundHeaders = new Headers();
+    outboundHeaders.set("Content-Type", "application/json");
+    outboundHeaders.set("User-Agent", "Langfuse/1.0");
 
-    if (!response.ok) {
-      logger.warn("Web callout returned non-2xx status", {
+    for (const [name, value] of Object.entries(decryptedHeaders)) {
+      outboundHeaders.set(name, value);
+    }
+
+    const abortController = new AbortController();
+    const timeout = setTimeout(
+      () => abortController.abort(),
+      WEB_CALLOUT_TIMEOUT_MS,
+    );
+
+    try {
+      const { response } = await fetchWithSecureRedirects(
+        endpoint.url,
+        {
+          method: "POST",
+          body,
+          headers: outboundHeaders,
+          signal: abortController.signal,
+        },
+        {
+          maxRedirects: WEB_CALLOUT_MAX_REDIRECTS,
+          additionalSensitiveHeaders: Object.keys(decryptedHeaders),
+          redirectValidation: {
+            validateUrl: validateWebCalloutUrl,
+            whitelist: webCalloutWhitelist(),
+            logContext: "Web callout",
+          },
+        },
+      );
+      await discardResponseBody(response);
+
+      if (!response.ok) {
+        recordWebCalloutInvokeMetric("failed", limitContext);
+        logger.warn("Web callout returned non-2xx status", {
+          projectId: input.projectId,
+          endpointId: endpoint.id,
+          status: response.status,
+        });
+
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Web callout endpoint returned HTTP ${response.status}.`,
+        });
+      }
+
+      recordWebCalloutInvokeMetric("sent", limitContext);
+      return {
+        success: true as const,
+        status: response.status,
+      };
+    } catch (error) {
+      if (error instanceof TRPCError) {
+        throw error;
+      }
+
+      logger.warn("Web callout request failed", {
         projectId: input.projectId,
         endpointId: endpoint.id,
-        status: response.status,
+        error: error instanceof Error ? error.message : "Unknown error",
       });
 
+      if (abortController.signal.aborted) {
+        recordWebCalloutInvokeMetric("timed_out", limitContext);
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Web callout timed out after 5 seconds.",
+        });
+      }
+
+      recordWebCalloutInvokeMetric("failed", limitContext);
       throw new TRPCError({
         code: "BAD_REQUEST",
-        message: `Web callout endpoint returned HTTP ${response.status}.`,
+        message: "Web callout request failed.",
       });
+    } finally {
+      clearTimeout(timeout);
     }
-
-    return {
-      success: true as const,
-      status: response.status,
-    };
-  } catch (error) {
-    if (error instanceof TRPCError) {
-      throw error;
-    }
-
-    logger.warn("Web callout request failed", {
-      projectId: input.projectId,
-      endpointId: endpoint.id,
-      error: error instanceof Error ? error.message : "Unknown error",
-    });
-
-    if (abortController.signal.aborted) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "Web callout timed out after 5 seconds.",
-      });
-    }
-
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Web callout request failed.",
-    });
-  } finally {
-    clearTimeout(timeout);
-  }
+  });
 };
 
 const discardResponseBody = async (response: Response) => {

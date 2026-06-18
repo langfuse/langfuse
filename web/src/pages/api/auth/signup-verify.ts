@@ -82,7 +82,9 @@ export default async function handler(
       },
     });
 
-    await createProjectMembershipsOnSignup(newUser);
+    await createProjectMembershipsOnSignup(newUser, {
+      userWasJustCreated: true,
+    });
 
     // Trigger new user signup event
     if (

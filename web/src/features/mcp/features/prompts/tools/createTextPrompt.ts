@@ -15,6 +15,7 @@ import {
   PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
 import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { buildPromptUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 /**
@@ -117,6 +118,11 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
           config: createdPrompt.config,
           createdAt: createdPrompt.createdAt,
           createdBy: createdPrompt.createdBy,
+          url: buildPromptUrl({
+            projectId: context.projectId,
+            name: createdPrompt.name,
+            version: createdPrompt.version,
+          }),
           message: `Successfully created text prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
         };
       },

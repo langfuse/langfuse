@@ -28,7 +28,7 @@ import {
   getEvaluatorBlockMetadata,
   type LLMConnectionConfig,
 } from "@langfuse/shared";
-import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/defaultModelEvalTemplateRepository";
+import { findDefaultModelEvalTemplateIds } from "@/src/features/evals/server/evaluatorRepository";
 import { encrypt, decrypt } from "@langfuse/shared/encryption";
 import {
   ChatMessageType,

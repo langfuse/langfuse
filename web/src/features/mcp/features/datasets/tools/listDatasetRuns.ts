@@ -1,6 +1,7 @@
 import { GetDatasetRunsV1Response } from "@/src/features/public-api/types/datasets";
 import { listDatasetRunsByDatasetIdForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
+import { buildDatasetRunUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { GetDatasetRunsMcpInput } from "../schema";
 
@@ -23,7 +24,19 @@ export const [listDatasetRunsTool, handleListDatasetRuns] = defineTool({
           limit: input.limit,
         });
 
-        return GetDatasetRunsV1Response.parse(result);
+        const parsed = GetDatasetRunsV1Response.parse(result);
+
+        return {
+          ...parsed,
+          data: parsed.data.map((datasetRun) => ({
+            ...datasetRun,
+            url: buildDatasetRunUrl({
+              projectId: context.projectId,
+              datasetId: datasetRun.datasetId,
+              datasetRunId: datasetRun.id,
+            }),
+          })),
+        };
       },
     }),
   readOnlyHint: true,

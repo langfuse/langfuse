@@ -15,6 +15,7 @@ import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { buildEventBucketPrefix } from "../ingestion/eventBucketPath";
 import {
   ClickHouseSettings,
   type RowOrProgress,
@@ -152,7 +153,12 @@ export async function upsertClickhouse<
           }
 
           const eventId = randomUUID();
-          const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${eventId}.json`;
+          const entityType = getClickhouseEntityType(eventType);
+          const bucketPath = `${buildEventBucketPrefix({
+            projectId: String(record.project_id),
+            entityType,
+            entityId: String(record.id),
+          })}${eventId}.json`;
 
           if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
             // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
@@ -163,7 +169,7 @@ export async function upsertClickhouse<
                 {
                   id: randomUUID(),
                   project_id: record.project_id,
-                  entity_type: getClickhouseEntityType(eventType),
+                  entity_type: entityType,
                   entity_id: record.id,
                   event_id: eventId,
                   bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,

@@ -652,9 +652,7 @@ export const MonitorForm = ({
                             value={field.value ?? ""}
                             onChange={(e) => {
                               const raw = e.target.value;
-                              field.onChange(
-                                raw === "" ? undefined : Number(raw),
-                              );
+                              field.onChange(raw === "" ? null : Number(raw));
                             }}
                             disabled={!hasAccess}
                           />
