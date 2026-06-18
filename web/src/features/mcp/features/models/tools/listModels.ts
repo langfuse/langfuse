@@ -1,13 +1,11 @@
-import { prisma } from "@langfuse/shared/src/db";
 import {
   GetModelsV1Query,
   GetModelsV1Response,
-  prismaToApiModelDefinition,
 } from "@/src/features/public-api/types/models";
+import { listModelsForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
+import { buildModelUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { paginationMeta } from "../../publicApi";
-import { modelPricingInclude } from "../schema";
 
 export const [listModelsTool, handleListModels] = defineTool({
   name: "listModels",
@@ -24,38 +22,24 @@ export const [listModelsTool, handleListModels] = defineTool({
         "mcp.pagination_limit": input.limit,
       },
       fn: async () => {
-        const where = {
-          OR: [{ projectId: context.projectId }, { projectId: null }],
-        };
-
-        const [models, totalItems] = await Promise.all([
-          prisma.model.findMany({
-            where,
-            orderBy: [
-              { modelName: "asc" },
-              { unit: "asc" },
-              {
-                startDate: {
-                  sort: "desc",
-                  nulls: "last",
-                },
-              },
-            ],
-            include: modelPricingInclude,
-            take: input.limit,
-            skip: (input.page - 1) * input.limit,
-          }),
-          prisma.model.count({ where }),
-        ]);
-
-        return GetModelsV1Response.parse({
-          data: models.map(prismaToApiModelDefinition),
-          meta: paginationMeta({
-            page: input.page,
-            limit: input.limit,
-            totalItems,
-          }),
+        const result = await listModelsForApi({
+          projectId: context.projectId,
+          page: input.page,
+          limit: input.limit,
         });
+
+        const parsed = GetModelsV1Response.parse(result);
+
+        return {
+          ...parsed,
+          data: parsed.data.map((model) => ({
+            ...model,
+            url: buildModelUrl({
+              projectId: context.projectId,
+              modelId: model.id,
+            }),
+          })),
+        };
       },
     }),
   readOnlyHint: true,

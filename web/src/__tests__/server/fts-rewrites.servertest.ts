@@ -1,6 +1,7 @@
 import { env } from "@/src/env.mjs";
 import {
   FTS_EVENTS_TABLES,
+  FTS_MATCH_OPERATOR,
   FTS_TEXT_FIELDS,
   FTS_TEXT_OPERATORS,
   StringFilter,
@@ -9,9 +10,16 @@ import {
 } from "@langfuse/shared/src/server";
 
 const maybeEventsTable =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
+
+const NGRAM_METADATA_TEST_OPERATORS = [
+  "contains",
+  "starts with",
+  "ends with",
+] as const;
+const NGRAM_METADATA_OPERATORS = new Set<string>(NGRAM_METADATA_TEST_OPERATORS);
 
 type FilterResult = {
   query: string;
@@ -33,6 +41,10 @@ const filterFixture = `
     ('input-suffix-alpha', 'token alpha', 'unrelated output', ['topic'], ['unrelated metadata']),
     ('input-substring-alpha', 'alphabet token', 'unrelated output', ['topic'], ['unrelated metadata']),
     ('input-ending-substring-alpha', 'token betalpha', 'unrelated output', ['topic'], ['unrelated metadata']),
+    ('input-phrase-alpha-beta', 'alpha beta token', 'unrelated output', ['topic'], ['unrelated metadata']),
+    ('input-phrase-alpha-beta-uppercase', 'ALPHA BETA token', 'unrelated output', ['topic'], ['unrelated metadata']),
+    ('input-phrase-beta-alpha', 'beta alpha token', 'unrelated output', ['topic'], ['unrelated metadata']),
+    ('input-phrase-alpha-gap-beta', 'alpha gap beta', 'unrelated output', ['topic'], ['unrelated metadata']),
     ('output-exact-alpha', 'unrelated input', 'alpha', ['topic'], ['unrelated metadata']),
     ('output-exact-uppercase', 'unrelated input', 'ALPHA', ['topic'], ['unrelated metadata']),
     ('output-exact-cyrillic', 'unrelated input', 'привет', ['topic'], ['unrelated metadata']),
@@ -44,12 +56,25 @@ const filterFixture = `
     ('output-suffix-alpha', 'unrelated input', 'token alpha', ['topic'], ['unrelated metadata']),
     ('output-substring-alpha', 'unrelated input', 'alphabet token', ['topic'], ['unrelated metadata']),
     ('output-ending-substring-alpha', 'unrelated input', 'token betalpha', ['topic'], ['unrelated metadata']),
+    ('output-phrase-alpha-beta', 'unrelated input', 'alpha beta token', ['topic'], ['unrelated metadata']),
+    ('output-phrase-alpha-beta-uppercase', 'unrelated input', 'ALPHA BETA token', ['topic'], ['unrelated metadata']),
+    ('output-phrase-beta-alpha', 'unrelated input', 'beta alpha token', ['topic'], ['unrelated metadata']),
+    ('output-phrase-alpha-gap-beta', 'unrelated input', 'alpha gap beta', ['topic'], ['unrelated metadata']),
     ('metadata-exact-alpha', 'unrelated input', 'unrelated output', ['topic'], ['alpha']),
     ('metadata-prefix-alpha', 'unrelated input', 'unrelated output', ['topic'], ['alpha token']),
     ('metadata-middle-alpha', 'unrelated input', 'unrelated output', ['topic'], ['contains alpha token']),
     ('metadata-suffix-alpha', 'unrelated input', 'unrelated output', ['topic'], ['token alpha']),
     ('metadata-substring-alpha', 'unrelated input', 'unrelated output', ['topic'], ['alphabet token']),
+    ('metadata-phrase-alpha-beta', 'unrelated input', 'unrelated output', ['topic'], ['alpha beta token']),
+    ('metadata-phrase-alpha-beta-uppercase', 'unrelated input', 'unrelated output', ['topic'], ['ALPHA BETA token']),
+    ('metadata-phrase-beta-alpha', 'unrelated input', 'unrelated output', ['topic'], ['beta alpha token']),
+    ('metadata-phrase-alpha-gap-beta', 'unrelated input', 'unrelated output', ['topic'], ['alpha gap beta']),
+    ('metadata-split-alpha-beta', 'unrelated input', 'unrelated output', ['topic', 'other'], ['alpha', 'beta']),
     ('metadata-other-key-alpha', 'unrelated input', 'unrelated output', ['other'], ['alpha']),
+    ('metadata-literal-percent', 'unrelated input', 'unrelated output', ['topic'], ['100% done']),
+    ('metadata-literal-underscore', 'unrelated input', 'unrelated output', ['topic'], ['job_42']),
+    ('metadata-literal-backslash', 'unrelated input', 'unrelated output', ['topic'], ['path\\\\to']),
+    ('metadata-other-key-production-decoy', 'unrelated input', 'unrelated output', ['topic', 'other'], ['topic-value', 'production-west']),
     ('miss', 'unrelated input', 'unrelated output', ['topic'], ['unrelated metadata'])
   ) AS e
 `;
@@ -194,12 +219,150 @@ maybeEventsTable("FTS filter rewrites", () => {
 
       if (operator === "=") {
         expect(rewritten.query).toContain("has(e.metadata_values,");
+      } else if (NGRAM_METADATA_OPERATORS.has(operator)) {
+        expect(rewritten.query).toContain(
+          "like(arrayStringConcat(e.metadata_values),",
+        );
+        expect(rewritten.query).not.toContain("hasAllTokens");
       } else {
         expect(rewritten.query).not.toContain("hasAllTokens");
+        expect(rewritten.query).not.toContain("arrayStringConcat");
       }
       await expect(matchingIds(rewritten)).resolves.toEqual(
         await matchingIds(baseline),
       );
+    },
+  );
+
+  it.each(
+    Array.from(FTS_EVENTS_TABLES).flatMap((table) =>
+      NGRAM_METADATA_TEST_OPERATORS.map((operator) => ({ table, operator })),
+    ),
+  )(
+    "keeps short $table.metadata `$operator` equivalent to the baseline",
+    async ({ table, operator }) => {
+      const baseline = metadataBaselineFilter({
+        operator,
+        key: "topic",
+        value: "a",
+      });
+      const rewritten = new StringObjectFilter({
+        clickhouseTable: table,
+        field: "metadata",
+        operator,
+        key: "topic",
+        value: "a",
+        tablePrefix: "e",
+      }).apply();
+
+      expect(rewritten.query).toContain(
+        "like(arrayStringConcat(e.metadata_values),",
+      );
+      await expect(matchingIds(rewritten)).resolves.toEqual(
+        await matchingIds(baseline),
+      );
+    },
+  );
+
+  it.each([
+    {
+      operator: "contains",
+      value: "100%",
+      expectedIds: ["metadata-literal-percent"],
+    },
+    {
+      operator: "starts with",
+      value: "job_",
+      expectedIds: ["metadata-literal-underscore"],
+    },
+    {
+      operator: "ends with",
+      value: "h\\to",
+      expectedIds: ["metadata-literal-backslash"],
+    },
+  ] as const)(
+    "matches literal metadata wildcard characters for `$operator` `$value`",
+    async ({ operator, value, expectedIds }) => {
+      const rewritten = new StringObjectFilter({
+        clickhouseTable: "events_core",
+        field: "metadata",
+        operator,
+        key: "topic",
+        value,
+        tablePrefix: "e",
+      }).apply();
+
+      expect(rewritten.query).toContain(
+        "like(arrayStringConcat(e.metadata_values),",
+      );
+      await expect(matchingIds(rewritten)).resolves.toEqual(expectedIds);
+    },
+  );
+
+  it("does not match when only a different metadata key satisfies the ngram prefilter", async () => {
+    const rewritten = new StringObjectFilter({
+      clickhouseTable: "events_core",
+      field: "metadata",
+      operator: "starts with",
+      key: "topic",
+      value: "production",
+      tablePrefix: "e",
+    }).apply();
+
+    expect(rewritten.query).toContain(
+      "like(arrayStringConcat(e.metadata_values),",
+    );
+    await expect(matchingIds(rewritten)).resolves.toEqual([]);
+  });
+
+  it.each(
+    Array.from(FTS_EVENTS_TABLES).flatMap((table) =>
+      Array.from(FTS_TEXT_FIELDS).map((field) => ({ table, field })),
+    ),
+  )(
+    "uses indexed literal search for $table $field matches",
+    async ({ table, field }) => {
+      const fieldExpr = `e.${field}`;
+      const rewritten = new StringFilter({
+        clickhouseTable: table,
+        field: fieldExpr,
+        operator: FTS_MATCH_OPERATOR,
+        value: "alpha beta",
+      }).apply();
+
+      expect(rewritten.query).toContain(`position(lower(${fieldExpr}), lower(`);
+      expect(rewritten.query).toContain(`hasAllTokens(lower(${fieldExpr}),`);
+      await expect(matchingIds(rewritten)).resolves.toEqual([
+        `${field}-phrase-alpha-beta`,
+        `${field}-phrase-alpha-beta-uppercase`,
+      ]);
+    },
+  );
+
+  it.each(Array.from(FTS_EVENTS_TABLES))(
+    "uses case-sensitive key-scoped literal search for $table metadata matches",
+    async (table) => {
+      const rewritten = new StringObjectFilter({
+        clickhouseTable: table,
+        field: "metadata",
+        operator: FTS_MATCH_OPERATOR,
+        key: "topic",
+        value: "alpha beta",
+        tablePrefix: "e",
+      }).apply();
+
+      expect(rewritten.query).toContain("has(e.metadata_names,");
+      expect(rewritten.query).toContain("hasAllTokens(e.metadata_values,");
+      expect(rewritten.query).toContain(
+        "position(e.metadata_values[indexOf(e.metadata_names,",
+      );
+      expect(rewritten.query).not.toContain(
+        "hasAllTokens(e.metadata_values[indexOf",
+      );
+      expect(rewritten.query).not.toContain("lower(");
+      await expect(matchingIds(rewritten)).resolves.toEqual([
+        "metadata-phrase-alpha-beta",
+      ]);
     },
   );
 });

@@ -1,9 +1,10 @@
 import { z } from "zod";
-import { type Prompt } from "@langfuse/shared";
+import { LATEST_PROMPT_LABEL, type Prompt } from "@langfuse/shared";
 
-import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
+import { getPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
 
 import { defineTool } from "../../../core/define-tool";
+import { buildPromptUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { UserInputError } from "../../../core/errors";
 import {
@@ -39,6 +40,11 @@ const formatPromptResponse = (prompt: Prompt) => ({
   updatedAt: prompt.updatedAt,
   createdBy: prompt.createdBy,
   projectId: prompt.projectId,
+  url: buildPromptUrl({
+    projectId: prompt.projectId,
+    name: prompt.name,
+    version: prompt.version,
+  }),
 });
 
 const buildPromptNotFoundMessage = (params: {
@@ -67,22 +73,26 @@ export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
     baseSchema: PromptReadBaseSchema,
     inputSchema: PromptReadInputSchema,
     handler: async (input, context) => {
+      const effectiveLabel = input.version
+        ? input.label
+        : (input.label ?? LATEST_PROMPT_LABEL);
+
       return await runMcpTool({
         spanName,
         context,
         attributes: {
           "mcp.prompt_name": input.name,
           "mcp.unresolved": resolve ? undefined : true,
-          "mcp.prompt_label": input.label,
+          "mcp.prompt_label": effectiveLabel,
           "mcp.prompt_version": input.version ?? undefined,
         },
         fn: async () => {
-          const { name, label, version } = input;
+          const { name, version } = input;
 
-          const prompt = await getPromptByName({
+          const prompt = await getPromptForApi({
             promptName: name,
             projectId: context.projectId,
-            label,
+            label: effectiveLabel,
             version,
             resolve,
           });
@@ -91,7 +101,7 @@ export const createPromptReadTool = (options: CreatePromptReadToolOptions) => {
             throw new UserInputError(
               buildPromptNotFoundMessage({
                 name,
-                label,
+                label: effectiveLabel,
                 version,
               }),
             );

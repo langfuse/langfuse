@@ -93,7 +93,7 @@ export function TracePage({
         message="The trace is either still being processed or has been deleted."
         additionalButton={{
           label: "Retry",
-          onClick: () => void window.location.reload(),
+          onClick: () => window.location.reload(),
         }}
       />
     );
@@ -106,7 +106,7 @@ export function TracePage({
         message="No observations found for this trace. The trace may still be processing or has been deleted."
         additionalButton={{
           label: "Retry",
-          onClick: () => void window.location.reload(),
+          onClick: () => window.location.reload(),
         }}
       />
     );

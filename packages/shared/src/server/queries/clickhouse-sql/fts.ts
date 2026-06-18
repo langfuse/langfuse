@@ -18,6 +18,7 @@ export const FTS_MATCH_TARGET_ERROR =
   "`matches` is only supported for input, output, and metadata filters.";
 
 export const FTS_TEXT_NORMALIZER = "lower";
+export const FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS = 64;
 
 export const FTS_EVENTS_TABLES: ReadonlySet<string> = new Set(
   EVENTS_TABLE_NAMES,
@@ -76,17 +77,41 @@ export const hasFtsSearchToken = (value: string): boolean =>
 const normalizeFtsTextExpr = (expr: string): string =>
   `${FTS_TEXT_NORMALIZER}(${expr})`;
 
+const ftsSearchTokensExpr = (valueParam: string, normalize: boolean): string =>
+  `arrayDistinct(tokens(${normalize ? normalizeFtsTextExpr(valueParam) : valueParam}))`;
+
+const ftsSearchTokenPrefilterExpr = (
+  valueParam: string,
+  normalize: boolean,
+): string =>
+  `arraySlice(${ftsSearchTokensExpr(valueParam, normalize)}, 1, ${FTS_HAS_ALL_TOKENS_MAX_SEARCH_TOKENS})`;
+
+// `hasAllTokens` can only accept up to 64 search tokens. This predicate is only
+// an index prefilter; exact equality, ILIKE, or position() enforces semantics.
+const ftsTokenPrefilterPredicate = (
+  fieldExpr: string,
+  valueParam: string,
+  normalizeValue: boolean,
+): string =>
+  `hasAllTokens(${fieldExpr}, ${ftsSearchTokenPrefilterExpr(valueParam, normalizeValue)})`;
+
+export const ftsTextTokenPredicate = (
+  fieldExpr: string,
+  valueParam: string,
+): string =>
+  ftsTokenPrefilterPredicate(normalizeFtsTextExpr(fieldExpr), valueParam, true);
+
 export const ftsTextTokenConjunct = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
-  `(empty(tokens(${normalizeFtsTextExpr(valueParam)})) OR hasAllTokens(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}))`;
+  `(empty(${ftsSearchTokensExpr(valueParam, true)}) OR ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
-export const ftsTextMatchesCondition = (
+export const ftsTextIndexedSubstringCondition = (
   fieldExpr: string,
   valueParam: string,
 ): string =>
-  `hasAllTokens(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)})`;
+  `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
 export const ftsMetadataArrayHas = (
   arrayExpr: string,
@@ -96,7 +121,7 @@ export const ftsMetadataArrayHas = (
 export const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
   valueParam: string,
-): string => `hasAllTokens(${arrayExpr}, ${valueParam})`;
+): string => ftsTokenPrefilterPredicate(arrayExpr, valueParam, false);
 
 type FtsMetadataArrayConditionContext = {
   hasKey: string;
@@ -113,6 +138,14 @@ type FtsOperatorDescriptor = {
   ) => string;
   metadataArrayCondition: (ctx: FtsMetadataArrayConditionContext) => string;
 };
+
+export const ftsMetadataArrayIndexedSubstringCondition = ({
+  hasKey,
+  valuesColumn,
+  valueAccessor,
+  valueParam,
+}: FtsMetadataArrayConditionContext): string =>
+  `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
 
 type FtsOperatorDescriptors = {
   [operator in FtsAcceleratedStringOperator]: FtsOperatorDescriptor;
@@ -132,20 +165,15 @@ export const FTS_OPERATOR_DESCRIPTORS = {
   },
   [FTS_MATCH_OPERATOR]: {
     textCondition: (fieldExpr, valueParam, _exactCondition) =>
-      ftsTextMatchesCondition(fieldExpr, valueParam),
-    metadataArrayCondition: ({
-      hasKey,
-      valuesColumn,
-      valueAccessor,
-      valueParam,
-    }) =>
-      `${hasKey} AND ${ftsMetadataArrayTokenConjunct(valuesColumn, valueParam)} AND ${ftsMetadataArrayTokenConjunct(valueAccessor, valueParam)}`,
+      ftsTextIndexedSubstringCondition(fieldExpr, valueParam),
+    metadataArrayCondition: ftsMetadataArrayIndexedSubstringCondition,
   },
 } satisfies FtsOperatorDescriptors;
 
 // StringFilter rewrites must preserve filter API semantics. Limit transparent
 // text-index rewrites to equality because substring filters are expected to
-// match inside larger tokens. `matches` is an explicit token-search operator.
+// match inside larger tokens. `matches` is an explicit indexed literal-search
+// operator.
 export const FTS_TEXT_OPERATORS: ReadonlySet<FtsStringOperator> = new Set(
   Object.keys(FTS_OPERATOR_DESCRIPTORS) as FtsAcceleratedStringOperator[],
 );

@@ -7,15 +7,15 @@
 import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import {
+  CreatePromptSchema,
   PromptType,
   PromptLabelSchema,
   PromptNameSchema,
   COMMIT_MESSAGE_MAX_LENGTH,
   PROMPT_NAME_MAX_LENGTH,
 } from "@langfuse/shared";
-import { createPrompt as createPromptAction } from "@/src/features/prompts/server/actions/createPrompt";
-import { prisma } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { createPromptForApi } from "@/src/features/prompts/server/prompt-api-service";
+import { buildPromptUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 
 /**
@@ -92,31 +92,21 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
         "mcp.prompt_type": "text",
       },
       fn: async (span) => {
-        const createdPrompt = await createPromptAction({
-          projectId: context.projectId,
-          name: input.name,
-          type: PromptType.Text,
-          prompt: input.prompt,
-          labels: input.labels ?? [],
-          config: input.config ?? {},
-          tags: input.tags,
-          commitMessage: input.commitMessage,
-          createdBy: "API",
-          prisma,
+        const createdPrompt = await createPromptForApi({
+          context,
+          input: CreatePromptSchema.parse({
+            name: input.name,
+            type: PromptType.Text,
+            prompt: input.prompt,
+            labels: input.labels ?? [],
+            config: input.config ?? {},
+            tags: input.tags,
+            commitMessage: input.commitMessage,
+          }),
         });
 
         // Set created version for observability
         span.setAttribute("mcp.created_version", createdPrompt.version);
-
-        await auditLog({
-          action: "create",
-          resourceType: "prompt",
-          resourceId: createdPrompt.id,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          after: createdPrompt,
-        });
 
         return {
           id: createdPrompt.id,
@@ -128,6 +118,11 @@ export const [createTextPromptTool, handleCreateTextPrompt] = defineTool({
           config: createdPrompt.config,
           createdAt: createdPrompt.createdAt,
           createdBy: createdPrompt.createdBy,
+          url: buildPromptUrl({
+            projectId: context.projectId,
+            name: createdPrompt.name,
+            version: createdPrompt.version,
+          }),
           message: `Successfully created text prompt '${createdPrompt.name}' version ${createdPrompt.version}${createdPrompt.labels.length > 0 ? ` with labels: ${createdPrompt.labels.join(", ")}` : ""}`,
         };
       },

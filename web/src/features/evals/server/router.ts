@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  authenticatedProcedure,
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
@@ -66,15 +67,27 @@ import {
 } from "@/src/features/evals/server/audit-log-resource-types";
 import { getEvaluatorDefinitionPreflightError } from "@/src/features/evals/server/evaluator-preflight";
 import {
+  CodeEvalTestRunSetupError,
   runCodeEvalTest,
-  runCodeEvalTestForJobConfig,
 } from "@/src/features/evals/server/codeEvalTestRun";
 import {
-  CODE_EVAL_TEMPLATE_VARIABLES,
+  assertCodeEvalJobConfigCanRun,
+  CodeEvalJobConfigError,
+} from "@/src/features/evals/server/codeEvalJobConfigValidation";
+import {
   CreateEvalTemplateInputSchema,
   validateEvalTemplateCreation,
 } from "@/src/features/evals/server/evalTemplateCreation";
-import { isCodeEvalEnabled } from "@/src/features/evals/server/isCodeEvalEnabled";
+import {
+  deleteEvalTemplateFamily,
+  findEvalTemplateFamilyUsage,
+} from "@/src/features/evals/server/evalTemplateDeletion";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import {
+  getCodeEvalCapabilities,
+  isCodeEvalEnabled,
+  isCodeEvalSourceCodeLanguageSupported,
+} from "@/src/features/evals/server/isCodeEvalEnabled";
 export { CreateEvalTemplateInputSchema } from "@/src/features/evals/server/evalTemplateCreation";
 
 // Filter columns that used to be backed by the Postgres `traces` and
@@ -180,6 +193,77 @@ const CodeEvalTestRunSchema = z.object({
   shouldReadFromObservationsTable: z.boolean().optional().default(false),
 });
 
+const getSupportedCodeEvalTemplateLanguages =
+  (): EvalTemplateSourceCodeLanguage[] => {
+    const capabilities = getCodeEvalCapabilities();
+
+    return capabilities.enabled
+      ? capabilities.supportedSourceCodeLanguages
+      : [];
+  };
+
+const getCodeEvalTemplateWhere = (): Prisma.EvalTemplateWhereInput => {
+  const supportedLanguages = getSupportedCodeEvalTemplateLanguages();
+
+  if (supportedLanguages.length === 0) {
+    return { type: { not: EvalTemplateType.CODE } };
+  }
+
+  return {
+    AND: [
+      {
+        OR: [
+          { type: { not: EvalTemplateType.CODE } },
+          {
+            sourceCodeLanguage: {
+              in: supportedLanguages,
+            },
+          },
+        ],
+      },
+    ],
+  };
+};
+
+const assertCodeEvalEnabled = () => {
+  if (!isCodeEvalEnabled()) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Code evals are not enabled",
+    });
+  }
+};
+
+const getCodeEvalTemplateRawSqlCondition = () => {
+  const supportedLanguages = getSupportedCodeEvalTemplateLanguages();
+
+  if (supportedLanguages.length === 0) {
+    return Prisma.sql`AND type != ${EvalTemplateType.CODE}::"EvalTemplateType"`;
+  }
+
+  const supportedLanguageSql = Prisma.join(
+    supportedLanguages.map(
+      (language) => Prisma.sql`${language}::"EvalTemplateSourceCodeLanguage"`,
+    ),
+  );
+
+  return Prisma.sql`AND (type != ${EvalTemplateType.CODE}::"EvalTemplateType" OR source_code_language IN (${supportedLanguageSql}))`;
+};
+
+const assertCodeEvalTemplateCanRun = (params: {
+  sourceCodeLanguage: EvalTemplateSourceCodeLanguage | null;
+}) => {
+  assertCodeEvalEnabled();
+
+  if (!isCodeEvalSourceCodeLanguageSupported(params.sourceCodeLanguage)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "This code evaluator language is not supported by the configured dispatcher.",
+    });
+  }
+};
+
 const UpdateEvalJobSchema = z.object({
   scoreName: z.string().min(1).optional(),
   filter: z.array(singleFilter).optional(),
@@ -262,7 +346,7 @@ const validateEvalTemplateCanRun = async ({
   }
 };
 
-const assertCodeEvalJobConfigTestSucceeds = async ({
+const assertCodeEvalJobConfigCanRunForTRPC = async ({
   prisma,
   orgId,
   projectId,
@@ -281,57 +365,78 @@ const assertCodeEvalJobConfigTestSucceeds = async ({
   scoreName: string;
   filter: z.infer<typeof singleFilter>[] | null;
 }) => {
-  if (
-    target !== EvalTargetObject.EVENT &&
-    target !== EvalTargetObject.EXPERIMENT
-  ) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "Code evaluators can only run on observations or experiments.",
-    });
-  }
-
-  const parsedMapping = z.array(observationVariableMapping).parse(mapping);
-
-  if (env.LANGFUSE_ENABLE_EVENTS_TABLE_UI === "true") {
-    const result = await runCodeEvalTestForJobConfig({
+  try {
+    await assertCodeEvalJobConfigCanRun({
       prisma,
       orgId,
       projectId,
       evalTemplateId,
       target,
-      mapping: parsedMapping,
+      mapping,
       scoreName,
       filter,
     });
-
-    if (!result) {
-      if (target !== EvalTargetObject.EXPERIMENT) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "No matching observation found to test this code evaluator. Adjust the filters and try again.",
-        });
-      }
-
-      return;
+  } catch (error) {
+    if (error instanceof CodeEvalJobConfigError) {
+      throw toCodeEvalJobConfigTRPCError(error);
     }
 
-    if (!result.success) {
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message: result.error.message,
-      });
-    }
-  } else if (target === EvalTargetObject.EXPERIMENT) {
-    return;
-  } else {
-    // TODO: add self-hosting path for target events
-    return;
+    throw error;
   }
 };
 
+function toCodeEvalJobConfigTRPCError(error: CodeEvalJobConfigError) {
+  switch (error.code) {
+    case "invalid_target":
+    case "invalid_request":
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
+    case "resource_not_found":
+      return new TRPCError({
+        code: "NOT_FOUND",
+        message: error.message,
+      });
+    case "preflight_failed":
+      return new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: error.message,
+      });
+    default:
+      return assertUnreachable(error.code);
+  }
+}
+
+function toCodeEvalTRPCError(error: CodeEvalTestRunSetupError) {
+  switch (error.code) {
+    case "TEMPLATE_NOT_FOUND":
+    case "OBSERVATION_NOT_FOUND":
+      return new TRPCError({
+        code: "NOT_FOUND",
+        message: error.message,
+      });
+    case "UNSUPPORTED_LANGUAGE":
+    case "INVALID_TARGET":
+      return new TRPCError({
+        code: "BAD_REQUEST",
+        message: error.message,
+      });
+    case "DISPATCHER_NOT_CONFIGURED":
+      return new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: error.message,
+      });
+    default:
+      return assertUnreachable(error.code);
+  }
+}
+
 export const evalRouter = createTRPCRouter({
+  codeEvalCapabilities: authenticatedProcedure.query(() =>
+    getCodeEvalCapabilities(),
+  ),
+
   globalJobConfigs: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -559,9 +664,7 @@ export const evalRouter = createTRPCRouter({
           ...(input.isUserManaged
             ? { projectId: input.projectId }
             : { projectId: null }),
-          ...(isCodeEvalEnabled()
-            ? {}
-            : { type: { not: EvalTemplateType.CODE } }),
+          ...getCodeEvalTemplateWhere(),
         },
         orderBy: [{ version: "desc" }],
       });
@@ -591,9 +694,7 @@ export const evalRouter = createTRPCRouter({
         input.searchQuery && input.searchQuery.trim() !== ""
           ? Prisma.sql`AND name ILIKE ${`%${input.searchQuery}%`}`
           : Prisma.empty;
-      const typeCondition = isCodeEvalEnabled()
-        ? Prisma.empty
-        : Prisma.sql`AND type != ${EvalTemplateType.CODE}::"EvalTemplateType"`;
+      const typeCondition = getCodeEvalTemplateRawSqlCondition();
 
       const [templates, count] = await Promise.all([
         ctx.prisma.$queryRaw<
@@ -697,13 +798,11 @@ export const evalRouter = createTRPCRouter({
         scope: "evalTemplate:read",
       });
 
-      const template = await ctx.prisma.evalTemplate.findUnique({
+      const template = await ctx.prisma.evalTemplate.findFirst({
         where: {
           id: input.id,
           OR: [{ projectId: input.projectId }, { projectId: null }],
-          ...(isCodeEvalEnabled()
-            ? {}
-            : { type: { not: EvalTemplateType.CODE } }),
+          ...getCodeEvalTemplateWhere(),
         },
       });
 
@@ -729,9 +828,7 @@ export const evalRouter = createTRPCRouter({
         where: {
           OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
-          ...(isCodeEvalEnabled()
-            ? {}
-            : { type: { not: EvalTemplateType.CODE } }),
+          ...getCodeEvalTemplateWhere(),
         },
         ...(input.limit && input.page
           ? { take: input.limit, skip: input.page * input.limit }
@@ -742,9 +839,7 @@ export const evalRouter = createTRPCRouter({
         where: {
           OR: [{ projectId: input.projectId }, { projectId: null }],
           ...(input.id ? { id: input.id } : undefined),
-          ...(isCodeEvalEnabled()
-            ? {}
-            : { type: { not: EvalTemplateType.CODE } }),
+          ...getCodeEvalTemplateWhere(),
         },
       });
       return {
@@ -865,10 +960,9 @@ export const evalRouter = createTRPCRouter({
         );
         throw new Error("Template not found");
       }
-      if (evalTemplate.type === EvalTemplateType.CODE && !isCodeEvalEnabled()) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Code evals are not enabled",
+      if (evalTemplate.type === EvalTemplateType.CODE) {
+        assertCodeEvalTemplateCanRun({
+          sourceCodeLanguage: evalTemplate.sourceCodeLanguage,
         });
       }
 
@@ -889,7 +983,7 @@ export const evalRouter = createTRPCRouter({
       const validatedFilter = filterValidation.validatedFilters;
 
       if (evalTemplate.type === EvalTemplateType.CODE) {
-        await assertCodeEvalJobConfigTestSucceeds({
+        await assertCodeEvalJobConfigCanRunForTRPC({
           prisma: ctx.prisma,
           orgId: ctx.session.orgId,
           projectId: input.projectId,
@@ -982,31 +1076,35 @@ export const evalRouter = createTRPCRouter({
         scope: "evalJob:CUD",
       });
 
-      if (!isCodeEvalEnabled()) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Code evals are not enabled",
-        });
-      }
+      assertCodeEvalEnabled();
 
       validateVariableMappingForTarget({
         targetObject: input.target,
         mapping: input.mapping,
       });
 
-      return runCodeEvalTest({
-        prisma: ctx.prisma,
-        orgId: ctx.session.orgId,
-        projectId: input.projectId,
-        evalTemplateId: input.evalTemplateId,
-        target: input.target,
-        mapping: input.mapping,
-        scoreName: input.scoreName,
-        observationId: input.observationId,
-        traceId: input.traceId,
-        startTime: input.startTime,
-        shouldReadFromObservationsTable: input.shouldReadFromObservationsTable,
-      });
+      try {
+        return await runCodeEvalTest({
+          prisma: ctx.prisma,
+          orgId: ctx.session.orgId,
+          projectId: input.projectId,
+          evalTemplateId: input.evalTemplateId,
+          target: input.target,
+          mapping: input.mapping,
+          scoreName: input.scoreName,
+          observationId: input.observationId,
+          traceId: input.traceId,
+          startTime: input.startTime,
+          shouldReadFromObservationsTable:
+            input.shouldReadFromObservationsTable,
+        });
+      } catch (error) {
+        if (error instanceof CodeEvalTestRunSetupError) {
+          throw toCodeEvalTRPCError(error);
+        }
+
+        throw error;
+      }
     }),
   createTemplate: protectedProjectProcedure
     .input(CreateEvalTemplateInputSchema)
@@ -1376,14 +1474,11 @@ export const evalRouter = createTRPCRouter({
       const validatedFilter = filterValidation.validatedFilters;
 
       if (existingJob.evalTemplate?.type === EvalTemplateType.CODE) {
-        if (!isCodeEvalEnabled()) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Code evals are not enabled",
-          });
-        }
+        assertCodeEvalTemplateCanRun({
+          sourceCodeLanguage: existingJob.evalTemplate.sourceCodeLanguage,
+        });
 
-        await assertCodeEvalJobConfigTestSucceeds({
+        await assertCodeEvalJobConfigCanRunForTRPC({
           prisma: ctx.prisma,
           orgId: ctx.session.orgId,
           projectId,
@@ -1537,52 +1632,49 @@ export const evalRouter = createTRPCRouter({
       await invalidateProjectEvalConfigCaches(projectId);
     }),
 
-  // TODO: moved to LFE-4573
-  // deleteEvalTemplate: protectedProjectProcedure
-  //   .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
-  //   .mutation(async ({ ctx, input: { projectId, evalTemplateId } }) => {
-  //     throwIfNoEntitlement({
-  //       entitlement: "model-based-evaluations",
-  //       projectId: projectId,
-  //       sessionUser: ctx.session.user,
-  //     });
-  //     throwIfNoProjectAccess({
-  //       session: ctx.session,
-  //       projectId: projectId,
-  //       scope: "evalTemplate:CUD",
-  //     });
+  evalTemplateUsage: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+    .query(async ({ ctx, input: { projectId, evalTemplateId } }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: projectId,
+        scope: "evalJob:read",
+      });
 
-  //     const existingTemplate = await ctx.prisma.evalTemplate.findUnique({
-  //       where: {
-  //         id: evalTemplateId,
-  //         projectId: projectId,
-  //       },
-  //     });
+      return findEvalTemplateFamilyUsage({
+        prisma: ctx.prisma,
+        projectId,
+        evalTemplateId,
+      });
+    }),
 
-  //     if (!existingTemplate) {
-  //       logger.warn(
-  //         `Template for deletion not found for project ${projectId} and id ${evalTemplateId}`,
-  //       );
-  //       throw new TRPCError({
-  //         code: "NOT_FOUND",
-  //         message: "Template not found",
-  //       });
-  //     }
+  deleteEvalTemplate: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+    .mutation(async ({ ctx, input: { projectId, evalTemplateId } }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: projectId,
+        scope: "evalTemplate:CUD",
+      });
 
-  //     await auditLog({
-  //       session: ctx.session,
-  //       resourceType: "evalTemplate",
-  //       resourceId: evalTemplateId,
-  //       action: "delete",
-  //     });
+      const deletedVersions = await deleteEvalTemplateFamily({
+        prisma: ctx.prisma,
+        projectId,
+        evalTemplateId,
+      });
 
-  //     await ctx.prisma.evalTemplate.delete({
-  //       where: {
-  //         id: evalTemplateId,
-  //         projectId: projectId,
-  //       },
-  //     });
-  //   }),
+      await Promise.all(
+        deletedVersions.map((version) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+            resourceId: version.id,
+            action: "delete",
+            before: version,
+          }),
+        ),
+      );
+    }),
   getLogs: protectedProjectProcedure
     .input(
       z.object({

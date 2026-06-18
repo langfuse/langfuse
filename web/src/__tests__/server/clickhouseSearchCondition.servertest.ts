@@ -2,13 +2,20 @@ import { env } from "@/src/env.mjs";
 import { type TracingSearchType } from "@langfuse/shared";
 import {
   clickhouseSearchCondition,
+  createEvent,
+  createEventsCh,
+  getObservationsWithModelDataFromEventsTable,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
+import { randomUUID } from "crypto";
 
 const maybeEventsTable =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
+
+const alphabeticSearchToken = (index: number, prefix: string = "needle") =>
+  `${prefix}${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + (index % 26))}`;
 
 const searchFixture = `
   SELECT *
@@ -25,6 +32,8 @@ const searchFixture = `
     ('output-match-cyrillic', 'plain name', 'unrelated input', 'contains привет token'),
     ('input-match-cjk', 'plain name', 'contains 東京 token', 'unrelated output'),
     ('output-match-cjk', 'plain name', 'unrelated input', 'contains 東京 token'),
+    ('input-match-escaped-cjk', 'plain name', 'contains \\\\u6771\\\\u4eac token', 'unrelated output'),
+    ('output-match-escaped-cjk', 'plain name', 'unrelated input', 'contains \\\\u6771\\\\u4eac token'),
     ('miss', 'plain name', 'unrelated input', 'unrelated output')
   ) AS e
 `;
@@ -123,10 +132,15 @@ describe("clickhouseSearchCondition", () => {
       {
         query: "東京",
         searchType: ["content"],
-        expectedIds: ["input-match-cjk", "output-match-cjk"],
+        expectedIds: [
+          "input-match-cjk",
+          "input-match-escaped-cjk",
+          "output-match-cjk",
+          "output-match-escaped-cjk",
+        ],
       },
     ])(
-      "preserves baseline substring search semantics for $query $searchType search",
+      "matches expected substring rows for $query $searchType search",
       async ({ query, searchType, expectedIds }) => {
         await expect(
           matchingIds({
@@ -150,6 +164,154 @@ describe("clickhouseSearchCondition", () => {
 
       expect(baseIds).toEqual(["id-match"]);
       expect(ftsIds).toEqual(baseIds);
+    });
+
+    it("handles FTS-prefiltered searches with more than 64 tokens", async () => {
+      const longQuery = Array.from({ length: 65 }, (_, index) =>
+        alphabeticSearchToken(index),
+      ).join(" ");
+      const search = clickhouseSearchCondition({
+        query: longQuery,
+        searchType: ["content"],
+        tablePrefix: "e",
+        searchColumns: ["id", "name"],
+        useEventsTablePath: true,
+      });
+
+      await expect(
+        queryClickhouse<{ count: number }>({
+          query: `
+            SELECT count() AS count
+            FROM events_full AS e
+            WHERE e.project_id = {projectId: String}
+            ${search.query}
+          `,
+          params: {
+            projectId: randomUUID(),
+            ...search.params,
+          },
+          preferredClickhouseService: "EventsReadOnly",
+          tags: {
+            feature: "clickhouse-search-condition-test",
+            type: "events",
+            kind: "test",
+          },
+        }),
+      ).resolves.toEqual([{ count: 0 }]);
+    });
+
+    it("matches JSON-escaped Unicode content on events tables with the FTS prefilter", async () => {
+      const search = clickhouseSearchCondition({
+        query: "東京",
+        searchType: ["content"],
+        tablePrefix: "e",
+        searchColumns: ["id", "name"],
+        useEventsTablePath: true,
+      });
+
+      expect(search.params).toMatchObject({
+        searchString: "%東京%",
+        searchStringEscaped: "%\\u6771\\u4eac%",
+      });
+      expect(search.query).toContain("{searchStringEscaped: String}");
+      expect(search.query).toContain("arraySlice");
+      expect(search.query).toContain(
+        "hasAllTokens(lower(e.input), arraySlice(",
+      );
+      expect(search.query).toContain(
+        "hasAllTokens(lower(e.output), arraySlice(",
+      );
+      expect(search.query).toContain(
+        "tokens(lower({searchStringEscaped: String}))",
+      );
+
+      await expect(
+        matchingIds({
+          query: "東京",
+          searchType: ["content"],
+          useEventsTablePath: true,
+        }),
+      ).resolves.toEqual([
+        "input-match-cjk",
+        "input-match-escaped-cjk",
+        "output-match-cjk",
+        "output-match-escaped-cjk",
+      ]);
+    });
+
+    it("round-trips raw and JSON-escaped Unicode through events_full search", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const rawSpanId = randomUUID();
+      const escapedSpanId = randomUUID();
+      const rawInput = `{"message":"東京"}`;
+      const escapedInput = `{"message":"\\u6771\\u4eac"}`;
+
+      await createEventsCh([
+        createEvent({
+          id: rawSpanId,
+          span_id: rawSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "raw-unicode-search-roundtrip",
+          input: rawInput,
+          output: "ascii output",
+        }),
+        createEvent({
+          id: escapedSpanId,
+          span_id: escapedSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "escaped-unicode-search-roundtrip",
+          input: escapedInput,
+          output: "ascii output",
+        }),
+      ]);
+
+      const stored = await queryClickhouse<{ span_id: string; input: string }>({
+        query: `
+          SELECT span_id, input
+          FROM events_full
+          WHERE project_id = {projectId: String}
+            AND span_id IN ({rawSpanId: String}, {escapedSpanId: String})
+          ORDER BY span_id ASC
+        `,
+        params: {
+          projectId: uniqueProjectId,
+          rawSpanId,
+          escapedSpanId,
+        },
+        preferredClickhouseService: "EventsReadOnly",
+        tags: {
+          feature: "clickhouse-search-condition-test",
+          type: "events",
+          kind: "test",
+        },
+      });
+
+      expect(stored).toHaveLength(2);
+      expect(rawInput).not.toBe(escapedInput);
+
+      const storedInputBySpanId = new Map(
+        stored.map((row) => [row.span_id, row.input]),
+      );
+      expect(storedInputBySpanId.get(rawSpanId)).toBe(rawInput);
+      expect(storedInputBySpanId.get(escapedSpanId)).toBe(escapedInput);
+
+      const observations = await getObservationsWithModelDataFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [],
+        searchQuery: "東京",
+        searchType: ["content"],
+        limit: 100,
+        offset: 0,
+      });
+
+      expect(observations.map((observation) => observation.id).sort()).toEqual(
+        [rawSpanId, escapedSpanId].sort(),
+      );
     });
   });
 

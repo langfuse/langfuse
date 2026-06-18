@@ -10,6 +10,7 @@ import {
 } from "@/src/server/api/trpc";
 import {
   BatchActionQuerySchema,
+  BatchTableNames,
   BatchExportTableName,
   BatchActionType,
   ActionId,
@@ -54,6 +55,7 @@ import {
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
@@ -127,6 +129,12 @@ export const traceRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(TraceFilterOptions)
     .query(async ({ input, ctx }) => {
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Traces,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -141,8 +149,8 @@ export const traceRouter = createTRPCRouter({
       const traces = await getTracesTable({
         projectId: ctx.session.projectId,
         filter: filterState,
-        searchQuery: input.searchQuery ?? undefined,
-        searchType: input.searchType ?? ["id"],
+        searchQuery: search.searchQuery,
+        searchType: search.searchType ?? ["id"],
         orderBy: normalizeOrderByForTable({
           orderBy: input.orderBy,
           expectedTimeColumn: "timestamp",
@@ -155,6 +163,12 @@ export const traceRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(TraceCountOptions)
     .query(async ({ input, ctx }) => {
+      const search = sanitizeLegacyTracingSearch({
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        tableName: BatchTableNames.Traces,
+      });
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -169,8 +183,8 @@ export const traceRouter = createTRPCRouter({
       const count = await getTracesTableCount({
         projectId: ctx.session.projectId,
         filter: filterState,
-        searchType: input.searchType,
-        searchQuery: input.searchQuery ?? undefined,
+        searchType: search.searchType ?? ["id"],
+        searchQuery: search.searchQuery,
         limit: 1,
         page: 0,
       });
@@ -499,6 +513,7 @@ export const traceRouter = createTRPCRouter({
 
         let trace;
 
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
@@ -510,7 +525,7 @@ export const traceRouter = createTRPCRouter({
           const promises = [
             upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
           ];
-          if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+          if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
             promises.push(
               updateEvents(
                 input.projectId,
@@ -557,6 +572,7 @@ export const traceRouter = createTRPCRouter({
           after: input.public,
         });
 
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         const clickhouseTrace = await getTraceById({
           traceId: input.traceId,
           projectId: input.projectId,
@@ -575,7 +591,7 @@ export const traceRouter = createTRPCRouter({
         const promises = [
           upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
         ];
-        if (env.LANGFUSE_ENABLE_EVENTS_TABLE_FLAGS === "true") {
+        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
           promises.push(
             updateEvents(
               input.projectId,

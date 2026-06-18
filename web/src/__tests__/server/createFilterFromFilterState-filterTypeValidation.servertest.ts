@@ -67,6 +67,13 @@ describe("createFilterFromFilterState filter type validation", () => {
       clickhouseSelect: "metadata",
       queryPrefix: "e",
     },
+    experimentMetadata: {
+      uiTableName: "Metadata",
+      uiTableId: "metadata",
+      clickhouseTableName: "events_proto",
+      clickhouseSelect: "experiment_metadata",
+      queryPrefix: "e",
+    },
     eventName: {
       uiTableName: "Event Name",
       uiTableId: "eventName",
@@ -310,9 +317,14 @@ describe("createFilterFromFilterState filter type validation", () => {
     const { query, params } = result.apply();
     const paramName = Object.keys(params)[0];
 
-    expect(query).toBe(
-      `hasAllTokens(lower(e.output), lower({${paramName}: String}))`,
+    expect(query).toContain(
+      `position(lower(e.output), lower({${paramName}: String})) > 0`,
     );
+    expect(query).toContain("arraySlice");
+    expect(query).toContain(
+      `hasAllTokens(lower(e.output), arraySlice(arrayDistinct(tokens(lower({${paramName}: String}))), 1, 64))`,
+    );
+    expect(query).toContain(`tokens(lower({${paramName}: String}))`);
     expect(params).toEqual({ [paramName]: "needle" });
   });
 
@@ -333,7 +345,8 @@ describe("createFilterFromFilterState filter type validation", () => {
     const { query } = result.apply();
 
     expect(query).toContain("e.input =");
-    expect(query).toContain("hasAllTokens(lower(e.input), lower(");
+    expect(query).toContain("arraySlice");
+    expect(query).toContain("hasAllTokens(lower(e.input), arraySlice(");
   });
 
   it("generates case-sensitive FTS SQL for event metadata matches", () => {
@@ -358,10 +371,69 @@ describe("createFilterFromFilterState filter type validation", () => {
     expect(query).toContain("has(e.metadata_names,");
     expect(query).toContain("hasAllTokens(e.metadata_values,");
     expect(query).toContain(
-      "hasAllTokens(e.metadata_values[indexOf(e.metadata_names,",
+      "position(e.metadata_values[indexOf(e.metadata_names,",
     );
+    expect(query).not.toContain("hasAllTokens(e.metadata_values[indexOf");
     expect(query).not.toContain("lower(");
     expect(Object.values(params)).toEqual(["source", "needle"]);
+  });
+
+  it("adds ngram prefilter params for event metadata substring filters", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "contains",
+        key: "environment",
+        value: "prod%_\\west",
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.eventMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("like(arrayStringConcat(e.metadata_values),");
+    expect(query).toContain("has(e.metadata_names,");
+    expect(query).toContain(
+      "position(e.metadata_values[indexOf(e.metadata_names,",
+    );
+    expect(Object.values(params)).toEqual([
+      "environment",
+      "prod%_\\west",
+      "%prod\\%\\_\\\\west%",
+    ]);
+  });
+
+  it("does not add the event metadata ngram prefilter for experiment metadata arrays", () => {
+    const filters = [
+      {
+        column: "metadata",
+        type: "stringObject",
+        operator: "contains",
+        key: "environment",
+        value: "production",
+      },
+    ] satisfies EventsTableFilterState;
+
+    const [result] = createFilterFromFilterState(
+      filters,
+      [mappings.experimentMetadata],
+      columnDefinitions,
+    );
+
+    const { query, params } = result.apply();
+
+    expect(query).toContain("has(e.experiment_metadata_names,");
+    expect(query).toContain(
+      "position(e.experiment_metadata_values[indexOf(e.experiment_metadata_names,",
+    );
+    expect(query).not.toContain("arrayStringConcat");
+    expect(Object.values(params)).toEqual(["environment", "production"]);
   });
 
   it.each([

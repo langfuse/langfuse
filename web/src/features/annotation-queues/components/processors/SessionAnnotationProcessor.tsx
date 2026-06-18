@@ -6,6 +6,7 @@ import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/components/session";
 import { LazyTraceEventsRow } from "@/src/components/session/TraceEventsRow";
+import { asCommentCounts } from "@/src/components/session/sessionDetailPageTypes";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
 import { ItemBadge } from "@/src/components/ItemBadge";
@@ -20,11 +21,13 @@ import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 
+type SessionAnnotationQueueItem = AnnotationQueueItem & {
+  parentTraceId?: string | null;
+  lockedByUser: { name: string | null | undefined } | null;
+};
+
 interface SessionAnnotationProcessorProps {
-  item: AnnotationQueueItem & {
-    parentTraceId?: string | null;
-    lockedByUser: { name: string | null | undefined } | null;
-  };
+  item: SessionAnnotationQueueItem;
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
@@ -177,7 +180,7 @@ export const SessionAnnotationProcessor: React.FC<
                   projectId={projectId}
                   sessionId={item.objectId}
                   openPeek={openPeek}
-                  traceCommentCounts={traceCommentCounts.data ?? undefined}
+                  traceCommentCounts={asCommentCounts(traceCommentCounts.data)}
                   showCorrections
                   filterState={EMPTY_FILTER_STATE}
                   hideTracePanel
@@ -206,6 +209,7 @@ export const SessionAnnotationProcessor: React.FC<
                   traceId={trace.id}
                   projectId={projectId}
                   timestamp={trace.timestamp}
+                  environment={trace.environment}
                   showCorrections
                 />
               </Card>

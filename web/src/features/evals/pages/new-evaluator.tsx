@@ -27,7 +27,8 @@ export default function NewEvaluatorPage() {
   const router = useRouter();
   const projectId = router.query.projectId as string;
   const evaluatorId = router.query.evaluator as string | undefined;
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled } = codeEvalCapabilities;
 
   const hasDefaultModelReadAccess = useHasProjectAccess({
     projectId,
@@ -58,7 +59,9 @@ export default function NewEvaluatorPage() {
   );
 
   const currentTemplate = evalTemplates.data?.templates
-    .filter((template) => shouldShowEvalTemplate(template, isCodeEvalEnabled))
+    .filter((template) =>
+      shouldShowEvalTemplate(template, codeEvalCapabilities),
+    )
     .find((t) => t.id === evaluatorId);
 
   const templatesForCurrentName = api.evals.allTemplatesForName.useQuery(
@@ -83,7 +86,7 @@ export default function NewEvaluatorPage() {
   const handleUseUpdatedEvaluator = () => {
     if (!latestTemplate) return;
 
-    void router.replace(
+    router.replace(
       {
         pathname: router.pathname,
         query: {
@@ -110,6 +113,7 @@ export default function NewEvaluatorPage() {
   return (
     <Page
       withPadding
+      scrollable
       headerProps={{
         title: "Set up evaluator",
         breadcrumb: [

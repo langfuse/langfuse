@@ -1,11 +1,9 @@
-import { Prisma as SharedPrisma } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { deleteAnnotationQueueAssignment } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { DeleteAnnotationQueueAssignmentResponse } from "@/src/features/public-api/types/annotation-queues";
+import { LangfuseNotFoundError, Prisma } from "@langfuse/shared";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { DeleteAnnotationQueueAssignmentToolSchema } from "../schema";
-import { verifyAnnotationQueue } from "../utils";
 
 export const [
   deleteAnnotationQueueAssignmentTool,
@@ -21,48 +19,27 @@ export const [
       context,
       attributes: { "mcp.annotation_queue_id": input.queueId },
       fn: async () => {
-        await verifyAnnotationQueue({
-          projectId: context.projectId,
-          queueId: input.queueId,
-        });
-
-        let assignment;
         try {
-          assignment = await prisma.annotationQueueAssignment.delete({
-            where: {
-              projectId_queueId_userId: {
-                projectId: context.projectId,
-                queueId: input.queueId,
-                userId: input.userId,
-              },
-            },
+          const result = await deleteAnnotationQueueAssignment({
+            projectId: context.projectId,
+            queueId: input.queueId,
+            input: { userId: input.userId },
+            auditScope: context,
           });
+
+          return DeleteAnnotationQueueAssignmentResponse.parse(result.response);
         } catch (error) {
           if (
-            error instanceof SharedPrisma.PrismaClientKnownRequestError &&
+            error instanceof Prisma.PrismaClientKnownRequestError &&
             error.code === "P2025"
           ) {
-            return DeleteAnnotationQueueAssignmentResponse.parse({
-              success: true,
-            });
+            throw new LangfuseNotFoundError(
+              "Annotation queue assignment not found",
+            );
           }
 
           throw error;
         }
-
-        await auditLog({
-          action: "delete",
-          resourceType: "annotationQueueAssignment",
-          resourceId: assignment.id,
-          projectId: context.projectId,
-          orgId: context.orgId,
-          apiKeyId: context.apiKeyId,
-          before: assignment,
-        });
-
-        return DeleteAnnotationQueueAssignmentResponse.parse({
-          success: true,
-        });
       },
     }),
   destructiveHint: true,

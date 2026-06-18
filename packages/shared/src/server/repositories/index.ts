@@ -21,3 +21,6 @@ export * from "./dataset-items";
 export * from "./comments";
 export * from "./experiments";
 export * from "./job-executions";
+export * from "./daily-metrics";
+export * from "./dataset-runs";
+export * from "./score-configs";

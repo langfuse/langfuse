@@ -1,18 +1,28 @@
-import { prisma } from "@langfuse/shared/src/db";
+import { CommentObjectType, publicApiPaginationZod } from "@langfuse/shared";
+import { z } from "zod";
+import { listCommentsForApi } from "@/src/features/comments/server/publicCommentService";
 import {
   GetCommentsV1Query,
   GetCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { defineTool } from "../../../core/define-tool";
+import { buildCommentObjectUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { paginationMeta } from "../../publicApi";
-import { publicComment } from "../schema";
+
+const ListCommentsBaseSchema = z
+  .object({
+    objectType: z.enum(CommentObjectType).optional(),
+    objectId: z.string().optional(),
+    authorUserId: z.string().optional(),
+    ...publicApiPaginationZod,
+  })
+  .strict();
 
 export const [listCommentsTool, handleListComments] = defineTool({
   name: "listComments",
   description:
     "List comments in the current Langfuse project, optionally filtered by object or author.",
-  baseSchema: GetCommentsV1Query,
+  baseSchema: ListCommentsBaseSchema,
   inputSchema: GetCommentsV1Query,
   handler: async (input, context) =>
     runMcpTool({
@@ -25,30 +35,25 @@ export const [listCommentsTool, handleListComments] = defineTool({
         "mcp.pagination_limit": input.limit,
       },
       fn: async () => {
-        const where = {
+        const result = await listCommentsForApi({
+          ...input,
           projectId: context.projectId,
-          objectType: input.objectType ?? undefined,
-          objectId: input.objectId ?? undefined,
-          authorUserId: input.authorUserId ?? undefined,
-        };
-
-        const [comments, totalItems] = await Promise.all([
-          prisma.comment.findMany({
-            where,
-            take: input.limit,
-            skip: (input.page - 1) * input.limit,
-          }),
-          prisma.comment.count({ where }),
-        ]);
-
-        return GetCommentsV1Response.parse({
-          data: comments.map(publicComment),
-          meta: paginationMeta({
-            page: input.page,
-            limit: input.limit,
-            totalItems,
-          }),
         });
+
+        const parsed = GetCommentsV1Response.parse(result);
+
+        return {
+          ...parsed,
+          data: parsed.data.map((comment) => {
+            const url = buildCommentObjectUrl({
+              projectId: context.projectId,
+              objectType: comment.objectType,
+              objectId: comment.objectId,
+            });
+
+            return url ? { ...comment, url } : comment;
+          }),
+        };
       },
     }),
   readOnlyHint: true,

@@ -30,10 +30,12 @@ import {
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
+  isEnrichedBlobExportAvailable,
+  isEnrichedBlobExportSource,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
-import { env } from "../../env";
+import { env, v4AllowPreviewOptIn } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
@@ -277,10 +279,12 @@ const processBlobStorageExport = async (config: {
             config.projectId,
             config.minTimestamp,
             config.maxTimestamp,
+            exportFieldGroups,
           ),
           config.projectId,
           "model_id",
           false, // v3 query already returns latency in seconds
+          exportFieldGroups,
         );
         break;
       case "scores":
@@ -425,6 +429,22 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 
   try {
+    // Fail loudly rather than export from unpopulated tables when an enriched
+    // source survives on a deployment without the enriched path, e.g. after a
+    // V4-preview rollback. The catch persists lastError and notifies admins
+    // (LFE-10296).
+    if (
+      isEnrichedBlobExportSource(blobStorageIntegration.exportSource) &&
+      !isEnrichedBlobExportAvailable(
+        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+        v4AllowPreviewOptIn(env),
+      )
+    ) {
+      throw new Error(
+        "The configured export source includes enriched observations, but enriched export is not available on this deployment. Select a different export source in the blob storage integration settings, or re-enable enriched export (V4 preview opt-in) on this deployment.",
+      );
+    }
+
     // Preflight the persisted integration endpoint once per job inside the
     // export error path. StorageService connection-time validation remains the
     // DNS-rebinding defense for each SDK connection.
@@ -604,7 +624,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 };
 
 function notifyBlobStorageExportFailedInBackground(projectId: string): void {
-  void (async () => {
+  (async () => {
     try {
       const cooldownMs =
         env.LANGFUSE_BLOB_STORAGE_FAILURE_NOTIFICATION_COOLDOWN_HOURS *

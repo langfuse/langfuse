@@ -1,14 +1,13 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
   convertQueueNameToMetricName,
-  createNewRedisInstance,
-  getQueuePrefix,
+  createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
+  recordDistribution,
   recordGauge,
   recordHistogram,
   recordIncrement,
-  redisQueueRetryOptions,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
@@ -58,7 +57,7 @@ export class WorkerManager {
       recordHistogram(oldMetric + ".wait_time", waitTime, {
         unit: "milliseconds",
       });
-      recordHistogram(baseMetric + ".time", waitTime, {
+      recordDistribution(baseMetric + ".time_distribution", waitTime, {
         type: "wait",
         unit: "milliseconds",
         ...shardTag,
@@ -99,7 +98,7 @@ export class WorkerManager {
       recordHistogram(oldMetric + ".processing_time", processingTime, {
         unit: "milliseconds",
       });
-      recordHistogram(baseMetric + ".time", processingTime, {
+      recordDistribution(baseMetric + ".time_distribution", processingTime, {
         type: "processing",
         unit: "milliseconds",
         ...shardTag,
@@ -134,9 +133,9 @@ export class WorkerManager {
       return;
     }
 
-    // Create redis connection for queue worker
-    const redisInstance = createNewRedisInstance(redisQueueRetryOptions);
-    if (!redisInstance) {
+    const workerOptionsWithRedis =
+      createBullMQWorkerOptionsWithRedis(queueName);
+    if (!workerOptionsWithRedis) {
       logger.error("Failed to initialize redis connection");
       return;
     }
@@ -146,8 +145,7 @@ export class WorkerManager {
       queueName,
       WorkerManager.metricWrapper(processor, queueName),
       {
-        connection: redisInstance,
-        prefix: getQueuePrefix(queueName),
+        ...workerOptionsWithRedis,
         ...additionalOptions,
       },
     );

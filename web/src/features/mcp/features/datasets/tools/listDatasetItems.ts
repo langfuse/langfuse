@@ -1,80 +1,47 @@
-import { LangfuseNotFoundError } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
-import {
-  createDatasetItemFilterState,
-  getDatasetItems,
-  getDatasetItemsCount,
-} from "@langfuse/shared/src/server";
-import {
-  GetDatasetItemsV1Query,
-  GetDatasetItemsV1Response,
-  transformDbDatasetItemDomainToAPIDatasetItem,
-} from "@/src/features/public-api/types/datasets";
+import { GetDatasetItemsV1Response } from "@/src/features/public-api/types/datasets";
+import { listDatasetItemsForApi } from "@/src/features/datasets/server/publicDatasetService";
 import { defineTool } from "../../../core/define-tool";
+import { buildDatasetItemUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
-import { paginationMeta } from "../../publicApi";
+import {
+  GetDatasetItemsMcpBaseSchema,
+  GetDatasetItemsMcpInput,
+} from "../schema";
 
 export const [listDatasetItemsTool, handleListDatasetItems] = defineTool({
   name: "listDatasetItems",
   description:
-    "List dataset items, individual examples with input and optional expected output, optionally filtered by dataset name, source trace, source observation, or version.",
-  baseSchema: GetDatasetItemsV1Query,
-  inputSchema: GetDatasetItemsV1Query,
+    "List dataset items, individual examples with input and optional expected output, optionally filtered by dataset ID, source trace, source observation, or version.",
+  baseSchema: GetDatasetItemsMcpBaseSchema,
+  inputSchema: GetDatasetItemsMcpInput,
   handler: async (input, context) =>
     runMcpTool({
       spanName: "mcp.dataset_items.list",
       context,
       attributes: {
-        "mcp.dataset_name": input.datasetName ?? undefined,
+        "mcp.dataset_id": input.datasetId,
         "mcp.pagination_page": input.page,
         "mcp.pagination_limit": input.limit,
       },
       fn: async () => {
-        let datasetId: string | undefined;
-        if (input.datasetName) {
-          const dataset = await prisma.dataset.findFirst({
-            where: {
-              name: input.datasetName,
+        const result = await listDatasetItemsForApi({
+          ...input,
+          projectId: context.projectId,
+        });
+
+        const parsed = GetDatasetItemsV1Response.parse(result);
+
+        return {
+          ...parsed,
+          data: parsed.data.map((datasetItem) => ({
+            ...datasetItem,
+            url: buildDatasetItemUrl({
               projectId: context.projectId,
-            },
-          });
-          if (!dataset) {
-            throw new LangfuseNotFoundError("Dataset not found");
-          }
-          datasetId = dataset.id;
-        }
-
-        const filterState = createDatasetItemFilterState({
-          ...(datasetId && { datasetIds: [datasetId] }),
-          sourceTraceId: input.sourceTraceId ?? undefined,
-          sourceObservationId: input.sourceObservationId ?? undefined,
-          status: "ACTIVE",
-        });
-
-        const [items, totalItems] = await Promise.all([
-          getDatasetItems({
-            projectId: context.projectId,
-            filterState,
-            version: input.version ?? undefined,
-            includeDatasetName: true,
-            limit: input.limit,
-            page: input.page - 1,
-          }),
-          getDatasetItemsCount({
-            projectId: context.projectId,
-            filterState,
-            version: input.version ?? undefined,
-          }),
-        ]);
-
-        return GetDatasetItemsV1Response.parse({
-          data: items.map(transformDbDatasetItemDomainToAPIDatasetItem),
-          meta: paginationMeta({
-            page: input.page,
-            limit: input.limit,
-            totalItems,
-          }),
-        });
+              datasetId: datasetItem.datasetId,
+              datasetItemId: datasetItem.id,
+            }),
+          })),
+        };
       },
     }),
   readOnlyHint: true,

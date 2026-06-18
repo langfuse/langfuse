@@ -77,7 +77,7 @@ export default function SignUp({
 function StandardSignupFlow({
   authProviders,
 }: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
-  const { isLangfuseCloud, region } = useLangfuseCloudRegion();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const router = useRouter();
   const capture = usePostHogClientCapture();
 
@@ -162,7 +162,7 @@ function StandardSignupFlow({
         // Store the SSO provider as the last used auth method
         setLastUsedAuthMethod(providerId as NextAuthProvider);
 
-        void signIn(providerId);
+        signIn(providerId);
         return; // stop further execution – page redirect expected
       }
 
@@ -212,7 +212,7 @@ function StandardSignupFlow({
         password: values.password,
         callbackUrl:
           targetPath ??
-          (isLangfuseCloud && region !== "DEV"
+          (isLangfuseCloud
             ? `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/onboarding`
             : `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/`),
       });
@@ -231,7 +231,7 @@ function StandardSignupFlow({
               ? form.handleSubmit(onSubmit)
               : (e) => {
                   e.preventDefault();
-                  void handleContinue();
+                  handleContinue();
                 }
           }
         >
