@@ -78,11 +78,15 @@ export const DatasetActionButton = forwardRef<
               onClick={(e) => {
                 e.stopPropagation();
                 capture("datasets:update_form_open", {
-                  source: "dataset",
+                  source: "table-single-row",
                 });
               }}
             >
-              <Pen className="h-4 w-4" />
+              {hasAccess ? (
+                <Pen className="h-4 w-4" />
+              ) : (
+                <LockIcon className="h-4 w-4" aria-hidden="true" />
+              )}
             </Button>
           ) : (
             <Button

@@ -24,7 +24,7 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { ExternalLinkIcon, Info, Pen } from "lucide-react";
+import { ExternalLinkIcon, Info, LockIcon, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
@@ -377,7 +377,11 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
                 if (id) setEditConfigId(id);
               }}
             >
-              <Pen className="h-4 w-4" />
+              {hasAccess ? (
+                <Pen className="h-4 w-4" />
+              ) : (
+                <LockIcon className="h-4 w-4" aria-hidden="true" />
+              )}
             </Button>
             <DeleteEvalConfigButton
               aria-label="delete"
