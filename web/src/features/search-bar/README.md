@@ -6,24 +6,30 @@ coexists with the sidebar and stays in sync with it. The facet
 sidebar's `FilterState` (+ the table's full-text search) remains the single
 source of truth; the bar reads from and writes to it. Only the legacy toolbar
 search field is replaced (full-text search goes inline in the bar).
-Per-user **Feature Preview** opt-in. Based on the `langfuse-search-bar` prototype.
+Generally available on the v4 events tables (no opt-in). Based on the
+`langfuse-search-bar` prototype.
 
 ## Enablement
 
-- Per-user **Feature Preview** opt-in (sidebar user menu → Feature Preview →
-  "Filter Search Bar"), exactly like the Langfuse Assistant. Stored on
-  `user.featureFlags` (the `searchBar` flag, see
-  `features/feature-flags/available-flags.ts`); toggled via
-  `userAccount.setFeaturePreviewEnabled({ flag, enabled })`; read through the
-  session by `hooks/useSearchBarEnabled.ts`
-  (`session.user.featureFlags.searchBar`). No project metadata, no `project:update`
-  RBAC. The Feature Preview menu is Cloud-only, so the flag is Cloud-enableable.
-- `EventsTable` activates the bar only when the user enabled the preview, the
-  viewer has the **v4 beta** (the bar only renders on the v4 Observations
-  table), and the table is a full-page surface
+- **Generally available on the v4 events tables** — every user gets the bar; it
+  is no longer a per-user Feature Preview opt-in. `hooks/useSearchBarEnabled.ts`
+  now returns `true` for everyone, so the bar renders wherever the v4 events
+  table does.
+- `EventsTable` activates the bar when the table is a full-page surface
   (`!hideControls && !externalFilterState && !peekContext && !userId && !sessionId`).
-  Default off — zero changes for users who don't opt in. The Feature Preview
-  modal warns that the v4 beta is also required.
+  The **v4 beta** gate is implicit: `EventsTable` only mounts on the v4
+  Observations/Traces tables, so call sites still read as
+  `isBetaEnabled && useSearchBarEnabled()`.
+- **Rollout/rollback (temporary).** GA was shipped by force-on shim, not by
+  deleting the opt-in: `useSearchBarEnabled` hard-returns `true` and the
+  "Filter Search Bar" tile was removed from the Feature Preview modal, but the
+  `searchBar` flag plumbing is intentionally **left as dead code** for a day or
+  two so a rollback is a one-line revert. The pieces still present and marked
+  `TODO(remove ~2026-06-19)`: the `searchBar` entry in
+  `features/feature-flags/available-flags.ts`, the
+  `userAccount.setFeaturePreviewEnabled` allowlist, and the modal's
+  `PreviewFlag`/registry entry (`features/feature-previews/`). Once the rollout
+  is confirmed stable, delete those and inline `true` at the call site.
 
 ## Query language
 
@@ -194,9 +200,9 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
     sticky stack around the composer + toolbar). The time-range + refresh
     controls live in the toolbar row below the composer (next to the filter
     toggle and views), via `DataTableToolbar`'s `timeRange`/`refreshConfig`
-    props — same as non-bar mode, not in the page header. The enablement toggle
-    lives in the shared Feature Preview modal (`features/feature-previews/`),
-    not in this feature.
+    props — same as non-bar mode, not in the page header. The bar is now GA on
+    the v4 tables, so there is no enablement toggle (the retired Feature Preview
+    tile lived in `features/feature-previews/`; see Enablement above).
 
 ## Integration (EventsTable)
 
