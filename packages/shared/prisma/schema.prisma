@@ -610,6 +610,7 @@ model AnnotationQueueItem {
   createdAt       DateTime                  @default(now()) @map("created_at")
   updatedAt       DateTime                  @default(now()) @updatedAt @map("updated_at")
 
+  @@unique([projectId, queueId, objectId, objectType], map: "annotation_queue_items_proj_queue_obj_type_key")
   @@index([id, projectId])
   @@index([projectId, queueId, status])
   @@index([objectId, objectType, projectId, queueId])
