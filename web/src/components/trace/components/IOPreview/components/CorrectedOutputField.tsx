@@ -256,7 +256,7 @@ export function CorrectedOutputField({
                   checked={strictJsonMode}
                   onCheckedChange={handleStrictJsonModeChange}
                   disabled={!isEditing}
-                  className="scale-75"
+                  size="sm"
                 />
                 <span className="text-muted-foreground text-xs">JSON</span>
               </div>

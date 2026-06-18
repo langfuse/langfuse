@@ -47,9 +47,7 @@ interface SwitchProps
       React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>,
       "className"
     >,
-    VariantProps<typeof switchVariants> {
-  className?: "scale-75";
-}
+    VariantProps<typeof switchVariants> {}
 
 const Switch = React.forwardRef<
   React.ComponentRef<typeof SwitchPrimitives.Root>,
