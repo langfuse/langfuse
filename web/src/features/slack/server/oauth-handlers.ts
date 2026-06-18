@@ -9,6 +9,7 @@ import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
+import { setPendingInstallClaimCookie } from "@/src/features/slack/server/pendingInstallClaimCookie";
 
 /**
  * SlackOAuthHandlers
@@ -90,11 +91,15 @@ export async function handleCallback(
               res.redirect("/slack/direct-setup");
               return;
             }
+            // Deliver the claim as an httpOnly cookie bound to this browser
+            // rather than a URL parameter — it is a bearer credential for a
+            // live bot token and must not land in history/Referer. The link
+            // procedures read it server-side. team_id/team_name stay in the URL
+            // (not secret) for display.
+            setPendingInstallClaimCookie(res, teamId, claimToken);
             const onboardingUrl = `/slack/direct-setup?team_id=${encodeURIComponent(
               teamId,
-            )}&team_name=${encodeURIComponent(
-              teamName ?? "",
-            )}&claim=${encodeURIComponent(claimToken)}`;
+            )}&team_name=${encodeURIComponent(teamName ?? "")}`;
             res.redirect(onboardingUrl);
             return;
           }

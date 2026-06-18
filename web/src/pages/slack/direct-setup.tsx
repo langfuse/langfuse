@@ -28,14 +28,15 @@ export default function SlackDirectSetupPage() {
 
   const teamId =
     typeof router.query.team_id === "string" ? router.query.team_id : "";
-  const claim =
-    typeof router.query.claim === "string" ? router.query.claim : "";
   const teamNameFromQuery =
     typeof router.query.team_name === "string" ? router.query.team_name : "";
 
+  // The claim is delivered as an httpOnly cookie (set on the OAuth callback) and
+  // read server-side by the procedures below — it is never in the URL or
+  // readable here, so the page only needs team_id to drive the queries.
   const pending = api.slack.getPendingInstallation.useQuery(
-    { teamId, claim },
-    { enabled: !!teamId && !!claim && session.status === "authenticated" },
+    { teamId },
+    { enabled: !!teamId && session.status === "authenticated" },
   );
 
   const connectableProjects = api.slack.getConnectableProjects.useQuery(
@@ -67,9 +68,11 @@ export default function SlackDirectSetupPage() {
   const workspaceName =
     pending.data?.teamName || teamNameFromQuery || "your Slack workspace";
 
-  // No teamId, or the pending install was not found / has expired.
+  // No teamId, or the pending install was not found / has expired (which also
+  // covers a missing/expired claim cookie, since the query then returns
+  // isPending: false).
   const installInvalid =
-    !teamId || !claim || (pending.isSuccess && !pending.data.isPending);
+    !teamId || (pending.isSuccess && !pending.data.isPending);
 
   const orgs = connectableProjects.data ?? [];
 
@@ -155,7 +158,6 @@ export default function SlackDirectSetupPage() {
                               linkMutation.mutate({
                                 projectId: project.projectId,
                                 teamId,
-                                claim,
                               })
                             }
                           >

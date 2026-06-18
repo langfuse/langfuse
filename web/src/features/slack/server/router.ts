@@ -15,6 +15,7 @@ import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
+import { readPendingInstallClaimCookie } from "@/src/features/slack/server/pendingInstallClaimCookie";
 
 export const slackRouter = createTRPCRouter({
   /**
@@ -387,16 +388,22 @@ export const slackRouter = createTRPCRouter({
    * linked. Authenticated but not project-scoped: the install isn't owned by a
    * project yet. Returns null if there is no pending install or it has expired.
    */
-  // Non-traced procedure: the claim is a one-time bearer token, so it must not
-  // be recorded in tRPC input telemetry (the traced procedures collect input).
+  // The claim is a bearer token for a live bot token: it is delivered as an
+  // httpOnly cookie (never a URL param or tRPC input) and read server-side
+  // here. Non-traced so the cookie-derived claim never reaches input telemetry.
   getPendingInstallation: protectedProcedureWithoutTracing
-    .input(z.object({ teamId: z.string(), claim: z.string() }))
-    .query(async ({ input }) => {
-      const pending =
-        await SlackService.getInstance().getClaimedPendingInstallation(
-          input.teamId,
-          input.claim,
-        );
+    .input(z.object({ teamId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const claim = readPendingInstallClaimCookie(
+        ctx.headers.cookie,
+        input.teamId,
+      );
+      const pending = claim
+        ? await SlackService.getInstance().getClaimedPendingInstallation(
+            input.teamId,
+            claim,
+          )
+        : null;
 
       return {
         isPending: pending !== null,
@@ -456,14 +463,13 @@ export const slackRouter = createTRPCRouter({
    * automations:CUD on the chosen project. Moves the pending install in place;
    * replaces any existing integration for the project.
    */
-  // Non-traced procedure (like getPendingInstallation): keeps the claim bearer
-  // token out of tRPC input telemetry.
+  // The claim arrives as an httpOnly cookie (see getPendingInstallation), read
+  // server-side — never a tRPC input. Non-traced for the same reason.
   linkPendingInstallation: protectedProjectProcedureWithoutTracing
     .input(
       z.object({
         projectId: z.string(),
         teamId: z.string(),
-        claim: z.string(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -473,11 +479,17 @@ export const slackRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      const linked = await SlackService.getInstance().linkPendingInstallation(
+      const claim = readPendingInstallClaimCookie(
+        ctx.headers.cookie,
         input.teamId,
-        input.projectId,
-        input.claim,
       );
+      const linked = claim
+        ? await SlackService.getInstance().linkPendingInstallation(
+            input.teamId,
+            input.projectId,
+            claim,
+          )
+        : null;
 
       if (!linked) {
         throw new TRPCError({
