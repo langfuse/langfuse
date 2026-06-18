@@ -14,7 +14,6 @@
 import {
   indexOfOutsideQuotes,
   lexTokens,
-  NEEDS_QUOTES,
   parseGlob,
   serializeValue,
   splitOutsideQuotes,
@@ -27,6 +26,7 @@ import {
   type FieldDef,
   type FieldRef,
 } from "./fields";
+import { quoteIfNeeded } from "./quoting";
 import type { ObservedOptions } from "./observed-options";
 
 export type CompletionStage =
@@ -449,22 +449,19 @@ function keyPathOptions(
   typedKey: string,
   observed: ObservedOptions | undefined,
 ): { title: string; options: CompletionOption[] } {
-  // Observed names with grammar chars (a colon, space, …) can't be suggested:
-  // picking `scores.foo:bar` would reparse with the key split at the FIRST
-  // colon and silently commit a filter on a different/non-existent key. The
-  // reverse adapter already drops these (filter-state-to-query NEEDS_QUOTES
-  // guards); mirror that here so they're never offered.
-  const suggestable = (name: string) => !NEEDS_QUOTES.test(name);
+  // Observed names with grammar chars (a colon, space, …) are offered with the
+  // segment QUOTED so they re-lex as one token (`scores."Rouge Score"`):
+  // `fieldId` is the inserted text (quoted), while `label` stays the bare,
+  // readable form so it matches the user's typed prefix during ranking.
+  const keyText = (name: string) => `${kind.canonical}${quoteIfNeeded(name)}`;
   if (kind.canonical === "metadata.") {
-    const options = observedValues(observed, "metadata")
-      .filter((o) => suggestable(o.value))
-      .map((o) => ({
-        id: `key:metadata.${o.value}`,
-        kind: "field" as const,
-        label: `metadata.${o.value}`,
-        detail: o.count !== undefined ? String(o.count) : undefined,
-        fieldId: `metadata.${o.value}`,
-      }));
+    const options = observedValues(observed, "metadata").map((o) => ({
+      id: `key:metadata.${o.value}`,
+      kind: "field" as const,
+      label: `metadata.${o.value}`,
+      detail: o.count !== undefined ? String(o.count) : undefined,
+      fieldId: keyText(o.value),
+    }));
     return {
       title: SECTION_KEYS,
       options: rankFilter(options, `metadata.${typedKey}`),
@@ -476,9 +473,8 @@ function keyPathOptions(
     kind.level === "trace" ? "trace_score_categories" : "score_categories";
   const seen = new Map<string, string>();
   for (const o of observedValues(observed, numericColumn))
-    if (suggestable(o.value)) seen.set(o.value, "numeric score");
+    seen.set(o.value, "numeric score");
   for (const o of observedValues(observed, categoricalColumn)) {
-    if (!suggestable(o.value)) continue;
     seen.set(
       o.value,
       seen.has(o.value) ? "numeric + categorical score" : "categorical score",
@@ -489,7 +485,7 @@ function keyPathOptions(
     kind: "field" as const,
     label: `${kind.canonical}${name}`,
     detail,
-    fieldId: `${kind.canonical}${name}`,
+    fieldId: keyText(name),
   }));
   return {
     title: SECTION_SCORE_NAMES,

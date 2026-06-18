@@ -396,25 +396,28 @@ describe("planInputCompletions", () => {
     expect(labels).not.toContain("=foo"); // exact — redundant w/ bare value
   });
 
-  it("does not suggest observed metadata/score names with grammar chars", () => {
-    // An observed score named `foo:bar` can't be suggested as `scores.foo:bar`:
-    // picking it would reparse with the key split at the first colon and commit
-    // a filter on a different key. Filter such names out of the key-path stage.
+  it("offers observed metadata/score names with grammar chars, quoted for insertion", () => {
+    // An observed score named `foo:bar` (or a name with spaces) IS suggested:
+    // the INSERTED text quotes the segment (`scores."foo:bar"`) so it re-lexes
+    // as one token, while the LABEL stays the readable bare form (so it ranks
+    // against the user's typed prefix).
     const observed = {
       ...OBSERVED,
       scores_avg: [{ value: "accuracy" }, { value: "foo:bar" }],
-      metadata: [{ value: "region" }, { value: "a:b" }],
+      metadata: [{ value: "region" }, { value: "a b" }],
     };
-    const scoreLabels = flattenOptions(plan("scores.", 7, { observed })).map(
-      (o) => o.label,
+    const scoreOpts = flattenOptions(plan("scores.", 7, { observed }));
+    expect(scoreOpts.map((o) => o.label)).toContain("scores.accuracy");
+    const fooBar = scoreOpts.find((o) => o.label === "scores.foo:bar");
+    expect(fooBar && "fieldId" in fooBar && fooBar.fieldId).toBe(
+      'scores."foo:bar"',
     );
-    expect(scoreLabels).toContain("scores.accuracy");
-    expect(scoreLabels).not.toContain("scores.foo:bar");
-    const metaLabels = flattenOptions(plan("metadata.", 9, { observed })).map(
-      (o) => o.label,
+    const metaOpts = flattenOptions(plan("metadata.", 9, { observed }));
+    expect(metaOpts.map((o) => o.label)).toContain("metadata.region");
+    const spaced = metaOpts.find((o) => o.label === "metadata.a b");
+    expect(spaced && "fieldId" in spaced && spaced.fieldId).toBe(
+      'metadata."a b"',
     );
-    expect(metaLabels).toContain("metadata.region");
-    expect(metaLabels).not.toContain("metadata.a:b");
   });
 
   it("keeps the value stage live for a glob value (re-form + re-scope)", () => {

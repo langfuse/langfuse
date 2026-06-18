@@ -441,6 +441,42 @@ describe("astToFilterState", () => {
       expect(r.errors.length, `expected errors: ${text}`).toBeGreaterThan(0);
     }
   });
+
+  it("lowers quoted dot-path keys (score/metadata names with spaces)", () => {
+    // A score or metadata name containing spaces is addressed with a quoted
+    // segment after the prefix: `scores."Rouge Score"`. The quotes are stripped
+    // to the real key in the lowered FilterState.
+    expect(lower('scores."Rouge Score":>=1').filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "Rouge Score",
+        operator: ">=",
+        value: 1,
+      },
+    ]);
+    expect(lower('traceScores."Hallucination Check":faithful').filters).toEqual(
+      [
+        {
+          type: "categoryOptions",
+          column: "trace_score_categories",
+          key: "Hallucination Check",
+          operator: "any of",
+          value: ["faithful"],
+        },
+      ],
+    );
+    expect(lower('metadata."my key":eu').filters).toEqual([
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "my key",
+        operator: "=",
+        value: "eu",
+      },
+    ]);
+    expect(validateQuery('scores."Rouge Score":>=1').valid).toBe(true);
+  });
 });
 
 describe("validateQuery / adapter parity", () => {
@@ -601,10 +637,10 @@ describe("filterStateToQueryText", () => {
     expect(back.filters).toEqual([multi]);
   });
 
-  it("skips keyed filters whose key carries grammar chars (would mis-parse)", () => {
-    // `metadata.foo:bar` would reparse as key `metadata.foo` value `bar:…` and
-    // silently corrupt the filter — so a key with a colon (or any NEEDS_QUOTES
-    // char) must be preserved via skippedFilters, not serialized into text.
+  it("renders keyed filters whose key carries grammar chars via a quoted segment", () => {
+    // A metadata/score key with spaces, colons, or other grammar chars is now
+    // addressable with a quoted segment after the prefix (`metadata."foo:bar"`,
+    // `scores."rate test"`); it round-trips instead of being skipped.
     const colonKeyMeta: FilterState[number] = {
       type: "stringObject",
       column: "metadata",
@@ -612,20 +648,59 @@ describe("filterStateToQueryText", () => {
       operator: "contains",
       value: "x",
     };
-    const colonKeyScore: FilterState[number] = {
+    const spacedScore: FilterState[number] = {
       type: "categoryOptions",
       column: "score_categories",
-      key: "rate:test",
+      key: "rate test",
       operator: "any of",
-      value: ["5"],
+      value: ["high"],
     };
-    const r = filterStateToQueryText([colonKeyMeta, colonKeyScore]);
-    expect(r.text).toBe("");
-    expect(r.skippedFilters).toEqual([colonKeyMeta, colonKeyScore]);
-    // A normal key still serializes into the query text (contains → `*x*`).
+    const r = filterStateToQueryText([colonKeyMeta, spacedScore]);
+    expect(r.skippedFilters).toEqual([]);
+    expect(r.text).toBe('metadata."foo:bar":*x* scores."rate test":high');
+    // Both round-trip back to the same FilterState.
+    expect(astToFilterState(validateQuery(r.text).ast).filters).toEqual([
+      colonKeyMeta,
+      spacedScore,
+    ]);
+    // A normal key still serializes bare (contains → `*x*`).
     expect(
       filterStateToQueryText([{ ...colonKeyMeta, key: "region" }]).text,
     ).toBe("metadata.region:*x*");
+  });
+
+  it("round-trips score names with spaces (numeric + categorical, no skip)", () => {
+    const numeric: FilterState = [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "Rouge Score",
+        operator: ">=",
+        value: 1,
+      },
+    ];
+    const numericResult = filterStateToQueryText(numeric);
+    expect(numericResult.skipped).toEqual([]);
+    expect(numericResult.text).toBe('scores."Rouge Score":>=1');
+    expect(
+      astToFilterState(validateQuery(numericResult.text).ast).filters,
+    ).toEqual(numeric);
+
+    const categorical: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "trace_score_categories",
+        key: "Hallucination Check",
+        operator: "any of",
+        value: ["faithful"],
+      },
+    ];
+    const catResult = filterStateToQueryText(categorical);
+    expect(catResult.skipped).toEqual([]);
+    expect(catResult.text).toBe('traceScores."Hallucination Check":faithful');
+    expect(astToFilterState(validateQuery(catResult.text).ast).filters).toEqual(
+      categorical,
+    );
   });
 
   it("serializes metadata equality as the bare form, not :=value", () => {

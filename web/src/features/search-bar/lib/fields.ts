@@ -17,6 +17,7 @@
 // is a substring search) yet keep their observed-value picker.
 
 import type { CompareOp } from "./ast";
+import { quoteIfNeeded, unquote } from "./quoting";
 
 export type FieldKind = "text" | "number" | "datetime" | "boolean";
 export type SyncMode = "exactOption" | "arrayOption" | "textSearch";
@@ -126,19 +127,22 @@ export type FieldRef =
  */
 export function resolveField(name: string): FieldRef | null {
   const lower = name.toLowerCase();
+  // The segment after a dot-path prefix may be quoted to carry spaces/grammar
+  // chars (`scores."Rouge Score"`, `metadata."my key"`); unquote it to the real
+  // key. refName re-quotes it on the way back out.
   if (lower.startsWith(METADATA_PREFIX)) {
-    const key = name.slice(METADATA_PREFIX.length);
+    const key = unquote(name.slice(METADATA_PREFIX.length)).value;
     return key.length > 0 ? { type: "metadata", key } : null;
   }
   for (const prefix of TRACE_SCORE_PREFIXES) {
     if (lower.startsWith(prefix)) {
-      const key = name.slice(prefix.length);
+      const key = unquote(name.slice(prefix.length)).value;
       return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
     }
   }
   for (const prefix of SCORE_PREFIXES) {
     if (lower.startsWith(prefix)) {
-      const key = name.slice(prefix.length);
+      const key = unquote(name.slice(prefix.length)).value;
       return key.length > 0
         ? { type: "scores", key, level: "observation" }
         : null;
@@ -317,11 +321,11 @@ export function refName(ref: FieldRef): string {
     case "field":
       return ref.field.id;
     case "metadata":
-      return `metadata.${ref.key}`;
+      return `metadata.${quoteIfNeeded(ref.key)}`;
     case "scores":
       return ref.level === "trace"
-        ? `traceScores.${ref.key}`
-        : `scores.${ref.key}`;
+        ? `traceScores.${quoteIfNeeded(ref.key)}`
+        : `scores.${quoteIfNeeded(ref.key)}`;
     case "pseudo":
       return ref.id;
   }
