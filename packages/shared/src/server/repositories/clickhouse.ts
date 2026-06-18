@@ -180,7 +180,7 @@ export async function upsertClickhouse<
               ],
               format: "JSONEachRow",
               clickhouse_settings: {
-                log_comment: JSON.stringify(opts.tags ?? {}),
+                log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
               },
             });
           }
@@ -206,7 +206,7 @@ export async function upsertClickhouse<
         })),
         format: "JSONEachRow",
         clickhouse_settings: {
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
         },
       });
       // same logic as for prisma. we want to see queries in development
@@ -370,6 +370,14 @@ function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("db.operation.name", "SELECT");
 }
 
+function tagsWithTraceId(
+  tags: Record<string, string> | undefined,
+): Record<string, string> {
+  const traceId = trace.getActiveSpan()?.spanContext().traceId;
+  if (!traceId) return tags ?? {};
+  return { ...tags, traceId };
+}
+
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
@@ -389,7 +397,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query_params: opts.params,
     clickhouse_settings: {
       ...opts.clickhouseSettings,
-      log_comment: JSON.stringify(opts.tags ?? {}),
+      log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
     },
   });
 
@@ -567,7 +575,7 @@ export async function commandClickhouse(opts: {
         ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
         },
       });
       // same logic as for prisma. we want to see queries in development
