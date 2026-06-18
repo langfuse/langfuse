@@ -374,7 +374,8 @@ function tagsWithTraceId(
   tags: Record<string, string> | undefined,
 ): Record<string, string> {
   const traceId = trace.getActiveSpan()?.spanContext().traceId;
-  if (!traceId) return tags ?? {};
+  if (!traceId || traceId === "00000000000000000000000000000000")
+    return tags ?? {};
   return { ...tags, traceId };
 }
 
