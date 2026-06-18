@@ -22,9 +22,6 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 
-const asNextAuthProvider = (provider: unknown): Provider =>
-  provider as Provider;
-
 // Local cache for SSO configurations
 let cachedSsoConfigs: {
   data: SsoProviderSchema[];
@@ -208,15 +205,13 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "github")
-    return asNextAuthProvider(
-      GitHubProvider({
-        id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
-        ...provider.authConfig,
-        clientSecret: decrypt(provider.authConfig.clientSecret),
-        issuer: "https://github.com/login/oauth",
-        ...getClientConfig(provider.authConfig),
-      }),
-    );
+    return GitHubProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+      issuer: "https://github.com/login/oauth",
+      ...getClientConfig(provider.authConfig),
+    });
   else if (provider.authProvider === "gitlab")
     return GitLabProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
@@ -320,47 +315,37 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "custom")
-    return asNextAuthProvider(
-      CustomSSOProvider({
-        id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
-        ...provider.authConfig,
-        clientSecret: decrypt(provider.authConfig.clientSecret),
-        authorization: {
-          params: {
-            scope: provider.authConfig.scope ?? "openid email profile",
-          },
-        },
-        ...getClientConfig(provider.authConfig),
-      }),
-    );
+    return CustomSSOProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+      authorization: {
+        params: { scope: provider.authConfig.scope ?? "openid email profile" },
+      },
+      ...getClientConfig(provider.authConfig),
+    });
   else if (provider.authProvider === "github-enterprise")
-    return asNextAuthProvider(
-      GitHubEnterpriseProvider({
-        id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
-        ...provider.authConfig,
-        clientSecret: decrypt(provider.authConfig.clientSecret),
-        enterprise: {
-          baseUrl: provider.authConfig.enterprise.baseUrl,
-        },
-        issuer: new URL("/login/oauth", provider.authConfig.enterprise.baseUrl)
-          .href,
-        ...getClientConfig(provider.authConfig),
-      }),
-    );
+    return GitHubEnterpriseProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+      enterprise: {
+        baseUrl: provider.authConfig.enterprise.baseUrl,
+      },
+      issuer: new URL("/login/oauth", provider.authConfig.enterprise.baseUrl)
+        .href,
+      ...getClientConfig(provider.authConfig),
+    });
   else if (provider.authProvider === "jumpcloud")
-    return asNextAuthProvider(
-      JumpCloudProvider({
-        id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
-        ...provider.authConfig,
-        clientSecret: decrypt(provider.authConfig.clientSecret),
-        authorization: {
-          params: {
-            scope: provider.authConfig.scope ?? "openid profile email",
-          },
-        },
-        ...getClientConfig(provider.authConfig),
-      }),
-    );
+    return JumpCloudProvider({
+      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+      ...provider.authConfig,
+      clientSecret: decrypt(provider.authConfig.clientSecret),
+      authorization: {
+        params: { scope: provider.authConfig.scope ?? "openid profile email" },
+      },
+      ...getClientConfig(provider.authConfig),
+    });
   else {
     // Type check to ensure we handle all providers
 

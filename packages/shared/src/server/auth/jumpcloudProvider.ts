@@ -11,7 +11,7 @@ interface JumpCloudProfile extends Record<string, any> {
 
 export function JumpCloudProvider<P extends JumpCloudProfile>(
   options: OAuthUserConfig<P>,
-): any {
+): OAuthConfig<P> {
   return {
     id: "jumpcloud",
     name: "JumpCloud",
@@ -36,5 +36,5 @@ export function JumpCloudProvider<P extends JumpCloudProfile>(
       };
     },
     ...options,
-  } satisfies OAuthConfig<P>;
+  };
 }

@@ -7,7 +7,7 @@ export function GitHubEnterpriseProvider<P extends GithubProfile>(
       baseUrl?: string;
     };
   },
-): any {
+): OAuthConfig<P> {
   const baseUrl = options?.enterprise?.baseUrl ?? "https://github.com";
   const apiBaseUrl = options?.enterprise?.baseUrl
     ? `${options?.enterprise?.baseUrl}/api/v3`
@@ -61,5 +61,5 @@ export function GitHubEnterpriseProvider<P extends GithubProfile>(
       textDark: "#fff",
     },
     options,
-  } satisfies OAuthConfig<P>;
+  };
 }
