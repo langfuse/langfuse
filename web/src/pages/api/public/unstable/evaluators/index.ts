@@ -1,5 +1,3 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   createPublicEvaluator,
   listPublicEvaluators,
@@ -31,23 +29,11 @@ export default withUnstablePublicEvalsMiddlewares({
     name: "Create Unstable Evaluator",
     bodySchema: PostUnstableEvaluatorBody,
     responseSchema: PostUnstableEvaluatorResponse,
-    fn: async ({ body, auth }) => {
-      const evaluator = await createPublicEvaluator({
+    fn: async ({ body, auth }) =>
+      createPublicEvaluator({
         projectId: auth.scope.projectId,
         input: body,
-      });
-
-      await auditLog({
-        action: "create",
-        resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: evaluator.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        after: evaluator,
-      });
-
-      return evaluator;
-    },
+        auditScope: auth.scope,
+      }),
   }),
 });

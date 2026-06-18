@@ -12,7 +12,8 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { assertLegacyBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowed";
+import { assertLegacyBlobExportSourceAllowedForUpsert } from "@/src/features/blobstorage-integration/server/assertLegacyBlobExportSourceAllowedForUpsert";
+import { assertEnrichedBlobExportSourceAllowed } from "@/src/features/blobstorage-integration/server/assertEnrichedBlobExportSourceAllowed";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import {
@@ -28,6 +29,7 @@ import { decrypt } from "@langfuse/shared/encryption";
 import {
   BlobStorageIntegrationType,
   InvalidRequestError,
+  isEnrichedBlobExportAvailable,
 } from "@langfuse/shared";
 
 const getAuditLogErrorType = (error: unknown) =>
@@ -37,8 +39,28 @@ const getAuditLogErrorType = (error: unknown) =>
       ? error.name
       : "UnknownError";
 
-const getErrorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
+const formatRootCause = (err: Error): string => {
+  // SDK errors (e.g. S3, GCS) carry a descriptive name like
+  // "SignatureDoesNotMatch" while .message is often generic ("Invalid argument.").
+  const name = err.name && err.name !== "Error" ? err.name : "";
+  if (name && err.message) return `${name}: ${err.message}`;
+  return name || err.message;
+};
+
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (!(error instanceof Error)) return fallback;
+  // Walk the full cause chain to find the deepest (most specific) error.
+  // StorageService wraps SDK errors in multiple layers of handleStorageError.
+  let deepest: Error = error;
+  while (deepest.cause instanceof Error) {
+    deepest = deepest.cause;
+  }
+  if (deepest !== error) {
+    const rootCause = formatRootCause(deepest);
+    if (rootCause) return `${error.message}: ${rootCause}`.slice(0, 500);
+  }
+  return error.message;
+};
 
 export const blobStorageIntegrationRouter = createTRPCRouter({
   get: protectedProjectProcedure
@@ -50,6 +72,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         scope: "integrations:CRUD",
       });
       try {
+        const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+        const isEnrichedExportAvailable = isEnrichedBlobExportAvailable(
+          isCloud,
+          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
+        );
+
         const config = await ctx.prisma.blobStorageIntegration.findFirst({
           where: {
             projectId: input.projectId,
@@ -59,11 +87,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           },
         });
 
-        if (!config) {
-          return null;
-        }
-
-        return config;
+        return { config: config ?? null, isEnrichedExportAvailable };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
         throw new TRPCError({
@@ -89,14 +113,28 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         });
 
         if (input.exportSource) {
-          const project = await ctx.prisma.project.findUniqueOrThrow({
-            where: { id: input.projectId },
-            select: { createdAt: true },
-          });
-          assertLegacyBlobExportSourceAllowed({
+          const isCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+          const [project, existingIntegration] = await Promise.all([
+            ctx.prisma.project.findUniqueOrThrow({
+              where: { id: input.projectId },
+              select: { createdAt: true },
+            }),
+            ctx.prisma.blobStorageIntegration.findUnique({
+              where: { projectId: input.projectId },
+              select: { createdAt: true },
+            }),
+          ]);
+          assertLegacyBlobExportSourceAllowedForUpsert({
             project,
+            existingIntegration,
             nextInternalExportSource: input.exportSource,
-            isCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+            isCloud,
+          });
+          assertEnrichedBlobExportSourceAllowed({
+            nextInternalExportSource: input.exportSource,
+            isCloud,
+            isV4PreviewEnabled:
+              env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
           });
         }
 
@@ -112,6 +150,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         return await upsertBlobStorageIntegration({
           prisma: ctx.prisma,
           projectId,
+          // In-transaction backstop closing the TOCTOU window: if a concurrent
+          // DELETE flips this upsert to the CREATE branch, refuse a legacy
+          // source so a new (post-cutoff) Cloud row can never be born legacy.
+          refuseLegacyOnCreate: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
           data: {
             type: rest.type,
             bucketName: rest.bucketName,
@@ -394,15 +436,14 @@ This file can be safely deleted.`;
           signedUrl: result.signedUrl,
         };
       } catch (e) {
-        logger.error(
-          `Blob storage validation failed for project ${input.projectId}`,
-          e,
-        );
-
-        // Extract meaningful error message
         const errorMessage = getErrorMessage(
           e,
           "Unknown error occurred during validation",
+        );
+
+        logger.error(
+          `Blob storage validation failed for project ${input.projectId}: ${errorMessage}`,
+          e,
         );
 
         await auditLog({

@@ -11,10 +11,12 @@ import type {
 
 import {
   AgUiMessageSchema,
+  InAppAgentRedirectActionToolResultSchema,
   type AgUiEvent,
   type AgUiMessage,
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 // Keep this close to the route maxDuration (120s) so a killed foreground stream
 // does not block the conversation long after the route can no longer respond.
@@ -30,6 +32,11 @@ export type SerializedInAppAgentConversation = {
   title: string | null;
   createdAt: Date;
   updatedAt: Date;
+};
+
+type PersistedConversationEvent = {
+  event: AgUiEvent;
+  runId: string;
 };
 
 export function serializeConversation(
@@ -262,17 +269,20 @@ export async function getConversationEvents(params: {
   prisma: PrismaClient;
   projectId: string;
   conversationId: string;
-}) {
+}): Promise<PersistedConversationEvent[]> {
   const events = await params.prisma.inAppAgentEvent.findMany({
     where: {
       projectId: params.projectId,
       conversationId: params.conversationId,
     },
     orderBy: { sequenceNumber: "asc" },
-    select: { event: true },
+    select: { event: true, runId: true },
   });
 
-  return events.map(({ event }) => event as unknown as AgUiEvent);
+  return events.map(({ event, runId }) => ({
+    event: event as unknown as AgUiEvent,
+    runId,
+  }));
 }
 
 export async function getConversationMessages(params: {
@@ -280,7 +290,7 @@ export async function getConversationMessages(params: {
   projectId: string;
   conversationId: string;
 }) {
-  return getMessagesFromEvents(await getConversationEvents(params));
+  return getMessagesFromPersistedEvents(await getConversationEvents(params));
 }
 
 export async function getConversationMessagesForReplay(params: {
@@ -303,12 +313,29 @@ export function getMessagesFromEvents(events: readonly AgUiEvent[]) {
   return accumulator.getMessages();
 }
 
+function getMessagesFromPersistedEvents(
+  events: readonly PersistedConversationEvent[],
+) {
+  const accumulator = createConversationMessageAccumulator([]);
+
+  for (const { event, runId } of events) {
+    accumulator.processEvent(event, runId);
+  }
+
+  return accumulator.getMessages();
+}
+
 function sanitizeConversationMessagesForReplay(
   messages: readonly AgUiMessage[],
 ): readonly AgUiMessage[] {
-  const messagesWithoutOrphanToolCalls =
-    dropUnpairedAssistantToolCalls(messages);
-  return dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls);
+  const messagesWithoutRedirectActions =
+    dropRedirectActionToolResults(messages);
+  const messagesWithoutOrphanToolCalls = dropUnpairedAssistantToolCalls(
+    messagesWithoutRedirectActions,
+  );
+  return stripAssistantRunIds(
+    dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
+  );
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {
@@ -439,13 +466,17 @@ export function createConversationMessageAccumulator(
 ) {
   const messages: AgUiMessage[] = [];
   const messageIndexes = new Map<string, number>();
-  const textDrafts = new Map<string, { id: string; content: string }>();
+  const textDrafts = new Map<
+    string,
+    { id: string; content: string; runId?: string }
+  >();
   const toolCallDrafts = new Map<
     string,
     {
       parentMessageId: string;
       name: string;
       args: string;
+      runId?: string;
     }
   >();
 
@@ -476,7 +507,7 @@ export function createConversationMessageAccumulator(
     upsertMessage(message);
   }
 
-  const processEvent = (event: AgUiEvent): boolean => {
+  const processEvent = (event: AgUiEvent, runId?: string): boolean => {
     switch (event.type) {
       case EventType.RUN_STARTED: {
         if (!isRecord(event.input) || !Array.isArray(event.input.messages)) {
@@ -509,22 +540,25 @@ export function createConversationMessageAccumulator(
         const draft = textDrafts.get(messageId) ?? {
           id: messageId,
           content: existingContent ?? "",
+          runId,
         };
 
         draft.content += getString(event, "delta") ?? "";
+        draft.runId ??= runId;
         textDrafts.set(messageId, draft);
 
         return upsertMessage({
           id: draft.id,
           role: "assistant",
           content: draft.content,
+          ...(draft.runId ? { runId: draft.runId } : {}),
         });
       }
       case EventType.TEXT_MESSAGE_START: {
         const messageId = getString(event, "messageId");
 
         if (messageId && getString(event, "role") === "assistant") {
-          textDrafts.set(messageId, { id: messageId, content: "" });
+          textDrafts.set(messageId, { id: messageId, content: "", runId });
         }
         break;
       }
@@ -535,6 +569,7 @@ export function createConversationMessageAccumulator(
 
         if (draft) {
           draft.content += delta;
+          draft.runId ??= runId;
         }
         break;
       }
@@ -550,6 +585,7 @@ export function createConversationMessageAccumulator(
           id: draft.id,
           role: "assistant",
           content: draft.content,
+          ...((draft.runId ?? runId) ? { runId: draft.runId ?? runId } : {}),
         });
 
         textDrafts.delete(draft.id);
@@ -565,6 +601,7 @@ export function createConversationMessageAccumulator(
             parentMessageId,
             name,
             args: "",
+            runId,
           });
         }
         break;
@@ -586,6 +623,7 @@ export function createConversationMessageAccumulator(
           const changed = upsertMessage({
             id: draft.parentMessageId,
             role: "assistant",
+            ...((draft.runId ?? runId) ? { runId: draft.runId ?? runId } : {}),
             toolCalls: [
               {
                 id: toolCallId,
@@ -649,6 +687,23 @@ export function createConversationMessageAccumulator(
   };
 }
 
+function stripAssistantRunIds(messages: readonly AgUiMessage[]) {
+  let changed = false;
+
+  const sanitizedMessages = messages.map((message): AgUiMessage => {
+    if (message.role !== "assistant" || !message.runId) {
+      return message;
+    }
+
+    changed = true;
+    const sanitizedMessage = { ...message };
+    delete sanitizedMessage.runId;
+    return sanitizedMessage;
+  });
+
+  return changed ? sanitizedMessages : messages;
+}
+
 type InAppAgentTx = Prisma.TransactionClient;
 
 async function lockConversation(
@@ -690,7 +745,56 @@ function mergeMessages(existing: AgUiMessage, next: AgUiMessage): AgUiMessage {
 }
 
 function compactPersistedEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
-  return compactEvents(compactTextMessageChunks(events)) as AgUiEvent[];
+  return dropRedirectToolCallEvents(
+    compactEvents(compactTextMessageChunks(events)) as AgUiEvent[],
+  );
+}
+
+// Redirect actions are rendered from the server-generated href payload. Drop the
+// redirect tool call scaffolding and args so persisted history does not depend
+// on the redirect input schema, which may evolve over time.
+function dropRedirectToolCallEvents(events: readonly AgUiEvent[]): AgUiEvent[] {
+  const redirectToolCallIds = new Set<string>();
+
+  for (const event of events) {
+    if (
+      event.type === EventType.TOOL_CALL_START &&
+      getString(event, "toolCallName") === IN_APP_AGENT_REDIRECT_TOOL_NAME
+    ) {
+      const toolCallId = getString(event, "toolCallId");
+      if (toolCallId) {
+        redirectToolCallIds.add(toolCallId);
+      }
+    }
+
+    if (event.type === EventType.TOOL_CALL_RESULT) {
+      const toolCallId = getString(event, "toolCallId");
+      if (
+        toolCallId &&
+        isRedirectActionToolResult(getString(event, "content"))
+      ) {
+        redirectToolCallIds.add(toolCallId);
+      }
+    }
+  }
+
+  if (redirectToolCallIds.size === 0) {
+    return [...events];
+  }
+
+  return events.filter((event) => {
+    if (
+      event.type !== EventType.TOOL_CALL_START &&
+      event.type !== EventType.TOOL_CALL_ARGS &&
+      event.type !== EventType.TOOL_CALL_END &&
+      event.type !== EventType.TOOL_CALL_RESULT
+    ) {
+      return true;
+    }
+
+    const toolCallId = getString(event, "toolCallId");
+    return !toolCallId || !redirectToolCallIds.has(toolCallId);
+  });
 }
 
 function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
@@ -723,6 +827,19 @@ function dropUnpairedAssistantToolCalls(messages: readonly AgUiMessage[]) {
     }
 
     return { ...message, toolCalls: pairedToolCalls };
+  });
+
+  return changed ? sanitizedMessages : messages;
+}
+
+function dropRedirectActionToolResults(messages: readonly AgUiMessage[]) {
+  let changed = false;
+  const sanitizedMessages = messages.filter((message) => {
+    const keep =
+      message.role !== "tool" || !isRedirectActionToolResult(message.content);
+
+    changed = changed || !keep;
+    return keep;
   });
 
   return changed ? sanitizedMessages : messages;
@@ -786,6 +903,20 @@ function getString(event: unknown, key: string): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRedirectActionToolResult(content: string | undefined) {
+  if (!content) {
+    return false;
+  }
+
+  try {
+    return InAppAgentRedirectActionToolResultSchema.safeParse(
+      JSON.parse(content),
+    ).success;
+  } catch {
+    return false;
+  }
 }
 
 function compactObject<T extends Record<string, unknown>>(value: T): T {

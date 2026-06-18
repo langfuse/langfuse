@@ -142,6 +142,7 @@ export const metric = z.object({
   aggregation: metricAggregations,
 });
 
+/** granularities is the superset of time-bucket tokens: the 6 base options plus the 10 Monitor window increments. */
 export const granularities = z.enum([
   "auto",
   "minute",
@@ -149,6 +150,16 @@ export const granularities = z.enum([
   "day",
   "week",
   "month",
+  "5m",
+  "10m",
+  "15m",
+  "30m",
+  "1h",
+  "2h",
+  "4h",
+  "1d",
+  "2d",
+  "1w",
 ]);
 
 export type QueryType = z.infer<typeof query>;

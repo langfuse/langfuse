@@ -5,7 +5,7 @@ import {
   createScoresCh,
   createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
-import { transformBooleanValueForFilter } from "@/src/features/public-api/server/scores-api-v3";
+import { transformBooleanValueForFilter } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,

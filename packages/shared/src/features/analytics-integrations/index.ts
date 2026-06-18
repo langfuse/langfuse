@@ -3,6 +3,7 @@
 
 import { AnalyticsIntegrationExportSource } from "@prisma/client";
 import {
+  LEGACY_OBSERVATION_EXPORT_FIELDS,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
@@ -93,6 +94,32 @@ const EXPORT_FIELD_GROUP_LABELS = {
   { label: string; description: string }
 >;
 
+// Pricing fields added by the export enrichment (not part of the SQL contract)
+// whenever the model group is selected — for both export paths.
+const MODEL_ENRICHMENT_FIELDS = ["input_price", "output_price", "total_price"];
+
+// The `description` of EXPORT_FIELD_GROUP_LABELS lists the enriched
+// observations fields of each group; the legacy observations table contains
+// fewer columns. Derive the legacy description from the export contract so it
+// stays in sync when the contract changes.
+const legacyDescriptionForGroup = (
+  group: ObservationFieldGroupFull,
+): string => {
+  const fields = LEGACY_OBSERVATION_EXPORT_FIELDS.filter(
+    (f) => f.group === group,
+  ).map((f) => f.field);
+  if (group === "model") {
+    fields.push(...MODEL_ENRICHMENT_FIELDS);
+  }
+  return fields.length > 0
+    ? fields.join(", ")
+    : "Not included in the legacy observations export";
+};
+
 export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
-  (value) => ({ value, ...EXPORT_FIELD_GROUP_LABELS[value] }),
+  (value) => ({
+    value,
+    ...EXPORT_FIELD_GROUP_LABELS[value],
+    legacyDescription: legacyDescriptionForGroup(value),
+  }),
 );

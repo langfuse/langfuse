@@ -151,21 +151,15 @@ export default async function handler(
       return res.status(207).json(result);
     });
   } catch (error: unknown) {
-    if (!(error instanceof UnauthorizedError)) {
-      logger.error("error_handling_ingestion_event", error);
-      traceException(error);
-    }
-
     if (error instanceof BaseError) {
+      if (!error.isUserError()) {
+        logger.error(error);
+        traceException(error);
+      }
+
       return res.status(error.httpCode).json({
         error: error.name,
         message: error.message,
-      });
-    }
-
-    if (isPrismaException(error)) {
-      return res.status(500).json({
-        error: "Internal Server Error",
       });
     }
 
@@ -174,6 +168,15 @@ export default async function handler(
       return res.status(400).json({
         message: "Invalid request data",
         error: error.issues,
+      });
+    }
+
+    logger.error("error_handling_ingestion_event", error);
+    traceException(error);
+
+    if (isPrismaException(error)) {
+      return res.status(500).json({
+        error: "Internal Server Error",
       });
     }
 

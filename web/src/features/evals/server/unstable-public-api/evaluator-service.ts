@@ -5,7 +5,10 @@ import {
   observationVariableMappingList,
   variableMappingList,
 } from "@langfuse/shared";
-import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
+import {
+  invalidateProjectEvalConfigCaches,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { type PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
 import {
@@ -17,6 +20,9 @@ import {
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
 import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
+import { deleteEvalTemplateFamily } from "@/src/features/evals/server/evalTemplateDeletion";
 import {
   toApiEvaluator,
   toStoredEvaluatorType,
@@ -145,6 +151,7 @@ export async function getPublicEvaluator(params: {
 export async function createPublicEvaluator(params: {
   projectId: string;
   input: PostUnstableEvaluatorBodyParsedType;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const { input } = params;
   const storedEvalTemplateType = toStoredEvaluatorType(input.type);
@@ -305,10 +312,24 @@ export async function createPublicEvaluator(params: {
       evaluatorId: template.id,
     });
 
-    return toApiEvaluator({
+    const evaluator = toApiEvaluator({
       template: template as StoredPublicEvaluatorTemplate,
       evaluationRuleCount,
     });
+
+    if (params.auditScope) {
+      await auditLog({
+        action: "create",
+        resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: evaluator.id,
+        projectId: params.projectId,
+        orgId: params.auditScope.orgId,
+        apiKeyId: params.auditScope.apiKeyId,
+        after: evaluator,
+      });
+    }
+
+    return evaluator;
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -324,4 +345,20 @@ export async function createPublicEvaluator(params: {
 
     throw error;
   }
+}
+
+export async function deletePublicEvaluator(params: {
+  projectId: string;
+  evaluatorId: string;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+}) {
+  // an evaluator in the public contract is the whole family; deleting it
+  // removes all stored versions
+  await deleteEvalTemplateFamily({
+    prisma,
+    projectId: params.projectId,
+    evalTemplateId: params.evaluatorId,
+    auditScope: params.auditScope,
+    referencingEntityName: "evaluation rule",
+  });
 }

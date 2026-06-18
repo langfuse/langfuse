@@ -55,6 +55,12 @@ RUN pnpm install --frozen-lockfile
 ENV DOCKER_BUILD 1
 ENV NEXT_MANUAL_SIG_HANDLE true
 
+# Allows the CI docker build smoke test to skip the Next.js type check that
+# the lint job already runs (`pnpm run typecheck`). Release builds do not set
+# this and still fail on TypeScript errors.
+ARG NEXT_IGNORE_BUILD_ERRORS
+ENV NEXT_IGNORE_BUILD_ERRORS=$NEXT_IGNORE_BUILD_ERRORS
+
 # pass public variables in build step
 ARG NEXT_PUBLIC_PLAIN_APP_ID
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION

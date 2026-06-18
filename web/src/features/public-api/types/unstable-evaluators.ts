@@ -58,8 +58,22 @@ export const GetUnstableEvaluatorQuery = z.object({
 
 export const GetUnstableEvaluatorResponse = APIEvaluator;
 
-const PostUnstableLlmAsJudgeEvaluatorBody = z.object({
+export const DeleteUnstableEvaluatorQuery = GetUnstableEvaluatorQuery;
+
+export const DeleteUnstableEvaluatorResponse = z
+  .object({
+    message: z.literal("Evaluator successfully deleted"),
+  })
+  .strict();
+
+// Fields shared by every create body, regardless of evaluator type. Exported so
+// non-route consumers (e.g. the MCP tool layer) reuse the same definition.
+export const EvaluatorCreateBase = {
   name: z.string().min(1),
+};
+
+const PostUnstableLlmAsJudgeEvaluatorBody = z.object({
+  ...EvaluatorCreateBase,
   type: z.literal(PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE),
   ...PublicLlmAsJudgeEvaluatorDefinitionInput.shape,
   sourceCode: z.never().optional(),
@@ -67,7 +81,7 @@ const PostUnstableLlmAsJudgeEvaluatorBody = z.object({
 });
 
 const PostUnstableCodeEvaluatorBody = z.object({
-  name: z.string().min(1),
+  ...EvaluatorCreateBase,
   type: z.literal(PUBLIC_EVALUATOR_TYPE_CODE),
   ...PublicCodeEvaluatorDefinitionInput.shape,
   prompt: z.never().optional(),

@@ -7,11 +7,15 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 
+import { InvalidRequestError } from "../../errors";
 import { singleFilter } from "../../interfaces/filters";
-import { metric as MetricSchema, viewsV2 } from "../query/types";
+import { granularities, metric as MetricSchema, viewsV2 } from "../query/types";
 
 import { isValidQuery } from "./isValidQuery";
 import { isValidThresholdOrder } from "./isValidThresholdOrder";
+
+/** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads settled data past the events-table write lag. */
+export const monitorEvaluationOffsetMs = 30 * 1000;
 
 /** ErrorNameRequired is the message emitted when the Monitor name is missing or empty. */
 export const ErrorNameRequired = "Name is a required field";
@@ -59,7 +63,7 @@ export type MonitorThresholdOperator = z.infer<
  * window. The service translates between this and a bigint of milliseconds
  * (the Prisma `windowMs` column) at the persistence boundary.
  */
-export const MonitorWindowSchema = z.enum([
+export const MonitorWindowSchema = granularities.extract([
   "5m",
   "10m",
   "15m",
@@ -72,6 +76,62 @@ export const MonitorWindowSchema = z.enum([
   "1w",
 ]);
 export type MonitorWindow = z.infer<typeof MonitorWindowSchema>;
+
+/** windowToMs converts the MonitorWindow api enum to a bigint of milliseconds. */
+export const windowToMs = (w: MonitorWindow): bigint => {
+  switch (w) {
+    case "5m":
+      return 5n * 60_000n;
+    case "10m":
+      return 10n * 60_000n;
+    case "15m":
+      return 15n * 60_000n;
+    case "30m":
+      return 30n * 60_000n;
+    case "1h":
+      return 60n * 60_000n;
+    case "2h":
+      return 2n * 60n * 60_000n;
+    case "4h":
+      return 4n * 60n * 60_000n;
+    case "1d":
+      return 24n * 60n * 60_000n;
+    case "2d":
+      return 2n * 24n * 60n * 60_000n;
+    case "1w":
+      return 7n * 24n * 60n * 60_000n;
+  }
+};
+
+/** windowFromMs converts a bigint of milliseconds to the MonitorWindow api enum. */
+export const windowFromMs = (ms: bigint): MonitorWindow => {
+  switch (ms) {
+    case 5n * 60_000n:
+      return "5m";
+    case 10n * 60_000n:
+      return "10m";
+    case 15n * 60_000n:
+      return "15m";
+    case 30n * 60_000n:
+      return "30m";
+    case 60n * 60_000n:
+      return "1h";
+    case 2n * 60n * 60_000n:
+      return "2h";
+    case 4n * 60n * 60_000n:
+      return "4h";
+    case 24n * 60n * 60_000n:
+      return "1d";
+    case 2n * 24n * 60n * 60_000n:
+      return "2d";
+    case 7n * 24n * 60n * 60_000n:
+      return "1w";
+    default:
+      throw new InvalidRequestError(
+        `windowMs ${ms.toString()} does not correspond to a known MonitorWindow tier`,
+      );
+  }
+};
 
 /**
  * MonitorViewSchema is an alias of the query `viewsV2` schema.
@@ -97,16 +157,22 @@ export const MonitorRenotifySchema = z.discriminatedUnion("mode", [
 ]);
 export type MonitorRenotify = z.infer<typeof MonitorRenotifySchema>;
 
-/**
- * MonitorNoDataSchema describes behavior when a Monitor query returns no rows.
- * `SILENT` suppresses all NO_DATA notifications (entry, persistence, recovery);
- * `NOTIFY` alerts on entry after `intervalMinutes` of sustained NO_DATA,
- * re-fires per the renotify cadence, and alerts on recovery.
- */
+/** MonitorNoDataModeSchema enumerates how a null metric value resolves to a severity. */
+export const MonitorNoDataModeSchema = z.enum([
+  "SUBSTITUTE_ZERO",
+  "LAST_SEVERITY",
+  "SHOW_NO_DATA",
+  "NOTIFY_NO_DATA",
+]);
+export type MonitorNoDataMode = z.infer<typeof MonitorNoDataModeSchema>;
+
+/** MonitorNoDataSchema describes how a null metric value resolves to a severity. */
 export const MonitorNoDataSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("SILENT") }),
+  z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO) }),
+  z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.LAST_SEVERITY) }),
+  z.object({ mode: z.literal(MonitorNoDataModeSchema.enum.SHOW_NO_DATA) }),
   z.object({
-    mode: z.literal("NOTIFY"),
+    mode: z.literal(MonitorNoDataModeSchema.enum.NOTIFY_NO_DATA),
     intervalMinutes: z
       .number()
       .int()
@@ -197,7 +263,9 @@ export const MonitorSchema = z.object({
   thresholdOperator: MonitorThresholdOperatorSchema,
   alertThreshold: z.number({ message: ErrorAlertThresholdRequired }),
   warningThreshold: z.number().nullable(),
-  noData: MonitorNoDataSchema.default({ mode: "SILENT" }),
+  noData: MonitorNoDataSchema.default({
+    mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO,
+  }),
   renotify: MonitorRenotifySchema.default({ mode: "OFF" }),
 
   // MonitorAlert Config

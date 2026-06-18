@@ -56,6 +56,8 @@ import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/a
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
+import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRouter";
+import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 
 /**
@@ -119,8 +121,10 @@ export const appRouter = createTRPCRouter({
   slack: slackRouter,
   supportRouter: supportRouter,
   surveys: surveysRouter,
+  onboarding: onboardingRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
   notificationPreferences: notificationPreferencesRouter,
+  webCallouts: webCalloutsRouter,
   inAppAgent: inAppAgentRouter,
 });
 
