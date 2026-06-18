@@ -10,6 +10,7 @@ import {
 import { PosthogCallbackHandler } from "./analytics/posthogCallback";
 import { authorizeRequestOrThrow } from "./authorizeRequest";
 import { validateChatCompletionBody } from "./validateChatCompletionBody";
+import { resolveMessageMedia } from "@/src/features/media/server/resolveMessageMedia";
 
 import { env } from "@/src/env.mjs";
 import { prisma } from "@langfuse/shared/src/db";
@@ -40,12 +41,19 @@ export default async function chatCompletionHandler(req: NextRequest) {
 
     return await opentelemetry.context.with(baggageCtx, async () => {
       const {
-        messages,
+        messages: rawMessages,
         modelParams,
         tools,
         structuredOutputSchema,
         streaming,
       } = body;
+
+      // Resolve any attached media (image references) to inline base64 right
+      // before the call. Text-only requests pass through untouched.
+      const messages = await resolveMessageMedia({
+        projectId: body.projectId,
+        messages: rawMessages,
+      });
 
       const LLMApiKey = await prisma.llmApiKeys.findFirst({
         where: {

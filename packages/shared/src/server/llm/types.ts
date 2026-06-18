@@ -133,6 +133,146 @@ export enum ChatMessageType {
   Placeholder = "placeholder",
 }
 
+/**
+ * Provider-agnostic multimodal message content.
+ *
+ * A message's content is either a plain string (text-only, the default and by
+ * far the most common case) or an ordered array of parts. A part is either a
+ * text span or a reference to a media file stored in Langfuse media storage.
+ *
+ * This is intentionally a Langfuse-internal representation: it carries NO
+ * provider-specific shape and NO inlined bytes. The per-provider format is
+ * produced later by `fetchLLMCompletion` via LangChain (the single conversion
+ * boundary), and the media bytes are resolved server-side just before the call.
+ * Keeping references (not base64) here means results/caches stay small and
+ * remain a faithful record of "what was sent".
+ */
+export const ChatMessageTextContentPartSchema = z.object({
+  type: z.literal("text"),
+  text: z.string(),
+});
+export type ChatMessageTextContentPart = z.infer<
+  typeof ChatMessageTextContentPartSchema
+>;
+
+export const ChatMessageMediaContentPartSchema = z.object({
+  type: z.literal("media"),
+  mediaId: z.string(),
+  mimeType: z.string(), // e.g. "image/png" — drives image/audio/video routing downstream
+  // Canonical Langfuse media reference token, kept so the part is self-describing
+  // and renders with the existing media tooling: "@@@langfuseMedia:type=…|id=…|source=base64@@@"
+  reference: z.string(),
+  // Transient base64 bytes (no data: prefix), injected server-side right before
+  // the LLM call by the media resolver. Clients never send it and it is never
+  // persisted in caches/results — those keep only the reference above.
+  data: z.string().optional(),
+});
+export type ChatMessageMediaContentPart = z.infer<
+  typeof ChatMessageMediaContentPartSchema
+>;
+
+export const ChatMessageContentPartSchema = z.union([
+  ChatMessageTextContentPartSchema,
+  ChatMessageMediaContentPartSchema,
+]);
+export type ChatMessageContentPart = z.infer<
+  typeof ChatMessageContentPartSchema
+>;
+
+export const ChatMessageContentSchema = z.union([
+  z.string(),
+  z.array(ChatMessageContentPartSchema),
+]);
+export type ChatMessageContent = z.infer<typeof ChatMessageContentSchema>;
+
+// --- Multimodal content helpers (pure, frontend-safe) -----------------------
+// These keep the rest of the codebase working with the `string | parts[]`
+// content shape without scattering `typeof content === "string"` checks.
+
+/**
+ * Build the canonical Langfuse media reference token for a stored media object.
+ * Format mirrors `MediaReferenceStringSchema`:
+ *   `@@@langfuseMedia:type=<mime>|id=<mediaId>|source=base64@@@`
+ */
+export function buildMediaReferenceString(params: {
+  mediaId: string;
+  mimeType: string;
+}): string {
+  return `@@@langfuseMedia:type=${params.mimeType}|id=${params.mediaId}|source=base64@@@`;
+}
+
+/** True when content carries structured parts (i.e. is not a plain string). */
+export function isStructuredContent(
+  content: ChatMessageContent,
+): content is ChatMessageContentPart[] {
+  return Array.isArray(content);
+}
+
+/** The media parts of a content value (empty for plain-string content). */
+export function getMediaParts(
+  content: ChatMessageContent,
+): ChatMessageMediaContentPart[] {
+  if (!isStructuredContent(content)) return [];
+  return content.filter(
+    (part): part is ChatMessageMediaContentPart => part.type === "media",
+  );
+}
+
+/** Whether the content has at least one media part. */
+export function hasMediaParts(content: ChatMessageContent): boolean {
+  return getMediaParts(content).length > 0;
+}
+
+/** Extract the plain text of a message (joins text parts of structured content). */
+export function getMessageText(content: ChatMessageContent): string {
+  if (!isStructuredContent(content)) return content;
+  return content
+    .filter((part): part is ChatMessageTextContentPart => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+}
+
+/**
+ * Set the text of a message, preserving any media parts. Plain-string content
+ * stays a plain string; structured content keeps its media parts with a single
+ * leading text part.
+ */
+export function setMessageText(
+  content: ChatMessageContent,
+  text: string,
+): ChatMessageContent {
+  if (!isStructuredContent(content)) return text;
+  const mediaParts = getMediaParts(content);
+  return [{ type: "text" as const, text }, ...mediaParts];
+}
+
+/** Append a media part, converting plain-string content to structured form. */
+export function addMediaPart(
+  content: ChatMessageContent,
+  part: ChatMessageMediaContentPart,
+): ChatMessageContentPart[] {
+  if (!isStructuredContent(content)) {
+    return [{ type: "text", text: content }, part];
+  }
+  return [...content, part];
+}
+
+/**
+ * Remove a media part by id. Collapses back to a plain string once no media
+ * remains, so text-only messages round-trip and serialize like before.
+ */
+export function removeMediaPart(
+  content: ChatMessageContent,
+  mediaId: string,
+): ChatMessageContent {
+  if (!isStructuredContent(content)) return content;
+  const remaining = content.filter(
+    (part) => part.type !== "media" || part.mediaId !== mediaId,
+  );
+  if (remaining.some((part) => part.type === "media")) return remaining;
+  return getMessageText(remaining);
+}
+
 export const SystemMessageSchema = z.object({
   type: z.literal(ChatMessageType.System),
   role: z.literal(ChatMessageRole.System),
@@ -150,7 +290,10 @@ export type DeveloperMessage = z.infer<typeof DeveloperMessageSchema>;
 export const UserMessageSchema = z.object({
   type: z.literal(ChatMessageType.User),
   role: z.literal(ChatMessageRole.User),
-  content: z.string(),
+  // User messages may carry multimodal content (text + media). All other roles
+  // remain text-only: media is user input, and keeping the rest as strings
+  // minimizes blast radius across compile/serialization paths.
+  content: ChatMessageContentSchema,
 });
 export type UserMessage = z.infer<typeof UserMessageSchema>;
 

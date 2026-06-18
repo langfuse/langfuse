@@ -235,6 +235,13 @@ export interface StorageService {
 
   download(path: string): Promise<string>;
 
+  /**
+   * Download raw bytes. Unlike `download`, which decodes the body as utf-8 (and
+   * therefore corrupts binary files), this returns the bytes untouched — use it
+   * for media (images/audio/video) that must be base64-encoded or streamed.
+   */
+  downloadBytes(path: string): Promise<Uint8Array>;
+
   listFiles(prefix: string): Promise<{ file: string; createdAt: Date }[]>;
 
   getSignedUrl(
@@ -478,6 +485,21 @@ class AzureBlobStorageService implements StorageService {
     });
   }
 
+  private async streamToBuffer(
+    readableStream: NodeJS.ReadableStream,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      readableStream.on("data", (data) => {
+        chunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
+      });
+      readableStream.on("end", () => {
+        resolve(Buffer.concat(chunks));
+      });
+      readableStream.on("error", reject);
+    });
+  }
+
   public async download(path: string): Promise<string> {
     try {
       await this.createContainerIfNotExists();
@@ -488,6 +510,25 @@ class AzureBlobStorageService implements StorageService {
         throw Error("No stream body available");
       }
       return this.streamToString(downloadResponse.readableStreamBody);
+    } catch (err) {
+      logger.error(
+        `Failed to download file from Azure Blob Storage ${path}`,
+        err,
+      );
+      handleStorageError(err, "download file from Azure Blob Storage");
+    }
+  }
+
+  public async downloadBytes(path: string): Promise<Uint8Array> {
+    try {
+      await this.createContainerIfNotExists();
+
+      const blobClient = this.client.getBlobClient(path);
+      const downloadResponse = await blobClient.download();
+      if (!downloadResponse.readableStreamBody) {
+        throw Error("No stream body available");
+      }
+      return this.streamToBuffer(downloadResponse.readableStreamBody);
     } catch (err) {
       logger.error(
         `Failed to download file from Azure Blob Storage ${path}`,
@@ -836,6 +877,21 @@ class S3StorageService implements StorageService {
     }
   }
 
+  public async downloadBytes(path: string): Promise<Uint8Array> {
+    const getCommand = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: path,
+    });
+
+    try {
+      const response = await this.client.send(getCommand);
+      return (await response.Body?.transformToByteArray()) ?? new Uint8Array();
+    } catch (err) {
+      logger.error(`Failed to download file from S3 ${path}`, err);
+      handleStorageError(err, "download file from S3");
+    }
+  }
+
   public async listFiles(
     prefix: string,
   ): Promise<{ file: string; createdAt: Date }[]> {
@@ -1084,6 +1140,21 @@ class GoogleCloudStorageService implements StorageService {
       const [content] = await file.download();
 
       return content.toString();
+    } catch (err) {
+      logger.error(
+        `Failed to download file from Google Cloud Storage ${path}`,
+        err,
+      );
+      handleStorageError(err, "download file from Google Cloud Storage");
+    }
+  }
+
+  public async downloadBytes(path: string): Promise<Uint8Array> {
+    try {
+      const file = this.bucket.file(path);
+      const [content] = await file.download();
+
+      return new Uint8Array(content);
     } catch (err) {
       logger.error(
         `Failed to download file from Google Cloud Storage ${path}`,
@@ -1533,6 +1604,94 @@ class OCIObjectStorageService implements StorageService {
       );
       handleStorageError(err, "download file from OCI Object Storage ");
     }
+  }
+
+  public async downloadBytes(path: string): Promise<Uint8Array> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const req: objectstorage.requests.GetObjectRequest = {
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+      };
+      const response = await client.getObject(req);
+      const bodyStream = (response as any).value;
+      return await this.streamToBuffer(bodyStream);
+    } catch (err) {
+      logger.error(
+        `Failed to download file from OCI Object Storage  ${path}`,
+        err,
+      );
+      handleStorageError(err, "download file from OCI Object Storage ");
+    }
+  }
+
+  private async streamToBuffer(readable: any): Promise<Uint8Array> {
+    if (!readable) return new Uint8Array();
+
+    const toBuffer = (chunk: any): Buffer => {
+      if (Buffer.isBuffer(chunk)) return chunk;
+      if (typeof chunk === "string") return Buffer.from(chunk, "binary");
+      if (chunk instanceof ArrayBuffer) return Buffer.from(chunk);
+      if (ArrayBuffer.isView(chunk)) {
+        return Buffer.from(
+          (chunk as Uint8Array).buffer,
+          (chunk as any).byteOffset ?? 0,
+          (chunk as any).byteLength ?? undefined,
+        );
+      }
+      return Buffer.from(chunk);
+    };
+
+    // Node.js Readable (EventEmitter style)
+    if (
+      typeof readable.on === "function" &&
+      typeof readable.read !== "undefined"
+    ) {
+      return await new Promise<Buffer>((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        readable.on("data", (chunk: any) => chunks.push(toBuffer(chunk)));
+        readable.on("error", (err: any) => reject(err));
+        readable.on("end", () => resolve(Buffer.concat(chunks)));
+      });
+    }
+
+    // WHATWG ReadableStream
+    if (typeof readable.getReader === "function") {
+      const reader = readable.getReader();
+      const chunks: Buffer[] = [];
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(toBuffer(value));
+        }
+        return Buffer.concat(chunks);
+      } finally {
+        try {
+          if (reader.releaseLock) reader.releaseLock();
+        } catch (_err) {
+          // intentionally ignore releaseLock errors
+        }
+      }
+    }
+
+    // Direct buffer-like values
+    if (Buffer.isBuffer(readable)) return readable;
+    if (readable instanceof Uint8Array) return Buffer.from(readable);
+    if (readable instanceof ArrayBuffer) return Buffer.from(readable);
+    if (typeof Blob !== "undefined" && readable instanceof Blob) {
+      return Buffer.from(await readable.arrayBuffer());
+    }
+
+    // Async iterable
+    if (typeof readable[Symbol.asyncIterator] === "function") {
+      const chunks: Buffer[] = [];
+      for await (const chunk of readable) chunks.push(toBuffer(chunk));
+      return Buffer.concat(chunks);
+    }
+
+    throw new TypeError("Unsupported body type passed to streamToBuffer");
   }
 
   public async listFiles(

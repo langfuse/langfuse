@@ -7,6 +7,7 @@ import {
   GetMediaResponseSchema,
   type GetMediaUploadUrlQuery,
   GetMediaUploadUrlResponseSchema,
+  MediaEnabledFields,
   type MediaContentType,
   type PatchMediaBody,
 } from "@/src/features/media/validation";
@@ -26,7 +27,13 @@ import {
 
 export async function createMediaUploadUrl(params: {
   projectId: string;
-  body: GetMediaUploadUrlQuery;
+  // traceId/field are optional: in-app uploads (e.g. the playground) create a
+  // media record that isn't linked to any trace. The public REST path always
+  // passes both, so its behaviour is unchanged.
+  body: Omit<GetMediaUploadUrlQuery, "traceId" | "field"> & {
+    traceId?: string | null;
+    field?: MediaEnabledFields;
+  };
 }) {
   const { projectId, body } = params;
   const {

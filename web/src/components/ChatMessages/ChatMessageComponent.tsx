@@ -14,8 +14,10 @@ import {
   ChatMessageRole,
   ChatMessageType,
   type ChatMessageWithId,
+  getMessageText,
   type LLMToolCall,
   type PlaceholderMessage,
+  setMessageText,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
@@ -33,6 +35,8 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
+import { MessageMediaAttachments } from "@/src/features/playground/page/components/media/MessageMediaAttachments";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   useOptionalMessageSearchActions,
   useOptionalMessageSearchPageId,
@@ -97,6 +101,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
   const playgroundContext = useOptionalPlaygroundContext();
+  const projectId = useProjectIdFromURL();
   const searchPageId = useOptionalMessageSearchPageId();
   const messageSearchActions = useOptionalMessageSearchActions();
   const pageId = playgroundContext?.windowId ?? searchPageId;
@@ -129,6 +134,10 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     // Only allow role toggling for messages that have a role property (not placeholder messages)
     if (!("role" in message)) return;
 
+    // Media attaches to user messages only, so flatten to text when changing
+    // role. The plain text is preserved; any attachments are dropped.
+    const flattenedContent = getMessageText(message.content);
+
     // if user has set custom roles, available roles will be non-empty and we toggle through custom and default roles (assistant, user)
     if (!!availableRoles && Boolean(availableRoles.length)) {
       let randomRole = availableRoles[roleIndex % availableRoles.length];
@@ -136,7 +145,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
         randomRole = availableRoles[(roleIndex + 1) % availableRoles.length];
       }
       replaceMessage(message.id, {
-        content: message.content,
+        content: flattenedContent,
         role: randomRole,
         type: ChatMessageType.PublicAPICreated,
       });
@@ -157,38 +166,38 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 
       if (nextRole === ChatMessageRole.User) {
         replaceMessage(message.id, {
-          content: message.content,
+          content: flattenedContent,
           role: nextRole,
           type: ChatMessageType.User,
         });
       } else if (nextRole === ChatMessageRole.Assistant) {
         replaceMessage(message.id, {
-          content: message.content,
+          content: flattenedContent,
           role: nextRole,
           type: ChatMessageType.AssistantText,
         });
       } else if (nextRole === ChatMessageRole.Tool) {
         replaceMessage(message.id, {
-          content: message.content,
+          content: flattenedContent,
           role: nextRole,
           type: ChatMessageType.ToolResult,
           toolCallId: toolCallIds?.[0] ?? "",
         });
       } else if (nextRole === ChatMessageRole.Developer) {
         replaceMessage(message.id, {
-          content: message.content,
+          content: flattenedContent,
           role: nextRole,
           type: ChatMessageType.Developer,
         });
       } else if (nextRole === ChatMessageRole.System) {
         replaceMessage(message.id, {
-          content: message.content,
+          content: flattenedContent,
           role: nextRole,
           type: ChatMessageType.System,
         });
       } else if (nextRole === ChatMessageRole.Model) {
         replaceMessage(message.id, {
-          content: message.content,
+          content: flattenedContent,
           role: nextRole,
           type: ChatMessageType.ModelText,
         });
@@ -204,10 +213,16 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       if (message.type === ChatMessageType.Placeholder) {
         updateMessage(message.type, message.id, "name", value);
       } else {
-        updateMessage(message.type, message.id, "content", value);
+        // Preserve any media parts; only the text span changes.
+        updateMessage(
+          message.type,
+          message.id,
+          "content",
+          setMessageText(message.content, value),
+        );
       }
     },
-    [message.id, message.type, updateMessage],
+    [message, updateMessage],
   );
 
   const onPlaceholderNameChange = useCallback(
@@ -221,6 +236,12 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
 
   const showToolCallSelect = message.type === ChatMessageType.ToolResult;
   const isPlaceholder = message.type === ChatMessageType.Placeholder;
+  // Media attachments are a playground-only affordance on user messages.
+  const showMediaAttachments =
+    Boolean(playgroundContext) &&
+    Boolean(projectId) &&
+    "role" in message &&
+    message.role === ChatMessageRole.User;
 
   useEffect(() => {
     if (!pageId || !registerMessageTarget || !unregisterMessageTarget) {
@@ -333,7 +354,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 />
               ) : (
                 <MemoizedEditor
-                  value={message.content}
+                  value={getMessageText(message.content)}
                   onChange={onValueChange}
                   role={message.role}
                   editorRef={editorRef}
@@ -342,6 +363,15 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 />
               )}
             </div>
+            {showMediaAttachments && "content" in message && (
+              <MessageMediaAttachments
+                projectId={projectId as string}
+                content={message.content}
+                onChange={(content) =>
+                  updateMessage(message.type, message.id, "content", content)
+                }
+              />
+            )}
             {message.type === ChatMessageType.AssistantToolCall && (
               <ToolCalls toolCalls={message.toolCalls as LLMToolCall[]} />
             )}

@@ -36,6 +36,7 @@ import GCPServiceAccountKeySchema, {
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import {
   ChatMessage,
+  type ChatMessageContent,
   ChatMessageRole,
   ChatMessageType,
   isOpenAIReasoningModel,
@@ -232,14 +233,69 @@ function shouldNormalizeContentBlocks(modelParams: ModelParams): boolean {
   );
 }
 
+/**
+ * The single conversion boundary for multimodal input. A Langfuse message's
+ * `content` (provider-agnostic: string, or text + media parts) is turned into
+ * LangChain message content. LangChain then translates this one block shape
+ * into each provider's native multimodal format, so we never branch per
+ * provider here.
+ *
+ * Media parts must already carry resolved base64 `data` (injected by the web
+ * media resolver before the call); a missing payload is a programming error and
+ * fails loudly rather than silently dropping the attachment.
+ */
+export function buildHumanMessageContent(
+  content: ChatMessageContent,
+): string | ContentBlock[] {
+  if (typeof content === "string") return content;
+
+  const blocks: ContentBlock[] = [];
+  for (const part of content) {
+    if (part.type === "text") {
+      // Skip empty text spans so an image-only message isn't filtered out later.
+      if (part.text.length > 0)
+        blocks.push({ type: "text", text: part.text } as ContentBlock);
+      continue;
+    }
+
+    if (!part.data) {
+      throw new LLMCompletionError({
+        message: `Media attachment ${part.mediaId} was not resolved before the model call`,
+        responseStatusCode: 500,
+      });
+    }
+
+    if (part.mimeType.startsWith("image/")) {
+      // Legacy `source_type` data block: the one multimodal shape accepted by
+      // every provider's LangChain input converter (OpenAI/Anthropic/Google/
+      // Bedrock). Base64 (not a URL) keeps private media out of provider fetches.
+      blocks.push({
+        type: "image",
+        source_type: "base64",
+        mime_type: part.mimeType,
+        data: part.data,
+      } as unknown as ContentBlock);
+    } else {
+      // Audio/video are an intentional extension point: upload + UI may accept
+      // them later, but we don't claim provider support we haven't verified.
+      throw new LLMCompletionError({
+        message: `Unsupported media type for model input: ${part.mimeType}. Only images are currently supported.`,
+        responseStatusCode: 400,
+      });
+    }
+  }
+
+  return blocks;
+}
+
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
 ): BaseMessage[] => {
-  const safeContent =
-    typeof messages[0].content === "string"
-      ? messages[0].content
-      : JSON.stringify(messages[0].content);
-  return [new HumanMessage(safeContent)];
+  return [
+    new HumanMessage({
+      content: buildHumanMessageContent(messages[0].content),
+    }),
+  ];
 };
 
 const googleProviderOptionsSchema = z
@@ -420,7 +476,11 @@ export async function fetchLLMCompletion(
           : safeStringify(message.content);
 
       if (message.role === ChatMessageRole.User)
-        return new HumanMessage(safeContent);
+        // User content may be multimodal (string stays a string, parts become
+        // LangChain content blocks). All other roles remain string-only.
+        return new HumanMessage({
+          content: buildHumanMessageContent(message.content),
+        });
       if (
         message.role === ChatMessageRole.System ||
         message.role === ChatMessageRole.Developer
