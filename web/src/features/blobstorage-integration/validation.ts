@@ -1,7 +1,7 @@
 import type { z } from "zod";
 
 export function validateExportFieldGroups(
-  data: { exportSource: string; exportFieldGroups: unknown[] },
+  data: { exportFieldGroups: unknown[] },
   ctx: z.RefinementCtx,
 ) {
   // Field groups apply to all export sources (legacy observations honor them

@@ -21,6 +21,7 @@ export default withMiddlewares(
     GET: createAuthedProjectAPIRoute({
       name: "Get Observation",
       allowInAppAgentKey: true,
+      rateLimitResource: "public-api-legacy",
       querySchema: GetObservationV1Query,
       responseSchema: GetObservationV1Response,
       rejectInEventsOnlyMode: true,
