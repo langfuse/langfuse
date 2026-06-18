@@ -1,17 +1,5 @@
-import { Button } from "@/src/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { DeleteButton } from "@/src/components/deleteButton";
 import { api } from "@/src/utils/api";
-import { LockIcon, Trash } from "lucide-react";
-import React, { useState } from "react";
 
 type DeleteAnnotationQueueButtonProps = {
   projectId: string;
@@ -22,74 +10,33 @@ export const DeleteAnnotationQueueButton = ({
   projectId,
   queueId,
 }: DeleteAnnotationQueueButtonProps) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const hasAccess = useHasProjectAccess({
-    projectId: projectId,
-    scope: "annotationQueues:CUD",
-  });
   const utils = api.useUtils();
-  const mutDelete = api.annotationQueues.delete.useMutation({
-    onSuccess: () => {
-      utils.annotationQueues.invalidate();
-    },
-  });
+  const deleteMutation = api.annotationQueues.delete.useMutation();
 
-  const button = (
-    <Button
+  return (
+    <DeleteButton
+      itemId={queueId}
+      projectId={projectId}
+      scope="annotationQueues:CUD"
+      invalidateFunc={() => utils.annotationQueues.invalidate()}
+      isTableAction
+      icon
       variant="ghost"
       size="icon-xs"
       title="Delete"
       aria-label="delete"
-      disabled={!hasAccess}
-      onClick={(event) => event.stopPropagation()}
-    >
-      {hasAccess ? (
-        <Trash className="h-4 w-4" />
-      ) : (
-        <LockIcon className="h-4 w-4" aria-hidden="true" />
-      )}
-    </Button>
-  );
-
-  return hasAccess ? (
-    <Dialog
-      open={isOpen}
-      onOpenChange={(open) => {
-        if (!mutDelete.isPending) {
-          setIsOpen(open);
-        }
+      captureDeleteOpen={() => undefined}
+      captureDeleteSuccess={() => undefined}
+      customDeletePrompt="This action cannot be undone and removes queue items attached to this queue. Scores added while annotating in this queue will not be deleted."
+      entityToDeleteName="annotation queue"
+      executeDeleteMutation={async (onSuccess) => {
+        await deleteMutation.mutateAsync({
+          projectId,
+          queueId,
+        });
+        onSuccess();
       }}
-    >
-      <DialogTrigger asChild>{button}</DialogTrigger>
-      <DialogContent className="overflow-hidden sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle className="mb-4">Please confirm</DialogTitle>
-          <DialogDescription className="text-md p-0">
-            This action cannot be undone and removes queue items attached to
-            this queue. Scores added while annotating in this queue will not be
-            deleted.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            variant="destructive"
-            loading={mutDelete.isPending}
-            disabled={mutDelete.isPending}
-            onClick={async (event) => {
-              event.preventDefault();
-              await mutDelete.mutateAsync({
-                projectId,
-                queueId,
-              });
-              setIsOpen(false);
-            }}
-          >
-            Delete Annotation Queue
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  ) : (
-    button
+      isDeleteMutationLoading={deleteMutation.isPending}
+    />
   );
 };

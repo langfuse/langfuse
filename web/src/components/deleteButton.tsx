@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { LockIcon, TrashIcon } from "lucide-react";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
@@ -82,6 +84,7 @@ export function DeleteButton({
   "aria-label": ariaLabel,
 }: BaseDeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
+  const [open, setOpen] = useState(false);
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
@@ -106,38 +109,63 @@ export function DeleteButton({
   ]);
 
   return (
-    <Popover key={itemId ?? "delete-action"} onOpenChange={onPopoverOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant={variant ?? (icon ? "outline-solid" : "ghost")}
-          size={size ?? (icon ? "icon" : "default")}
-          title={title}
-          aria-label={ariaLabel}
-          className={className}
-          disabled={!hasAccess || !enabled}
-          onClick={(e) => {
-            e.stopPropagation();
-            captureDeleteOpen(capture, isTableAction);
-          }}
-        >
-          {icon ? (
-            hasAccess ? (
-              <TrashIcon className="h-4 w-4" />
+    <Popover
+      key={itemId ?? "delete-action"}
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        onPopoverOpenChange?.(o);
+      }}
+    >
+      {icon ? (
+        // Icon-only: a compact button with a built-in tooltip; the popover is
+        // opened from onClick since the tooltip wrapper can't be a trigger.
+        <PopoverAnchor asChild>
+          <span className="inline-flex">
+            <IconOnlyButton
+              icon={<TrashIcon className="h-4 w-4" />}
+              label={title ?? "Delete"}
+              aria-label={ariaLabel ?? "delete"}
+              disabledReason={
+                hasAccess
+                  ? undefined
+                  : `You don't have permission to delete this ${entityToDeleteName}.`
+              }
+              variant={variant ?? "outline-solid"}
+              size={size ?? "icon"}
+              className={className}
+              disabled={!enabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                captureDeleteOpen(capture, isTableAction);
+                setOpen(true);
+              }}
+            />
+          </span>
+        </PopoverAnchor>
+      ) : (
+        <PopoverTrigger asChild>
+          <Button
+            variant={variant ?? "ghost"}
+            size={size ?? "default"}
+            title={title}
+            aria-label={ariaLabel}
+            className={className}
+            disabled={!hasAccess || !enabled}
+            onClick={(e) => {
+              e.stopPropagation();
+              captureDeleteOpen(capture, isTableAction);
+            }}
+          >
+            {hasAccess ? (
+              <TrashIcon className="mr-2 h-4 w-4" />
             ) : (
-              <LockIcon className="h-4 w-4" aria-hidden="true" />
-            )
-          ) : (
-            <>
-              {hasAccess ? (
-                <TrashIcon className="mr-2 h-4 w-4" />
-              ) : (
-                <LockIcon className="mr-2 h-4 w-4" />
-              )}
-              Delete
-            </>
-          )}
-        </Button>
-      </PopoverTrigger>
+              <LockIcon className="mr-2 h-4 w-4" />
+            )}
+            Delete
+          </Button>
+        </PopoverTrigger>
+      )}
       <PopoverContent onClick={(e) => e.stopPropagation()}>
         {deleteBlocker ?? (
           <>
@@ -159,7 +187,7 @@ export function DeleteButton({
                 />
               </div>
             )}
-            <div className="flex justify-end space-x-4">
+            <div className="flex justify-start space-x-4">
               <Button
                 type="button"
                 variant="destructive"

@@ -36,6 +36,7 @@ import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import {
@@ -212,41 +213,54 @@ export const CreateOrEditAnnotationQueueButton = ({
     }
   };
 
+  // Table rows render a compact icon button and rely on the disabled state plus
+  // a tooltip; everywhere else uses the labeled ActionButton with its built-in
+  // access/limit messaging.
+  const triggerButton = isTableAction ? (
+    <IconOnlyButton
+      icon={<Pen className="h-4 w-4" />}
+      label="Edit"
+      aria-label="edit"
+      disabledReason={
+        hasQueueAccess
+          ? undefined
+          : "You don't have permission to edit this queue."
+      }
+      onClick={(event) => {
+        event.stopPropagation();
+        setIsOpen(true);
+      }}
+    />
+  ) : (
+    <ActionButton
+      variant={variant}
+      onClick={() => setIsOpen(true)}
+      className="justify-start"
+      icon={
+        queueId ? (
+          <Edit className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <PlusIcon className="h-4 w-4" aria-hidden="true" />
+        )
+      }
+      hasAccess={hasQueueAccess}
+      limitValue={queueCountData.data}
+      limit={queueLimit}
+      size={size}
+    >
+      <span className="ml-1 text-sm font-normal">
+        {queueId ? "Edit" : "New queue"}
+      </span>
+    </ActionButton>
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <ActionButton
-          variant={variant}
-          onClick={(event) => {
-            if (isTableAction) event.stopPropagation();
-            setIsOpen(true);
-          }}
-          className={isTableAction ? "p-0 [&>div]:mr-0" : "justify-start"}
-          icon={
-            queueId ? (
-              isTableAction ? (
-                <Pen className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Edit className="h-4 w-4" aria-hidden="true" />
-              )
-            ) : (
-              <PlusIcon className="h-4 w-4" aria-hidden="true" />
-            )
-          }
-          hasAccess={hasQueueAccess}
-          limitValue={queueCountData.data}
-          limit={queueLimit}
-          size={size}
-          title={isTableAction ? "Edit" : undefined}
-          aria-label={isTableAction ? "edit" : undefined}
-        >
-          {isTableAction ? null : (
-            <span className="ml-1 text-sm font-normal">
-              {queueId ? "Edit" : "New queue"}
-            </span>
-          )}
-        </ActionButton>
-      </DialogTrigger>
+      {isTableAction ? (
+        triggerButton
+      ) : (
+        <DialogTrigger asChild>{triggerButton}</DialogTrigger>
+      )}
       {configsData.data && (
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>

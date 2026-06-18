@@ -13,7 +13,7 @@ import { DatasetForm } from "@/src/features/datasets/components/DatasetForm";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type Prisma } from "@langfuse/shared";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { cn } from "@/src/utils/tailwind";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 
 interface BaseDatasetButtonProps {
   mode: "create" | "update" | "delete";
@@ -62,99 +62,127 @@ export const DatasetActionButton = forwardRef<
     scope: "datasets:CUD",
   });
 
+  const actionButton =
+    props.mode === "update" ? (
+      props.icon ? (
+        <IconOnlyButton
+          ref={ref}
+          icon={<Pen className="h-4 w-4" />}
+          label="Edit"
+          aria-label="edit"
+          disabledReason={
+            hasAccess
+              ? undefined
+              : "You don't have permission to edit this dataset."
+          }
+          variant={props.variant}
+          size={props.size}
+          className={props.className}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+            capture("datasets:update_form_open", {
+              source: "table-single-row",
+            });
+          }}
+        />
+      ) : (
+        <Button
+          ref={ref}
+          variant={props.variant || "ghost"}
+          size={props.size || "icon"}
+          className={props.className}
+          disabled={!hasAccess}
+          onClick={() => {
+            setOpen(true);
+            capture("datasets:update_form_open", {
+              source: "table-single-row",
+            });
+          }}
+        >
+          {hasAccess ? (
+            <Edit className="mr-2 h-4 w-4" />
+          ) : (
+            <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          Edit
+        </Button>
+      )
+    ) : props.mode === "delete" ? (
+      props.icon ? (
+        <IconOnlyButton
+          ref={ref}
+          icon={<Trash className="h-4 w-4" />}
+          label="Delete"
+          aria-label="delete"
+          disabledReason={
+            hasAccess
+              ? undefined
+              : "You don't have permission to delete this dataset."
+          }
+          variant={props.variant}
+          size={props.size}
+          className={props.className}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+            capture("datasets:delete_form_open", {
+              source: "table-single-row",
+            });
+          }}
+        />
+      ) : (
+        <Button
+          ref={ref}
+          variant={props.variant || "ghost"}
+          size={props.size}
+          className={props.className}
+          disabled={!hasAccess}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+            capture("datasets:delete_form_open", {
+              source: "table-single-row",
+            });
+          }}
+        >
+          {hasAccess ? (
+            <Trash className="mr-2 h-4 w-4" />
+          ) : (
+            <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
+          )}
+          Delete
+        </Button>
+      )
+    ) : (
+      <Button
+        ref={ref}
+        size={props.size}
+        className={props.className}
+        disabled={!hasAccess}
+        onClick={() => capture("datasets:new_form_open")}
+        variant={props.variant || "default"}
+      >
+        {hasAccess ? (
+          <PlusIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
+        ) : (
+          <LockIcon className="mr-1.5 -ml-0.5 h-3 w-3" aria-hidden="true" />
+        )}
+        New dataset
+      </Button>
+    );
+
+  // Icon-only buttons carry their own tooltip and open the dialog via onClick,
+  // so they are rendered directly rather than as an asChild dialog trigger.
+  const isIconMode = props.mode !== "create" && props.icon;
+
   return (
     <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {props.mode === "update" ? (
-          props.icon ? (
-            <Button
-              ref={ref}
-              variant={props.variant || "outline-solid"}
-              size={props.size || "icon"}
-              className={props.className}
-              title="Edit"
-              aria-label="edit"
-              disabled={!hasAccess}
-              onClick={(e) => {
-                e.stopPropagation();
-                capture("datasets:update_form_open", {
-                  source: "table-single-row",
-                });
-              }}
-            >
-              {hasAccess ? (
-                <Pen className="h-4 w-4" />
-              ) : (
-                <LockIcon className="h-4 w-4" aria-hidden="true" />
-              )}
-            </Button>
-          ) : (
-            <Button
-              ref={ref}
-              variant={props.variant || "ghost"}
-              size={props.size || "icon"}
-              className={props.className}
-              disabled={!hasAccess}
-              onClick={() => {
-                setOpen(true);
-                capture("datasets:update_form_open", {
-                  source: "table-single-row",
-                });
-              }}
-            >
-              {hasAccess ? (
-                <Edit className="mr-2 h-4 w-4" />
-              ) : (
-                <LockIcon className="mr-2 h-4 w-4" aria-hidden="true" />
-              )}
-              Edit
-            </Button>
-          )
-        ) : props.mode === "delete" ? (
-          <Button
-            ref={ref}
-            variant={props.variant || "ghost"}
-            size={props.size}
-            className={props.className}
-            title={props.icon ? "Delete" : undefined}
-            aria-label={props.icon ? "delete" : undefined}
-            disabled={!hasAccess}
-            onClick={(e) => {
-              e.stopPropagation();
-              setOpen(true);
-              capture("datasets:delete_form_open", {
-                source: "table-single-row",
-              });
-            }}
-          >
-            {hasAccess ? (
-              <Trash className={cn("h-4 w-4", !props.icon && "mr-2")} />
-            ) : (
-              <LockIcon
-                className={cn("h-4 w-4", !props.icon && "mr-2")}
-                aria-hidden="true"
-              />
-            )}
-            {props.icon ? null : "Delete"}
-          </Button>
-        ) : (
-          <Button
-            ref={ref}
-            size={props.size}
-            className={props.className}
-            disabled={!hasAccess}
-            onClick={() => capture("datasets:new_form_open")}
-            variant={props.variant || "default"}
-          >
-            {hasAccess ? (
-              <PlusIcon className="mr-1.5 -ml-0.5 h-4 w-4" aria-hidden="true" />
-            ) : (
-              <LockIcon className="mr-1.5 -ml-0.5 h-3 w-3" aria-hidden="true" />
-            )}
-            New dataset
-          </Button>
-        )}
-      </DialogTrigger>
+      {isIconMode ? (
+        actionButton
+      ) : (
+        <DialogTrigger asChild>{actionButton}</DialogTrigger>
+      )}
       <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
         <DialogHeader>
           <DialogTitle className="mb-4">

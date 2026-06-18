@@ -24,11 +24,12 @@ import {
 } from "@/src/features/evals/utils/typeHelpers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import TableIdOrName from "@/src/components/table/table-id";
-import { ExternalLinkIcon, Info, LockIcon, Pen } from "lucide-react";
+import { ExternalLinkIcon, Info, Pen } from "lucide-react";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewEvaluatorConfigDetail } from "@/src/components/table/peek/peek-evaluator-config-detail";
 import { evalConfigTargetValues } from "@/src/server/api/definitions/evalConfigsTable";
 import { Button } from "@/src/components/ui/button";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   Dialog,
@@ -365,24 +366,21 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
         const id = row.original.id;
         return (
           <div className="flex items-center gap-1">
-            <Button
+            <IconOnlyButton
               key={id}
-              variant="ghost"
-              size="icon-xs"
+              icon={<Pen className="h-4 w-4" />}
+              label="Edit"
               aria-label="edit"
-              title="Edit"
-              disabled={!hasAccess}
+              disabledReason={
+                hasAccess
+                  ? undefined
+                  : "You don't have permission to edit this evaluator."
+              }
               onClick={(e) => {
                 e.stopPropagation();
                 if (id) setEditConfigId(id);
               }}
-            >
-              {hasAccess ? (
-                <Pen className="h-4 w-4" />
-              ) : (
-                <LockIcon className="h-4 w-4" aria-hidden="true" />
-              )}
-            </Button>
+            />
             <DeleteEvalConfigButton
               aria-label="delete"
               itemId={id}
