@@ -79,18 +79,21 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       if (id === null || filter.value.length === 0) return null;
       // A stringOptions/arrayOptions filter is EXACT-set semantics. On a
       // `textSearch` field (id/name) the bar reads a bare single value as
-      // `contains`, so a single-value any-of would silently flip exact→substring
-      // on the next commit (and a single-value none-of → does-not-contain). The
-      // grouped multi-value forms reparse to exact any-of/none-of, so only the
-      // single-value forms need care.
+      // `contains`, so a single-value any-of/none-of would silently flip
+      // exact→substring on the next commit. The single-value forms therefore use
+      // the explicit exact operator (`name:=abc` / `-name:=abc`); the grouped
+      // multi-value forms already reparse to exact any-of/none-of.
       const ref = resolveField(id);
       const isTextSearch =
         ref?.type === "field" && ref.field.syncMode === "textSearch";
       if (filter.operator === "none of") {
-        // `-id:=abc` (negated exact) is not representable, so a single none-of on
-        // a textSearch field has no faithful grammar form — skip it (preserved via
-        // skippedFilters) rather than rewrite it to `does not contain`.
-        if (isTextSearch && filter.value.length === 1) return null;
+        // On a textSearch field a single none-of is exact-inequality: emit the
+        // negated exact form (`-name:=abc`), which lowers back to stringOptions
+        // none-of — NOT the bare `-name:abc`, which is does-not-contain
+        // (substring). The grouped/option forms use the bare `=` any-of shape.
+        if (isTextSearch && filter.value.length === 1) {
+          return negate(filterNode(id, "exact", filter.value));
+        }
         return negate(filterNode(id, "=", filter.value));
       }
       if (filter.operator === "all of") {

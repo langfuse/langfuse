@@ -25,7 +25,6 @@ import {
   stripImplicitEnvironmentFilterFromExplicitState,
   type ManagedEnvironmentPolicyInput,
 } from "../lib/managedEnvironmentPolicy";
-import { areStringSetsEqual } from "../lib/stringSetUtils";
 import { useKeyedSessionStorageState } from "./useKeyedSessionStorageState";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import type { FilterConfig, FilterStateMigration } from "../lib/filter-config";
@@ -558,14 +557,6 @@ export function useSidebarFilterState(
   const managedEnvironmentColumn =
     managedEnvironmentPolicyConfig.managedEnvironmentColumn;
 
-  const availableEnvironmentValues = useMemo(() => {
-    const rawOptions = options[managedEnvironmentColumn];
-    if (!Array.isArray(rawOptions)) return [];
-    return rawOptions.map((option) =>
-      typeof option === "string" ? option : option.value,
-    );
-  }, [options, managedEnvironmentColumn]);
-
   const effectiveEnvironmentFilterState: FilterState = useMemo(
     () =>
       buildEffectiveEnvironmentFilter({
@@ -591,7 +582,6 @@ export function useSidebarFilterState(
     (newFilters: FilterState) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: newFilters,
-        availableEnvironmentValues,
         config: managedEnvironmentPolicyConfig,
       });
 
@@ -621,7 +611,6 @@ export function useSidebarFilterState(
       setUrlFiltersQuery,
       setStoredFiltersQuery,
       managedEnvironmentPolicyConfig,
-      availableEnvironmentValues,
     ],
   );
 
@@ -1616,27 +1605,30 @@ export function useSidebarFilterState(
         const isManagedEnvironmentFacet =
           facet.column === managedEnvironmentColumn &&
           managedEnvironmentPolicyConfig.hiddenEnvironments.length > 0;
-        const hasManagedEnvironmentSelectionOverride =
+        // A user-authored environment filter lives in EXPLICIT state; the
+        // implicit hidden-env default (`none of [hidden]`) is added to EFFECTIVE
+        // state only and stripped from explicit state by the managed-environment
+        // policy. So "explicit env filter present" is exactly "the user committed
+        // to an environment selection" — including `environment:default` (any-of
+        // the default set), which now persists. Keying the facet's active state
+        // off this keeps it in sync with the search bar, which renders any
+        // explicit env filter as a chip.
+        const hasExplicitManagedEnvironmentFilter =
           isManagedEnvironmentFacet &&
-          !areStringSetsEqual(
-            selectedValues,
-            availableValues.filter(
-              (value) =>
-                !managedEnvironmentPolicyConfig.hiddenEnvironments.includes(
-                  value,
-                ),
-            ),
+          explicitFilterState.some(
+            (filter) => filter.column === managedEnvironmentColumn,
           );
 
         // isActive check:
-        // - Managed environment facet: active only when selection differs from default
-        //   (implicit hidden-env default should not surface a "Clear" badge).
+        // - Managed environment facet: active whenever the user authored an
+        //   explicit env filter (the implicit hidden-env default lives only in
+        //   effective state, so it never surfaces a "Clear" badge).
         // - Other facets: active when text filters exist or checkbox selections differ from unfiltered.
         //   Special case: "all of" with all values selected is still active.
         const isActive =
           hasTextFilters ||
           (isManagedEnvironmentFacet
-            ? hasManagedEnvironmentSelectionOverride
+            ? hasExplicitManagedEnvironmentFilter
             : (currentOperator === "all of" &&
                 (selectedValues.length === availableValues.length ||
                   hasExplicitCheckboxFilterWhileLoading)) ||
@@ -1718,6 +1710,7 @@ export function useSidebarFilterState(
     options,
     loading,
     filterState,
+    explicitFilterState,
     updateFilter,
     updateFilterOnly,
     updateOperator,

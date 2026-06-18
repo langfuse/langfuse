@@ -142,7 +142,19 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 - **Negation is not a primitive.** `-`/`NOT` lower to existing inverse
   operators (`none of`, `does not contain`, `is null`) or flip a comparison /
   boolean. Anything without a native inverse is a diagnostic (`fields.ts`
-  `negationIssue` is the spec) — the backend has no general NOT.
+  `negationIssue` is the spec) — the backend has no general NOT. (Negated exact
+  on a `textSearch` field — `-name:=v` — is representable: it lowers to a
+  `stringOptions none of`, the exact-inequality form the facet emits when one
+  value is unchecked. It is NOT `does not contain`.)
+- **User-authored filters are never auto-removed.** The bar reads the sidebar's
+  **explicit** `FilterState`, so the managed-environment implicit default
+  (`environment none of [hidden internal envs]`, derived into _effective_ state
+  by `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
+  That policy strips exactly one shape from explicit state — that same implicit
+  `none of [hidden]` default (which the facet also re-creates on "clear back to
+  default"). A user-authored positive selection (`environment:default`, typed or
+  saved) is kept explicit even when it equals the current default set; the user
+  returns to the default by removing the filter, never by us inferring it.
 
 ## Ownership map
 
