@@ -116,15 +116,18 @@ export function createUnstablePublicApiAuthError(params: {
 
 export function createUnstablePublicApiRateLimitError(
   rateLimitRes: RateLimitResult,
+  options?: {
+    message?: string;
+  },
 ) {
   return createUnstablePublicApiError({
     httpCode: 429,
     code: "rate_limited",
-    message: "Rate limit exceeded",
+    message: options?.message ?? "Rate limit exceeded",
     details: {
       retryAfterSeconds: Math.ceil(rateLimitRes.msBeforeNext / 1000),
       limit: rateLimitRes.points,
-      remaining: rateLimitRes.remainingPoints,
+      remaining: Math.max(0, rateLimitRes.remainingPoints),
       resetAt: new Date(Date.now() + rateLimitRes.msBeforeNext).toISOString(),
     },
   });

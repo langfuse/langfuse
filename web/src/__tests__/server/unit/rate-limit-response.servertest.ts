@@ -6,11 +6,19 @@ const {
   mockCreateUnstablePublicApiRateLimitError,
   mockSendUnstablePublicApiErrorResponse,
 } = vi.hoisted(() => ({
-  mockCreateUnstablePublicApiRateLimitError: vi.fn(() => ({
-    httpCode: 429,
-    code: "rate_limited",
-    message: "Rate limit exceeded",
-  })),
+  mockCreateUnstablePublicApiRateLimitError: vi.fn(
+    (rateLimitRes: RateLimitResult, options?: { message?: string }) => ({
+      httpCode: 429,
+      code: "rate_limited",
+      message: options?.message ?? "Rate limit exceeded",
+      details: {
+        retryAfterSeconds: Math.ceil(rateLimitRes.msBeforeNext / 1000),
+        limit: rateLimitRes.points,
+        remaining: Math.max(0, rateLimitRes.remainingPoints),
+        resetAt: new Date(Date.now() + rateLimitRes.msBeforeNext).toISOString(),
+      },
+    }),
+  ),
   mockSendUnstablePublicApiErrorResponse: vi.fn((res, error) =>
     res.status(error.httpCode).json({ message: "unstable" }),
   ),
@@ -129,6 +137,13 @@ describe("sendRateLimitResponse", () => {
       resetAt: expect.any(String),
       upgradePath,
     });
+    expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
+      rateLimitResult,
+      {
+        message:
+          "Rate limit exceeded for GET /api/public/traces. Use GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to> for high-volume reads.",
+      },
+    );
   });
 
   it("keeps the unstable error contract when an upgrade path is present", () => {

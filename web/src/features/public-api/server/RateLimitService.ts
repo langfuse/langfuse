@@ -229,22 +229,21 @@ export const sendRateLimitResponse = (
   }
 
   if (responseOptions.upgradePath) {
-    const retryAfterSeconds = Math.ceil(rateLimitRes.msBeforeNext / 1000);
-    const resetAt = new Date(
-      Date.now() + rateLimitRes.msBeforeNext,
-    ).toISOString();
-    const remainingPoints = Math.max(0, rateLimitRes.remainingPoints);
-
-    res.setHeader("X-RateLimit-Remaining", remainingPoints);
-
-    return res.status(429).json({
+    const rateLimitError = createUnstablePublicApiRateLimitError(rateLimitRes, {
       message: getRateLimitUpgradeMessage(responseOptions.upgradePath),
+    });
+    const rateLimitDetails = rateLimitError.details!;
+
+    res.setHeader("X-RateLimit-Remaining", rateLimitDetails.remaining ?? 0);
+
+    return res.status(rateLimitError.httpCode).json({
+      message: rateLimitError.message,
       error: "RateLimitExceeded",
       resource: rateLimitRes.resource,
-      retryAfterSeconds,
-      limit: rateLimitRes.points,
-      remaining: remainingPoints,
-      resetAt,
+      retryAfterSeconds: rateLimitDetails.retryAfterSeconds,
+      limit: rateLimitDetails.limit,
+      remaining: rateLimitDetails.remaining,
+      resetAt: rateLimitDetails.resetAt,
       upgradePath: responseOptions.upgradePath,
     });
   }
