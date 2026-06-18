@@ -224,6 +224,7 @@ export const sendRateLimitResponse = (
   const resetAt = new Date(
     Date.now() + rateLimitRes.msBeforeNext,
   ).toISOString();
+  const remainingPoints = Math.max(0, rateLimitRes.remainingPoints);
 
   return res.status(429).json({
     message:
@@ -233,7 +234,7 @@ export const sendRateLimitResponse = (
     resource: rateLimitRes.resource,
     retryAfterSeconds,
     limit: rateLimitRes.points,
-    remaining: rateLimitRes.remainingPoints,
+    remaining: remainingPoints,
     resetAt,
     ...(responseOptions.upgradePath
       ? { upgradePath: responseOptions.upgradePath }
@@ -242,10 +243,12 @@ export const sendRateLimitResponse = (
 };
 
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
+  const remainingPoints = Math.max(0, res.remainingPoints);
+
   return {
     "Retry-After": Math.ceil(res.msBeforeNext / 1000),
     "X-RateLimit-Limit": res.points,
-    "X-RateLimit-Remaining": res.remainingPoints,
+    "X-RateLimit-Remaining": remainingPoints,
     "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
   };
 };

@@ -46,7 +46,7 @@ import { sendRateLimitResponse } from "@/src/features/public-api/server/RateLimi
 describe("sendRateLimitResponse", () => {
   const rateLimitRes = {
     points: 10,
-    remainingPoints: 0,
+    remainingPoints: -1,
     msBeforeNext: 2500,
     resource: "public-api" as const,
     scope: {
@@ -67,6 +67,7 @@ describe("sendRateLimitResponse", () => {
 
     expect(res.statusCode).toBe(429);
     expect(res.getHeader("Retry-After")).toBe(3);
+    expect(res.getHeader("X-RateLimit-Remaining")).toBe(0);
     expect(res._getJSONData()).toEqual({
       message: "Rate limit exceeded. Please retry after 3 seconds.",
       error: "RateLimitExceeded",
