@@ -190,8 +190,11 @@ export class WorkerManager {
     // maxStalledCount is exhausted. Counting detections lets us measure the
     // re-enqueue rate and the cross-pod job-multiplication factor (LFE-10063).
     worker.on("stalled", (jobId: string) => {
+      // HOST_NAME is the pod running the stall checker (checkStalledJobs),
+      // which may differ from the pod whose lock expired — hence
+      // "detectedOnHost", not the executing host.
       logger.warn(
-        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) on host ${HOST_NAME}`,
+        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${HOST_NAME}`,
       );
       recordIncrement(oldMetric + ".stalled");
       recordIncrement(baseMetric + ".rate", 1, {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // The tracker only needs a logger; stub the heavy shared server barrel.
 vi.mock("@langfuse/shared/src/server", () => ({
@@ -10,6 +10,7 @@ import {
   unregisterInFlightBlobExport,
   getInFlightBlobExportCount,
   logInFlightBlobExportsOnShutdown,
+  resetInFlightBlobExports,
 } from "../features/blobstorage/inFlightExports";
 
 const makeEntry = (table: string) => ({
@@ -22,6 +23,10 @@ const makeEntry = (table: string) => ({
 });
 
 describe("inFlightExports", () => {
+  // The registry is a module-level singleton; drain it before each test so the
+  // suite is order-independent and survives an early assertion failure.
+  beforeEach(() => resetInFlightBlobExports());
+
   it("tracks and clears in-flight exports by handle", () => {
     expect(getInFlightBlobExportCount()).toBe(0);
 

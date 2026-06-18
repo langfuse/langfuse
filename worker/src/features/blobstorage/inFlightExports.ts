@@ -43,6 +43,14 @@ export const unregisterInFlightBlobExport = (handle: symbol): void => {
 export const getInFlightBlobExportCount = (): number => inFlightExports.size;
 
 /**
+ * Test helper — clear the registry so the module-level Map can't leak state
+ * across tests (e.g. when an earlier assertion fails before its cleanup runs).
+ */
+export const resetInFlightBlobExports = (): void => {
+  inFlightExports.clear();
+};
+
+/**
  * Log every blob export still mid-flight. Called on graceful shutdown, before
  * the workers are closed, so SIGTERM-aborted jobs are distinguishable from
  * stall-timeouts in the logs.
