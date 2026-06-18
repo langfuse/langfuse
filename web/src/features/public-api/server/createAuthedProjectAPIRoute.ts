@@ -11,7 +11,10 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { type RateLimitResource } from "@langfuse/shared";
-import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import {
+  RateLimitService,
+  type RateLimitUpgradePath,
+} from "@/src/features/public-api/server/RateLimitService";
 import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
@@ -39,6 +42,8 @@ export type AuthedProjectAPIRouteConfig<
   responseSchema: TResponse;
   successStatusCode?: number;
   rateLimitResource?: z.infer<typeof RateLimitResource>; // defaults to public-api
+  rateLimitExceededMessage?: string;
+  rateLimitUpgradePath?: RateLimitUpgradePath;
   /**
    * Allow authentication via ADMIN_API_KEY for self-hosted instances only.
    * When enabled, the endpoint will accept admin API key authentication in addition to regular API keys.
@@ -364,10 +369,11 @@ export const createAuthedProjectAPIRoute = <
       );
 
     if (rateLimitResponse?.isRateLimited()) {
-      return rateLimitResponse.sendRestResponseIfLimited(
-        res,
-        routeConfig.errorContract,
-      );
+      return rateLimitResponse.sendRestResponseIfLimited(res, {
+        errorContract: routeConfig.errorContract,
+        message: routeConfig.rateLimitExceededMessage,
+        upgradePath: routeConfig.rateLimitUpgradePath,
+      });
     }
 
     logger.debug(

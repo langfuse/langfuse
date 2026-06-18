@@ -94,7 +94,16 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
   });
 
-  async function callRoute(options?: { useUnstableErrorContract?: boolean }) {
+  async function callRoute(options?: {
+    useUnstableErrorContract?: boolean;
+    rateLimitExceededMessage?: string;
+    rateLimitUpgradePath?: {
+      legacyEndpoint: string;
+      replacementEndpoint: string;
+      docsUrl: string;
+      notes?: string[];
+    };
+  }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
       querySchema: z.object({}),
@@ -102,6 +111,8 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       errorContract: options?.useUnstableErrorContract
         ? "unstable-public-evals"
         : undefined,
+      rateLimitExceededMessage: options?.rateLimitExceededMessage,
+      rateLimitUpgradePath: options?.rateLimitUpgradePath,
       fn: async () => ({ ok: true as const }),
     });
 
@@ -161,5 +172,52 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       message: "Service Unavailable",
     });
     expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("passes upgrade guidance to rate limit responses", async () => {
+    const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
+      res.status(429).json({ message: "rate limited" });
+    });
+    const upgradePath = {
+      legacyEndpoint: "GET /api/public/traces",
+      replacementEndpoint:
+        "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
+      docsUrl:
+        "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+      notes: ["Group returned rows by traceId to reconstruct trace activity."],
+    };
+
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      validKey: true,
+      scope: {
+        projectId: "project-1",
+        orgId: "org-1",
+        plan: "cloud:hobby",
+        accessLevel: "project",
+        rateLimitOverrides: [],
+        apiKeyId: "api-key-1",
+        publicKey: "pk-test",
+        isIngestionSuspended: false,
+        isInAppAgentKey: false,
+      },
+    });
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+      sendRestResponseIfLimited,
+    });
+
+    const res = await callRoute({
+      rateLimitExceededMessage:
+        "Rate limit exceeded for this legacy public API endpoint. Use the v2 Observations API for high-volume reads.",
+      rateLimitUpgradePath: upgradePath,
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
+      errorContract: undefined,
+      message:
+        "Rate limit exceeded for this legacy public API endpoint. Use the v2 Observations API for high-volume reads.",
+      upgradePath,
+    });
   });
 });
