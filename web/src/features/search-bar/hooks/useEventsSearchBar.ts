@@ -36,6 +36,20 @@ function sameScopes(a: TracingSearchType[], b: TracingSearchType[]): boolean {
   return a.every((s) => bs.has(s));
 }
 
+/**
+ * The resting draft carries a trailing space when non-empty — the "ready for the
+ * next filter" affordance. Baking it into the DERIVED committed text (and the
+ * value `commit` returns) means it is present from the first paint, so clicking
+ * past the text — or landing after a commit — never has to MUTATE the draft to
+ * insert it. Mutating on click flickered the caret from inside the last pill to
+ * after a freshly-inserted space. It is trimmed on the next commit (planCommit)
+ * and ignored by resetTo's AST compare, so it never reaches the filter state and
+ * never loops.
+ */
+function restingDraft(text: string): string {
+  return text.length === 0 ? text : `${text} `;
+}
+
 /** Column + key identity, so keyed filters (metadata.<k>, scores.<k>) on the
  *  same column don't collide while plain columns dedupe by column alone. */
 function filterIdentity(f: FilterState[number]): string {
@@ -83,7 +97,7 @@ export function useEventsSearchBar({
     () => filterStateToQueryText(filterState, { searchQuery, searchType }),
     [filterState, searchQuery, searchType],
   );
-  const committedText = derived.text;
+  const committedText = restingDraft(derived.text);
   const skippedFiltersRef = useRef(derived.skippedFilters);
   skippedFiltersRef.current = derived.skippedFilters;
 
@@ -149,15 +163,17 @@ export function useEventsSearchBar({
     if (result.canonical.length > 0) {
       recordRecentSearch(projectId, result.canonical);
     }
-    // Return the CANONICAL committed text — exactly what the resetTo effect
-    // re-derives on the next render (same filters + searchQuery/searchType). The
-    // composer appends its trailing-space landing to THIS, not the typed draft,
+    // Return the CANONICAL committed text in its RESTING form (trailing space) —
+    // exactly what the resetTo effect re-derives on the next render (same
+    // filters + searchQuery/searchType). The composer drops the caret after it,
     // so the echo string-compares equal and the space survives even when the
     // commit reorders the query (e.g. `refund level:ERROR` → `level:ERROR refund`).
-    return filterStateToQueryText(committedFilters, {
-      searchQuery: result.searchQuery,
-      searchType: result.searchType,
-    }).text;
+    return restingDraft(
+      filterStateToQueryText(committedFilters, {
+        searchQuery: result.searchQuery,
+        searchType: result.searchType,
+      }).text,
+    );
   }, [store, projectId]);
 
   return { store, commit };

@@ -42,6 +42,7 @@ import {
   useSearchBarStoreApi,
   useSearchBarCommit,
 } from "@/src/features/search-bar/store/SearchBarStoreProvider";
+import { draftsSemanticallyEqual } from "@/src/features/search-bar/store/searchBarStore";
 import { AutocompletePopover } from "@/src/features/search-bar/components/AutocompletePopover";
 import {
   ComposerTokens,
@@ -675,7 +676,8 @@ export function SearchComposer({
       }
       // The container validates, lowers, and writes the filter state; on failure
       // it reveals the invalid draft and returns null. On success it returns the
-      // CANONICAL committed text — the same text the resetTo effect re-derives.
+      // CANONICAL committed text in its RESTING form (trailing space when
+      // non-empty) — the same text the resetTo effect re-derives.
       const committedText = commitToFilterState();
       if (committedText === null) return;
       setHighlightedOptionId(null);
@@ -683,24 +685,33 @@ export function SearchComposer({
       // redo()/the external-draft sync. Otherwise a post-commit keystroke keeps
       // coalescing across the commit, so Cmd+Z jumps past the natural break.
       historyRef.current.coalesce = null;
-      if (advanceToTrailingSpace && caretAtEnd && committedText.length > 0) {
-        // Enter committed at the END of the query: land on a fresh trailing
-        // space OUTSIDE the last block, with field suggestions open — the same
-        // "ready for the next filter" landing as a pick-at-end or ArrowRight-at-
-        // end. Append to the CANONICAL committed text (not the typed draft): the
-        // resetTo echo seeds that exact text, so it string-compares equal and the
-        // space survives even when the commit reorders the query (e.g. free-text-
-        // then-filter `refund level:ERROR` → `level:ERROR refund`). Canonical text
-        // is already trimmed, so one space never doubles. The space is trimmed on
-        // the next commit, so it never reaches the filter state. Mid-query commits
-        // and blur (advanceToTrailingSpace=false) keep the caret put and close.
-        setDraftWithSelection(`${committedText} `, committedText.length + 1);
+      if (advanceToTrailingSpace && caretAtEnd) {
+        // Enter committed at the END of the query: land on the resting trailing
+        // space OUTSIDE the last block, field suggestions open — same as a
+        // pick-at-end / ArrowRight-at-end. Prefer the user's TYPED form (keeps a
+        // typed alias like `env:` instead of expanding it to `environment:`) when
+        // it is semantically identical to the committed text. When the commit
+        // RESTRUCTURED the query (e.g. reordered free text after filters) the
+        // typed form differs, so use the canonical committed text. Either way the
+        // text we set is AST-/string-equal to what resetTo re-derives, so the
+        // echo no-ops and the caret stays at the end. Both already carry the
+        // resting trailing space. Mid-query commits and blur keep the caret put.
+        const typed = storeApi.getState().draft;
+        const typedSpaced = /\s$/.test(typed) ? typed : `${typed} `;
+        const restingText = draftsSemanticallyEqual(
+          typedSpaced,
+          committedText,
+          scoreTypes,
+        )
+          ? typedSpaced
+          : committedText;
+        setDraftWithSelection(restingText, restingText.length);
         setAutocompleteOpen(true);
       } else {
         setAutocompleteOpen(false);
       }
     },
-    [storeApi, commitToFilterState, setDraftWithSelection],
+    [storeApi, commitToFilterState, setDraftWithSelection, scoreTypes],
   );
 
   // Structured edits (autocomplete picks, chip removal) apply immediately, but
