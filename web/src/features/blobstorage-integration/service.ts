@@ -74,6 +74,9 @@ export async function upsertBlobStorageIntegration(params: {
   const canUseHostCredentials =
     isSelfHosted && data.type === BlobStorageIntegrationType.S3;
 
+  const accessKeyId = data.accessKeyId?.trim() || null;
+  const secretAccessKey = data.secretAccessKey?.trim() || null;
+
   if (data.endpoint) {
     try {
       await validateBlobStorageEndpoint(data.endpoint);
@@ -84,7 +87,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
   }
 
-  if (!canUseHostCredentials && !data.accessKeyId) {
+  if (!canUseHostCredentials && !accessKeyId) {
     throw new InvalidRequestError(
       "Access Key ID and Secret Access Key are required",
     );
@@ -100,7 +103,7 @@ export async function upsertBlobStorageIntegration(params: {
     bucketName: data.bucketName,
     endpoint: data.endpoint,
     region: data.region,
-    accessKeyId: data.accessKeyId,
+    accessKeyId,
     prefix: data.prefix,
     exportFrequency: data.exportFrequency,
     enabled: data.enabled,
@@ -122,8 +125,8 @@ export async function upsertBlobStorageIntegration(params: {
     // Require secret key for new integrations (unless using host credentials)
     if (!existing) {
       const isUsingHostCredentials =
-        canUseHostCredentials && (!data.accessKeyId || !data.secretAccessKey);
-      if (!isUsingHostCredentials && !data.secretAccessKey) {
+        canUseHostCredentials && (!accessKeyId || !secretAccessKey);
+      if (!isUsingHostCredentials && !secretAccessKey) {
         throw new InvalidRequestError(
           "Secret access key is required for new configuration",
         );
@@ -131,9 +134,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
-    const encryptedSecret = data.secretAccessKey
-      ? encrypt(data.secretAccessKey)
-      : null;
+    const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
 
     // exportSource for the CREATE payload. The !existing guard was previously
     // here, but it created a residual TOCTOU: READ COMMITTED isolation means

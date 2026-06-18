@@ -101,6 +101,10 @@ import { RunEvaluationDialog } from "@/src/features/batch-actions/components/Run
 import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/components/AddObservationsToDatasetDialog/index";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 export type EventsTableRow = {
   // Identity fields
@@ -405,6 +409,26 @@ export default function ObservationsEventsTable({
     queryFilterOptions,
   );
 
+  // Grammar search bar (per-user Feature Preview opt-in): an ADDITIONAL editor
+  // that coexists with the facet sidebar and the two stay in sync (Datadog model).
+  // The sidebar's FilterState (+ the table's full-text search) remains the
+  // single source of truth — the bar reads from and writes to it. Only the
+  // legacy toolbar search field is replaced (full-text search — bare text and
+  // content:/input:/output: — goes inline in the bar); the sidebar and
+  // time/refresh controls stay.
+  const searchBarFlagEnabled = useSearchBarEnabled();
+  const searchBarMode =
+    searchBarFlagEnabled &&
+    !hideControls &&
+    !externalFilterState &&
+    !peekContext &&
+    // Embedded user/session-detail tables are page-scoped (a userId/sessionId
+    // filter is AND-combined into the query); the bar reads the full FIELDS
+    // registry and would let e.g. `userId:other` fight that scope. Keep it to
+    // full-page surfaces, matching the documented embedded opt-out.
+    !userId &&
+    !sessionId;
+
   // Create ref-based wrapper to avoid stale closure when queryFilter updates
   const queryFilterRef = useRef(queryFilter);
   queryFilterRef.current = queryFilter;
@@ -412,6 +436,25 @@ export default function ObservationsEventsTable({
   const setFiltersWrapper = useCallback(
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
+  );
+
+  const observedOptions = useMemo(
+    () => toObservedOptions(filterOptions, isFilterOptionsPending),
+    [filterOptions, isFilterOptionsPending],
+  );
+
+  const { store: searchBarStore, commit: searchBarCommit } = useEventsSearchBar(
+    {
+      projectId,
+      enabled: searchBarMode,
+      filterState: queryFilter.explicitFilterState,
+      searchQuery,
+      searchType,
+      observed: observedOptions,
+      setFilterState: setFiltersWrapper,
+      setSearchQuery,
+      setSearchType,
+    },
   );
 
   // Disabled for now because perhaps confusing
@@ -450,6 +493,8 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
+  // The sidebar's effective filter state is the single source of truth in both
+  // modes — the search bar syncs into it rather than replacing it.
   const combinedFilterState = queryFilter.effectiveFilterState
     .concat(dateRangeFilter)
     .concat(userIdFilter)
@@ -1417,100 +1462,143 @@ export default function ObservationsEventsTable({
   return (
     <DataTableControlsProvider tableName={eventsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
-        {/* Toolbar spanning full width */}
         {!hideControls && (
-          <DataTableToolbar
-            columns={columns}
-            filterState={queryFilter.explicitFilterState}
-            searchConfig={{
-              metadataSearchFields: ["ID", "Name", "Trace Name", "Model"],
-              updateQuery: setSearchQuery,
-              currentQuery: searchQuery ?? undefined,
-              searchType,
-              setSearchType,
-              tableAllowsFullTextSearch: true,
-            }}
-            viewConfig={{
-              tableName: TableViewPresetTableName.ObservationsEvents,
-              projectId,
-              controllers: viewControllers,
-            }}
-            columnsWithCustomSelect={[
-              "providedModelName",
-              "name",
-              "promptName",
-            ]}
-            columnVisibility={columnVisibility}
-            setColumnVisibility={setColumnVisibilityState}
-            columnOrder={columnOrder}
-            setColumnOrder={setColumnOrder}
-            orderByState={orderByState}
-            rowHeight={rowHeight}
-            setRowHeight={setRowHeight}
-            timeRange={timeRange}
-            setTimeRange={setTimeRange}
-            // Disabled, for now moved to filter sidebar
-            // TODO: remove this toggle once v4 looks good as is
-            // viewModeToggle={
-            //   <EventsViewModeToggle
-            //     viewMode={viewMode}
-            //     onViewModeChange={setViewMode}
-            //   />
-            // }
-            refreshConfig={{
-              onRefresh: handleRefresh,
-              isRefreshing: observations.status === "loading",
-              interval: refreshInterval,
-              setInterval: setRefreshInterval,
-            }}
-            actionButtons={[
-              <BatchExportTableButton
-                {...{
-                  projectId,
-                  filterState,
-                  orderByState,
-                  searchQuery,
-                  searchType,
-                }}
-                tableName={BatchExportTableName.Events}
-                key="batchExport"
-              />,
-              selectedObservationIds.length > 0 || selectAll ? (
-                <TableActionMenu
-                  key="observations-multi-select-actions"
-                  projectId={projectId}
-                  actions={tableActions}
-                  tableName={BatchExportTableName.Observations}
-                  selectedCount={selectedObservationCount}
-                  onClearSelection={() => {
-                    setSelectedRows({});
-                    setSelectAll(false);
-                  }}
-                  onCustomAction={(actionType) => {
-                    if (actionType === ActionId.ObservationBatchEvaluation) {
-                      setShowRunEvaluationDialog(true);
+          <div
+            className={cn(
+              // This is a table-internal sticky band below PageHeader. Using
+              // top-banner-offset here pushes the band down by the viewport
+              // header/banner offset and leaves a large blank gap above it.
+              // pb-1.5 gives the band a bit more breathing room above the table.
+              searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
+            )}
+          >
+            {/* Search bar row: full-width query composer. In bar mode it sticks
+                together with the toolbar below, so the toolbar controls cannot
+                scroll underneath and render half-clipped. Time-range + refresh
+                live in the toolbar row below, next to the filter toggle and
+                views — not in the page header. */}
+            {searchBarMode && (
+              <EventsSearchBarRow
+                projectId={projectId}
+                store={searchBarStore}
+                commit={searchBarCommit}
+                observed={observedOptions}
+              />
+            )}
+            {/* Toolbar spanning full width */}
+            <DataTableToolbar
+              columns={columns}
+              rowClassName={searchBarMode ? "my-1" : undefined}
+              filterState={queryFilter.explicitFilterState}
+              searchConfig={
+                // In search-bar mode full-text search (bare text +
+                // content:/input:/output:) lives inline in the bar, so the
+                // legacy toolbar search field is hidden.
+                searchBarMode
+                  ? undefined
+                  : {
+                      metadataSearchFields: [
+                        "ID",
+                        "Name",
+                        "Trace Name",
+                        "Model",
+                      ],
+                      updateQuery: setSearchQuery,
+                      currentQuery: searchQuery ?? undefined,
+                      searchType,
+                      setSearchType,
+                      tableAllowsFullTextSearch: true,
                     }
-                    if (actionType === ActionId.ObservationAddToDataset) {
-                      setShowAddToDatasetDialog(true);
-                    }
+              }
+              // In bar mode the toolbar search field is hidden, so source the
+              // saved-view search query from the live URL state (the bar writes
+              // free text there) rather than the toolbar's empty local mirror.
+              currentSearchQuery={
+                searchBarMode ? (searchQuery ?? "") : undefined
+              }
+              viewConfig={{
+                tableName: TableViewPresetTableName.ObservationsEvents,
+                projectId,
+                controllers: viewControllers,
+              }}
+              columnsWithCustomSelect={[
+                "providedModelName",
+                "name",
+                "promptName",
+              ]}
+              columnVisibility={columnVisibility}
+              setColumnVisibility={setColumnVisibilityState}
+              columnOrder={columnOrder}
+              setColumnOrder={setColumnOrder}
+              orderByState={orderByState}
+              rowHeight={rowHeight}
+              setRowHeight={setRowHeight}
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
+              // Disabled, for now moved to filter sidebar
+              // TODO: remove this toggle once v4 looks good as is
+              // viewModeToggle={
+              //   <EventsViewModeToggle
+              //     viewMode={viewMode}
+              //     onViewModeChange={setViewMode}
+              //   />
+              // }
+              refreshConfig={{
+                onRefresh: handleRefresh,
+                isRefreshing: observations.status === "loading",
+                interval: refreshInterval,
+                setInterval: setRefreshInterval,
+              }}
+              actionButtons={[
+                <BatchExportTableButton
+                  {...{
+                    projectId,
+                    filterState,
+                    orderByState,
+                    searchQuery,
+                    searchType,
                   }}
-                />
-              ) : null,
-            ]}
-            multiSelect={{
-              selectAll,
-              setSelectAll,
-              selectedRowIds: selectedObservationIds,
-              setRowSelection: setSelectedRows,
-              totalCount,
-              pageSize: paginationState.limit,
-              pageIndex: paginationState.page - 1,
-            }}
-            filterWithAI
-          />
+                  tableName={BatchExportTableName.Events}
+                  key="batchExport"
+                />,
+                selectedObservationIds.length > 0 || selectAll ? (
+                  <TableActionMenu
+                    key="observations-multi-select-actions"
+                    projectId={projectId}
+                    actions={tableActions}
+                    tableName={BatchExportTableName.Observations}
+                    selectedCount={selectedObservationCount}
+                    onClearSelection={() => {
+                      setSelectedRows({});
+                      setSelectAll(false);
+                    }}
+                    onCustomAction={(actionType) => {
+                      if (actionType === ActionId.ObservationBatchEvaluation) {
+                        setShowRunEvaluationDialog(true);
+                      }
+                      if (actionType === ActionId.ObservationAddToDataset) {
+                        setShowAddToDatasetDialog(true);
+                      }
+                    }}
+                  />
+                ) : null,
+              ]}
+              multiSelect={{
+                selectAll,
+                setSelectAll,
+                selectedRowIds: selectedObservationIds,
+                setRowSelection: setSelectedRows,
+                totalCount,
+                pageSize: paginationState.limit,
+                pageIndex: paginationState.page - 1,
+              }}
+              filterWithAI
+            />
+          </div>
         )}
 
-        {/* Content area with sidebar and table */}
+        {/* Content area with sidebar and table. The facet sidebar stays in
+            search-bar mode and syncs bidirectionally with the bar. */}
         <ResizableFilterLayout>
           {!hideControls && (
             <DataTableControls

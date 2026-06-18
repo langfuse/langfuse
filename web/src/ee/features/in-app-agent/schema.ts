@@ -1,3 +1,9 @@
+// This module should contained ag-ui base schemas OR shared schemas,
+// do not add any one-off schemas here.
+// This module is shared by browser and server in-app-agent code. Keep it
+// runtime-neutral: Zod schemas and TypeScript types only, with no React,
+// browser-only, server-only, database, or Mastra imports.
+
 import type { EventType } from "@ag-ui/core";
 import { z } from "zod";
 
@@ -40,6 +46,13 @@ export const InAppAgentMessageFeedbackSchema = z.object({
 export type InAppAgentMessageFeedback = z.infer<
   typeof InAppAgentMessageFeedbackSchema
 >;
+
+// Changes to this schema need to be backwards-compatible as messages with this are already persisted.
+export const InAppAgentRedirectActionToolResultSchema = z.object({
+  type: z.literal("redirectAction"),
+  label: z.string().min(1).max(80),
+  href: z.string().min(1),
+});
 
 const AgUiInputContentSourceSchema = z.discriminatedUnion("type", [
   z.object({
@@ -132,6 +145,40 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
 ]);
 
 export type AgUiMessage = z.infer<typeof AgUiMessageSchema>;
+
+const AbsoluteHttpUrlSchema = z.string().transform((value, ctx) => {
+  let parsedUrl: URL;
+
+  try {
+    parsedUrl = new URL(value);
+  } catch {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL must be absolute",
+    });
+    return z.NEVER;
+  }
+
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    ctx.addIssue({
+      code: "custom",
+      message: "URL protocol must be http or https",
+    });
+    return z.NEVER;
+  }
+
+  return parsedUrl.href;
+});
+
+export const InAppAgentMessageSourceSchema = z.object({
+  title: z.string(),
+  url: AbsoluteHttpUrlSchema,
+  faviconUrl: AbsoluteHttpUrlSchema,
+});
+
+export type InAppAgentMessageSource = z.infer<
+  typeof InAppAgentMessageSourceSchema
+>;
 
 const AgUiToolSchema = z.object({
   name: z.string(),

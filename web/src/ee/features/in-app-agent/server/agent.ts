@@ -5,13 +5,15 @@ import { fromNodeProviderChain } from "@aws-sdk/credential-providers";
 import { Agent } from "@mastra/core/agent";
 import { MCPClient } from "@mastra/mcp";
 
-import type {
-  AgUiEvent,
-  AgUiRunAgentInput,
+import {
+  type AgUiEvent,
+  type AgUiRunAgentInput,
 } from "@/src/ee/features/in-app-agent/schema";
 import type { InAppAgentTracingConfig } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
+import { createRedirectActionTool } from "@/src/ee/features/in-app-agent/server/tools";
 import { logger } from "@langfuse/shared/src/server";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const getAssistantSystemPrompt = (
@@ -27,11 +29,24 @@ If you are not confident in the answer, say that directly instead of guessing.
 Focus on answering the user's questions. Do not comment on your own behavior:
 - Do not comment on tools you are using or will use.
 - Do not comment on the process you are following.
+Do not mention variable names, function names or entity names in normal conversation unless the user specifically asks for them.
+Avoid messages such as "I'll search the Langfuse documentation for information about X." or "Let me search the documentation for you.".
 Always provide a complete answer to the user's question in your response, do not rely on users seeing tool input or output.
 If a tool call fails but you intend on re-trying it, do not mention the failure and just retry the tool call.
 If you cannot provide an answer to the user, spare the user the details of failed tool calls and instead summarize the issue.
 If you think it would be helpful, ask the user for clarification or follow up questions to guide them.
+Be concise, factual, and useful. Unless asked for a detailed explanation, keep your answers short and to the point.
+Use markdown in your responses when appropriate, especially for tables and lists.
+When you answer using Langfuse documentation tool results, answer normally. The product will attach source links automatically.
+When mentioning Langfuse entity IDs from MCP tool results, render them as markdown links.
+Never construct Langfuse URLs yourself, only use URLs included in tool-calls. If no url is available, mention the ID as plain text or fetch the entity with a tool first.
+IMPORTANT: You should minimize output tokens as much as possible while maintaining helpfulness, quality, and accuracy. Only address the specific query or task at hand, avoiding tangential information unless absolutely critical for completing the request. If you can answer in 1-3 sentences or a short paragraph, please do.
+IMPORTANT: You should NOT answer with unnecessary preamble or postamble (such as explaining your code or summarizing your action), unless the user asks you to.
 </behavioral_rules>
+
+<tools>
+Use the docs tools to find relevant general information about Langfuse or best practices.
+</tools>
 
 <permissions>
 Currently, you only have read access to user's project. All your tools enforce this restriction so no need to worry about it.
@@ -40,10 +55,13 @@ If the user asks you to perform an action, you have two options:
 - If the action is available via the CLI, suggest that the user can ask their own agent (Claude, Codex or similar) to perform the action for them using the CLI, for that they should use the Langfuse skill: https://github.com/langfuse/skills. When suggesting this, provide a prompt the user can use as a code block.
 </permissions>
 
-<style_rules>
-Be concise, factual, and useful. Unless asked for a detailed explanation, keep your answers short and to the point.
-Use markdown in your responses when appropriate, especially for tables and lists.
-</style_rules>
+<user_navigation>
+When a relevant Langfuse page would help the user, answer the question normally and call ${IN_APP_AGENT_REDIRECT_TOOL_NAME} to propose opening that page.
+The tool call should be the last thing in your response before ending your turn, and should not be mentioned in the text of your response.
+Use the redirect proposal only for known in-app destinations from the tool schema. Never invent URLs or ask the user to paste links.
+When the user asks for a trace view with specific state, use the typed trace params for time ranges, search, filters, and ordering instead of describing URL query parameters.
+Use a short action label, for example "Open members" or "Open traces".
+</user_navigation>
 
 <world_knowledge>
 The current time is ${new Date().toDateString()}.
@@ -85,6 +103,10 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
+  };
+  redirectAction: {
+    projectId: string;
+    isV4Enabled: boolean;
   };
   langfuseTracing?: InAppAgentTracingConfig;
 };
@@ -537,6 +559,10 @@ async function createMastraAdapter(params: {
     const tools = {
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
       ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
+      [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
+        projectId: params.options.redirectAction.projectId,
+        isV4Enabled: params.options.redirectAction.isV4Enabled,
+      }),
     };
 
     const agent = new Agent({
@@ -553,11 +579,16 @@ async function createMastraAdapter(params: {
       },
     });
 
+    const adapter = new MastraAgent({
+      agent,
+      resourceId: params.input.threadId,
+    });
+    // @ag-ui/mastra@1.0.3 does not understand Mastra's newer streaming
+    // tool-call chunks yet, so translate them locally to avoid warning noise.
+    patchMastraToolCallInputStreaming(adapter);
+
     return {
-      adapter: new MastraAgent({
-        agent,
-        resourceId: params.input.threadId,
-      }),
+      adapter,
       interrupt: () => agent.abortRunStream(params.input.runId),
       cleanup: () => mcpClient.disconnect(),
     };
@@ -583,6 +614,161 @@ function prefixToolsetTools<TTool>(
       tool,
     ]),
   );
+}
+
+type MastraChunkProcessor = {
+  handleChunk: (chunk: unknown) => boolean;
+  flush: () => void;
+};
+
+type MastraStreamCallbacks = {
+  onError: (error: Error) => void;
+};
+
+type PatchableMastraAgent = {
+  createChunkProcessor?: (
+    callbacks: MastraStreamCallbacks,
+  ) => MastraChunkProcessor;
+};
+
+type MastraStreamChunk = {
+  type?: string;
+  payload?: {
+    toolCallId?: string;
+    toolName?: string;
+    argsTextDelta?: string;
+    args?: unknown;
+  };
+};
+
+type StreamingToolCall = {
+  toolCallId: string;
+  toolName: string;
+  argsText: string;
+};
+
+export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
+  const patchableAdapter = adapter as unknown as PatchableMastraAgent;
+  const createChunkProcessor = patchableAdapter.createChunkProcessor;
+
+  if (typeof createChunkProcessor !== "function") {
+    return;
+  }
+
+  patchableAdapter.createChunkProcessor = function patchedCreateChunkProcessor(
+    this: PatchableMastraAgent,
+    callbacks: MastraStreamCallbacks,
+  ) {
+    const processor = createChunkProcessor.call(this, callbacks);
+    const streamingToolCalls = new Map<string, StreamingToolCall>();
+    const synthesizedToolCallIds = new Set<string>();
+
+    const parseStreamingToolCallArgs = (argsText: string): unknown => {
+      try {
+        return JSON.parse(argsText || "{}");
+      } catch {
+        return {};
+      }
+    };
+
+    return {
+      handleChunk(chunk: unknown) {
+        const mastraChunk = chunk as MastraStreamChunk;
+
+        switch (mastraChunk.type) {
+          case "tool-call-input-streaming-start": {
+            const { toolCallId, toolName } = mastraChunk.payload ?? {};
+            if (!toolCallId || !toolName) {
+              callbacks.onError(
+                new Error(
+                  "Malformed tool-call-input-streaming-start: missing toolCallId or toolName in payload",
+                ),
+              );
+              return true;
+            }
+
+            streamingToolCalls.set(toolCallId, {
+              toolCallId,
+              toolName,
+              argsText: "",
+            });
+            return false;
+          }
+          case "tool-call-delta": {
+            const { toolCallId, toolName, argsTextDelta } =
+              mastraChunk.payload ?? {};
+            if (!toolCallId) {
+              callbacks.onError(
+                new Error(
+                  "Malformed tool-call-delta: missing toolCallId in payload",
+                ),
+              );
+              return true;
+            }
+
+            let streamingToolCall = streamingToolCalls.get(toolCallId);
+            if (!streamingToolCall) {
+              if (!toolName) {
+                callbacks.onError(
+                  new Error(
+                    "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
+                  ),
+                );
+                return true;
+              }
+
+              streamingToolCall = { toolCallId, toolName, argsText: "" };
+              streamingToolCalls.set(toolCallId, streamingToolCall);
+            }
+
+            streamingToolCall.argsText += argsTextDelta ?? "";
+            return false;
+          }
+          case "tool-call-input-streaming-end": {
+            const { toolCallId } = mastraChunk.payload ?? {};
+            const streamingToolCall = toolCallId
+              ? streamingToolCalls.get(toolCallId)
+              : undefined;
+            if (streamingToolCall) {
+              synthesizedToolCallIds.add(streamingToolCall.toolCallId);
+              const shouldStop = processor.handleChunk({
+                type: "tool-call",
+                payload: {
+                  toolCallId: streamingToolCall.toolCallId,
+                  toolName: streamingToolCall.toolName,
+                  args: parseStreamingToolCallArgs(streamingToolCall.argsText),
+                },
+              });
+              streamingToolCalls.delete(streamingToolCall.toolCallId);
+              return shouldStop;
+            }
+            return false;
+          }
+          case "tool-call": {
+            const { toolCallId } = mastraChunk.payload ?? {};
+            if (toolCallId && synthesizedToolCallIds.has(toolCallId)) {
+              synthesizedToolCallIds.delete(toolCallId);
+              return false;
+            }
+            break;
+          }
+          case "tool-call-suspended": {
+            const { toolCallId } = mastraChunk.payload ?? {};
+            if (toolCallId) {
+              streamingToolCalls.delete(toolCallId);
+              synthesizedToolCallIds.delete(toolCallId);
+            }
+            break;
+          }
+        }
+
+        return processor.handleChunk(chunk);
+      },
+      flush() {
+        processor.flush();
+      },
+    };
+  };
 }
 
 function normalizeAdapterEvent(

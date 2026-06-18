@@ -1,6 +1,17 @@
 import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
+// Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
+// idSchema cap). Lower to 255 for MinIO on ext4. Affects only new writes —
+// existing objects are read by recorded path, not reconstructed.
+// Shared with worker/src/env.ts to keep validation rules identical.
+export const langfuseS3EventKeyMaxSegmentBytesSchema = z.coerce
+  .number()
+  .int()
+  .min(64)
+  .max(2048)
+  .default(2048);
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
@@ -229,6 +240,8 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_EVENT_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
+    langfuseS3EventKeyMaxSegmentBytesSchema,
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -441,6 +454,21 @@ const EnvSchema = z.object({
   LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
     .enum(["true", "false"])
     .default("false"),
+  // Temporary kill-switch for the observations v2 subquery-IN rewrite
+  // (JOIN-free alternative to the CTE+JOIN split query).
+  LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
+    .enum(["true", "false"])
+    .default("false"),
+  // Run the subquery-IN rewrite as a shadow query alongside the CTE+JOIN
+  // path and emit comparison metrics. Remove after validation.
+  LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.01),
   // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
   // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
   LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z

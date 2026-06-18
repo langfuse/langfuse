@@ -27,6 +27,29 @@ export const AssistantTextWithFeedback = meta.story({
   },
 });
 
+export const AssistantTextWithSources = meta.story({
+  args: {
+    role: "assistant" as const,
+    content: {
+      type: "text" as const,
+      text: "Scores are Langfuse's universal data object for storing evaluation results.",
+      sources: [
+        {
+          title: "Scores",
+          url: "https://langfuse.com/docs/evaluation/scores/overview",
+          faviconUrl: "https://langfuse.com/favicon.ico",
+        },
+        {
+          title: "Scores Data Model",
+          url: "https://langfuse.com/docs/evaluation/scores/data-model",
+          faviconUrl: "https://langfuse.com/favicon.ico",
+        },
+      ],
+    },
+    onSubmitFeedback: fn(),
+  },
+});
+
 export const ShortAssistantTextWithFeedback = meta.story({
   args: {
     role: "assistant",
@@ -69,6 +92,21 @@ export const AssistantTextWithLongFeedbackComment = meta.story({
   },
 });
 
+export const AssistantTextWithRedirectAction = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "I found the members settings page for this project.",
+      redirectAction: {
+        type: "redirectAction",
+        label: "Open members",
+        href: "/project/project-1/settings/members",
+      },
+    },
+  },
+});
+
 export const AssistantMarkdown = meta.story({
   args: {
     role: "assistant",
@@ -82,7 +120,7 @@ export const AssistantMarkdown = meta.story({
         "##### Heading 5",
         "###### Heading 6",
         "",
-        "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, and metadata across releases.",
+        "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, `metadata` and `scores` across releases.",
         "",
         "- Inspect traces with nested observations",
         "- Evaluate outputs with scores",
@@ -186,6 +224,28 @@ export const SingleToolCallGroup = meta.story({
           }),
         },
       ],
+    },
+  },
+});
+
+export const RedirectAction = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "redirectAction",
+      label: "Open members",
+      href: "/project/project-1/settings/members",
+    },
+  },
+});
+
+export const RedirectActionWithParams = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "redirectAction",
+      label: "Open error traces",
+      href: "/project/project-1/traces?dateRange=1d&search=checkout&searchType=content&filter=level%3BstringOptions%3B%3Bany+of%3BERROR",
     },
   },
 });

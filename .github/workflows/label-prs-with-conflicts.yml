@@ -1,0 +1,80 @@
+name: Label PRs with conflicts
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  push:
+    branches: [main]
+
+permissions:
+  pull-requests: read
+  issues: write
+
+jobs:
+  label-prs-with-conflicts:
+    runs-on: ubuntu-latest
+    # Only run pull_request events for same-repo PRs to avoid permission issues with forks.
+    # Fork PRs are intentionally not labeled by this workflow.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Check mergeability and update label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          LABEL_NAME: has-conflicts
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+
+          update_label_if_needed() {
+            local pr_number="$1"
+            local remove_stale_label="${2:-false}"
+
+            mergeable=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.mergeable')
+            for delay in 3 6 12 24; do
+              if [ "${mergeable}" != "null" ]; then
+                break
+              fi
+
+              sleep "${delay}"
+              mergeable=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.mergeable')
+            done
+
+            echo "PR #${pr_number}: mergeable=${mergeable}"
+
+            if [ "${mergeable}" = "null" ]; then
+              echo "::warning::PR #${pr_number}: mergeability was not computed after retries"
+              return 1
+            fi
+
+            if [ "${mergeable}" = "false" ]; then
+              gh api \
+                --method POST \
+                "repos/${REPO}/issues/${pr_number}/labels" \
+                -f "labels[]=${LABEL_NAME}"
+            elif [ "${mergeable}" = "true" ] && [ "${remove_stale_label}" = "true" ]; then
+              gh api \
+                --method DELETE \
+                "repos/${REPO}/issues/${pr_number}/labels/${LABEL_NAME}" \
+                --silent || true
+            fi
+          }
+
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            update_label_if_needed "${PR_NUMBER}" true
+          else
+            sleep 10
+            cutoff_date=$(date -u -d "14 days ago" +%F)
+            # On main pushes, only scan same-repo PRs that are not already labeled.
+            # Stale has-conflicts labels are intentionally removed only on PR updates.
+            gh api --paginate "search/issues?q=repo:${REPO}+is:pr+is:open+-label:${LABEL_NAME}+updated:>=${cutoff_date}&per_page=100" --jq '.items[].number' \
+              | while read -r pr; do
+                  head_repo=$(gh api "repos/${REPO}/pulls/${pr}" --jq '.head.repo.full_name') || continue
+                  if [ "${head_repo}" != "${REPO}" ]; then
+                    continue
+                  fi
+                  update_label_if_needed "${pr}" || true
+                done
+          fi
