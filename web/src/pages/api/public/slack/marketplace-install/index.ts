@@ -36,11 +36,7 @@ export default withMiddlewares({
       return;
     }
 
-    let redirectUri = `${env.NEXTAUTH_URL}/api/public/slack/oauth`;
-    // hack because nextjs dev server support for https is experimental
-    if (env.NODE_ENV === "development") {
-      redirectUri = redirectUri.replace("http://", "https://");
-    }
+    const redirectUri = `${env.NEXTAUTH_URL}/api/public/slack/oauth`;
 
     logger.info("Slack marketplace install initiated");
     // handleInstallPath sets the OAuth state cookie that handleCallback

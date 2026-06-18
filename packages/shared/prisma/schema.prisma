@@ -1778,11 +1778,10 @@ model SlackIntegration {
   botToken  String @map("bot_token") // Encrypted bot token for API calls
   botUserId String @map("bot_user_id") // Bot user ID for workspace
 
-  // Pending-only fields (NULL once linked). Slack user who installed the app and
-  // the time after which an unlinked pending install is purged.
-  installingSlackUserId String?   @map("installing_slack_user_id")
-  expiresAt             DateTime? @map("expires_at")
-  claimTokenHash        String?   @map("claim_token_hash")
+  // Pending-only fields (NULL once linked): when an unlinked pending install is
+  // purged, and the hashed one-time claim token required to link it.
+  expiresAt      DateTime? @map("expires_at")
+  claimTokenHash String?   @map("claim_token_hash")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")

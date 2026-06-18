@@ -5,7 +5,6 @@
 ALTER TABLE "slack_integrations" ALTER COLUMN "project_id" DROP NOT NULL;
 
 -- Pending-only columns (NULL once the install is linked to a project).
-ALTER TABLE "slack_integrations" ADD COLUMN "installing_slack_user_id" TEXT;
 ALTER TABLE "slack_integrations" ADD COLUMN "expires_at" TIMESTAMP(3);
 
 -- One-time claim token hash: the raw token is carried only by the onboarding

@@ -167,7 +167,6 @@ function projectInstallationFields(params: {
     teamName: params.teamName,
     botToken: params.encryptedBotToken,
     botUserId: params.botUserId,
-    installingSlackUserId: null,
     expiresAt: null,
     claimTokenHash: null,
   };
@@ -251,7 +250,6 @@ export class SlackService {
                     teamName,
                     botToken: encrypt(botToken),
                     botUserId,
-                    installingSlackUserId: installation.user?.id,
                     expiresAt: new Date(
                       Date.now() + SLACK_PENDING_INSTALL_TTL_MS,
                     ),

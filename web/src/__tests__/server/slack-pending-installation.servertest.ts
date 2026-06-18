@@ -93,7 +93,6 @@ describe("SlackService pending installations", () => {
     });
     expect(row?.teamId).toBe(teamId);
     expect(row?.expiresAt).toBeNull();
-    expect(row?.installingSlackUserId).toBeNull();
     expect(row?.claimTokenHash).toBeNull();
     // pending rows for the workspace are consumed
     expect(
