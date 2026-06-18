@@ -50,4 +50,26 @@ export const legacyPublicApiRateLimitUpgradePaths = {
       boundedWindowNote,
     ],
   },
+  sessionsList: {
+    legacyEndpoint: "GET /api/public/sessions",
+    replacementEndpoint:
+      "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
+    docsUrl: OBSERVATIONS_API_V2_DOCS_URL,
+    notes: [
+      "Group returned rows by sessionId to reconstruct session activity.",
+      "Request fields=core,basic,trace_context when you need session, trace, and tag context.",
+      boundedWindowNote,
+    ],
+  },
+  sessionGet: {
+    legacyEndpoint: "GET /api/public/sessions/{sessionId}",
+    replacementEndpoint:
+      "GET /api/public/v2/observations?filter=<urlencoded sessionId filter>&fromStartTime=<from>&toStartTime=<to>",
+    docsUrl: OBSERVATIONS_API_V2_DOCS_URL,
+    notes: [
+      "Use a URL-encoded filter condition on the sessionId column for single-session lookups.",
+      "The v2 Observations API returns observation rows, not a full session object.",
+      boundedWindowNote,
+    ],
+  },
 } satisfies Record<string, RateLimitUpgradePath>;
