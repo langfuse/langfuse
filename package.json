@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.190.0",
+  "version": "3.192.0",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -37,6 +37,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
+    "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "release:cloud": "bash ./scripts/release-cloud.sh",
