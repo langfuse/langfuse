@@ -26,17 +26,22 @@ export const WORD_JOINER = "⁠";
 // Token spans must stay NON-positioned: `position: relative` would promote the
 // span's background above the editable root's in-flow paint phase (where
 // Chromium draws the text caret), hiding the caret inside the token.
+//
+// Keep the vertical padding small (py-0.5, not py-1): WebKit/Safari sizes the
+// text caret to the inline box of the pill it sits in/next to, so taller pills
+// produce a caret that towers over the text. py-0.5 keeps the chip readable
+// while holding the Safari caret close to the text height.
 export const composerTokenVariants = cva("max-w-full", {
   variants: {
     kind: {
       filter:
-        "mr-1 inline rounded border px-1.5 py-1 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
+        "mr-1 inline rounded border px-1.5 py-0.5 border-border bg-secondary text-secondary-foreground shadow-sm transition-colors hover:border-ring hover:bg-accent",
       freeText:
-        "mr-1 inline rounded border px-1.5 py-1 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
+        "mr-1 inline rounded border px-1.5 py-0.5 border-transparent bg-muted/70 text-foreground/90 transition-colors hover:border-border hover:bg-accent",
       operator: "font-semibold uppercase text-qlang-keyword",
       paren: "text-muted-foreground",
       invalid:
-        "mr-1 inline rounded border border-dashed px-1.5 py-1 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
+        "mr-1 inline rounded border border-dashed px-1.5 py-0.5 border-destructive/70 bg-destructive/10 text-destructive transition-colors hover:border-destructive",
     },
   },
   defaultVariants: { kind: "freeText" },
@@ -139,10 +144,14 @@ export function ComposerTokens({
         ) : (
           segment.raw
         )}
+        {/* Word-joiner INSIDE the pill. The caret at the token's trailing edge
+            lands on this joiner, which sits BEFORE the pill's right padding — so
+            WebKit/Safari paints the caret inside the pill at the glyph instead
+            of past the chrome. A sibling joiner (outside the span) made Safari
+            paint the caret past the padding + margin (the "caret renders outside
+            the block" bug). */}
+        {WORD_JOINER}
       </span>,
-    );
-    out.push(
-      <React.Fragment key={`wj:${segment.id}`}>{WORD_JOINER}</React.Fragment>,
     );
     cursor = segment.to;
   }
