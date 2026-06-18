@@ -17,7 +17,7 @@ export function EventsSearchBarRow({
 }: {
   projectId: string;
   store: SearchBarStore;
-  commit: () => boolean;
+  commit: () => string | null;
   observed: ObservedOptions | undefined;
 }) {
   return (

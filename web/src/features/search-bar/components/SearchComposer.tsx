@@ -42,6 +42,7 @@ import {
   useSearchBarStoreApi,
   useSearchBarCommit,
 } from "@/src/features/search-bar/store/SearchBarStoreProvider";
+import { draftsSemanticallyEqual } from "@/src/features/search-bar/store/searchBarStore";
 import { AutocompletePopover } from "@/src/features/search-bar/components/AutocompletePopover";
 import {
   ComposerTokens,
@@ -59,7 +60,8 @@ const LISTBOX_ID = "search-bar-listbox";
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
 // Stable empty recents reference so the plan memo doesn't churn when recents
-// are intentionally suppressed (popover closed or append mode).
+// are intentionally suppressed (popover closed, or a non-empty draft — recents
+// show only on an empty bar; see the recents memo).
 const NO_RECENTS: string[] = [];
 
 // Surrogate-pair guards: a non-BMP codepoint (emoji, supplementary CJK) is two
@@ -301,7 +303,6 @@ export function SearchComposer({
   );
 
   const [autocompleteOpen, setAutocompleteOpen] = React.useState(false);
-  const [appendIntent, setAppendIntent] = React.useState(false);
   const [highlightedOptionId, setHighlightedOptionId] = React.useState<
     string | null
   >(null);
@@ -328,23 +329,26 @@ export function SearchComposer({
     [observed],
   );
 
-  // Read recents only while the popover is open (avoids a synchronous
-  // localStorage read on every keystroke/selection render), and not in append
-  // mode — a recent is a complete query, not a token to append, so showing
-  // them there would let a pick silently replace the in-progress draft.
+  // Recents are a COMPLETE saved query: picking one REPLACES the whole draft
+  // (pickOption's recent branch). Only offer them on a truly empty bar, where
+  // there's nothing to clobber — NOT at a trailing-space landing after the user
+  // has built up filters, where a stray pick would silently wipe them. Gating
+  // on an empty draft also keeps the synchronous localStorage read off the
+  // keystroke path (a non-empty draft returns the stable NO_RECENTS reference,
+  // so the plan memo doesn't churn).
   const recents = React.useMemo(
     () =>
-      autocompleteOpen && !appendIntent
+      autocompleteOpen && draft.trim().length === 0
         ? getRecentSearches(projectId)
         : NO_RECENTS,
-    [autocompleteOpen, appendIntent, projectId],
+    [autocompleteOpen, draft, projectId],
   );
 
   const plan: CompletionPlan | null =
     autocompleteOpen && selectionCollapsed
       ? planInputCompletions({
-          input: appendIntent ? "" : draft,
-          caret: appendIntent ? 0 : Math.min(caret, draft.length),
+          input: draft,
+          caret: Math.min(caret, draft.length),
           observed,
           recents,
           currentQueryText: draft,
@@ -519,15 +523,11 @@ export function SearchComposer({
       setSelectionSnapshot((prev) =>
         prev.start === next.start && prev.end === next.end ? prev : next,
       );
-      // Moving the caret away from the end abandons "new entry" intent.
-      if (next.start !== next.end || next.end !== draftRef.current.length) {
-        setAppendIntent(false);
-      }
     };
     document.addEventListener("selectionchange", onSelectionChange);
     return () =>
       document.removeEventListener("selectionchange", onSelectionChange);
-  }, [draftRef]);
+  }, []);
 
   // Safety net for mutations that bypass beforeinput (IME composition,
   // browser quirks): re-read the DOM and reproject. Skipped mid-composition
@@ -550,43 +550,24 @@ export function SearchComposer({
       const from = Math.min(offsets.start, offsets.end);
       const to = Math.max(offsets.start, offsets.end);
       const current = draftRef.current;
-      const shouldAppend =
-        appendIntent &&
-        insert.length > 0 &&
-        from === to &&
-        from === current.length;
-      const prefix =
-        shouldAppend &&
-        current.trim().length > 0 &&
-        !/\s$/.test(current) &&
-        !/^\s/.test(insert)
-          ? " "
-          : "";
-      const next = replaceRange(current, from, to, prefix + insert);
-      // Append intent is one-shot: any edit consumes it.
-      setAppendIntent(false);
+      const next = replaceRange(current, from, to, insert);
       // Plain single-character typing at a collapsed caret coalesces into one
       // undo step; spaces and replacements start a fresh step.
-      const coalesce =
-        insert.length === 1 &&
-        !/\s/.test(insert) &&
-        prefix === "" &&
-        from === to;
+      const coalesce = insert.length === 1 && !/\s/.test(insert) && from === to;
       setDraftWithSelection(
         next,
-        from + prefix.length + insert.length,
+        from + insert.length,
         undefined,
         coalesce ? "coalesce" : "push",
       );
       openAutocompleteAfterEdit();
     },
-    [appendIntent, draftRef, openAutocompleteAfterEdit, setDraftWithSelection],
+    [draftRef, openAutocompleteAfterEdit, setDraftWithSelection],
   );
 
   const applyTextDeletion = React.useCallback(
     (range: { from: number; to: number }) => {
       if (range.from === range.to) return;
-      setAppendIntent(false);
       setDraftWithSelection(
         replaceRange(draftRef.current, range.from, range.to, ""),
         range.from,
@@ -678,30 +659,66 @@ export function SearchComposer({
     return () => root.removeEventListener("beforeinput", onBeforeInput);
   }, [applyTextDeletion, applyTextInsert, draftRef, redoRef, undoRef]);
 
-  const commit = React.useCallback(() => {
-    const root = rootRef.current;
-    const actions = storeApi.getState().actions;
-    // Sync any DOM-only edit (IME, browser quirk) into the store before
-    // committing. Compare against the live store draft, not a render snapshot,
-    // and rely on zustand's synchronous set so the commit reads the new value.
-    if (root !== null) {
-      const text = textFromRoot(root);
-      if (text !== storeApi.getState().draft) actions.setDraft(text);
-    }
-    // The container validates, lowers, and writes the filter state; on failure
-    // it reveals the invalid draft. A successful commit re-derives the
-    // committed text and the resetTo effect canonicalizes the draft.
-    const ok = commitToFilterState();
-    if (ok) {
-      setAppendIntent(false);
-      setAutocompleteOpen(false);
+  const commit = React.useCallback(
+    (advanceToTrailingSpace = false) => {
+      const root = rootRef.current;
+      const actions = storeApi.getState().actions;
+      // Sync any DOM-only edit (IME, browser quirk) into the store before
+      // committing. Compare against the live store draft, not a render snapshot,
+      // and rely on zustand's synchronous set so the commit reads the new value.
+      let caretAtEnd = false;
+      if (root !== null) {
+        const text = textFromRoot(root);
+        const sel = selectionOffsets(root);
+        caretAtEnd =
+          sel.start === sel.end && sel.end === text.length && text.length > 0;
+        if (text !== storeApi.getState().draft) actions.setDraft(text);
+      }
+      // The container validates, lowers, and writes the filter state; on failure
+      // it reveals the invalid draft and returns null. On success it returns the
+      // CANONICAL committed text in its RESTING form (trailing space when
+      // non-empty) — the same text the resetTo effect re-derives.
+      const committedText = commitToFilterState();
+      if (committedText === null) return;
       setHighlightedOptionId(null);
       // Close the undo-coalesce window at the commit boundary, mirroring undo()/
       // redo()/the external-draft sync. Otherwise a post-commit keystroke keeps
       // coalescing across the commit, so Cmd+Z jumps past the natural break.
       historyRef.current.coalesce = null;
-    }
-  }, [storeApi, commitToFilterState]);
+      if (advanceToTrailingSpace && caretAtEnd) {
+        // Enter committed at the END of the query: land on the resting trailing
+        // space OUTSIDE the last block, field suggestions open — same as a
+        // pick-at-end / ArrowRight-at-end. Prefer the user's TYPED form (keeps a
+        // typed alias like `env:` instead of expanding it to `environment:`) when
+        // it is semantically identical to the committed text. When the commit
+        // RESTRUCTURED the query (e.g. reordered free text after filters) the
+        // typed form differs, so use the canonical committed text. Either way the
+        // text we set is AST-/string-equal to what resetTo re-derives, so the
+        // echo no-ops and the caret stays at the end. Both already carry the
+        // resting trailing space. Mid-query commits and blur keep the caret put.
+        const typed = storeApi.getState().draft;
+        const typedSpaced = /\s$/.test(typed) ? typed : `${typed} `;
+        const restingText = draftsSemanticallyEqual(
+          typedSpaced,
+          committedText,
+          scoreTypes,
+        )
+          ? typedSpaced
+          : committedText;
+        // Skip the write when the draft is already the resting text (e.g. Enter
+        // on a query that already ends in a space) — otherwise it pushes a no-op
+        // undo entry and the first Cmd+Z does nothing. Mirrors the no-op guards
+        // in the ArrowRight-at-end and click-past-end handlers.
+        if (restingText !== typed) {
+          setDraftWithSelection(restingText, restingText.length);
+        }
+        setAutocompleteOpen(true);
+      } else {
+        setAutocompleteOpen(false);
+      }
+    },
+    [storeApi, commitToFilterState, setDraftWithSelection, scoreTypes],
+  );
 
   // Structured edits (autocomplete picks, chip removal) apply immediately, but
   // a pick can leave the draft mid-completion (e.g. "level:" after a field
@@ -718,7 +735,13 @@ export function SearchComposer({
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
       if (option.kind === "recent") {
-        setDraftWithSelection(option.query, option.query.length);
+        // Land in the RESTING (trailing-space) form like every other commit
+        // landing, so a later click past the text doesn't have to mutate the
+        // draft (= the caret flicker this PR removed). A recent is stored
+        // canonical/trimmed, so one space never doubles.
+        const resting =
+          option.query.length === 0 ? option.query : `${option.query} `;
+        setDraftWithSelection(resting, resting.length);
         // A recent is a COMPLETE query the user explicitly picked, so it gets
         // the same Enter/blur reveal semantics: commit if valid, otherwise
         // reveal the red invalid state instead of silently no-op'ing (e.g. a
@@ -726,7 +749,6 @@ export function SearchComposer({
         const state = storeApi.getState();
         if (state.draftValid) commitToFilterState();
         else state.actions.revealInvalid();
-        setAppendIntent(false);
         setAutocompleteOpen(false);
         return;
       }
@@ -751,27 +773,8 @@ export function SearchComposer({
         // bare prefix would splice in front of it (`meta:foo` -> broken
         // `metadata.:foo`). Consume the whole term so the user re-picks the key
         // from observed options instead.
-        if (!appendIntent && option.fieldId.endsWith(".") && colonFollows) {
+        if (option.fieldId.endsWith(".") && colonFollows) {
           replaceTo = termAt(current, currentPlan.from)?.to ?? currentPlan.to;
-        }
-        // Re-picking the same field that's already the last token: collapse to
-        // a no-op instead of double-appending (`… level:` + pick `level` would
-        // give `… level: level:`). The matched suffix must sit at a TOKEN
-        // boundary (start-of-draft or after whitespace) — a bare `endsWith`
-        // false-fires when the field name is a raw suffix of a longer key
-        // (`metadata.level:` + pick `level`), silently discarding the pick.
-        const trimmed = current.trimEnd();
-        if (
-          appendIntent &&
-          trimmed.endsWith(insert) &&
-          (trimmed.length === insert.length ||
-            /\s/.test(trimmed[trimmed.length - insert.length - 1] ?? " "))
-        ) {
-          setDraftWithSelection(current, trimmed.length);
-          setAppendIntent(false);
-          setAutocompleteOpen(true);
-          setHighlightedOptionId(null);
-          return;
         }
       } else if (option.kind === "value") {
         insert = serializeValue(option.value);
@@ -800,9 +803,7 @@ export function SearchComposer({
       // for the next filter, instead of leaving the caret inside the pill where
       // typing would edit what was just picked. Picks that invite more input (a
       // bare `field:` key, a `metadata.` prefix, an open `tags:(` group), grouped
-      // value entry, and mid-query edits (non-whitespace follows) stay put. This
-      // reuses the space-ending-insert path rather than the deferred appendIntent
-      // that rendered the caret inside the pill with no space.
+      // value entry, and mid-query edits (non-whitespace follows) stay put.
       const grouped = currentPlan.keepOpenOnPick ?? false;
       const invitesMoreInput =
         option.kind === "field" || // a `field:` key always needs a value next
@@ -816,22 +817,13 @@ export function SearchComposer({
       if (completesFilterAtEnd) {
         insert += " ";
         // Consume any existing trailing whitespace so the space never doubles.
-        if (!appendIntent) replaceTo = current.length;
+        replaceTo = current.length;
         keepOpen = true;
       }
 
-      const prefix =
-        appendIntent && current.trim().length > 0 && !/\s$/.test(current)
-          ? " "
-          : "";
-      const next = appendIntent
-        ? `${current}${prefix}${insert}`
-        : replaceRange(current, replaceFrom, replaceTo, insert);
-      const caretAt = appendIntent
-        ? current.length + prefix.length + insert.length
-        : replaceFrom + insert.length;
+      const next = replaceRange(current, replaceFrom, replaceTo, insert);
+      const caretAt = replaceFrom + insert.length;
       setDraftWithSelection(next, caretAt);
-      setAppendIntent(false);
       setAutocompleteOpen(keepOpen);
       setHighlightedOptionId(null);
       // Apply when the pick produced a valid query; a partial draft (e.g. a
@@ -844,7 +836,6 @@ export function SearchComposer({
       }
     },
     [
-      appendIntent,
       draftRef,
       planRef,
       setDraftWithSelection,
@@ -860,7 +851,6 @@ export function SearchComposer({
       storeApi.getState().actions.removeChipSpan(segment.from, segment.to);
       commitStructuredEdit();
       setHoveredTokenId(null);
-      setAppendIntent(false);
       setAutocompleteOpen(false);
       setHighlightedOptionId(null);
     },
@@ -931,16 +921,14 @@ export function SearchComposer({
       } else {
         setSelectionRange(root, target, target);
       }
-      setAppendIntent(false);
       return;
     }
 
     // ArrowRight at the very end of the query inserts a trailing space to start
-    // a NEW token — matching the muscle-memory of typing a space at the end.
-    // (The old behavior set appendIntent and nudged the caret past the trailing
-    // joiner, which read as a dead keypress.) Skip when
-    // the draft already ends in whitespace so a repeat press doesn't pile up
-    // spaces. The trailing space is trimmed on commit.
+    // a NEW token — matching the muscle-memory of typing a space at the end, and
+    // the same fresh-token landing as a click past the end or a pick-at-end.
+    // Skip when the draft already ends in whitespace so a repeat press doesn't
+    // pile up spaces. The trailing space is trimmed on commit.
     if (
       event.key === "ArrowRight" &&
       !event.shiftKey &&
@@ -955,7 +943,6 @@ export function SearchComposer({
       event.preventDefault();
       const next = `${draft} `;
       setDraftWithSelection(next, next.length);
-      setAppendIntent(false);
       setAutocompleteOpen(true);
       setHighlightedOptionId(null);
       return;
@@ -1006,7 +993,6 @@ export function SearchComposer({
       if (target === end) return; // at an edge — native no-op
       event.preventDefault();
       setSelectionRange(root, target, target);
-      setAppendIntent(false);
       return;
     }
 
@@ -1023,14 +1009,16 @@ export function SearchComposer({
         pickOption(option);
         return;
       }
-      commit();
+      // No suggestion to take: commit the query. When the caret is at the end,
+      // land on a fresh trailing space so the next filter starts outside the
+      // last block (matches a pick-at-end / ArrowRight-at-end).
+      commit(true);
       return;
     }
 
     if (event.key === "Escape") {
       if (autocompleteOpen) {
         event.preventDefault();
-        setAppendIntent(false);
         setAutocompleteOpen(false);
       }
       return;
@@ -1123,7 +1111,6 @@ export function SearchComposer({
   const onBlur = () => {
     setEditorFocused(false);
     commit();
-    setAppendIntent(false);
     setAutocompleteOpen(false);
   };
 
@@ -1138,15 +1125,27 @@ export function SearchComposer({
     if (root === null) return;
     const { start, end } = selectionOffsets(root);
     if (start !== end) return; // drag selection — selection is for editing, not suggesting
-    const append =
+    const pastEnd =
       draft.length > 0 && isPastTextEnd(root, event.clientX, event.clientY);
-    if (append && end !== draft.length) {
-      // The browser put the caret on the nearest character of a wrapped line;
-      // a past-end click still means append at the very end.
-      setSelectionRange(root, draft.length, draft.length);
-      setSelectionSnapshot({ start: draft.length, end: draft.length });
+    if (pastEnd) {
+      // A click in the empty space past the text means "start a new entry":
+      // land on a trailing space OUTSIDE the last block (adding one if the query
+      // doesn't already end in whitespace), with field suggestions open — the
+      // same fresh-token landing as ArrowRight-at-end and a pick-at-end. Without
+      // the physical space the browser drops the caret inside the last pill, so
+      // typing would edit what's there. The space is trimmed on commit.
+      if (/\s$/.test(draft)) {
+        setSelectionRange(root, draft.length, draft.length);
+        setSelectionSnapshot({ start: draft.length, end: draft.length });
+      } else {
+        const next = `${draft} `;
+        setDraftWithSelection(next, next.length);
+      }
+      setAutocompleteOpen(true);
+      setHighlightedOptionId(null);
+      return;
     }
-    if (!append && end < draft.length && /\s/.test(draft[end] ?? "")) {
+    if (end < draft.length && /\s/.test(draft[end] ?? "")) {
       // Additive gap affordance: a click in the whitespace BETWEEN tokens
       // (geometrically past the previous token's right edge, not on the token
       // or its padding) nudges the collapsed caret across the whitespace run,
@@ -1176,7 +1175,6 @@ export function SearchComposer({
         setSelectionSnapshot({ start: next, end: next });
       }
     }
-    setAppendIntent(append);
     setAutocompleteOpen(true);
     setHighlightedOptionId(null);
   };
