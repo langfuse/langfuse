@@ -66,9 +66,6 @@ import { createSupportEmailHash } from "@/src/features/support-chat/createSuppor
 import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 
-const asNextAuthProvider = (provider: unknown): Provider =>
-  provider as Provider;
-
 const staticProviders: Provider[] = [
   CredentialsProvider({
     name: "credentials",
@@ -166,29 +163,27 @@ if (
   env.AUTH_CUSTOM_NAME // name required by front-end, ignored here
 )
   staticProviders.push(
-    asNextAuthProvider(
-      CustomSSOProvider({
-        clientId: env.AUTH_CUSTOM_CLIENT_ID,
-        clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
-        issuer: env.AUTH_CUSTOM_ISSUER,
-        idToken: env.AUTH_CUSTOM_ID_TOKEN === "true",
-        allowDangerousEmailAccountLinking:
-          env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
-        authorization: {
-          params: { scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile" },
-        },
-        client: {
-          token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
-          ...(env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG
-            ? {
-                id_token_signed_response_alg:
-                  env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
-              }
-            : {}),
-        },
-        ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
-      }),
-    ),
+    CustomSSOProvider({
+      clientId: env.AUTH_CUSTOM_CLIENT_ID,
+      clientSecret: env.AUTH_CUSTOM_CLIENT_SECRET,
+      issuer: env.AUTH_CUSTOM_ISSUER,
+      idToken: env.AUTH_CUSTOM_ID_TOKEN === "true",
+      allowDangerousEmailAccountLinking:
+        env.AUTH_CUSTOM_ALLOW_ACCOUNT_LINKING === "true",
+      authorization: {
+        params: { scope: env.AUTH_CUSTOM_SCOPE ?? "openid email profile" },
+      },
+      client: {
+        token_endpoint_auth_method: env.AUTH_CUSTOM_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_CUSTOM_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
+          : {}),
+      },
+      ...(env.AUTH_CUSTOM_CHECKS ? { checks: env.AUTH_CUSTOM_CHECKS } : {}),
+    }),
   );
 
 if (env.AUTH_GOOGLE_CLIENT_ID && env.AUTH_GOOGLE_CLIENT_SECRET)
@@ -380,22 +375,20 @@ if (
 
 if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
   staticProviders.push(
-    asNextAuthProvider(
-      GitHubProvider({
-        clientId: env.AUTH_GITHUB_CLIENT_ID,
-        clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
-        // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
-        // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
-        // when github starts providing userinfo
-        issuer: "https://github.com/login/oauth",
-        allowDangerousEmailAccountLinking:
-          env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
-        client: {
-          token_endpoint_auth_method: env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
-        },
-        ...(env.AUTH_GITHUB_CHECKS ? { checks: env.AUTH_GITHUB_CHECKS } : {}),
-      }),
-    ),
+    GitHubProvider({
+      clientId: env.AUTH_GITHUB_CLIENT_ID,
+      clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+      // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
+      // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
+      // when github starts providing userinfo
+      issuer: "https://github.com/login/oauth",
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method: env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_GITHUB_CHECKS ? { checks: env.AUTH_GITHUB_CHECKS } : {}),
+    }),
   );
 
 if (
@@ -404,24 +397,21 @@ if (
   env.AUTH_GITHUB_ENTERPRISE_BASE_URL
 ) {
   staticProviders.push(
-    asNextAuthProvider(
-      GitHubEnterpriseProvider({
-        clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
-        clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
-        enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
-        issuer: new URL("/login/oauth", env.AUTH_GITHUB_ENTERPRISE_BASE_URL)
-          .href,
-        allowDangerousEmailAccountLinking:
-          env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
-        client: {
-          token_endpoint_auth_method:
-            env.AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD,
-        },
-        ...(env.AUTH_GITHUB_ENTERPRISE_CHECKS
-          ? { checks: env.AUTH_GITHUB_ENTERPRISE_CHECKS }
-          : {}),
-      }),
-    ),
+    GitHubEnterpriseProvider({
+      clientId: env.AUTH_GITHUB_ENTERPRISE_CLIENT_ID,
+      clientSecret: env.AUTH_GITHUB_ENTERPRISE_CLIENT_SECRET,
+      enterprise: { baseUrl: env.AUTH_GITHUB_ENTERPRISE_BASE_URL },
+      issuer: new URL("/login/oauth", env.AUTH_GITHUB_ENTERPRISE_BASE_URL).href,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_GITHUB_ENTERPRISE_ALLOW_ACCOUNT_LINKING === "true",
+      client: {
+        token_endpoint_auth_method:
+          env.AUTH_GITHUB_ENTERPRISE_CLIENT_AUTH_METHOD,
+      },
+      ...(env.AUTH_GITHUB_ENTERPRISE_CHECKS
+        ? { checks: env.AUTH_GITHUB_ENTERPRISE_CHECKS }
+        : {}),
+    }),
   );
 }
 
@@ -539,30 +529,28 @@ if (
   env.AUTH_JUMPCLOUD_ISSUER
 )
   staticProviders.push(
-    asNextAuthProvider(
-      JumpCloudProvider({
-        clientId: env.AUTH_JUMPCLOUD_CLIENT_ID,
-        clientSecret: env.AUTH_JUMPCLOUD_CLIENT_SECRET,
-        issuer: env.AUTH_JUMPCLOUD_ISSUER,
-        allowDangerousEmailAccountLinking:
-          env.AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING === "true",
-        authorization: {
-          params: { scope: env.AUTH_JUMPCLOUD_SCOPE ?? "openid profile email" },
-        },
-        client: {
-          token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
-          ...(env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
-            ? {
-                id_token_signed_response_alg:
-                  env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
-              }
-            : {}),
-        },
-        ...(env.AUTH_JUMPCLOUD_CHECKS
-          ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
+    JumpCloudProvider({
+      clientId: env.AUTH_JUMPCLOUD_CLIENT_ID,
+      clientSecret: env.AUTH_JUMPCLOUD_CLIENT_SECRET,
+      issuer: env.AUTH_JUMPCLOUD_ISSUER,
+      allowDangerousEmailAccountLinking:
+        env.AUTH_JUMPCLOUD_ALLOW_ACCOUNT_LINKING === "true",
+      authorization: {
+        params: { scope: env.AUTH_JUMPCLOUD_SCOPE ?? "openid profile email" },
+      },
+      client: {
+        token_endpoint_auth_method: env.AUTH_JUMPCLOUD_CLIENT_AUTH_METHOD,
+        ...(env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG
+          ? {
+              id_token_signed_response_alg:
+                env.AUTH_JUMPCLOUD_ID_TOKEN_SIGNED_RESPONSE_ALG,
+            }
           : {}),
-      }),
-    ),
+      },
+      ...(env.AUTH_JUMPCLOUD_CHECKS
+        ? { checks: env.AUTH_JUMPCLOUD_CHECKS }
+        : {}),
+    }),
   );
 
 if (env.AUTH_WORKOS_CLIENT_ID && env.AUTH_WORKOS_CLIENT_SECRET)
