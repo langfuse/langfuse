@@ -278,8 +278,6 @@ describe("ProjectDeletionProcessingJob", () => {
         bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
-        // dataset-retained media must still be deleted with the project
-        retainedByDatasetAt: new Date(),
       },
     });
 

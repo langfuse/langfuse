@@ -1361,10 +1361,6 @@ model Media {
   bucketName       String             @map("bucket_name")
   contentType      String             @map("content_type")
   contentLength    BigInt             @map("content_length")
-  // Set when the media is referenced by a dataset item (or uploaded without a
-  // trace context for dataset use). Media with this set is excluded from
-  // trace-retention-based deletion.
-  retainedByDatasetAt DateTime?       @map("retained_by_dataset_at")
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])

@@ -1,6 +1,3 @@
--- AlterTable
-ALTER TABLE "media" ADD COLUMN "retained_by_dataset_at" TIMESTAMP(3);
-
 -- CreateTable
 CREATE TABLE "dataset_item_media" (
     "id" TEXT NOT NULL,

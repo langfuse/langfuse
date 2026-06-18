@@ -1,13 +1,11 @@
 import {
-  deleteDatasetMediaByDatasetId,
+  deleteDatasetMediaLinksByDatasetId,
   deleteDatasetRunItemsByDatasetRunIds,
   deleteDatasetRunItemsByDatasetId,
-  getS3MediaStorageClient,
   logger,
   traceException,
   DatasetQueueEventType,
 } from "@langfuse/shared/src/server";
-import { env } from "../../env";
 
 export const processClickhouseDatasetDelete = async (
   jobPayload: DatasetQueueEventType,
@@ -23,14 +21,10 @@ export const processClickhouseDatasetDelete = async (
   try {
     switch (deletionType) {
       case "dataset":
-        // Always drop the dataset_item_media link rows (no FK cascades them);
-        // only the S3 release needs a configured bucket.
-        await deleteDatasetMediaByDatasetId({
+        // Always drop the dataset_item_media link rows; no FK cascades them.
+        await deleteDatasetMediaLinksByDatasetId({
           projectId,
           datasetId,
-          storageClient: env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET
-            ? getS3MediaStorageClient(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET)
-            : undefined,
         });
         await deleteDatasetRunItemsByDatasetId({ projectId, datasetId });
         break;

@@ -133,9 +133,13 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
         ))::int as seconds_past_cutoff
       FROM projects p
       INNER JOIN media m ON m.project_id = p.id
+      LEFT JOIN dataset_item_media dim
+        ON dim.project_id = m.project_id
+        AND dim.media_id = m.id
       WHERE p.retention_days > 0
         AND p.deleted_at IS NULL
         AND m.created_at <= NOW() - (p.retention_days || ' days')::interval
+        AND dim.media_id IS NULL
       GROUP BY p.id, p.retention_days
       ORDER BY seconds_past_cutoff DESC
       LIMIT 1
@@ -189,7 +193,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
       return;
     }
 
-    await deleteMediaFiles({
+    const deletedCount = await deleteMediaFiles({
       projectId: workload.projectId,
       mediaFiles,
       storageClient: getS3MediaStorageClient(
@@ -198,13 +202,13 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
     });
 
     // Record successful deletion metrics
-    recordIncrement(`${METRIC_PREFIX}.files_deleted`, mediaFiles.length, {
+    recordIncrement(`${METRIC_PREFIX}.files_deleted`, deletedCount, {
       projectId: workload.projectId,
     });
 
     logger.info(`${this.name}: Media files deleted`, {
       projectId: workload.projectId,
-      count: mediaFiles.length,
+      count: deletedCount,
     });
   }
 }

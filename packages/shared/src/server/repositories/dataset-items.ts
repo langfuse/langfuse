@@ -18,7 +18,6 @@ import {
   deleteDatasetItemMediaLinks,
   findUnresolvableMediaReferences,
   linkDatasetItemMedia,
-  releaseDroppedDatasetMedia,
   validateDatasetItemMediaReferences,
 } from "./dataset-item-media";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
@@ -363,7 +362,6 @@ export async function upsertDatasetItem(
   });
 
   let item: DatasetItem | null = null;
-  let droppedMediaIds: string[] = [];
 
   const linkWrittenItemMedia = (
     tx: Prisma.TransactionClient,
@@ -410,7 +408,7 @@ export async function upsertDatasetItem(
               },
             });
         item = res;
-        droppedMediaIds = (await linkWrittenItemMedia(tx, res)).droppedMediaIds;
+        await linkWrittenItemMedia(tx, res);
       });
     },
     [Implementation.VERSIONED]: async () => {
@@ -463,7 +461,7 @@ export async function upsertDatasetItem(
           },
         });
         item = res;
-        droppedMediaIds = (await linkWrittenItemMedia(tx, res)).droppedMediaIds;
+        await linkWrittenItemMedia(tx, res);
       });
     },
   });
@@ -471,8 +469,6 @@ export async function upsertDatasetItem(
   if (!item) {
     throw new InternalServerError("Failed to upsert dataset item");
   }
-
-  await releaseDroppedDatasetMedia(props.projectId, droppedMediaIds);
 
   return { ...toDomainType(item), datasetName: dataset.name };
 }
@@ -499,11 +495,9 @@ export async function deleteDatasetItem(props: {
     );
   }
 
-  let droppedMediaIds: string[] = [];
-
   await executeWithDatasetServiceStrategy(OperationType.WRITE, {
     [Implementation.STATEFUL]: async () => {
-      const result = await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         await tx.datasetItem.delete({
           where: {
             id_projectId_validFrom: {
@@ -513,7 +507,7 @@ export async function deleteDatasetItem(props: {
             },
           },
         });
-        return deleteDatasetItemMediaLinks(tx, {
+        await deleteDatasetItemMediaLinks(tx, {
           projectId: props.projectId,
           itemVersions: [
             {
@@ -523,11 +517,10 @@ export async function deleteDatasetItem(props: {
           ],
         });
       });
-      droppedMediaIds = result;
     },
     [Implementation.VERSIONED]: async () => {
       // VERSIONED: Invalidate old row, then create delete marker
-      const result = await prisma.$transaction(async (tx) => {
+      await prisma.$transaction(async (tx) => {
         const newValidFrom = new Date();
 
         // 1. Invalidate the current version
@@ -555,7 +548,7 @@ export async function deleteDatasetItem(props: {
           },
         });
 
-        return deleteDatasetItemMediaLinks(tx, {
+        await deleteDatasetItemMediaLinks(tx, {
           projectId: props.projectId,
           itemVersions: [
             {
@@ -565,11 +558,8 @@ export async function deleteDatasetItem(props: {
           ],
         });
       });
-      droppedMediaIds = result;
     },
   });
-
-  await releaseDroppedDatasetMedia(props.projectId, droppedMediaIds);
 
   return { success: true, deletedItem: item };
 }
@@ -793,11 +783,8 @@ export async function createManyDatasetItems(props: {
     // knows each inserted row's validFrom
     const newValidFrom = new Date();
 
-    // Bulk-imported items are frequently never individually re-edited, so the
-    // self-healing on next edit does not apply: link media in the same
-    // transaction as the item write so an item is never committed without its
-    // media retention-protected. These are fresh inserts (replaceExisting:
-    // false), so nothing is dropped and no post-commit release is needed.
+    // Link media in the same transaction as the item write so an item is never
+    // committed without its dataset_item_media rows.
     const mediaItems = preparedItems.map((item) => ({
       datasetId: item.datasetId,
       datasetItemId: item.id,

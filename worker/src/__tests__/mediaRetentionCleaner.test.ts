@@ -134,6 +134,39 @@ describe("MediaRetentionCleaner", () => {
       expect(allDeletedPaths).toContain(media.bucketPath);
     });
 
+    it("should not select dataset-associated media as retention work", async () => {
+      await drainExpiredMedia();
+      const now = Date.now();
+      const tenDaysAgo = new Date(now - 10 * 24 * 60 * 60 * 1000);
+
+      const { projectId } = await createOrgProjectAndApiKey();
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { retentionDays: 7 },
+      });
+      const media = await createTestMedia(projectId, tenDaysAgo);
+      await prisma.datasetItemMedia.create({
+        data: {
+          id: randomUUID(),
+          projectId,
+          datasetId: randomUUID(),
+          datasetItemId: randomUUID(),
+          datasetItemValidFrom: new Date(),
+          mediaId: media.id,
+          field: "input",
+          jsonPath: "$['image']",
+          referenceString: `@@@langfuseMedia:type=image/png|id=${media.id}|source=base64@@@`,
+        },
+      });
+
+      const callsBeforeTest = mockDeleteFiles.mock.calls.length;
+      const cleaner = new MediaRetentionCleaner();
+      await cleaner.processBatch();
+
+      expect(await getMediaCount(projectId)).toBe(1);
+      expect(mockDeleteFiles.mock.calls).toHaveLength(callsBeforeTest);
+    });
+
     it("should NOT delete media within retention period", async () => {
       const now = Date.now();
       const fiveDaysAgo = new Date(now - 5 * 24 * 60 * 60 * 1000);

@@ -51,18 +51,9 @@ const createDataset = async () => {
 };
 
 describe("Dataset item media stateful delete", () => {
-  it("removes media rows and releases media when deleting a stateful item", async () => {
+  it("removes media rows when deleting a stateful item", async () => {
     const datasetId = await createDataset();
     const media = await createMediaRow();
-    await prisma.traceMedia.create({
-      data: {
-        id: v4(),
-        projectId,
-        traceId: v4(),
-        mediaId: media.mediaId,
-        field: "input",
-      },
-    });
 
     const result = await createDatasetItem({
       projectId,
@@ -82,9 +73,10 @@ describe("Dataset item media stateful delete", () => {
         where: { projectId, datasetItemId: itemId },
       }),
     ).resolves.toEqual([]);
-    const kept = await prisma.media.findUnique({
-      where: { projectId_id: { projectId, id: media.mediaId } },
-    });
-    expect(kept?.retainedByDatasetAt).toBeNull();
+    await expect(
+      prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: media.mediaId } },
+      }),
+    ).resolves.not.toBeNull();
   });
 });

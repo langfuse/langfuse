@@ -327,7 +327,6 @@ describe("trace deletion", () => {
         bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
         contentType: fileType,
         contentLength: 0,
-        retainedByDatasetAt: new Date(),
       },
     });
     await prisma.traceMedia.create({

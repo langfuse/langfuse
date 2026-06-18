@@ -4,10 +4,10 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createDatasetItem,
   createManyDatasetItems,
-  deleteDatasetMediaByDatasetId,
+  deleteDatasetMediaLinksByDatasetId,
+  deleteMediaFiles,
   findExpiredMediaByProjectId,
   linkDatasetItemMedia,
-  releaseDatasetMedia,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 
@@ -56,19 +56,11 @@ const getItemMediaRows = (datasetItemId: string) =>
 const linkDatasetItemMediaForTest = async (
   props: Parameters<typeof linkDatasetItemMedia>[1],
 ) => {
-  const { droppedMediaIds } = await prisma.$transaction((tx) =>
-    linkDatasetItemMedia(tx, props),
-  );
-
-  await releaseDatasetMedia({
-    projectId: props.projectId,
-    mediaIds: droppedMediaIds,
-    storageClient: { deleteFiles: async () => undefined },
-  });
+  await prisma.$transaction((tx) => linkDatasetItemMedia(tx, props));
 };
 
 describe("Dataset Item Media Associations", () => {
-  it("records media references of created items and marks media as dataset-retained", async () => {
+  it("records media references of created items", async () => {
     const datasetId = await createDataset();
     const inputMedia = await createMediaRow();
     const outputMedia = await createMediaRow();
@@ -108,12 +100,20 @@ describe("Dataset Item Media Associations", () => {
     });
     expect(rows[0].datasetItemValidFrom).toEqual(item?.validFrom);
 
-    for (const { mediaId } of [inputMedia, outputMedia, metadataMedia]) {
-      const media = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: mediaId } },
-      });
-      expect(media?.retainedByDatasetAt).toEqual(expect.any(Date));
-    }
+    await expect(
+      prisma.media.count({
+        where: {
+          projectId,
+          id: {
+            in: [
+              inputMedia.mediaId,
+              outputMedia.mediaId,
+              metadataMedia.mediaId,
+            ],
+          },
+        },
+      }),
+    ).resolves.toBe(3);
   });
 
   it("creates no rows for items without media references", async () => {
@@ -215,8 +215,7 @@ describe("Dataset Item Media Associations", () => {
 
   // A media row exists from createMediaUploadUrl before its S3 PUT
   // (uploadHttpStatus null). Referencing it must be rejected like unknown
-  // media: linking it would retention-protect a file the readers render as
-  // null forever and retention then permanently skips.
+  // media: linking it would make readers resolve the reference to nothing.
   it("rejects references to media that has not finished uploading", async () => {
     const datasetId = await createDataset();
     const sha256Hash = crypto
@@ -299,11 +298,9 @@ describe("Dataset Item Media Associations", () => {
     ]);
   });
 
-  // Bulk-imported items are frequently never re-edited, so the link + retain
-  // must commit with the item write rather than as a best-effort follow-up:
-  // an item must never be persisted with its media left unprotected from
-  // retention cleanup.
-  it("marks media of bulk created items as dataset-retained", async () => {
+  // Bulk-imported items are frequently never re-edited, so the media link must
+  // commit with the item write rather than as a best-effort follow-up.
+  it("links media of bulk created items", async () => {
     const datasetId = await createDataset();
     const media = await createMediaRow();
 
@@ -316,7 +313,7 @@ describe("Dataset Item Media Associations", () => {
     const stored = await prisma.media.findUnique({
       where: { projectId_id: { projectId, id: media.mediaId } },
     });
-    expect(stored?.retainedByDatasetAt).toEqual(expect.any(Date));
+    expect(stored).not.toBeNull();
 
     // the link is keyed to the version that was actually written
     const item = await prisma.datasetItem.findFirst({
@@ -453,7 +450,7 @@ describe("Dataset Item Media Associations", () => {
       await expect(getItemMediaRows(datasetItemId)).resolves.toEqual([]);
     });
 
-    it("returns only media references dropped by replaceExisting", async () => {
+    it("replaces media rows for replaceExisting updates", async () => {
       const droppedMedia = await createMediaRow();
       const keptMedia = await createMediaRow();
       const newMedia = await createMediaRow();
@@ -475,7 +472,7 @@ describe("Dataset Item Media Associations", () => {
         replaceExisting: false,
       });
 
-      const { droppedMediaIds } = await prisma.$transaction((tx) =>
+      await prisma.$transaction((tx) =>
         linkDatasetItemMedia(tx, {
           projectId,
           items: [
@@ -491,7 +488,15 @@ describe("Dataset Item Media Associations", () => {
         }),
       );
 
-      expect(droppedMediaIds).toEqual([droppedMedia.mediaId]);
+      await expect(getItemMediaRows(datasetItemId)).resolves.toMatchObject([
+        { field: "expectedOutput", mediaId: keptMedia.mediaId },
+        { field: "input", mediaId: newMedia.mediaId },
+      ]);
+      await expect(
+        prisma.datasetItemMedia.count({
+          where: { projectId, mediaId: droppedMedia.mediaId },
+        }),
+      ).resolves.toBe(0);
     });
   });
 
@@ -509,7 +514,7 @@ describe("Dataset Item Media Associations", () => {
       return result.datasetItem.id;
     };
 
-    it("releases media on dataset deletion based on remaining references", async () => {
+    it("deletes dataset media associations on dataset deletion", async () => {
       const datasetId = await createDataset();
       const otherDatasetId = await createDataset();
       const datasetOnlyMedia = await createMediaRow();
@@ -533,38 +538,25 @@ describe("Dataset Item Media Associations", () => {
         },
       });
 
-      const deletedPaths: string[] = [];
-      await deleteDatasetMediaByDatasetId({
+      await deleteDatasetMediaLinksByDatasetId({
         projectId,
         datasetId,
-        storageClient: {
-          deleteFiles: async (paths) => {
-            deletedPaths.push(...paths);
-          },
-        },
       });
 
-      // dataset-only media is fully deleted, including its S3 file
-      expect(deletedPaths).toEqual([`media/${datasetOnlyMedia.mediaId}.png`]);
       await expect(
-        prisma.media.findUnique({
+        prisma.media.count({
           where: {
-            projectId_id: { projectId, id: datasetOnlyMedia.mediaId },
+            projectId,
+            id: {
+              in: [
+                datasetOnlyMedia.mediaId,
+                traceSharedMedia.mediaId,
+                datasetSharedMedia.mediaId,
+              ],
+            },
           },
         }),
-      ).resolves.toBeNull();
-
-      // trace-shared media survives but is released for retention
-      const tracedMedia = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: traceSharedMedia.mediaId } },
-      });
-      expect(tracedMedia?.retainedByDatasetAt).toBeNull();
-
-      // media shared with another dataset stays fully retained
-      const sharedMedia = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: datasetSharedMedia.mediaId } },
-      });
-      expect(sharedMedia?.retainedByDatasetAt).toEqual(expect.any(Date));
+      ).resolves.toBe(3);
       await expect(
         prisma.datasetItemMedia.count({ where: { projectId, datasetId } }),
       ).resolves.toBe(0);
@@ -575,17 +567,17 @@ describe("Dataset Item Media Associations", () => {
       ).resolves.toBe(1);
     });
 
-    it("excludes dataset-retained media from retention cleanup", async () => {
+    it("skips dataset-associated media during retention deletion", async () => {
       const datasetId = await createDataset();
-      const retainedMedia = await createMediaRow();
-      const unretainedMedia = await createMediaRow();
-      await createItemWithMedia(datasetId, retainedMedia.referenceString);
+      const associatedMedia = await createMediaRow();
+      const unassociatedMedia = await createMediaRow();
+      await createItemWithMedia(datasetId, associatedMedia.referenceString);
 
       const past = new Date(Date.now() - 1000 * 60 * 60 * 24 * 3);
       await prisma.media.updateMany({
         where: {
           projectId,
-          id: { in: [retainedMedia.mediaId, unretainedMedia.mediaId] },
+          id: { in: [associatedMedia.mediaId, unassociatedMedia.mediaId] },
         },
         data: { createdAt: past },
       });
@@ -596,200 +588,46 @@ describe("Dataset Item Media Associations", () => {
       });
 
       const expiredIds = expired.map((media) => media.id);
-      expect(expiredIds).toContain(unretainedMedia.mediaId);
-      expect(expiredIds).not.toContain(retainedMedia.mediaId);
-    });
-  });
+      expect(expiredIds).toContain(unassociatedMedia.mediaId);
+      expect(expiredIds).toContain(associatedMedia.mediaId);
 
-  describe("orphan release on in-place changes", () => {
-    const collectingStorageClient = () => {
+      const relevantExpired = expired.filter((media) =>
+        [associatedMedia.mediaId, unassociatedMedia.mediaId].includes(media.id),
+      );
       const deletedPaths: string[] = [];
-      return {
-        deletedPaths,
-        client: {
-          deleteFiles: async (paths: string[]) => {
+      const deletedCount = await deleteMediaFiles({
+        projectId,
+        mediaFiles: relevantExpired,
+        storageClient: {
+          deleteFiles: async (paths) => {
             deletedPaths.push(...paths);
           },
         },
-      };
-    };
-
-    const linkTrace = (mediaId: string) =>
-      prisma.traceMedia.create({
-        data: { id: v4(), projectId, traceId: v4(), mediaId, field: "input" },
       });
 
-    // releaseDatasetMedia: the three outcomes, with an injected storage client
-    it("deletes media with no remaining references", async () => {
-      const media = await createMediaRow();
-      await linkDatasetItemMediaForTest({
-        projectId,
-        items: [
-          {
-            datasetId: v4(),
-            datasetItemId: v4(),
-            datasetItemValidFrom: new Date(),
-            input: { image: media.referenceString },
-          },
-        ],
-        replaceExisting: false,
-      });
-      // simulate the rows being removed by an in-place change
-      await prisma.datasetItemMedia.deleteMany({
-        where: { projectId, mediaId: media.mediaId },
-      });
-
-      const { deletedPaths, client } = collectingStorageClient();
-      await releaseDatasetMedia({
-        projectId,
-        mediaIds: [media.mediaId],
-        storageClient: client,
-      });
-
-      expect(deletedPaths).toEqual([`media/${media.mediaId}.png`]);
+      expect(deletedCount).toBe(1);
+      expect(deletedPaths).toEqual([`media/${unassociatedMedia.mediaId}.png`]);
       await expect(
         prisma.media.findUnique({
-          where: { projectId_id: { projectId, id: media.mediaId } },
-        }),
-      ).resolves.toBeNull();
-    });
-
-    it("keeps the media row when the S3 delete fails", async () => {
-      const media = await createMediaRow();
-      await linkDatasetItemMediaForTest({
-        projectId,
-        items: [
-          {
-            datasetId: v4(),
-            datasetItemId: v4(),
-            datasetItemValidFrom: new Date(),
-            input: { image: media.referenceString },
-          },
-        ],
-        replaceExisting: false,
-      });
-      await prisma.datasetItemMedia.deleteMany({
-        where: { projectId, mediaId: media.mediaId },
-      });
-
-      const failingClient = {
-        deleteFiles: async () => {
-          throw new Error("S3 unavailable");
-        },
-      };
-
-      // The storage failure must propagate before any Postgres mutation, so the
-      // media row survives for a later retention sweep to retry.
-      await expect(
-        releaseDatasetMedia({
-          projectId,
-          mediaIds: [media.mediaId],
-          storageClient: failingClient,
-        }),
-      ).rejects.toThrow("S3 unavailable");
-
-      await expect(
-        prisma.media.findUnique({
-          where: { projectId_id: { projectId, id: media.mediaId } },
+          where: { projectId_id: { projectId, id: associatedMedia.mediaId } },
         }),
       ).resolves.not.toBeNull();
-    });
-
-    it("un-retains media still referenced by a trace instead of deleting it", async () => {
-      const media = await createMediaRow();
-      await prisma.media.update({
-        where: { projectId_id: { projectId, id: media.mediaId } },
-        data: { retainedByDatasetAt: new Date() },
-      });
-      await linkTrace(media.mediaId);
-
-      const { deletedPaths, client } = collectingStorageClient();
-      await releaseDatasetMedia({
-        projectId,
-        mediaIds: [media.mediaId],
-        storageClient: client,
-      });
-
-      expect(deletedPaths).toEqual([]);
-      const kept = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: media.mediaId } },
-      });
-      expect(kept).not.toBeNull();
-      expect(kept?.retainedByDatasetAt).toBeNull();
-    });
-
-    it("releases PostgreSQL state without a storage client", async () => {
-      const datasetOnlyMedia = await createMediaRow();
-      const traceSharedMedia = await createMediaRow();
-      await prisma.media.updateMany({
-        where: {
-          projectId,
-          id: { in: [datasetOnlyMedia.mediaId, traceSharedMedia.mediaId] },
-        },
-        data: { retainedByDatasetAt: new Date() },
-      });
-      await linkTrace(traceSharedMedia.mediaId);
-
-      await releaseDatasetMedia({
-        projectId,
-        mediaIds: [datasetOnlyMedia.mediaId, traceSharedMedia.mediaId],
-      });
-
       await expect(
         prisma.media.findUnique({
           where: {
-            projectId_id: { projectId, id: datasetOnlyMedia.mediaId },
+            projectId_id: { projectId, id: unassociatedMedia.mediaId },
           },
         }),
       ).resolves.toBeNull();
-      const kept = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: traceSharedMedia.mediaId } },
-      });
-      expect(kept).not.toBeNull();
-      expect(kept?.retainedByDatasetAt).toBeNull();
     });
+  });
 
-    it("keeps media still referenced by another dataset item", async () => {
-      const media = await createMediaRow();
-      await prisma.media.update({
-        where: { projectId_id: { projectId, id: media.mediaId } },
-        data: { retainedByDatasetAt: new Date() },
-      });
-      await prisma.datasetItemMedia.create({
-        data: {
-          id: v4(),
-          projectId,
-          datasetId: v4(),
-          datasetItemId: v4(),
-          datasetItemValidFrom: new Date(),
-          mediaId: media.mediaId,
-          field: "input",
-          jsonPath: "$['image']",
-          referenceString: media.referenceString,
-        },
-      });
-
-      const { deletedPaths, client } = collectingStorageClient();
-      await releaseDatasetMedia({
-        projectId,
-        mediaIds: [media.mediaId],
-        storageClient: client,
-      });
-
-      expect(deletedPaths).toEqual([]);
-      const kept = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: media.mediaId } },
-      });
-      expect(kept?.retainedByDatasetAt).toEqual(expect.any(Date));
-    });
-
-    // wiring: an in-place (replaceExisting) update releases media it dropped
-    it("releases media dropped by an in-place update", async () => {
+  describe("in-place changes", () => {
+    it("unlinks media dropped by an in-place update without deleting media", async () => {
       const media = await createMediaRow();
       const datasetId = v4();
       const datasetItemId = v4();
       const datasetItemValidFrom = new Date();
-      await linkTrace(media.mediaId);
 
       await linkDatasetItemMediaForTest({
         projectId,
@@ -803,13 +641,6 @@ describe("Dataset Item Media Associations", () => {
         ],
         replaceExisting: false,
       });
-      expect(
-        (
-          await prisma.media.findUnique({
-            where: { projectId_id: { projectId, id: media.mediaId } },
-          })
-        )?.retainedByDatasetAt,
-      ).toEqual(expect.any(Date));
 
       await linkDatasetItemMediaForTest({
         projectId,
@@ -825,46 +656,11 @@ describe("Dataset Item Media Associations", () => {
       });
 
       await expect(getItemMediaRows(datasetItemId)).resolves.toEqual([]);
-      // trace-referenced, so kept but released for retention
-      const kept = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: media.mediaId } },
-      });
-      expect(kept?.retainedByDatasetAt).toBeNull();
-    });
-
-    // wiring: STATEFUL item deletion replaces the version with a media-less
-    // item, which drops its media rows and releases them
-    it("releases media when a version's media is dropped to none", async () => {
-      const media = await createMediaRow();
-      const datasetId = v4();
-      const datasetItemId = v4();
-      const datasetItemValidFrom = new Date();
-      await linkTrace(media.mediaId);
-
-      await linkDatasetItemMediaForTest({
-        projectId,
-        items: [
-          {
-            datasetId,
-            datasetItemId,
-            datasetItemValidFrom,
-            input: { image: media.referenceString },
-          },
-        ],
-        replaceExisting: false,
-      });
-
-      await linkDatasetItemMediaForTest({
-        projectId,
-        items: [{ datasetId, datasetItemId, datasetItemValidFrom }],
-        replaceExisting: true,
-      });
-
-      await expect(getItemMediaRows(datasetItemId)).resolves.toEqual([]);
-      const kept = await prisma.media.findUnique({
-        where: { projectId_id: { projectId, id: media.mediaId } },
-      });
-      expect(kept?.retainedByDatasetAt).toBeNull();
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: media.mediaId } },
+        }),
+      ).resolves.not.toBeNull();
     });
   });
 });
