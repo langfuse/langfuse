@@ -205,7 +205,7 @@ describe("Dataset item media references (public API read path)", () => {
     expect(item.mediaReferences).toEqual([]);
   });
 
-  it("returns media null for references whose media no longer exists", async () => {
+  it("omits references whose media cannot be resolved", async () => {
     const media = await createMediaRow();
     const { datasetItemId } = await createDatasetWithItem({
       image: media.referenceString,
@@ -221,14 +221,9 @@ describe("Dataset item media references (public API read path)", () => {
       includeMediaReferences: true,
     });
 
-    expect(item.mediaReferences).toEqual([
-      {
-        field: "input",
-        referenceString: media.referenceString,
-        jsonPath: "$['image']",
-        media: null,
-      },
-    ]);
+    // The reference is dropped rather than returned with a null media, so the
+    // contract's media is always present.
+    expect(item.mediaReferences).toEqual([]);
   });
 });
 

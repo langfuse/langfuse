@@ -67,15 +67,13 @@ const APIDatasetItemMediaReference = z
     field: z.enum(datasetItemMediaFields),
     referenceString: z.string(),
     jsonPath: z.string(),
-    media: z
-      .object({
-        mediaId: z.string(),
-        contentType: z.string(),
-        contentLength: z.number(),
-        url: z.string(),
-        urlExpiry: z.string(),
-      })
-      .nullable(),
+    media: z.object({
+      mediaId: z.string(),
+      contentType: z.string(),
+      contentLength: z.number(),
+      url: z.string(),
+      urlExpiry: z.string(),
+    }),
   })
   .strict();
 export type APIDatasetItemMediaReference = z.infer<

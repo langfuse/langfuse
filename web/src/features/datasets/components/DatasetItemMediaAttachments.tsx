@@ -303,7 +303,7 @@ export function DatasetItemSavedMediaAttachments({
 
   const mediaById = new Map<string, Omit<MediaReturnType, "field">>();
   for (const reference of data ?? []) {
-    if (reference.media && !mediaById.has(reference.media.mediaId)) {
+    if (!mediaById.has(reference.media.mediaId)) {
       mediaById.set(reference.media.mediaId, {
         ...reference.media,
         contentType: reference.media.contentType as MediaContentType,

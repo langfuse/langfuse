@@ -654,8 +654,8 @@ types:
         type: string
         docs: JSONPath of the string holding the reference within the field, e.g. `$['image']`
       media:
-        type: nullable<DatasetItemMediaReferenceMedia>
-        docs: The resolved media record. Null if the referenced media does not exist or has not been uploaded successfully.
+        type: DatasetItemMediaReferenceMedia
+        docs: The resolved media record.
   DatasetItemMediaReferenceField:
     enum:
       - value: input

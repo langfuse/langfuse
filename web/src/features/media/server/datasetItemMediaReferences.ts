@@ -1,6 +1,7 @@
 import { env } from "@/src/env.mjs";
 import { getMediaStorageServiceClient } from "@/src/features/media/server/getMediaStorageClient";
 import { type APIDatasetItemMediaReference } from "@/src/features/public-api/types/datasets";
+import { logger } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
 type DatasetItemVersionKey = {
@@ -23,7 +24,8 @@ export function datasetItemMediaReferenceKey(item: DatasetItemVersionKey) {
  * present in the map (empty array if it has no references), so callers look up
  * by key rather than relying on positional alignment with the input. One media
  * lookup and one signed URL is generated per distinct mediaId per call.
- * References whose media is missing or not uploaded yield `media: null`.
+ * References whose media cannot be resolved are dropped, so every returned
+ * reference has a resolved media.
  */
 export async function resolveDatasetItemMediaReferences(props: {
   projectId: string;
@@ -80,6 +82,14 @@ export async function resolveDatasetItemMediaReferences(props: {
   // referenceRows arrive ordered by (field, jsonPath); pushing in that order
   // preserves it per item.
   for (const row of referenceRows) {
+    const media = mediaById.get(row.mediaId);
+    if (!media) {
+      // A linked reference should always resolve; log the drift, drop the row.
+      logger.warn(
+        `Dropping dataset item media reference with unresolved media: project ${props.projectId}, item ${row.datasetItemId}, media ${row.mediaId}`,
+      );
+      continue;
+    }
     const key = datasetItemMediaReferenceKey({
       id: row.datasetItemId,
       validFrom: row.datasetItemValidFrom,
@@ -88,7 +98,7 @@ export async function resolveDatasetItemMediaReferences(props: {
       field: row.field as APIDatasetItemMediaReference["field"],
       referenceString: row.referenceString,
       jsonPath: row.jsonPath,
-      media: mediaById.get(row.mediaId) ?? null,
+      media,
     });
   }
 
