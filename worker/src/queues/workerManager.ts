@@ -1,3 +1,4 @@
+import { hostname } from "os";
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
   convertQueueNameToMetricName,
@@ -15,6 +16,8 @@ import {
   resolveQueueInstance,
   SHARDED_QUEUE_BASE_NAMES,
 } from "./shardedQueueRegistry";
+
+const HOST_NAME = hostname();
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -177,6 +180,22 @@ export class WorkerManager {
       recordIncrement(oldMetric + ".error");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
+        ...shardTag,
+      });
+    });
+    // A "stalled" event fires each time BullMQ detects a job whose lock expired
+    // (lock-renewal starvation) and re-enqueues it. These intermediate
+    // re-enqueues are otherwise invisible — only the terminal "stalled more
+    // than allowable limit" surfaces, via the "failed" handler above, once
+    // maxStalledCount is exhausted. Counting detections lets us measure the
+    // re-enqueue rate and the cross-pod job-multiplication factor (LFE-10063).
+    worker.on("stalled", (jobId: string) => {
+      logger.warn(
+        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) on host ${HOST_NAME}`,
+      );
+      recordIncrement(oldMetric + ".stalled");
+      recordIncrement(baseMetric + ".rate", 1, {
+        type: "stalled",
         ...shardTag,
       });
     });

@@ -7,6 +7,7 @@ import { server } from "../index";
 import { freeAllTokenizers } from "../features/tokenisation/usage";
 import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
+import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 import {
@@ -61,6 +62,11 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   for (const runner of monitorRunners) {
     runner.stop();
   }
+
+  // Log blob storage exports still mid-flight so SIGTERM-aborted jobs are
+  // distinguishable from stall-timeouts in the logs (LFE-10388). Must run
+  // before closeWorkers() while the in-flight registry is still populated.
+  logInFlightBlobExportsOnShutdown();
 
   // Shutdown workers (https://docs.bullmq.io/guide/going-to-production#gracefully-shut-down-workers)
   await WorkerManager.closeWorkers();

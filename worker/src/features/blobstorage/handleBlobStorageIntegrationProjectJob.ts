@@ -1,5 +1,7 @@
 import { pipeline, Transform } from "stream";
 import { createGzip } from "zlib";
+import { hostname } from "os";
+import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -15,6 +17,7 @@ import {
   getEventsForBlobStorageExport,
   getCurrentSpan,
   instrumentAsync,
+  recordGauge,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
@@ -25,6 +28,10 @@ import {
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
+import {
+  registerInFlightBlobExport,
+  unregisterInFlightBlobExport,
+} from "./inFlightExports";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -40,6 +47,8 @@ import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
+
+const HOST_NAME = hostname();
 
 export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
@@ -246,6 +255,10 @@ const processBlobStorageExport = async (config: {
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
+  // BullMQ job identity, threaded through so spans/logs from concurrent
+  // duplicate executions of the same window can be grouped by jobId (LFE-10388).
+  jobId: string | undefined;
+  attemptsMade: number;
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -286,6 +299,33 @@ const processBlobStorageExport = async (config: {
         "blob.window.maxTimestamp",
         config.maxTimestamp.toISOString(),
       );
+      // Job identity + host so concurrent duplicate executions of the same
+      // window (the LFE-10063 re-enqueue storm) can be grouped and counted.
+      if (config.jobId !== undefined) {
+        span.setAttribute("messaging.bullmq.job.id", config.jobId);
+      }
+      span.setAttribute("job.attemptsMade", config.attemptsMade);
+      span.setAttribute("host.name", HOST_NAME);
+
+      // Sample event-loop delay across the streaming export. If macrotask delay
+      // spikes to tens of seconds mid-stream, BullMQ's lock-renewal timer can't
+      // fire and the job gets re-enqueued as stalled — this signal confirms or
+      // refutes the lock-renewal-starvation hypothesis (LFE-10063). The
+      // histogram samples on a timer at negligible cost and is torn down in the
+      // finally below.
+      const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+      eventLoopDelay.enable();
+
+      // Track this table export as in-flight so a SIGTERM-induced abort can be
+      // logged distinctly from a stall-timeout on graceful shutdown (LFE-10388).
+      const inFlightHandle = registerInFlightBlobExport({
+        jobId: config.jobId,
+        projectId: config.projectId,
+        table: config.table,
+        minTimestamp: config.minTimestamp.toISOString(),
+        maxTimestamp: config.maxTimestamp.toISOString(),
+        startedAt: Date.now(),
+      });
 
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
@@ -405,6 +445,7 @@ const processBlobStorageExport = async (config: {
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
+              `jobId=${config.jobId} attemptsMade=${config.attemptsMade} host=${HOST_NAME} ` +
               `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
               `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
           );
@@ -427,10 +468,38 @@ const processBlobStorageExport = async (config: {
         }
       } catch (error) {
         logger.error(
-          `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId}`,
+          `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
+            `(jobId=${config.jobId} attemptsMade=${config.attemptsMade} host=${HOST_NAME})`,
           error,
         );
         throw error;
+      } finally {
+        unregisterInFlightBlobExport(inFlightHandle);
+
+        // Emit the event-loop-delay signal for this export. monitorEventLoopDelay
+        // reports in nanoseconds; convert to milliseconds for the dashboard. The
+        // histogram yields NaN/Infinity when no samples were collected (very fast
+        // exports), so coerce to a finite number before emitting.
+        eventLoopDelay.disable();
+        const toFiniteMs = (ns: number): number =>
+          Number.isFinite(ns) ? ns / 1e6 : 0;
+        const maxMs = toFiniteMs(eventLoopDelay.max);
+        const p99Ms = toFiniteMs(eventLoopDelay.percentile(99));
+        const meanMs = toFiniteMs(eventLoopDelay.mean);
+        const delayTags = { table: config.table, unit: "milliseconds" };
+        recordGauge(
+          "langfuse.blobstorage.event_loop_delay.max",
+          maxMs,
+          delayTags,
+        );
+        recordGauge(
+          "langfuse.blobstorage.event_loop_delay.p99",
+          p99Ms,
+          delayTags,
+        );
+        span.setAttribute("blob.eventLoopDelay.maxMs", Math.round(maxMs));
+        span.setAttribute("blob.eventLoopDelay.p99Ms", Math.round(p99Ms));
+        span.setAttribute("blob.eventLoopDelay.meanMs", Math.round(meanMs));
       }
     },
   );
@@ -445,6 +514,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+    // The BullMQ job id (distinct from the payload id above) + attempt count:
+    // identify concurrent duplicate runs of the same window (LFE-10388).
+    if (job.id !== undefined) {
+      span.setAttribute("messaging.bullmq.job.id", job.id);
+    }
+    span.setAttribute("job.attemptsMade", job.attemptsMade);
+    span.setAttribute("host.name", HOST_NAME);
   }
 
   logger.info(
@@ -565,6 +641,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       convertV4LatencyToSeconds,
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
+      jobId: job.id,
+      attemptsMade: job.attemptsMade,
     };
 
     // Check if this project should only export traces (legacy behavior via env var)
