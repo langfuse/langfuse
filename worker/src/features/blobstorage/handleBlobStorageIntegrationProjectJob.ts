@@ -255,10 +255,8 @@ const processBlobStorageExport = async (config: {
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
-  // BullMQ job identity, threaded through so spans/logs from concurrent
-  // duplicate executions of the same window can be grouped by jobId (LFE-10388).
-  jobId: string | undefined;
-  attemptsMade: number;
+  bullmqJobId: string | undefined;
+  bullmqAttemptsMade: number;
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -301,10 +299,10 @@ const processBlobStorageExport = async (config: {
       );
       // Job identity + host so concurrent duplicate executions of the same
       // window (the LFE-10063 re-enqueue storm) can be grouped and counted.
-      if (config.jobId !== undefined) {
-        span.setAttribute("messaging.bullmq.job.id", config.jobId);
+      if (config.bullmqJobId !== undefined) {
+        span.setAttribute("messaging.bullmq.job.id", config.bullmqJobId);
       }
-      span.setAttribute("job.attemptsMade", config.attemptsMade);
+      span.setAttribute("job.attemptsMade", config.bullmqAttemptsMade);
       span.setAttribute("host.name", HOST_NAME);
 
       // Sample event-loop delay across the streaming export. If macrotask delay
@@ -319,7 +317,7 @@ const processBlobStorageExport = async (config: {
       // Track this table export as in-flight so a SIGTERM-induced abort can be
       // logged distinctly from a stall-timeout on graceful shutdown (LFE-10388).
       const inFlightHandle = registerInFlightBlobExport({
-        jobId: config.jobId,
+        jobId: config.bullmqJobId,
         projectId: config.projectId,
         table: config.table,
         minTimestamp: config.minTimestamp.toISOString(),
@@ -445,7 +443,7 @@ const processBlobStorageExport = async (config: {
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
-              `jobId=${config.jobId} attemptsMade=${config.attemptsMade} host=${HOST_NAME} ` +
+              `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${HOST_NAME} ` +
               `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
               `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
           );
@@ -469,7 +467,7 @@ const processBlobStorageExport = async (config: {
       } catch (error) {
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
-            `(jobId=${config.jobId} attemptsMade=${config.attemptsMade} host=${HOST_NAME})`,
+            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${HOST_NAME})`,
           error,
         );
         throw error;
@@ -641,8 +639,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       convertV4LatencyToSeconds,
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
-      jobId: job.id,
-      attemptsMade: job.attemptsMade,
+      bullmqJobId: job.id,
+      bullmqAttemptsMade: job.attemptsMade,
     };
 
     // Check if this project should only export traces (legacy behavior via env var)
