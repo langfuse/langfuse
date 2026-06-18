@@ -381,7 +381,11 @@ export function tagsWithTraceId(
 ): Record<string, string> {
   const ctx = trace.getActiveSpan()?.spanContext();
   if (!ctx || !isSpanContextValid(ctx)) return tags ?? {};
-  return { ...tags, traceId: ctx.traceId };
+  // Use a distinct, OTel-specific key so this never collides with a
+  // caller-supplied `traceId` tag (e.g. the Langfuse business trace ID used
+  // for query_log JOINs in dataset-run-items). A single log_comment row can
+  // then carry both identifiers.
+  return { ...tags, otel_trace_id: ctx.traceId };
 }
 
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
