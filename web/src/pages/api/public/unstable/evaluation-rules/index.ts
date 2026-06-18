@@ -1,5 +1,3 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   createPublicEvaluationRule,
   listPublicEvaluationRules,
@@ -31,24 +29,12 @@ export default withUnstablePublicEvalsMiddlewares({
     name: "Create Unstable Evaluation Rule",
     bodySchema: PostUnstableEvaluationRuleBody,
     responseSchema: PostUnstableEvaluationRuleResponse,
-    fn: async ({ body, auth }) => {
-      const evaluationRule = await createPublicEvaluationRule({
+    fn: async ({ body, auth }) =>
+      createPublicEvaluationRule({
         orgId: auth.scope.orgId,
         projectId: auth.scope.projectId,
         input: body,
-      });
-
-      await auditLog({
-        action: "create",
-        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: evaluationRule.id,
-        projectId: auth.scope.projectId,
-        orgId: auth.scope.orgId,
-        apiKeyId: auth.scope.apiKeyId,
-        after: evaluationRule,
-      });
-
-      return evaluationRule;
-    },
+        auditScope: auth.scope,
+      }),
   }),
 });

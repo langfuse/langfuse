@@ -78,6 +78,10 @@ import {
   CreateEvalTemplateInputSchema,
   validateEvalTemplateCreation,
 } from "@/src/features/evals/server/evalTemplateCreation";
+import {
+  deleteEvalTemplateFamily,
+  findEvalTemplateFamilyUsage,
+} from "@/src/features/evals/server/evalTemplateDeletion";
 import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
 import {
   getCodeEvalCapabilities,
@@ -1628,52 +1632,49 @@ export const evalRouter = createTRPCRouter({
       await invalidateProjectEvalConfigCaches(projectId);
     }),
 
-  // TODO: moved to LFE-4573
-  // deleteEvalTemplate: protectedProjectProcedure
-  //   .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
-  //   .mutation(async ({ ctx, input: { projectId, evalTemplateId } }) => {
-  //     throwIfNoEntitlement({
-  //       entitlement: "model-based-evaluations",
-  //       projectId: projectId,
-  //       sessionUser: ctx.session.user,
-  //     });
-  //     throwIfNoProjectAccess({
-  //       session: ctx.session,
-  //       projectId: projectId,
-  //       scope: "evalTemplate:CUD",
-  //     });
+  evalTemplateUsage: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+    .query(async ({ ctx, input: { projectId, evalTemplateId } }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: projectId,
+        scope: "evalJob:read",
+      });
 
-  //     const existingTemplate = await ctx.prisma.evalTemplate.findUnique({
-  //       where: {
-  //         id: evalTemplateId,
-  //         projectId: projectId,
-  //       },
-  //     });
+      return findEvalTemplateFamilyUsage({
+        prisma: ctx.prisma,
+        projectId,
+        evalTemplateId,
+      });
+    }),
 
-  //     if (!existingTemplate) {
-  //       logger.warn(
-  //         `Template for deletion not found for project ${projectId} and id ${evalTemplateId}`,
-  //       );
-  //       throw new TRPCError({
-  //         code: "NOT_FOUND",
-  //         message: "Template not found",
-  //       });
-  //     }
+  deleteEvalTemplate: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), evalTemplateId: z.string() }))
+    .mutation(async ({ ctx, input: { projectId, evalTemplateId } }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: projectId,
+        scope: "evalTemplate:CUD",
+      });
 
-  //     await auditLog({
-  //       session: ctx.session,
-  //       resourceType: "evalTemplate",
-  //       resourceId: evalTemplateId,
-  //       action: "delete",
-  //     });
+      const deletedVersions = await deleteEvalTemplateFamily({
+        prisma: ctx.prisma,
+        projectId,
+        evalTemplateId,
+      });
 
-  //     await ctx.prisma.evalTemplate.delete({
-  //       where: {
-  //         id: evalTemplateId,
-  //         projectId: projectId,
-  //       },
-  //     });
-  //   }),
+      await Promise.all(
+        deletedVersions.map((version) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+            resourceId: version.id,
+            action: "delete",
+            before: version,
+          }),
+        ),
+      );
+    }),
   getLogs: protectedProjectProcedure
     .input(
       z.object({

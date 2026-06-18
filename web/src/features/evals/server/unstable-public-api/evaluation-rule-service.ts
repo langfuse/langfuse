@@ -1,4 +1,7 @@
-import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
+import {
+  invalidateProjectEvalConfigCaches,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
 import { EvalTemplateType, prisma } from "@langfuse/shared/src/db";
 import {
   EvalTargetObject,
@@ -9,6 +12,8 @@ import {
   assertCodeEvalJobConfigCanRun,
   CodeEvalJobConfigError,
 } from "@/src/features/evals/server/codeEvalJobConfigValidation";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
 import {
   isCodeEvalEnabled,
   isCodeEvalSourceCodeLanguageSupported,
@@ -183,6 +188,7 @@ export async function createPublicEvaluationRule(params: {
   orgId: string;
   projectId: string;
   input: PostUnstableEvaluationRuleBodyType;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const existing = await prisma.jobConfiguration.findFirst({
     where: {
@@ -284,7 +290,21 @@ export async function createPublicEvaluationRule(params: {
     await invalidateProjectEvalConfigCaches(params.projectId);
   }
 
-  return toApiEvaluationRule(created);
+  const evaluationRule = toApiEvaluationRule(created);
+
+  if (params.auditScope) {
+    await auditLog({
+      action: "create",
+      resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+      resourceId: evaluationRule.id,
+      projectId: params.projectId,
+      orgId: params.auditScope.orgId,
+      apiKeyId: params.auditScope.apiKeyId,
+      after: evaluationRule,
+    });
+  }
+
+  return evaluationRule;
 }
 
 export async function updatePublicEvaluationRule(params: {
@@ -292,6 +312,7 @@ export async function updatePublicEvaluationRule(params: {
   projectId: string;
   evaluationRuleId: string;
   input: PatchUnstableEvaluationRuleBodyType;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const existing = await findPublicEvaluationRuleOrThrow({
     projectId: params.projectId,
@@ -424,14 +445,31 @@ export async function updatePublicEvaluationRule(params: {
 
   await invalidateProjectEvalConfigCaches(params.projectId);
 
-  return toApiEvaluationRule(updated);
+  const evaluationRule = toApiEvaluationRule(updated);
+
+  if (params.auditScope) {
+    await auditLog({
+      action: "update",
+      resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+      resourceId: evaluationRule.id,
+      projectId: params.projectId,
+      orgId: params.auditScope.orgId,
+      apiKeyId: params.auditScope.apiKeyId,
+      before: existingPublic,
+      after: evaluationRule,
+    });
+  }
+
+  return evaluationRule;
 }
 
 export async function deletePublicEvaluationRule(params: {
   projectId: string;
   evaluationRuleId: string;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
   const existing = await findPublicEvaluationRuleOrThrow(params);
+  const existingPublic = toApiEvaluationRule(existing);
 
   await prisma.jobConfiguration.delete({
     where: {
@@ -441,6 +479,18 @@ export async function deletePublicEvaluationRule(params: {
   });
 
   await invalidateProjectEvalConfigCaches(params.projectId);
+
+  if (params.auditScope) {
+    await auditLog({
+      action: "delete",
+      resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+      resourceId: params.evaluationRuleId,
+      projectId: params.projectId,
+      orgId: params.auditScope.orgId,
+      apiKeyId: params.auditScope.apiKeyId,
+      before: existingPublic,
+    });
+  }
 
   return existing;
 }

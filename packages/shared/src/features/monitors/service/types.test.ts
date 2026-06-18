@@ -11,6 +11,10 @@ import {
   ErrorAlertThresholdRequired,
   ErrorAtLeastOneTrigger,
   ErrorNameRequired,
+  MonitorNoDataModeSchema,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  MonitorThresholdOperatorSchema,
 } from "../types";
 
 // Minimal valid `CreateMonitorSchema` payload. Tests override one field
@@ -23,12 +27,12 @@ const validCreateInput = {
   metric: { measure: "count", aggregation: "count" as const },
 
   window: "5m" as const,
-  thresholdOperator: "GT" as const,
+  thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
   alertThreshold: 100,
   warningThreshold: null,
-  noData: { mode: "SILENT" as const },
+  noData: { mode: MonitorNoDataModeSchema.enum.SHOW_NO_DATA },
   renotify: { mode: "OFF" as const },
-  status: "ACTIVE" as const,
+  status: MonitorStatusSchema.enum.ACTIVE,
 
   name: "High error rate",
   tags: [],
@@ -48,50 +52,50 @@ describe("CreateMonitorSchema", () => {
   it("rejects warning >= alert for gt (validateThresholdOrder is wired)", () => {
     const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
-      thresholdOperator: "GT" as const,
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
       alertThreshold: 100,
       warningThreshold: 100,
     });
     expect(result.success).toBe(false);
   });
 
-  it.each(["GT", "GTE"] as const)(
-    "%s emits a `>` strict-ordering message (not the operator name)",
-    (op) => {
-      const result = CreateMonitorSchema.safeParse({
-        ...validCreateInput,
-        thresholdOperator: op,
-        alertThreshold: 100,
-        warningThreshold: 100,
-      });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        const message = result.error.issues[0].message;
-        expect(message).toContain(">");
-        // Must NOT interpolate the operator literal — `gte` would otherwise
-        // produce the misleading "must be gte" (non-strict) phrasing.
-        expect(message).not.toContain(op);
-      }
-    },
-  );
+  it.each([
+    MonitorThresholdOperatorSchema.enum.GT,
+    MonitorThresholdOperatorSchema.enum.GTE,
+  ])("%s emits a `>` strict-ordering message (not the operator name)", (op) => {
+    const result = CreateMonitorSchema.safeParse({
+      ...validCreateInput,
+      thresholdOperator: op,
+      alertThreshold: 100,
+      warningThreshold: 100,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues[0].message;
+      expect(message).toContain(">");
+      // Must NOT interpolate the operator literal — `gte` would otherwise
+      // produce the misleading "must be gte" (non-strict) phrasing.
+      expect(message).not.toContain(op);
+    }
+  });
 
-  it.each(["LT", "LTE"] as const)(
-    "%s emits a `<` strict-ordering message (not the operator name)",
-    (op) => {
-      const result = CreateMonitorSchema.safeParse({
-        ...validCreateInput,
-        thresholdOperator: op,
-        alertThreshold: 100,
-        warningThreshold: 100,
-      });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        const message = result.error.issues[0].message;
-        expect(message).toContain("<");
-        expect(message).not.toContain(op);
-      }
-    },
-  );
+  it.each([
+    MonitorThresholdOperatorSchema.enum.LT,
+    MonitorThresholdOperatorSchema.enum.LTE,
+  ])("%s emits a `<` strict-ordering message (not the operator name)", (op) => {
+    const result = CreateMonitorSchema.safeParse({
+      ...validCreateInput,
+      thresholdOperator: op,
+      alertThreshold: 100,
+      warningThreshold: 100,
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const message = result.error.issues[0].message;
+      expect(message).toContain("<");
+      expect(message).not.toContain(op);
+    }
+  });
 
   it("rejects an unknown measure (validateQuery is wired)", () => {
     const result = CreateMonitorSchema.safeParse({
@@ -128,7 +132,7 @@ describe("CreateMonitorSchema", () => {
   it("rejects status `error-bad-query` on create (scheduler-owned)", () => {
     const result = CreateMonitorSchema.safeParse({
       ...validCreateInput,
-      status: "ERROR_BAD_QUERY",
+      status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
     });
     expect(result.success).toBe(false);
   });
@@ -181,7 +185,7 @@ describe("UpdateMonitorSchema", () => {
   it("rejects warning <= alert for lt (validateThresholdOrder is wired)", () => {
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
-      thresholdOperator: "LT" as const,
+      thresholdOperator: MonitorThresholdOperatorSchema.enum.LT,
       alertThreshold: 100,
       warningThreshold: 100,
     });
@@ -209,7 +213,7 @@ describe("UpdateMonitorSchema", () => {
     // directly — narrowing the input DTO to active/paused enforces that.
     const result = UpdateMonitorSchema.safeParse({
       ...validUpdateInput,
-      status: "ERROR_BAD_QUERY",
+      status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
     });
     expect(result.success).toBe(false);
   });
@@ -327,7 +331,7 @@ describe("ListMonitorFilterSchema", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["ALERT"],
+        value: [MonitorSeveritySchema.enum.ALERT],
       },
       {
         type: "arrayOptions",
@@ -345,13 +349,13 @@ describe("ListMonitorFilterSchema", () => {
         type: "stringOptions",
         column: "severity",
         operator: "any of",
-        value: ["ALERT"],
+        value: [MonitorSeveritySchema.enum.ALERT],
       },
       {
         type: "stringOptions",
         column: "severity",
         operator: "none of",
-        value: ["PAUSED"],
+        value: [MonitorSeveritySchema.enum.PAUSED],
       },
     ]);
     expect(result.success).toBe(false);
