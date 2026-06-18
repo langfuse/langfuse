@@ -536,11 +536,12 @@ const BlobStorageIntegrationSettingsForm = ({
               <FormItem>
                 <FormLabel>Force Path Style</FormLabel>
                 <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                    className="mt-1 ml-4"
-                  />
+                  <div className="mt-1 ml-4">
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </div>
                 </FormControl>
                 <FormDescription>
                   Enable for MinIO and some other S3 compatible providers
@@ -934,11 +935,12 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Gzip Compression</FormLabel>
               <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className="mt-1 ml-4"
-                />
+                <div className="mt-1 ml-4">
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </div>
               </FormControl>
               <FormDescription>
                 Compress exported files with gzip (.csv.gz, .json.gz, .jsonl.gz)
@@ -955,11 +957,12 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>Enabled</FormLabel>
               <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className="mt-1 ml-4"
-                />
+                <div className="mt-1 ml-4">
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </div>
               </FormControl>
               <FormMessage />
             </FormItem>
