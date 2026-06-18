@@ -112,6 +112,25 @@ describe("ChatML Integration", () => {
     expect(() => normalizeInput(input)).not.toThrow();
   });
 
+  it("should not throw when the input object has a null scope (typeof null === 'object')", () => {
+    // Regression: when no metadata is passed, normalizeInput falls back to
+    // using the input as metadata. An input object with a literal `scope: null`
+    // (e.g. Dify workflow inputs) used to crash every adapter's detect(), which
+    // does `typeof meta.scope === "object"` and then reads `meta.scope.name` —
+    // `typeof null === "object"` slipped a null through the guard.
+    const input = {
+      scope: null,
+      page_url: null,
+      page_title: null,
+      country: "ch",
+      locale: "de",
+      "sys.query": "Which biomarkers are in the Advanced Blood Test?",
+    };
+
+    expect(() => normalizeInput(input)).not.toThrow();
+    expect(() => normalizeOutput({ scope: null, answer: "..." })).not.toThrow();
+  });
+
   it("should handle very large inputs", () => {
     const largeContent = "x".repeat(1000000);
     const input = [{ role: "user", content: largeContent }];
