@@ -47,8 +47,10 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
 
   const now = Date.now();
   for (const entry of inFlightExports.values()) {
+    // "in-flight at shutdown", not "aborted": worker.close() drains gracefully,
+    // so this export may still complete within the grace period.
     logger.warn(
-      `[BLOB INTEGRATION] Blob storage export aborted by shutdown on host ${HOST_NAME}: ` +
+      `[BLOB INTEGRATION] Blob storage export in-flight at shutdown signal on host ${HOST_NAME}: ` +
         `jobId=${entry.jobId} projectId=${entry.projectId} table=${entry.table} ` +
         `window=[${entry.minTimestamp}, ${entry.maxTimestamp}] ` +
         `elapsedMs=${now - entry.startedAt}`,
