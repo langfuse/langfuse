@@ -7,9 +7,16 @@ import {
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
-import { gunzip } from "node:zlib";
 import { ForbiddenError } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import {
+  OTEL_TRACE_REQUEST_BODY_MAX_BYTES,
+  OtelTraceRequestLimitError,
+  decompressGzipWithByteLimit,
+  getOtelTraceBatchCounts,
+  readStreamWithByteLimit,
+  validateOtelTraceContentLength,
+} from "@/src/features/public-api/server/otelTraceRequestLimits";
 
 /** Read a Langfuse header that may arrive with hyphens or underscores. */
 function getLangfuseHeader(
@@ -22,6 +29,14 @@ function getLangfuseHeader(
   if (typeof underscoreVal === "string") return underscoreVal;
   return undefined;
 }
+
+const headerIncludes = (
+  header: string | string[] | undefined,
+  searchValue: string,
+) =>
+  Array.isArray(header)
+    ? header.some((value) => value.toLowerCase().includes(searchValue))
+    : (header?.toLowerCase().includes(searchValue) ?? false);
 
 export const config = {
   api: {
@@ -46,35 +61,6 @@ export default withMiddlewares({
       // Mark project as using OTEL API
       await markProjectAsOtelUser(auth.scope.projectId);
 
-      let body: Buffer;
-      try {
-        body = await new Promise((resolve, reject) => {
-          let data: any[] = [];
-          req.on("data", (chunk) => data.push(chunk));
-          req.on("end", () => resolve(Buffer.concat(data)));
-          req.on("error", reject);
-        });
-      } catch (e) {
-        logger.error(`Failed to read request body`, e);
-        res.status(400);
-        return { error: "Failed to read request body" };
-      }
-
-      if (req.headers["content-encoding"]?.includes("gzip")) {
-        try {
-          body = await new Promise((resolve, reject) => {
-            gunzip(new Uint8Array(body), (err, result) =>
-              err ? reject(err) : resolve(result),
-            );
-          });
-        } catch (e) {
-          logger.error(`Failed to decompress request body`, e);
-          res.status(400);
-          return { error: "Failed to decompress request body" };
-        }
-      }
-
-      let resourceSpans: any;
       const contentType = req.headers["content-type"]?.toLowerCase();
       // Strict content-type matching does not work if something like `content-type: text/javascript; charset=utf-8` is sent.
       if (
@@ -86,6 +72,52 @@ export default withMiddlewares({
         res.status(400);
         return { error: "Invalid content type" };
       }
+
+      let body: Buffer;
+      try {
+        validateOtelTraceContentLength(req.headers);
+        body = await readStreamWithByteLimit(
+          req,
+          OTEL_TRACE_REQUEST_BODY_MAX_BYTES,
+          { limitExceededAction: "resume" },
+        );
+      } catch (e) {
+        if (e instanceof OtelTraceRequestLimitError) {
+          logger.warn(`Rejected OTel trace request body`, {
+            projectId: auth.scope.projectId,
+            statusCode: e.statusCode,
+            error: e.message,
+          });
+          res.status(e.statusCode);
+          return { error: e.message };
+        }
+
+        logger.error(`Failed to read request body`, e);
+        res.status(400);
+        return { error: "Failed to read request body" };
+      }
+
+      if (headerIncludes(req.headers["content-encoding"], "gzip")) {
+        try {
+          body = await decompressGzipWithByteLimit(body);
+        } catch (e) {
+          if (e instanceof OtelTraceRequestLimitError) {
+            logger.warn(`Rejected OTel trace request body`, {
+              projectId: auth.scope.projectId,
+              statusCode: e.statusCode,
+              error: e.message,
+            });
+            res.status(e.statusCode);
+            return { error: e.message };
+          }
+
+          logger.error(`Failed to decompress request body`, e);
+          res.status(400);
+          return { error: "Failed to decompress request body" };
+        }
+      }
+
+      let resourceSpans: any;
       if (contentType.includes("application/x-protobuf")) {
         try {
           const parsed =
@@ -112,24 +144,29 @@ export default withMiddlewares({
         }
       }
 
-      if (!resourceSpans || resourceSpans.length === 0) {
+      if (!resourceSpans) {
         return {};
       }
 
-      // Warn on oversized OTEL request bodies (16MB threshold)
-      const bodyBytes = body.byteLength;
-      if (bodyBytes > 16 * 1024 * 1024) {
-        let spanCount = 0;
-        for (const rs of resourceSpans) {
-          for (const ss of rs?.scopeSpans ?? []) {
-            spanCount += ss?.spans?.length ?? 0;
-          }
+      let batchCounts: { resourceSpanCount: number; spanCount: number };
+      try {
+        batchCounts = getOtelTraceBatchCounts(resourceSpans);
+      } catch (e) {
+        if (e instanceof OtelTraceRequestLimitError) {
+          logger.warn(`Rejected OTel trace request batch`, {
+            projectId: auth.scope.projectId,
+            statusCode: e.statusCode,
+            error: e.message,
+          });
+          res.status(e.statusCode);
+          return { error: e.message };
         }
-        logger.warn("OTEL request body exceeds 16MB", {
-          projectId: auth.scope.projectId,
-          bodyBytes,
-          spanCount,
-        });
+
+        throw e;
+      }
+
+      if (batchCounts.resourceSpanCount === 0) {
+        return {};
       }
 
       // Extract SDK headers for write path decision (supports both hyphen and underscore formats)
