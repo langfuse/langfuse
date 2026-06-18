@@ -1,7 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { env } from "@/src/env.mjs";
-import { redis } from "@langfuse/shared/src/server";
+import {
+  API_KEY_CACHE_PATTERN,
+  createApiKeyCacheKey,
+  redis,
+} from "@langfuse/shared/src/server";
 import handler from "../../pages/api/admin/api-keys";
 import {
   clearRedisKeysByPatternSafely,
@@ -32,13 +36,13 @@ describe("Admin API keys route", () => {
   beforeEach(async () => {
     const redisClient = getRedisClient();
     await ensureRedisReady(redisClient);
-    await clearRedisKeysByPatternSafely(redisClient, "api-key:*");
+    await clearRedisKeysByPatternSafely(redisClient, API_KEY_CACHE_PATTERN);
     await clearRedisKeysByPatternSafely(redisClient, "other-cache:*");
   });
 
   afterEach(async () => {
     const redisClient = getRedisClient();
-    await clearRedisKeysByPatternSafely(redisClient, "api-key:*");
+    await clearRedisKeysByPatternSafely(redisClient, API_KEY_CACHE_PATTERN);
     await clearRedisKeysByPatternSafely(redisClient, "other-cache:*");
   });
 
@@ -49,10 +53,13 @@ describe("Admin API keys route", () => {
 
   it("invalidates all cached API keys without deleting other redis entries", async () => {
     const redisClient = getRedisClient();
-    await setRedisValue(redisClient, "api-key:existing-key", "cached-api-key");
+    const existingApiKeyCacheKey = createApiKeyCacheKey("existing-key");
+    const missingApiKeyCacheKey = createApiKeyCacheKey("missing-key");
+
+    await setRedisValue(redisClient, existingApiKeyCacheKey, "cached-api-key");
     await setRedisValue(
       redisClient,
-      "api-key:missing-key",
+      missingApiKeyCacheKey,
       '"api-key-non-existent"',
     );
     await setRedisValue(redisClient, "other-cache:existing-key", "untouched");
@@ -74,8 +81,8 @@ describe("Admin API keys route", () => {
       message: "All cached API keys invalidated",
       invalidatedCount: 2,
     });
-    expect(await getRedisValue(redisClient, "api-key:existing-key")).toBeNull();
-    expect(await getRedisValue(redisClient, "api-key:missing-key")).toBeNull();
+    expect(await getRedisValue(redisClient, existingApiKeyCacheKey)).toBeNull();
+    expect(await getRedisValue(redisClient, missingApiKeyCacheKey)).toBeNull();
     expect(await getRedisValue(redisClient, "other-cache:existing-key")).toBe(
       "untouched",
     );
