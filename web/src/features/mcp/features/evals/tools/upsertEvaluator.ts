@@ -11,6 +11,7 @@ import {
 } from "@/src/features/public-api/types/unstable-public-evals-contract";
 import { createPublicEvaluator } from "@/src/features/evals/server/unstable-public-api";
 import { defineTool } from "../../../core/define-tool";
+import { buildEvaluatorUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   EvaluatorModelConfigBaseSchema,
@@ -64,7 +65,15 @@ export const [upsertEvaluatorTool, handleUpsertEvaluator] = defineTool({
 
         span.setAttribute("mcp.evaluator_id", evaluator.id);
 
-        return PostUnstableEvaluatorResponse.parse(evaluator);
+        const parsed = PostUnstableEvaluatorResponse.parse(evaluator);
+
+        return {
+          ...parsed,
+          url: buildEvaluatorUrl({
+            projectId: context.projectId,
+            evaluatorId: parsed.id,
+          }),
+        };
       },
     }),
   destructiveHint: true,

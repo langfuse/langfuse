@@ -15,9 +15,10 @@ export const useFullTextSearch = () => {
     withDefault(StringParam, null),
   );
 
-  // Search type can be either "id" or "metadata". Keep it untyped here and
-  // cast later to the stricter `TracingSearchType[]` to avoid type mismatch
-  // with the generic `ArrayParam` from `use-query-params`.
+  // Search type is one of "id", "content", "input", or "output"
+  // (TracingSearchType). Keep it untyped here and cast later to the stricter
+  // `TracingSearchType[]` to avoid type mismatch with the generic `ArrayParam`
+  // from `use-query-params`.
   const [searchType, handleSearchTypeChange] = useQueryParam(
     "searchType",
     withDefault(ArrayParam, ["id"]),
@@ -49,7 +50,14 @@ export const useFullTextSearch = () => {
   }
 
   const setSearchType = (newSearchType: TracingSearchType[]) => {
-    handleSearchTypeChange(newSearchType);
+    // Reverting to the default scope (id) removes the `searchType` param
+    // entirely instead of writing an explicit `?searchType=id`, so URLs and
+    // saved views match the no-scope state regardless of which surface (search
+    // bar or legacy toolbar) produced the change.
+    const isDefault =
+      newSearchType.length === 0 ||
+      (newSearchType.length === 1 && newSearchType[0] === "id");
+    handleSearchTypeChange(isDefault ? undefined : newSearchType);
   };
 
   const typedSearchType = (searchType ?? ["id"]) as TracingSearchType[];
