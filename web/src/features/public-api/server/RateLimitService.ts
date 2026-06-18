@@ -23,8 +23,29 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import {
+  getRateLimitUpgradeMessage,
+  type RateLimitUpgradePath,
+} from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
+
+export type RateLimitResponseOptions = {
+  errorContract?: PublicApiErrorContract | undefined;
+  upgradePath?: RateLimitUpgradePath | undefined;
+};
+
+export type RateLimitResponseOptionsInput =
+  | PublicApiErrorContract
+  | RateLimitResponseOptions;
+
+const normalizeRateLimitResponseOptions = (
+  options?: RateLimitResponseOptionsInput,
+): RateLimitResponseOptions => {
+  return typeof options === "string"
+    ? { errorContract: options }
+    : (options ?? {});
+};
 
 // Business Logic
 // - rate limit strategy is based on org-id, org plan, and resources. Rate limits are applied in buckets of minutes.
@@ -176,7 +197,7 @@ export class RateLimitHelper {
 
   sendRestResponseIfLimited(
     nextResponse: NextApiResponse,
-    errorContract?: PublicApiErrorContract,
+    options?: RateLimitResponseOptionsInput,
   ) {
     if (!this.res || !this.isRateLimited()) {
       logger.error("Trying to send rate limit response without being limited.");
@@ -184,26 +205,48 @@ export class RateLimitHelper {
         "Trying to send rate limit response without being limited.",
       );
     }
-    return sendRateLimitResponse(nextResponse, this.res, errorContract);
+    return sendRateLimitResponse(nextResponse, this.res, options);
   }
 }
 
 export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
-  errorContract?: PublicApiErrorContract,
+  options?: RateLimitResponseOptionsInput,
 ) => {
+  const responseOptions = normalizeRateLimitResponseOptions(options);
   const httpHeader = createHttpHeaderFromRateLimit(rateLimitRes);
 
   for (const [header, value] of Object.entries(httpHeader)) {
     res.setHeader(header, value);
   }
 
-  if (errorContract === unstablePublicEvalsErrorContract) {
+  if (responseOptions.errorContract === unstablePublicEvalsErrorContract) {
     return sendUnstablePublicApiErrorResponse(
       res,
       createUnstablePublicApiRateLimitError(rateLimitRes),
     );
+  }
+
+  if (responseOptions.upgradePath) {
+    const retryAfterSeconds = Math.ceil(rateLimitRes.msBeforeNext / 1000);
+    const resetAt = new Date(
+      Date.now() + rateLimitRes.msBeforeNext,
+    ).toISOString();
+    const remainingPoints = Math.max(0, rateLimitRes.remainingPoints);
+
+    res.setHeader("X-RateLimit-Remaining", remainingPoints);
+
+    return res.status(429).json({
+      message: getRateLimitUpgradeMessage(responseOptions.upgradePath),
+      error: "RateLimitExceeded",
+      resource: rateLimitRes.resource,
+      retryAfterSeconds,
+      limit: rateLimitRes.points,
+      remaining: remainingPoints,
+      resetAt,
+      upgradePath: responseOptions.upgradePath,
+    });
   }
 
   res.status(429).end("429 - rate limit exceeded");

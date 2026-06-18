@@ -100,15 +100,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       isInAppAgentKey: false,
     },
   };
-  const rateLimitResult = {
-    points: 10,
-    remainingPoints: -1,
-    msBeforeNext: 2500,
-    resource: "public-api" as const,
-    scope: validAuth.scope,
-    consumedPoints: 11,
-    isFirstInDuration: false,
-  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -210,10 +201,13 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     const res = await callRoute();
 
     expect(res.statusCode).toBe(429);
-    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, undefined);
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
+      errorContract: undefined,
+      upgradePath: undefined,
+    });
   });
 
-  it("returns upgrade guidance directly for route-specific stable rate limit responses", async () => {
+  it("passes upgrade guidance to the shared rate limit response", async () => {
     const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
       res.status(429).json({ message: "rate limited" });
     });
@@ -228,7 +222,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
     mockRateLimitRequest.mockResolvedValueOnce({
-      res: rateLimitResult,
       isRateLimited: () => true,
       sendRestResponseIfLimited,
     });
@@ -238,19 +231,9 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
 
     expect(res.statusCode).toBe(429);
-    expect(res.getHeader("Retry-After")).toBe(3);
-    expect(res.getHeader("X-RateLimit-Remaining")).toBe(0);
-    expect(res._getJSONData()).toEqual({
-      message:
-        "Rate limit exceeded for GET /api/public/traces. Use GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to> for high-volume reads.",
-      error: "RateLimitExceeded",
-      resource: "public-api",
-      retryAfterSeconds: 3,
-      limit: 10,
-      remaining: 0,
-      resetAt: expect.any(String),
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
+      errorContract: undefined,
       upgradePath,
     });
-    expect(sendRestResponseIfLimited).not.toHaveBeenCalled();
   });
 });

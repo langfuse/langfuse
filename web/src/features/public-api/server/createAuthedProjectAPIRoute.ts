@@ -10,12 +10,9 @@ import {
   traceException,
   logger,
 } from "@langfuse/shared/src/server";
-import { type RateLimitResource, type RateLimitResult } from "@langfuse/shared";
+import { type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import {
-  getRateLimitUpgradeMessage,
-  type RateLimitUpgradePath,
-} from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
@@ -294,37 +291,6 @@ export async function verifyAuth(
   );
 }
 
-const sendRateLimitUpgradeResponse = (
-  res: NextApiResponse,
-  rateLimitRes: RateLimitResult,
-  upgradePath: RateLimitUpgradePath,
-) => {
-  const retryAfterSeconds = Math.ceil(rateLimitRes.msBeforeNext / 1000);
-  const resetAt = new Date(
-    Date.now() + rateLimitRes.msBeforeNext,
-  ).toISOString();
-  const remainingPoints = Math.max(0, rateLimitRes.remainingPoints);
-
-  res.setHeader("Retry-After", retryAfterSeconds);
-  res.setHeader("X-RateLimit-Limit", rateLimitRes.points);
-  res.setHeader("X-RateLimit-Remaining", remainingPoints);
-  res.setHeader(
-    "X-RateLimit-Reset",
-    new Date(Date.now() + rateLimitRes.msBeforeNext).toString(),
-  );
-
-  return res.status(429).json({
-    message: getRateLimitUpgradeMessage(upgradePath),
-    error: "RateLimitExceeded",
-    resource: rateLimitRes.resource,
-    retryAfterSeconds,
-    limit: rateLimitRes.points,
-    remaining: remainingPoints,
-    resetAt,
-    upgradePath,
-  });
-};
-
 export const createAuthedProjectAPIRoute = <
   TQuery extends ZodType<any>,
   TBody extends ZodType<any>,
@@ -400,22 +366,10 @@ export const createAuthedProjectAPIRoute = <
       );
 
     if (rateLimitResponse?.isRateLimited()) {
-      if (
-        routeConfig.rateLimitUpgradePath &&
-        routeConfig.errorContract !== unstablePublicEvalsErrorContract &&
-        rateLimitResponse.res
-      ) {
-        return sendRateLimitUpgradeResponse(
-          res,
-          rateLimitResponse.res,
-          routeConfig.rateLimitUpgradePath,
-        );
-      }
-
-      return rateLimitResponse.sendRestResponseIfLimited(
-        res,
-        routeConfig.errorContract,
-      );
+      return rateLimitResponse.sendRestResponseIfLimited(res, {
+        errorContract: routeConfig.errorContract,
+        upgradePath: routeConfig.rateLimitUpgradePath,
+      });
     }
 
     logger.debug(
