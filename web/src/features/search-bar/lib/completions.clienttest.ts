@@ -420,6 +420,39 @@ describe("planInputCompletions", () => {
     );
   });
 
+  it("keeps the key-path popover open while typing the quote for a spaced name", () => {
+    // The documented syntax is `scores."Rouge Score"`; typing the leading quote
+    // must keep ranking the (bare-labelled) options instead of closing the
+    // popover. Works the same for metadata.
+    const observed = {
+      ...OBSERVED,
+      scores_avg: [{ value: "Rouge Score" }],
+      metadata: [{ value: "my key" }],
+    };
+    for (const q of ['scores."', 'scores."Rou', 'scores."Rouge Score']) {
+      const opts = flattenOptions(plan(q, q.length, { observed }));
+      const hit = opts.find(
+        (o) => "fieldId" in o && o.fieldId === 'scores."Rouge Score"',
+      );
+      expect(hit, q).toBeDefined();
+    }
+    const metaOpts = flattenOptions(plan('metadata."my', 12, { observed }));
+    expect(
+      metaOpts.find((o) => "fieldId" in o && o.fieldId === 'metadata."my key"'),
+    ).toBeDefined();
+  });
+
+  it("quotes a spaced score name in the numeric compare-op example", () => {
+    const observed = { ...OBSERVED, scores_avg: [{ value: "Rouge Score" }] };
+    const q = 'scores."Rouge Score":';
+    const details = flattenOptions(plan(q, q.length, { observed }))
+      .map((o) => ("detail" in o ? o.detail : undefined))
+      .filter(Boolean);
+    expect(details.some((d) => d?.includes('scores."Rouge Score":'))).toBe(
+      true,
+    );
+  });
+
   it("keeps the value stage live for a glob value (re-form + re-scope)", () => {
     // `output:*ole*` is a contains glob. Clicking into the value must still
     // plan the value stage: a leading `*` is a glob ANCHOR, not a value-

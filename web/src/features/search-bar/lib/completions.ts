@@ -454,6 +454,11 @@ function keyPathOptions(
   // `fieldId` is the inserted text (quoted), while `label` stays the bare,
   // readable form so it matches the user's typed prefix during ranking.
   const keyText = (name: string) => `${kind.canonical}${quoteIfNeeded(name)}`;
+  // The user types the documented quoting syntax (`scores."Rou`), but labels are
+  // bare — strip the surrounding quote chars from the typed segment so ranking
+  // still matches (otherwise the first `"` drops every option and the popover
+  // silently closes).
+  const rankKey = typedKey.replace(/^"/, "").replace(/"$/, "");
   if (kind.canonical === "metadata.") {
     const options = observedValues(observed, "metadata").map((o) => ({
       id: `key:metadata.${o.value}`,
@@ -464,7 +469,7 @@ function keyPathOptions(
     }));
     return {
       title: SECTION_KEYS,
-      options: rankFilter(options, `metadata.${typedKey}`),
+      options: rankFilter(options, `metadata.${rankKey}`),
     };
   }
   const numericColumn =
@@ -489,7 +494,7 @@ function keyPathOptions(
   }));
   return {
     title: SECTION_SCORE_NAMES,
-    options: rankFilter(options, `${kind.canonical}${typedKey}`),
+    options: rankFilter(options, `${kind.canonical}${rankKey}`),
   };
 }
 
@@ -560,8 +565,13 @@ function valueStageSections(
         ref.level === "trace" ? "trace_scores_avg" : "scores_avg";
       const categoricalColumn =
         ref.level === "trace" ? "trace_score_categories" : "score_categories";
+      // Quoted for the example shown in the compare-op tooltip — a spaced score
+      // name must read as `scores."Rouge Score":>0.8`, not the unparseable bare
+      // form. (The data lookups above use the unquoted column names.)
       const path =
-        ref.level === "trace" ? `traceScores.${ref.key}` : `scores.${ref.key}`;
+        ref.level === "trace"
+          ? `traceScores.${quoteIfNeeded(ref.key)}`
+          : `scores.${quoteIfNeeded(ref.key)}`;
       const isNumeric = observedValues(observed, numericColumn).some(
         (o) => o.value === ref.key,
       );

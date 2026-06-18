@@ -477,6 +477,26 @@ describe("astToFilterState", () => {
     ]);
     expect(validateQuery('scores."Rouge Score":>=1').valid).toBe(true);
   });
+
+  it("quotes grammar-char keys in error-message example syntax", () => {
+    // The suggested example syntax in diagnostics must itself parse for a
+    // spaced/colon key — i.e. show the quoted form, not the bare one.
+    const errsFor = (text: string) => lower(text).errors.join(" • ");
+    // metadata any-of group → "supports a single value"
+    expect(errsFor('metadata."my key":(a OR b)')).toContain(
+      'metadata."my key"',
+    );
+    // negated metadata exact → suggestion quotes the key
+    expect(errsFor('-metadata."my key":=foo')).toContain('-metadata."my key"');
+    // numeric score any-of → "expects a single numeric value"
+    expect(errsFor('scores."Rouge Score":(0.1 OR 0.2)')).toContain(
+      'scores."Rouge Score"',
+    );
+    // string-glob op on a score → operatorIssue example quotes the key
+    expect(errsFor('scores."Rouge Score":foo*')).toContain(
+      'scores."Rouge Score"',
+    );
+  });
 });
 
 describe("validateQuery / adapter parity", () => {

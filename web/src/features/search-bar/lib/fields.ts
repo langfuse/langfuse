@@ -232,7 +232,7 @@ export function operatorIssue(
       return null;
     case "scores":
       if (STRING_OPS.has(op) && op !== "exact") {
-        return `score filters compare numbers (scores.${ref.key}:>0.8) or match categories (scores.${ref.key}:positive) — ${label(op)} is not supported`;
+        return `score filters compare numbers (${refName(ref)}:>0.8) or match categories (${refName(ref)}:positive) — ${label(op)} is not supported`;
       }
       return null;
     case "field": {
@@ -293,7 +293,7 @@ export function negationIssue(
     if (ref.type === "metadata") {
       // stringObject has no "does not equal" — only does-not-contain.
       return op === "exact"
-        ? `negated exact match on metadata is not representable — use -metadata.${ref.key}:*value* (does not contain)`
+        ? `negated exact match on metadata is not representable — use -${refName(ref)}:*value* (does not contain)`
         : null; // '=' on metadata negates via categoryOptions? No — handled below.
     }
     if (ref.type === "scores") {
