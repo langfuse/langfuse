@@ -554,14 +554,6 @@ export function useSidebarFilterState(
   const managedEnvironmentColumn =
     managedEnvironmentPolicyConfig.managedEnvironmentColumn;
 
-  const availableEnvironmentValues = useMemo(() => {
-    const rawOptions = options[managedEnvironmentColumn];
-    if (!Array.isArray(rawOptions)) return [];
-    return rawOptions.map((option) =>
-      typeof option === "string" ? option : option.value,
-    );
-  }, [options, managedEnvironmentColumn]);
-
   const effectiveEnvironmentFilterState: FilterState = useMemo(
     () =>
       buildEffectiveEnvironmentFilter({
@@ -587,7 +579,6 @@ export function useSidebarFilterState(
     (newFilters: FilterState) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
         explicitFilters: newFilters,
-        availableEnvironmentValues,
         config: managedEnvironmentPolicyConfig,
       });
 
@@ -617,7 +608,6 @@ export function useSidebarFilterState(
       setUrlFiltersQuery,
       setStoredFiltersQuery,
       managedEnvironmentPolicyConfig,
-      availableEnvironmentValues,
     ],
   );
 
