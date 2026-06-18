@@ -59,7 +59,8 @@ const LISTBOX_ID = "search-bar-listbox";
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
 // Stable empty recents reference so the plan memo doesn't churn when recents
-// are intentionally suppressed (popover closed or append mode).
+// are intentionally suppressed (popover closed, or a non-empty draft — recents
+// show only on an empty bar; see the recents memo).
 const NO_RECENTS: string[] = [];
 
 // Surrogate-pair guards: a non-BMP codepoint (emoji, supplementary CJK) is two
@@ -327,14 +328,19 @@ export function SearchComposer({
     [observed],
   );
 
-  // Read recents only while the popover is open (avoids a synchronous
-  // localStorage read on every keystroke/selection render). Recents surface in
-  // the empty stage, which a trailing-space caret lands in — picking one
-  // replaces the whole draft (a recent is a complete query the user chose to
-  // load), consistent with picking a recent at the start of an empty bar.
+  // Recents are a COMPLETE saved query: picking one REPLACES the whole draft
+  // (pickOption's recent branch). Only offer them on a truly empty bar, where
+  // there's nothing to clobber — NOT at a trailing-space landing after the user
+  // has built up filters, where a stray pick would silently wipe them. Gating
+  // on an empty draft also keeps the synchronous localStorage read off the
+  // keystroke path (a non-empty draft returns the stable NO_RECENTS reference,
+  // so the plan memo doesn't churn).
   const recents = React.useMemo(
-    () => (autocompleteOpen ? getRecentSearches(projectId) : NO_RECENTS),
-    [autocompleteOpen, projectId],
+    () =>
+      autocompleteOpen && draft.trim().length === 0
+        ? getRecentSearches(projectId)
+        : NO_RECENTS,
+    [autocompleteOpen, draft, projectId],
   );
 
   const plan: CompletionPlan | null =
@@ -668,34 +674,30 @@ export function SearchComposer({
         if (text !== storeApi.getState().draft) actions.setDraft(text);
       }
       // The container validates, lowers, and writes the filter state; on failure
-      // it reveals the invalid draft. A successful commit re-derives the
-      // committed text and the resetTo effect canonicalizes the draft.
-      const ok = commitToFilterState();
-      if (ok) {
-        setHighlightedOptionId(null);
-        // Close the undo-coalesce window at the commit boundary, mirroring undo()/
-        // redo()/the external-draft sync. Otherwise a post-commit keystroke keeps
-        // coalescing across the commit, so Cmd+Z jumps past the natural break.
-        historyRef.current.coalesce = null;
+      // it reveals the invalid draft and returns null. On success it returns the
+      // CANONICAL committed text — the same text the resetTo effect re-derives.
+      const committedText = commitToFilterState();
+      if (committedText === null) return;
+      setHighlightedOptionId(null);
+      // Close the undo-coalesce window at the commit boundary, mirroring undo()/
+      // redo()/the external-draft sync. Otherwise a post-commit keystroke keeps
+      // coalescing across the commit, so Cmd+Z jumps past the natural break.
+      historyRef.current.coalesce = null;
+      if (advanceToTrailingSpace && caretAtEnd && committedText.length > 0) {
         // Enter committed at the END of the query: land on a fresh trailing
         // space OUTSIDE the last block, with field suggestions open — the same
         // "ready for the next filter" landing as a pick-at-end or ArrowRight-at-
-        // end. The space is trimmed on the next commit, so it never reaches the
-        // filter state. The resetTo echo re-derives the committed text and no-ops
-        // because the trailing space is AST-equal to the committed form. Mid-
-        // query commits and blur keep the caret put and close the popover.
-        const committed = storeApi.getState().draft;
-        if (
-          advanceToTrailingSpace &&
-          caretAtEnd &&
-          committed.length > 0 &&
-          !/\s$/.test(committed)
-        ) {
-          setDraftWithSelection(`${committed} `, committed.length + 1);
-          setAutocompleteOpen(true);
-        } else {
-          setAutocompleteOpen(false);
-        }
+        // end. Append to the CANONICAL committed text (not the typed draft): the
+        // resetTo echo seeds that exact text, so it string-compares equal and the
+        // space survives even when the commit reorders the query (e.g. free-text-
+        // then-filter `refund level:ERROR` → `level:ERROR refund`). Canonical text
+        // is already trimmed, so one space never doubles. The space is trimmed on
+        // the next commit, so it never reaches the filter state. Mid-query commits
+        // and blur (advanceToTrailingSpace=false) keep the caret put and close.
+        setDraftWithSelection(`${committedText} `, committedText.length + 1);
+        setAutocompleteOpen(true);
+      } else {
+        setAutocompleteOpen(false);
       }
     },
     [storeApi, commitToFilterState, setDraftWithSelection],

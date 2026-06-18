@@ -64,7 +64,7 @@ export function useEventsSearchBar({
   setFilterState: (filters: FilterState) => void;
   setSearchQuery: (query: string | null) => void;
   setSearchType: (type: TracingSearchType[]) => void;
-}): { store: SearchBarStore; commit: () => boolean } {
+}): { store: SearchBarStore; commit: () => string | null } {
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
   const observedRef = useRef(observed);
@@ -116,14 +116,14 @@ export function useEventsSearchBar({
   const searchTypeRef = useRef(searchType);
   searchTypeRef.current = searchType;
 
-  const commit = useCallback((): boolean => {
+  const commit = useCallback((): string | null => {
     const result = planCommit(
       store.getState().draft,
       scoreTypeContextFromObserved(observedRef.current),
     );
     if (result.status === "invalid") {
       store.getState().actions.revealInvalid();
-      return false;
+      return null;
     }
     const { setFilterState, setSearchQuery, setSearchType } = applyRef.current;
     // Re-attach the filters the grammar can't represent so the commit never
@@ -134,9 +134,9 @@ export function useEventsSearchBar({
     const preserved = skippedFiltersRef.current.filter(
       (f) => !producedKeys.has(filterIdentity(f)),
     );
-    setFilterState(
-      preserved.length > 0 ? [...result.filters, ...preserved] : result.filters,
-    );
+    const committedFilters =
+      preserved.length > 0 ? [...result.filters, ...preserved] : result.filters;
+    setFilterState(committedFilters);
     setSearchQuery(result.searchQuery);
     // Only write searchType when it actually changed. planCommit coerces a
     // draft with no scope token to the default (`["id","content"]` — ids+names
@@ -149,7 +149,15 @@ export function useEventsSearchBar({
     if (result.canonical.length > 0) {
       recordRecentSearch(projectId, result.canonical);
     }
-    return true;
+    // Return the CANONICAL committed text — exactly what the resetTo effect
+    // re-derives on the next render (same filters + searchQuery/searchType). The
+    // composer appends its trailing-space landing to THIS, not the typed draft,
+    // so the echo string-compares equal and the space survives even when the
+    // commit reorders the query (e.g. `refund level:ERROR` → `level:ERROR refund`).
+    return filterStateToQueryText(committedFilters, {
+      searchQuery: result.searchQuery,
+      searchType: result.searchType,
+    }).text;
   }, [store, projectId]);
 
   return { store, commit };
