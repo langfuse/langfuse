@@ -2,6 +2,7 @@ import { LlmApiKeys } from "@prisma/client";
 import z from "zod";
 import {
   BedrockConfigSchema,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
@@ -418,6 +419,8 @@ export type OpenAIModel = (typeof openAIModels)[number];
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
   "claude-sonnet-4-5-20250929",
+  "claude-fable-5",
+  "claude-mythos-5",
   "claude-haiku-4-5-20251001",
   "claude-opus-4-8",
   "claude-opus-4-7",
@@ -513,7 +516,9 @@ export const LLMApiKeySchema = z
     baseURL: z.string().nullable(),
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
-    config: z.union([BedrockConfigSchema, VertexAIConfigSchema]).nullish(), // Bedrock and VertexAI have additional config
+    config: z
+      .union([BedrockConfigSchema, VertexAIConfigSchema, OpenAIConfigSchema])
+      .nullish(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
@@ -529,6 +534,7 @@ export enum LangfuseInternalTraceEnvironment {
   LLMJudge = "langfuse-llm-as-a-judge",
   CodeEval = "langfuse-code-eval",
   NaturalLanguageFilter = "langfuse-natural-language-filter",
+  InAppAgent = "langfuse-in-app-agent",
 }
 
 export type ProcessedTraceEvent = {

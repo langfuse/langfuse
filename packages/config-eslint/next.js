@@ -1,5 +1,5 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
+import eslintConfigPrettier from "eslint-config-prettier";
 import turboConfig from "eslint-config-turbo/flat";
 import "eslint-plugin-only-warn";
 import langfusePlugin from "@repo/eslint-plugin";
@@ -54,8 +54,8 @@ export default [
     },
   },
 
-  // Prettier (last)
-  eslintPluginPrettierRecommended,
+  // Disable ESLint rules that conflict with Prettier formatting.
+  eslintConfigPrettier,
 
   // Layer repo-specific TS rules on top of Next's built-in flat TS config.
   // Next already provides the parser and @typescript-eslint plugin here.
@@ -82,6 +82,7 @@ export default [
       "@repo": langfusePlugin,
     },
     rules: {
+      "no-void": "warn",
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config

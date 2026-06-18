@@ -51,6 +51,20 @@ type MappedFilters = {
   whereRawParts: RawSqlPart[];
 };
 
+type AppliedBucketingDimension =
+  | { type: "none" }
+  | {
+      type: "time";
+      bucketDimensionAlias: "time_dimension";
+      granularity: z.infer<typeof granularities>;
+    }
+  | {
+      type: "entity";
+      bucketDimensionAlias: "entity_dimension";
+      field: string;
+      dimension: AppliedDimensionType;
+    };
+
 export class QueryBuilder {
   private chartConfig?: { bins?: number; row_limit?: number };
   private version: ViewVersion;
@@ -112,6 +126,94 @@ export class QueryBuilder {
     viewName: z.infer<typeof views>,
   ): ViewDeclarationType {
     return getViewDeclaration(viewName, this.version);
+  }
+
+  private applyBucketingDimension(
+    query: QueryType,
+    view: ViewDeclarationType,
+  ): AppliedBucketingDimension {
+    if (query.timeDimension && query.entityDimension) {
+      throw new InvalidRequestError(
+        "timeDimension and entityDimension are mutually exclusive",
+      );
+    }
+
+    if (query.timeDimension) {
+      const granularity =
+        query.timeDimension.granularity === "auto"
+          ? this.determineTimeGranularity(
+              query.fromTimestamp,
+              query.toTimestamp,
+            )
+          : query.timeDimension.granularity;
+
+      return {
+        type: "time",
+        bucketDimensionAlias: "time_dimension",
+        granularity,
+      };
+    }
+
+    if (query.entityDimension) {
+      if (this.version !== "v2") {
+        throw new InvalidRequestError(
+          "entityDimension is only supported for v2 queries",
+        );
+      }
+
+      const field = query.entityDimension.field;
+      const dimension = this.getEntityDimensionDefinition(view, field);
+
+      // Entity buckets reuse view dimensions for SQL/relation metadata, but they are
+      // not regular dimensions. Only declared relations are allowed; do not infer
+      // broader join paths or propagation behavior here.
+      if (
+        dimension.relationTable &&
+        !(dimension.relationTable in view.tableRelations)
+      ) {
+        throw new InvalidRequestError(
+          `Invalid relationTable for entity dimension ${field}: ${dimension.relationTable}. Must be one of ${Object.keys(view.tableRelations)}`,
+        );
+      }
+
+      return {
+        type: "entity",
+        bucketDimensionAlias: "entity_dimension",
+        field,
+        dimension: {
+          ...dimension,
+          table: dimension.relationTable || view.name,
+          explodeArray: dimension.explodeArray,
+          pairExpand: dimension.pairExpand,
+        },
+      };
+    }
+
+    return { type: "none" };
+  }
+
+  private getEntityDimensionDefinition(
+    view: ViewDeclarationType,
+    field: string,
+  ) {
+    const dimension = view.dimensions[field];
+    if (!dimension) {
+      throw new InvalidRequestError(
+        `Invalid entity dimension: ${field}. Must be one of ${Object.keys(view.dimensions)}`,
+      );
+    }
+
+    if (
+      dimension.explodeArray ||
+      dimension.pairExpand ||
+      dimension.aggregationFunction
+    ) {
+      throw new InvalidRequestError(
+        `Invalid entity dimension: ${field}. Entity dimensions must be scalar view dimensions.`,
+      );
+    }
+
+    return dimension;
   }
 
   private mapDimensions(
@@ -517,10 +619,20 @@ export class QueryBuilder {
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
     filters: FilterList,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ) {
     const relationTables = new Set<string>();
     const actualTableName = this.actualTableName(view);
 
+    // The bucket dimension is a separate first-class grouping axis. If an entity
+    // bucket is relation-backed, include its declared relation without adding it to
+    // appliedDimensions and inheriting regular-dimension behavior.
+    if (
+      appliedBucketingDimension.type === "entity" &&
+      appliedBucketingDimension.dimension.relationTable
+    ) {
+      relationTables.add(appliedBucketingDimension.dimension.relationTable);
+    }
     appliedDimensions.forEach((dimension) => {
       if (dimension.relationTable) {
         relationTables.add(dimension.relationTable);
@@ -720,6 +832,26 @@ export class QueryBuilder {
         return `toMonday(${sql})`;
       case "month":
         return `toStartOfMonth(${sql})`;
+      case "5m":
+        return `toStartOfInterval(${sql}, INTERVAL 5 MINUTE)`;
+      case "10m":
+        return `toStartOfInterval(${sql}, INTERVAL 10 MINUTE)`;
+      case "15m":
+        return `toStartOfInterval(${sql}, INTERVAL 15 MINUTE)`;
+      case "30m":
+        return `toStartOfInterval(${sql}, INTERVAL 30 MINUTE)`;
+      case "1h":
+        return `toStartOfInterval(${sql}, INTERVAL 1 HOUR)`;
+      case "2h":
+        return `toStartOfInterval(${sql}, INTERVAL 2 HOUR)`;
+      case "4h":
+        return `toStartOfInterval(${sql}, INTERVAL 4 HOUR)`;
+      case "1d":
+        return `toStartOfInterval(${sql}, INTERVAL 1 DAY)`;
+      case "2d":
+        return `toStartOfInterval(${sql}, INTERVAL 2 DAY)`;
+      case "1w":
+        return `toStartOfInterval(${sql}, INTERVAL 7 DAY)`;
       case "auto":
         throw new Error(
           `Granularity 'auto' is not supported for getTimeDimensionSql`,
@@ -736,22 +868,16 @@ export class QueryBuilder {
 
   private buildTimeDimensionSql(
     view: ViewDeclarationType,
-    query: QueryType,
+    appliedBucketingDimension: Extract<
+      AppliedBucketingDimension,
+      { type: "time" }
+    >,
     wrapInAgg?: string,
   ): string {
-    if (!query.timeDimension) {
-      return "";
-    }
-
     const actualTableName = this.actualTableName(view);
-    const granularity =
-      query.timeDimension.granularity === "auto"
-        ? this.determineTimeGranularity(query.fromTimestamp, query.toTimestamp)
-        : query.timeDimension.granularity;
-
     const timeDimensionSql = this.getTimeDimensionSql(
       `${actualTableName}.${view.timeDimension}`,
-      granularity,
+      appliedBucketingDimension.granularity,
     );
 
     // Optionally wrap in aggregation function (e.g., "any" for two-level inner SELECT).
@@ -771,10 +897,37 @@ export class QueryBuilder {
     return `${wrappedSql} as time_dimension`;
   }
 
+  private buildBucketDimensionSql(
+    view: ViewDeclarationType,
+    appliedBucketingDimension: AppliedBucketingDimension,
+    wrapInAgg?: string,
+  ): string {
+    switch (appliedBucketingDimension.type) {
+      case "none":
+        return "";
+      case "time":
+        return this.buildTimeDimensionSql(
+          view,
+          appliedBucketingDimension,
+          wrapInAgg,
+        );
+      case "entity": {
+        const sql = wrapInAgg
+          ? `${wrapInAgg}(${appliedBucketingDimension.dimension.sql})`
+          : appliedBucketingDimension.dimension.sql;
+        return `${sql} as ${appliedBucketingDimension.bucketDimensionAlias}`;
+      }
+      default: {
+        const exhaustiveCheck: never = appliedBucketingDimension;
+        return exhaustiveCheck;
+      }
+    }
+  }
+
   private buildInnerDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
-    query: QueryType,
     view: ViewDeclarationType,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ) {
     let dimensions = "";
 
@@ -807,10 +960,14 @@ export class QueryBuilder {
         .join(",\n")},`;
     }
 
-    // Add time dimension if specified - reuse unified builder with any() wrapper
-    const timeDimensionSql = this.buildTimeDimensionSql(view, query, "any");
-    if (timeDimensionSql) {
-      dimensions += `${timeDimensionSql},`;
+    // Add the bucket dimension if specified - use any() for two-level inner SELECTs.
+    const bucketDimensionSql = this.buildBucketDimensionSql(
+      view,
+      appliedBucketingDimension,
+      "any",
+    );
+    if (bucketDimensionSql) {
+      dimensions += `${bucketDimensionSql},`;
     }
 
     return dimensions;
@@ -878,7 +1035,7 @@ export class QueryBuilder {
 
   private buildOuterDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
-    hasTimeDimension: boolean,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ) {
     let dimensions = "";
 
@@ -892,9 +1049,8 @@ export class QueryBuilder {
         .join(",\n")},`;
     }
 
-    // Add time dimension if it exists
-    if (hasTimeDimension) {
-      dimensions += `time_dimension,`;
+    if (appliedBucketingDimension.type !== "none") {
+      dimensions += `${appliedBucketingDimension.bucketDimensionAlias},`;
     }
 
     return dimensions;
@@ -908,7 +1064,7 @@ export class QueryBuilder {
 
   private buildGroupByClause(
     appliedDimensions: AppliedDimensionType[],
-    hasTimeDimension: boolean,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ) {
     const dimensions = [];
 
@@ -921,9 +1077,8 @@ export class QueryBuilder {
       );
     }
 
-    // Add time dimension if it exists
-    if (hasTimeDimension) {
-      dimensions.push("time_dimension");
+    if (appliedBucketingDimension.type !== "none") {
+      dimensions.push(appliedBucketingDimension.bucketDimensionAlias);
     }
 
     return dimensions.length > 0 ? `GROUP BY ${dimensions.join(",\n")}` : "";
@@ -935,15 +1090,13 @@ export class QueryBuilder {
    * Only applied if timeDimension is used and no ORDER BY is specified.
    */
   private buildWithFillClause(
-    timeDimension: {
-      granularity: z.infer<typeof granularities>;
-    } | null,
+    appliedBucketingDimension: AppliedBucketingDimension,
     fromTimestamp: string,
     toTimestamp: string,
     orderBy: Array<{ field: string; direction: string }> | null,
     parameters: Record<string, unknown>,
   ): string {
-    if (!timeDimension) {
+    if (appliedBucketingDimension.type !== "time") {
       return "";
     }
 
@@ -951,15 +1104,9 @@ export class QueryBuilder {
       return ""; // Skip WITH FILL if ORDER BY is specified
     }
 
-    // Determine granularity for WITH FILL if timeDimension is used
-    const granularity =
-      timeDimension.granularity === "auto"
-        ? this.determineTimeGranularity(fromTimestamp, toTimestamp)
-        : timeDimension.granularity;
-
     // Calculate appropriate STEP for WITH FILL based on granularity
     let step: string;
-    switch (granularity) {
+    switch (appliedBucketingDimension.granularity) {
       case "minute":
         step = "INTERVAL 1 MINUTE";
         break;
@@ -975,6 +1122,36 @@ export class QueryBuilder {
       case "month":
         step = "INTERVAL 1 MONTH";
         break;
+      case "5m":
+        step = "INTERVAL 5 MINUTE";
+        break;
+      case "10m":
+        step = "INTERVAL 10 MINUTE";
+        break;
+      case "15m":
+        step = "INTERVAL 15 MINUTE";
+        break;
+      case "30m":
+        step = "INTERVAL 30 MINUTE";
+        break;
+      case "1h":
+        step = "INTERVAL 1 HOUR";
+        break;
+      case "2h":
+        step = "INTERVAL 2 HOUR";
+        break;
+      case "4h":
+        step = "INTERVAL 4 HOUR";
+        break;
+      case "1d":
+        step = "INTERVAL 1 DAY";
+        break;
+      case "2d":
+        step = "INTERVAL 2 DAY";
+        break;
+      case "1w":
+        step = "INTERVAL 7 DAY";
+        break;
       default:
         step = "INTERVAL 1 DAY"; // Default to day if granularity is unknown
     }
@@ -986,7 +1163,7 @@ export class QueryBuilder {
       new Date(toTimestamp),
     );
 
-    return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", granularity)} STEP ${step}`;
+    return ` WITH FILL FROM ${this.getTimeDimensionSql("{fillFromDate: DateTime64(3)}", appliedBucketingDimension.granularity)} TO ${this.getTimeDimensionSql("{fillToDate: DateTime64(3)}", appliedBucketingDimension.granularity)} STEP ${step}`;
   }
 
   /**
@@ -1049,8 +1226,8 @@ export class QueryBuilder {
 
   private buildSingleLevelDimensionsPart(
     appliedDimensions: AppliedDimensionType[],
-    query: QueryType,
     view: ViewDeclarationType,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ): string {
     let dimensionsPart = "";
     if (appliedDimensions.length > 0) {
@@ -1069,10 +1246,13 @@ export class QueryBuilder {
           .join(",\n") + ",\n";
     }
 
-    // Reuse unified time dimension builder (no wrapper for single-level)
-    const timeDimensionSql = this.buildTimeDimensionSql(view, query);
-    if (timeDimensionSql) {
-      dimensionsPart += `${timeDimensionSql},\n`;
+    // Reuse unified bucket dimension builder (no wrapper for single-level).
+    const bucketDimensionSql = this.buildBucketDimensionSql(
+      view,
+      appliedBucketingDimension,
+    );
+    if (bucketDimensionSql) {
+      dimensionsPart += `${bucketDimensionSql},\n`;
     }
 
     return dimensionsPart;
@@ -1082,7 +1262,7 @@ export class QueryBuilder {
     view: ViewDeclarationType,
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
-    query: QueryType,
+    appliedBucketingDimension: AppliedBucketingDimension,
     fromClause: string,
     groupByClause: string,
     orderByClause: string,
@@ -1092,8 +1272,8 @@ export class QueryBuilder {
     // Build dimensions using dedicated helper
     const dimensionsPart = this.buildSingleLevelDimensionsPart(
       appliedDimensions,
-      query,
       view,
+      appliedBucketingDimension,
     );
 
     // Build optimized metrics (strip templates, apply user aggregation)
@@ -1117,18 +1297,30 @@ export class QueryBuilder {
     orderBy: Array<{ field: string; direction: string }> | null,
     appliedDimensions: AppliedDimensionType[],
     appliedMetrics: AppliedMetricType[],
-    hasTimeDimension: boolean,
+    appliedBucketingDimension: AppliedBucketingDimension,
   ): Array<{ field: string; direction: string }> {
     if (!orderBy || orderBy.length === 0) {
       // Default order: time dimension if available, otherwise first metric, otherwise first dimension
-      if (hasTimeDimension) {
-        return [{ field: "time_dimension", direction: "asc" }];
+      if (appliedBucketingDimension.type === "time") {
+        return [
+          {
+            field: appliedBucketingDimension.bucketDimensionAlias,
+            direction: "asc",
+          },
+        ];
       } else if (appliedMetrics.length > 0) {
         const firstMetric = appliedMetrics[0];
         return [
           {
             field: `${firstMetric.aggregation}_${firstMetric.alias || firstMetric.sql}`,
             direction: "desc",
+          },
+        ];
+      } else if (appliedBucketingDimension.type !== "none") {
+        return [
+          {
+            field: appliedBucketingDimension.bucketDimensionAlias,
+            direction: "asc",
           },
         ];
       } else if (appliedDimensions.length > 0) {
@@ -1145,8 +1337,10 @@ export class QueryBuilder {
 
     // Validate that each orderBy field exists in dimensions or metrics
     return orderBy.map((item) => {
-      // Check if the field is a time dimension
-      if (hasTimeDimension && item.field === "time_dimension") {
+      if (
+        appliedBucketingDimension.type !== "none" &&
+        item.field === appliedBucketingDimension.bucketDimensionAlias
+      ) {
         return item;
       }
 
@@ -1276,6 +1470,7 @@ export class QueryBuilder {
     // Map dimensions and metrics
     const appliedDimensions = this.mapDimensions(query.dimensions, view);
     const appliedMetrics = this.mapMetrics(query.metrics, view);
+    const appliedBucketingDimension = this.applyBucketingDimension(query, view);
 
     // Auto-include dimensions required by pairExpand-dependent measures.
     // e.g. costByType.requiresDimension = "costType": without that dimension the
@@ -1321,6 +1516,7 @@ export class QueryBuilder {
       appliedDimensions,
       appliedMetrics,
       filterList,
+      appliedBucketingDimension,
     );
     if (relationTables.size > 0) {
       const relationJoins = this.buildJoins(
@@ -1394,7 +1590,7 @@ export class QueryBuilder {
     // Build GROUP BY clause (used by both single-level and two-level queries)
     const groupByClause = this.buildGroupByClause(
       appliedDimensions,
-      !!query.timeDimension,
+      appliedBucketingDimension,
     );
 
     // Process and validate orderBy fields
@@ -1402,7 +1598,7 @@ export class QueryBuilder {
       query.orderBy,
       appliedDimensions,
       appliedMetrics,
-      !!query.timeDimension,
+      appliedBucketingDimension,
     );
 
     // Build ORDER BY clause
@@ -1410,7 +1606,7 @@ export class QueryBuilder {
 
     // Build WITH FILL clause for time dimension to fill gaps in timeseries
     const withFillClause = this.buildWithFillClause(
-      query.timeDimension,
+      appliedBucketingDimension,
       query.fromTimestamp,
       query.toTimestamp,
       query.orderBy,
@@ -1428,7 +1624,7 @@ export class QueryBuilder {
         view,
         appliedDimensions,
         appliedMetrics,
-        query,
+        appliedBucketingDimension,
         fromClause,
         groupByClause,
         orderByClause,
@@ -1440,8 +1636,8 @@ export class QueryBuilder {
       // Build inner SELECT parts
       const innerDimensionsPart = this.buildInnerDimensionsPart(
         appliedDimensions,
-        query,
         view,
+        appliedBucketingDimension,
       );
       const innerMetricsPart = this.buildInnerMetricsPart(appliedMetrics);
 
@@ -1457,7 +1653,7 @@ export class QueryBuilder {
       // Build outer SELECT parts
       const outerDimensionsPart = this.buildOuterDimensionsPart(
         appliedDimensions,
-        !!query.timeDimension,
+        appliedBucketingDimension,
       );
       const outerMetricsPart = this.buildOuterMetricsPart(appliedMetrics);
 

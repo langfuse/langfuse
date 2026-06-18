@@ -13,6 +13,9 @@ export default withMiddlewares({
     name: "Get Session",
     querySchema: GetSessionV1Query,
     responseSchema: GetSessionV1Response,
+    // Reads from the legacy traces ClickHouse table via getTracesBySessionId,
+    // which has no events_full fallback.
+    rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const { sessionId } = query;
       const session = await prisma.traceSession.findUnique({

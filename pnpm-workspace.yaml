@@ -8,7 +8,35 @@ packages:
 minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
-minimumReleaseAgeExclude: []
+minimumReleaseAgeExclude:
+  - "form-data@2.5.6||4.0.6"
+  - esbuild@0.28.1
+  - "@esbuild/aix-ppc64@0.28.1"
+  - "@esbuild/android-arm@0.28.1"
+  - "@esbuild/android-arm64@0.28.1"
+  - "@esbuild/android-x64@0.28.1"
+  - "@esbuild/darwin-arm64@0.28.1"
+  - "@esbuild/darwin-x64@0.28.1"
+  - "@esbuild/freebsd-arm64@0.28.1"
+  - "@esbuild/freebsd-x64@0.28.1"
+  - "@esbuild/linux-arm@0.28.1"
+  - "@esbuild/linux-arm64@0.28.1"
+  - "@esbuild/linux-ia32@0.28.1"
+  - "@esbuild/linux-loong64@0.28.1"
+  - "@esbuild/linux-mips64el@0.28.1"
+  - "@esbuild/linux-ppc64@0.28.1"
+  - "@esbuild/linux-riscv64@0.28.1"
+  - "@esbuild/linux-s390x@0.28.1"
+  - "@esbuild/linux-x64@0.28.1"
+  - "@esbuild/netbsd-arm64@0.28.1"
+  - "@esbuild/netbsd-x64@0.28.1"
+  - "@esbuild/openbsd-arm64@0.28.1"
+  - "@esbuild/openbsd-x64@0.28.1"
+  - "@esbuild/openharmony-arm64@0.28.1"
+  - "@esbuild/sunos-x64@0.28.1"
+  - "@esbuild/win32-arm64@0.28.1"
+  - "@esbuild/win32-ia32@0.28.1"
+  - "@esbuild/win32-x64@0.28.1"
 allowBuilds:
   "@prisma/client": true
   "@prisma/engines": true
@@ -26,7 +54,9 @@ allowBuilds:
   prisma: false
   protobufjs: false
   "@datadog/pprof": false
+  "@scarf/scarf": false
 overrides:
+  esbuild: "0.28.1"
   zod: 4.3.6
   nanoid: ^3.3.8
   katex: ^0.16.21
@@ -39,7 +69,9 @@ overrides:
   qs: 6.15.2
   path-to-regexp@0.1.12: 0.1.13
   ip-address@10.1.0: 10.2.0
-  "@anthropic-ai/claude-agent-sdk>@anthropic-ai/sdk": 0.95.1
+  "@ai-sdk/provider-utils@<=4.0.26": 4.0.27
+  "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.27"
+  "@copilotkit/runtime@0.0.0-mme-ag-ui-0-0-46-20260227141603>@ag-ui/langgraph": 0.0.29
 patchedDependencies:
   next-auth@4.24.13: patches/next-auth@4.24.13.patch
 publicHoistPattern:

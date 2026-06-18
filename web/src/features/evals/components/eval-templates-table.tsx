@@ -6,7 +6,7 @@ import useColumnVisibility from "@/src/features/column-visibility/hooks/useColum
 import { type RouterOutputs, api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { createColumnHelper } from "@tanstack/react-table";
-import { Copy, Pen } from "lucide-react";
+import { Copy, MoreVertical, Pen } from "lucide-react";
 import { useQueryParam, StringParam, withDefault } from "use-query-params";
 import { useEffect, useMemo, useState } from "react";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
@@ -24,12 +24,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
+import { DeleteEvalTemplateButton } from "@/src/features/evals/components/delete-eval-template-button";
 import { EvalTemplateForm } from "@/src/features/evals/components/template-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { EvalReferencedEvaluators } from "@/src/features/evals/types";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type RouterInput } from "@/src/utils/types";
-import { useSingleTemplateValidation } from "@/src/features/evals/hooks/useSingleTemplateValidation";
+import {
+  type TemplateValidationInput,
+  useSingleTemplateValidation,
+} from "@/src/features/evals/hooks/useSingleTemplateValidation";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/maintainer-tooltip";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -58,11 +69,7 @@ export type EvalsTemplateRow = {
   id?: string;
   usageCount?: number;
   actions?: string;
-  provider?: string;
-  model?: string;
-  type?: EvalTemplateType;
-  sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"];
-};
+} & TemplateValidationInput;
 
 const getMaintainerLabel = (maintainer: string) =>
   maintainer.replace(/ maintained$/, "");
@@ -119,7 +126,9 @@ export default function EvalsTemplateTable({
   projectId: string;
 }) {
   const router = useRouter();
-  const { enabled: isCodeEvalEnabled } = useIsCodeEvalEnabled();
+  const codeEvalCapabilities = useIsCodeEvalEnabled();
+  const { enabled: isCodeEvalEnabled, supportedSourceCodeLanguages } =
+    codeEvalCapabilities;
   const { setDetailPageList } = useDetailPageLists();
   const [paginationState, setPaginationState] = usePaginationState(0, 50, {
     page: "pageIndex",
@@ -194,7 +203,7 @@ export default function EvalsTemplateTable({
 
   const createEvalTemplateMutation = api.evals.createTemplate.useMutation({
     onSuccess: () => {
-      void utils.evals.templateNames.invalidate();
+      utils.evals.templateNames.invalidate();
       setCloneTemplateId(null);
       setPendingCloneSubmission(null);
       setShowReferenceUpdateDialog(false);
@@ -216,13 +225,21 @@ export default function EvalsTemplateTable({
         "eval-templates",
         templateList
           .filter((template) =>
-            shouldShowEvalTemplate(template, isCodeEvalEnabled),
+            shouldShowEvalTemplate(template, {
+              enabled: isCodeEvalEnabled,
+              supportedSourceCodeLanguages,
+            }),
           )
           .map((template) => ({ id: template.latestId })),
       );
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [templates.isSuccess, templates.data, isCodeEvalEnabled]);
+  }, [
+    templates.isSuccess,
+    templates.data,
+    isCodeEvalEnabled,
+    supportedSourceCodeLanguages,
+    setDetailPageList,
+  ]);
 
   const columnHelper = createColumnHelper<EvalsTemplateRow>();
 
@@ -318,15 +335,13 @@ export default function EvalsTemplateTable({
       size: 100,
       cell: ({ row }) => {
         const id = row.original.id;
-        const provider = row.original.provider ?? null;
-        const model = row.original.model ?? null;
-        const type = row.original.type;
-        const isInvalid = isTemplateInvalid({ provider, model, type });
-        const isCodeTemplate = type === EvalTemplateType.CODE;
+        const isInvalid = isTemplateInvalid(row.original);
+        const isCodeTemplate = row.original.type === EvalTemplateType.CODE;
         const isUserMaintained = row.original.maintainer.includes("User");
+        const hasMenuItems = isUserMaintained || !isCodeTemplate;
 
         return (
-          <div className="flex flex-row gap-2">
+          <div className="flex flex-row items-center gap-2">
             <ActionButton
               variant="outline"
               size="sm"
@@ -343,7 +358,7 @@ export default function EvalsTemplateTable({
               onClick={(e) => {
                 e.stopPropagation();
                 if (id) {
-                  void router.push(
+                  router.push(
                     `/project/${projectId}/evals/new?evaluator=${id}`,
                   );
                 }
@@ -351,35 +366,60 @@ export default function EvalsTemplateTable({
             >
               Use Evaluator
             </ActionButton>
-            {!isUserMaintained && !isCodeTemplate ? (
-              <Button
-                aria-label="clone"
-                variant="outline"
-                size="icon-xs"
-                title="Clone"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setCloneTemplateId(id);
-                }}
-              >
-                <Copy className="h-3 w-3" />
-              </Button>
-            ) : null}
-            {isUserMaintained ? (
-              <Button
-                aria-label="edit"
-                variant="outline"
-                size="icon-xs"
-                title="Edit"
-                disabled={!hasAccess}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (id) setEditTemplateId(id);
-                }}
-              >
-                <Pen className="h-3 w-3" />
-              </Button>
+            {hasMenuItems && id ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-xs" aria-label="actions">
+                    <span className="sr-only relative">Open menu</span>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                  {!isUserMaintained && !isCodeTemplate ? (
+                    <DropdownMenuItem
+                      aria-label="clone"
+                      disabled={!hasAccess}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setCloneTemplateId(id);
+                      }}
+                    >
+                      <Copy className="mr-2 h-4 w-4" />
+                      Clone
+                    </DropdownMenuItem>
+                  ) : null}
+                  {isUserMaintained ? (
+                    <>
+                      <DropdownMenuItem
+                        aria-label="edit"
+                        disabled={!hasAccess}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditTemplateId(id);
+                        }}
+                      >
+                        <Pen className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <DeleteEvalTemplateButton
+                          aria-label="delete"
+                          itemId={id}
+                          projectId={projectId}
+                          isTableAction
+                          className="w-full justify-start"
+                          deleteConfirmation={row.original.name}
+                          initialUsageCount={row.original.usageCount}
+                          invalidateFunc={() => {
+                            utils.evals.templateNames.invalidate();
+                          }}
+                        />
+                      </DropdownMenuItem>
+                    </>
+                  ) : null}
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
           </div>
         );
@@ -405,7 +445,7 @@ export default function EvalsTemplateTable({
       detailNavigationKey: "eval-templates",
       peekEventOptions: {
         ignoredSelectors: [
-          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone']",
+          "[aria-label='apply'], [aria-label='actions'], [aria-label='edit'], [aria-label='clone'], [aria-label='delete']",
         ],
       },
       ...peekNavigationProps,
@@ -427,8 +467,8 @@ export default function EvalsTemplateTable({
       latestVersion: template.version,
       id: template.latestId,
       usageCount: template.usageCount,
-      provider: template.provider,
-      model: template.model,
+      provider: template.provider ?? null,
+      model: template.model ?? null,
       type: template.type,
       sourceCodeLanguage: template.sourceCodeLanguage,
     };
@@ -455,7 +495,9 @@ export default function EvalsTemplateTable({
             tableName={"evalTemplates"}
             columns={columns}
             peekView={peekConfig}
-            rowHeight="m"
+            // "s" vertically centers cell content; the custom heights keep the
+            // row at h-8 regardless
+            rowHeight="s"
             customRowHeights={templateTableRowHeights}
             data={
               templates.isLoading
@@ -471,7 +513,10 @@ export default function EvalsTemplateTable({
                       isError: false,
                       data: safeExtract(templates.data, "templates", [])
                         .filter((template) =>
-                          shouldShowEvalTemplate(template, isCodeEvalEnabled),
+                          shouldShowEvalTemplate(
+                            template,
+                            codeEvalCapabilities,
+                          ),
                         )
                         .map((t) => convertToTableRow(t)),
                     }
@@ -515,7 +560,7 @@ export default function EvalsTemplateTable({
             existingEvalTemplate={template.data ?? undefined}
             onFormSuccess={() => {
               setEditTemplateId(null);
-              void utils.evals.templateNames.invalidate();
+              utils.evals.templateNames.invalidate();
               showSuccessToast({
                 title: "Evaluator updated successfully",
                 description: "You can now use this evaluator.",
@@ -586,7 +631,7 @@ export default function EvalsTemplateTable({
             onFormSuccess={() => {
               setCloneTemplateId(null);
               setPendingCloneSubmission(null);
-              void utils.evals.templateNames.invalidate();
+              utils.evals.templateNames.invalidate();
               showSuccessToast({
                 title: "Evaluator cloned successfully",
                 description:

@@ -34,7 +34,7 @@ export const NewProjectForm = ({
   });
   const createProjectMutation = api.projects.create.useMutation({
     onSuccess: () => {
-      void updateSession();
+      updateSession();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });
@@ -63,7 +63,7 @@ export const NewProjectForm = ({
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
             e.preventDefault();
-            void form.handleSubmit(onSubmit)();
+            form.handleSubmit(onSubmit)();
           }
         }}
       >

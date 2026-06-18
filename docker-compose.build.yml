@@ -5,7 +5,6 @@ services:
       context: .
       args:
         - NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=${NEXT_PUBLIC_LANGFUSE_CLOUD_REGION}
-        - NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED=${NEXT_PUBLIC_LANGFUSE_CODE_EVAL_ENABLED}
     depends_on: &langfuse-depends-on
       postgres:
         condition: service_healthy
@@ -61,6 +60,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      # Probe quickly during startup; without this the first probe only fires
+      # after `interval`, although the container is ready within seconds.
+      start_period: 60s
+      start_interval: 2s
 
   langfuse-worker:
     build:
@@ -79,6 +82,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      # See langfuse-web healthcheck: probe quickly during startup.
+      start_period: 60s
+      start_interval: 2s
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server

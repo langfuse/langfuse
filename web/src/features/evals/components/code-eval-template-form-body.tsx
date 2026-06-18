@@ -21,6 +21,7 @@ import {
 import { Loader2 } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import {
@@ -352,7 +353,7 @@ export function CodeEvalTemplateFormBody({
               !event.metaKey
             ) {
               event.preventDefault();
-              void formatSource();
+              formatSource();
               return true;
             }
 
@@ -393,23 +394,21 @@ export function CodeEvalTemplateFormBody({
             size="sm"
             disabled={isFormatting}
             aria-keyshortcuts={FORMAT_SHORTCUT_ARIA}
-            onClick={() => void formatSource()}
+            onClick={() => formatSource()}
           >
             {isFormatting && (
               <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
             )}
             Format
-            <kbd className="bg-muted text-muted-foreground pointer-events-none ml-2 hidden h-4 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium select-none sm:inline-flex">
-              {typeof navigator !== "undefined" &&
-              navigator.userAgent.includes("Macintosh") ? (
-                <>
-                  <span className="text-xs">⇧</span>
-                  <span className="text-xs">⌥</span>F
-                </>
-              ) : (
-                <>Shift+Alt+F</>
-              )}
-            </kbd>
+            <KeyboardShortcut
+              className="ml-2 hidden h-4 sm:inline-flex"
+              keys={
+                typeof navigator !== "undefined" &&
+                navigator.userAgent.includes("Macintosh")
+                  ? ["⇧", "⌥", "F"]
+                  : ["Shift", "Alt", "F"]
+              }
+            />
           </Button>
         ) : null}
       </div>

@@ -1275,7 +1275,7 @@ export function PrettyJsonView(props: {
       event.preventDefault();
     }
     const textToCopy = stringifyJsonNode(parsedJson);
-    void copyTextToClipboard(textToCopy);
+    copyTextToClipboard(textToCopy);
 
     if (event) {
       event.currentTarget.focus();
