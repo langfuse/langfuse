@@ -705,7 +705,13 @@ export function SearchComposer({
         )
           ? typedSpaced
           : committedText;
-        setDraftWithSelection(restingText, restingText.length);
+        // Skip the write when the draft is already the resting text (e.g. Enter
+        // on a query that already ends in a space) — otherwise it pushes a no-op
+        // undo entry and the first Cmd+Z does nothing. Mirrors the no-op guards
+        // in the ArrowRight-at-end and click-past-end handlers.
+        if (restingText !== typed) {
+          setDraftWithSelection(restingText, restingText.length);
+        }
         setAutocompleteOpen(true);
       } else {
         setAutocompleteOpen(false);
@@ -729,7 +735,13 @@ export function SearchComposer({
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
       if (option.kind === "recent") {
-        setDraftWithSelection(option.query, option.query.length);
+        // Land in the RESTING (trailing-space) form like every other commit
+        // landing, so a later click past the text doesn't have to mutate the
+        // draft (= the caret flicker this PR removed). A recent is stored
+        // canonical/trimmed, so one space never doubles.
+        const resting =
+          option.query.length === 0 ? option.query : `${option.query} `;
+        setDraftWithSelection(resting, resting.length);
         // A recent is a COMPLETE query the user explicitly picked, so it gets
         // the same Enter/blur reveal semantics: commit if valid, otherwise
         // reveal the red invalid state instead of silently no-op'ing (e.g. a
