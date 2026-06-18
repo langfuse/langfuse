@@ -23,10 +23,7 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
-import {
-  getRateLimitUpgradeMessage,
-  type RateLimitUpgradePath,
-} from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
 
@@ -224,14 +221,15 @@ export const sendRateLimitResponse = (
   if (responseOptions.errorContract === unstablePublicEvalsErrorContract) {
     return sendUnstablePublicApiErrorResponse(
       res,
-      createUnstablePublicApiRateLimitError(rateLimitRes),
+      createUnstablePublicApiRateLimitError(rateLimitRes, responseOptions),
     );
   }
 
   if (responseOptions.upgradePath) {
-    const rateLimitError = createUnstablePublicApiRateLimitError(rateLimitRes, {
-      message: getRateLimitUpgradeMessage(responseOptions.upgradePath),
-    });
+    const rateLimitError = createUnstablePublicApiRateLimitError(
+      rateLimitRes,
+      responseOptions,
+    );
     const rateLimitDetails = rateLimitError.details!;
 
     res.setHeader("X-RateLimit-Remaining", rateLimitDetails.remaining ?? 0);

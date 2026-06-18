@@ -7,17 +7,30 @@ const {
   mockSendUnstablePublicApiErrorResponse,
 } = vi.hoisted(() => ({
   mockCreateUnstablePublicApiRateLimitError: vi.fn(
-    (rateLimitRes: RateLimitResult, options?: { message?: string }) => ({
-      httpCode: 429,
-      code: "rate_limited",
-      message: options?.message ?? "Rate limit exceeded",
-      details: {
-        retryAfterSeconds: Math.ceil(rateLimitRes.msBeforeNext / 1000),
-        limit: rateLimitRes.points,
-        remaining: Math.max(0, rateLimitRes.remainingPoints),
-        resetAt: new Date(Date.now() + rateLimitRes.msBeforeNext).toISOString(),
+    (
+      rateLimitRes: RateLimitResult,
+      options?: {
+        upgradePath?: { legacyEndpoint: string; replacementEndpoint: string };
       },
-    }),
+    ) => {
+      const message = options?.upgradePath
+        ? `Rate limit exceeded for ${options.upgradePath.legacyEndpoint}. Use ${options.upgradePath.replacementEndpoint} for high-volume reads.`
+        : "Rate limit exceeded";
+
+      return {
+        httpCode: 429,
+        code: "rate_limited",
+        message,
+        details: {
+          retryAfterSeconds: Math.ceil(rateLimitRes.msBeforeNext / 1000),
+          limit: rateLimitRes.points,
+          remaining: Math.max(0, rateLimitRes.remainingPoints),
+          resetAt: new Date(
+            Date.now() + rateLimitRes.msBeforeNext,
+          ).toISOString(),
+        },
+      };
+    },
   ),
   mockSendUnstablePublicApiErrorResponse: vi.fn((res, error) =>
     res.status(error.httpCode).json({ message: "unstable" }),
@@ -139,8 +152,7 @@ describe("sendRateLimitResponse", () => {
     expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
       rateLimitResult,
       {
-        message:
-          "Rate limit exceeded for GET /api/public/traces. Use GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to> for high-volume reads.",
+        upgradePath,
       },
     );
   });
@@ -155,6 +167,10 @@ describe("sendRateLimitResponse", () => {
 
     expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
       rateLimitResult,
+      {
+        errorContract: "unstable-public-evals",
+        upgradePath,
+      },
     );
     expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
     expect(res.statusCode).toBe(429);

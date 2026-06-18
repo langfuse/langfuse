@@ -2,7 +2,14 @@ import type { RateLimitResult } from "@langfuse/shared";
 import { createUnstablePublicApiRateLimitError } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 
 describe("unstable public api error contract", () => {
-  it("supports custom rate limit messages and clamps remaining points", () => {
+  it("supports upgrade path rate limit messages and clamps remaining points", () => {
+    const upgradePath = {
+      legacyEndpoint: "GET /api/public/traces",
+      replacementEndpoint:
+        "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
+      docsUrl:
+        "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+    };
     const rateLimitResult = {
       points: 10,
       remainingPoints: -1,
@@ -24,12 +31,14 @@ describe("unstable public api error contract", () => {
     } satisfies RateLimitResult;
 
     const error = createUnstablePublicApiRateLimitError(rateLimitResult, {
-      message: "Use the v2 observations API.",
+      upgradePath,
     });
 
     expect(error.httpCode).toBe(429);
     expect(error.code).toBe("rate_limited");
-    expect(error.message).toBe("Use the v2 observations API.");
+    expect(error.message).toBe(
+      "Rate limit exceeded for GET /api/public/traces. Use GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to> for high-volume reads.",
+    );
     expect(error.details).toEqual({
       retryAfterSeconds: 3,
       limit: 10,

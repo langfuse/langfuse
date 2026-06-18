@@ -16,6 +16,10 @@ import type {
   UnstablePublicApiErrorCodeType,
   UnstablePublicApiErrorDetailsType,
 } from "@/src/features/public-api/shared/unstable-public-api-error-schema";
+import {
+  getRateLimitUpgradeMessage,
+  type RateLimitUpgradePath,
+} from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export const unstablePublicEvalsErrorContract = "unstable-public-evals";
 export type PublicApiErrorContract = typeof unstablePublicEvalsErrorContract;
@@ -117,13 +121,15 @@ export function createUnstablePublicApiAuthError(params: {
 export function createUnstablePublicApiRateLimitError(
   rateLimitRes: RateLimitResult,
   options?: {
-    message?: string;
+    upgradePath?: RateLimitUpgradePath;
   },
 ) {
   return createUnstablePublicApiError({
     httpCode: 429,
     code: "rate_limited",
-    message: options?.message ?? "Rate limit exceeded",
+    message: options?.upgradePath
+      ? getRateLimitUpgradeMessage(options.upgradePath)
+      : "Rate limit exceeded",
     details: {
       retryAfterSeconds: Math.ceil(rateLimitRes.msBeforeNext / 1000),
       limit: rateLimitRes.points,
