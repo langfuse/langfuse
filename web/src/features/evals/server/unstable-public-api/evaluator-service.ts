@@ -22,6 +22,7 @@ import {
 import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
+import { deleteEvalTemplateFamily } from "@/src/features/evals/server/evalTemplateDeletion";
 import {
   toApiEvaluator,
   toStoredEvaluatorType,
@@ -344,4 +345,20 @@ export async function createPublicEvaluator(params: {
 
     throw error;
   }
+}
+
+export async function deletePublicEvaluator(params: {
+  projectId: string;
+  evaluatorId: string;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+}) {
+  // an evaluator in the public contract is the whole family; deleting it
+  // removes all stored versions
+  await deleteEvalTemplateFamily({
+    prisma,
+    projectId: params.projectId,
+    evalTemplateId: params.evaluatorId,
+    auditScope: params.auditScope,
+    referencingEntityName: "evaluation rule",
+  });
 }

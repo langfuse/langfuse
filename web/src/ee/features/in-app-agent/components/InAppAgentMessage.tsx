@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowRight,
   Check,
   Copy,
   BookOpenText,
@@ -9,8 +10,12 @@ import {
   ThumbsUp,
   Wrench,
 } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/router";
 import { Streamdown } from "streamdown";
+import { Button } from "@/src/components/ui/button";
 import { getSafeLinkUrl } from "@/src/components/ui/safe-url";
+import { stripBasePath } from "@/src/utils/redirect";
 import { cn } from "@/src/utils/tailwind";
 import {
   forwardRef,
@@ -34,9 +39,16 @@ import {
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import styles from "./InAppAgentMessage.module.css";
 
 export type InAppAgentMessageRole = "assistant" | "user";
+
+type InAppAgentRedirectActionContent = {
+  type: "redirectAction";
+  label: string;
+  href: string;
+};
 
 export type InAppAgentMessageContent =
   | { type: "loading"; label?: string }
@@ -44,8 +56,10 @@ export type InAppAgentMessageContent =
       type: "text";
       text: string;
       feedback?: InAppAgentMessageFeedback;
+      redirectAction?: InAppAgentRedirectActionContent;
       sources?: InAppAgentMessageSource[];
     }
+  | InAppAgentRedirectActionContent
   | {
       type: "toolGroup";
       tools: InAppAgentToolCallContent[];
@@ -59,6 +73,74 @@ export type InAppAgentToolCallContent = {
   result?: string;
   error?: string;
 };
+
+const parseAbsoluteUrl = (href: string): URL | null => {
+  try {
+    return new URL(href);
+  } catch {
+    return null;
+  }
+};
+
+// Uses client-side navigation for links within the current project
+// and opens all other links in a new tab.
+function SmartLink({
+  children,
+  className,
+  href,
+}: {
+  children: ReactNode;
+  className?: string;
+  href?: string;
+}) {
+  const safeHref = getSafeLinkUrl(href);
+  const currentProjectId = useProjectIdFromURL();
+
+  if (!safeHref) {
+    return <span className="text-muted-foreground underline">{children}</span>;
+  }
+
+  try {
+    const currentOrigin =
+      typeof window === "undefined" ? null : window.location.origin;
+    const absoluteUrl = parseAbsoluteUrl(safeHref);
+    const parsedUrl = absoluteUrl ?? new URL(safeHref, currentOrigin ?? "");
+    const pathname = stripBasePath(parsedUrl.pathname);
+    const [, projectSegment, linkProjectId] = pathname.split("/");
+
+    if (
+      currentProjectId &&
+      projectSegment === "project" &&
+      decodeURIComponent(linkProjectId ?? "") === currentProjectId &&
+      (!absoluteUrl ||
+        ((parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") &&
+          currentOrigin &&
+          parsedUrl.origin === currentOrigin))
+    ) {
+      return (
+        <Link
+          href={`${pathname}${parsedUrl.search}${parsedUrl.hash}`}
+          className={className}
+        >
+          {children}
+        </Link>
+      );
+    }
+  } catch {
+    // Fall through to opening sanitized but non-routable URLs in a new tab.
+  }
+
+  return (
+    <a
+      href={safeHref}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+    >
+      {children}
+    </a>
+  );
+}
 
 export type InAppAgentMessageProps = {
   role: InAppAgentMessageRole;
@@ -80,6 +162,10 @@ export function InAppAgentMessage({
   windowZIndex,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
+  if (content.type === "redirectAction") {
+    return <RedirectActionButton content={content} isCompact={isCompact} />;
+  }
+
   if (content.type === "toolGroup") {
     return (
       <div
@@ -118,7 +204,10 @@ const MessageCard = forwardRef<
   HTMLDivElement,
   {
     role: InAppAgentMessageRole;
-    content: Exclude<InAppAgentMessageContent, { type: "toolGroup" }>;
+    content: Exclude<
+      InAppAgentMessageContent,
+      { type: "toolGroup" | "redirectAction" }
+    >;
     isCompact: boolean;
   }
 >(function MessageCard({ role, content, isCompact }, ref) {
@@ -140,7 +229,17 @@ const MessageCard = forwardRef<
       {content.type === "loading" ? (
         <ThinkingIndicator label={content.label} isCompact={isCompact} />
       ) : (
-        <MessageText role={role} text={content.text} isCompact={isCompact} />
+        <>
+          <MessageText role={role} text={content.text} isCompact={isCompact} />
+          {content.redirectAction ? (
+            <div className={cn(isCompact ? "mt-3 mb-1" : "mt-2.5 mb-0.5")}>
+              <RedirectActionButton
+                content={content.redirectAction}
+                isCompact={isCompact}
+              />
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );
@@ -490,6 +589,31 @@ function FeedbackButton({
   );
 }
 
+function RedirectActionButton({
+  content,
+  isCompact,
+}: {
+  content: InAppAgentRedirectActionContent;
+  isCompact: boolean;
+}) {
+  const router = useRouter();
+
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      className={cn("shrink-0", isCompact ? "h-6 px-2 text-xs" : "h-7")}
+      onClick={() => {
+        router.push(content.href).catch(() => undefined);
+      }}
+    >
+      {content.label}
+      <ArrowRight className="ml-1 size-3" />
+    </Button>
+  );
+}
+
 function ToolCallGroup({
   tools,
   isLoading = false,
@@ -648,23 +772,9 @@ function MessageText({
           h6: ({ children }) => <h6>{children}</h6>,
 
           p: ({ children }) => <p>{children}</p>,
-          a: ({ children, href }) => {
-            const safeHref = getSafeLinkUrl(href);
-
-            if (!safeHref) {
-              return (
-                <span className="text-muted-foreground underline">
-                  {children}
-                </span>
-              );
-            }
-
-            return (
-              <a href={safeHref} target="_blank" rel="noopener noreferrer">
-                {children}
-              </a>
-            );
-          },
+          a: ({ children, href }) => (
+            <SmartLink href={href}>{children}</SmartLink>
+          ),
           hr: ({ children }) => <hr>{children}</hr>,
           ul: ({ children }) => <ul>{children}</ul>,
           ol: ({ children }) => <ol>{children}</ol>,
