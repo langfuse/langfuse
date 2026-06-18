@@ -102,10 +102,8 @@ import { AddObservationsToDatasetDialog } from "@/src/features/batch-actions/com
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
-import { createPortal } from "react-dom";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
-import { EventsHeaderControls } from "@/src/features/search-bar/components/EventsHeaderControls";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 export type EventsTableRow = {
@@ -189,9 +187,6 @@ export type EventsTableProps = {
   externalDateRange?: TableDateRange;
   limitRows?: number;
   sessionId?: string;
-  /** Page-header DOM node to portal the time-range + refresh controls into
-   * when the search bar is active (keeps the otherwise-full toolbar slim). */
-  headerActionsContainer?: HTMLElement | null;
 };
 
 export default function ObservationsEventsTable({
@@ -203,7 +198,6 @@ export default function ObservationsEventsTable({
   externalDateRange,
   limitRows,
   sessionId,
-  headerActionsContainer,
 }: EventsTableProps) {
   const peekContext = usePeekTableState();
   const router = useRouter();
@@ -1478,42 +1472,19 @@ export default function ObservationsEventsTable({
               searchBarMode && "bg-background sticky top-0 z-30 pb-1.5",
             )}
           >
-            {/* Search bar row: (near) full-width query composer. In bar mode it
-                sticks together with the toolbar below, so the toolbar controls
-                cannot scroll underneath and render half-clipped. The time-range
-                + refresh controls render into the page header when the host page
-                provides a slot, and fall back to inline-by-the-bar otherwise. */}
-            {searchBarMode &&
-              (() => {
-                const controls = (
-                  <EventsHeaderControls
-                    timeRange={timeRange}
-                    setTimeRange={setTimeRange}
-                    refreshConfig={{
-                      onRefresh: handleRefresh,
-                      isRefreshing: observations.status === "loading",
-                      interval: refreshInterval,
-                      setInterval: setRefreshInterval,
-                    }}
-                  />
-                );
-                const hasHeaderSlot =
-                  headerActionsContainer !== null &&
-                  headerActionsContainer !== undefined;
-                return (
-                  <>
-                    <EventsSearchBarRow
-                      projectId={projectId}
-                      store={searchBarStore}
-                      commit={searchBarCommit}
-                      observed={observedOptions}
-                      inlineControls={hasHeaderSlot ? undefined : controls}
-                    />
-                    {hasHeaderSlot &&
-                      createPortal(controls, headerActionsContainer)}
-                  </>
-                );
-              })()}
+            {/* Search bar row: full-width query composer. In bar mode it sticks
+                together with the toolbar below, so the toolbar controls cannot
+                scroll underneath and render half-clipped. Time-range + refresh
+                live in the toolbar row below, next to the filter toggle and
+                views — not in the page header. */}
+            {searchBarMode && (
+              <EventsSearchBarRow
+                projectId={projectId}
+                store={searchBarStore}
+                commit={searchBarCommit}
+                observed={observedOptions}
+              />
+            )}
             {/* Toolbar spanning full width */}
             <DataTableToolbar
               columns={columns}
@@ -1562,8 +1533,8 @@ export default function ObservationsEventsTable({
               orderByState={orderByState}
               rowHeight={rowHeight}
               setRowHeight={setRowHeight}
-              timeRange={searchBarMode ? undefined : timeRange}
-              setTimeRange={searchBarMode ? undefined : setTimeRange}
+              timeRange={timeRange}
+              setTimeRange={setTimeRange}
               // Disabled, for now moved to filter sidebar
               // TODO: remove this toggle once v4 looks good as is
               // viewModeToggle={
@@ -1572,16 +1543,12 @@ export default function ObservationsEventsTable({
               //     onViewModeChange={setViewMode}
               //   />
               // }
-              refreshConfig={
-                searchBarMode
-                  ? undefined
-                  : {
-                      onRefresh: handleRefresh,
-                      isRefreshing: observations.status === "loading",
-                      interval: refreshInterval,
-                      setInterval: setRefreshInterval,
-                    }
-              }
+              refreshConfig={{
+                onRefresh: handleRefresh,
+                isRefreshing: observations.status === "loading",
+                interval: refreshInterval,
+                setInterval: setRefreshInterval,
+              }}
               actionButtons={[
                 <BatchExportTableButton
                   {...{

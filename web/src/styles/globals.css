@@ -396,6 +396,33 @@
   div#__next > div {
     height: 100%;
   }
+
+  /* The whole app renders inside #__next. Isolating it into its own stacking
+     context caps every z-index in the app (page header, modals, popovers, …)
+     so none can escape it. The overlay layer containers (declared in
+     _document.tsx) are <body> siblings AFTER #__next and paint on top purely by
+     DOM order — see components/ui/layer.tsx. This is what lets layers carry no
+     z-index of their own; z-index stays a LOCAL tool for ordering within a
+     single layer. */
+  div#__next {
+    isolation: isolate;
+  }
+
+  /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
+     stack is click-through; each layer is its own isolated stacking context and
+     they order by DOM order (later = on top). Overlay content opts back into
+     pointer events on itself. */
+  [data-overlay-root] {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] {
+    position: absolute;
+    inset: 0;
+    isolation: isolate;
+    pointer-events: none;
+  }
 }
 
 @layer base {
