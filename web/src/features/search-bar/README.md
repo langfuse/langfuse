@@ -142,7 +142,10 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 - **Negation is not a primitive.** `-`/`NOT` lower to existing inverse
   operators (`none of`, `does not contain`, `is null`) or flip a comparison /
   boolean. Anything without a native inverse is a diagnostic (`fields.ts`
-  `negationIssue` is the spec) — the backend has no general NOT.
+  `negationIssue` is the spec) — the backend has no general NOT. (Negated exact
+  on a `textSearch` field — `-name:=v` — is representable: it lowers to a
+  `stringOptions none of`, the exact-inequality form the facet emits when one
+  value is unchecked. It is NOT `does not contain`.)
 
 ## Ownership map
 
