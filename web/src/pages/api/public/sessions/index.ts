@@ -9,6 +9,7 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Sessions",
+    rateLimitResource: "public-api-legacy",
     querySchema: GetSessionsV1Query,
     responseSchema: GetSessionsV1Response,
     rejectInEventsOnlyMode: true,

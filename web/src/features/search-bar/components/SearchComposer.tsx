@@ -18,6 +18,7 @@ import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
 import { AlertCircle, X } from "lucide-react";
 
+import { Layer } from "@/src/components/ui/layer";
 import { cn } from "@/src/utils/tailwind";
 
 import {
@@ -41,6 +42,7 @@ import {
   useSearchBarStoreApi,
   useSearchBarCommit,
 } from "@/src/features/search-bar/store/SearchBarStoreProvider";
+import { draftsSemanticallyEqual } from "@/src/features/search-bar/store/searchBarStore";
 import { AutocompletePopover } from "@/src/features/search-bar/components/AutocompletePopover";
 import {
   ComposerTokens,
@@ -58,7 +60,8 @@ const LISTBOX_ID = "search-bar-listbox";
 const WORD_JOINER_RE = new RegExp(WORD_JOINER, "g");
 
 // Stable empty recents reference so the plan memo doesn't churn when recents
-// are intentionally suppressed (popover closed or append mode).
+// are intentionally suppressed (popover closed, or a non-empty draft — recents
+// show only on an empty bar; see the recents memo).
 const NO_RECENTS: string[] = [];
 
 // Surrogate-pair guards: a non-BMP codepoint (emoji, supplementary CJK) is two
@@ -300,7 +303,6 @@ export function SearchComposer({
   );
 
   const [autocompleteOpen, setAutocompleteOpen] = React.useState(false);
-  const [appendIntent, setAppendIntent] = React.useState(false);
   const [highlightedOptionId, setHighlightedOptionId] = React.useState<
     string | null
   >(null);
@@ -327,23 +329,26 @@ export function SearchComposer({
     [observed],
   );
 
-  // Read recents only while the popover is open (avoids a synchronous
-  // localStorage read on every keystroke/selection render), and not in append
-  // mode — a recent is a complete query, not a token to append, so showing
-  // them there would let a pick silently replace the in-progress draft.
+  // Recents are a COMPLETE saved query: picking one REPLACES the whole draft
+  // (pickOption's recent branch). Only offer them on a truly empty bar, where
+  // there's nothing to clobber — NOT at a trailing-space landing after the user
+  // has built up filters, where a stray pick would silently wipe them. Gating
+  // on an empty draft also keeps the synchronous localStorage read off the
+  // keystroke path (a non-empty draft returns the stable NO_RECENTS reference,
+  // so the plan memo doesn't churn).
   const recents = React.useMemo(
     () =>
-      autocompleteOpen && !appendIntent
+      autocompleteOpen && draft.trim().length === 0
         ? getRecentSearches(projectId)
         : NO_RECENTS,
-    [autocompleteOpen, appendIntent, projectId],
+    [autocompleteOpen, draft, projectId],
   );
 
   const plan: CompletionPlan | null =
     autocompleteOpen && selectionCollapsed
       ? planInputCompletions({
-          input: appendIntent ? "" : draft,
-          caret: appendIntent ? 0 : Math.min(caret, draft.length),
+          input: draft,
+          caret: Math.min(caret, draft.length),
           observed,
           recents,
           currentQueryText: draft,
@@ -518,15 +523,11 @@ export function SearchComposer({
       setSelectionSnapshot((prev) =>
         prev.start === next.start && prev.end === next.end ? prev : next,
       );
-      // Moving the caret away from the end abandons "new entry" intent.
-      if (next.start !== next.end || next.end !== draftRef.current.length) {
-        setAppendIntent(false);
-      }
     };
     document.addEventListener("selectionchange", onSelectionChange);
     return () =>
       document.removeEventListener("selectionchange", onSelectionChange);
-  }, [draftRef]);
+  }, []);
 
   // Safety net for mutations that bypass beforeinput (IME composition,
   // browser quirks): re-read the DOM and reproject. Skipped mid-composition
@@ -549,43 +550,24 @@ export function SearchComposer({
       const from = Math.min(offsets.start, offsets.end);
       const to = Math.max(offsets.start, offsets.end);
       const current = draftRef.current;
-      const shouldAppend =
-        appendIntent &&
-        insert.length > 0 &&
-        from === to &&
-        from === current.length;
-      const prefix =
-        shouldAppend &&
-        current.trim().length > 0 &&
-        !/\s$/.test(current) &&
-        !/^\s/.test(insert)
-          ? " "
-          : "";
-      const next = replaceRange(current, from, to, prefix + insert);
-      // Append intent is one-shot: any edit consumes it.
-      setAppendIntent(false);
+      const next = replaceRange(current, from, to, insert);
       // Plain single-character typing at a collapsed caret coalesces into one
       // undo step; spaces and replacements start a fresh step.
-      const coalesce =
-        insert.length === 1 &&
-        !/\s/.test(insert) &&
-        prefix === "" &&
-        from === to;
+      const coalesce = insert.length === 1 && !/\s/.test(insert) && from === to;
       setDraftWithSelection(
         next,
-        from + prefix.length + insert.length,
+        from + insert.length,
         undefined,
         coalesce ? "coalesce" : "push",
       );
       openAutocompleteAfterEdit();
     },
-    [appendIntent, draftRef, openAutocompleteAfterEdit, setDraftWithSelection],
+    [draftRef, openAutocompleteAfterEdit, setDraftWithSelection],
   );
 
   const applyTextDeletion = React.useCallback(
     (range: { from: number; to: number }) => {
       if (range.from === range.to) return;
-      setAppendIntent(false);
       setDraftWithSelection(
         replaceRange(draftRef.current, range.from, range.to, ""),
         range.from,
@@ -677,30 +659,66 @@ export function SearchComposer({
     return () => root.removeEventListener("beforeinput", onBeforeInput);
   }, [applyTextDeletion, applyTextInsert, draftRef, redoRef, undoRef]);
 
-  const commit = React.useCallback(() => {
-    const root = rootRef.current;
-    const actions = storeApi.getState().actions;
-    // Sync any DOM-only edit (IME, browser quirk) into the store before
-    // committing. Compare against the live store draft, not a render snapshot,
-    // and rely on zustand's synchronous set so the commit reads the new value.
-    if (root !== null) {
-      const text = textFromRoot(root);
-      if (text !== storeApi.getState().draft) actions.setDraft(text);
-    }
-    // The container validates, lowers, and writes the filter state; on failure
-    // it reveals the invalid draft. A successful commit re-derives the
-    // committed text and the resetTo effect canonicalizes the draft.
-    const ok = commitToFilterState();
-    if (ok) {
-      setAppendIntent(false);
-      setAutocompleteOpen(false);
+  const commit = React.useCallback(
+    (advanceToTrailingSpace = false) => {
+      const root = rootRef.current;
+      const actions = storeApi.getState().actions;
+      // Sync any DOM-only edit (IME, browser quirk) into the store before
+      // committing. Compare against the live store draft, not a render snapshot,
+      // and rely on zustand's synchronous set so the commit reads the new value.
+      let caretAtEnd = false;
+      if (root !== null) {
+        const text = textFromRoot(root);
+        const sel = selectionOffsets(root);
+        caretAtEnd =
+          sel.start === sel.end && sel.end === text.length && text.length > 0;
+        if (text !== storeApi.getState().draft) actions.setDraft(text);
+      }
+      // The container validates, lowers, and writes the filter state; on failure
+      // it reveals the invalid draft and returns null. On success it returns the
+      // CANONICAL committed text in its RESTING form (trailing space when
+      // non-empty) — the same text the resetTo effect re-derives.
+      const committedText = commitToFilterState();
+      if (committedText === null) return;
       setHighlightedOptionId(null);
       // Close the undo-coalesce window at the commit boundary, mirroring undo()/
       // redo()/the external-draft sync. Otherwise a post-commit keystroke keeps
       // coalescing across the commit, so Cmd+Z jumps past the natural break.
       historyRef.current.coalesce = null;
-    }
-  }, [storeApi, commitToFilterState]);
+      if (advanceToTrailingSpace && caretAtEnd) {
+        // Enter committed at the END of the query: land on the resting trailing
+        // space OUTSIDE the last block, field suggestions open — same as a
+        // pick-at-end / ArrowRight-at-end. Prefer the user's TYPED form (keeps a
+        // typed alias like `env:` instead of expanding it to `environment:`) when
+        // it is semantically identical to the committed text. When the commit
+        // RESTRUCTURED the query (e.g. reordered free text after filters) the
+        // typed form differs, so use the canonical committed text. Either way the
+        // text we set is AST-/string-equal to what resetTo re-derives, so the
+        // echo no-ops and the caret stays at the end. Both already carry the
+        // resting trailing space. Mid-query commits and blur keep the caret put.
+        const typed = storeApi.getState().draft;
+        const typedSpaced = /\s$/.test(typed) ? typed : `${typed} `;
+        const restingText = draftsSemanticallyEqual(
+          typedSpaced,
+          committedText,
+          scoreTypes,
+        )
+          ? typedSpaced
+          : committedText;
+        // Skip the write when the draft is already the resting text (e.g. Enter
+        // on a query that already ends in a space) — otherwise it pushes a no-op
+        // undo entry and the first Cmd+Z does nothing. Mirrors the no-op guards
+        // in the ArrowRight-at-end and click-past-end handlers.
+        if (restingText !== typed) {
+          setDraftWithSelection(restingText, restingText.length);
+        }
+        setAutocompleteOpen(true);
+      } else {
+        setAutocompleteOpen(false);
+      }
+    },
+    [storeApi, commitToFilterState, setDraftWithSelection, scoreTypes],
+  );
 
   // Structured edits (autocomplete picks, chip removal) apply immediately, but
   // a pick can leave the draft mid-completion (e.g. "level:" after a field
@@ -717,7 +735,13 @@ export function SearchComposer({
       const currentPlan = planRef.current;
       if (currentPlan === null) return;
       if (option.kind === "recent") {
-        setDraftWithSelection(option.query, option.query.length);
+        // Land in the RESTING (trailing-space) form like every other commit
+        // landing, so a later click past the text doesn't have to mutate the
+        // draft (= the caret flicker this PR removed). A recent is stored
+        // canonical/trimmed, so one space never doubles.
+        const resting =
+          option.query.length === 0 ? option.query : `${option.query} `;
+        setDraftWithSelection(resting, resting.length);
         // A recent is a COMPLETE query the user explicitly picked, so it gets
         // the same Enter/blur reveal semantics: commit if valid, otherwise
         // reveal the red invalid state instead of silently no-op'ing (e.g. a
@@ -725,7 +749,6 @@ export function SearchComposer({
         const state = storeApi.getState();
         if (state.draftValid) commitToFilterState();
         else state.actions.revealInvalid();
-        setAppendIntent(false);
         setAutocompleteOpen(false);
         return;
       }
@@ -750,27 +773,8 @@ export function SearchComposer({
         // bare prefix would splice in front of it (`meta:foo` -> broken
         // `metadata.:foo`). Consume the whole term so the user re-picks the key
         // from observed options instead.
-        if (!appendIntent && option.fieldId.endsWith(".") && colonFollows) {
+        if (option.fieldId.endsWith(".") && colonFollows) {
           replaceTo = termAt(current, currentPlan.from)?.to ?? currentPlan.to;
-        }
-        // Re-picking the same field that's already the last token: collapse to
-        // a no-op instead of double-appending (`… level:` + pick `level` would
-        // give `… level: level:`). The matched suffix must sit at a TOKEN
-        // boundary (start-of-draft or after whitespace) — a bare `endsWith`
-        // false-fires when the field name is a raw suffix of a longer key
-        // (`metadata.level:` + pick `level`), silently discarding the pick.
-        const trimmed = current.trimEnd();
-        if (
-          appendIntent &&
-          trimmed.endsWith(insert) &&
-          (trimmed.length === insert.length ||
-            /\s/.test(trimmed[trimmed.length - insert.length - 1] ?? " "))
-        ) {
-          setDraftWithSelection(current, trimmed.length);
-          setAppendIntent(false);
-          setAutocompleteOpen(true);
-          setHighlightedOptionId(null);
-          return;
         }
       } else if (option.kind === "value") {
         insert = serializeValue(option.value);
@@ -799,9 +803,7 @@ export function SearchComposer({
       // for the next filter, instead of leaving the caret inside the pill where
       // typing would edit what was just picked. Picks that invite more input (a
       // bare `field:` key, a `metadata.` prefix, an open `tags:(` group), grouped
-      // value entry, and mid-query edits (non-whitespace follows) stay put. This
-      // reuses the space-ending-insert path rather than the deferred appendIntent
-      // that rendered the caret inside the pill with no space.
+      // value entry, and mid-query edits (non-whitespace follows) stay put.
       const grouped = currentPlan.keepOpenOnPick ?? false;
       const invitesMoreInput =
         option.kind === "field" || // a `field:` key always needs a value next
@@ -815,22 +817,13 @@ export function SearchComposer({
       if (completesFilterAtEnd) {
         insert += " ";
         // Consume any existing trailing whitespace so the space never doubles.
-        if (!appendIntent) replaceTo = current.length;
+        replaceTo = current.length;
         keepOpen = true;
       }
 
-      const prefix =
-        appendIntent && current.trim().length > 0 && !/\s$/.test(current)
-          ? " "
-          : "";
-      const next = appendIntent
-        ? `${current}${prefix}${insert}`
-        : replaceRange(current, replaceFrom, replaceTo, insert);
-      const caretAt = appendIntent
-        ? current.length + prefix.length + insert.length
-        : replaceFrom + insert.length;
+      const next = replaceRange(current, replaceFrom, replaceTo, insert);
+      const caretAt = replaceFrom + insert.length;
       setDraftWithSelection(next, caretAt);
-      setAppendIntent(false);
       setAutocompleteOpen(keepOpen);
       setHighlightedOptionId(null);
       // Apply when the pick produced a valid query; a partial draft (e.g. a
@@ -843,7 +836,6 @@ export function SearchComposer({
       }
     },
     [
-      appendIntent,
       draftRef,
       planRef,
       setDraftWithSelection,
@@ -859,7 +851,6 @@ export function SearchComposer({
       storeApi.getState().actions.removeChipSpan(segment.from, segment.to);
       commitStructuredEdit();
       setHoveredTokenId(null);
-      setAppendIntent(false);
       setAutocompleteOpen(false);
       setHighlightedOptionId(null);
     },
@@ -930,19 +921,14 @@ export function SearchComposer({
       } else {
         setSelectionRange(root, target, target);
       }
-      setAppendIntent(false);
       return;
     }
 
-    // ArrowRight at the very end of the query "exits" the last token, like
-    // Space — minus the inserted space. Enter append mode (the next keystroke
-    // space-prefixes into a NEW token via applyTextInsert), open the field
-    // suggestions, AND move the caret PAST the pill's trailing zero-width
-    // WORD_JOINER so it visibly leaves the pill: the joiner is a root-level node
-    // after the pill span, so the after-joiner spot renders outside it. (The
-    // old behavior pinned the caret at the logical end — inside the pill — so
-    // the exit was invisible and felt like a dead keypress.) Backspace from the
-    // after-joiner spot is handled by the trailing-joiner fall-through below.
+    // ArrowRight at the very end of the query inserts a trailing space to start
+    // a NEW token — matching the muscle-memory of typing a space at the end, and
+    // the same fresh-token landing as a click past the end or a pick-at-end.
+    // Skip when the draft already ends in whitespace so a repeat press doesn't
+    // pile up spaces. The trailing space is trimmed on commit.
     if (
       event.key === "ArrowRight" &&
       !event.shiftKey &&
@@ -951,19 +937,12 @@ export function SearchComposer({
       !event.metaKey &&
       selectionCollapsed &&
       caret === draft.length &&
-      draft.length > 0
+      draft.length > 0 &&
+      !/\s$/.test(draft)
     ) {
       event.preventDefault();
-      const root = rootRef.current;
-      const selection = window.getSelection();
-      if (root !== null && selection !== null) {
-        const range = document.createRange();
-        range.selectNodeContents(root);
-        range.collapse(false); // to the very end, after the trailing joiner
-        selection.removeAllRanges();
-        selection.addRange(range);
-      }
-      setAppendIntent(true);
+      const next = `${draft} `;
+      setDraftWithSelection(next, next.length);
       setAutocompleteOpen(true);
       setHighlightedOptionId(null);
       return;
@@ -1014,7 +993,6 @@ export function SearchComposer({
       if (target === end) return; // at an edge — native no-op
       event.preventDefault();
       setSelectionRange(root, target, target);
-      setAppendIntent(false);
       return;
     }
 
@@ -1031,14 +1009,16 @@ export function SearchComposer({
         pickOption(option);
         return;
       }
-      commit();
+      // No suggestion to take: commit the query. When the caret is at the end,
+      // land on a fresh trailing space so the next filter starts outside the
+      // last block (matches a pick-at-end / ArrowRight-at-end).
+      commit(true);
       return;
     }
 
     if (event.key === "Escape") {
       if (autocompleteOpen) {
         event.preventDefault();
-        setAppendIntent(false);
         setAutocompleteOpen(false);
       }
       return;
@@ -1131,7 +1111,6 @@ export function SearchComposer({
   const onBlur = () => {
     setEditorFocused(false);
     commit();
-    setAppendIntent(false);
     setAutocompleteOpen(false);
   };
 
@@ -1146,15 +1125,27 @@ export function SearchComposer({
     if (root === null) return;
     const { start, end } = selectionOffsets(root);
     if (start !== end) return; // drag selection — selection is for editing, not suggesting
-    const append =
+    const pastEnd =
       draft.length > 0 && isPastTextEnd(root, event.clientX, event.clientY);
-    if (append && end !== draft.length) {
-      // The browser put the caret on the nearest character of a wrapped line;
-      // a past-end click still means append at the very end.
-      setSelectionRange(root, draft.length, draft.length);
-      setSelectionSnapshot({ start: draft.length, end: draft.length });
+    if (pastEnd) {
+      // A click in the empty space past the text means "start a new entry":
+      // land on a trailing space OUTSIDE the last block (adding one if the query
+      // doesn't already end in whitespace), with field suggestions open — the
+      // same fresh-token landing as ArrowRight-at-end and a pick-at-end. Without
+      // the physical space the browser drops the caret inside the last pill, so
+      // typing would edit what's there. The space is trimmed on commit.
+      if (/\s$/.test(draft)) {
+        setSelectionRange(root, draft.length, draft.length);
+        setSelectionSnapshot({ start: draft.length, end: draft.length });
+      } else {
+        const next = `${draft} `;
+        setDraftWithSelection(next, next.length);
+      }
+      setAutocompleteOpen(true);
+      setHighlightedOptionId(null);
+      return;
     }
-    if (!append && end < draft.length && /\s/.test(draft[end] ?? "")) {
+    if (end < draft.length && /\s/.test(draft[end] ?? "")) {
       // Additive gap affordance: a click in the whitespace BETWEEN tokens
       // (geometrically past the previous token's right edge, not on the token
       // or its padding) nudges the collapsed caret across the whitespace run,
@@ -1184,7 +1175,6 @@ export function SearchComposer({
         setSelectionSnapshot({ start: next, end: next });
       }
     }
-    setAppendIntent(append);
     setAutocompleteOpen(true);
     setHighlightedOptionId(null);
   };
@@ -1230,10 +1220,15 @@ export function SearchComposer({
   } | null>(null);
   // Anchors for the per-token error tooltip — left edge of the token, plus its
   // bottom (default placement, just under the block) and top (used to flip the
-  // tooltip ABOVE the block while the suggestions popover is open below).
+  // tooltip ABOVE the block while the suggestions popover is open below). These
+  // are VIEWPORT coordinates (not container-relative): the tooltip portals to
+  // document.body and is positioned `fixed`, so it reads the token's own
+  // getClientRects() directly. The bar's band is sticky (it doesn't scroll out
+  // from under the token), so a fixed anchor stays put; it re-measures on draft
+  // change and the container ResizeObserver below, same as the X button.
   const [errorPosition, setErrorPosition] = React.useState<{
     left: number;
-    top: number;
+    belowTop: number;
     aboveTop: number;
   } | null>(null);
   const removeTargetIdActual = removeTarget?.id ?? null;
@@ -1263,9 +1258,9 @@ export function SearchComposer({
       top: rect.top - containerRect.top - 8,
     });
     setErrorPosition({
-      left: firstRect.left - containerRect.left,
-      top: firstRect.bottom - containerRect.top + 6,
-      aboveTop: firstRect.top - containerRect.top,
+      left: firstRect.left,
+      belowTop: firstRect.bottom + 6,
+      aboveTop: firstRect.top,
     });
   }, [removeTargetIdActual]);
 
@@ -1339,7 +1334,12 @@ export function SearchComposer({
           autoCapitalize="none"
           inputMode="text"
           data-testid="search-bar-input"
-          className="min-h-6 font-mono text-xs leading-7 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
+          // leading-6 (not 7): WebKit/Safari sizes the text caret to the line
+          // box, so a 28px (leading-7) line made the caret tower ~4px above/
+          // below the ~24px pills ("too big"). 24px matches the pill height so
+          // the caret aligns with the pills. Trade-off: tighter gap between
+          // wrapped lines of pills (single-line is unaffected).
+          className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap caret-[hsl(var(--foreground))] outline-none"
           onInput={(event) => {
             if (!(event.nativeEvent as InputEvent).isComposing) syncFromDom();
           }}
@@ -1364,41 +1364,21 @@ export function SearchComposer({
             scoreTypes={scoreTypes}
           />
         </div>
-        {/* Bar-local overlay stacking ladder (hardcoded for now — a proper
-            app-wide layer system is a separate ticket): token text (base) <
-            remove-X (z-20) < error tooltip (z-30) < autocomplete popover
-            (z-50). The popover drops BELOW the bar; when it's open the error
-            tooltip flips ABOVE the offending block (see errorAbove), so the two
-            never overlap and the z order only needs to be self-consistent. */}
+        {/* Bar-local overlay stacking ladder: token text (base) < remove-X
+            (z-20) < autocomplete popover (z-50). Both the X and the popover drop
+            BELOW the bar, staying in-flow inside the table. The error tooltip is
+            the exception: when the popover is open it flips ABOVE the offending
+            block, into the page header's band — an ancestor it can't beat
+            in-flow (`#page > main` is overflow:hidden and the header is its own
+            z-50 stacking context). So it renders through the "tooltip" <Layer>,
+            which portals it to a body-level layer container (see the render
+            below + components/ui/layer.tsx). */}
         {removeTarget !== null && removePosition !== null && (
           <RemoveTokenButton
             segment={removeTarget}
             position={removePosition}
             onRemove={removeSegment}
           />
-        )}
-        {errorTarget !== null && errorPosition !== null && (
-          <div
-            role="tooltip"
-            style={
-              plan !== null
-                ? {
-                    left: errorPosition.left,
-                    top: errorPosition.aboveTop,
-                    transform: "translateY(calc(-100% - 6px))",
-                  }
-                : { left: errorPosition.left, top: errorPosition.top }
-            }
-            // pointer-events-none so moving onto the tooltip doesn't change the
-            // hovered token (which would make it flicker away).
-            className={cn(
-              "pointer-events-none absolute z-30 max-w-[min(360px,calc(100vw-32px))]",
-              "border-destructive/40 bg-popover text-destructive rounded-md border",
-              "px-2 py-1 font-sans text-xs leading-snug shadow-md",
-            )}
-          >
-            {errorTarget.message}
-          </div>
         )}
       </div>
 
@@ -1430,6 +1410,36 @@ export function SearchComposer({
           anchorLeft={0}
           containerRef={containerRef}
         />
+      )}
+
+      {/* Per-token error tooltip. The "tooltip" <Layer> renders it on a
+          body-level container so it escapes the page header's overflow:hidden
+          clip and z-50 stacking context when it flips above the bar — an
+          in-flow z-index can't win against either. `fixed` + viewport anchors.
+          pointer-events-none so moving onto it doesn't change the hovered token
+          (which would flicker it away). */}
+      {errorTarget !== null && errorPosition !== null && (
+        <Layer name="tooltip">
+          <div
+            role="tooltip"
+            style={
+              plan !== null
+                ? {
+                    left: errorPosition.left,
+                    top: errorPosition.aboveTop,
+                    transform: "translateY(calc(-100% - 6px))",
+                  }
+                : { left: errorPosition.left, top: errorPosition.belowTop }
+            }
+            className={cn(
+              "pointer-events-none fixed max-w-[min(360px,calc(100vw-32px))]",
+              "border-destructive/40 bg-popover text-destructive rounded-md border",
+              "px-2 py-1 font-sans text-xs leading-snug shadow-md",
+            )}
+          >
+            {errorTarget.message}
+          </div>
+        </Layer>
       )}
     </div>
   );

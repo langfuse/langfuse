@@ -391,6 +391,22 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("lowers negated exact on id/name to stringOptions none-of (exact inequality)", () => {
+    // `-name:=abc` is exact-inequality — the faithful flat form is
+    // stringOptions none-of (there is no `string !=`). It is the inverse of the
+    // positive `name:=abc` (`string =`) and the shape the facet emits when one
+    // value is unchecked, so it must lower cleanly rather than error.
+    for (const column of ["id", "name"]) {
+      const r = lower(`-${column}:=abc`);
+      expect(r.errors).toEqual([]);
+      expect(r.filters).toEqual([
+        { type: "stringOptions", column, operator: "none of", value: ["abc"] },
+      ]);
+    }
+    // The commit gate accepts it (no longer a "not representable" error).
+    expect(validateQuery("-name:=abc").valid).toBe(true);
+  });
+
   it("lowers input:/output: to real column filters (not searchType)", () => {
     const r = lower("input:refund");
     expect(r.errors).toEqual([]);
@@ -765,19 +781,30 @@ describe("filterStateToQueryText", () => {
     expect(astToFilterState(validateQuery(text).ast).filters).toEqual(filters);
   });
 
-  it("preserves a single-value stringOptions none-of on id/name via skippedFilters", () => {
-    // `-id:=abc` (negated exact) is not representable, so rather than rewrite it
-    // to `does not contain` (a substring flip), the bar must skip + preserve it.
-    const filters: FilterState = [
-      {
-        type: "stringOptions",
-        column: "name",
-        operator: "none of",
-        value: ["abc"],
-      },
-    ];
-    const { skippedFilters } = filterStateToQueryText(filters);
-    expect(skippedFilters).toEqual(filters);
+  it("renders a single-value stringOptions none-of on id/name as negated exact", () => {
+    // A single none-of on a textSearch field is exact-inequality. The faithful
+    // grammar form is the negated exact `-name:=abc` (which lowers back to
+    // stringOptions none-of), NOT `-name:abc` (does-not-contain / substring).
+    // This is the facet "uncheck one value" shape — it must render in the bar,
+    // not vanish into skippedFilters.
+    for (const column of ["id", "name"]) {
+      const filters: FilterState = [
+        {
+          type: "stringOptions",
+          column,
+          operator: "none of",
+          value: ["abc"],
+        },
+      ];
+      const { text, skipped, skippedFilters } = filterStateToQueryText(filters);
+      expect(skipped).toEqual([]);
+      expect(skippedFilters).toEqual([]);
+      expect(text).toBe(`-${column}:=abc`);
+      // And it round-trips back to the same stringOptions none-of filter.
+      expect(astToFilterState(validateQuery(text).ast).filters).toEqual(
+        filters,
+      );
+    }
   });
 
   it("round-trips option values with operator-prefix, keyword, and empty forms", () => {
