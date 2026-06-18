@@ -14,6 +14,13 @@ const maybeEventsTable =
     ? describe
     : describe.skip;
 
+const NGRAM_METADATA_TEST_OPERATORS = [
+  "contains",
+  "starts with",
+  "ends with",
+] as const;
+const NGRAM_METADATA_OPERATORS = new Set<string>(NGRAM_METADATA_TEST_OPERATORS);
+
 type FilterResult = {
   query: string;
   params: Record<string, unknown>;
@@ -64,6 +71,10 @@ const filterFixture = `
     ('metadata-phrase-alpha-gap-beta', 'unrelated input', 'unrelated output', ['topic'], ['alpha gap beta']),
     ('metadata-split-alpha-beta', 'unrelated input', 'unrelated output', ['topic', 'other'], ['alpha', 'beta']),
     ('metadata-other-key-alpha', 'unrelated input', 'unrelated output', ['other'], ['alpha']),
+    ('metadata-literal-percent', 'unrelated input', 'unrelated output', ['topic'], ['100% done']),
+    ('metadata-literal-underscore', 'unrelated input', 'unrelated output', ['topic'], ['job_42']),
+    ('metadata-literal-backslash', 'unrelated input', 'unrelated output', ['topic'], ['path\\\\to']),
+    ('metadata-other-key-production-decoy', 'unrelated input', 'unrelated output', ['topic', 'other'], ['topic-value', 'production-west']),
     ('miss', 'unrelated input', 'unrelated output', ['topic'], ['unrelated metadata'])
   ) AS e
 `;
@@ -208,14 +219,101 @@ maybeEventsTable("FTS filter rewrites", () => {
 
       if (operator === "=") {
         expect(rewritten.query).toContain("has(e.metadata_values,");
+      } else if (NGRAM_METADATA_OPERATORS.has(operator)) {
+        expect(rewritten.query).toContain(
+          "like(arrayStringConcat(e.metadata_values),",
+        );
+        expect(rewritten.query).not.toContain("hasAllTokens");
       } else {
         expect(rewritten.query).not.toContain("hasAllTokens");
+        expect(rewritten.query).not.toContain("arrayStringConcat");
       }
       await expect(matchingIds(rewritten)).resolves.toEqual(
         await matchingIds(baseline),
       );
     },
   );
+
+  it.each(
+    Array.from(FTS_EVENTS_TABLES).flatMap((table) =>
+      NGRAM_METADATA_TEST_OPERATORS.map((operator) => ({ table, operator })),
+    ),
+  )(
+    "keeps short $table.metadata `$operator` equivalent to the baseline",
+    async ({ table, operator }) => {
+      const baseline = metadataBaselineFilter({
+        operator,
+        key: "topic",
+        value: "a",
+      });
+      const rewritten = new StringObjectFilter({
+        clickhouseTable: table,
+        field: "metadata",
+        operator,
+        key: "topic",
+        value: "a",
+        tablePrefix: "e",
+      }).apply();
+
+      expect(rewritten.query).toContain(
+        "like(arrayStringConcat(e.metadata_values),",
+      );
+      await expect(matchingIds(rewritten)).resolves.toEqual(
+        await matchingIds(baseline),
+      );
+    },
+  );
+
+  it.each([
+    {
+      operator: "contains",
+      value: "100%",
+      expectedIds: ["metadata-literal-percent"],
+    },
+    {
+      operator: "starts with",
+      value: "job_",
+      expectedIds: ["metadata-literal-underscore"],
+    },
+    {
+      operator: "ends with",
+      value: "h\\to",
+      expectedIds: ["metadata-literal-backslash"],
+    },
+  ] as const)(
+    "matches literal metadata wildcard characters for `$operator` `$value`",
+    async ({ operator, value, expectedIds }) => {
+      const rewritten = new StringObjectFilter({
+        clickhouseTable: "events_core",
+        field: "metadata",
+        operator,
+        key: "topic",
+        value,
+        tablePrefix: "e",
+      }).apply();
+
+      expect(rewritten.query).toContain(
+        "like(arrayStringConcat(e.metadata_values),",
+      );
+      await expect(matchingIds(rewritten)).resolves.toEqual(expectedIds);
+    },
+  );
+
+  it("does not match when only a different metadata key satisfies the ngram prefilter", async () => {
+    const rewritten = new StringObjectFilter({
+      clickhouseTable: "events_core",
+      field: "metadata",
+      operator: "starts with",
+      key: "topic",
+      value: "production",
+      tablePrefix: "e",
+    }).apply();
+
+    expect(rewritten.query).toContain(
+      "like(arrayStringConcat(e.metadata_values),",
+    );
+    await expect(matchingIds(rewritten)).resolves.toEqual([]);
+  });
 
   it.each(
     Array.from(FTS_EVENTS_TABLES).flatMap((table) =>

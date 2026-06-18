@@ -4,6 +4,7 @@ import {
   createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
+  recordDistribution,
   recordGauge,
   recordHistogram,
   recordIncrement,
@@ -56,7 +57,7 @@ export class WorkerManager {
       recordHistogram(oldMetric + ".wait_time", waitTime, {
         unit: "milliseconds",
       });
-      recordHistogram(baseMetric + ".time", waitTime, {
+      recordDistribution(baseMetric + ".time_distribution", waitTime, {
         type: "wait",
         unit: "milliseconds",
         ...shardTag,
@@ -97,7 +98,7 @@ export class WorkerManager {
       recordHistogram(oldMetric + ".processing_time", processingTime, {
         unit: "milliseconds",
       });
-      recordHistogram(baseMetric + ".time", processingTime, {
+      recordDistribution(baseMetric + ".time_distribution", processingTime, {
         type: "processing",
         unit: "milliseconds",
         ...shardTag,

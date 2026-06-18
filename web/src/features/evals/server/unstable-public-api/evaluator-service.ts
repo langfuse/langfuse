@@ -5,12 +5,27 @@ import {
   observationVariableMappingList,
   variableMappingList,
 } from "@langfuse/shared";
-import { invalidateProjectEvalConfigCaches } from "@langfuse/shared/src/server";
-import { EvalTemplateType, Prisma, prisma } from "@langfuse/shared/src/db";
-import type { PostUnstableEvaluatorBodyType } from "@/src/features/public-api/types/unstable-evaluators";
+import {
+  invalidateProjectEvalConfigCaches,
+  type ApiAccessScope,
+} from "@langfuse/shared/src/server";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
+import { type PostUnstableEvaluatorBodyParsedType } from "@/src/features/public-api/types/unstable-evaluators";
+import {
+  type PUBLIC_EVALUATOR_TYPE_CODE,
+  PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE,
+} from "@/src/features/public-api/types/unstable-public-evals-contract";
+import {
+  isCodeEvalEnabled,
+  isCodeEvalSourceCodeLanguageSupported,
+} from "@/src/features/evals/server/isCodeEvalEnabled";
+import { CODE_EVAL_TEMPLATE_VARIABLES } from "@/src/features/evals/utils/code-eval-template-utils";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE } from "@/src/features/evals/server/audit-log-resource-types";
+import { deleteEvalTemplateFamily } from "@/src/features/evals/server/evalTemplateDeletion";
 import {
   toApiEvaluator,
-  toStoredModelConfig,
+  toStoredEvaluatorType,
   toStoredOutputDefinition,
 } from "./adapters";
 import {
@@ -65,6 +80,34 @@ function prepareVariableMappingForEvaluatorUpgrade(params: {
   return migratedVariableMapping;
 }
 
+function assertCodeEvaluatorDefinitionCanRunForPublicApi(
+  input: Extract<
+    PostUnstableEvaluatorBodyParsedType,
+    { type: typeof PUBLIC_EVALUATOR_TYPE_CODE }
+  >,
+) {
+  if (!isCodeEvalEnabled()) {
+    throw createUnstablePublicApiError({
+      httpCode: 403,
+      code: "access_denied",
+      message: "Code evals are not enabled",
+    });
+  }
+
+  if (!isCodeEvalSourceCodeLanguageSupported(input.sourceCodeLanguage)) {
+    throw createUnstablePublicApiError({
+      httpCode: 400,
+      code: "invalid_request",
+      message:
+        "This code evaluator language is not supported by the configured dispatcher.",
+      details: {
+        field: "sourceCodeLanguage",
+        value: input.sourceCodeLanguage,
+      },
+    });
+  }
+}
+
 export async function listPublicEvaluators(params: {
   projectId: string;
   page: number;
@@ -107,30 +150,66 @@ export async function getPublicEvaluator(params: {
 
 export async function createPublicEvaluator(params: {
   projectId: string;
-  input: PostUnstableEvaluatorBodyType;
+  input: PostUnstableEvaluatorBodyParsedType;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
 }) {
-  const storedOutputDefinition = toStoredOutputDefinition(
-    params.input.outputDefinition,
-  );
+  const { input } = params;
+  const storedEvalTemplateType = toStoredEvaluatorType(input.type);
+  const storedOutputDefinition =
+    input.type === PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE
+      ? toStoredOutputDefinition(input.outputDefinition)
+      : undefined;
+  const nextVariables =
+    input.type === PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE
+      ? extractVariables(input.prompt)
+      : [...CODE_EVAL_TEMPLATE_VARIABLES];
 
-  await assertEvaluatorDefinitionCanRunForPublicApi({
-    projectId: params.projectId,
-    template: {
-      name: params.input.name,
-      provider: params.input.modelConfig?.provider ?? null,
-      model: params.input.modelConfig?.model ?? null,
-      outputDefinition: storedOutputDefinition,
-    },
-  });
+  if (input.type === PUBLIC_EVALUATOR_TYPE_LLM_AS_JUDGE) {
+    await assertEvaluatorDefinitionCanRunForPublicApi({
+      projectId: params.projectId,
+      template: {
+        name: input.name,
+        provider: input.modelConfig?.provider ?? null,
+        model: input.modelConfig?.model ?? null,
+        outputDefinition: storedOutputDefinition,
+      },
+    });
+  } else {
+    assertCodeEvaluatorDefinitionCanRunForPublicApi(input);
+  }
 
   try {
     const { template, upgradedConfigCount } = await prisma.$transaction(
       async (tx) => {
+        const conflictingTemplate = await tx.evalTemplate.findFirst({
+          where: {
+            projectId: params.projectId,
+            name: input.name,
+            type: {
+              not: storedEvalTemplateType,
+            },
+          },
+          select: {
+            type: true,
+          },
+        });
+
+        if (conflictingTemplate) {
+          throw createUnstablePublicApiError({
+            httpCode: 409,
+            code: "name_conflict",
+            message: `An evaluator named "${input.name}" already exists with a different type in this project. Use a different name for the ${input.type} evaluator.`,
+            details: {
+              field: "name",
+            },
+          });
+        }
+
         const existingProjectTemplates = await tx.evalTemplate.findMany({
           where: {
             projectId: params.projectId,
-            name: params.input.name,
-            type: EvalTemplateType.LLM_AS_JUDGE,
+            name: input.name,
+            type: storedEvalTemplateType,
           },
           orderBy: [
             {
@@ -148,7 +227,6 @@ export async function createPublicEvaluator(params: {
             version: true,
           },
         });
-        const nextVariables = extractVariables(params.input.prompt);
         const configsToUpgrade =
           existingProjectTemplates.length > 0
             ? await tx.jobConfiguration.findMany({
@@ -161,7 +239,7 @@ export async function createPublicEvaluator(params: {
                   },
                   evalTemplate: {
                     is: {
-                      type: EvalTemplateType.LLM_AS_JUDGE,
+                      type: storedEvalTemplateType,
                     },
                   },
                 },
@@ -182,20 +260,22 @@ export async function createPublicEvaluator(params: {
             nextVariables,
           }),
         }));
-        const modelConfig = toStoredModelConfig(params.input.modelConfig);
         const latestProjectTemplate = existingProjectTemplates[0];
 
         const template = await tx.evalTemplate.create({
           data: {
             projectId: params.projectId,
-            name: params.input.name,
+            name: input.name,
             version: (latestProjectTemplate?.version ?? 0) + 1,
-            prompt: params.input.prompt,
-            provider: modelConfig.provider,
-            model: modelConfig.model,
-            modelParams: modelConfig.modelParams,
+            type: storedEvalTemplateType,
+            prompt: input.prompt ?? null,
+            provider: input.modelConfig?.provider ?? null,
+            model: input.modelConfig?.model ?? null,
+            modelParams: undefined,
             vars: nextVariables,
             outputDefinition: storedOutputDefinition,
+            sourceCode: input.sourceCode ?? null,
+            sourceCodeLanguage: input.sourceCodeLanguage ?? null,
           },
         });
 
@@ -232,10 +312,24 @@ export async function createPublicEvaluator(params: {
       evaluatorId: template.id,
     });
 
-    return toApiEvaluator({
+    const evaluator = toApiEvaluator({
       template: template as StoredPublicEvaluatorTemplate,
       evaluationRuleCount,
     });
+
+    if (params.auditScope) {
+      await auditLog({
+        action: "create",
+        resourceType: EVAL_TEMPLATE_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: evaluator.id,
+        projectId: params.projectId,
+        orgId: params.auditScope.orgId,
+        apiKeyId: params.auditScope.apiKeyId,
+        after: evaluator,
+      });
+    }
+
+    return evaluator;
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -251,4 +345,20 @@ export async function createPublicEvaluator(params: {
 
     throw error;
   }
+}
+
+export async function deletePublicEvaluator(params: {
+  projectId: string;
+  evaluatorId: string;
+  auditScope?: Pick<ApiAccessScope, "orgId" | "apiKeyId">;
+}) {
+  // an evaluator in the public contract is the whole family; deleting it
+  // removes all stored versions
+  await deleteEvalTemplateFamily({
+    prisma,
+    projectId: params.projectId,
+    evalTemplateId: params.evaluatorId,
+    auditScope: params.auditScope,
+    referencingEntityName: "evaluation rule",
+  });
 }

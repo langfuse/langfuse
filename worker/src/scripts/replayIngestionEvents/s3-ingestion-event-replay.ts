@@ -17,8 +17,10 @@ import { parse } from "csv-parse";
 import { randomUUID } from "crypto";
 import {
   OtelIngestionQueue,
+  parseEventKey,
   QueueJobs,
   QueueName,
+  rawEventBucketPrefix,
   SecondaryIngestionQueue,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -55,6 +57,7 @@ interface JsonOutputItem {
     eventBodyId: string;
     fileKey: string;
     type: string;
+    bucketPrefix: string;
   };
 }
 
@@ -331,26 +334,16 @@ async function convertCsvToJsonl(
       }
 
       // Handle two S3 key path formats:
-      // 1. projectId/type/eventBodyId/eventId.json (original)
+      // 1. projectId/entityType/eventBodyId/eventId.json (original)
       // 2. otel/projectId/yyyy/mm/dd/hh/mm/eventId.json (OTEL-style)
+      const parsed = parseEventKey(keyValue);
 
-      // Match OTEL-style: otel/projectId/yyyy/mm/dd/hh/mm/eventId.json
-      const otelMatch = keyValue.match(
-        /^otel\/([^/]+)\/(\d{4})\/(\d{2})\/(\d{2})\/(\d{2})\/(\d{2})\/([^.]+)\.json$/,
-      );
-
-      // Match original format
-      const regularMatch = keyValue.match(
-        /^([^/]+)\/([^/]+)\/(.+)\/([^/]+)\.json$/,
-      );
-
-      if (otelMatch) {
-        const [, projectId] = otelMatch;
+      if (parsed?.kind === "otel") {
         const otelJsonObject: OTelJsonOutputItem = {
           authCheck: {
             validKey: true,
             scope: {
-              projectId,
+              projectId: parsed.projectId,
               accessLevel: "project",
             },
           },
@@ -362,8 +355,18 @@ async function convertCsvToJsonl(
         // Write each OTEL JSON object as a single line (JSONL format)
         otelOutputStream.write(JSON.stringify(otelJsonObject) + "\n");
         writtenOtelObjects++;
-      } else if (regularMatch) {
-        const [, projectId, type, eventBodyId, eventId] = regularMatch;
+      } else if (parsed?.kind === "standard") {
+        const { projectId, entityType, eventBodyId, eventId } = parsed;
+
+        // The parsed eventBodyId is the literal segment in S3, whatever
+        // form the original producer wrote (sanitized + hashed, or raw).
+        // rawEventBucketPrefix passes it through verbatim so replay finds
+        // the file at the same key it was originally written to.
+        const bucketPrefix = rawEventBucketPrefix({
+          projectId,
+          entityType,
+          rawEntityIdSegment: eventBodyId,
+        });
 
         const jsonObject: JsonOutputItem = {
           useS3EventStore: true,
@@ -377,7 +380,8 @@ async function convertCsvToJsonl(
           data: {
             eventBodyId,
             fileKey: eventId,
-            type: `${type}-create`,
+            type: `${entityType}-create`,
+            bucketPrefix,
           },
         };
 

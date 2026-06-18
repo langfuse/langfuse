@@ -5,7 +5,12 @@ import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKey
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  initializeClickhouseCompatibility,
+  logger,
+} from "@langfuse/shared/src/server";
+
+await initializeClickhouseCompatibility();
 
 // Warn if LANGFUSE_INIT_* variables are set but LANGFUSE_INIT_ORG_ID is missing
 if (!env.LANGFUSE_INIT_ORG_ID) {

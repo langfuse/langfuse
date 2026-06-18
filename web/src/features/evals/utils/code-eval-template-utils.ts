@@ -15,6 +15,14 @@ type CodeEvalCapabilities = {
   supportedSourceCodeLanguages: EvalTemplateSourceCodeLanguage[];
 };
 
+export const CODE_EVAL_TEMPLATE_VARIABLES = [
+  "input",
+  "output",
+  "metadata",
+  "experimentItemExpectedOutput",
+  "experimentItemMetadata",
+] as const;
+
 export const shouldShowEvalTemplate = (
   template: Partial<Pick<EvalTemplate, "type" | "sourceCodeLanguage">>,
   codeEvalCapabilities: CodeEvalCapabilities,
@@ -36,33 +44,11 @@ export const CODE_EVAL_ESCAPE_CONFIRM_MESSAGE =
   "Close code editor? Unsaved changes will be lost.";
 
 export function getCodeEvalVariableMapping(): ObservationVariableMapping[] {
-  return [
-    {
-      templateVariable: "input",
-      selectedColumnId: "input",
-      jsonSelector: null,
-    },
-    {
-      templateVariable: "output",
-      selectedColumnId: "output",
-      jsonSelector: null,
-    },
-    {
-      templateVariable: "metadata",
-      selectedColumnId: "metadata",
-      jsonSelector: null,
-    },
-    {
-      templateVariable: "experimentItemExpectedOutput",
-      selectedColumnId: "experimentItemExpectedOutput",
-      jsonSelector: null,
-    },
-    {
-      templateVariable: "experimentItemMetadata",
-      selectedColumnId: "experimentItemMetadata",
-      jsonSelector: null,
-    },
-  ];
+  return CODE_EVAL_TEMPLATE_VARIABLES.map((variable) => ({
+    templateVariable: variable,
+    selectedColumnId: variable,
+    jsonSelector: null,
+  }));
 }
 
 export function resolveCodeEvalTarget(target: EvalTargetObject) {
