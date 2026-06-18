@@ -23,13 +23,19 @@ import {
   type MonitorWebhookInput,
 } from "../scheduler/types";
 import { monitorFromPrisma, windowToMs } from "../service/helpers";
-import { type MonitorAlert, type MonitorWindow, type Monitor } from "../types";
+import {
+  monitorEvaluationOffsetMs,
+  MonitorSeveritySchema,
+  MonitorStatusSchema,
+  type MonitorAlert,
+  type MonitorWindow,
+  type Monitor,
+} from "../types";
 import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
 import { renderAlertMessage } from "./renderAlertMessage";
 
-/** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads data settled past the events-table write lag. */
-export const monitorEvaluationOffsetMs = 30 * 1000;
+export { monitorEvaluationOffsetMs } from "../types";
 
 /** ErrorBadQuery sentinels a metric whose shape doesn't resolve against the v2 data model or whose batch query failed to execute. */
 export const ErrorBadQuery = Symbol("ErrorBadQuery");
@@ -103,7 +109,7 @@ export class MonitorProcessor {
       where: {
         id: { in: event.monitors.map((m) => m.monitorId) },
         projectId: event.projectId,
-        status: "ACTIVE", // active monitors for the
+        status: MonitorStatusSchema.enum.ACTIVE, // active monitors for the
         lastPublishedAt: { lte: event.publishedAt }, // newest event
         AND: [
           // not already claimed
@@ -301,8 +307,8 @@ function processMonitor(args: {
         lastClaimedAt: now,
         lastCompletedAt: now,
         publishedAt,
-        status: "ERROR_BAD_QUERY",
-        severity: "PAUSED",
+        status: MonitorStatusSchema.enum.ERROR_BAD_QUERY,
+        severity: MonitorSeveritySchema.enum.PAUSED,
         severityChangedAt: now,
         alertedAt: monitor.alertedAt,
       },
@@ -312,6 +318,8 @@ function processMonitor(args: {
 
   const severity = computeSeverity({
     value,
+    noData: monitor.noData,
+    prevSeverity: monitor.severity,
     operator: monitor.thresholdOperator,
     alertThreshold: monitor.alertThreshold,
     warningThreshold: monitor.warningThreshold ?? null,

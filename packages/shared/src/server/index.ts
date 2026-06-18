@@ -1,4 +1,6 @@
 export * from "./services/StorageService";
+export * from "./services/safeBlobKeySegment";
+export * from "./ingestion/eventBucketPath";
 export * from "./cache";
 export * from "./services/BufferedStreamUploader";
 export * from "./services/S3ChunkedUploadStrategy";
@@ -49,6 +51,10 @@ export * from "./utils/billingCycleHelpers";
 export * from "./utils/compareVersions";
 export * from "./otel/utils";
 export * from "./clickhouse/client";
+export {
+  getClickHouseCompatibilitySettings,
+  initializeClickhouseCompatibility,
+} from "./clickhouse/compatibility";
 export * from "./clickhouse/schemaUtils";
 export * from "./clickhouse/schema";
 export * from "./clickhouse/queryTracking";

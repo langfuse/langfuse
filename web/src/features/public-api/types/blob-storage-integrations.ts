@@ -130,24 +130,9 @@ export const CreateBlobStorageIntegrationRequest = z
       });
       return;
     }
-    if (
-      data.exportSource === "LEGACY_TRACES_OBSERVATIONS" &&
-      data.exportFieldGroups != null
-    ) {
-      ctx.addIssue({
-        code: "custom",
-        message:
-          "exportFieldGroups is not applicable when exportSource is LEGACY_TRACES_OBSERVATIONS",
-        path: ["exportFieldGroups"],
-      });
-      return;
-    }
     if (data.exportFieldGroups != null && data.exportSource != null) {
       validateExportFieldGroups(
-        {
-          exportSource: toInternalExportSource(data.exportSource),
-          exportFieldGroups: data.exportFieldGroups,
-        },
+        { exportFieldGroups: data.exportFieldGroups },
         ctx,
       );
     }

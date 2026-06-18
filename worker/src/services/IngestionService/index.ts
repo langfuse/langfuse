@@ -148,20 +148,20 @@ export class IngestionService {
   public async mergeAndWrite(
     eventType: IngestionEntityTypes,
     projectId: string,
-    eventBodyId: string,
+    entityId: string,
     createdAtTimestamp: Date,
     events: IngestionEventType[],
     forwardToEventsTable: boolean,
   ): Promise<void> {
     logger.debug(
-      `Merging ingestion ${eventType} event for project ${projectId} and event ${eventBodyId}`,
+      `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
     );
 
     switch (eventType) {
       case "trace":
         return await this.processTraceEventList({
           projectId,
-          entityId: eventBodyId,
+          entityId,
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
           createEventTraceRecord: forwardToEventsTable,
@@ -169,7 +169,7 @@ export class IngestionService {
       case "observation":
         return await this.processObservationEventList({
           projectId,
-          entityId: eventBodyId,
+          entityId,
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
           writeToStagingTables: forwardToEventsTable,
@@ -177,7 +177,7 @@ export class IngestionService {
       case "score": {
         return await this.processScoreEventList({
           projectId,
-          entityId: eventBodyId,
+          entityId,
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
         });
@@ -185,7 +185,7 @@ export class IngestionService {
       case "dataset_run_item": {
         return await this.processDatasetRunItemEventList({
           projectId,
-          entityId: eventBodyId,
+          entityId,
           createdAtTimestamp,
           datasetRunItemEventList: events as DatasetRunItemEventType[],
         });

@@ -251,6 +251,12 @@ const getPlanBasedRateLimitConfig = (
             points: 1000,
             durationInSec: 60,
           };
+        case "media-upload":
+          return {
+            resource: "media-upload",
+            points: 1000,
+            durationInSec: 60,
+          };
         case "legacy-ingestion":
           return {
             resource: "legacy-ingestion",
@@ -299,6 +305,12 @@ const getPlanBasedRateLimitConfig = (
             points: 50,
             durationInSec: 86400, // 50 requests per day
           };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 100,
+            durationInSec: 86400,
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -313,6 +325,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "ingestion",
             // points: 4000, // original core limit
             points: 20_000, // temporary: using pro limit
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
+            points: 4_000,
             durationInSec: 60,
           };
         case "legacy-ingestion":
@@ -367,6 +385,12 @@ const getPlanBasedRateLimitConfig = (
             points: 200,
             durationInSec: 86400, // 200 requests per day
           };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 1000,
+            durationInSec: 86400,
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -378,6 +402,12 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
+            points: 20_000,
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
             points: 20_000,
             durationInSec: 60,
           };
@@ -428,6 +458,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "score-delete",
             points: 1000,
             durationInSec: 86400, // 1000 requests per day
+          };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 1000,
+            durationInSec: 86400,
           };
         default:
           const exhaustiveCheck: never = resource;

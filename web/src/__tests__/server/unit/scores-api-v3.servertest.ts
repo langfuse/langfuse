@@ -1,4 +1,4 @@
-import { buildSelectColumns } from "@/src/features/public-api/server/scores-api-v3";
+import { buildSelectColumns } from "@langfuse/shared/src/server";
 import { GetScoresQueryV3 } from "@langfuse/shared";
 
 describe("GetScoresQueryV3 enum case-insensitivity", () => {

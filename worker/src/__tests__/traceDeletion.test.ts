@@ -167,7 +167,12 @@ describe("trace deletion", () => {
     });
     expect(media).toHaveLength(0);
 
-    // No need to check observationMedia and traceMedia as they have a foreign key to media table.
+    await expect(
+      prisma.traceMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      prisma.observationMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
   });
 
   it("should NOT delete S3 media files for deleted traces if referenced by other entity", async () => {
