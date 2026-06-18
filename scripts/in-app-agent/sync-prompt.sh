@@ -5,8 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 PROMPT_FILE="${REPO_ROOT}/web/src/features/in-app-agent/prompts/in-app-agent-system-prompt.txt"
 PROMPT_NAME="in-app-agent-system-prompt"
-REGIONS=(EU US JP HIPAA)
+REGIONS=(STAGING EU US JP HIPAA)
 BASE_URLS=(
+  "https://staging.langfuse.com"
   "https://cloud.langfuse.com"
   "https://us.cloud.langfuse.com"
   "https://jp.cloud.langfuse.com"
