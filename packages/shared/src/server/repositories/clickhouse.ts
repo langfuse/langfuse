@@ -9,7 +9,13 @@ import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
+import {
+  type Span,
+  context,
+  isSpanContextValid,
+  SpanKind,
+  trace,
+} from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
 import {
   StorageService,
@@ -370,13 +376,12 @@ function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("db.operation.name", "SELECT");
 }
 
-function tagsWithTraceId(
+export function tagsWithTraceId(
   tags: Record<string, string> | undefined,
 ): Record<string, string> {
-  const traceId = trace.getActiveSpan()?.spanContext().traceId;
-  if (!traceId || traceId === "00000000000000000000000000000000")
-    return tags ?? {};
-  return { ...tags, traceId };
+  const ctx = trace.getActiveSpan()?.spanContext();
+  if (!ctx || !isSpanContextValid(ctx)) return tags ?? {};
+  return { ...tags, traceId: ctx.traceId };
 }
 
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
