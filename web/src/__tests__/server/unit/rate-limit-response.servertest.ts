@@ -10,6 +10,7 @@ const {
     (
       rateLimitRes: RateLimitResult,
       options?: {
+        errorContract?: string;
         upgradePath?: { legacyEndpoint: string; replacementEndpoint: string };
       },
     ) => {
@@ -121,16 +122,30 @@ describe("sendRateLimitResponse", () => {
     vi.clearAllMocks();
   });
 
-  it("keeps the default stable response as plain text", () => {
+  it("returns a generic structured rate limit error without an upgrade path", () => {
     const res = createResponse();
 
     sendRateLimitResponse(res, rateLimitResult);
 
     expect(res.statusCode).toBe(429);
-    expect(res._getData()).toBe("429 - rate limit exceeded");
+    expect(res._getJSONData()).toEqual({
+      message: "Rate limit exceeded",
+      code: "rate_limited",
+      details: {
+        retryAfterSeconds: 3,
+        limit: 10,
+        remaining: 0,
+        resetAt: expect.any(String),
+      },
+    });
     expect(res.getHeader("Retry-After")).toBe(3);
     expect(res.getHeader("X-RateLimit-Limit")).toBe(10);
     expect(res.getHeader("X-RateLimit-Remaining")).toBe(-1);
+    expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
+      rateLimitResult,
+      {},
+    );
+    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
   it("returns upgrade guidance for stable responses with an upgrade path", () => {
@@ -162,7 +177,7 @@ describe("sendRateLimitResponse", () => {
     expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the unstable error contract when an upgrade path is present", () => {
+  it("passes the error contract through when an upgrade path is present", () => {
     const res = createResponse();
 
     sendRateLimitResponse(res, rateLimitResult, {

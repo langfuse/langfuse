@@ -20,7 +20,6 @@ import { type NextApiResponse } from "next";
 import {
   createUnstablePublicApiRateLimitError,
   sendUnstablePublicApiErrorResponse,
-  unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
@@ -218,17 +217,10 @@ export const sendRateLimitResponse = (
     res.setHeader(header, value);
   }
 
-  if (
-    responseOptions.errorContract === unstablePublicEvalsErrorContract ||
-    responseOptions.upgradePath
-  ) {
-    return sendUnstablePublicApiErrorResponse(
-      res,
-      createUnstablePublicApiRateLimitError(rateLimitRes, responseOptions),
-    );
-  }
-
-  res.status(429).end("429 - rate limit exceeded");
+  return sendUnstablePublicApiErrorResponse(
+    res,
+    createUnstablePublicApiRateLimitError(rateLimitRes, responseOptions),
+  );
 };
 
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
