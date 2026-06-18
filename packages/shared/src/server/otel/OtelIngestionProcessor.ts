@@ -26,7 +26,11 @@ import { LangfuseOtelSpanAttributes } from "./attributes";
 import { ObservationTypeMapperRegistry } from "./ObservationTypeMapper";
 import { env } from "../../env";
 import { OtelIngestionQueue } from "../redis/otelIngestionQueue";
-import { isValidDateString, flattenJsonToPathArrays, isLangGraphControlFlowInterruptSpan } from "./utils";
+import {
+  isValidDateString,
+  flattenJsonToPathArrays,
+  isLangGraphControlFlowInterruptSpan,
+} from "./utils";
 
 // Type definitions for internal processor state
 interface TraceState {
