@@ -93,16 +93,9 @@ const APIDatasetItem = z
     datasetId: z.string(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
-    // Only present when requested via includeMediaReferences
-    mediaReferences: z.array(APIDatasetItemMediaReference).optional(),
+    mediaReferences: z.array(APIDatasetItemMediaReference),
   })
   .strict();
-
-// Query strings arrive as strings; only "true" enables the flag
-const includeMediaReferencesZod = z
-  .enum(["true", "false"])
-  .transform((value) => value === "true")
-  .optional();
 
 /**
  * Transforms
@@ -117,7 +110,7 @@ export const transformDbDatasetItemDomainToAPIDatasetItem = (
   dbDatasetItem: DatasetItemDomain & {
     datasetName: string;
   },
-): z.infer<typeof APIDatasetItem> =>
+): Omit<z.infer<typeof APIDatasetItem>, "mediaReferences"> =>
   removeObjectKeys(dbDatasetItem, ["projectId", "validFrom"]);
 
 export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
@@ -222,7 +215,6 @@ export const GetDatasetItemsV1Query = z
     sourceTraceId: z.string().nullish(),
     sourceObservationId: z.string().nullish(),
     version: versionZod.nullish(),
-    includeMediaReferences: includeMediaReferencesZod,
     ...publicApiPaginationZod,
   })
   .refine(
@@ -248,7 +240,6 @@ export const GetDatasetItemsV1Response = z
 // GET /dataset-items/{datasetItemId}
 export const GetDatasetItemV1Query = z.object({
   datasetItemId: z.string(),
-  includeMediaReferences: includeMediaReferencesZod,
 });
 export const GetDatasetItemV1Response = APIDatasetItem;
 

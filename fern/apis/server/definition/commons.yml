@@ -639,8 +639,8 @@ types:
       createdAt: datetime
       updatedAt: datetime
       mediaReferences:
-        type: optional<list<DatasetItemMediaReference>>
-        docs: Resolved Langfuse media references found in input, expectedOutput, and metadata. Only present when requested via includeMediaReferences.
+        type: list<DatasetItemMediaReference>
+        docs: Resolved Langfuse media references found in input, expectedOutput, and metadata.
   # Source: web/src/features/public-api/types/datasets.ts - APIDatasetItemMediaReference
   DatasetItemMediaReference:
     properties:

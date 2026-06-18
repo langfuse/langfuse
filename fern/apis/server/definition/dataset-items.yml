@@ -19,12 +19,6 @@ service:
       path-parameters:
         id:
           type: string
-      request:
-        name: GetDatasetItemRequest
-        query-parameters:
-          includeMediaReferences:
-            type: optional<boolean>
-            docs: If true, resolve Langfuse media references in input, expectedOutput, and metadata to signed download URLs and include them as mediaReferences. Defaults to false.
       response: commons.DatasetItem
     list:
       docs: |
@@ -44,9 +38,6 @@ service:
               ISO 8601 timestamp (RFC 3339, Section 5.6) in UTC (e.g., "2026-01-21T14:35:42Z").
               If provided, returns state of dataset at this timestamp.
               If not provided, returns the latest version. Requires datasetName to be specified.
-          includeMediaReferences:
-            type: optional<boolean>
-            docs: If true, resolve Langfuse media references in input, expectedOutput, and metadata to signed download URLs and include them as mediaReferences. Defaults to false.
           page:
             type: optional<integer>
             docs: page number, starts at 1

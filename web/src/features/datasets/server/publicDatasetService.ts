@@ -485,9 +485,18 @@ export const getDatasetByNameForApi = async ({
 
   const { datasetRuns, ...params } = dataset;
 
+  const mediaReferences = await resolveDatasetItemMediaReferences({
+    projectId,
+    items: datasetItems,
+  });
+
   return {
     ...transformDbDatasetToAPIDataset(params),
-    items: datasetItems.map(transformDbDatasetItemDomainToAPIDatasetItem),
+    items: datasetItems.map((item) => ({
+      ...transformDbDatasetItemDomainToAPIDatasetItem(item),
+      mediaReferences:
+        mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
+    })),
     runs: datasetRuns.map((run) => run.name),
   };
 };
@@ -499,7 +508,6 @@ export const listDatasetItemsForApi = async ({
   sourceTraceId,
   sourceObservationId,
   version,
-  includeMediaReferences,
   page,
   limit,
 }: ListDatasetItemsInput) => {
@@ -535,19 +543,16 @@ export const listDatasetItemsForApi = async ({
     }),
   ]);
 
-  const mediaReferences = includeMediaReferences
-    ? await resolveDatasetItemMediaReferences({ projectId, items })
-    : null;
+  const mediaReferences = await resolveDatasetItemMediaReferences({
+    projectId,
+    items,
+  });
 
   return {
     data: items.map((item) => ({
       ...transformDbDatasetItemDomainToAPIDatasetItem(item),
-      ...(mediaReferences
-        ? {
-            mediaReferences:
-              mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
-          }
-        : {}),
+      mediaReferences:
+        mediaReferences.get(datasetItemMediaReferenceKey(item)) ?? [],
     })),
     meta: {
       page,
@@ -561,7 +566,6 @@ export const listDatasetItemsForApi = async ({
 export const getDatasetItemForApi = async ({
   projectId,
   datasetItemId,
-  includeMediaReferences,
 }: GetDatasetItemInput) => {
   const datasetItem = await getDatasetItemById({
     projectId,
@@ -587,12 +591,10 @@ export const getDatasetItemForApi = async ({
     throw new LangfuseNotFoundError("Dataset not found");
   }
 
-  const mediaReferences = includeMediaReferences
-    ? await resolveDatasetItemMediaReferences({
-        projectId,
-        items: [datasetItem],
-      })
-    : null;
+  const mediaReferences = await resolveDatasetItemMediaReferences({
+    projectId,
+    items: [datasetItem],
+  });
 
   return {
     ...transformDbDatasetItemDomainToAPIDatasetItem({
@@ -600,13 +602,8 @@ export const getDatasetItemForApi = async ({
       status: datasetItem.status ?? "ACTIVE",
       datasetName: dataset.name,
     }),
-    ...(mediaReferences
-      ? {
-          mediaReferences:
-            mediaReferences.get(datasetItemMediaReferenceKey(datasetItem)) ??
-            [],
-        }
-      : {}),
+    mediaReferences:
+      mediaReferences.get(datasetItemMediaReferenceKey(datasetItem)) ?? [],
   };
 };
 
@@ -658,11 +655,20 @@ export const createDatasetItemForApi = async ({
       });
     }
 
-    return transformDbDatasetItemDomainToAPIDatasetItem({
-      ...datasetItem,
-      datasetName: datasetItem.datasetName,
-      status: datasetItem.status ?? "ACTIVE",
+    const mediaReferences = await resolveDatasetItemMediaReferences({
+      projectId,
+      items: [datasetItem],
     });
+
+    return {
+      ...transformDbDatasetItemDomainToAPIDatasetItem({
+        ...datasetItem,
+        datasetName: datasetItem.datasetName,
+        status: datasetItem.status ?? "ACTIVE",
+      }),
+      mediaReferences:
+        mediaReferences.get(datasetItemMediaReferenceKey(datasetItem)) ?? [],
+    };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2025") {

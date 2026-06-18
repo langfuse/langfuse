@@ -2,10 +2,12 @@ import crypto from "crypto";
 import type { Session } from "next-auth";
 
 import {
+  getDatasetByNameForApi,
   getDatasetItemForApi,
   listDatasetItemsForApi,
 } from "@/src/features/datasets/server/publicDatasetService";
 import {
+  GetDatasetV1Response,
   GetDatasetItemsV1Response,
   GetDatasetItemV1Response,
 } from "@/src/features/public-api/types/datasets";
@@ -124,7 +126,6 @@ describe("Dataset item media references (public API read path)", () => {
     const item = await getDatasetItemForApi({
       projectId,
       datasetItemId,
-      includeMediaReferences: true,
     });
 
     expect(GetDatasetItemV1Response.parse(item).mediaReferences).toEqual([
@@ -149,23 +150,6 @@ describe("Dataset item media references (public API read path)", () => {
     ]);
   });
 
-  it("omits mediaReferences without the flag", async () => {
-    const media = await createMediaRow();
-    const { datasetItemId } = await createDatasetWithItem({
-      image: media.referenceString,
-    });
-
-    const item = await getDatasetItemForApi({
-      projectId,
-      datasetItemId,
-      includeMediaReferences: false,
-    });
-
-    expect(GetDatasetItemV1Response.parse(item)).not.toHaveProperty(
-      "mediaReferences",
-    );
-  });
-
   it("resolves media references per item on the list endpoint", async () => {
     const media = await createMediaRow();
     const { datasetName } = await createDatasetWithItem({
@@ -175,7 +159,6 @@ describe("Dataset item media references (public API read path)", () => {
     const response = await listDatasetItemsForApi({
       projectId,
       datasetName,
-      includeMediaReferences: true,
       page: 1,
       limit: 50,
     });
@@ -183,6 +166,28 @@ describe("Dataset item media references (public API read path)", () => {
 
     expect(parsed.data).toHaveLength(1);
     expect(parsed.data[0].mediaReferences).toEqual([
+      expect.objectContaining({
+        field: "input",
+        jsonPath: "$['image']",
+        media: expect.objectContaining({ mediaId: media.mediaId }),
+      }),
+    ]);
+  });
+
+  it("resolves media references on embedded items in the dataset endpoint", async () => {
+    const media = await createMediaRow();
+    const { datasetName } = await createDatasetWithItem({
+      image: media.referenceString,
+    });
+
+    const response = await getDatasetByNameForApi({
+      projectId,
+      name: datasetName,
+    });
+    const parsed = GetDatasetV1Response.parse(response);
+
+    expect(parsed.items).toHaveLength(1);
+    expect(parsed.items[0].mediaReferences).toEqual([
       expect.objectContaining({
         field: "input",
         jsonPath: "$['image']",
@@ -199,7 +204,6 @@ describe("Dataset item media references (public API read path)", () => {
     const item = await getDatasetItemForApi({
       projectId,
       datasetItemId,
-      includeMediaReferences: true,
     });
 
     expect(item.mediaReferences).toEqual([]);
@@ -218,7 +222,6 @@ describe("Dataset item media references (public API read path)", () => {
     const item = await getDatasetItemForApi({
       projectId,
       datasetItemId,
-      includeMediaReferences: true,
     });
 
     // The reference is dropped rather than returned with a null media, so the
