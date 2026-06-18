@@ -64,7 +64,7 @@ export function DeactivateEvalConfig({
                 evalConfig.timeScope[0] === "EXISTING")
             }
             checked={isActive}
-            className={isActive ? "data-[state=checked]:bg-dark-green" : ""}
+            color="green"
           />
         </div>
       </PopoverTrigger>
