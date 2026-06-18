@@ -1014,7 +1014,6 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
   const strip = (explicitFilters: FilterState) =>
     stripImplicitEnvironmentFilterFromExplicitState({
       explicitFilters,
-      availableEnvironmentValues: [...availableValues],
       config: managedEnvironmentConfig,
     });
 
@@ -1055,7 +1054,11 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
     ).toEqual([]);
   });
 
-  it("strips default-equivalent env filters before URL/session persistence", () => {
+  it("strips only the system-shaped implicit default, keeping user-authored selections", () => {
+    // The implicit default the sidebar auto-derives — and that the facet
+    // re-creates when the user clears back to the default selection — is the
+    // `none of [hidden]` shape. That is the ONLY env filter we strip before
+    // persistence, so returning to default leaves a clean URL.
     const explicitWithExactDefault: FilterState = [
       {
         column: "environment",
@@ -1080,16 +1083,19 @@ describe("Implicit Environment Defaults (sidebar only)", () => {
       },
     ]);
 
-    expect(
-      strip([
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production", "staging"],
-        },
-      ]),
-    ).toEqual([]);
+    // A user-authored POSITIVE selection (typed in the search bar or stored in a
+    // saved view) is kept explicit even when it happens to equal the current
+    // default set — we never silently remove what the user committed to. The
+    // user returns to the default by removing the filter, not by us guessing.
+    const userAuthoredDefaultSet: FilterState = [
+      {
+        column: "environment",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["production", "staging"],
+      },
+    ];
+    expect(strip(userAuthoredDefaultSet)).toEqual(userAuthoredDefaultSet);
   });
 
   it("keeps explicit overrides that enable hidden environments", () => {
