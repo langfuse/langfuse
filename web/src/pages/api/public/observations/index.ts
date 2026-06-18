@@ -9,6 +9,7 @@ import {
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { env } from "@/src/env.mjs";
 
 import {
   GetObservationsV1Query,
@@ -25,8 +26,13 @@ export default withMiddlewares(
     GET: createAuthedProjectAPIRoute({
       name: "Get Observations",
       allowInAppAgentKey: true,
+      // Only surface the migration hint where v4 APIs are enabled; the v4
+      // preview opt-in gates the v2 surface. Keep this dormant otherwise so we
+      // never point callers at an endpoint that is not yet reachable.
       rateLimitMigrationMessage:
-        "Migrate to the v2/traces endpoint (GET /api/public/v2/traces) for improved performance and higher rate limits. Learn more at https://langfuse.com/docs/v4",
+        env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+          ? "Migrate to the v2/traces endpoint (GET /api/public/v2/traces) for improved performance and higher rate limits. Learn more at https://langfuse.com/docs/v4"
+          : undefined,
       querySchema: GetObservationsV1Query,
       responseSchema: GetObservationsV1Response,
       rejectInEventsOnlyMode: true,

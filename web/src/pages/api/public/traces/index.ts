@@ -70,8 +70,13 @@ export default withMiddlewares(
 
     GET: createAuthedProjectAPIRoute({
       name: "Get Traces",
+      // Only surface the migration hint where v4 APIs are enabled; the v4
+      // preview opt-in gates the v2 surface. Keep this dormant otherwise so we
+      // never point callers at an endpoint that is not yet reachable.
       rateLimitMigrationMessage:
-        "Migrate to the v2/traces endpoint (GET /api/public/v2/traces) for improved performance and higher rate limits. Learn more at https://langfuse.com/docs/v4",
+        env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+          ? "Migrate to the v2/traces endpoint (GET /api/public/v2/traces) for improved performance and higher rate limits. Learn more at https://langfuse.com/docs/v4"
+          : undefined,
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
       rejectInEventsOnlyMode: true,
