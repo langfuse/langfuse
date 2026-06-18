@@ -700,7 +700,7 @@ describe("filterStateToQueryText", () => {
       },
     ];
     const numericResult = filterStateToQueryText(numeric);
-    expect(numericResult.skipped).toEqual([]);
+    expect(numericResult.skippedFilters).toEqual([]);
     expect(numericResult.text).toBe('scores."Rouge Score":>=1');
     expect(
       astToFilterState(validateQuery(numericResult.text).ast).filters,
@@ -716,7 +716,7 @@ describe("filterStateToQueryText", () => {
       },
     ];
     const catResult = filterStateToQueryText(categorical);
-    expect(catResult.skipped).toEqual([]);
+    expect(catResult.skippedFilters).toEqual([]);
     expect(catResult.text).toBe('traceScores."Hallucination Check":faithful');
     expect(astToFilterState(validateQuery(catResult.text).ast).filters).toEqual(
       categorical,
