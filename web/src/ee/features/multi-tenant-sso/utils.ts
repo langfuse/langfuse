@@ -208,13 +208,15 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "github")
-    return GitHubProvider({
-      id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
-      ...provider.authConfig,
-      clientSecret: decrypt(provider.authConfig.clientSecret),
-      issuer: "https://github.com/login/oauth",
-      ...getClientConfig(provider.authConfig),
-    });
+    return asNextAuthProvider(
+      GitHubProvider({
+        id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
+        ...provider.authConfig,
+        clientSecret: decrypt(provider.authConfig.clientSecret),
+        issuer: "https://github.com/login/oauth",
+        ...getClientConfig(provider.authConfig),
+      }),
+    );
   else if (provider.authProvider === "gitlab")
     return GitLabProvider({
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials

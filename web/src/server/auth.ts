@@ -380,20 +380,22 @@ if (
 
 if (env.AUTH_GITHUB_CLIENT_ID && env.AUTH_GITHUB_CLIENT_SECRET)
   staticProviders.push(
-    GitHubProvider({
-      clientId: env.AUTH_GITHUB_CLIENT_ID,
-      clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
-      // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
-      // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
-      // when github starts providing userinfo
-      issuer: "https://github.com/login/oauth",
-      allowDangerousEmailAccountLinking:
-        env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
-      client: {
-        token_endpoint_auth_method: env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
-      },
-      ...(env.AUTH_GITHUB_CHECKS ? { checks: env.AUTH_GITHUB_CHECKS } : {}),
-    }),
+    asNextAuthProvider(
+      GitHubProvider({
+        clientId: env.AUTH_GITHUB_CLIENT_ID,
+        clientSecret: env.AUTH_GITHUB_CLIENT_SECRET,
+        // Required for RFC 9207: GitHub now sends iss in OAuth callbacks
+        // TODO perhaps add "https://github.com/login/oauth/.well-known/openid-configuration"
+        // when github starts providing userinfo
+        issuer: "https://github.com/login/oauth",
+        allowDangerousEmailAccountLinking:
+          env.AUTH_GITHUB_ALLOW_ACCOUNT_LINKING === "true",
+        client: {
+          token_endpoint_auth_method: env.AUTH_GITHUB_CLIENT_AUTH_METHOD,
+        },
+        ...(env.AUTH_GITHUB_CHECKS ? { checks: env.AUTH_GITHUB_CHECKS } : {}),
+      }),
+    ),
   );
 
 if (
