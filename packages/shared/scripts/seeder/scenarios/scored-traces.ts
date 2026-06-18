@@ -68,6 +68,10 @@ const run = async (
   const endMs = utcDayStartMs();
   const startMs = endMs - windowMs;
   const stepMs = windowMs / traceCount;
+  // The trace-detail link's `?timestamp=` hint must match trace[0]'s actual
+  // timestamp (window START + jitter), not the window END — the detail page
+  // prunes by `toDate(timestamp)`, so a different-day hint 404s.
+  const firstTraceTimestamp = startMs + jitter(ctx.seed, 0, 1000);
 
   if (ctx.dryRun) {
     return {
@@ -86,7 +90,10 @@ const run = async (
         events: withV4 ? traceCount * 2 : 0,
       },
       verified: {},
-      links: [tracesListLink(ctx), traceLink(ctx, `${ctx.idPrefix}-t0`, endMs)],
+      links: [
+        tracesListLink(ctx),
+        traceLink(ctx, `${ctx.idPrefix}-t0`, firstTraceTimestamp),
+      ],
       dryRun: true,
       durationMs: Date.now() - startedAt,
     };
@@ -299,7 +306,10 @@ const run = async (
     sessionIds: [],
     counts,
     verified,
-    links: [tracesListLink(ctx), traceLink(ctx, traces[0].id, endMs)],
+    links: [
+      tracesListLink(ctx),
+      traceLink(ctx, traces[0].id, firstTraceTimestamp),
+    ],
     dryRun: false,
     durationMs: Date.now() - startedAt,
   };
