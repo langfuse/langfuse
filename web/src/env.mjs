@@ -78,7 +78,6 @@ export const env = createEnv({
     LANGFUSE_ADMIN_ACCESS_WEBHOOK: z.url().optional(),
     // Add `.min(1) on ID and SECRET if you want to make sure they're not empty
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: z.enum(["true", "false"]).optional(),
-    LANGFUSE_ENABLE_WEB_CALLOUTS: z.enum(["true", "false"]).default("false"),
     SALT: z.string({
       error: (issue) =>
         issue.input === undefined
@@ -445,6 +444,14 @@ export const env = createEnv({
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
       .enum(["true", "false"])
       .default("false"),
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
+      .enum(["true", "false"])
+      .default("false"),
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
+      .number()
+      .min(0)
+      .max(1)
+      .default(0.01),
 
     // Blocked users for chat completion API (userId:reason format)
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: z
@@ -522,7 +529,6 @@ export const env = createEnv({
     NEXT_PUBLIC_SIGN_UP_DISABLED: process.env.NEXT_PUBLIC_SIGN_UP_DISABLED,
     LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES:
       process.env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES,
-    LANGFUSE_ENABLE_WEB_CALLOUTS: process.env.LANGFUSE_ENABLE_WEB_CALLOUTS,
     AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
     AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
     LANGFUSE_AWS_BEDROCK_REGION: process.env.LANGFUSE_AWS_BEDROCK_REGION,
@@ -858,6 +864,10 @@ export const env = createEnv({
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
       process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:
+      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY,
+    LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE:
+      process.env.LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE,
     LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION:
       process.env.LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION,
   },

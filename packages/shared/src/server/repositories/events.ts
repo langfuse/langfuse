@@ -17,7 +17,7 @@ import {
   PreferredClickhouseService,
 } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { recordDistribution } from "../instrumentation";
+import { recordDistribution, recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import {
   convertClickhouseToDomain,
@@ -102,7 +102,10 @@ import {
   type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
-import { shouldUseObservationsSubqueryRewrite } from "../queries/clickhouse-sql/query-options";
+import {
+  shouldUseObservationsSubqueryRewrite,
+  shouldRunObservationsShadowQuery,
+} from "../queries/clickhouse-sql/query-options";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
@@ -1466,6 +1469,120 @@ export const getObservationsFromEventsTableForPublicApi = async (
   return observations;
 };
 
+// ── Shadow query validation (remove after subquery-rewrite rollout) ──────────
+
+export type ShadowQueryOutcome =
+  | "match"
+  | "row_count_mismatch"
+  | "content_mismatch"
+  | "order_mismatch"
+  | "error";
+
+/** Test-only hook: captures the last shadow promise. Set `forceShadow` to
+ *  bypass env checks (avoids module-identity issues in vitest). */
+export const _shadowQueryTestHook: {
+  promise: Promise<ShadowQueryOutcome> | null;
+  forceShadow: boolean;
+} = { promise: null, forceShadow: false };
+
+/**
+ * Fire-and-forget: run the subquery-rewrite path alongside the authoritative
+ * cte-join result and emit Datadog comparison metrics. Never throws; errors
+ * are caught and counted. Called only when LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY
+ * is enabled and the query would normally take the cte-join path.
+ */
+function runSubqueryRewriteShadowQuery(
+  opts: PublicApiObservationsQuery & {
+    fields: ObservationFieldGroupPublicApi[];
+  },
+  options: BuildObservationsQueryComponentsOptions,
+  primaryRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  primaryDurationMs: number,
+): void {
+  const { projectId } = opts;
+  const requestedFields = opts.fields ?? ["core", "basic"];
+  const METRIC_PREFIX = "langfuse.observations_v2.shadow_query";
+
+  const run = async (): Promise<ShadowQueryOutcome> => {
+    const { queryBuilder: shadowBuilder } = buildObservationsQueryComponents(
+      opts,
+      eventsTableNativeUiColumnDefinitions,
+      options,
+    );
+    applyOrderByForObservationsQuery(shadowBuilder);
+    applyCursorPagination(opts, shadowBuilder);
+
+    const shadowQueryBuilder = buildEventsFullTableSubqueryQuery({
+      projectId,
+      innerBuilder: shadowBuilder,
+      fieldSetNames: ["core", ...requestedFields],
+    });
+
+    const start = Date.now();
+    const shadowRecords =
+      await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
+        projectId,
+        shadowQueryBuilder,
+        "getObservationsV2_shadow_subquery_rewrite",
+        { queryPath: "shadow-subquery-rewrite" },
+      );
+    const shadowDurationMs = Date.now() - start;
+
+    recordDistribution(`${METRIC_PREFIX}.duration_ms`, shadowDurationMs);
+    recordDistribution(
+      `${METRIC_PREFIX}.duration_delta_ms`,
+      shadowDurationMs - primaryDurationMs,
+    );
+
+    const primaryIds = primaryRecords.map((r) => r.id);
+    const shadowIds = shadowRecords.map((r) => r.id);
+
+    if (primaryIds.length !== shadowIds.length) {
+      recordIncrement(`${METRIC_PREFIX}.row_count_mismatch`, 1);
+      logger.warn("Shadow query row count mismatch", {
+        projectId,
+        primaryCount: primaryIds.length,
+        shadowCount: shadowIds.length,
+        primarySample: primaryIds.slice(0, 5),
+        shadowSample: shadowIds.slice(0, 5),
+      });
+      return "row_count_mismatch";
+    }
+
+    const orderMatch = primaryIds.every((id, i) => id === shadowIds[i]);
+    if (!orderMatch) {
+      const primarySet = new Set(primaryIds);
+      const shadowSet = new Set(shadowIds);
+      const sameContent =
+        primarySet.size === shadowSet.size &&
+        shadowIds.every((id) => primarySet.has(id));
+      if (!sameContent) {
+        recordIncrement(`${METRIC_PREFIX}.content_mismatch`, 1);
+        logger.warn("Shadow query content mismatch", {
+          projectId,
+          primarySample: primaryIds.slice(0, 5),
+          shadowSample: shadowIds.slice(0, 5),
+        });
+        return "content_mismatch";
+      }
+      recordIncrement(`${METRIC_PREFIX}.order_mismatch`, 1);
+      logger.warn("Shadow query order mismatch", { projectId });
+      return "order_mismatch";
+    }
+
+    recordIncrement(`${METRIC_PREFIX}.match`, 1);
+    return "match";
+  };
+
+  _shadowQueryTestHook.promise = run().catch((err): ShadowQueryOutcome => {
+    recordIncrement(`${METRIC_PREFIX}.error`, 1);
+    logger.error("Shadow query failed", { projectId, error: err });
+    return "error";
+  });
+}
+
+// ── End shadow query validation ─────────────────────────────────────────────
+
 /**
  * V2 API: Get observations list from events table for public API
  * Returns partial observations based on requested field groups
@@ -1520,6 +1637,12 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       ? "subquery-rewrite"
       : "cte-join";
 
+  // Shadow query eligibility: cte-join path, no external CTEs, flag enabled.
+  const shouldShadow =
+    queryPath === "cte-join" &&
+    externalCTEs.length === 0 &&
+    (_shadowQueryTestHook.forceShadow || shouldRunObservationsShadowQuery());
+
   // Field groups projected on the base builder by the non-rewrite paths.
   // `io` (and `metadata` when it must come untruncated from events_full) is
   // fetched by the io CTE instead; selecting it on events_core would return
@@ -1565,6 +1688,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       break;
   }
 
+  const primaryStart = Date.now();
   const records =
     await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
       projectId,
@@ -1572,6 +1696,11 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       undefined,
       { queryPath },
     );
+  const primaryDurationMs = Date.now() - primaryStart;
+
+  if (shouldShadow) {
+    runSubqueryRewriteShadowQuery(opts, options, records, primaryDurationMs);
+  }
 
   return await enrichObservationsWithModelData(
     records,
