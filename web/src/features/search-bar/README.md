@@ -165,8 +165,16 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 - `components/`:
   - `SearchComposer.tsx` — the stateful contenteditable CONTROLLER: browser
     owns selection, mutations flow through `beforeinput`, undo/redo/caret/
-    autocomplete state. Picking a value advances to "append next"; ArrowRight
-    at the end of the query exits the last token. Paste inserts cleaned text
+    autocomplete state. **Trailing space is the "start the next filter"
+    affordance, applied uniformly**: completing a filter at the end of the query
+    — a pick-at-end (value or ready-to-run suggestion), ArrowRight-at-end, a
+    click past the text, or Enter that commits with the caret at the end — adds
+    a single trailing space and drops the caret AFTER it (outside the last
+    pill), reopening field suggestions. (The space is trimmed on commit, so it
+    never reaches the filter state; the commit echo's `resetTo` no-ops because
+    it's AST-equal to the committed form.) Picks that still need input — a bare
+    `field:` key, a `metadata.`/`scores.` prefix, an open `tags:(` group — and
+    mid-query edits keep the caret in place instead. Paste inserts cleaned text
     (line-breaks/tabs → spaces) into the draft, which auto-tokenizes like typed
     text — there is no special structured-vs-raw paste branch. Editing a
     value works by placing the caret in it (click/arrow): the value-stage
