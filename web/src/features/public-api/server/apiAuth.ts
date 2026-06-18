@@ -13,7 +13,6 @@ import {
   invalidateCachedApiKeys as invalidateCachedApiKeysShared,
   invalidateCachedOrgApiKeys as invalidateCachedOrgApiKeysShared,
   invalidateCachedProjectApiKeys as invalidateCachedProjectApiKeysShared,
-  invalidateAllCachedApiKeys as invalidateAllCachedApiKeysShared,
   createApiKeyCacheKey,
 } from "@langfuse/shared/src/server";
 import {
@@ -55,10 +54,6 @@ export class ApiAuthService {
 
   async invalidateCachedProjectApiKeys(projectId: string) {
     await invalidateCachedProjectApiKeysShared(projectId, this.redis);
-  }
-
-  async invalidateAllCachedApiKeys() {
-    return await invalidateAllCachedApiKeysShared(this.redis);
   }
 
   /**

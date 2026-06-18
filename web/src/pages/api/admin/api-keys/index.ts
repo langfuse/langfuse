@@ -1,7 +1,11 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import {
+  invalidateAllCachedApiKeys,
+  logger,
+  redis,
+} from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 
@@ -113,10 +117,7 @@ export default async function handler(
       );
       return res.status(200).json({ message: "API keys invalidated" });
     } else if (body.data.action === "invalidate-all") {
-      const invalidatedCount = await new ApiAuthService(
-        prisma,
-        redis,
-      ).invalidateAllCachedApiKeys();
+      const invalidatedCount = await invalidateAllCachedApiKeys(redis);
 
       logger.info(`Invalidated all cached API keys (${invalidatedCount})`);
       return res.status(200).json({

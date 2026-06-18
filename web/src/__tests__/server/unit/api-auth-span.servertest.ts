@@ -64,7 +64,6 @@ vi.mock("@langfuse/shared/src/server", () => ({
   createApiKeyCacheKey: vi.fn((hash: string) => `api-key:${hash}`),
   createShaHash: createShaHashMock,
   deleteApiKeyFromDb: vi.fn(),
-  invalidateAllCachedApiKeys: vi.fn(),
   invalidateCachedApiKeys: vi.fn(),
   invalidateCachedOrgApiKeys: vi.fn(),
   invalidateCachedProjectApiKeys: vi.fn(),
