@@ -15,6 +15,7 @@ import {
   getObservationById,
   getObservationByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares(
   {
@@ -24,6 +25,7 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetObservationV1Query,
       responseSchema: GetObservationV1Response,
+      rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.observationGet,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         const clickhouseObservation = query.useEventsTable

@@ -86,6 +86,21 @@ vi.mock("@/src/utils/exceptions", () => ({
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 
 describe("createAuthedProjectAPIRoute auth error handling", () => {
+  const validAuth = {
+    validKey: true,
+    scope: {
+      projectId: "project-1",
+      orgId: "org-1",
+      plan: "cloud:hobby",
+      accessLevel: "project",
+      rateLimitOverrides: [],
+      apiKeyId: "api-key-1",
+      publicKey: "pk-test",
+      isIngestionSuspended: false,
+      isInAppAgentKey: false,
+    },
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsPrismaException.mockReturnValue(false);
@@ -94,7 +109,14 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
   });
 
-  async function callRoute(options?: { useUnstableErrorContract?: boolean }) {
+  async function callRoute(options?: {
+    useUnstableErrorContract?: boolean;
+    rateLimitUpgradePath?: {
+      legacyEndpoint: string;
+      replacementEndpoint: string;
+      docsUrl: string;
+    };
+  }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
       querySchema: z.object({}),
@@ -102,6 +124,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       errorContract: options?.useUnstableErrorContract
         ? "unstable-public-evals"
         : undefined,
+      rateLimitUpgradePath: options?.rateLimitUpgradePath,
       fn: async () => ({ ok: true as const }),
     });
 
@@ -161,5 +184,54 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       message: "Service Unavailable",
     });
     expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the shared rate limit response for routes without upgrade guidance", async () => {
+    const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
+      res.status(429).json({ message: "rate limited" });
+    });
+
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+      sendRestResponseIfLimited,
+    });
+
+    const res = await callRoute();
+
+    expect(res.statusCode).toBe(429);
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
+      errorContract: undefined,
+      upgradePath: undefined,
+    });
+  });
+
+  it("passes upgrade guidance to the shared rate limit response", async () => {
+    const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
+      res.status(429).json({ message: "rate limited" });
+    });
+    const upgradePath = {
+      legacyEndpoint: "GET /api/public/traces",
+      replacementEndpoint:
+        "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
+      docsUrl:
+        "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+    };
+
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+      sendRestResponseIfLimited,
+    });
+
+    const res = await callRoute({
+      rateLimitUpgradePath: upgradePath,
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
+      errorContract: undefined,
+      upgradePath,
+    });
   });
 });
