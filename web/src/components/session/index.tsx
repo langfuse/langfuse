@@ -35,6 +35,7 @@ import {
   TableViewPresetTableName,
 } from "@langfuse/shared";
 import { CreateNewAnnotationQueueItem } from "@/src/features/annotation-queues/components/CreateNewAnnotationQueueItem";
+import { WebCalloutButton } from "@/src/features/web-callouts/components/WebCalloutMenuItem";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
@@ -378,6 +379,12 @@ export const SessionPage: React.FC<{
                   listKey="sessions"
                 />
               )}
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+              />
               <Button
                 variant="outline"
                 size="icon"
@@ -639,12 +646,9 @@ export const SessionEventsPage: React.FC<{
         ...observationEventsFilterConfig.columnDefinitions,
         positionInTraceColumn,
       ],
-      migrateFilterState: undefined,
       facets: observationEventsFilterConfig.facets.filter(
         (facet) =>
-          facet.column !== "sessionId" &&
-          facet.column !== "isRootObservation" &&
-          facet.column !== "environment",
+          facet.column !== "sessionId" && facet.column !== "environment",
       ),
     };
   }, [positionInTraceColumn, sessionEventsTableName]);
@@ -699,7 +703,6 @@ export const SessionEventsPage: React.FC<{
         (column) =>
           column.id !== "sessionId" &&
           column.id !== "hasParentObservation" &&
-          column.id !== "isRootObservation" &&
           column.id !== "environment" &&
           column.id !== "traceId" &&
           column.id !== "traceName" &&
@@ -807,8 +810,6 @@ export const SessionEventsPage: React.FC<{
           filter.column !== "sessionId" &&
           filter.column !== "Has Parent Observation" &&
           filter.column !== "hasParentObservation" &&
-          filter.column !== "Is Root Observation" &&
-          filter.column !== "isRootObservation" &&
           filter.column !== "environment" &&
           filter.column !== "traceId" &&
           filter.column !== "traceName" &&
@@ -949,6 +950,12 @@ export const SessionEventsPage: React.FC<{
                   listKey="sessions"
                 />
               )}
+              <WebCalloutButton
+                projectId={projectId}
+                traceId={null}
+                observationId={null}
+                sessionId={sessionId}
+              />
               <CommentDrawerButton
                 key="comment"
                 variant="outline"

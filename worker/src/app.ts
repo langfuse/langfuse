@@ -1,5 +1,3 @@
-import "./initialize";
-
 import express from "express";
 import cors from "cors";
 import * as middlewares from "./middlewares";

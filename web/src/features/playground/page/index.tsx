@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Button } from "@/src/components/ui/button";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import { Play } from "lucide-react";
 import { ResetPlaygroundButton } from "@/src/features/playground/page/components/ResetPlaygroundButton";
 import { useWindowCoordination } from "@/src/features/playground/page/hooks/useWindowCoordination";
@@ -190,14 +191,7 @@ export default function PlaygroundPage() {
                 )}
                 <span className="hidden items-center gap-1 lg:inline-flex">
                   <span>Run All</span>
-                  <kbd className="bg-muted text-muted-foreground pointer-events-none inline-flex h-5 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none">
-                    {isMac ? (
-                      <span className="text-xs">⌘</span>
-                    ) : (
-                      <span>Ctrl</span>
-                    )}
-                    <span>Enter</span>
-                  </kbd>
+                  <KeyboardShortcut keys={[isMac ? "⌘" : "Ctrl", "Enter"]} />
                 </span>
               </Button>
 
