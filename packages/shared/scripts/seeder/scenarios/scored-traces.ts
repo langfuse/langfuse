@@ -12,7 +12,7 @@ import {
   TraceRecordInsertType,
 } from "../../../src/server";
 import { observationToEvent, traceToEvent } from "./event-mirror";
-import { jitter, Rng } from "./rng";
+import { jitter, Rng, utcDayStartMs } from "./rng";
 import {
   chunk,
   ScenarioContext,
@@ -58,11 +58,14 @@ const run = async (
   const traceCount = Math.max(1, Number(params.traces ?? 24));
   const withV4 = params.v4 === true;
 
-  // Spread traces across the last 6 hours so they fall inside the default
-  // "Past 1 day" window. jitter() (not rng) keeps timestamps — which land in
-  // ClickHouse ORDER BY keys — stable across re-runs with the same flags.
+  // Anchor on utcDayStartMs() (today's UTC midnight), NOT Date.now(): these
+  // timestamps land in ClickHouse ORDER BY keys, and the seeder contract
+  // requires them to be deterministic so re-runs with the same flags overwrite
+  // in place (a wall-clock anchor would shift every row and duplicate under
+  // ReplacingMergeTree). The window spans the 6h before midnight; jitter()
+  // (stateless) adds per-row variation.
   const windowMs = 6 * 60 * 60 * 1000;
-  const endMs = Date.now();
+  const endMs = utcDayStartMs();
   const startMs = endMs - windowMs;
   const stepMs = windowMs / traceCount;
 
