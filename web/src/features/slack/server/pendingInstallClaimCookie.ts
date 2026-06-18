@@ -3,21 +3,12 @@ import { SLACK_PENDING_INSTALL_TTL_MS } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
 /**
- * httpOnly cookie that carries the one-time claim token authorizing a pending
- * Marketplace install to be linked to a project.
- *
- * Why a cookie and not a URL parameter: the claim is a bearer credential — it
- * unlocks a live Slack bot token (chat:write). In a URL it leaks via browser
- * history, bookmarks, and Referer headers, and can be replayed from any client
- * for the whole TTL. As an httpOnly, SameSite cookie it is bound to the browser
- * that completed the OAuth install (the only party that should be able to link
- * it) and is never exposed to page JavaScript. The slack tRPC procedures read
- * it server-side from the request headers; the page never sees it.
- *
- * The OAuth callback (which has the response object) sets it. There is no
- * explicit clear: it is httpOnly (JS can't clear it), expires with the pending
- * row's TTL, and is inert after a successful link (the row is consumed, so the
- * claim no longer matches anything).
+ * httpOnly cookie carrying the one-time claim that authorizes linking a pending
+ * Marketplace install to a project. Delivered as a cookie rather than a URL
+ * parameter so that someone who intercepts the onboarding URL (browser history,
+ * bookmarks, Referer) can't replay the claim to connect another person's Slack
+ * workspace to their own Langfuse project. Set on the OAuth callback and read
+ * server-side by the slack tRPC procedures.
  */
 export const PENDING_INSTALL_CLAIM_COOKIE = "slack_pending_install_claim";
 

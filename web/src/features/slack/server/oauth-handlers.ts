@@ -66,12 +66,14 @@ export async function handleCallback(
             teamName,
           });
 
-          if (!teamId) {
+          if (!teamId || !teamName) {
             // storeInstallation already rejects installs missing team/bot
             // details, so this is defensive; treat it as a failed install.
-            logger.error("Slack OAuth callback completed without a team id", {
-              projectId,
-            });
+            // Guarding both here also narrows teamName to a string below.
+            logger.error(
+              "Slack OAuth callback completed without a team id or name",
+              { projectId, teamId },
+            );
             res.redirect("/slack/direct-setup");
             return;
           }
@@ -99,7 +101,7 @@ export async function handleCallback(
             setPendingInstallClaimCookie(res, teamId, claimToken);
             const onboardingUrl = `/slack/direct-setup?team_id=${encodeURIComponent(
               teamId,
-            )}&team_name=${encodeURIComponent(teamName ?? "")}`;
+            )}&team_name=${encodeURIComponent(teamName)}`;
             res.redirect(onboardingUrl);
             return;
           }
@@ -142,7 +144,7 @@ export async function handleCallback(
           }
 
           // Redirect to project-specific Slack settings page
-          const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(teamName || "")}`;
+          const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(teamName)}`;
           res.redirect(redirectUrl);
         },
 
