@@ -1007,7 +1007,6 @@ model EvalTemplate {
   sourceCode         String?                         @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvalTemplateSourceCodeLanguage? @map("source_code_language")
   JobConfiguration   JobConfiguration[]
-  JobExecution       JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -1093,7 +1092,6 @@ model JobExecution {
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
   jobTemplateId String?       @map("job_template_id")
-  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")

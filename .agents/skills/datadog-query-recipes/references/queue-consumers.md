@@ -194,8 +194,8 @@ Prefer the newer tagged metrics:
 <metric_base>.rate{env:<env>,type:request}
 <metric_base>.rate{env:<env>,type:failed}
 <metric_base>.rate{env:<env>,type:error}
-<metric_base>.time{env:<env>,type:wait}
-<metric_base>.time{env:<env>,type:processing}
+<metric_base>.time_distribution{env:<env>,type:wait}
+<metric_base>.time_distribution{env:<env>,type:processing}
 ```
 
 For sharded queues, use the `shard` tag when present. `shard:all` is emitted by

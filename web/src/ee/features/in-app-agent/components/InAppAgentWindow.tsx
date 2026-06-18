@@ -88,6 +88,7 @@ export type InAppAgentWindowProps = {
   conversations: InAppAgentWindowConversation[];
   error: string | null;
   hasMoreConversations: boolean;
+  isHeaderDragHandleEnabled?: boolean;
   isExpanded: boolean;
   isInputDisabled: boolean;
   isLoadingMoreConversations: boolean;
@@ -112,6 +113,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     conversations,
     error,
     hasMoreConversations,
+    isHeaderDragHandleEnabled = false,
     isExpanded,
     isInputDisabled,
     isLoadingMoreConversations,
@@ -185,21 +187,27 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   return (
     <section
       aria-label="Assistant"
-      className={cn(
-        "bg-background flex min-w-0 flex-col overflow-hidden rounded-xl border shadow/5",
-        isExpanded
-          ? "h-full min-h-0 w-full"
-          : "h-[min(42rem,calc(100vh-var(--banner-offset)-2rem))] min-h-96 w-[min(28rem,calc(100vw-1rem))]",
-      )}
+      className="bg-background flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden rounded-xl border shadow/5"
     >
-      <header className="bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1">
+      <header
+        data-in-app-agent-window-drag-handle={
+          isHeaderDragHandleEnabled ? "true" : undefined
+        }
+        className={cn(
+          "bg-header flex min-h-11.25 shrink-0 items-center justify-between gap-2 border-b px-3 py-1",
+          isHeaderDragHandleEnabled && "cursor-move touch-none select-none",
+        )}
+      >
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <p className="shrink-0 truncate text-sm font-semibold">Assistant</p>
           <span className="text-muted-foreground rounded border px-1.5 py-1 text-xs leading-none font-medium">
             Beta
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
+        <div
+          className="flex shrink-0 items-center gap-0.5"
+          data-movable-resizable-panel-ignore-drag="true"
+        >
           <Tooltip delayDuration={100} disableHoverableContent>
             <TooltipTrigger asChild>
               <Button
@@ -382,11 +390,26 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
 
             <ol className="flex w-full flex-col gap-3 pb-4">
-              {messages.map((message) => {
-                const hasToolContent = message.content.type === "toolGroup";
+              {messages.map((message, index) => {
+                const hasFullWidthContent =
+                  message.content.type === "toolGroup" ||
+                  message.content.type === "redirectAction";
+
+                const nextUserMessageIndex = messages.findIndex(
+                  (nextMessage, nextIndex) =>
+                    nextIndex > index && nextMessage.role === "user",
+                );
+                const nextTurnStartIndex =
+                  nextUserMessageIndex === -1
+                    ? messages.length
+                    : nextUserMessageIndex;
+                const isLastMessageOfTurn = messages
+                  .slice(index + 1, nextTurnStartIndex)
+                  .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
                   message.role === "assistant" &&
-                  message.content.type === "text"
+                  message.content.type === "text" &&
+                  isLastMessageOfTurn
                     ? message.runId
                     : undefined;
 
@@ -395,7 +418,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     key={message.id}
                     className={cn(
                       "max-w-[92%]",
-                      hasToolContent ? "w-full" : "w-fit",
+                      hasFullWidthContent ? "w-full" : "w-fit",
                       message.role === "user" && "ml-auto",
                     )}
                   >

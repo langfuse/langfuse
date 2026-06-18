@@ -24,6 +24,7 @@ import {
 } from "../scheduler/types";
 import { monitorFromPrisma, windowToMs } from "../service/helpers";
 import {
+  monitorEvaluationOffsetMs,
   MonitorSeveritySchema,
   MonitorStatusSchema,
   type MonitorAlert,
@@ -34,8 +35,7 @@ import { applyStateMachine, type MonitorCompletion } from "./applyStateMachine";
 import { computeSeverity } from "./computeSeverity";
 import { renderAlertMessage } from "./renderAlertMessage";
 
-/** monitorEvaluationOffsetMs shifts the query window back so ClickHouse reads data settled past the events-table write lag. */
-export const monitorEvaluationOffsetMs = 30 * 1000;
+export { monitorEvaluationOffsetMs } from "../types";
 
 /** ErrorBadQuery sentinels a metric whose shape doesn't resolve against the v2 data model or whose batch query failed to execute. */
 export const ErrorBadQuery = Symbol("ErrorBadQuery");
