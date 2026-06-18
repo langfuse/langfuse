@@ -324,7 +324,7 @@ const getPlanBasedRateLimitConfig = (
     case "cloud:core":
       // TEMPORARY: Expanded selected core plan rate limits to pro limits to enable legacy pro -> core migration
       // Original core limits (commented out):
-      // ingestion: 4000, public-api: 100, public-api-legacy: 30, datasets: 200, public-api-metrics: 200, public-api-daily-metrics-legacy: 20
+      // ingestion: 4000, public-api: 100, datasets: 200, public-api-metrics: 200, public-api-daily-metrics-legacy: 20
       switch (resource) {
         case "ingestion":
           return {
