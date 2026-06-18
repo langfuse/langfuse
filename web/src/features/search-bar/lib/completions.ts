@@ -566,7 +566,7 @@ function valueStageSections(
       const categoricalColumn =
         ref.level === "trace" ? "trace_score_categories" : "score_categories";
       // Quoted for the example shown in the compare-op tooltip — a spaced score
-      // name must read as `scores."Rouge Score":>0.8`, not the unparseable bare
+      // name must read as `scores."Rouge Score":>0.8`, not the unparsable bare
       // form. (The data lookups above use the unquoted column names.)
       const path =
         ref.level === "trace"
