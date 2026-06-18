@@ -20,6 +20,14 @@ import {
   legacyPublicApiRateLimitUpgradePaths,
 } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
+type LegacyObservationLookupResult = Awaited<
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy public API endpoint reads from the legacy observations table.
+  ReturnType<typeof getObservationById>
+>;
+type EventsObservationLookupResult = Awaited<
+  ReturnType<typeof getObservationByIdFromEventsTable>
+>;
+
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
@@ -32,9 +40,9 @@ export default withMiddlewares(
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.observationGet,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
-        let clickhouseObservation: Awaited<
-          ReturnType<typeof getObservationByIdFromEventsTable>
-        >;
+        let clickhouseObservation:
+          | LegacyObservationLookupResult
+          | EventsObservationLookupResult;
 
         if (query.useEventsTable) {
           clickhouseObservation = await getObservationByIdFromEventsTable({

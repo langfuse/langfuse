@@ -1,4 +1,9 @@
-import type { RateLimitUpgradePath } from "@/src/features/public-api/server/RateLimitService";
+export type RateLimitUpgradePath = {
+  legacyEndpoint: string;
+  replacementEndpoint: string;
+  docsUrl: string;
+  notes?: string[];
+};
 
 export const OBSERVATIONS_API_V2_DOCS_URL =
   "https://langfuse.com/docs/api-and-data-platform/features/observations-api";

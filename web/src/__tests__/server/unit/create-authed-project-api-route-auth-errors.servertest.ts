@@ -86,6 +86,30 @@ vi.mock("@/src/utils/exceptions", () => ({
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 
 describe("createAuthedProjectAPIRoute auth error handling", () => {
+  const validAuth = {
+    validKey: true,
+    scope: {
+      projectId: "project-1",
+      orgId: "org-1",
+      plan: "cloud:hobby",
+      accessLevel: "project",
+      rateLimitOverrides: [],
+      apiKeyId: "api-key-1",
+      publicKey: "pk-test",
+      isIngestionSuspended: false,
+      isInAppAgentKey: false,
+    },
+  };
+  const rateLimitResult = {
+    points: 10,
+    remainingPoints: -1,
+    msBeforeNext: 2500,
+    resource: "public-api" as const,
+    scope: validAuth.scope,
+    consumedPoints: 11,
+    isFirstInDuration: false,
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockIsPrismaException.mockReturnValue(false);
@@ -174,7 +198,24 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
-  it("passes upgrade guidance to rate limit responses", async () => {
+  it("keeps the shared rate limit response for routes without upgrade guidance", async () => {
+    const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
+      res.status(429).json({ message: "rate limited" });
+    });
+
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+      sendRestResponseIfLimited,
+    });
+
+    const res = await callRoute();
+
+    expect(res.statusCode).toBe(429);
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, undefined);
+  });
+
+  it("returns upgrade guidance directly for route-specific stable rate limit responses", async () => {
     const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
       res.status(429).json({ message: "rate limited" });
     });
@@ -187,21 +228,9 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       notes: ["Group returned rows by traceId to reconstruct trace activity."],
     };
 
-    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
-      validKey: true,
-      scope: {
-        projectId: "project-1",
-        orgId: "org-1",
-        plan: "cloud:hobby",
-        accessLevel: "project",
-        rateLimitOverrides: [],
-        apiKeyId: "api-key-1",
-        publicKey: "pk-test",
-        isIngestionSuspended: false,
-        isInAppAgentKey: false,
-      },
-    });
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
     mockRateLimitRequest.mockResolvedValueOnce({
+      res: rateLimitResult,
       isRateLimited: () => true,
       sendRestResponseIfLimited,
     });
@@ -213,11 +242,19 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
 
     expect(res.statusCode).toBe(429);
-    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
-      errorContract: undefined,
+    expect(res.getHeader("Retry-After")).toBe(3);
+    expect(res.getHeader("X-RateLimit-Remaining")).toBe(0);
+    expect(res._getJSONData()).toEqual({
       message:
         "Rate limit exceeded for this legacy public API endpoint. Use the v2 Observations API for high-volume reads.",
+      error: "RateLimitExceeded",
+      resource: "public-api",
+      retryAfterSeconds: 3,
+      limit: 10,
+      remaining: 0,
+      resetAt: expect.any(String),
       upgradePath,
     });
+    expect(sendRestResponseIfLimited).not.toHaveBeenCalled();
   });
 });
