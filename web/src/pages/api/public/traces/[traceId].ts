@@ -27,6 +27,7 @@ import {
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares(
   {
@@ -35,6 +36,7 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetTraceV1Query,
       responseSchema: GetTraceV1Response,
+      rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.traceGet,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         const { traceId } = query;
@@ -57,7 +59,7 @@ export default withMiddlewares(
         const includeScores = requestedFields.includes("scores");
         const includeMetrics = requestedFields.includes("metrics");
 
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
+        // eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy public API endpoint reads from the legacy traces table.
         const trace = await getTraceById({
           traceId,
           projectId: auth.scope.projectId,
