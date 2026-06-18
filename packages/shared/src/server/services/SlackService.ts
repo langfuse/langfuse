@@ -180,10 +180,17 @@ function projectInstallationFields(params: {
  */
 export class SlackService {
   private static instance: SlackService | null = null;
-  private readonly installer: InstallProvider;
+  // Lazily constructed: building an InstallProvider requires the Slack OAuth
+  // env vars (clientId/clientSecret/stateSecret) and throws without them. The
+  // pending-install DB helpers below are pure Prisma and must work even when
+  // Slack OAuth is not configured (e.g. the test environment), so we only
+  // build the provider on first OAuth use via getInstaller().
+  private installer: InstallProvider | null = null;
 
-  private constructor() {
-    this.installer = new InstallProvider({
+  private constructor() {}
+
+  private buildInstaller(): InstallProvider {
+    return new InstallProvider({
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
@@ -365,6 +372,9 @@ export class SlackService {
    * Get the configured InstallProvider instance for OAuth handling
    */
   getInstaller(): InstallProvider {
+    if (!this.installer) {
+      this.installer = this.buildInstaller();
+    }
     return this.installer;
   }
 
@@ -380,11 +390,12 @@ export class SlackService {
    */
   async deleteIntegration(projectId: string): Promise<void> {
     try {
-      if (!this.installer.installationStore?.deleteInstallation) {
+      const installer = this.getInstaller();
+      if (!installer.installationStore?.deleteInstallation) {
         throw new Error("Installation store not configured");
       }
 
-      await this.installer.installationStore.deleteInstallation({
+      await installer.installationStore.deleteInstallation({
         teamId: projectId,
         isEnterpriseInstall: false,
         enterpriseId: undefined,
@@ -552,7 +563,7 @@ export class SlackService {
   async getWebClientForProject(projectId: string): Promise<WebClient> {
     try {
       // Use projectId as the teamId parameter (handled by our fetchInstallation)
-      const auth = await this.installer.authorize({
+      const auth = await this.getInstaller().authorize({
         teamId: projectId,
         isEnterpriseInstall: false,
         enterpriseId: undefined,
