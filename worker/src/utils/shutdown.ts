@@ -63,9 +63,7 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
     runner.stop();
   }
 
-  // Log blob storage exports still mid-flight so SIGTERM-aborted jobs are
-  // distinguishable from stall-timeouts in the logs (LFE-10388). Must run
-  // before closeWorkers() while the in-flight registry is still populated.
+  // Before closeWorkers(), while the registry is still populated (LFE-10388).
   logInFlightBlobExportsOnShutdown();
 
   // Shutdown workers (https://docs.bullmq.io/guide/going-to-production#gracefully-shut-down-workers)

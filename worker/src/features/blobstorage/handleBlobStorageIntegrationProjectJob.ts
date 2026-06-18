@@ -297,25 +297,19 @@ const processBlobStorageExport = async (config: {
         "blob.window.maxTimestamp",
         config.maxTimestamp.toISOString(),
       );
-      // Job identity + host so concurrent duplicate executions of the same
-      // window (the LFE-10063 re-enqueue storm) can be grouped and counted.
+      // Identity + host to group concurrent duplicate runs of the same window.
       if (config.bullmqJobId !== undefined) {
         span.setAttribute("messaging.bullmq.job.id", config.bullmqJobId);
       }
       span.setAttribute("job.attemptsMade", config.bullmqAttemptsMade);
       span.setAttribute("host.name", HOST_NAME);
 
-      // Sample event-loop delay across the streaming export. If macrotask delay
-      // spikes to tens of seconds mid-stream, BullMQ's lock-renewal timer can't
-      // fire and the job gets re-enqueued as stalled — this signal confirms or
-      // refutes the lock-renewal-starvation hypothesis (LFE-10063). The
-      // histogram samples on a timer at negligible cost and is torn down in the
-      // finally below.
+      // Event-loop delay during the stream: if it spikes, lock renewal can't
+      // fire and the job re-enqueues as stalled (LFE-10063). Torn down below.
       const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
       eventLoopDelay.enable();
 
-      // Track this table export as in-flight so a SIGTERM-induced abort can be
-      // logged distinctly from a stall-timeout on graceful shutdown (LFE-10388).
+      // In-flight so a SIGTERM abort is loggable distinctly from a stall-timeout.
       const inFlightHandle = registerInFlightBlobExport({
         jobId: config.bullmqJobId,
         projectId: config.projectId,
@@ -474,10 +468,7 @@ const processBlobStorageExport = async (config: {
       } finally {
         unregisterInFlightBlobExport(inFlightHandle);
 
-        // Emit the event-loop-delay signal for this export. monitorEventLoopDelay
-        // reports in nanoseconds; convert to milliseconds for the dashboard. The
-        // histogram yields NaN/Infinity when no samples were collected (very fast
-        // exports), so coerce to a finite number before emitting.
+        // ns → ms; the histogram yields NaN/Infinity with zero samples.
         eventLoopDelay.disable();
         const toFiniteMs = (ns: number): number =>
           Number.isFinite(ns) ? ns / 1e6 : 0;
@@ -512,8 +503,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
-    // The BullMQ job id (distinct from the payload id above) + attempt count:
-    // identify concurrent duplicate runs of the same window (LFE-10388).
+    // BullMQ job id (distinct from the payload id above) + attempt count.
     if (job.id !== undefined) {
       span.setAttribute("messaging.bullmq.job.id", job.id);
     }

@@ -12,21 +12,11 @@ export type InFlightBlobExport = {
   startedAt: number;
 };
 
-/**
- * Registry of blob-storage export table-jobs currently mid-flight on this pod.
- *
- * BullMQ stall-timeouts and SIGTERM-induced aborts look identical from
- * Postgres (both freeze `lastSyncAt` without writing `lastError`). On graceful
- * shutdown we log exactly which exports were interrupted so that deploy/scale
- * churn can be separated from genuine lock-renewal stalls (LFE-10388 / -10063).
- */
+// Stall-timeouts and SIGTERM aborts look identical from Postgres (both freeze
+// `lastSyncAt`); logging the survivors on shutdown separates the two.
 const inFlightExports = new Map<symbol, InFlightBlobExport>();
 
-/**
- * Mark a table export as started. Returns a handle that MUST be passed to
- * {@link unregisterInFlightBlobExport} in a `finally` block so the entry is
- * always cleared regardless of success, error, or abort.
- */
+// Returns a handle that MUST be passed to unregister in a `finally`.
 export const registerInFlightBlobExport = (
   entry: InFlightBlobExport,
 ): symbol => {
@@ -39,22 +29,14 @@ export const unregisterInFlightBlobExport = (handle: symbol): void => {
   inFlightExports.delete(handle);
 };
 
-/** Test helper — current count of mid-flight exports. */
 export const getInFlightBlobExportCount = (): number => inFlightExports.size;
 
-/**
- * Test helper — clear the registry so the module-level Map can't leak state
- * across tests (e.g. when an earlier assertion fails before its cleanup runs).
- */
+// Test helper — clear leaked state between tests.
 export const resetInFlightBlobExports = (): void => {
   inFlightExports.clear();
 };
 
-/**
- * Log every blob export still mid-flight. Called on graceful shutdown, before
- * the workers are closed, so SIGTERM-aborted jobs are distinguishable from
- * stall-timeouts in the logs.
- */
+// Called on graceful shutdown, before workers close.
 export const logInFlightBlobExportsOnShutdown = (): void => {
   if (inFlightExports.size === 0) {
     logger.info(

@@ -23,8 +23,7 @@ const makeEntry = (table: string) => ({
 });
 
 describe("inFlightExports", () => {
-  // The registry is a module-level singleton; drain it before each test so the
-  // suite is order-independent and survives an early assertion failure.
+  // Singleton registry — drain it so tests are order-independent.
   beforeEach(() => resetInFlightBlobExports());
 
   it("tracks and clears in-flight exports by handle", () => {

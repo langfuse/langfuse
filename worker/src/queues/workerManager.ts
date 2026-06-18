@@ -183,16 +183,11 @@ export class WorkerManager {
         ...shardTag,
       });
     });
-    // A "stalled" event fires each time BullMQ detects a job whose lock expired
-    // (lock-renewal starvation) and re-enqueues it. These intermediate
-    // re-enqueues are otherwise invisible — only the terminal "stalled more
-    // than allowable limit" surfaces, via the "failed" handler above, once
-    // maxStalledCount is exhausted. Counting detections lets us measure the
-    // re-enqueue rate and the cross-pod job-multiplication factor (LFE-10063).
+    // Counts intermediate re-enqueues (LFE-10063), not just the terminal
+    // "stalled more than allowable limit" the "failed" handler catches.
     worker.on("stalled", (jobId: string) => {
-      // HOST_NAME is the pod running the stall checker (checkStalledJobs),
-      // which may differ from the pod whose lock expired — hence
-      // "detectedOnHost", not the executing host.
+      // detectedOnHost: the stall-checker pod, which may differ from the pod
+      // whose lock expired.
       logger.warn(
         `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${HOST_NAME}`,
       );
