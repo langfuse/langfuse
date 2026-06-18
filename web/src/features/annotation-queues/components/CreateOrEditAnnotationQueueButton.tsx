@@ -263,7 +263,9 @@ export const CreateOrEditAnnotationQueueButton = ({
       ) : (
         <DialogTrigger asChild>{triggerButton}</DialogTrigger>
       )}
-      {configsData.data && (
+      {/* For an edit, also wait for the queue data so the form opens populated
+          rather than briefly showing empty fields while byId loads. */}
+      {configsData.data && (!queueId || queueQuery.data) && (
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
