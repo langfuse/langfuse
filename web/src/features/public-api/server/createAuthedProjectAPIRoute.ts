@@ -12,7 +12,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { type RateLimitResource, type RateLimitResult } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
-import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import {
+  getRateLimitUpgradeMessage,
+  type RateLimitUpgradePath,
+} from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
@@ -40,7 +43,6 @@ export type AuthedProjectAPIRouteConfig<
   responseSchema: TResponse;
   successStatusCode?: number;
   rateLimitResource?: z.infer<typeof RateLimitResource>; // defaults to public-api
-  rateLimitExceededMessage?: string;
   rateLimitUpgradePath?: RateLimitUpgradePath;
   /**
    * Allow authentication via ADMIN_API_KEY for self-hosted instances only.
@@ -296,7 +298,6 @@ const sendRateLimitUpgradeResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
   upgradePath: RateLimitUpgradePath,
-  message?: string,
 ) => {
   const retryAfterSeconds = Math.ceil(rateLimitRes.msBeforeNext / 1000);
   const resetAt = new Date(
@@ -313,9 +314,7 @@ const sendRateLimitUpgradeResponse = (
   );
 
   return res.status(429).json({
-    message:
-      message ??
-      `Rate limit exceeded. Please retry after ${retryAfterSeconds} seconds.`,
+    message: getRateLimitUpgradeMessage(upgradePath),
     error: "RateLimitExceeded",
     resource: rateLimitRes.resource,
     retryAfterSeconds,
@@ -410,7 +409,6 @@ export const createAuthedProjectAPIRoute = <
           res,
           rateLimitResponse.res,
           routeConfig.rateLimitUpgradePath,
-          routeConfig.rateLimitExceededMessage,
         );
       }
 

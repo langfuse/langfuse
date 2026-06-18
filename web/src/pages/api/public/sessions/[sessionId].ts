@@ -7,10 +7,7 @@ import { withMiddlewares } from "@/src/features/public-api/server/withMiddleware
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { getTracesBySessionId } from "@langfuse/shared/src/server";
-import {
-  LEGACY_PUBLIC_API_RATE_LIMIT_MESSAGE,
-  legacyPublicApiRateLimitUpgradePaths,
-} from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
@@ -18,7 +15,6 @@ export default withMiddlewares({
     rateLimitResource: "public-api-legacy",
     querySchema: GetSessionV1Query,
     responseSchema: GetSessionV1Response,
-    rateLimitExceededMessage: LEGACY_PUBLIC_API_RATE_LIMIT_MESSAGE,
     rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.sessionGet,
     // Reads from the legacy traces ClickHouse table via getTracesBySessionId,
     // which has no events_full fallback.

@@ -27,10 +27,7 @@ import {
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import {
-  LEGACY_PUBLIC_API_RATE_LIMIT_MESSAGE,
-  legacyPublicApiRateLimitUpgradePaths,
-} from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares(
   {
@@ -39,7 +36,6 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetTraceV1Query,
       responseSchema: GetTraceV1Response,
-      rateLimitExceededMessage: LEGACY_PUBLIC_API_RATE_LIMIT_MESSAGE,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.traceGet,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {

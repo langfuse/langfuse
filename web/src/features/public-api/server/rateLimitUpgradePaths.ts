@@ -8,9 +8,6 @@ export type RateLimitUpgradePath = {
 export const OBSERVATIONS_API_V2_DOCS_URL =
   "https://langfuse.com/docs/api-and-data-platform/features/observations-api";
 
-export const LEGACY_PUBLIC_API_RATE_LIMIT_MESSAGE =
-  "Rate limit exceeded for this legacy public API endpoint. Use the v2 Observations API for high-volume reads.";
-
 const boundedWindowNote =
   "Always include fromStartTime and toStartTime to keep each request bounded.";
 
@@ -78,3 +75,9 @@ export const legacyPublicApiRateLimitUpgradePaths = {
     ],
   },
 } satisfies Record<string, RateLimitUpgradePath>;
+
+export const getRateLimitUpgradeMessage = ({
+  legacyEndpoint,
+  replacementEndpoint,
+}: RateLimitUpgradePath) =>
+  `Rate limit exceeded for ${legacyEndpoint}. Use ${replacementEndpoint} for high-volume reads.`;

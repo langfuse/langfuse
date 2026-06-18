@@ -120,7 +120,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
 
   async function callRoute(options?: {
     useUnstableErrorContract?: boolean;
-    rateLimitExceededMessage?: string;
     rateLimitUpgradePath?: {
       legacyEndpoint: string;
       replacementEndpoint: string;
@@ -135,7 +134,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       errorContract: options?.useUnstableErrorContract
         ? "unstable-public-evals"
         : undefined,
-      rateLimitExceededMessage: options?.rateLimitExceededMessage,
       rateLimitUpgradePath: options?.rateLimitUpgradePath,
       fn: async () => ({ ok: true as const }),
     });
@@ -236,8 +234,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     });
 
     const res = await callRoute({
-      rateLimitExceededMessage:
-        "Rate limit exceeded for this legacy public API endpoint. Use the v2 Observations API for high-volume reads.",
       rateLimitUpgradePath: upgradePath,
     });
 
@@ -246,7 +242,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(res.getHeader("X-RateLimit-Remaining")).toBe(0);
     expect(res._getJSONData()).toEqual({
       message:
-        "Rate limit exceeded for this legacy public API endpoint. Use the v2 Observations API for high-volume reads.",
+        "Rate limit exceeded for GET /api/public/traces. Use GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to> for high-volume reads.",
       error: "RateLimitExceeded",
       resource: "public-api",
       retryAfterSeconds: 3,

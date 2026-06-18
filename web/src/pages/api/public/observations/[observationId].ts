@@ -15,10 +15,7 @@ import {
   getObservationById,
   getObservationByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
-import {
-  LEGACY_PUBLIC_API_RATE_LIMIT_MESSAGE,
-  legacyPublicApiRateLimitUpgradePaths,
-} from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 type LegacyObservationLookupResult = Awaited<
   // eslint-disable-next-line @typescript-eslint/no-deprecated -- Legacy public API endpoint reads from the legacy observations table.
@@ -36,7 +33,6 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetObservationV1Query,
       responseSchema: GetObservationV1Response,
-      rateLimitExceededMessage: LEGACY_PUBLIC_API_RATE_LIMIT_MESSAGE,
       rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.observationGet,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
