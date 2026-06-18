@@ -143,6 +143,7 @@ export const sessionCols: UiColumnMappings = [
     uiTableId: "scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Scores (categorical)",

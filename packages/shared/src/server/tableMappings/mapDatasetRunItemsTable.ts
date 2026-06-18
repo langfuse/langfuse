@@ -40,6 +40,7 @@ export const datasetRunItemsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "agg_scores_avg",
     clickhouseTableName: "scores",
     clickhouseSelect: "sa.scores_avg",
+    clickhouseTypeOverwrite: "Float64",
   },
   {
     uiTableName: "Scores (categorical)",
