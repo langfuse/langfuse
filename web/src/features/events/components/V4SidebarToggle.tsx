@@ -127,7 +127,6 @@ export function V4SidebarToggle() {
                   checked={isBetaEnabled}
                   onCheckedChange={handleToggle}
                   disabled={isLoading}
-                  className="shrink-0"
                   aria-label="Toggle Preview (fast)"
                   aria-describedby={PREVIEW_FAST_DESCRIPTION_ID}
                 />
