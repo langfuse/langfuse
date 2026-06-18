@@ -78,7 +78,9 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const queueQuery = api.annotationQueues.byId.useQuery(
     { projectId, queueId: queueId as string },
-    { enabled: !!queueId && hasQueueAccess },
+    // Only needed once the edit dialog is open; otherwise this fires for every
+    // row that eagerly mounts the inline table-action button.
+    { enabled: !!queueId && hasQueueAccess && isOpen },
   );
 
   const form = useForm({
