@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Bot } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useSession } from "next-auth/react";
+import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -10,56 +12,141 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { SidebarMenuButton, useSidebar } from "@/src/components/ui/sidebar";
-import { useInAppAiAgent } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
+import {
+  InAppAgentWindowShell,
+  useInAppAgentWindowShellPanelControl,
+} from "@/src/ee/features/in-app-agent/components/InAppAgentWindowShell";
+import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 
+const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
+
 export const InAppAiAgentButton = () => {
+  const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
-  const { isAvailable, setOpen } = useInAppAiAgent();
+  const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
+    useInAppAiAgent();
+  const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
+  const isInAppAgentEnabled =
+    session.data?.user?.featureFlags.inAppAgent === true;
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
-  const { isMobile, setOpenMobile: setOpenMobileSidebar } = useSidebar();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousPanelRectRef = useRef<DOMRect | null>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+    null,
+  );
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
-  if (!isAvailable) {
+
+  const floatingPanelHandle = useInAppAgentWindowShellPanelControl({
+    anchorRef: buttonRef,
+  });
+
+  useEffect(() => {
+    setPortalContainer(document.body);
+  }, []);
+
+  useLayoutEffect(() => {
+    const previousRect = previousPanelRectRef.current;
+    const panel = panelRef.current;
+
+    previousPanelRectRef.current = null;
+
+    if (!previousRect || !panel) {
+      return;
+    }
+
+    const nextRect = panel.getBoundingClientRect();
+
+    panel.animate(
+      [
+        {
+          transform: `translate(${previousRect.left - nextRect.left}px, ${previousRect.top - nextRect.top}px) scale(${nextRect.width > 0 ? previousRect.width / nextRect.width : 1}, ${nextRect.height > 0 ? previousRect.height / nextRect.height : 1})`,
+        },
+        { transform: "translate(0, 0) scale(1, 1)" },
+      ],
+      {
+        duration: 180,
+        easing: "cubic-bezier(0.2, 0, 0, 1)",
+      },
+    );
+  }, [isExpanded]);
+
+  useLayoutEffect(() => {
+    if (
+      !open ||
+      !portalContainer ||
+      isExpanded ||
+      floatingPanelHandle.geometry
+    ) {
+      return;
+    }
+
+    floatingPanelHandle.initializeGeometry();
+  }, [floatingPanelHandle, isExpanded, open, portalContainer]);
+
+  if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
     return null;
   }
 
-  const toggleInAppAiAgent = () => {
-    setSupportDrawerOpen(false);
-    setOpen((currentOpen) => !currentOpen);
-  };
-
   const handleClick = () => {
-    if (isMobile) {
-      setOpenMobileSidebar(false);
-    }
-
     if (organization && !organization.aiFeaturesEnabled) {
       setSupportDrawerOpen(false);
       setEnableDialogOpen(true);
       return;
     }
 
-    if (isMobile) {
-      setTimeout(() => {
-        // push to next tick to avoid flickering when hiding sidebar on mobile
-        toggleInAppAiAgent();
-      }, 1);
-      return;
-    }
+    setSupportDrawerOpen(false);
+    setOpen((currentOpen) => {
+      const nextOpen = !currentOpen;
 
-    toggleInAppAiAgent();
+      if (nextOpen) {
+        floatingPanelHandle.resetGeometry();
+      }
+
+      return nextOpen;
+    });
   };
 
   return (
     <>
-      <SidebarMenuButton isActive={false} onClick={handleClick}>
-        <Bot className="h-4 w-4" />
-        AI Assistant
+      <SidebarMenuButton ref={buttonRef} isActive={open} onClick={handleClick}>
+        <BotMessageSquare className="h-4 w-4" />
+        Assistant
       </SidebarMenuButton>
-
+      {open && portalContainer
+        ? createPortal(
+            <InAppAgentWindowShell
+              floatingPanelHandle={floatingPanelHandle}
+              isExpanded={isExpanded}
+              panelRef={panelRef}
+              zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
+            >
+              {({ isHeaderDragHandleEnabled }) => (
+                <ControlledInAppAgentWindow
+                  isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+                  zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
+                  isExpanded={isExpanded}
+                  onExpandedChange={(nextIsExpanded) => {
+                    previousPanelRectRef.current =
+                      panelRef.current?.getBoundingClientRect() ?? null;
+                    setIsExpanded(nextIsExpanded);
+                  }}
+                  onClose={() => {
+                    floatingPanelHandle.clearGeometry();
+                    setOpen(false);
+                  }}
+                />
+              )}
+            </InAppAgentWindowShell>,
+            portalContainer,
+          )
+        : null}
       <Dialog open={enableDialogOpen} onOpenChange={setEnableDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -67,7 +154,7 @@ export const InAppAiAgentButton = () => {
           </DialogHeader>
           <DialogBody>
             <AIFeaturesDisabledNotice organizationId={organization?.id}>
-              The AI assistant requires AI features to be enabled for this
+              The assistant requires AI features to be enabled for this
               organization.
             </AIFeaturesDisabledNotice>
           </DialogBody>

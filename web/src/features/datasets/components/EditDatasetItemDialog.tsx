@@ -24,17 +24,12 @@ import {
   stringifyDatasetItemData,
   type DatasetSchema,
 } from "../utils/datasetItemUtils";
+import { isValidDatasetJson } from "../utils/parseDatasetJson";
 
 const formSchema = z.object({
   input: z.string().refine(
     (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch {
-        return false;
-      }
+      return isValidDatasetJson(value);
     },
     {
       message:
@@ -43,13 +38,7 @@ const formSchema = z.object({
   ),
   expectedOutput: z.string().refine(
     (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch {
-        return false;
-      }
+      return isValidDatasetJson(value);
     },
     {
       message:
@@ -58,13 +47,7 @@ const formSchema = z.object({
   ),
   metadata: z.string().refine(
     (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch {
-        return false;
-      }
+      return isValidDatasetJson(value);
     },
     {
       message:

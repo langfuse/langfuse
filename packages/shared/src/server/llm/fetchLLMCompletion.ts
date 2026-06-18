@@ -115,6 +115,25 @@ const PROVIDERS_WITH_REQUIRED_USER_MESSAGE = [
   LLMAdapter.Bedrock,
 ];
 
+const ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS = [
+  "claude-fable-5",
+  "claude-mythos-5",
+] as const;
+
+function isAnthropicAlwaysAdaptiveThinkingModel(modelName: string): boolean {
+  return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
+    modelName.includes(model),
+  );
+}
+
+function shouldNormalizeContentBlocks(modelParams: ModelParams): boolean {
+  return (
+    adapterSupportsReasoning(modelParams.adapter) ||
+    (modelParams.adapter === LLMAdapter.Anthropic &&
+      isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model))
+  );
+}
+
 const transformSystemMessageToUserMessage = (
   messages: ChatMessage[],
 ): BaseMessage[] => {
@@ -351,6 +370,8 @@ export async function fetchLLMCompletion(
   let usesOpenAIResponsesApi = false;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
     const shouldNormalizeAnthropicSamplingParams =
+      modelParams.model?.includes("claude-fable-5") ||
+      modelParams.model?.includes("claude-mythos-5") ||
       modelParams.model?.includes("claude-opus-4-8") ||
       modelParams.model?.includes("claude-opus-4-7") ||
       modelParams.model?.includes("claude-sonnet-4-6") ||
@@ -359,6 +380,22 @@ export async function fetchLLMCompletion(
       modelParams.model?.includes("claude-opus-4-5") ||
       modelParams.model?.includes("claude-opus-4-6") ||
       modelParams.model?.includes("claude-haiku-4-5");
+    const shouldUseAdaptiveThinking = isAnthropicAlwaysAdaptiveThinkingModel(
+      modelParams.model,
+    );
+    const anthropicInvocationKwargs = shouldUseAdaptiveThinking
+      ? {
+          // @langchain/anthropic currently defaults ChatAnthropic.thinking to
+          // { type: "disabled" } and serializes it into every request.
+          // Claude Fable 5 and Claude Mythos 5 reject that explicit disabled
+          // mode because thinking defaults to adaptive when the field is
+          // omitted. Newer ChatAnthropic versions might fix this default, but
+          // remove this guard only after a developer has verified that the
+          // pinned/newer version no longer sends thinking.disabled by default.
+          thinking: undefined,
+          ...modelParams.providerOptions,
+        }
+      : modelParams.providerOptions;
 
     const chatOptions: ChatAnthropicInput = {
       anthropicApiKey: apiKey,
@@ -376,7 +413,7 @@ export async function fetchLLMCompletion(
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
-      invocationKwargs: modelParams.providerOptions,
+      invocationKwargs: anthropicInvocationKwargs,
     };
 
     chatModel = new ChatAnthropic(chatOptions);
@@ -572,8 +609,10 @@ export async function fetchLLMCompletion(
     : runConfig;
 
   const supportsReasoning = adapterSupportsReasoning(modelParams.adapter);
+  const shouldNormalizeModelContentBlocks =
+    shouldNormalizeContentBlocks(modelParams);
   const shouldNormalizeStreamingContentBlocks =
-    supportsReasoning || usesOpenAIResponsesApi;
+    shouldNormalizeModelContentBlocks || usesOpenAIResponsesApi;
 
   try {
     // Important: await all generations in the try block as otherwise `processTracedEvents` will run too early in finally block
@@ -584,18 +623,52 @@ export async function fetchLLMCompletion(
       const structuredOutputConfig = supportsReasoning
         ? { method: "functionCalling" as const }
         : undefined;
+      const createStructuredOutputModel = () => {
+        if (
+          modelParams.adapter !== LLMAdapter.Anthropic ||
+          !isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model)
+        ) {
+          return (chatModel as ChatOpenAI).withStructuredOutput(
+            structuredOutputSchema,
+            structuredOutputConfig,
+          );
+        }
+
+        const anthropicChatModel = chatModel as ChatAnthropic & {
+          thinking: ChatAnthropicInput["thinking"];
+        };
+        const originalThinking = anthropicChatModel.thinking;
+
+        try {
+          // Keep LangChain's structured-output decision in sync with
+          // Anthropic's Fable/Mythos semantics. In @langchain/anthropic 1.3.26,
+          // ChatAnthropic defaults this internal field to { type: "disabled" }.
+          // withStructuredOutput() reads that field before request serialization:
+          // disabled thinking makes it force tool_choice, while adaptive
+          // thinking avoids forced tool use. Fable/Mythos treat an omitted
+          // thinking field as always-on adaptive thinking, and Anthropic rejects
+          // adaptive thinking combined with forced tool use. Temporarily mirror
+          // the adaptive state only while constructing the structured-output
+          // runnable; the actual request still omits the thinking field via
+          // anthropicInvocationKwargs above.
+          anthropicChatModel.thinking = { type: "adaptive" };
+
+          return anthropicChatModel.withStructuredOutput(
+            structuredOutputSchema,
+            structuredOutputConfig,
+          );
+        } finally {
+          anthropicChatModel.thinking = originalThinking;
+        }
+      };
+      const structuredOutputModel = createStructuredOutputModel();
 
       const structuredOutput = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
         timeoutMs,
         abortController: runtimeTimeoutController,
         operation: () =>
-          (chatModel as ChatOpenAI)
-            .withStructuredOutput(
-              structuredOutputSchema,
-              structuredOutputConfig,
-            )
-            .invoke(finalMessages, runConfigWithTimeout),
+          structuredOutputModel.invoke(finalMessages, runConfigWithTimeout),
       });
 
       return structuredOutput;
@@ -648,7 +721,7 @@ export async function fetchLLMCompletion(
 
     // content with thinking blocks can't be handled by StringOutputParser
     // Invoke model directly and extract text + reasoning separately.
-    if (supportsReasoning) {
+    if (shouldNormalizeModelContentBlocks) {
       const aiMessage = await executeWithRuntimeTimeout({
         enabled: runtimeTimeoutEnabled,
         timeoutMs,

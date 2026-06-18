@@ -141,6 +141,11 @@ This outputs your BasicAuth token (e.g., `cGstbGYt...`).
 **Self-Hosted:**
 
 - Use your domain with HTTPS: `https://your-domain.com`
+- If a reverse proxy forwards a different `Host` header than `NEXTAUTH_URL`,
+  either preserve the public host at the proxy or set
+  `LANGFUSE_MCP_ALLOWED_HOSTS` to a comma-separated list of exact additional
+  hostnames/origins accepted by the MCP endpoint. Wildcards and paths are not
+  supported.
 
 **Local Development:**
 

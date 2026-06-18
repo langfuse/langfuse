@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
 import { FlaskConical, List } from "lucide-react";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
 import {
   Dialog,
@@ -41,10 +41,6 @@ import {
   getDatasetRunCompareTabs,
 } from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
-import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
 
 export default function DatasetCompare() {
   const router = useRouter();
@@ -54,12 +50,6 @@ export default function DatasetCompare() {
 
   const [isCreateExperimentDialogOpen, setIsCreateExperimentDialogOpen] =
     useState(false);
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-    isExperimentsBetaActive,
-  } = useExperimentAccess();
 
   const [selectedMetrics, setSelectedMetrics] = useLocalStorage<string[]>(
     `${projectId}-dataset-compare-metrics`,
@@ -93,57 +83,6 @@ export default function DatasetCompare() {
     await handleExperimentSettledBase(data);
   };
 
-  const handleBetaSwitchChange = (enabled: boolean) => {
-    setExperimentsBetaEnabled(enabled);
-
-    if (enabled && runIds && runIds.length > 0) {
-      router.push(toExperimentsResultsUrl(projectId, runIds));
-    }
-  };
-
-  // Auto-redirect when experiments beta is active (e.g., user arrives via bookmark/back button)
-  useEffect(() => {
-    if (isExperimentsBetaActive && projectId && runIds && runIds.length > 0) {
-      router.push(toExperimentsResultsUrl(projectId, runIds));
-    }
-  }, [isExperimentsBetaActive, projectId, runIds, router]);
-
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaEnabled}
-      onEnabledChange={handleBetaSwitchChange}
-    />
-  ) : null;
-
-  if (isExperimentsBetaActive) {
-    return (
-      <Page
-        headerProps={{
-          title: `Compare runs: ${dataset.data?.name ?? datasetId}`,
-          tabsProps: {
-            tabs: getDatasetRunCompareTabs(projectId, datasetId),
-            activeTab: DATASET_RUN_COMPARE_TABS.CHARTS,
-          },
-          breadcrumb: [
-            {
-              name: "Datasets",
-              href: `/project/${projectId}/datasets`,
-            },
-            {
-              name: dataset.data?.name ?? datasetId,
-              href: `/project/${projectId}/datasets/${datasetId}`,
-            },
-          ],
-          actionButtonsLeft: betaSwitch,
-        }}
-      >
-        <div className="flex h-full items-center justify-center">
-          <Spinner size="xl" variant="muted" />
-        </div>
-      </Page>
-    );
-  }
-
   return (
     <Page
       headerProps={{
@@ -167,7 +106,6 @@ export default function DatasetCompare() {
         },
         actionButtonsRight: (
           <>
-            {betaSwitch}
             <Dialog
               key="create-experiment-dialog"
               open={isCreateExperimentDialogOpen}

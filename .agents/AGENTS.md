@@ -8,9 +8,24 @@ evaluating, and debugging AI applications.
 - Read the minimal local context required for the task.
 - Keep changes scoped and avoid unrelated refactors.
 - For bug fixes, write the failing test first, confirm it fails, then fix the
-  bug.
+  bug. If the bug depends on a data shape, pause and ask: can
+  `pnpm run seed` prefill that shape locally? If not, consider extending a
+  seeder scenario so the bug stays cheaply reproducible
+  (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot
+  express it.
 - For user-visible frontend changes in `web/**`, review the affected flow in a
-  real browser before signoff.
+  real browser before signoff. Prefill the data the flow needs with the seed
+  CLI (`pnpm run seed -- list` shows scenarios; runs print UI deep links) —
+  never with ad-hoc scripts or raw ClickHouse inserts.
+- For documentation screenshots in Markdown, avoid fixed `height` on `<img>`
+  tags; prefer Markdown images or width-only HTML so previews preserve aspect
+  ratio.
+- When working on the search bar or any filtering UI/grammar, read
+  `web/src/features/search-bar/README.md` first. It owns the grammar ↔
+  `FilterState` contract, the validate/lower parity invariants, and the
+  cross-view extension playbook — the bar is intended to become the primary
+  filter interface for every filterable view, so new filtering work extends it
+  through that contract rather than forking it.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 

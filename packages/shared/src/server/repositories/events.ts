@@ -1,5 +1,6 @@
 import { prisma } from "../../db";
 import { Readable } from "stream";
+import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type {
   EventsObservation,
   MetadataDomain,
@@ -16,7 +17,7 @@ import {
   PreferredClickhouseService,
 } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { recordDistribution } from "../instrumentation";
+import { recordDistribution, recordIncrement } from "../instrumentation";
 import { logger } from "../logger";
 import {
   convertClickhouseToDomain,
@@ -96,10 +97,15 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
+  buildEventsFullTableSubqueryQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
+import {
+  shouldUseObservationsSubqueryRewrite,
+  shouldRunObservationsShadowQuery,
+} from "../queries/clickhouse-sql/query-options";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
@@ -1359,6 +1365,7 @@ async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
   operationName: string = "getObservationsFromEventsTableForPublicApi_rows",
+  extraTags: Record<string, string> = {},
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1372,6 +1379,7 @@ async function getObservationsRowsFromBuilder<T>(
         type: "events",
         kind: "publicApiRows",
         projectId,
+        ...extraTags,
       },
     },
     fn: async (input) => {
@@ -1461,6 +1469,120 @@ export const getObservationsFromEventsTableForPublicApi = async (
   return observations;
 };
 
+// ── Shadow query validation (remove after subquery-rewrite rollout) ──────────
+
+export type ShadowQueryOutcome =
+  | "match"
+  | "row_count_mismatch"
+  | "content_mismatch"
+  | "order_mismatch"
+  | "error";
+
+/** Test-only hook: captures the last shadow promise. Set `forceShadow` to
+ *  bypass env checks (avoids module-identity issues in vitest). */
+export const _shadowQueryTestHook: {
+  promise: Promise<ShadowQueryOutcome> | null;
+  forceShadow: boolean;
+} = { promise: null, forceShadow: false };
+
+/**
+ * Fire-and-forget: run the subquery-rewrite path alongside the authoritative
+ * cte-join result and emit Datadog comparison metrics. Never throws; errors
+ * are caught and counted. Called only when LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY
+ * is enabled and the query would normally take the cte-join path.
+ */
+function runSubqueryRewriteShadowQuery(
+  opts: PublicApiObservationsQuery & {
+    fields: ObservationFieldGroupPublicApi[];
+  },
+  options: BuildObservationsQueryComponentsOptions,
+  primaryRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
+  primaryDurationMs: number,
+): void {
+  const { projectId } = opts;
+  const requestedFields = opts.fields ?? ["core", "basic"];
+  const METRIC_PREFIX = "langfuse.observations_v2.shadow_query";
+
+  const run = async (): Promise<ShadowQueryOutcome> => {
+    const { queryBuilder: shadowBuilder } = buildObservationsQueryComponents(
+      opts,
+      eventsTableNativeUiColumnDefinitions,
+      options,
+    );
+    applyOrderByForObservationsQuery(shadowBuilder);
+    applyCursorPagination(opts, shadowBuilder);
+
+    const shadowQueryBuilder = buildEventsFullTableSubqueryQuery({
+      projectId,
+      innerBuilder: shadowBuilder,
+      fieldSetNames: ["core", ...requestedFields],
+    });
+
+    const start = Date.now();
+    const shadowRecords =
+      await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
+        projectId,
+        shadowQueryBuilder,
+        "getObservationsV2_shadow_subquery_rewrite",
+        { queryPath: "shadow-subquery-rewrite" },
+      );
+    const shadowDurationMs = Date.now() - start;
+
+    recordDistribution(`${METRIC_PREFIX}.duration_ms`, shadowDurationMs);
+    recordDistribution(
+      `${METRIC_PREFIX}.duration_delta_ms`,
+      shadowDurationMs - primaryDurationMs,
+    );
+
+    const primaryIds = primaryRecords.map((r) => r.id);
+    const shadowIds = shadowRecords.map((r) => r.id);
+
+    if (primaryIds.length !== shadowIds.length) {
+      recordIncrement(`${METRIC_PREFIX}.row_count_mismatch`, 1);
+      logger.warn("Shadow query row count mismatch", {
+        projectId,
+        primaryCount: primaryIds.length,
+        shadowCount: shadowIds.length,
+        primarySample: primaryIds.slice(0, 5),
+        shadowSample: shadowIds.slice(0, 5),
+      });
+      return "row_count_mismatch";
+    }
+
+    const orderMatch = primaryIds.every((id, i) => id === shadowIds[i]);
+    if (!orderMatch) {
+      const primarySet = new Set(primaryIds);
+      const shadowSet = new Set(shadowIds);
+      const sameContent =
+        primarySet.size === shadowSet.size &&
+        shadowIds.every((id) => primarySet.has(id));
+      if (!sameContent) {
+        recordIncrement(`${METRIC_PREFIX}.content_mismatch`, 1);
+        logger.warn("Shadow query content mismatch", {
+          projectId,
+          primarySample: primaryIds.slice(0, 5),
+          shadowSample: shadowIds.slice(0, 5),
+        });
+        return "content_mismatch";
+      }
+      recordIncrement(`${METRIC_PREFIX}.order_mismatch`, 1);
+      logger.warn("Shadow query order mismatch", { projectId });
+      return "order_mismatch";
+    }
+
+    recordIncrement(`${METRIC_PREFIX}.match`, 1);
+    return "match";
+  };
+
+  _shadowQueryTestHook.promise = run().catch((err): ShadowQueryOutcome => {
+    recordIncrement(`${METRIC_PREFIX}.error`, 1);
+    logger.error("Shadow query failed", { projectId, error: err });
+    return "error";
+  });
+}
+
+// ── End shadow query validation ─────────────────────────────────────────────
+
 /**
  * V2 API: Get observations list from events table for public API
  * Returns partial observations based on requested field groups
@@ -1500,39 +1622,85 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       options,
     );
 
-  baseBuilder.selectFieldSet("core");
-  const excludeFromBase = new Set<string>(["core", "io"]);
-  if (metadataFromFullTable) excludeFromBase.add("metadata");
-  requestedFields
-    .filter((fg) => !excludeFromBase.has(fg))
-    .forEach((fg) => baseBuilder.selectFieldSet(fg));
-
+  // Shared steps: ordering and pagination apply to every path and are
+  // independent of which columns each path projects.
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
-  let builder: QueryWithParams;
+  // Pick the query shape. The rewrite only replaces the CTE+JOIN split query
+  // (needsIOCTE); the simple path is untouched. External CTEs keep the
+  // CTE+JOIN path: their resolution inside the IN subquery is unverified, and
+  // no v2 filter currently produces one.
+  const queryPath: "simple" | "cte-join" | "subquery-rewrite" = !needsIOCTE
+    ? "simple"
+    : externalCTEs.length === 0 && shouldUseObservationsSubqueryRewrite()
+      ? "subquery-rewrite"
+      : "cte-join";
 
-  if (!needsIOCTE) {
-    // Simple path: add CTEs back to the builder and use directly
-    for (const cte of externalCTEs) {
-      baseBuilder.withCTE(cte.name, cte.queryWithParams);
-    }
-    builder = baseBuilder;
-  } else {
-    builder = buildEventsFullTableSplitQuery({
-      projectId,
-      baseBuilder,
-      includeIO: needsIO,
-      includeMetadata: metadataFromFullTable,
-      externalCTEs,
-    }).orderByColumns(orderByForObservationsQuery("b", "id"));
+  // Shadow query eligibility: cte-join path, no external CTEs, flag enabled.
+  const shouldShadow =
+    queryPath === "cte-join" &&
+    externalCTEs.length === 0 &&
+    (_shadowQueryTestHook.forceShadow || shouldRunObservationsShadowQuery());
+
+  // Field groups projected on the base builder by the non-rewrite paths.
+  // `io` (and `metadata` when it must come untruncated from events_full) is
+  // fetched by the io CTE instead; selecting it on events_core would return
+  // truncated values.
+  const selectBaseFieldSets = () => {
+    baseBuilder.selectFieldSet("core");
+    const excludeFromBase = new Set<string>(["core", "io"]);
+    if (metadataFromFullTable) excludeFromBase.add("metadata");
+    requestedFields
+      .filter((fg) => !excludeFromBase.has(fg))
+      .forEach((fg) => baseBuilder.selectFieldSet(fg));
+  };
+
+  let builder: QueryWithParams;
+  switch (queryPath) {
+    case "simple":
+      // Everything from events_core; CTEs attach directly to the builder.
+      selectBaseFieldSets();
+      for (const cte of externalCTEs) {
+        baseBuilder.withCTE(cte.name, cte.queryWithParams);
+      }
+      builder = baseBuilder;
+      break;
+    case "cte-join":
+      // Scalar groups from events_core, IO/metadata joined from events_full.
+      selectBaseFieldSets();
+      builder = buildEventsFullTableSplitQuery({
+        projectId,
+        baseBuilder,
+        includeIO: needsIO,
+        includeMetadata: metadataFromFullTable,
+        externalCTEs,
+      }).orderByColumns(orderByForObservationsQuery("b", "id"));
+      break;
+    case "subquery-rewrite":
+      // No projection on the base builder: it becomes the inner IN-subquery,
+      // which projects only the identity tuple (added by the build function).
+      builder = buildEventsFullTableSubqueryQuery({
+        projectId,
+        innerBuilder: baseBuilder,
+        fieldSetNames: ["core", ...requestedFields],
+      });
+      break;
   }
 
+  const primaryStart = Date.now();
   const records =
     await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
       projectId,
       builder,
+      undefined,
+      { queryPath },
     );
+  const primaryDurationMs = Date.now() - primaryStart;
+
+  if (shouldShadow) {
+    runSubqueryRewriteShadowQuery(opts, options, records, primaryDurationMs);
+  }
 
   return await enrichObservationsWithModelData(
     records,
@@ -3647,6 +3815,7 @@ export const hasAnySessionFromEventsTable = async (
 export const getTraceMetadataByIdsFromEvents = async (props: {
   projectId: string;
   traceIds: string[];
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
 }) => {
   if (props.traceIds.length === 0) return [];
 
@@ -3678,6 +3847,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        clickhouseConfigs: props.clickhouseConfigs,
         preferredClickhouseService: "EventsReadOnly",
       }),
   });
