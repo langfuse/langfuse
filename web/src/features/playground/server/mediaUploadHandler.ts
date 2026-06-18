@@ -47,6 +47,22 @@ export default async function mediaUploadHandler(req: NextRequest) {
       );
     }
 
+    // Pre-check declared content length to avoid buffering obviously-oversized uploads.
+    // Note: `Content-Length` may be absent or spoofed, so keep the post-buffer
+    // check below as the authoritative guard.
+    const declaredLengthHeader = req.headers.get("content-length");
+    if (declaredLengthHeader) {
+      const declaredLength = Number(declaredLengthHeader);
+      if (
+        !Number.isNaN(declaredLength) &&
+        declaredLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH
+      ) {
+        throw new InvalidRequestError(
+          `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
+        );
+      }
+    }
+
     const bytes = Buffer.from(await req.arrayBuffer());
     if (bytes.length === 0) {
       throw new InvalidRequestError("Empty file");

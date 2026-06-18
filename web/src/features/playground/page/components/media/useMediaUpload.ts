@@ -44,7 +44,6 @@ export function useMediaUpload(projectId: string) {
         return null;
       }
 
-      setIsUploading(true);
       try {
         // Upload to our own origin (allowed by CSP). The server performs the
         // actual storage upload, so we avoid browser->storage CORS/CSP issues.
@@ -84,12 +83,31 @@ export function useMediaUpload(projectId: string) {
           error instanceof Error ? error.message : "An error occurred",
         );
         return null;
-      } finally {
-        setIsUploading(false);
       }
     },
     [projectId],
   );
 
-  return { uploadFile, isUploading };
+  // Upload a batch of files, holding `isUploading` for the whole batch. Tracking
+  // the flag here rather than inside `uploadFile` keeps the attach button
+  // disabled until every file finishes; flipping it per file would briefly
+  // re-enable the button between files and let a second batch race this one.
+  const uploadFiles = useCallback(
+    async (files: File[]): Promise<ChatMessageMediaContentPart[]> => {
+      setIsUploading(true);
+      try {
+        const parts: ChatMessageMediaContentPart[] = [];
+        for (const file of files) {
+          const part = await uploadFile(file);
+          if (part) parts.push(part);
+        }
+        return parts;
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [uploadFile],
+  );
+
+  return { uploadFile, uploadFiles, isUploading };
 }

@@ -27,19 +27,19 @@ export const MessageMediaAttachments = ({
   onChange: (content: ChatMessageContent) => void;
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const { uploadFile, isUploading } = useMediaUpload(projectId);
+  const { uploadFiles, isUploading } = useMediaUpload(projectId);
 
   const mediaParts = getMediaParts(content);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
 
-    let next: ChatMessageContent = content;
-    for (const file of Array.from(files)) {
-      const part = await uploadFile(file);
-      if (part) next = addMediaPart(next, part);
+    const parts = await uploadFiles(Array.from(files));
+    if (parts.length > 0) {
+      let next: ChatMessageContent = content;
+      for (const part of parts) next = addMediaPart(next, part);
+      onChange(next);
     }
-    onChange(next);
 
     // Reset so selecting the same file again re-triggers onChange.
     if (inputRef.current) inputRef.current.value = "";

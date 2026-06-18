@@ -45,10 +45,22 @@ export async function resolveMessageMedia(params: {
   const base64ById = new Map<string, string>();
   const mimeById = new Map<string, string>();
 
-  for (const mediaId of mediaIds) {
-    const media = await prisma.media.findUnique({
-      where: { projectId_id: { projectId, id: mediaId } },
-    });
+  // Resolve metadata for all referenced media in parallel, then download
+  // the bytes concurrently. This reduces latency when a message references
+  // multiple media items.
+  const ids = Array.from(mediaIds);
+
+  // Fetch media rows in parallel
+  const mediaRows = await Promise.all(
+    ids.map((id) =>
+      prisma.media.findUnique({ where: { projectId_id: { projectId, id } } }),
+    ),
+  );
+
+  // Validate metadata first (fail fast with clear errors)
+  for (let i = 0; i < ids.length; i++) {
+    const mediaId = ids[i];
+    const media = mediaRows[i];
 
     if (!media) {
       throw new LangfuseNotFoundError(`Media asset ${mediaId} not found`);
@@ -70,10 +82,21 @@ export async function resolveMessageMedia(params: {
         `Media asset ${mediaId} exceeds the maximum allowed size`,
       );
     }
+  }
 
-    const bytes = await getMediaStorageServiceClient(
-      media.bucketName,
-    ).downloadBytes(media.bucketPath);
+  // Download all bytes concurrently and map results back to ids order
+  const downloadPromises = mediaRows.map((media) =>
+    getMediaStorageServiceClient(media!.bucketName).downloadBytes(
+      media!.bucketPath,
+    ),
+  );
+
+  const bytesResults = await Promise.all(downloadPromises);
+
+  for (let i = 0; i < ids.length; i++) {
+    const mediaId = ids[i];
+    const media = mediaRows[i]!;
+    const bytes = bytesResults[i];
 
     base64ById.set(mediaId, Buffer.from(bytes).toString("base64"));
     mimeById.set(mediaId, media.contentType);
