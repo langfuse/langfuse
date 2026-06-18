@@ -33,6 +33,39 @@ REQUEST_BODY="$(
     }'
 )"
 SYNCED_REGIONS=()
+PREFLIGHT_ERRORS=()
+
+for REGION_INDEX in "${!REGIONS[@]}"; do
+  REGION="${REGIONS[${REGION_INDEX}]}"
+  PUBLIC_KEY_VAR="LANGFUSE_AI_FEATURES_${REGION}_PUBLIC_KEY"
+  SECRET_KEY_VAR="LANGFUSE_AI_FEATURES_${REGION}_SECRET_KEY"
+  BASE_URL="${BASE_URLS[${REGION_INDEX}]}"
+
+  if [[ -z "${!PUBLIC_KEY_VAR:-}" || -z "${!SECRET_KEY_VAR:-}" ]]; then
+    PREFLIGHT_ERRORS+=("${REGION}: ${PUBLIC_KEY_VAR} and ${SECRET_KEY_VAR} must be set.")
+    continue
+  fi
+
+  echo "Checking access to ${REGION} (${BASE_URL})..."
+  STATUS_CODE="$(
+    curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+      --user "${!PUBLIC_KEY_VAR}:${!SECRET_KEY_VAR}" \
+      "${BASE_URL}/api/public/v2/prompts/${PROMPT_NAME}" || true
+  )"
+
+  if [[ "${STATUS_CODE}" != "200" && "${STATUS_CODE}" != "404" ]]; then
+    PREFLIGHT_ERRORS+=("${REGION}: expected 200 or 404 from ${BASE_URL}, got ${STATUS_CODE}.")
+    continue
+  fi
+
+  echo "Access check passed for ${REGION} (${BASE_URL})."
+done
+
+if [[ ${#PREFLIGHT_ERRORS[@]} -gt 0 ]]; then
+  echo "Preflight failed; no regions synced." >&2
+  printf ' - %s\n' "${PREFLIGHT_ERRORS[@]}" >&2
+  exit 1
+fi
 
 for REGION_INDEX in "${!REGIONS[@]}"; do
   REGION="${REGIONS[${REGION_INDEX}]}"
@@ -44,11 +77,6 @@ for REGION_INDEX in "${!REGIONS[@]}"; do
   if [[ ! "${CONFIRM}" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo "Skipped ${REGION}."
     continue
-  fi
-
-  if [[ -z "${!PUBLIC_KEY_VAR:-}" || -z "${!SECRET_KEY_VAR:-}" ]]; then
-    echo "${PUBLIC_KEY_VAR} and ${SECRET_KEY_VAR} must be set." >&2
-    exit 1
   fi
 
   echo "Creating ${PROMPT_NAME} or adding a new version in ${REGION} (${BASE_URL})..."
