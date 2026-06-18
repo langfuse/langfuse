@@ -8,7 +8,6 @@ import {
   Loader2,
   ThumbsDown,
   ThumbsUp,
-  Wrench,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/router";
@@ -171,7 +170,7 @@ export function InAppAgentMessage({
       <div
         className={cn(
           "text-foreground w-full",
-          isCompact ? "py-1 text-[0.775rem]" : "py-1.5 text-sm",
+          isCompact ? "text-[0.775rem]" : "text-sm",
         )}
       >
         <ToolCallGroup
@@ -218,10 +217,10 @@ const MessageCard = forwardRef<
         "max-w-full overflow-hidden wrap-break-word",
         isUser
           ? cn(
-              "bg-primary text-primary-foreground shadow-xs",
+              "bg-secondary text-secondary-foreground shadow-xs",
               isCompact
-                ? "rounded-xl px-2.5 py-1 text-[0.775rem]"
-                : "rounded-2xl px-3 py-1.5 text-sm",
+                ? "rounded-lg px-2.5 py-1 text-[0.775rem]"
+                : "rounded-lg px-3 py-1.5 text-sm",
             )
           : cn(
               "text-foreground w-full",
@@ -604,9 +603,9 @@ function RedirectActionButton({
   return (
     <Button
       type="button"
-      size="sm"
+      size="lg"
       variant="outline"
-      className={cn("shrink-0", isCompact ? "h-6 px-2 text-xs" : "h-7")}
+      className={cn("shrink-0", isCompact ? "h-7 px-3 text-xs" : "h-7 px-3")}
       onClick={() => {
         router.push(content.href).catch(() => undefined);
       }}
@@ -628,44 +627,27 @@ function ToolCallGroup({
 }) {
   const label = `${isLoading ? "Calling" : "Called"} ${tools.length} ${tools.length === 1 ? "tool" : "tools"}`;
 
-  const paddingX = cn(isCompact ? "px-2.5" : "px-3");
   const iconSize = isCompact ? "size-3" : "size-4";
 
   return (
     <details className="group/tool-group min-w-0">
       <summary
         className={cn(
-          "flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden",
-          paddingX,
+          "flex cursor-pointer list-none items-center gap-2 text-xs leading-none opacity-60 [&::-webkit-details-marker]:hidden",
         )}
       >
-        {isLoading ? (
-          <Loader2
-            className={cn(
-              "text-muted-foreground shrink-0 animate-spin",
-              iconSize,
-            )}
-          />
-        ) : (
-          <Wrench className={cn("text-muted-foreground shrink-0", iconSize)} />
+        {isLoading && (
+          <Loader2 className={cn("shrink-0 animate-spin", iconSize)} />
         )}
         <span className="min-w-0 flex-1 truncate py-0.5">{label}</span>
-        <span className="text-muted-foreground text-xs group-open/tool-group:hidden">
-          Show
-        </span>
-        <span className="text-muted-foreground hidden text-xs group-open/tool-group:inline">
-          Hide
-        </span>
       </summary>
-      <div
-        className={cn("border-border mt-2 space-y-2 border-t pt-2", paddingX)}
-      >
+      <ul className={cn("mt-2 flex flex-col gap-y-2")}>
         {tools.map((tool, index) => (
-          <div key={`${tool.name}-${index}`} className="rounded-lg">
+          <li key={`${tool.name}-${index}`} className="rounded-lg">
             <ToolCallDetails tool={tool} />
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </details>
   );
 }
@@ -674,25 +656,22 @@ function ToolCallDetails({ tool }: { tool: InAppAgentToolCallContent }) {
   const resultLabel = tool.error ? "Error" : "Result";
 
   return (
-    <details className="group/tool min-w-0">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none font-medium [&::-webkit-details-marker]:hidden">
-        <Wrench className="text-muted-foreground h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate py-0.5">Used {tool.name}</span>
-        <span className="text-muted-foreground text-xs group-open/tool:hidden">
-          Show
-        </span>
-        <span className="text-muted-foreground hidden text-xs group-open/tool:inline">
-          Hide
+    <details className="group/tool">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-xs leading-none opacity-60 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0 flex-1 truncate py-0.5">
+          {">"} {tool.name}
         </span>
       </summary>
-      <div className="mt-2 space-y-2">
+      <div className="bg-muted mt-2 flex flex-col gap-y-2 overflow-hidden rounded">
         <ToolPayload label="Arguments" value={tool.args} />
         {tool.result !== undefined || tool.error !== undefined ? (
-          <ToolPayload
-            label={resultLabel}
-            value={tool.error ?? tool.result ?? ""}
-            isError={Boolean(tool.error)}
-          />
+          <>
+            <ToolPayload
+              label={resultLabel}
+              value={tool.error ?? tool.result ?? ""}
+              isError={Boolean(tool.error)}
+            />
+          </>
         ) : null}
       </div>
     </details>
@@ -723,11 +702,13 @@ function ToolPayload({
   }, [value]);
 
   return (
-    <div className="space-y-1">
-      <p className="text-muted-foreground text-xs font-medium">{label}</p>
+    <div>
+      <p className="text-muted-foreground w-full bg-black/5 p-2 text-xs font-medium">
+        {label}
+      </p>
       <pre
         className={cn(
-          "bg-muted text-muted-foreground max-h-64 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap",
+          "text-muted-foreground max-h-64 overflow-auto rounded-md p-2 text-xs whitespace-pre-wrap",
           isError && "text-destructive",
         )}
       >

@@ -389,7 +389,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
               </div>
             ) : null}
 
-            <ol className="flex w-full flex-col gap-3 pb-4">
+            <ol className="flex w-full flex-col pb-4">
               {messages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
@@ -413,10 +413,34 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     ? message.runId
                     : undefined;
 
+                const previousMessage = messages[index - 1];
+
                 return (
                   <li
                     key={message.id}
                     className={cn(
+                      (() => {
+                        if (index === 0) {
+                          return "mt-0";
+                        }
+
+                        if (
+                          previousMessage?.role === "user" &&
+                          message.role !== "user"
+                        ) {
+                          return "mt-2";
+                        }
+
+                        if (
+                          previousMessage?.role !== "user" &&
+                          message.role === "user"
+                        ) {
+                          return "mt-6";
+                        }
+
+                        return "mt-2";
+                      })(),
+
                       hasFullWidthContent ? "w-full" : "w-fit",
                       message.role === "user"
                         ? "ml-auto max-w-[92%]"
