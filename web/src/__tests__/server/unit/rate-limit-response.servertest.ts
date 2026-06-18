@@ -33,7 +33,11 @@ const {
     },
   ),
   mockSendUnstablePublicApiErrorResponse: vi.fn((res, error) =>
-    res.status(error.httpCode).json({ message: "unstable" }),
+    res.status(error.httpCode).json({
+      message: error.message,
+      code: error.code,
+      ...(error.details !== undefined ? { details: error.details } : {}),
+    }),
   ),
 }));
 
@@ -137,17 +141,17 @@ describe("sendRateLimitResponse", () => {
     expect(res.statusCode).toBe(429);
     expect(res.getHeader("Retry-After")).toBe(3);
     expect(res.getHeader("X-RateLimit-Limit")).toBe(10);
-    expect(res.getHeader("X-RateLimit-Remaining")).toBe(0);
+    expect(res.getHeader("X-RateLimit-Remaining")).toBe(-1);
     expect(res._getJSONData()).toEqual({
       message:
         "Rate limit exceeded for GET /api/public/traces. Use GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to> for high-volume reads.",
-      error: "RateLimitExceeded",
-      resource: "public-api",
-      retryAfterSeconds: 3,
-      limit: 10,
-      remaining: 0,
-      resetAt: expect.any(String),
-      upgradePath,
+      code: "rate_limited",
+      details: {
+        retryAfterSeconds: 3,
+        limit: 10,
+        remaining: 0,
+        resetAt: expect.any(String),
+      },
     });
     expect(mockCreateUnstablePublicApiRateLimitError).toHaveBeenCalledWith(
       rateLimitResult,
@@ -155,6 +159,7 @@ describe("sendRateLimitResponse", () => {
         upgradePath,
       },
     );
+    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the unstable error contract when an upgrade path is present", () => {
@@ -174,6 +179,16 @@ describe("sendRateLimitResponse", () => {
     );
     expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
     expect(res.statusCode).toBe(429);
-    expect(res._getJSONData()).toEqual({ message: "unstable" });
+    expect(res._getJSONData()).toEqual({
+      message:
+        "Rate limit exceeded for GET /api/public/traces. Use GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to> for high-volume reads.",
+      code: "rate_limited",
+      details: {
+        retryAfterSeconds: 3,
+        limit: 10,
+        remaining: 0,
+        resetAt: expect.any(String),
+      },
+    });
   });
 });

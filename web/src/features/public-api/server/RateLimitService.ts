@@ -218,32 +218,14 @@ export const sendRateLimitResponse = (
     res.setHeader(header, value);
   }
 
-  if (responseOptions.errorContract === unstablePublicEvalsErrorContract) {
+  if (
+    responseOptions.errorContract === unstablePublicEvalsErrorContract ||
+    responseOptions.upgradePath
+  ) {
     return sendUnstablePublicApiErrorResponse(
       res,
       createUnstablePublicApiRateLimitError(rateLimitRes, responseOptions),
     );
-  }
-
-  if (responseOptions.upgradePath) {
-    const rateLimitError = createUnstablePublicApiRateLimitError(
-      rateLimitRes,
-      responseOptions,
-    );
-    const rateLimitDetails = rateLimitError.details!;
-
-    res.setHeader("X-RateLimit-Remaining", rateLimitDetails.remaining ?? 0);
-
-    return res.status(rateLimitError.httpCode).json({
-      message: rateLimitError.message,
-      error: "RateLimitExceeded",
-      resource: rateLimitRes.resource,
-      retryAfterSeconds: rateLimitDetails.retryAfterSeconds,
-      limit: rateLimitDetails.limit,
-      remaining: rateLimitDetails.remaining,
-      resetAt: rateLimitDetails.resetAt,
-      upgradePath: responseOptions.upgradePath,
-    });
   }
 
   res.status(429).end("429 - rate limit exceeded");

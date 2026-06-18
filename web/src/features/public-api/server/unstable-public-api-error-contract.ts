@@ -121,6 +121,7 @@ export function createUnstablePublicApiAuthError(params: {
 export function createUnstablePublicApiRateLimitError(
   rateLimitRes: RateLimitResult,
   options?: {
+    errorContract?: PublicApiErrorContract;
     upgradePath?: RateLimitUpgradePath;
   },
 ) {
