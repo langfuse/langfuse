@@ -356,6 +356,13 @@ function datetimeOperatorOptions(fieldId: string): CompletionOption[] {
 function matchOperatorOptions(
   typed: string,
   negated = false,
+  // textSearch fields only: under negation, `-name:=v` is representable and
+  // DISTINCT from the bare `-name:v`. The bare form lowers to `does not contain`
+  // (substring); the exact form lowers to a `stringOptions none of` (exact
+  // inequality — the facet "uncheck one value" shape). For option/metadata
+  // fields the bare negated value already IS exact none-of, so exact is
+  // redundant there and stays suppressed.
+  allowNegatedExact = false,
 ): CompletionOption[] {
   // Quote the value through the serializer so a value with whitespace/grammar
   // chars (`My Test`) becomes `*"My Test"*` — one lexer token — instead of a
@@ -368,10 +375,18 @@ function matchOperatorOptions(
     detail: "contains (same as the bare value)",
     insert: `*${v}*`,
   };
-  // Under negation only "contains" is representable (-> "does not contain").
-  // Negated starts/ends/exact have no inverse operator, so the validator would
-  // reject them on the next derive — don't offer drafts that can't commit.
-  if (negated) return [contains];
+  const exact: CompletionOption = {
+    id: "vop:exact",
+    kind: "pattern",
+    label: `=${v}`,
+    detail: negated ? "exact (does not equal)" : "exact match",
+    insert: `=${v}`,
+  };
+  // Under negation, starts/ends-with have no inverse operator (the validator
+  // would reject them on the next derive), so only "contains" — and, on a
+  // textSearch field, the distinct "exact" (-> does-not-equal / none-of) — are
+  // offered; never drafts that can't commit.
+  if (negated) return allowNegatedExact ? [contains, exact] : [contains];
   return [
     contains,
     {
@@ -388,13 +403,7 @@ function matchOperatorOptions(
       detail: "ends with",
       insert: `*${v}`,
     },
-    {
-      id: "vop:exact",
-      kind: "pattern",
-      label: `=${v}`,
-      detail: "exact match",
-      insert: `=${v}`,
-    },
+    exact,
   ];
 }
 
@@ -644,7 +653,12 @@ function valueStageSections(
             : [];
         return {
           sections: [
-            ...section(SECTION_MATCH_OPS, matchOperatorOptions(typed, negated)),
+            ...section(
+              SECTION_MATCH_OPS,
+              // Pure textSearch (input/output): negated exact is representable
+              // and distinct from the bare contains, so offer it.
+              matchOperatorOptions(typed, negated, true),
+            ),
             ...section(SECTION_SEARCH_IN, scopeSwitches),
           ],
           loading: false,
@@ -665,11 +679,13 @@ function valueStageSections(
       // Array fields reject match operators — operatorIssue routes them to
       // value/any-of/all-of groups — so don't suggest them. For other option
       // fields, once a value is typed offer glob/exact refinements that wrap it.
-      // Pass `negated` so a negated value only offers contains (the lone
-      // refinement with an inverse op), mirroring the metadata/textSearch sites.
+      // Under negation only contains is offered for option fields (bare negated
+      // value already IS exact none-of), but textSearch fields with observed
+      // values (id/name) also offer exact (`-name:=v` -> none-of, distinct from
+      // the substring `-name:v`).
       const ops =
         typed.length > 0 && f.syncMode !== "arrayOption"
-          ? matchOperatorOptions(typed, negated)
+          ? matchOperatorOptions(typed, negated, f.syncMode === "textSearch")
           : [];
       if (values.length + ops.length === 0) return null;
       return {
