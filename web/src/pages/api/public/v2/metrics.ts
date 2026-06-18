@@ -14,7 +14,7 @@ const DEFAULT_ROW_LIMIT = 100;
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Metrics V2",
-    rateLimitResource: "public-api-metrics",
+    rateLimitResource: "public-api-metrics", // Same rate limit as v1
     querySchema: GetMetricsV2Query,
     responseSchema: GetMetricsV2Response,
     fn: async ({ query, auth }) => {
