@@ -435,8 +435,8 @@ describe("Dataset item media tRPC procedures", () => {
     });
 
     // The duplicate's item has a fresh id/validFrom; it must own its own
-    // dataset_item_media rows so the reference resolves and the media stays
-    // retention-protected if the source dataset is later deleted.
+    // dataset_item_media rows so the reference resolves even if the source
+    // dataset is later deleted.
     const duplicatedItem = await prisma.datasetItem.findFirstOrThrow({
       where: { projectId, datasetId: duplicateDatasetId },
     });
