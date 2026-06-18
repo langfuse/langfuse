@@ -16,6 +16,7 @@ export const _handleGetScoreById = async ({
   scoreScope,
   scoreDataTypes,
   preferredClickhouseService,
+  apiVersion,
 }: {
   projectId: string;
   scoreId: string;
@@ -23,6 +24,7 @@ export const _handleGetScoreById = async ({
   scoreScope: "traces_only" | "all";
   scoreDataTypes?: readonly ScoreDataTypeType[];
   preferredClickhouseService?: PreferredClickhouseService;
+  apiVersion?: "v1" | "v2";
 }): Promise<ScoreDomain | undefined> => {
   const query = `
   SELECT *
@@ -52,6 +54,7 @@ export const _handleGetScoreById = async ({
       type: "score",
       kind: "byId",
       projectId,
+      ...(apiVersion ? { api_version: apiVersion } : {}),
     },
     preferredClickhouseService,
   });

@@ -4,6 +4,7 @@ import {
 } from "@/src/features/public-api/types/models";
 import { createModelForApi } from "@/src/features/models/server/publicApiModelService";
 import { defineTool } from "../../../core/define-tool";
+import { buildModelUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { z } from "zod";
 
@@ -45,7 +46,15 @@ export const [createModelTool, handleCreateModel] = defineTool({
           auditScope: context,
         });
 
-        return PostModelsV1Response.parse(result);
+        const model = PostModelsV1Response.parse(result);
+
+        return {
+          ...model,
+          url: buildModelUrl({
+            projectId: context.projectId,
+            modelId: model.id,
+          }),
+        };
       },
     }),
 });

@@ -2,15 +2,16 @@ import type { Session } from "next-auth";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 
+import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
   createInAppAgentRunId,
-} from "@/src/features/in-app-agent/ids";
-import type { AgUiEvent } from "@/src/features/in-app-agent/schema";
-import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
+} from "@/src/ee/features/in-app-agent/ids";
+import { type AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 import {
   createRun,
   ensureOwnedConversation,
@@ -19,8 +20,9 @@ import {
   replaceRunEvents,
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
-} from "@/src/features/in-app-agent/server/persistence";
+} from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
@@ -33,7 +35,10 @@ describe("in-app agent persistence", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  const createCaller = async (userId = `user-${randomUUID()}`) => {
+  const createCaller = async (
+    userId = `user-${randomUUID()}`,
+    plan: Plan = "cloud:hobby",
+  ) => {
     const setup = await createOrgProjectAndApiKey();
 
     await prisma.organization.update({
@@ -58,7 +63,7 @@ describe("in-app agent persistence", () => {
           {
             id: setup.orgId,
             role: "OWNER",
-            plan: "cloud:hobby",
+            plan,
             cloudConfig: undefined,
             name: "Test Organization",
             metadata: {},
@@ -121,6 +126,20 @@ describe("in-app agent persistence", () => {
       model: "haiku",
       mcpApiKeyId: "api-key-id-1",
     });
+
+  it("rejects users without the in-app agent entitlement", async () => {
+    const { caller, projectId } = await createCaller(
+      `user-${randomUUID()}`,
+      "oss",
+    );
+
+    await expect(caller.listConversations({ projectId })).rejects.toMatchObject(
+      {
+        code: "FORBIDDEN",
+        message: expect.stringContaining("in-app-agent"),
+      },
+    );
+  });
 
   const startCompactRun = async (params: {
     projectId: string;
@@ -330,6 +349,7 @@ describe("in-app agent persistence", () => {
         id: "assistant-message-1",
         role: "assistant",
         content: "I will inspect recent traces and look for outliers.",
+        runId: run1.id,
       },
       {
         id: "user-message-2",
@@ -340,6 +360,7 @@ describe("in-app agent persistence", () => {
         id: "assistant-message-2",
         role: "assistant",
         content: "Next trace inspected.",
+        runId: run2.id,
       },
     ]);
 
@@ -403,6 +424,55 @@ describe("in-app agent persistence", () => {
     expect(listedConversations.conversations.map((item) => item.id)).toContain(
       conversation.id,
     );
+  });
+
+  it("requires feedback run ids to match persisted assistant messages", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "feedback-user",
+      content: "Answer me",
+    });
+    await appendAssistantText({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events,
+      messageId: "feedback-assistant",
+      chunks: ["Here is an answer"],
+    });
+
+    await expect(
+      caller.submitFeedback({
+        projectId,
+        conversationId: conversation.id,
+        messageId: "feedback-assistant",
+        runId: createInAppAgentRunId(),
+        value: null,
+        comment: null,
+      }),
+    ).rejects.toThrow(
+      "Feedback can only be submitted for persisted assistant messages",
+    );
+
+    await expect(
+      caller.submitFeedback({
+        projectId,
+        conversationId: conversation.id,
+        messageId: "feedback-assistant",
+        runId: run.id,
+        value: null,
+        comment: null,
+      }),
+    ).resolves.toEqual({ feedback: null });
   });
 
   it("does not reduce partial assistant content before the end event", async () => {
@@ -915,6 +985,69 @@ describe("in-app agent persistence", () => {
         content: "[]",
         toolCallId: "paired-tool-call",
       },
+    ]);
+  });
+
+  it("drops failed redirect tool results before replay", async () => {
+    const { projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const run = await createConversationRun({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+    });
+    const events = await startCompactRun({
+      projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: "user-1",
+      content: "open a trace",
+    });
+    const process = (event: AgUiEvent) =>
+      processAndPersistEvent({
+        projectId,
+        conversationId: conversation.id,
+        runId: run.id,
+        events,
+        event,
+      });
+
+    await process({
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: "assistant-1",
+      role: "assistant",
+    });
+    await process({
+      type: EventType.TOOL_CALL_START,
+      toolCallId: "redirect-tool-call",
+      toolCallName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+      parentMessageId: "assistant-1",
+    });
+    await process({
+      type: EventType.TOOL_CALL_ARGS,
+      toolCallId: "redirect-tool-call",
+      delta: '{"destination":"trace"}',
+    });
+    await process({
+      type: EventType.TOOL_CALL_END,
+      toolCallId: "redirect-tool-call",
+    });
+    await process({
+      type: EventType.TOOL_CALL_RESULT,
+      messageId: "tool-result-1",
+      toolCallId: "redirect-tool-call",
+      content: "Tool validation failed: trace params are required",
+      role: "tool",
+    });
+
+    await expect(
+      getConversationMessagesForReplay({
+        prisma,
+        projectId,
+        conversationId: conversation.id,
+      }),
+    ).resolves.toEqual([
+      { id: "user-1", role: "user", content: "open a trace" },
     ]);
   });
 

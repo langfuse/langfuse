@@ -4,14 +4,14 @@
  * Used for all main application pages when user is authenticated
  */
 
-import type { PropsWithChildren } from "react";
+import { useEffect, useState, type PropsWithChildren } from "react";
 import Head from "next/head";
+import { useRouter, type NextRouter } from "next/router";
 import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { Toaster } from "@/src/components/ui/sonner";
 import { TopBannerProvider } from "@/src/features/top-banner";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
-import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
   getAvailableCloudRegionOptions,
@@ -22,6 +22,7 @@ import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
+import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 
 const CommandMenu = dynamic(
   () =>
@@ -83,7 +84,6 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
     favicon256Path: string;
     appleTouchIconPath: string;
   };
-  aiFeaturesEnabled: boolean;
   onSignOut: () => void;
 }>;
 
@@ -101,12 +101,12 @@ export function AuthenticatedLayout({
   session,
   navigation,
   metadata,
-  aiFeaturesEnabled,
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
-  const assistantEnabled =
-    useIsFeatureEnabled("inAppAgent") && aiFeaturesEnabled;
+  const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
+  const router = useRouter();
+  useProjectCookie(router);
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -131,6 +131,8 @@ export function AuthenticatedLayout({
     }),
   );
 
+  const hasFeaturePreviews = isLangfuseCloud;
+
   // User navigation items for sidebar dropdown
   const userNavProps = {
     user: {
@@ -141,6 +143,14 @@ export function AuthenticatedLayout({
     items: [
       { name: "Account Settings", href: "/account/settings" },
       { name: "Theme", onClick: () => {}, content: <ThemeToggle /> },
+      ...(hasFeaturePreviews
+        ? [
+            {
+              name: "Feature Preview",
+              onClick: () => setFeaturePreviewOpen(true),
+            },
+          ]
+        : []),
       ...(isLangfuseCloud
         ? [
             {
@@ -188,16 +198,34 @@ export function AuthenticatedLayout({
                 userNavProps={userNavProps}
               />
               <SidebarInset className="h-screen-with-banner max-w-full md:peer-data-[state=collapsed]:w-[calc(100vw-var(--sidebar-width-icon))] md:peer-data-[state=expanded]:w-[calc(100vw-var(--sidebar-width))]">
-                <AppContentWithRightDrawer aiAgentEnabled={assistantEnabled}>
+                <AppContentWithRightDrawer>
                   {children}
                 </AppContentWithRightDrawer>
                 <Toaster visibleToasts={1} />
                 <CommandMenu mainNavigation={navigation.navigation} />
               </SidebarInset>
             </div>
+            {hasFeaturePreviews ? (
+              <ControlledFeaturePreviewModal
+                session={session}
+                open={featurePreviewOpen}
+                onOpenChange={setFeaturePreviewOpen}
+              />
+            ) : null}
           </div>
         </SidebarProvider>
       </TopBannerProvider>
     </>
   );
+}
+
+/** useProjectCookie pings the visit beacon so the project sentinel can route the user back here. */
+function useProjectCookie(router: NextRouter) {
+  const projectId = router.query.projectId;
+  useEffect(() => {
+    if (typeof projectId !== "string") return;
+    fetch(`/api/project/${encodeURIComponent(projectId)}/visit`, {
+      method: "POST",
+    }).catch(() => {});
+  }, [projectId]);
 }
