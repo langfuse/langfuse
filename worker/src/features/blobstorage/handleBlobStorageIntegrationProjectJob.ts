@@ -220,13 +220,12 @@ async function* countedStream<T>(
   source: AsyncGenerator<T>,
   stats: { rows: number; sourceWaitMs: number },
 ): AsyncGenerator<T> {
-  for (;;) {
-    const t0 = performance.now();
-    const { value, done } = await source.next();
-    stats.sourceWaitMs += performance.now() - t0;
-    if (done) break;
+  let lastYield = performance.now();
+  for await (const value of source) {
+    stats.sourceWaitMs += performance.now() - lastYield;
     stats.rows++;
     yield value;
+    lastYield = performance.now();
   }
 }
 
@@ -328,7 +327,7 @@ const processBlobStorageExport = async (config: {
               ),
               config.projectId,
               "model_id",
-              false,
+              false, // v3 query already returns latency in seconds
               exportFieldGroups,
             );
             break;
@@ -339,7 +338,7 @@ const processBlobStorageExport = async (config: {
               config.maxTimestamp,
             );
             break;
-          case "observations_v2":
+          case "observations_v2": // observations_v2 is the events table
             rawStream = enrichObservationStream(
               getEventsForBlobStorageExport(
                 config.projectId,
@@ -389,36 +388,43 @@ const processBlobStorageExport = async (config: {
               pipelineCallback,
             );
 
-        const uploadStartMs = performance.now();
+        // Upload the file to cloud storage
+        // For CSV exports, use larger part size to handle big files
+        // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
+        // This prevents hitting AWS's 10,000 part limit on large exports
+        let uploadStartMs: number | undefined;
+        try {
+          uploadStartMs = performance.now();
 
-        await storageService.uploadFileBuffered({
-          fileName: filePath,
-          fileType: uploadContentType,
-          data: fileStream,
-          partSizeBytes: 100 * 1024 * 1024,
-        });
+          await storageService.uploadFileBuffered({
+            fileName: filePath,
+            fileType: uploadContentType,
+            data: fileStream,
+            partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
+          });
 
-        const uploadDurationMs = performance.now() - uploadStartMs;
-
-        span.setAttribute("blob.rows", sourceStats.rows);
-        span.setAttribute(
-          "blob.sourceWaitMs",
-          Math.round(sourceStats.sourceWaitMs),
-        );
-        span.setAttribute("blob.serializedBytes", serializedCounter.bytes);
-        span.setAttribute(
-          "blob.uploadDurationMs",
-          Math.round(uploadDurationMs),
-        );
-        if (compressedCounter) {
-          span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
+          logger.info(
+            `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
+              `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
+              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
+          );
+        } finally {
+          span.setAttribute("blob.rows", sourceStats.rows);
+          span.setAttribute(
+            "blob.sourceWaitMs",
+            Math.round(sourceStats.sourceWaitMs),
+          );
+          span.setAttribute("blob.serializedBytes", serializedCounter.bytes);
+          if (uploadStartMs !== undefined) {
+            span.setAttribute(
+              "blob.uploadDurationMs",
+              Math.round(performance.now() - uploadStartMs),
+            );
+          }
+          if (compressedCounter) {
+            span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
+          }
         }
-
-        logger.info(
-          `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
-            `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
-            `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(uploadDurationMs)}`,
-        );
       } catch (error) {
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId}`,
