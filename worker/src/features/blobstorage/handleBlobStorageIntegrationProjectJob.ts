@@ -1,4 +1,4 @@
-import { pipeline } from "stream";
+import { pipeline, Transform } from "stream";
 import { createGzip } from "zlib";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
@@ -14,6 +14,7 @@ import {
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
   getCurrentSpan,
+  instrumentAsync,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
@@ -35,6 +36,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
+import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
@@ -202,6 +204,31 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
   }
 };
 
+class ByteCounter extends Transform {
+  bytes = 0;
+  _transform(
+    chunk: Buffer,
+    _encoding: string,
+    callback: (error: Error | null, data?: Buffer) => void,
+  ) {
+    this.bytes += chunk.length;
+    callback(null, chunk);
+  }
+}
+
+async function* countedStream<T>(
+  source: AsyncGenerator<T>,
+  stats: { rows: number; sourceWaitMs: number },
+): AsyncGenerator<T> {
+  let lastYield = performance.now();
+  for await (const value of source) {
+    stats.sourceWaitMs += performance.now() - lastYield;
+    stats.rows++;
+    yield value;
+    lastYield = performance.now();
+  }
+}
+
 const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
@@ -241,113 +268,172 @@ const processBlobStorageExport = async (config: {
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
 
-  try {
-    const blobStorageProps = getFileTypeProperties(config.fileType);
+  await instrumentAsync(
+    {
+      name: `blob-export-table`,
+      spanKind: SpanKind.INTERNAL,
+    },
+    async (span) => {
+      span.setAttribute("blob.table", config.table);
+      span.setAttribute("blob.projectId", config.projectId);
+      span.setAttribute("blob.compressed", config.compressed);
+      span.setAttribute("blob.fileType", config.fileType);
+      span.setAttribute(
+        "blob.window.minTimestamp",
+        config.minTimestamp.toISOString(),
+      );
+      span.setAttribute(
+        "blob.window.maxTimestamp",
+        config.maxTimestamp.toISOString(),
+      );
 
-    // Create the file path with prefix if available
-    const timestamp = config.maxTimestamp
-      .toISOString()
-      .replace(/:/g, "-")
-      .substring(0, 19);
-    const extension = config.compressed
-      ? `${blobStorageProps.extension}.gz`
-      : blobStorageProps.extension;
-    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-    const uploadContentType = config.compressed
-      ? "application/gzip"
-      : blobStorageProps.contentType;
+      try {
+        const blobStorageProps = getFileTypeProperties(config.fileType);
 
-    // Fetch data based on table type
-    const exportFieldGroups =
-      config.exportFieldGroups && config.exportFieldGroups.length > 0
-        ? config.exportFieldGroups
-        : [...OBSERVATION_FIELD_GROUPS_FULL];
+        const timestamp = config.maxTimestamp
+          .toISOString()
+          .replace(/:/g, "-")
+          .substring(0, 19);
+        const extension = config.compressed
+          ? `${blobStorageProps.extension}.gz`
+          : blobStorageProps.extension;
+        const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
+        const uploadContentType = config.compressed
+          ? "application/gzip"
+          : blobStorageProps.contentType;
 
-    let dataStream: AsyncGenerator<Record<string, unknown>>;
+        const exportFieldGroups =
+          config.exportFieldGroups && config.exportFieldGroups.length > 0
+            ? config.exportFieldGroups
+            : [...OBSERVATION_FIELD_GROUPS_FULL];
 
-    switch (config.table) {
-      case "traces":
-        dataStream = getTracesForBlobStorageExport(
-          config.projectId,
-          config.minTimestamp,
-          config.maxTimestamp,
-        );
-        break;
-      case "observations":
-        dataStream = enrichObservationStream(
-          getObservationsForBlobStorageExport(
-            config.projectId,
-            config.minTimestamp,
-            config.maxTimestamp,
-            exportFieldGroups,
-          ),
-          config.projectId,
-          "model_id",
-          false, // v3 query already returns latency in seconds
-          exportFieldGroups,
-        );
-        break;
-      case "scores":
-        dataStream = getScoresForBlobStorageExport(
-          config.projectId,
-          config.minTimestamp,
-          config.maxTimestamp,
-        );
-        break;
-      case "observations_v2": // observations_v2 is the events table
-        dataStream = enrichObservationStream(
-          getEventsForBlobStorageExport(
-            config.projectId,
-            config.minTimestamp,
-            config.maxTimestamp,
-            exportFieldGroups,
-          ),
-          config.projectId,
-          "model_id",
-          config.convertV4LatencyToSeconds,
-          exportFieldGroups,
-        );
-        break;
-      default:
-        throw new Error(`Unsupported table type: ${config.table}`);
-    }
+        let rawStream: AsyncGenerator<Record<string, unknown>>;
 
-    const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
-      if (err) {
+        switch (config.table) {
+          case "traces":
+            rawStream = getTracesForBlobStorageExport(
+              config.projectId,
+              config.minTimestamp,
+              config.maxTimestamp,
+            );
+            break;
+          case "observations":
+            rawStream = enrichObservationStream(
+              getObservationsForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+                exportFieldGroups,
+              ),
+              config.projectId,
+              "model_id",
+              false, // v3 query already returns latency in seconds
+              exportFieldGroups,
+            );
+            break;
+          case "scores":
+            rawStream = getScoresForBlobStorageExport(
+              config.projectId,
+              config.minTimestamp,
+              config.maxTimestamp,
+            );
+            break;
+          case "observations_v2": // observations_v2 is the events table
+            rawStream = enrichObservationStream(
+              getEventsForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+                exportFieldGroups,
+              ),
+              config.projectId,
+              "model_id",
+              config.convertV4LatencyToSeconds,
+              exportFieldGroups,
+            );
+            break;
+          default:
+            throw new Error(`Unsupported table type: ${config.table}`);
+        }
+
+        const sourceStats = { rows: 0, sourceWaitMs: 0 };
+        const dataStream = countedStream(rawStream, sourceStats);
+
+        const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
+          if (err) {
+            logger.error(
+              "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
+              err,
+            );
+          }
+        };
+
+        const serializedCounter = new ByteCounter();
+        const compressedCounter = config.compressed ? new ByteCounter() : null;
+        const formatTransform = streamTransformations[config.fileType]();
+
+        const fileStream = compressedCounter
+          ? pipeline(
+              dataStream,
+              formatTransform,
+              serializedCounter,
+              createGzip(),
+              compressedCounter,
+              pipelineCallback,
+            )
+          : pipeline(
+              dataStream,
+              formatTransform,
+              serializedCounter,
+              pipelineCallback,
+            );
+
+        // Upload the file to cloud storage
+        // For CSV exports, use larger part size to handle big files
+        // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
+        // This prevents hitting AWS's 10,000 part limit on large exports
+        let uploadStartMs: number | undefined;
+        try {
+          uploadStartMs = performance.now();
+
+          await storageService.uploadFileBuffered({
+            fileName: filePath,
+            fileType: uploadContentType,
+            data: fileStream,
+            partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
+          });
+
+          logger.info(
+            `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
+              `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
+              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
+          );
+        } finally {
+          span.setAttribute("blob.rows", sourceStats.rows);
+          span.setAttribute(
+            "blob.sourceWaitMs",
+            Math.round(sourceStats.sourceWaitMs),
+          );
+          span.setAttribute("blob.serializedBytes", serializedCounter.bytes);
+          if (uploadStartMs !== undefined) {
+            span.setAttribute(
+              "blob.uploadDurationMs",
+              Math.round(performance.now() - uploadStartMs),
+            );
+          }
+          if (compressedCounter) {
+            span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
+          }
+        }
+      } catch (error) {
         logger.error(
-          "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
-          err,
+          `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId}`,
+          error,
         );
+        throw error;
       }
-    };
-
-    const formatTransform = streamTransformations[config.fileType]();
-    const fileStream = config.compressed
-      ? pipeline(dataStream, formatTransform, createGzip(), pipelineCallback)
-      : pipeline(dataStream, formatTransform, pipelineCallback);
-
-    // Upload the file to cloud storage
-    // For CSV exports, use larger part size to handle big files
-    // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
-    // This prevents hitting AWS's 10,000 part limit on large exports
-
-    await storageService.uploadFileBuffered({
-      fileName: filePath,
-      fileType: uploadContentType,
-      data: fileStream,
-      partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
-    });
-
-    logger.info(
-      `[BLOB INTEGRATION] Successfully exported ${config.table} records for project ${config.projectId}`,
-    );
-  } catch (error) {
-    logger.error(
-      `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId}`,
-      error,
-    );
-    throw error;
-  }
+    },
+  );
 };
 
 export const handleBlobStorageIntegrationProjectJob = async (
