@@ -1,6 +1,46 @@
+import type { FilterState } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
+import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import {
+  rangeToString,
+  type TABLE_AGGREGATION_OPTIONS,
+} from "@/src/utils/date-range-utils";
 
 const LOCALHOST_HOST_PATTERN = /^(localhost|127\.0\.0\.1|\[::1\])(?::|\/|$)/i;
+
+type ProductPathQuery = Record<string, string | string[] | null | undefined>;
+
+type TracesPathTimeRange =
+  | { preset: (typeof TABLE_AGGREGATION_OPTIONS)[number] }
+  | { from: string; to: string };
+
+type TracesPathFilters = {
+  bookmarked?: boolean;
+  environment?: string[];
+  level?: string[];
+  metadata?: Array<{ key: string; value: string }>;
+  sessionId?: string[];
+  tags?: string[];
+  traceId?: string;
+  traceName?: string[];
+  userId?: string[];
+  version?: string;
+};
+
+type TracesPathOrderBy = {
+  column: "timestamp" | "startTime" | "traceName" | "latency";
+  order: "ASC" | "DESC";
+};
+
+type TracesPathParams = {
+  filters?: TracesPathFilters;
+  orderBy?: TracesPathOrderBy;
+  search?: {
+    query: string;
+    type?: string[];
+  };
+  timeRange?: TracesPathTimeRange;
+};
 
 const getProductBaseUrl = () => {
   const rawBaseUrl = env.NEXTAUTH_URL;
@@ -17,40 +57,304 @@ const getProductBaseUrl = () => {
   return baseUrl;
 };
 
-const buildProductUrl = (path: string, query?: Record<string, string>) => {
+export const appendProductPathQuery = (
+  path: string,
+  query: ProductPathQuery,
+): string => {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (!value) {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item) {
+          searchParams.append(key, item);
+        }
+      });
+    } else {
+      searchParams.set(key, value);
+    }
+  });
+
+  const queryString = searchParams.toString();
+
+  return queryString ? `${path}?${queryString}` : path;
+};
+
+const buildProductUrl = (path: string, query?: ProductPathQuery) => {
   const baseUrl = getProductBaseUrl();
   const basePath = baseUrl.pathname.replace(/\/$/, "");
   const url = new URL(`${basePath}${path}`, baseUrl);
 
   for (const [key, value] of Object.entries(query ?? {})) {
-    url.searchParams.set(key, value);
+    if (!value) {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item) {
+          url.searchParams.append(key, item);
+        }
+      });
+    } else {
+      url.searchParams.set(key, value);
+    }
   }
 
   return url.toString();
 };
 
-export const buildTraceUrl = (params: { projectId: string; traceId: string }) =>
-  buildProductUrl(
-    `/project/${encodeURIComponent(params.projectId)}/traces/${encodeURIComponent(params.traceId)}`,
+export const buildProjectPath = (params: { projectId: string }) =>
+  `/project/${encodeURIComponent(params.projectId)}`;
+
+export const buildDashboardsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/dashboards`;
+
+export const buildDatasetsPath = (params: {
+  projectId: string;
+  folder?: string;
+}) =>
+  appendProductPathQuery(`${buildProjectPath(params)}/datasets`, {
+    folder: params.folder,
+  });
+
+export const buildEvalsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/evals`;
+
+export const buildExperimentsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/experiments`;
+
+export const buildModelsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/models`;
+
+export const buildMonitorsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/monitors`;
+
+export const buildPlaygroundPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/playground`;
+
+export const buildProjectMembersPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/settings/members`;
+
+export const buildProjectSettingsPath = (params: {
+  projectId: string;
+  page?: string;
+}) =>
+  params.page && params.page !== "index"
+    ? `${buildProjectPath(params)}/settings/${params.page}`
+    : `${buildProjectPath(params)}/settings`;
+
+export const buildPromptsPath = (params: {
+  projectId: string;
+  folder?: string;
+}) =>
+  appendProductPathQuery(`${buildProjectPath(params)}/prompts`, {
+    folder: params.folder,
+  });
+
+export const buildScoresPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/scores`;
+
+export const buildTracePath = (params: {
+  projectId: string;
+  traceId: string;
+  timestamp?: string;
+}) =>
+  appendProductPathQuery(
+    `${buildProjectPath(params)}/traces/${encodeURIComponent(params.traceId)}`,
+    { timestamp: params.timestamp },
   );
+
+export const buildTracesPath = (params: {
+  projectId: string;
+  isV4Enabled?: boolean;
+  params?: TracesPathParams;
+  query?: ProductPathQuery;
+}) =>
+  appendProductPathQuery(
+    `${buildProjectPath(params)}/traces`,
+    params.params
+      ? {
+          ...getTracesPathQuery(params.params, Boolean(params.isV4Enabled)),
+          ...params.query,
+        }
+      : (params.query ?? {}),
+  );
+
+function getTracesPathQuery(
+  params: TracesPathParams,
+  isV4Enabled: boolean,
+): ProductPathQuery {
+  const filters = params.filters
+    ? getTracesFilterState(params.filters, isV4Enabled)
+    : [];
+  const orderBy = params.orderBy
+    ? normalizeTracesOrderBy(params.orderBy, isV4Enabled)
+    : undefined;
+
+  return {
+    dateRange: params.timeRange
+      ? getDateRangeQueryValue(params.timeRange)
+      : undefined,
+    filter: filters.length > 0 ? encodeFiltersGeneric(filters) : undefined,
+    orderBy: orderBy
+      ? `column-${orderBy.column}_order-${orderBy.order}`
+      : undefined,
+    search: params.search?.query,
+    searchType: params.search?.type,
+  };
+}
+
+function getDateRangeQueryValue(timeRange: TracesPathTimeRange) {
+  if ("preset" in timeRange) {
+    return rangeToString({ range: timeRange.preset });
+  }
+
+  return rangeToString({
+    from: new Date(timeRange.from),
+    to: new Date(timeRange.to),
+  });
+}
+
+function getTracesFilterState(
+  filters: TracesPathFilters,
+  isV4Enabled: boolean,
+): FilterState {
+  const filterState: FilterState = [];
+
+  const addStringOptionsFilter = (
+    column: string,
+    value: string[] | undefined,
+  ) => {
+    if (!value || value.length === 0) {
+      return;
+    }
+
+    filterState.push({
+      column,
+      operator: "any of",
+      type: "stringOptions",
+      value,
+    });
+  };
+
+  const addArrayOptionsFilter = (
+    column: string,
+    value: string[] | undefined,
+  ) => {
+    if (!value || value.length === 0) {
+      return;
+    }
+
+    filterState.push({
+      column,
+      operator: "any of",
+      type: "arrayOptions",
+      value,
+    });
+  };
+
+  addStringOptionsFilter("environment", filters.environment);
+  addStringOptionsFilter("level", filters.level);
+  if (!isV4Enabled) {
+    addStringOptionsFilter("sessionId", filters.sessionId);
+  }
+  addStringOptionsFilter("traceName", filters.traceName);
+  addStringOptionsFilter("userId", filters.userId);
+  addArrayOptionsFilter(isV4Enabled ? "tags" : "traceTags", filters.tags);
+
+  if (!isV4Enabled && filters.bookmarked !== undefined) {
+    filterState.push({
+      column: "bookmarked",
+      operator: "=",
+      type: "boolean",
+      value: filters.bookmarked,
+    });
+  }
+
+  if (filters.traceId) {
+    filterState.push({
+      column: isV4Enabled ? "traceId" : "id",
+      operator: "=",
+      type: "string",
+      value: filters.traceId,
+    });
+  }
+
+  if (filters.version) {
+    if (isV4Enabled) {
+      filterState.push({
+        column: "version",
+        operator: "any of",
+        type: "stringOptions",
+        value: [filters.version],
+      });
+    } else {
+      filterState.push({
+        column: "version",
+        operator: "=",
+        type: "string",
+        value: filters.version,
+      });
+    }
+  }
+
+  for (const metadataFilter of filters.metadata ?? []) {
+    filterState.push({
+      column: "metadata",
+      key: metadataFilter.key,
+      operator: "=",
+      type: "stringObject",
+      value: metadataFilter.value,
+    });
+  }
+
+  return filterState;
+}
+
+function normalizeTracesOrderBy(
+  orderBy: TracesPathOrderBy,
+  isV4Enabled: boolean,
+) {
+  if (orderBy.column === "timestamp" || orderBy.column === "startTime") {
+    return {
+      column: isV4Enabled ? "startTime" : "timestamp",
+      order: orderBy.order,
+    };
+  }
+
+  return orderBy;
+}
+
+export const buildSessionPath = (params: {
+  projectId: string;
+  sessionId: string;
+}) =>
+  `${buildProjectPath(params)}/sessions/${encodeURIComponent(params.sessionId)}`;
+
+export const buildSessionsPath = (params: { projectId: string }) =>
+  `${buildProjectPath(params)}/sessions`;
+
+export const buildTraceUrl = (params: { projectId: string; traceId: string }) =>
+  buildProductUrl(buildTracePath(params));
 
 export const buildObservationUrl = (params: {
   projectId: string;
   traceId: string;
   observationId: string;
 }) =>
-  buildProductUrl(
-    `/project/${encodeURIComponent(params.projectId)}/traces/${encodeURIComponent(params.traceId)}`,
-    { observation: params.observationId },
-  );
+  buildProductUrl(buildTracePath(params), {
+    observation: params.observationId,
+  });
 
 export const buildSessionUrl = (params: {
   projectId: string;
   sessionId: string;
-}) =>
-  buildProductUrl(
-    `/project/${encodeURIComponent(params.projectId)}/sessions/${encodeURIComponent(params.sessionId)}`,
-  );
+}) => buildProductUrl(buildSessionPath(params));
 
 export const buildCommentObjectUrl = (params: {
   projectId: string;
