@@ -14,7 +14,7 @@ interface CustomSSOUser extends Record<string, any> {
 
 export function CustomSSOProvider<P extends CustomSSOUser>(
   options: OAuthUserConfig<P>,
-): OAuthConfig<P> {
+): any {
   return {
     id: "custom",
     name: "CustomSSOProvider",
@@ -31,5 +31,5 @@ export function CustomSSOProvider<P extends CustomSSOUser>(
       };
     },
     options,
-  };
+  } satisfies OAuthConfig<P>;
 }
