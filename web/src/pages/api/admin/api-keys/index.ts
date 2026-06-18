@@ -20,9 +20,14 @@ const InvalidateApiKeySchema = z.object({
   projectIds: z.array(z.string()),
 });
 
+const InvalidateAllApiKeysSchema = z.object({
+  action: z.literal("invalidate-all"),
+});
+
 const ApiKeyAction = z.discriminatedUnion("action", [
   DeleteApiKeySchema,
   InvalidateApiKeySchema,
+  InvalidateAllApiKeysSchema,
 ]);
 
 export default async function handler(
@@ -107,6 +112,17 @@ export default async function handler(
         `Invalidated API keys for projects ${body.data.projectIds.join(", ")}`,
       );
       return res.status(200).json({ message: "API keys invalidated" });
+    } else if (body.data.action === "invalidate-all") {
+      const invalidatedCount = await new ApiAuthService(
+        prisma,
+        redis,
+      ).invalidateAllCachedApiKeys();
+
+      logger.info(`Invalidated all cached API keys (${invalidatedCount})`);
+      return res.status(200).json({
+        message: "All cached API keys invalidated",
+        invalidatedCount,
+      });
     }
 
     // return not implemented error

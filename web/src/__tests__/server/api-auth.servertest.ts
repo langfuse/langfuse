@@ -958,6 +958,52 @@ describe("Authenticate API calls", () => {
       );
       expect(keysForCurrentApiKey.length).toBe(0);
     });
+
+    it("should invalidate all API keys currently in redis", async () => {
+      await setRedisValue(redis, "api-key:existing-key", "cached-api-key");
+      await setRedisValue(
+        redis,
+        "api-key:missing-key",
+        '"api-key-non-existent"',
+      );
+      await setRedisValue(redis, "other-cache:existing-key", "still-cached");
+
+      await new ApiAuthService(prisma, redis).invalidateAllCachedApiKeys();
+
+      expect(await getRedisValue(redis, "api-key:existing-key")).toBeNull();
+      expect(await getRedisValue(redis, "api-key:missing-key")).toBeNull();
+      expect(await getRedisValue(redis, "other-cache:existing-key")).toBe(
+        "still-cached",
+      );
+    });
+
+    it("should invalidate all API keys for a prefixed redis client", async () => {
+      const prefixedRedis = createRedisTestClient({
+        keyPrefix: `test-prefix:${v4()}:`,
+        maxRetriesPerRequest: null,
+      });
+
+      try {
+        await ensureRedisReady(prefixedRedis);
+        await setRedisValue(
+          prefixedRedis,
+          "api-key:prefixed-key",
+          "cached-api-key",
+        );
+
+        await new ApiAuthService(
+          prisma,
+          prefixedRedis,
+        ).invalidateAllCachedApiKeys();
+
+        expect(
+          await getRedisValue(prefixedRedis, "api-key:prefixed-key"),
+        ).toBeNull();
+      } finally {
+        await clearRedisKeysByPatternSafely(prefixedRedis, "api-key:*");
+        prefixedRedis.disconnect();
+      }
+    });
   });
 
   describe("API key format", () => {
