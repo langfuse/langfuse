@@ -58,7 +58,13 @@ export const IconOnlyButton = React.forwardRef<
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className={cn("inline-flex", isDisabled && "cursor-not-allowed")}>
+        <span
+          className={cn("inline-flex", isDisabled && "cursor-not-allowed")}
+          // A disabled button has pointer-events-none, so a click lands on this
+          // span. Stop it so a disabled action in a clickable table row does not
+          // trigger the row's onClick (e.g. opening the peek view).
+          onClick={isDisabled ? (e) => e.stopPropagation() : undefined}
+        >
           <Button
             ref={ref}
             variant={variant}

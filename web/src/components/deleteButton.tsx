@@ -138,7 +138,11 @@ export function DeleteButton({
               onClick={(e) => {
                 e.stopPropagation();
                 captureDeleteOpen(capture, isTableAction);
+                // Opening via controlled state (PopoverAnchor, not
+                // PopoverTrigger) means Radix never echoes onOpenChange, so
+                // notify consumers explicitly.
                 setOpen(true);
+                onPopoverOpenChange?.(true);
               }}
             />
           </span>
@@ -187,7 +191,7 @@ export function DeleteButton({
                 />
               </div>
             )}
-            <div className="flex justify-start space-x-4">
+            <div className="flex justify-end space-x-4">
               <Button
                 type="button"
                 variant="destructive"
