@@ -32,6 +32,7 @@ export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Single Trace",
+      rateLimitResource: "public-api-legacy",
       querySchema: GetTraceV1Query,
       responseSchema: GetTraceV1Response,
       rejectInEventsOnlyMode: true,

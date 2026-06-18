@@ -19,6 +19,28 @@ import { parse, type Diagnostic } from "../lib/langQ";
 import { scoreTypeContextEqual } from "../lib/observed-options";
 import { validateQuery } from "../lib/validate";
 
+/**
+ * True when two query texts are SEMANTICALLY identical — same AST after folding
+ * derived negation — so they differ only in rawKey/alias casing (`env`↔
+ * `environment`), value format (`2.0`↔`2`, `TRUE`↔`true`), the exact operator
+ * (`level:=ERROR`↔`level:ERROR`), folded negation (`-latency:>2`↔`latency:<=2`),
+ * or trailing whitespace. The shared parity check used by BOTH `resetTo` (keep
+ * the user's typed form on a commit echo) and the composer's commit-advance
+ * (decide whether the typed draft can stand, or the canonical must be used so
+ * the resetTo echo still no-ops and the caret stays put). Keeping it in one
+ * place stops those two decisions from drifting.
+ */
+export function draftsSemanticallyEqual(
+  a: string,
+  b: string,
+  scoreTypes?: ScoreTypeContext,
+): boolean {
+  return astEquals(
+    foldDerivedNegation(parse(a).ast, scoreTypes),
+    foldDerivedNegation(parse(b).ast, scoreTypes),
+  );
+}
+
 export type SearchBarStoreState = {
   /** Live editing buffer. */
   draft: string;
@@ -112,13 +134,7 @@ export function createSearchBarStore(
           // Number-normalize numeric (not categorical) score values. It preserves
           // structure/order, so free-text canonicalization is kept.
           const scoreTypes = resolveScoreTypes?.();
-          if (
-            astEquals(
-              foldDerivedNegation(parse(committedText).ast, scoreTypes),
-              foldDerivedNegation(parse(draft).ast, scoreTypes),
-            )
-          )
-            return;
+          if (draftsSemanticallyEqual(committedText, draft, scoreTypes)) return;
           writeDraft(committedText);
         },
         removeChipSpan: (from, to) => {

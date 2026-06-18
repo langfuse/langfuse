@@ -348,7 +348,7 @@ describe("planInputCompletions", () => {
     expect(labels).toContain("*abc*");
   });
 
-  it("does NOT offer scope switches for a negated input/output value", () => {
+  it("offers contains + exact for a negated input/output value, but no scope switches", () => {
     // tokenSpan covers the leading `-`, so a scope rewrite would splice it away
     // and flip `does not contain` → `contains` (the complement). The value
     // stage must suppress the switches when negated (match-op refinements stay).
@@ -359,15 +359,28 @@ describe("planInputCompletions", () => {
       expect(ids, q).not.toContain("scope:output");
       expect(ids, q).not.toContain("scope:input");
       expect(ids, q).not.toContain("scope:default");
-      // Only the contains glob survives negation: starts/ends/exact have no
-      // inverse operator, so offering them would yield drafts the validator
-      // rejects. Contains stays; the other three are gone.
+      // Starts/ends-with have no inverse operator, so they are gone. Contains
+      // stays, and on a textSearch field exact stays too: `-input:=refund`
+      // lowers to a `stringOptions none of` (exact inequality), distinct from
+      // the substring `-input:refund` (does not contain).
       const labels = opts.map((o) => o.label);
-      expect(labels, q).toContain("*refund*");
+      expect(labels, q).toContain("*refund*"); // contains (does not contain)
+      expect(labels, q).toContain("=refund"); // exact (does not equal)
       expect(labels, q).not.toContain("refund*"); // starts with
       expect(labels, q).not.toContain("*refund"); // ends with
-      expect(labels, q).not.toContain("=refund"); // exact
     }
+  });
+
+  it("offers exact on a negated id/name value (none-of), distinct from contains", () => {
+    // id/name are textSearch fields with observed-value pickers. `-name:=foo`
+    // is representable (-> stringOptions none of) and meaningfully different from
+    // the substring `-name:foo` (does not contain), so the value stage offers it.
+    const opts = flattenOptions(plan("-name:foo", "-name:foo".length));
+    const labels = opts.map((o) => o.label);
+    expect(labels).toContain("*foo*"); // contains (does not contain)
+    expect(labels).toContain("=foo"); // exact (does not equal -> none of)
+    expect(labels).not.toContain("foo*"); // starts with — no inverse op
+    expect(labels).not.toContain("*foo"); // ends with — no inverse op
   });
 
   it("offers only contains on a negated exactOption value", () => {

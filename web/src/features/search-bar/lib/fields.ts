@@ -302,9 +302,10 @@ export function negationIssue(
         return `negated equality on "${f.id}" is not representable — use comparisons (${f.id}:<n or ${f.id}:>n)`;
       }
       if (f.kind === "boolean") return null; // inverts the value
-      if (f.kind === "text" && f.syncMode === "textSearch" && op === "exact") {
-        return `negated exact match on "${f.id}" is not representable — use -${f.id}:*value* (does not contain)`;
-      }
+      // Negated exact on a textSearch field (`-name:=abc`) IS representable: it
+      // is exact-inequality, which lowers to a stringOptions `none of` (there is
+      // no `string !=`, but the option-set form covers it — and it is the shape
+      // the facet emits when one value is unchecked). So no negation gap here.
       return null;
     }
   }

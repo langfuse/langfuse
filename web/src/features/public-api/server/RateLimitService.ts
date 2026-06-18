@@ -275,6 +275,12 @@ const getPlanBasedRateLimitConfig = (
             points: 30,
             durationInSec: 60,
           };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 15,
+            durationInSec: 60,
+          };
         case "datasets":
           return {
             resource: "datasets",
@@ -316,7 +322,7 @@ const getPlanBasedRateLimitConfig = (
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
     case "cloud:core":
-      // TEMPORARY: Expanded core plan rate limits to pro limits to enable legacy pro -> core migration
+      // TEMPORARY: Expanded selected core plan rate limits to pro limits to enable legacy pro -> core migration
       // Original core limits (commented out):
       // ingestion: 4000, public-api: 100, datasets: 200, public-api-metrics: 200, public-api-daily-metrics-legacy: 20
       switch (resource) {
@@ -350,6 +356,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "public-api",
             // points: 100, // original core limit
             points: 1000, // temporary: using pro limit
+            durationInSec: 60,
+          };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 30,
             durationInSec: 60,
           };
         case "datasets":
@@ -427,6 +439,12 @@ const getPlanBasedRateLimitConfig = (
           return {
             resource: "public-api",
             points: 1000,
+            durationInSec: 60,
+          };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 100,
             durationInSec: 60,
           };
         case "datasets":

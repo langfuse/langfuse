@@ -97,9 +97,14 @@ const prepare = async () => {
 const createIntegration = async ({
   projectId,
   enabled = true,
+  exportSource,
 }: {
   projectId: string;
   enabled?: boolean;
+  exportSource?:
+    | "TRACES_OBSERVATIONS"
+    | "TRACES_OBSERVATIONS_EVENTS"
+    | "EVENTS";
 }) =>
   prisma.blobStorageIntegration.create({
     data: {
@@ -115,6 +120,7 @@ const createIntegration = async ({
       forcePathStyle: false,
       fileType: "JSONL",
       exportMode: "FULL_HISTORY",
+      ...(exportSource ? { exportSource } : {}),
     },
   });
 
@@ -866,6 +872,130 @@ describe("Blob Storage Integration tRPC Router", () => {
       } finally {
         (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
       }
+    });
+  });
+
+  // LFE-10296: an update that omits exportSource must preserve the persisted
+  // value (parity with the public REST handler) — never rewrite it to the
+  // legacy default — and must be rejected when preserving would keep a stale
+  // enriched source alive on a deployment without the enriched export path.
+  describe("update: omitted exportSource", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+    });
+
+    const { exportSource: _ignored, ...configWithoutExportSource } = baseConfig;
+
+    it("preserves a persisted enriched source when enriched export is available", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("rejects an omitted exportSource over a stale enriched row on rolled-back self-hosted", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...configWithoutExportSource,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("preserves a persisted legacy source on rolled-back self-hosted", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "TRACES_OBSERVATIONS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+
+    it("creates with EVENTS when exportSource is omitted for a post-cutoff Cloud project", async () => {
+      // The legacy gate only checks explicit values, so an omitted
+      // exportSource on CREATE must not fall through to the Prisma column
+      // default (TRACES_OBSERVATIONS) — mirror of the REST handler's
+      // forceEventsOnCreate behavior.
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: POST_CUTOFF },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("still allows an explicit downgrade to a legacy source on rolled-back self-hosted", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+        exportSource: "TRACES_OBSERVATIONS" as const,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
     });
   });
 });

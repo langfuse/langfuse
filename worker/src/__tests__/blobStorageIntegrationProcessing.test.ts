@@ -107,6 +107,61 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     s3Prefix = null;
   });
 
+  // LFE-10296: a persisted enriched export source on a deployment without the
+  // enriched export path (e.g. after a V4-preview rollback) must fail the job
+  // loudly instead of silently exporting from unpopulated tables.
+  describe("enriched export source guard", () => {
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+    });
+
+    it("fails the job and persists lastError when the enriched export path is unavailable", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "EVENTS",
+          // A past lastSyncAt yields a non-empty export window without
+          // requiring ClickHouse data.
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job),
+      ).rejects.toThrow(/enriched/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toMatch(/enriched/i);
+      expect(row.lastErrorAt).not.toBeNull();
+
+      // Nothing was exported.
+      const files = await storageService.listFiles(s3Prefix);
+      expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
+    });
+  });
+
   it("should not process when blob storage integration is disabled", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     s3Prefix = projectId;

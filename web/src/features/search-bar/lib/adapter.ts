@@ -336,13 +336,25 @@ function lowerText(
   }
 
   if (node.op === "exact" && field.syncMode === "textSearch") {
-    // negationIssue blocks the negated case before we get here.
+    // Grouped exact values are an exact-match SET — any-of (positive) /
+    // none-of (negated) via stringOptions (string columns accept it). A single
+    // NEGATED exact (`-name:=abc`) is exact-inequality: its only faithful flat
+    // form is stringOptions none-of, since there is no `string !=`. A single
+    // POSITIVE exact stays the plain `string =`.
     if (node.values.length > 1) {
-      // Multiple exact values are any-of: representable via stringOptions.
       out.push({
         type: "stringOptions",
         column: field.id,
-        operator: "any of",
+        operator: negated ? "none of" : "any of",
+        value: node.values,
+      });
+      return;
+    }
+    if (negated) {
+      out.push({
+        type: "stringOptions",
+        column: field.id,
+        operator: "none of",
         value: node.values,
       });
       return;

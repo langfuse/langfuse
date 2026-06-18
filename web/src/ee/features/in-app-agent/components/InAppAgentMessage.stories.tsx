@@ -313,7 +313,7 @@ export const FeedbackPopoverInteraction = meta.story({
     const commentInput = await body.findByPlaceholderText(
       "Optional feedback comment",
     );
-    await expect(commentInput).toBeVisible();
+    await waitFor(() => expect(commentInput).toBeVisible());
 
     const saveButton = await body.findByRole("button", {
       name: "Save comment",

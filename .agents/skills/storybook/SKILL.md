@@ -33,6 +33,7 @@ Keep the existing component, but update it to use the newly created component fo
 - Avoid custom render functions by default.
 - Use `satisfies` and typed Storybook metadata so invalid args, decorators, and play functions are type-checked.
 - Use play functions to test user-relevant interactions after render, not to compensate for complex setup or hidden dependencies.
+- Prefix stories whose primary purpose is interaction test coverage with `(Test)` in the Storybook display name, for example `name: "(Test) Opens Menu"`.
 - Name stories after the state they represent, not the implementation. Also do not include the component name in the story name.
   - Prefer: `Default`, `Empty`, `WithLongName`, `Error`, `Disabled`, `Loading`
   - Avoid: `Test1`, `CustomRenderExample`, `ButtonWithLongNameAndIcon`

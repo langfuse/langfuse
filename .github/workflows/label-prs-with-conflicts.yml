@@ -20,7 +20,10 @@ jobs:
     steps:
       - name: Check mergeability and update label
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The token should only have the following permissions:
+          # - Issues: read/write
+          # - Pull requests: read-only.
+          GH_TOKEN: ${{ secrets.PR_LABELER_TOKEN }}
           REPO: ${{ github.repository }}
           EVENT_NAME: ${{ github.event_name }}
           LABEL_NAME: has-conflicts
@@ -32,28 +35,62 @@ jobs:
             local pr_number="$1"
             local remove_stale_label="${2:-false}"
 
-            mergeable=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.mergeable')
-            for delay in 3 6 12 24; do
-              if [ "${mergeable}" != "null" ]; then
+            get_mergeable() {
+              local pr_number="$1"
+              local response
+              local mergeable
+
+              if ! response=$(gh api "repos/${REPO}/pulls/${pr_number}" 2>&1); then
+                response="${response//$'\n'/ }"
+                echo "::warning::PR #${pr_number}: failed to fetch mergeability: ${response}" >&2
+                return 1
+              fi
+
+              if ! mergeable=$(jq -r '
+                if .mergeable == false or .mergeable_state == "dirty" then "false"
+                elif .mergeable == true then "true"
+                else "unknown"
+                end
+              ' <<<"${response}" 2>&1); then
+                response="${response//$'\n'/ }"
+                mergeable="${mergeable//$'\n'/ }"
+                echo "::warning::PR #${pr_number}: failed to parse mergeability: ${mergeable}; response: ${response}" >&2
+                return 1
+              fi
+
+              printf '%s\n' "${mergeable}"
+            }
+
+            if ! mergeable=$(get_mergeable "${pr_number}"); then
+              return 1
+            fi
+
+            for delay in 3 6; do
+              if [ "${mergeable}" != "unknown" ]; then
                 break
               fi
 
               sleep "${delay}"
-              mergeable=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.mergeable')
+              if ! mergeable=$(get_mergeable "${pr_number}"); then
+                return 1
+              fi
             done
 
             echo "PR #${pr_number}: mergeable=${mergeable}"
 
-            if [ "${mergeable}" = "null" ]; then
+            if [ "${mergeable}" = "unknown" ]; then
               echo "::warning::PR #${pr_number}: mergeability was not computed after retries"
               return 1
             fi
 
             if [ "${mergeable}" = "false" ]; then
-              gh api \
+              if ! gh api \
                 --method POST \
                 "repos/${REPO}/issues/${pr_number}/labels" \
-                -f "labels[]=${LABEL_NAME}"
+                -f "labels[]=${LABEL_NAME}"; then
+                echo "::warning::PR #${pr_number}: failed to add ${LABEL_NAME} label" >&2
+                return 1
+              fi
             elif [ "${mergeable}" = "true" ] && [ "${remove_stale_label}" = "true" ]; then
               gh api \
                 --method DELETE \

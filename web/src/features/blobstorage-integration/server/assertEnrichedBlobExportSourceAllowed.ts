@@ -1,7 +1,8 @@
 import {
-  AnalyticsIntegrationExportSource,
+  type AnalyticsIntegrationExportSource,
   InvalidRequestError,
   isEnrichedBlobExportAvailable,
+  isEnrichedBlobExportSource,
 } from "@langfuse/shared";
 
 /**
@@ -26,12 +27,7 @@ export function assertEnrichedBlobExportSourceAllowed({
   isV4PreviewEnabled: boolean;
 }): void {
   const effectiveSource = nextInternalExportSource ?? existingExportSource;
-  if (
-    effectiveSource !== AnalyticsIntegrationExportSource.EVENTS &&
-    effectiveSource !==
-      AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS
-  )
-    return;
+  if (!isEnrichedBlobExportSource(effectiveSource)) return;
 
   if (isEnrichedBlobExportAvailable(isCloud, isV4PreviewEnabled)) return;
 

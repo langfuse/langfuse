@@ -5,6 +5,10 @@ interface BaseFacet {
   column: string;
   label: string;
   tooltip?: string;
+  help?: {
+    description: React.ReactNode;
+    href?: string;
+  };
   isDisabled?: boolean;
   disabledReason?: string;
 }
