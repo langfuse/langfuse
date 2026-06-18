@@ -126,10 +126,36 @@ export function summarizeS3Error(err: unknown): S3ErrorSummary {
   };
 }
 
+/**
+ * Error `name`/`Code` values that indicate a signing or request-authorization
+ * canonicalization failure — the class of error this diagnostics module exists
+ * to debug. Used to gate logging so unrelated failures (`NoSuchKey`,
+ * `AccessDenied`, `SlowDown`, network timeouts) don't emit a signing-themed
+ * `warn`. These are also non-retryable client (4xx) errors, so gating on them
+ * avoids one log line per SDK retry attempt.
+ */
+const S3_SIGNING_ERROR_CODES = new Set<string>([
+  "SignatureDoesNotMatch",
+  "InvalidSignatureException",
+  "AuthorizationQueryParametersError",
+  "AuthorizationHeaderMalformed", // region mismatch in the credential scope
+  "RequestTimeTooSkewed", // clock skew, breaks the computed signature
+]);
+
+/**
+ * Whether a summarized error is a signing/authorization failure worth a
+ * signing-themed diagnostic log, as opposed to an unrelated S3 error.
+ */
+export function isS3SigningError(error: S3ErrorSummary): boolean {
+  return (
+    (error.name !== undefined && S3_SIGNING_ERROR_CODES.has(error.name)) ||
+    (error.code !== undefined && S3_SIGNING_ERROR_CODES.has(error.code))
+  );
+}
+
 interface MaybeHttpRequest {
   method?: string;
   hostname?: string;
-  path?: string;
   headers?: Record<string, string>;
 }
 
@@ -137,7 +163,6 @@ export interface S3RequestDiagnostics extends S3SigningDiagnosticsContext {
   request: {
     method?: string;
     hostname?: string;
-    path?: string;
   } & S3SigningHeaderSummary;
   error: S3ErrorSummary;
 }
@@ -146,8 +171,12 @@ export interface S3RequestDiagnostics extends S3SigningDiagnosticsContext {
  * Build the structured payload logged when an S3 request fails. Combines the
  * configured signing context (region, endpoint, path-style) with the framing
  * headers of the request that was actually sent and the structured error,
- * tolerating any non-`HttpRequest` shape without throwing. The query string is
- * intentionally omitted so presigned-URL credentials can never leak.
+ * tolerating any non-`HttpRequest` shape without throwing.
+ *
+ * Deliberately omits the request `path` (the S3 object key, which can embed
+ * tenant/user identifiers) and the query string (which can carry presigned-URL
+ * credentials). `hostname` is kept because it reveals path- vs virtual-hosted
+ * addressing without exposing the key.
  */
 export function buildS3RequestDiagnostics(
   request: unknown,
@@ -161,7 +190,6 @@ export function buildS3RequestDiagnostics(
     request: {
       method: req.method,
       hostname: req.hostname,
-      path: req.path,
       ...summarizeS3SigningHeaders(req.headers),
     },
     error: summarizeS3Error(err),

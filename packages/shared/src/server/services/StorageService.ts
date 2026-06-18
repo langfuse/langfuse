@@ -27,6 +27,7 @@ import { BufferedStreamUploader } from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
 import {
   buildS3RequestDiagnostics,
+  isS3SigningError,
   type S3SigningDiagnosticsContext,
 } from "./s3SigningDiagnostics";
 import * as objectstorage from "oci-objectstorage";
@@ -119,14 +120,19 @@ function createS3RequestHandler(
 }
 
 /**
- * Register a diagnostics middleware on an {@link S3Client} that logs, on any
- * failed request, the framing headers actually sent and the structured error.
+ * Register a diagnostics middleware on an {@link S3Client} that logs the
+ * framing headers actually sent and the structured error when a request fails
+ * with a signing/authorization error (e.g. `SignatureDoesNotMatch`).
  *
  * It runs at the `deserialize` step with `high` priority so it wraps the SDK's
  * own deserializer: by then the request is fully built and signed (so the
  * framing headers are final), and the SDK has turned an error response into a
  * thrown `S3ServiceException` (so we see the typed error, not a raw response).
- * Diagnostics are best-effort and never alter or mask the original failure.
+ *
+ * Logging is gated to signing-related error codes so unrelated failures
+ * (`NoSuchKey`, `AccessDenied`, throttling, timeouts) don't emit a misleading
+ * signing-themed log or one line per SDK retry. Diagnostics are best-effort and
+ * never alter or mask the original failure.
  */
 function addS3SigningDiagnosticsMiddleware(
   client: S3Client,
@@ -141,10 +147,17 @@ function addS3SigningDiagnosticsMiddleware(
         return await next(args);
       } catch (err) {
         try {
-          logger.warn(
-            "S3 request failed; emitting signing diagnostics (helps debug SignatureDoesNotMatch / non-AWS S3-compatible interop)",
-            buildS3RequestDiagnostics(args.request, err, context),
+          const diagnostics = buildS3RequestDiagnostics(
+            args.request,
+            err,
+            context,
           );
+          if (isS3SigningError(diagnostics.error)) {
+            logger.warn(
+              "S3 request failed with a signing/authorization error; emitting diagnostics (helps debug SignatureDoesNotMatch on non-AWS S3-compatible backends such as GCS interop)",
+              diagnostics,
+            );
+          }
         } catch {
           // Never let diagnostics logging mask the original failure.
         }

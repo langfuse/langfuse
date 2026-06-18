@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildS3RequestDiagnostics,
   classifyContentSha256Mode,
+  isS3SigningError,
   summarizeS3Error,
   summarizeS3SigningHeaders,
 } from "./s3SigningDiagnostics";
@@ -123,7 +124,7 @@ describe("buildS3RequestDiagnostics", () => {
     const request = {
       method: "PUT",
       hostname: "storage.googleapis.com",
-      path: "/ct-langfuse-test/langfuse-validation-test.txt",
+      path: "/ct-langfuse-test/org-123/user-456/secret-key.txt",
       headers: {
         "content-encoding": "aws-chunked",
         "x-amz-content-sha256": "STREAMING-UNSIGNED-PAYLOAD-TRAILER",
@@ -142,10 +143,17 @@ describe("buildS3RequestDiagnostics", () => {
     expect(diagnostics.region).toBe("europe-west1");
     expect(diagnostics.forcePathStyle).toBe(true);
     expect(diagnostics.request.method).toBe("PUT");
+    expect(diagnostics.request.hostname).toBe("storage.googleapis.com");
     expect(diagnostics.request.usesAwsChunkedEncoding).toBe(true);
     expect(diagnostics.request.hasChecksumTrailer).toBe(true);
     expect(diagnostics.error.name).toBe("SignatureDoesNotMatch");
-    expect(JSON.stringify(diagnostics)).not.toContain("AWS4-HMAC-SHA256");
+
+    const serialized = JSON.stringify(diagnostics);
+    // Never surface credentials or the object key (may embed tenant/user ids).
+    expect(serialized).not.toContain("AWS4-HMAC-SHA256");
+    expect(serialized).not.toContain("org-123");
+    expect(serialized).not.toContain("user-456");
+    expect(serialized).not.toContain("secret-key.txt");
   });
 
   it("tolerates a non-HttpRequest value without throwing", () => {
@@ -153,5 +161,33 @@ describe("buildS3RequestDiagnostics", () => {
     expect(diagnostics.request.method).toBeUndefined();
     expect(diagnostics.request.contentSha256Mode).toBe("absent");
     expect(diagnostics.error.message).toBe("boom");
+  });
+});
+
+describe("isS3SigningError", () => {
+  it("matches signing/authorization error codes by name or Code", () => {
+    for (const code of [
+      "SignatureDoesNotMatch",
+      "InvalidSignatureException",
+      "AuthorizationQueryParametersError",
+      "AuthorizationHeaderMalformed",
+      "RequestTimeTooSkewed",
+    ]) {
+      expect(isS3SigningError({ name: code })).toBe(true);
+      expect(isS3SigningError({ code })).toBe(true);
+    }
+  });
+
+  it("does not match unrelated S3 errors (so they are not logged)", () => {
+    expect(isS3SigningError({ name: "NoSuchKey", code: "NoSuchKey" })).toBe(
+      false,
+    );
+    expect(
+      isS3SigningError({ name: "AccessDenied", code: "AccessDenied" }),
+    ).toBe(false);
+    expect(isS3SigningError({ name: "SlowDown", code: "SlowDown" })).toBe(
+      false,
+    );
+    expect(isS3SigningError({})).toBe(false);
   });
 });
