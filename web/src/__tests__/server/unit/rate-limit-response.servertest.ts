@@ -74,7 +74,6 @@ describe("sendRateLimitResponse", () => {
       "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
     docsUrl:
       "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
-    notes: ["Group returned rows by traceId to reconstruct trace activity."],
   };
   const rateLimitResult = {
     points: 10,

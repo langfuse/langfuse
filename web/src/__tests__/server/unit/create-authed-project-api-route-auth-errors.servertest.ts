@@ -115,7 +115,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       legacyEndpoint: string;
       replacementEndpoint: string;
       docsUrl: string;
-      notes?: string[];
     };
   }) {
     const handler = createAuthedProjectAPIRoute({
@@ -217,7 +216,6 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
         "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
       docsUrl:
         "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
-      notes: ["Group returned rows by traceId to reconstruct trace activity."],
     };
 
     mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
