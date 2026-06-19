@@ -82,7 +82,7 @@ function SelectionHeaderCheckbox<TData>({
           }
         }}
         aria-label="Select all"
-        className="opacity-60"
+        translucent
       />
     </div>
   );
@@ -185,7 +185,7 @@ function SelectionRowCheckbox<TData>({
           if (!value) setSelectAll(false);
         }}
         aria-label="Select row"
-        className="opacity-60"
+        translucent
       />
     </div>
   );

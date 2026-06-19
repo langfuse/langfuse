@@ -364,7 +364,7 @@ export function DatasetRunsTable(props: {
                 }
               }}
               aria-label="Select all"
-              className="opacity-60"
+              translucent
             />
           </div>
         );
@@ -375,7 +375,7 @@ export function DatasetRunsTable(props: {
             checked={row.getIsSelected()}
             onCheckedChange={(value) => row.toggleSelected(!!value)}
             aria-label="Select row"
-            className="opacity-60"
+            translucent
           />
         );
       },
