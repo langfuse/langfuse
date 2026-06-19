@@ -328,6 +328,10 @@ const processBlobStorageExport = async (config: {
         projectId: config.projectId,
       });
 
+      // Declared outside the try so the catch can tell a real upload success
+      // (followed by a later throw) from an actual export failure. See below.
+      let uploadSucceeded = false;
+
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
@@ -443,6 +447,16 @@ const processBlobStorageExport = async (config: {
             data: fileStream,
             partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
           });
+          // Record success the instant the upload resolves, so the terminal
+          // counter reflects the upload outcome rather than whatever happens in
+          // the span-attribute `finally` below. A throwing setAttribute would
+          // otherwise propagate to the outer catch and miscount a real success.
+          uploadSucceeded = true;
+          recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+            outcome: "success" satisfies BlobTableExportOutcome,
+            table: config.table,
+            projectId: config.projectId,
+          });
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
@@ -467,18 +481,17 @@ const processBlobStorageExport = async (config: {
             span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
           }
         }
-
-        recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
-          outcome: "success" satisfies BlobTableExportOutcome,
-          table: config.table,
-          projectId: config.projectId,
-        });
       } catch (error) {
-        recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
-          outcome: "failure" satisfies BlobTableExportOutcome,
-          table: config.table,
-          projectId: config.projectId,
-        });
+        // Guard against double-counting: if the upload already succeeded and a
+        // later step threw, the `success` increment has fired — don't also emit
+        // `failure`.
+        if (!uploadSucceeded) {
+          recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+            outcome: "failure" satisfies BlobTableExportOutcome,
+            table: config.table,
+            projectId: config.projectId,
+          });
+        }
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
             `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID})`,
