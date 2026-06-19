@@ -35,7 +35,7 @@ The audit job is the only job that invokes the LLM agent.
 - For freeform numeric inputs, validate with a regex and numeric range before using the value.
 - For string inputs that become CLI args, validate against an allowlist regex or choice set.
 - Do not interpolate unchecked manual inputs into shell commands, JSON, branch names, file paths, or LLM CLI arguments.
-- Dry-run inputs should be choices such as `off`, `no_changes`, and `mock_allowlisted_diff`. Dry runs must skip the LLM action and must not publish a PR.
+- Dry-run inputs should use YAML-safe choice values such as `disabled`, `no_changes`, and `mock_allowlisted_diff`. Avoid boolean-like YAML tokens such as `off`, `on`, `yes`, `no`, `true`, and `false`; GitHub may parse or render them as booleans. Dry runs must skip the LLM action and must not publish a PR.
 
 ## Agent Prompt Template
 
@@ -174,7 +174,7 @@ Do not use self-improvement for:
 
 Use dry-run mode to debug the workflow machinery around an agent without invoking the model:
 
-- Add a `workflow_dispatch` choice input with `off` as the default.
+- Add a `workflow_dispatch` choice input with a YAML-safe disabled value as the default.
 - Validate the input before using it.
 - Guard the LLM action with `if: <dry-run-mode> == 'off'`.
 - Add a mock step for dry runs that writes the same structured output shape as the LLM action.
