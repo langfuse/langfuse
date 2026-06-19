@@ -1615,9 +1615,11 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         await downloadDir(s3Prefix, "observations_v2"),
       );
 
-      // Sanity: the standard path enriches with price columns.
+      // Sanity: the standard path enriches with price columns. Events export
+      // is keyed by span_id (not the seeded event id), so grab the single row.
+      const standardEventRow = [...standardEvents.values()][0];
       expect(standardObs.get(observationId)).toHaveProperty("input_price");
-      expect(standardEvents.get(eventId)).toHaveProperty("total_price");
+      expect(standardEventRow).toHaveProperty("total_price");
 
       // 2) Reset and re-run with rawPassthrough enabled.
       const filesToClear = await s3StorageService.listFiles(s3Prefix);
@@ -1640,10 +1642,11 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       );
 
       // Passthrough drops the price columns…
+      const passthroughEventRow = [...passthroughEvents.values()][0];
       expect(passthroughObs.get(observationId)).not.toHaveProperty(
         "input_price",
       );
-      expect(passthroughEvents.get(eventId)).not.toHaveProperty("total_price");
+      expect(passthroughEventRow).not.toHaveProperty("total_price");
 
       // …and is otherwise parsed-equal to the standard output.
       expect(passthroughObs.size).toBe(standardObs.size);
@@ -1711,8 +1714,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(eventFile).toBeDefined();
       const content = await s3StorageService.download(eventFile!.file);
       // CSV header row present → standard (CSV) path ran, not JSONL passthrough.
+      // (Events export keys by span_id, so assert on the seeded event name.)
       expect(content.split("\n")[0]).toContain("id");
-      expect(content).toContain(eventId);
+      expect(content).toContain("CSV Fallback Event");
     }, 30_000);
   });
 });
