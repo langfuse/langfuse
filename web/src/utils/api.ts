@@ -313,10 +313,14 @@ const requestTooLargeDiagnosticsLink = (): TRPCLink<AppRouter> => () => {
               const approxUrlBytes =
                 `${getBaseUrl()}/api/trpc/${op.path}?input=`.length +
                 encodedInput.length;
+              // Keep the format string constant (no interpolation) and pass the
+              // dynamic values as a structured argument — they remain visible and
+              // expandable in the console without risking format-string injection.
               console.error(
-                `[tRPC] "${op.path}" failed with HTTP ${status}: GET request too large ` +
-                  `(~${approxUrlBytes} bytes of URL, plus cookies/headers). Large query ` +
-                  `inputs should be sent as POST — see POST_QUERY_PATHS in src/utils/api.ts.`,
+                "[tRPC] a query sent as GET failed because the request URL was " +
+                  "too large (HTTP 414/431). Large query inputs should be sent as " +
+                  "POST — add { ...sendAsPostOption } to the query's options (see " +
+                  "sendAsPostOption in src/utils/api.ts).",
                 { path: op.path, status, approxUrlBytes },
               );
             } catch {
