@@ -59,6 +59,7 @@ import {
   deleteDatasetItem,
   createManyDatasetItems,
   linkDatasetItemMedia,
+  validateDatasetItemMediaReferences,
   markDatasetMediaUploadComplete,
   validateAllDatasetItems,
   DatasetJSONSchema,
@@ -1291,6 +1292,11 @@ export const datasetRouter = createTRPCRouter({
           expectedOutput: item.expectedOutput,
           metadata: item.metadata,
         }));
+
+        await validateDatasetItemMediaReferences({
+          projectId: input.projectId,
+          items: mediaItems,
+        });
 
         await executeWithDatasetServiceStrategy(OperationType.WRITE, {
           [Implementation.STATEFUL]: async () => {

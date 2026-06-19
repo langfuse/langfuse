@@ -529,4 +529,28 @@ describe("Dataset item media tRPC procedures", () => {
       }),
     ]);
   });
+
+  it("fails to duplicate when a copied item references missing media", async () => {
+    const media = await createMediaRow();
+    const dataset = await prisma.dataset.create({
+      data: { id: v4(), name: v4(), projectId },
+    });
+    const sourceItem = await createDatasetItem({
+      projectId,
+      datasetId: dataset.id,
+      input: { image: media.referenceString },
+    });
+    if (!sourceItem.success) throw new Error(sourceItem.message);
+
+    // Media is deleted after the item was created (e.g. retention); the item
+    // JSON still carries the reference string. dataset_item_media has no FK to
+    // media, so the duplicate must validate and fail rather than orphan-link.
+    await prisma.media.delete({
+      where: { projectId_id: { projectId, id: media.mediaId } },
+    });
+
+    await expect(
+      caller.datasets.duplicateDataset({ projectId, datasetId: dataset.id }),
+    ).rejects.toThrow(/unknown media/);
+  });
 });
