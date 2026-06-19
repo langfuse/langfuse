@@ -1,7 +1,5 @@
-import { hostname } from "os";
 import { logger } from "@langfuse/shared/src/server";
-
-const HOST_NAME = hostname();
+import { WORKER_HOST_ID } from "../../utils/hostId";
 
 export type InFlightBlobExport = {
   jobId: string | undefined;
@@ -40,7 +38,7 @@ export const resetInFlightBlobExports = (): void => {
 export const logInFlightBlobExportsOnShutdown = (): void => {
   if (inFlightExports.size === 0) {
     logger.info(
-      `[BLOB INTEGRATION] No blob storage exports in-flight at shutdown on host ${HOST_NAME}`,
+      `[BLOB INTEGRATION] No blob storage exports in-flight at shutdown on host ${WORKER_HOST_ID}`,
     );
     return;
   }
@@ -50,7 +48,7 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
     // "in-flight at shutdown", not "aborted": worker.close() drains gracefully,
     // so this export may still complete within the grace period.
     logger.warn(
-      `[BLOB INTEGRATION] Blob storage export in-flight at shutdown signal on host ${HOST_NAME}: ` +
+      `[BLOB INTEGRATION] Blob storage export in-flight at shutdown signal on host ${WORKER_HOST_ID}: ` +
         `jobId=${entry.jobId} projectId=${entry.projectId} table=${entry.table} ` +
         `window=[${entry.minTimestamp}, ${entry.maxTimestamp}] ` +
         `elapsedMs=${now - entry.startedAt}`,

@@ -1,4 +1,3 @@
-import { hostname } from "os";
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
   convertQueueNameToMetricName,
@@ -12,12 +11,11 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import { WORKER_HOST_ID } from "../utils/hostId";
 import {
   resolveQueueInstance,
   SHARDED_QUEUE_BASE_NAMES,
 } from "./shardedQueueRegistry";
-
-const HOST_NAME = hostname();
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -189,7 +187,7 @@ export class WorkerManager {
       // detectedOnHost: the stall-checker pod, which may differ from the pod
       // whose lock expired.
       logger.warn(
-        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${HOST_NAME}`,
+        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${WORKER_HOST_ID}`,
       );
       recordIncrement(oldMetric + ".stalled");
       recordIncrement(baseMetric + ".rate", 1, {
