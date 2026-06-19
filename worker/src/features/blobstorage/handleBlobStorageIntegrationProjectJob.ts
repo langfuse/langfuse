@@ -1,4 +1,4 @@
-import { pipeline, Transform } from "stream";
+import { pipeline, Transform, type Readable } from "stream";
 import { createGzip } from "zlib";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
@@ -11,9 +11,11 @@ import {
   StorageServiceFactory,
   streamTransformations,
   getObservationsForBlobStorageExport,
+  getObservationsForBlobStorageExportRaw,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
+  getEventsForBlobStorageExportRaw,
   getCurrentSpan,
   instrumentAsync,
   recordGauge,
@@ -27,6 +29,10 @@ import {
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
   validateBlobStorageEndpoint,
+  pollQueryStatus,
+  getQueryError,
+  getQueryResultRows,
+  sleep,
 } from "@langfuse/shared/src/server";
 import {
   registerInFlightBlobExport,
@@ -43,6 +49,7 @@ import {
   type ObservationFieldGroupFull,
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
+  resolveBlobExportTuning,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
@@ -239,6 +246,88 @@ async function* countedStream<T>(
   }
 }
 
+// Raw passthrough skips per-row parsing, so a ClickHouse query that fails after
+// a 200 + partial body would otherwise be uploaded as a silently truncated
+// file. After the stream drains and the upload completes, confirm the query
+// finished cleanly via system.query_log. query_log flushes asynchronously
+// (~7.5s default), so poll with bounded backoff. A non-completed status throws,
+// which fails the job: lastSyncAt is not advanced and the deterministic
+// filename is overwritten on the next successful run. Returns result_rows.
+const PASSTHROUGH_QUERY_LOG_POLL_ATTEMPTS = 12;
+const PASSTHROUGH_QUERY_LOG_POLL_DELAY_MS = 2_500; // ~30s total budget
+// Lower bound passed to the system.query_log lookups so they can partition-prune
+// instead of scanning every retained partition. query_log is partitioned by
+// month (toYYYYMM(event_date)), so a generous buffer is effectively free — it
+// only ever widens the scan to the current and (near a month boundary) previous
+// partition. Sized to comfortably absorb worker/ClickHouse clock skew. Times are
+// UTC end-to-end (convertDateToClickhouseDateTime emits UTC; CH runs UTC), so no
+// timezone conversion is involved.
+const PASSTHROUGH_QUERY_LOG_SKEW_BUFFER_MS = 24 * 60 * 60 * 1000; // 24h
+
+const verifyRawPassthroughCompletion = async (
+  queryId: string,
+  table: string,
+  startedAt: Date,
+): Promise<number | undefined> => {
+  const tags = { feature: "blobstorage", table };
+  const since = new Date(
+    startedAt.getTime() - PASSTHROUGH_QUERY_LOG_SKEW_BUFFER_MS,
+  );
+  let status = await pollQueryStatus(queryId, tags, since);
+  for (
+    let attempt = 0;
+    attempt < PASSTHROUGH_QUERY_LOG_POLL_ATTEMPTS &&
+    status !== "completed" &&
+    status !== "failed";
+    attempt++
+  ) {
+    await sleep(PASSTHROUGH_QUERY_LOG_POLL_DELAY_MS);
+    status = await pollQueryStatus(queryId, tags, since);
+  }
+
+  if (status !== "completed") {
+    const chError =
+      status === "failed" ? await getQueryError(queryId, since) : undefined;
+    throw new Error(
+      `Raw passthrough export query did not complete cleanly ` +
+        `(query_id=${queryId} status=${status})` +
+        (chError ? `: ${chError}` : ""),
+    );
+  }
+
+  // The upload is already verified clean (QueryFinish) at this point, so a
+  // failed row-count read must not invalidate it — treat the count as unknown.
+  try {
+    return await getQueryResultRows(queryId, since);
+  } catch (rowsError) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to read result_rows for verified passthrough query ${queryId}`,
+      rowsError,
+    );
+    return undefined;
+  }
+};
+
+// Best-effort removal of an already-committed passthrough object whose source
+// query did not verify as successful. A delete failure must not mask the
+// original verification error, so it is logged and swallowed.
+const deletePotentiallyCorruptExport = async (
+  storageService: StorageService,
+  filePath: string,
+): Promise<void> => {
+  try {
+    await storageService.deleteFiles([filePath]);
+    logger.warn(
+      `[BLOB INTEGRATION] Deleted unverified passthrough export object ${filePath}`,
+    );
+  } catch (deleteError) {
+    logger.error(
+      `[BLOB INTEGRATION] Failed to delete unverified passthrough export object ${filePath}`,
+      deleteError,
+    );
+  }
+};
+
 const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
@@ -256,6 +345,7 @@ const processBlobStorageExport = async (config: {
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
+  rawPassthrough: boolean;
   bullmqJobId: string | undefined;
   bullmqAttemptsMade: number;
 }) => {
@@ -350,57 +440,23 @@ const processBlobStorageExport = async (config: {
             ? config.exportFieldGroups
             : [...OBSERVATION_FIELD_GROUPS_FULL];
 
-        let rawStream: AsyncGenerator<Record<string, unknown>>;
+        // Raw passthrough (LFE-10402) is opt-in per project and only valid for
+        // JSONL output of the enriched-observation tables — the only formats
+        // where ClickHouse FORMAT JSONEachRow bytes map 1:1 to the file. Any
+        // other request falls back to the standard path. The integration-level
+        // ineligibility warning is emitted once by the dispatcher; here we just
+        // select the path per table (scores/traces always use the standard path,
+        // so per-table fallback is expected and not worth a warning).
+        const passthroughEligible =
+          config.rawPassthrough &&
+          config.fileType === BlobStorageIntegrationFileType.JSONL &&
+          (config.table === "observations" ||
+            config.table === "observations_v2");
 
-        switch (config.table) {
-          case "traces":
-            rawStream = getTracesForBlobStorageExport(
-              config.projectId,
-              config.minTimestamp,
-              config.maxTimestamp,
-            );
-            break;
-          case "observations":
-            rawStream = enrichObservationStream(
-              getObservationsForBlobStorageExport(
-                config.projectId,
-                config.minTimestamp,
-                config.maxTimestamp,
-                exportFieldGroups,
-              ),
-              config.projectId,
-              "model_id",
-              false, // v3 query already returns latency in seconds
-              exportFieldGroups,
-            );
-            break;
-          case "scores":
-            rawStream = getScoresForBlobStorageExport(
-              config.projectId,
-              config.minTimestamp,
-              config.maxTimestamp,
-            );
-            break;
-          case "observations_v2": // observations_v2 is the events table
-            rawStream = enrichObservationStream(
-              getEventsForBlobStorageExport(
-                config.projectId,
-                config.minTimestamp,
-                config.maxTimestamp,
-                exportFieldGroups,
-              ),
-              config.projectId,
-              "model_id",
-              config.convertV4LatencyToSeconds,
-              exportFieldGroups,
-            );
-            break;
-          default:
-            throw new Error(`Unsupported table type: ${config.table}`);
-        }
-
-        const sourceStats = { rows: 0, sourceWaitMs: 0 };
-        const dataStream = countedStream(rawStream, sourceStats);
+        span.setAttribute(
+          "blob.path",
+          passthroughEligible ? "passthrough" : "standard",
+        );
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
@@ -413,23 +469,118 @@ const processBlobStorageExport = async (config: {
 
         const serializedCounter = new ByteCounter();
         const compressedCounter = config.compressed ? new ByteCounter() : null;
-        const formatTransform = streamTransformations[config.fileType]();
 
-        const fileStream = compressedCounter
-          ? pipeline(
-              dataStream,
-              formatTransform,
-              serializedCounter,
-              createGzip(),
-              compressedCounter,
-              pipelineCallback,
-            )
-          : pipeline(
-              dataStream,
-              formatTransform,
-              serializedCounter,
-              pipelineCallback,
-            );
+        // Row count source: the standard path tallies rows in JS (countedStream);
+        // the passthrough path reads result_rows from query_log after upload.
+        const sourceStats = { rows: 0, sourceWaitMs: 0 };
+        let passthroughRows: number | undefined;
+        let passthroughQueryId: string | undefined;
+        // Captured just before the query is issued, so the post-hoc query_log
+        // lookups can partition-prune on event_date instead of full scans.
+        let passthroughQueryStartedAt: Date | undefined;
+
+        let fileStream: Readable;
+
+        if (passthroughEligible) {
+          // Stream ClickHouse JSONEachRow bytes straight through: no row parse,
+          // no enrichment, no re-serialization. Shaping (latency→s, dropped
+          // price columns, field-group selection) is already baked into the SQL.
+          passthroughQueryStartedAt = new Date();
+          const { stream, queryId } =
+            config.table === "observations"
+              ? await getObservationsForBlobStorageExportRaw(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                )
+              : await getEventsForBlobStorageExportRaw(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                  config.convertV4LatencyToSeconds,
+                );
+          passthroughQueryId = queryId;
+
+          fileStream = compressedCounter
+            ? pipeline(
+                stream,
+                serializedCounter,
+                createGzip(),
+                compressedCounter,
+                pipelineCallback,
+              )
+            : pipeline(stream, serializedCounter, pipelineCallback);
+        } else {
+          let rawStream: AsyncGenerator<Record<string, unknown>>;
+
+          switch (config.table) {
+            case "traces":
+              rawStream = getTracesForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+              );
+              break;
+            case "observations":
+              rawStream = enrichObservationStream(
+                getObservationsForBlobStorageExport(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                ),
+                config.projectId,
+                "model_id",
+                false, // v3 query already returns latency in seconds
+                exportFieldGroups,
+              );
+              break;
+            case "scores":
+              rawStream = getScoresForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+              );
+              break;
+            case "observations_v2": // observations_v2 is the events table
+              rawStream = enrichObservationStream(
+                getEventsForBlobStorageExport(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                ),
+                config.projectId,
+                "model_id",
+                config.convertV4LatencyToSeconds,
+                exportFieldGroups,
+              );
+              break;
+            default:
+              throw new Error(`Unsupported table type: ${config.table}`);
+          }
+
+          const dataStream = countedStream(rawStream, sourceStats);
+          const formatTransform = streamTransformations[config.fileType]();
+
+          fileStream = compressedCounter
+            ? pipeline(
+                dataStream,
+                formatTransform,
+                serializedCounter,
+                createGzip(),
+                compressedCounter,
+                pipelineCallback,
+              )
+            : pipeline(
+                dataStream,
+                formatTransform,
+                serializedCounter,
+                pipelineCallback,
+              );
+        }
 
         // Upload the file to cloud storage
         // For CSV exports, use larger part size to handle big files
@@ -454,18 +605,57 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
           });
 
+          // Passthrough skips parse-time exception detection, so confirm the
+          // ClickHouse query finished cleanly (and read its row count) before
+          // treating the uploaded object as valid. The object is already
+          // committed at this point, so if verification fails (query errored, or
+          // query_log is unreadable) delete it: the deterministic filename is
+          // only overwritten on retry in catch-up mode, not when caught up, so
+          // a corrupt object could otherwise linger as an orphan.
+          if (passthroughEligible && passthroughQueryId) {
+            try {
+              passthroughRows = await verifyRawPassthroughCompletion(
+                passthroughQueryId,
+                config.table,
+                passthroughQueryStartedAt ?? new Date(),
+              );
+            } catch (verifyError) {
+              await deletePotentiallyCorruptExport(storageService, filePath);
+              throw verifyError;
+            }
+          }
+
+          // On passthrough the count comes from query_log; "unknown" (count not
+          // yet flushed) is distinct from a genuinely empty export.
+          const rows = passthroughEligible
+            ? (passthroughRows ?? "unknown")
+            : sourceStats.rows;
+
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
               `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
-              `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
+              `path=${passthroughEligible ? "passthrough" : "standard"} ` +
+              `rows=${rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
               `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
           );
         } finally {
-          span.setAttribute("blob.rows", sourceStats.rows);
-          span.setAttribute(
-            "blob.sourceWaitMs",
-            Math.round(sourceStats.sourceWaitMs),
-          );
+          // Omit blob.rows on the passthrough path when the count is unknown
+          // (query_log not yet flushed, or verification failed) so observability
+          // can tell "unknown" apart from a genuinely empty export.
+          if (passthroughEligible) {
+            if (passthroughRows !== undefined) {
+              span.setAttribute("blob.rows", passthroughRows);
+            }
+          } else {
+            span.setAttribute("blob.rows", sourceStats.rows);
+          }
+          // sourceWaitMs is a per-row JS metric; not meaningful for passthrough.
+          if (!passthroughEligible) {
+            span.setAttribute(
+              "blob.sourceWaitMs",
+              Math.round(sourceStats.sourceWaitMs),
+            );
+          }
           span.setAttribute("blob.serializedBytes", serializedCounter.bytes);
           if (uploadStartMs !== undefined) {
             span.setAttribute(
@@ -637,6 +827,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
     const convertV4LatencyToSeconds =
       blobStorageIntegration.createdAt >= new Date("2026-04-01T00:00:00Z");
 
+    // Per-project export tuning (set via DB directly; no UI/tRPC write path).
+    // Malformed/absent column resolves to defaults — never throws.
+    const { resolved: exportTuning, warnings: exportTuningWarnings } =
+      resolveBlobExportTuning(blobStorageIntegration.exportTuning);
+    for (const warning of exportTuningWarnings) {
+      logger.warn(
+        `[BLOB INTEGRATION] exportTuning for project ${projectId}: ${warning}`,
+      );
+    }
+
     const executionConfig = {
       projectId,
       minTimestamp,
@@ -656,6 +856,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       convertV4LatencyToSeconds,
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
+      rawPassthrough: exportTuning.rawPassthrough,
       bullmqJobId: job.id,
       bullmqAttemptsMade: job.attemptsMade,
     };
@@ -665,6 +866,25 @@ export const handleBlobStorageIntegrationProjectJob = async (
       env.LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS.includes(
         projectId,
       );
+
+    // Warn once per run if rawPassthrough is enabled but no table will actually
+    // use it. Passthrough only applies to JSONL exports of observations /
+    // observations_v2; every non-trace-only export source includes one of those,
+    // so the only integration-level ineligibility is a non-JSONL file type or a
+    // trace-only project. The per-table fallback for scores/traces is expected
+    // dispatch and is intentionally not warned about (avoids ~hourly log noise).
+    if (
+      exportTuning.rawPassthrough &&
+      (blobStorageIntegration.fileType !==
+        BlobStorageIntegrationFileType.JSONL ||
+        isTraceOnlyProject)
+    ) {
+      logger.warn(
+        `[BLOB INTEGRATION] rawPassthrough enabled for project ${projectId} but no eligible table will use it ` +
+          `(fileType=${blobStorageIntegration.fileType}, traceOnly=${isTraceOnlyProject}); exporting via the standard path. ` +
+          `Passthrough requires JSONL output of observations or observations_v2.`,
+      );
+    }
 
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
