@@ -70,10 +70,10 @@ model User {
   dashboardUpdated          Dashboard[]                 @relation("UpdatedByUser")
   tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
-  observationIoParserConfigsCreated         ObservationIoParserConfig[]          @relation("ObservationIoParserConfigCreatedByUser")
-  observationIoParserConfigsUpdated         ObservationIoParserConfig[]          @relation("ObservationIoParserConfigUpdatedByUser")
-  observationIoParserProjectSettingsUpdated ObservationIoParserProjectSettings[] @relation("ObservationIoParserProjectSettingsUpdatedByUser")
-  observationIoParserUserPreferences        ObservationIoParserUserPreference[]
+  observationIoParserConfigsCreated         ObservationIoParserConfig[]       @relation("ObservationIoParserConfigCreatedByUser")
+  observationIoParserConfigsUpdated         ObservationIoParserConfig[]       @relation("ObservationIoParserConfigUpdatedByUser")
+  observationIoParserPreferences            ObservationIoParserPreference[]   @relation("ObservationIoParserPreferenceUser")
+  observationIoParserPreferencesUpdated     ObservationIoParserPreference[]   @relation("ObservationIoParserPreferenceUpdatedByUser")
   monitorsCreated           Monitor[]                   @relation("CreatedByUser")
   monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
@@ -164,9 +164,8 @@ model Project {
   Dashboard                 Dashboard[]
   DashboardWidget           DashboardWidget[]
   TableViewPreset           TableViewPreset[]
-  ObservationIoParserConfig          ObservationIoParserConfig[]
-  ObservationIoParserProjectSettings ObservationIoParserProjectSettings?
-  ObservationIoParserUserPreference  ObservationIoParserUserPreference[]
+  ObservationIoParserConfig     ObservationIoParserConfig[]
+  ObservationIoParserPreference ObservationIoParserPreference[]
   actions                   Action[]
   triggers                  Trigger[]
   automationExecutions      AutomationExecution[]
@@ -1592,7 +1591,7 @@ model ObservationIoParserConfig {
   filters      Json
   instructions Json
 
-  selectedByUserPreferences ObservationIoParserUserPreference[] @relation("ObservationIoParserSelectedConfig")
+  selectedByPreferences ObservationIoParserPreference[] @relation("ObservationIoParserSelectedConfig")
 
   createdBy     String? @map("created_by")
   createdByUser User?   @relation("ObservationIoParserConfigCreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
@@ -1604,29 +1603,14 @@ model ObservationIoParserConfig {
   @@map("observation_io_parser_configs")
 }
 
-model ObservationIoParserProjectSettings {
-  projectId String  @id @map("project_id")
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-
-  enabled Boolean @default(false)
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
-
-  updatedBy     String? @map("updated_by")
-  updatedByUser User?   @relation("ObservationIoParserProjectSettingsUpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
-
-  @@map("observation_io_parser_project_settings")
-}
-
-model ObservationIoParserUserPreference {
+model ObservationIoParserPreference {
   id String @id @default(cuid())
 
   projectId String  @map("project_id")
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  userId String @map("user_id")
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String? @map("user_id")
+  user   User?   @relation("ObservationIoParserPreferenceUser", fields: [userId], references: [id], onDelete: Cascade)
 
   enabled Boolean @default(true)
 
@@ -1636,9 +1620,15 @@ model ObservationIoParserUserPreference {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([projectId, userId])
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("ObservationIoParserPreferenceUpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  // Uniqueness enforced via partial indexes in migration:
+  // - User preferences: UNIQUE(project_id, user_id) WHERE user_id IS NOT NULL
+  // - Project preference: UNIQUE(project_id) WHERE user_id IS NULL
+  @@index([projectId])
   @@index([selectedConfigId])
-  @@map("observation_io_parser_user_preferences")
+  @@map("observation_io_parser_preferences")
 }
 
 model Action {
