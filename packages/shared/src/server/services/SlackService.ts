@@ -241,28 +241,34 @@ export class SlackService {
             } else {
               // Marketplace flow: no project yet (the Direct Install URL must
               // 302 straight to OAuth). Hold the install as a pending row until
-              // the onboarding flow links it to a project. There is no team_id
-              // uniqueness, so emulate latest-wins by clearing prior pending
-              // rows for this workspace before inserting the new one.
+              // the onboarding flow links it to a project.
+              //
               // Latest-wins: drop any prior pending install for this workspace
               // (projectId: null guards linked rows), then store the fresh one.
-              await prisma.$transaction([
-                prisma.slackIntegration.deleteMany({
-                  where: { teamId, projectId: null },
-                }),
-                prisma.slackIntegration.create({
-                  data: {
-                    projectId: null,
-                    teamId,
-                    teamName,
-                    botToken: encrypt(botToken),
-                    botUserId,
-                    expiresAt: new Date(
-                      Date.now() + SLACK_PENDING_INSTALL_TTL_MS,
-                    ),
-                  },
-                }),
-              ]);
+              // Serializable so two concurrent installs of the SAME workspace
+              // can't both pass the delete (each seeing no rows) and then both
+              // insert, leaving duplicate pending rows; under contention one
+              // transaction is aborted and the install can be retried.
+              await prisma.$transaction(
+                async (tx) => {
+                  await tx.slackIntegration.deleteMany({
+                    where: { teamId, projectId: null },
+                  });
+                  await tx.slackIntegration.create({
+                    data: {
+                      projectId: null,
+                      teamId,
+                      teamName,
+                      botToken: encrypt(botToken),
+                      botUserId,
+                      expiresAt: new Date(
+                        Date.now() + SLACK_PENDING_INSTALL_TTL_MS,
+                      ),
+                    },
+                  });
+                },
+                { isolationLevel: "Serializable" },
+              );
 
               // Opportunistically purge other workspaces' expired pending rows
               // so abandoned installs can't accumulate (no dedicated cron; reads
