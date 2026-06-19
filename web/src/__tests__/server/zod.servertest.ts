@@ -1,4 +1,8 @@
-import { paginationZod, parseJsonPrioritised } from "@langfuse/shared";
+import {
+  isJsonNumberLiteral,
+  paginationZod,
+  parseJsonPrioritised,
+} from "@langfuse/shared";
 import { ZodError } from "zod";
 
 // Create test cases
@@ -55,4 +59,13 @@ describe("parseJsonPrioritised", () => {
       expect(parseJsonPrioritised(input)).toEqual(expectedOutput);
     },
   );
+});
+
+describe("isJsonNumberLiteral", () => {
+  it("validates complete JSON number literals", () => {
+    expect(isJsonNumberLiteral("107505301260286111")).toBe(true);
+    expect(isJsonNumberLiteral("-1.23e+4")).toBe(true);
+    expect(isJsonNumberLiteral("plain107505301260286111")).toBe(false);
+    expect(isJsonNumberLiteral("01")).toBe(false);
+  });
 });

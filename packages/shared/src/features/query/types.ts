@@ -120,11 +120,10 @@ export const metricAggregations = z.enum([
   "uniq",
 ]);
 
-/**
- * Returns the subset of aggregations that are valid for a given measure type.
- * Whitelists known numeric types; unknown or missing types default to the
- * restrictive count/uniq set to surface missing type annotations early.
- */
+/** MeasureDefinition is a single `measures` entry on a ViewDeclaration. */
+export type MeasureDefinition = ViewDeclarationType["measures"][string];
+
+/** getValidAggregationsForMeasureType returns the aggregations valid for a measure type: every aggregation for numeric types, or `count`/`uniq` otherwise. */
 export function getValidAggregationsForMeasureType(
   measureType: string | undefined,
 ): z.infer<typeof metricAggregations>[] {
@@ -143,6 +142,7 @@ export const metric = z.object({
   aggregation: metricAggregations,
 });
 
+/** granularities is the superset of time-bucket tokens: the 6 base options plus the 10 Monitor window increments. */
 export const granularities = z.enum([
   "auto",
   "minute",
@@ -150,6 +150,16 @@ export const granularities = z.enum([
   "day",
   "week",
   "month",
+  "5m",
+  "10m",
+  "15m",
+  "30m",
+  "1h",
+  "2h",
+  "4h",
+  "1d",
+  "2d",
+  "1w",
 ]);
 
 export type QueryType = z.infer<typeof query>;

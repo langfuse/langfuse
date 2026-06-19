@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { isValidThresholdOrder } from "./isValidThresholdOrder";
 
 describe("isValidThresholdOrder", () => {
-  it.each(["gt", "gte"] as const)(
+  it.each(["GT", "GTE"] as const)(
     "%s requires warningThreshold < alertThreshold",
     (op) => {
       expect(
@@ -12,25 +12,25 @@ describe("isValidThresholdOrder", () => {
           alertThreshold: 100,
           warningThreshold: 50,
         }),
-      ).toBe(true);
-      expect(
-        isValidThresholdOrder({
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 100, // equal → invalid
-        }),
-      ).toBe(false);
-      expect(
-        isValidThresholdOrder({
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 200, // warning > alert → invalid for gt
-        }),
-      ).toBe(false);
+      ).toEqual({ valid: true });
+      const equal = isValidThresholdOrder({
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 100,
+      });
+      expect(equal.valid).toBe(false);
+      if (!equal.valid) expect(equal.reason).toContain(">");
+      const higher = isValidThresholdOrder({
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 200,
+      });
+      expect(higher.valid).toBe(false);
+      if (!higher.valid) expect(higher.reason).toContain(">");
     },
   );
 
-  it.each(["lt", "lte"] as const)(
+  it.each(["LT", "LTE"] as const)(
     "%s requires warningThreshold > alertThreshold",
     (op) => {
       expect(
@@ -39,25 +39,25 @@ describe("isValidThresholdOrder", () => {
           alertThreshold: 100,
           warningThreshold: 200,
         }),
-      ).toBe(true);
-      expect(
-        isValidThresholdOrder({
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 100,
-        }),
-      ).toBe(false);
-      expect(
-        isValidThresholdOrder({
-          thresholdOperator: op,
-          alertThreshold: 100,
-          warningThreshold: 50,
-        }),
-      ).toBe(false);
+      ).toEqual({ valid: true });
+      const equal = isValidThresholdOrder({
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 100,
+      });
+      expect(equal.valid).toBe(false);
+      if (!equal.valid) expect(equal.reason).toContain("<");
+      const lower = isValidThresholdOrder({
+        thresholdOperator: op,
+        alertThreshold: 100,
+        warningThreshold: 50,
+      });
+      expect(lower.valid).toBe(false);
+      if (!lower.valid) expect(lower.reason).toContain("<");
     },
   );
 
-  it.each(["eq", "neq"] as const)("%s passes regardless of ordering", (op) => {
+  it.each(["EQ", "NEQ"] as const)("%s passes regardless of ordering", (op) => {
     for (const warning of [50, 100, 200]) {
       expect(
         isValidThresholdOrder({
@@ -65,11 +65,11 @@ describe("isValidThresholdOrder", () => {
           alertThreshold: 100,
           warningThreshold: warning,
         }),
-      ).toBe(true);
+      ).toEqual({ valid: true });
     }
   });
 
-  it.each(["gt", "gte", "lt", "lte", "eq", "neq"] as const)(
+  it.each(["GT", "GTE", "LT", "LTE", "EQ", "NEQ"] as const)(
     "%s passes when warningThreshold is null",
     (op) => {
       expect(
@@ -78,7 +78,7 @@ describe("isValidThresholdOrder", () => {
           alertThreshold: 100,
           warningThreshold: null,
         }),
-      ).toBe(true);
+      ).toEqual({ valid: true });
     },
   );
 });

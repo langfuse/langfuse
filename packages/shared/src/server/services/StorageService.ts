@@ -25,6 +25,11 @@ import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
 import { BufferedStreamUploader } from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
+import {
+  buildS3RequestDiagnostics,
+  isS3SigningError,
+  type S3SigningDiagnosticsContext,
+} from "./s3SigningDiagnostics";
 import * as objectstorage from "oci-objectstorage";
 import * as common from "oci-common";
 import { UploadManager as OciUploadManager } from "oci-objectstorage";
@@ -112,6 +117,69 @@ function createS3RequestHandler(
     httpAgent,
     httpsAgent,
   });
+}
+
+/**
+ * Register a diagnostics middleware on an {@link S3Client} that logs the
+ * framing headers actually sent and the structured error when a request fails
+ * with a signing/authorization error (e.g. `SignatureDoesNotMatch`).
+ *
+ * It runs at the `deserialize` step with `high` priority so it wraps the SDK's
+ * own deserializer: by then the request is fully built and signed (so the
+ * framing headers are final), and the SDK has turned an error response into a
+ * thrown `S3ServiceException` (so we see the typed error, not a raw response).
+ *
+ * Logging is gated to signing-related error codes so unrelated failures
+ * (`NoSuchKey`, `AccessDenied`, throttling, timeouts) don't emit a misleading
+ * signing-themed log or one line per SDK retry. Diagnostics are best-effort and
+ * never alter or mask the original failure.
+ */
+function addS3SigningDiagnosticsMiddleware(
+  client: S3Client,
+  context: S3SigningDiagnosticsContext,
+): void {
+  type S3MiddlewareArgs = { request?: unknown };
+  type S3MiddlewareNext = (args: S3MiddlewareArgs) => Promise<unknown>;
+
+  const diagnosticsMiddleware =
+    (next: S3MiddlewareNext) => async (args: S3MiddlewareArgs) => {
+      try {
+        return await next(args);
+      } catch (err) {
+        try {
+          const diagnostics = buildS3RequestDiagnostics(
+            args.request,
+            err,
+            context,
+          );
+          if (isS3SigningError(diagnostics.error)) {
+            logger.warn(
+              "S3 request failed with a signing/authorization error; emitting diagnostics (helps debug SignatureDoesNotMatch on non-AWS S3-compatible backends such as GCS interop)",
+              diagnostics,
+            );
+          }
+        } catch {
+          // Never let diagnostics logging mask the original failure.
+        }
+        throw err;
+      }
+    };
+
+  client.middlewareStack.add(
+    // Bridge the structural middleware to the SDK's middleware union without
+    // taking a direct dependency on @smithy/types. The handler reads only
+    // `request`, so the unused `input` field of the SDK's arg type is elided.
+    diagnosticsMiddleware as unknown as Parameters<
+      typeof client.middlewareStack.add
+    >[0],
+    {
+      step: "deserialize",
+      priority: "high",
+      name: "langfuseS3SigningDiagnostics",
+      tags: ["LANGFUSE", "DIAGNOSTICS"],
+      override: true,
+    },
+  );
 }
 
 function createAzureBlobPipeline(
@@ -595,6 +663,16 @@ class S3StorageService implements StorageService {
       requestHandler,
     });
 
+    // Log signing/framing diagnostics for any failed S3 request on the upload
+    // client. Surfaces checksum/`aws-chunked` framing that non-AWS backends
+    // (e.g. GCS) reject with SignatureDoesNotMatch despite valid credentials.
+    addS3SigningDiagnosticsMiddleware(this.client, {
+      bucketName: params.bucketName,
+      endpoint: params.endpoint,
+      region: params.region,
+      forcePathStyle: params.forcePathStyle,
+    });
+
     // Create a separate client for generating presigned URLs
     // If an external endpoint is provided, use it for the URL client
     // Otherwise, use the same client for both operations
@@ -875,11 +953,13 @@ class GoogleCloudStorageService implements StorageService {
         if (params.googleCloudCredentials.trim().startsWith("{")) {
           // It's a JSON string
           this.storage = new Storage({
+            universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
             credentials: JSON.parse(params.googleCloudCredentials),
           });
         } else {
           // It's a path to a credentials file
           this.storage = new Storage({
+            universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
             keyFilename: params.googleCloudCredentials,
           });
         }
@@ -889,7 +969,9 @@ class GoogleCloudStorageService implements StorageService {
       }
     } else {
       // Use default authentication (environment variables or instance metadata)
-      this.storage = new Storage();
+      this.storage = new Storage({
+        universeDomain: env.GOOGLE_CLOUD_UNIVERSE_DOMAIN,
+      });
     }
 
     this.bucket = this.storage.bucket(params.bucketName);

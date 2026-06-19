@@ -2,6 +2,7 @@ import { LangfuseNotFoundError } from "@langfuse/shared";
 import { z } from "zod";
 import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
+import { buildObservationUrl } from "@/src/utils/product-url";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import {
   ExpandMetadataKeysSchema,
@@ -71,7 +72,7 @@ export const [getObservationTool, handleGetObservation] = defineTool({
           );
         }
 
-        return projectObservation(
+        const projectedObservation = projectObservation(
           {
             ...observation,
             parentObservationId:
@@ -81,6 +82,19 @@ export const [getObservationTool, handleGetObservation] = defineTool({
           },
           projectionFields,
         );
+
+        return {
+          ...projectedObservation,
+          ...(observation.traceId
+            ? {
+                url: buildObservationUrl({
+                  projectId: context.projectId,
+                  traceId: observation.traceId,
+                  observationId: observation.id,
+                }),
+              }
+            : {}),
+        };
       },
     });
   },

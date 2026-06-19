@@ -33,6 +33,7 @@ export type AuditableResource =
   | "blobStorageIntegration"
   | "posthogIntegration"
   | "mixpanelIntegration"
+  | "webCalloutEndpoint"
   | "llmApiKey"
   | "llmTool"
   | "llmSchema"

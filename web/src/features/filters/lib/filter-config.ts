@@ -5,6 +5,10 @@ interface BaseFacet {
   column: string;
   label: string;
   tooltip?: string;
+  help?: {
+    description: React.ReactNode;
+    href?: string;
+  };
   isDisabled?: boolean;
   disabledReason?: string;
 }
@@ -13,6 +17,8 @@ interface CategoricalFacet extends BaseFacet {
   type: "categorical";
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
+  /** When true, the sidebar hides the contains/does-not-contain text filter mode for this facet. */
+  disableTextFilter?: boolean;
 }
 
 interface BooleanFacet extends BaseFacet {

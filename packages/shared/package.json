@@ -54,6 +54,14 @@
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
       "require": "./dist/src/features/query/server/index.js"
+    },
+    "./monitors": {
+      "import": "./dist/src/features/monitors/index.js",
+      "require": "./dist/src/features/monitors/index.js"
+    },
+    "./monitors/server": {
+      "import": "./dist/src/features/monitors/server.js",
+      "require": "./dist/src/features/monitors/server.js"
     }
   },
   "scripts": {
@@ -79,7 +87,8 @@
     "ch:dev-tables": "bash clickhouse/scripts/dev-tables.sh",
     "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
     "ch:seed": "dotenv -e ../../.env -- ts-node -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' scripts/seeder/seed-clickhouse.ts",
-    "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts"
+    "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts",
+    "seed:scenario": "dotenv -e ../../.env -- tsx scripts/seeder/cli.ts"
   },
   "prisma": {
     "seed": "ts-node -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} scripts/seeder/seed-postgres.ts"
@@ -130,6 +139,7 @@
     "oci-common": "^2.125.0",
     "oci-objectstorage": "^2.125.0",
     "safe-regex2": "^5.0.0",
+    "slackify-markdown": "^5.0.0",
     "undici": "^7.24.6",
     "uuid": "^14.0.0",
     "winston": "^3.15.0",
@@ -149,7 +159,7 @@
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

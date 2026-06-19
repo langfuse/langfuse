@@ -1,12 +1,25 @@
 import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
+// Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
+// idSchema cap). Lower to 255 for MinIO on ext4. Affects only new writes —
+// existing objects are read by recorded path, not reconstructed.
+// Shared with worker/src/env.ts to keep validation rules identical.
+export const langfuseS3EventKeyMaxSegmentBytesSchema = z.coerce
+  .number()
+  .int()
+  .min(64)
+  .max(2048)
+  .default(2048);
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
   // export cutoff for local testing (e.g. "2020-01-01T00:00:00.000Z" makes
   // every project post-cutoff; "2099-01-01T00:00:00.000Z" grandfathers all).
   NEXT_PUBLIC_LANGFUSE_BLOB_EXPORT_CUTOFF: z.iso.datetime().optional(),
+  // Same, for the integration-level cutoff (BlobStorageIntegration.createdAt).
+  NEXT_PUBLIC_LANGFUSE_BLOB_EXPORTER_CUTOFF: z.iso.datetime().optional(),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),
@@ -106,12 +119,12 @@ const EnvSchema = z.object({
   CLICKHOUSE_UPDATE_PARALLEL_MODE: z
     .enum(["sync", "async", "auto"])
     .default("auto"),
-  // Workaround for a 25.12 bug where lightweight updates/deletes interact
-  // incorrectly with lazy materialization. Remove after ClickHouse 26.4, or
-  // earlier if the fix is backported.
+  // Workaround for ClickHouse analyzer/lazy materialization bugs. In "auto",
+  // Langfuse detects the ClickHouse version on startup and applies known
+  // compatibility settings for affected version bands.
   CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: z
-    .enum(["true", "false"])
-    .default("false"),
+    .enum(["auto", "true", "false"])
+    .default("auto"),
   CLICKHOUSE_MAX_BYTES_BEFORE_EXTERNAL_GROUP_BY: z.coerce
     .number()
     .default(32_000_000_000), // ~32GB
@@ -227,6 +240,8 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_EVENT_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
+    langfuseS3EventKeyMaxSegmentBytesSchema,
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -244,6 +259,7 @@ const EnvSchema = z.object({
     .default("true"),
   LANGFUSE_USE_GOOGLE_CLOUD_STORAGE: z.enum(["true", "false"]).default("false"),
   LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS: z.string().optional(),
+  GOOGLE_CLOUD_UNIVERSE_DOMAIN: z.string().default("googleapis.com"),
   LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE: z
     .enum(["true", "false"])
     .default("false"),
@@ -438,6 +454,21 @@ const EnvSchema = z.object({
   LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
     .enum(["true", "false"])
     .default("false"),
+  // Temporary kill-switch for the observations v2 subquery-IN rewrite
+  // (JOIN-free alternative to the CTE+JOIN split query).
+  LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
+    .enum(["true", "false"])
+    .default("false"),
+  // Run the subquery-IN rewrite as a shadow query alongside the CTE+JOIN
+  // path and emit comparison metrics. Remove after validation.
+  LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
+    .number()
+    .min(0)
+    .max(1)
+    .default(0.01),
   // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
   // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
   LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
@@ -457,6 +488,11 @@ const EnvSchema = z.object({
   LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION: z
     .enum(["true", "false"])
     .default("true"),
+
+  // API ClickHouse query options
+  LANGFUSE_API_CLICKHOUSE_PROPAGATE_OBSERVATIONS_TIME_BOUNDS: z
+    .enum(["true", "false"])
+    .default("false"),
 
   // EE License
   LANGFUSE_EE_LICENSE_KEY: z.string().optional(),

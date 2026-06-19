@@ -60,6 +60,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      # Probe quickly during startup; without this the first probe only fires
+      # after `interval`, although the container is ready within seconds.
+      start_period: 60s
+      start_interval: 2s
 
   langfuse-worker:
     build:
@@ -78,6 +82,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      # See langfuse-web healthcheck: probe quickly during startup.
+      start_period: 60s
+      start_interval: 2s
 
   clickhouse:
     image: docker.io/clickhouse/clickhouse-server

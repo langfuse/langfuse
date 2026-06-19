@@ -36,18 +36,16 @@ import { Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
 import { ScrollArea } from "@/src/components/ui/scroll-area";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
+import {
+  isValidDatasetJson,
+  parseDatasetJson,
+} from "../utils/parseDatasetJson";
 
 const formSchema = z.object({
   datasetIds: z.array(z.string()).min(1, "Select at least one dataset"),
   input: z.string().refine(
     (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch {
-        return false;
-      }
+      return isValidDatasetJson(value);
     },
     {
       message:
@@ -56,13 +54,7 @@ const formSchema = z.object({
   ),
   expectedOutput: z.string().refine(
     (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch {
-        return false;
-      }
+      return isValidDatasetJson(value);
     },
     {
       message:
@@ -71,13 +63,7 @@ const formSchema = z.object({
   ),
   metadata: z.string().refine(
     (value) => {
-      if (value === "") return true;
-      try {
-        JSON.parse(value);
-        return true;
-      } catch {
-        return false;
-      }
+      return isValidDatasetJson(value);
     },
     {
       message:
@@ -92,7 +78,7 @@ const formatJsonValue = (value: Prisma.JsonValue | undefined): string => {
   if (typeof value === "string") {
     try {
       // Parse the string and re-stringify with proper formatting
-      const parsed = JSON.parse(value);
+      const parsed = parseDatasetJson(value);
       return JSON.stringify(parsed, null, 2);
     } catch {
       // If it's not valid JSON, stringify the string itself

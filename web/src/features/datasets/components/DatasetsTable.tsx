@@ -1,21 +1,12 @@
 import { DataTable } from "@/src/components/table/data-table";
 import TableLink from "@/src/components/table/table-link";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { Button } from "@/src/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
 import { DatasetActionButton } from "@/src/features/datasets/components/DatasetActionButton";
 import { DatasetSchemaHoverCard } from "@/src/features/datasets/components/DatasetSchemaHoverCard";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/context";
 import { api } from "@/src/utils/api";
 import { withDefault, useQueryParam, StringParam } from "use-query-params";
 import { type RouterOutput } from "@/src/utils/types";
-import { MoreVertical } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import useColumnVisibility from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
@@ -144,7 +135,7 @@ export function DatasetsTable(props: { projectId: string }) {
 
         return (
           <TableLink
-            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}`}
+            path={`/project/${props.projectId}/datasets/${encodeURIComponent(key.id)}/items`}
             value={key.name}
           />
         );
@@ -261,42 +252,32 @@ export function DatasetsTable(props: { projectId: string }) {
         }
 
         return (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
-                <span className="sr-only">Open menu</span>
-                <MoreVertical className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="flex flex-col *:w-full *:justify-start"
-            >
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <DatasetActionButton
-                  mode="update"
-                  projectId={props.projectId}
-                  datasetId={key.id}
-                  datasetName={row.original.folderPath}
-                  datasetDescription={row.getValue("description") ?? undefined}
-                  datasetMetadata={row.getValue("metadata") ?? undefined}
-                  datasetInputSchema={row.original.inputSchema ?? undefined}
-                  datasetExpectedOutputSchema={
-                    row.original.expectedOutputSchema ?? undefined
-                  }
-                />
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <DatasetActionButton
-                  mode="delete"
-                  projectId={props.projectId}
-                  datasetId={key.id}
-                  datasetName={row.original.folderPath}
-                />
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-1">
+            <DatasetActionButton
+              mode="update"
+              projectId={props.projectId}
+              datasetId={key.id}
+              datasetName={row.original.folderPath}
+              datasetDescription={row.getValue("description") ?? undefined}
+              datasetMetadata={row.getValue("metadata") ?? undefined}
+              datasetInputSchema={row.original.inputSchema ?? undefined}
+              datasetExpectedOutputSchema={
+                row.original.expectedOutputSchema ?? undefined
+              }
+              icon
+              variant="ghost"
+              size="icon-xs"
+            />
+            <DatasetActionButton
+              mode="delete"
+              projectId={props.projectId}
+              datasetId={key.id}
+              datasetName={row.original.folderPath}
+              icon
+              variant="ghost"
+              size="icon-xs"
+            />
+          </div>
         );
       },
     },

@@ -5,12 +5,15 @@ import {
 } from "@/src/features/public-api/types/sessions";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Sessions",
+    rateLimitResource: "public-api-legacy",
     querySchema: GetSessionsV1Query,
     responseSchema: GetSessionsV1Response,
+    rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.sessionsList,
     rejectInEventsOnlyMode: true,
     fn: async ({ query, auth }) => {
       const { fromTimestamp, toTimestamp, limit, page, environment } = query;

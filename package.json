@@ -1,6 +1,6 @@
 {
   "name": "langfuse",
-  "version": "3.178.0",
+  "version": "3.192.2",
   "author": "engineering@langfuse.com",
   "license": "MIT",
   "private": true,
@@ -20,6 +20,7 @@
     "db:seed": "turbo run db:seed",
     "db:seed:examples": "turbo run db:seed:examples",
     "nuke": "bash ./scripts/nuke.sh",
+    "seed": "pnpm --filter=shared run seed:scenario",
     "dx": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx-f": "pnpm i && pnpm run infra:dev:prune && pnpm run infra:dev:up --pull always && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset -f && SKIP_CONFIRM=1 pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
     "dx:skip-infra": "pnpm i && pnpm --filter=shared run db:reset:test && pnpm --filter=shared run db:reset && pnpm --filter=shared run ch:reset && pnpm --filter=shared run db:seed:examples && pnpm run dev",
@@ -36,6 +37,7 @@
     "format": "prettier --write \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "format:check": "prettier --check \"**/*.{js,jsx,ts,tsx,css}\" --experimental-cli",
     "playwright:install": "pnpm --filter web exec playwright install chromium",
+    "storybook": "pnpm --filter web run storybook",
     "test": "turbo run test",
     "release": "dotenv -e ../.env -- release-it",
     "release:cloud": "bash ./scripts/release-cloud.sh",
@@ -48,7 +50,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.8.3",
     "release-it": "^19.2.4",
-    "turbo": "2.9.14"
+    "turbo": "2.9.18"
   },
   "release-it": {
     "git": {

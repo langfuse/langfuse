@@ -19,14 +19,6 @@ import {
   isCodeEvalSourceCodeLanguageSupported,
 } from "@/src/features/evals/server/isCodeEvalEnabled";
 
-export const CODE_EVAL_TEMPLATE_VARIABLES = [
-  "input",
-  "output",
-  "metadata",
-  "experimentItemExpectedOutput",
-  "experimentItemMetadata",
-] as const;
-
 const CreateEvalTemplateBaseInputSchema = z.object({
   name: z.string().min(1),
   projectId: z.string(),
