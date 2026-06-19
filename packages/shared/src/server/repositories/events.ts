@@ -146,6 +146,14 @@ const applyBatchIOStringRendering = (
     | null;
 };
 
+const getEventsTableStartTimeRangeWithBuffer = (opts: {
+  minStartTime: Date;
+  maxStartTime: Date;
+}) => ({
+  minTimestamp: new Date(opts.minStartTime.getTime() - 1000),
+  maxTimestamp: new Date(opts.maxStartTime.getTime() + 1000),
+});
+
 type ObservationsTableQueryResultWitouhtTraceFields = Omit<
   ObservationsTableQueryResult,
   "trace_tags" | "trace_name" | "trace_user_id"
@@ -748,7 +756,7 @@ export const getObservationByIdFromEventsTable = async ({
       `Multiple observations found for id ${id} and project ${projectId}`,
     );
   }
-  return mapped.shift();
+  return mapped[0]!;
 };
 
 /**
@@ -3266,8 +3274,12 @@ export const getObservationsBatchIOFromEventsTable = async <
   const traceIds = [...new Set(opts.observations.map((o) => o.traceId))];
 
   // Use provided timestamp range with buffer for efficient filtering
-  const minTimestamp = new Date(opts.minStartTime.getTime() - 1000); // -1 second buffer
-  const maxTimestamp = new Date(opts.maxStartTime.getTime() + 1000); // +1 second buffer
+  const { minTimestamp, maxTimestamp } = getEventsTableStartTimeRangeWithBuffer(
+    {
+      minStartTime: opts.minStartTime,
+      maxStartTime: opts.maxStartTime,
+    },
+  );
 
   // Use events_core for truncated reads (lightweight), events_full for full I/O
   const tableName = truncated ? "events_core" : "events_full";

@@ -9,7 +9,7 @@ import {
   type ColumnDefinition,
   type OrderByState,
   type TableViewPresetState,
-  type TableViewPresetTableName,
+  TableViewPresetTableName,
   type TracingSearchType,
 } from "@langfuse/shared";
 import {
@@ -57,6 +57,7 @@ import {
   hasFullTextSearchType,
   searchModeToType,
 } from "@/src/components/table/utils/searchUtils";
+import { ObservationIoParserDrawer } from "@/src/features/observation-io-parsers/components/ObservationIoParserDrawer";
 
 export interface MultiSelect {
   selectAll: boolean;
@@ -252,6 +253,14 @@ export function DataTableToolbar<TData, TValue>({
             systemFilterPresets={viewConfig.systemFilterPresets}
           />
         )}
+        {!!viewConfig &&
+          viewConfig.tableName ===
+            TableViewPresetTableName.ObservationsEvents && (
+            <ObservationIoParserDrawer
+              projectId={viewConfig.projectId}
+              currentFilters={filterState ?? []}
+            />
+          )}
         {searchConfig && (
           <div className="flex max-w-120 shrink-0 items-stretch md:min-w-96">
             <div

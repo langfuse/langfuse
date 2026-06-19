@@ -277,6 +277,7 @@ export function IOPreview({
           projectId={projectId}
           traceId={traceId}
           environment={environment}
+          showCorrections={showCorrections}
         />
       ) : (
         <IOPreviewPretty

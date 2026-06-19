@@ -119,6 +119,7 @@ export const eventsObservationRecordReadSchema =
     tags: z.array(z.string()).optional(),
     bookmarked: z.boolean().optional(),
     public: z.boolean().optional(),
+    event_bytes: z.number().optional(),
   });
 export type EventsObservationRecordReadType = z.infer<
   typeof eventsObservationRecordReadSchema

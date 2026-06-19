@@ -31,7 +31,10 @@ import {
   MAX_OBSERVATIONS_PER_TRACE,
   applyCommentFilters,
   getLatestSdkVersionInfoFromEvents,
+  ObservationIoParserResolutionService,
+  ParsedObservationIoInput,
 } from "@langfuse/shared/src/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 import {
   AgentGraphDataSchema,
@@ -195,6 +198,32 @@ export const eventsRouter = createTRPCRouter({
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
+        },
+      );
+    }),
+  parsedObservationIO: protectedProjectProcedure
+    .input(ParsedObservationIoInput)
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "observationIoParsers:read",
+      });
+
+      return instrumentAsync(
+        { name: "get-parsed-observation-io-trpc" },
+        async (span) => {
+          span.setAttribute("project_id", ctx.session.projectId);
+          span.setAttribute("observation_id", input.observation.id);
+
+          return ObservationIoParserResolutionService.resolveParsedObservationIo(
+            {
+              ...input,
+              projectId: ctx.session.projectId,
+              userId: ctx.session.user?.id,
+              v4BetaEnabled: ctx.session.user?.v4BetaEnabled === true,
+            },
+          );
         },
       );
     }),

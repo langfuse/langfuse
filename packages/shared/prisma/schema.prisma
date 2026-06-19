@@ -70,6 +70,10 @@ model User {
   dashboardUpdated          Dashboard[]                 @relation("UpdatedByUser")
   tableViewPresetCreated    TableViewPreset[]           @relation("CreatedByUser")
   tableViewPresetUpdated    TableViewPreset[]           @relation("UpdatedByUser")
+  observationIoParserConfigsCreated         ObservationIoParserConfig[]          @relation("ObservationIoParserConfigCreatedByUser")
+  observationIoParserConfigsUpdated         ObservationIoParserConfig[]          @relation("ObservationIoParserConfigUpdatedByUser")
+  observationIoParserProjectSettingsUpdated ObservationIoParserProjectSettings[] @relation("ObservationIoParserProjectSettingsUpdatedByUser")
+  observationIoParserUserPreferences        ObservationIoParserUserPreference[]
   monitorsCreated           Monitor[]                   @relation("CreatedByUser")
   monitorsUpdated           Monitor[]                   @relation("UpdatedByUser")
   annotationQueueAssignment AnnotationQueueAssignment[]
@@ -160,6 +164,9 @@ model Project {
   Dashboard                 Dashboard[]
   DashboardWidget           DashboardWidget[]
   TableViewPreset           TableViewPreset[]
+  ObservationIoParserConfig          ObservationIoParserConfig[]
+  ObservationIoParserProjectSettings ObservationIoParserProjectSettings?
+  ObservationIoParserUserPreference  ObservationIoParserUserPreference[]
   actions                   Action[]
   triggers                  Trigger[]
   automationExecutions      AutomationExecution[]
@@ -1567,6 +1574,71 @@ model DefaultView {
   // - Project defaults: UNIQUE(project_id, view_name) WHERE user_id IS NULL
   @@index([projectId, viewName])
   @@map("default_views")
+}
+
+model ObservationIoParserConfig {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String?
+  enabled     Boolean @default(true)
+  priority    Int     @default(0)
+
+  filters      Json
+  instructions Json
+
+  selectedByUserPreferences ObservationIoParserUserPreference[] @relation("ObservationIoParserSelectedConfig")
+
+  createdBy     String? @map("created_by")
+  createdByUser User?   @relation("ObservationIoParserConfigCreatedByUser", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("ObservationIoParserConfigUpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, name])
+  @@index([projectId, enabled, priority])
+  @@map("observation_io_parser_configs")
+}
+
+model ObservationIoParserProjectSettings {
+  projectId String  @id @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  enabled Boolean @default(false)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  updatedBy     String? @map("updated_by")
+  updatedByUser User?   @relation("ObservationIoParserProjectSettingsUpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@map("observation_io_parser_project_settings")
+}
+
+model ObservationIoParserUserPreference {
+  id String @id @default(cuid())
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  userId String @map("user_id")
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  enabled Boolean @default(true)
+
+  selectedConfigId String?                    @map("selected_config_id")
+  selectedConfig   ObservationIoParserConfig? @relation("ObservationIoParserSelectedConfig", fields: [selectedConfigId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([projectId, userId])
+  @@index([selectedConfigId])
+  @@map("observation_io_parser_user_preferences")
 }
 
 model Action {

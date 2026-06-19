@@ -6,8 +6,7 @@ export type UsePrefetchObservationParams = {
 };
 
 /**
- * Hook to prefetch observation data on hover.
- * Matches the old trace component's prefetch behavior with 5-minute staleTime.
+ * Hook to prefetch observation detail data on hover.
  */
 export function usePrefetchObservation({
   projectId,
@@ -21,15 +20,15 @@ export function usePrefetchObservation({
     startTime?: Date,
   ) => {
     if (isBetaEnabled) {
-      // Beta ON: prefetch from events table via batchIO
+      // Beta ON: prefetch the parsed-on-read resolver, not full raw IO.
+      // Raw IO remains lazy and is fetched only for fallback/full JSON paths.
       if (!startTime) return;
-      utils.events.batchIO.prefetch(
+      utils.events.parsedObservationIO.prefetch(
         {
           projectId,
-          observations: [{ id: observationId, traceId }],
+          observation: { id: observationId, traceId },
           minStartTime: startTime,
           maxStartTime: startTime,
-          truncated: false, // Must match useLogViewObservationIO for cache hit
         },
         {
           ...sendAsPostOption,

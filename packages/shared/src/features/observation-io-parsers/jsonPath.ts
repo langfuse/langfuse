@@ -1,0 +1,187 @@
+import { JSONPath } from "jsonpath-plus";
+import { parseJsonPrioritised } from "../../utils/json";
+import type {
+  ObservationIoParserFieldResult,
+  ObservationIoParserInstructions,
+} from "../../domain/observation-io-parser-configs";
+
+export type ObservationIoParserSourceData = {
+  input?: unknown;
+  output?: unknown;
+  metadata?: unknown;
+};
+
+export type JsonPathValidationResult =
+  | { success: true }
+  | { success: false; error: string };
+
+export const OBSERVATION_IO_PARSER_MAX_SERIALIZED_RESULT_SIZE = 250_000;
+
+function validateBalancedJsonPath(jsonPath: string): string | null {
+  let openQuote: "'" | '"' | null = null;
+  let isEscaped = false;
+  const delimiterStack: Array<"[" | "("> = [];
+
+  for (const character of jsonPath) {
+    if (openQuote) {
+      if (isEscaped) {
+        isEscaped = false;
+        continue;
+      }
+
+      if (character === "\\") {
+        isEscaped = true;
+        continue;
+      }
+
+      if (character === openQuote) {
+        openQuote = null;
+      }
+
+      continue;
+    }
+
+    if (character === "'" || character === '"') {
+      openQuote = character;
+      continue;
+    }
+
+    if (character === "[" || character === "(") {
+      delimiterStack.push(character);
+      continue;
+    }
+
+    if (character === "]" || character === ")") {
+      const expectedDelimiter = character === "]" ? "[" : "(";
+      if (delimiterStack.pop() !== expectedDelimiter) {
+        return "JSONPath expressions must use balanced brackets and parentheses.";
+      }
+    }
+  }
+
+  if (openQuote || delimiterStack.length > 0) {
+    return "JSONPath expressions must use balanced quotes, brackets, and parentheses.";
+  }
+
+  return null;
+}
+
+export function validateObservationIoParserJsonPath(
+  jsonPath: string,
+): JsonPathValidationResult {
+  if (!jsonPath.startsWith("$")) {
+    return { success: false, error: "JSONPath expressions must start with $." };
+  }
+
+  if (jsonPath.length > 500) {
+    return {
+      success: false,
+      error: "JSONPath expressions must be at most 500 characters.",
+    };
+  }
+
+  const balancedError = validateBalancedJsonPath(jsonPath);
+  if (balancedError) {
+    return { success: false, error: balancedError };
+  }
+
+  try {
+    JSONPath({
+      path: jsonPath,
+      json: {},
+      eval: false,
+    });
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Invalid JSONPath.",
+    };
+  }
+}
+
+function prepareSourceValue(value: unknown): unknown {
+  return typeof value === "string" ? parseJsonPrioritised(value) : value;
+}
+
+export function evaluateObservationIoParserJsonPath(
+  sourceData: unknown,
+  jsonPath: string,
+): unknown {
+  return JSONPath({
+    path: jsonPath,
+    json: prepareSourceValue(sourceData) as string | object,
+    wrap: false,
+    eval: false,
+  });
+}
+
+export function getSerializedSize(value: unknown): number {
+  try {
+    return JSON.stringify(value).length;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+}
+
+export function executeObservationIoParserInstructions(props: {
+  instructions: ObservationIoParserInstructions;
+  sourceData: ObservationIoParserSourceData;
+}): { fields: ObservationIoParserFieldResult[]; serializedSize: number } {
+  const fields = props.instructions.fields.map((field) => {
+    const validation = validateObservationIoParserJsonPath(field.jsonPath);
+    if (!validation.success) {
+      return {
+        key: field.key,
+        label: field.label,
+        source: field.source,
+        display: field.display ?? "auto",
+        value: null,
+        status: "error" as const,
+        error: validation.error,
+      };
+    }
+
+    try {
+      const value = evaluateObservationIoParserJsonPath(
+        props.sourceData[field.source],
+        field.jsonPath,
+      );
+
+      if (value === undefined) {
+        return {
+          key: field.key,
+          label: field.label,
+          source: field.source,
+          display: field.display ?? "auto",
+          value: null,
+          status: "miss" as const,
+        };
+      }
+
+      return {
+        key: field.key,
+        label: field.label,
+        source: field.source,
+        display: field.display ?? "auto",
+        value,
+        status: "ok" as const,
+      };
+    } catch (error) {
+      return {
+        key: field.key,
+        label: field.label,
+        source: field.source,
+        display: field.display ?? "auto",
+        value: null,
+        status: "error" as const,
+        error: error instanceof Error ? error.message : "Invalid JSONPath.",
+      };
+    }
+  });
+
+  return {
+    fields,
+    serializedSize: getSerializedSize(fields.map((field) => field.value)),
+  };
+}

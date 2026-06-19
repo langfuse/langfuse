@@ -104,6 +104,7 @@ interface UseParsedObservationParams {
   startTime?: Date;
   // Base observation to merge IO data into (for events path when beta ON)
   baseObservation?: ObservationReturnType | ObservationReturnTypeWithMetadata;
+  forceFetchRaw?: boolean;
 }
 
 interface ParsedData {
@@ -204,6 +205,7 @@ export function useParsedObservation({
   projectId,
   startTime,
   baseObservation,
+  forceFetchRaw = false,
 }: UseParsedObservationParams) {
   const { isBetaEnabled } = useV4Beta();
 
@@ -221,6 +223,25 @@ export function useParsedObservation({
     },
   );
 
+  const parsedObservationIoQuery = api.events.parsedObservationIO.useQuery(
+    {
+      projectId,
+      observation: { id: observationId, traceId },
+      minStartTime: startTime ?? new Date(0),
+      maxStartTime: startTime ?? new Date(),
+    },
+    {
+      enabled: isBetaEnabled,
+      staleTime: 5 * 60 * 1000,
+    },
+  );
+
+  const shouldFetchRawEvents =
+    isBetaEnabled &&
+    (forceFetchRaw ||
+      parsedObservationIoQuery.isError ||
+      parsedObservationIoQuery.data?.mode === "raw_fallback");
+
   // Step 1b: Fetch raw observation data from events table (beta ON)
   const eventsQuery = api.events.batchIO.useQuery(
     {
@@ -232,7 +253,7 @@ export function useParsedObservation({
     },
     {
       ...sendAsPostOption,
-      enabled: isBetaEnabled,
+      enabled: shouldFetchRawEvents,
       staleTime: 5 * 60 * 1000, // 5 minutes
       select: (data) => data[0], // Extract single result from batch
     },
@@ -268,7 +289,7 @@ export function useParsedObservation({
   }, [isBetaEnabled, eventsQuery.data, baseObservation, observationId]);
 
   const isLoadingRaw = isBetaEnabled
-    ? eventsQuery.isLoading
+    ? parsedObservationIoQuery.isLoading || eventsQuery.isLoading
     : observationQuery.isLoading;
 
   // Step 2: Parse the data in Web Worker (React Query caches THIS too!)
@@ -319,5 +340,7 @@ export function useParsedObservation({
     // Debug info
     parseTime: parseQuery.data?.parseTime,
     parseError: parseQuery.error?.message,
+    parsedObservationIo: parsedObservationIoQuery.data,
+    isLoadingParsedObservationIo: parsedObservationIoQuery.isLoading,
   };
 }

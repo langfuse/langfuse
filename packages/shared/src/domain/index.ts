@@ -3,6 +3,7 @@ export * from "./observations";
 export * from "./traces";
 export * from "./scores";
 export * from "./table-view-presets";
+export * from "./observation-io-parser-configs";
 export * from "./automations";
 export * from "./webhooks";
 export * from "./prompts";

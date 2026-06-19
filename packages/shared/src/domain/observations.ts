@@ -121,6 +121,7 @@ export const EventsObservationSchema = ObservationSchema.extend({
   tags: z.array(z.string()).nullable().optional(),
   bookmarked: z.boolean().optional(),
   public: z.boolean().optional(),
+  eventBytes: z.number().optional(),
 });
 
 export type EventsObservation = z.infer<typeof EventsObservationSchema>;
