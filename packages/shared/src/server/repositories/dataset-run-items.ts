@@ -672,6 +672,11 @@ const getQualifyingDatasetItems = async <T>(opts: {
          avg(value) as avg_value
        FROM scores s FINAL
        WHERE ${appliedScoresFilter.query}
+       AND s.trace_id IN (
+         SELECT dri.trace_id
+         FROM dataset_run_items_rmt dri
+         WHERE ${baseFilter.query}
+       )
        GROUP BY
          project_id,
          trace_id,
