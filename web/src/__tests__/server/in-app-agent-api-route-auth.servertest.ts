@@ -333,7 +333,7 @@ function createInAppAgentSession(params: {
       email: "test@example.com",
       image: null,
       admin: params.admin ?? false,
-      featureFlags: { inAppAgent: true },
+      featureFlags: {},
       organizations: includeProjectMembership
         ? [
             {
