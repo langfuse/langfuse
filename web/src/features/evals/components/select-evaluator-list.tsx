@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useEffect, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import {
@@ -42,6 +42,7 @@ type CreateEvaluatorStep = "connection" | "define";
 
 export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
   const router = useRouter();
+  const createDialogSessionRef = useRef(0);
   const [isCreateTemplateOpen, setIsCreateTemplateOpen] = useState(false);
   const [customEvaluatorType, setCustomEvaluatorType] = useState<
     typeof EvalTemplateType.LLM_AS_JUDGE | typeof EvalTemplateType.CODE | null
@@ -85,6 +86,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
     setCustomEvaluatorType(type);
     setUseLlmCreateWizard(shouldUseWizard);
     setCreateEvaluatorStep(shouldUseWizard ? "connection" : "define");
+    createDialogSessionRef.current += 1;
     setIsCreateTemplateOpen(true);
   };
 
@@ -110,6 +112,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
       handleSelectEvaluator(template);
     }
   };
+  const createDialogSession = createDialogSessionRef.current;
 
   return (
     <>
@@ -188,6 +191,7 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
         onOpenChange={(open) => {
           setIsCreateTemplateOpen(open);
           if (!open) {
+            createDialogSessionRef.current += 1;
             setCustomEvaluatorType(null);
             setCreateEvaluatorStep("define");
             setUseLlmCreateWizard(false);
@@ -218,6 +222,9 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
               hasDefaultEvalModel={hasDefaultEvalModel}
               onStepChange={setCreateEvaluatorStep}
               onProviderConfigured={() => {
+                if (createDialogSessionRef.current !== createDialogSession) {
+                  return;
+                }
                 setDefaultModelConfiguredInDialog(true);
                 setCreateEvaluatorStep("define");
               }}
@@ -228,6 +235,11 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                   customEvaluatorType={EvalTemplateType.LLM_AS_JUDGE}
                   shouldUseDefaultModel={shouldUseDefaultModel}
                   onSuccess={(newTemplate) => {
+                    if (
+                      createDialogSessionRef.current !== createDialogSession
+                    ) {
+                      return;
+                    }
                     setIsCreateTemplateOpen(false);
                     setCustomEvaluatorType(null);
                     setUseLlmCreateWizard(false);
@@ -247,6 +259,9 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
                 customEvaluatorType ?? EvalTemplateType.LLM_AS_JUDGE
               }
               onSuccess={(newTemplate) => {
+                if (createDialogSessionRef.current !== createDialogSession) {
+                  return;
+                }
                 setIsCreateTemplateOpen(false);
                 setCustomEvaluatorType(null);
                 utils.evals.allTemplates.invalidate();
