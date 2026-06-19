@@ -1468,13 +1468,12 @@ export function FilterValueCheckbox({
       )}
     >
       {/* Checkbox hover area */}
-      <div className="group/checkbox hover:bg-accent flex items-center rounded-sm p-1 transition-colors">
+      <div className="group/checkbox hover:bg-accent pointer-events-auto flex items-center rounded-sm p-1 transition-colors">
         <Checkbox
           id={id}
           checked={checked}
           onCheckedChange={onCheckedChange}
           disabled={disabled}
-          className="pointer-events-auto"
         />
       </div>
 

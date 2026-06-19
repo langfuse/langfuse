@@ -13,8 +13,7 @@ type CheckboxProps = Omit<
   className?:
     | "mr-1"
     | "mt-1 opacity-60 data-[state=checked]:mt-[5px]"
-    | "opacity-60"
-    | "pointer-events-auto";
+    | "opacity-60";
 };
 
 const Checkbox = React.forwardRef<
