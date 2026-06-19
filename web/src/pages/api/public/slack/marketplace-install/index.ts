@@ -24,7 +24,14 @@ import { allowSlackMarketplaceInstall } from "@/src/features/slack/server/market
  */
 export default withMiddlewares({
   GET: async (req: NextApiRequest, res: NextApiResponse) => {
-    if (!env.SLACK_CLIENT_ID) {
+    // Guard all three vars the InstallProvider needs (buildInstaller
+    // non-null-asserts each). A partial config would otherwise pass this check
+    // and surface as a generic 500 from @slack/oauth instead of this 404.
+    if (
+      !env.SLACK_CLIENT_ID ||
+      !env.SLACK_CLIENT_SECRET ||
+      !env.SLACK_STATE_SECRET
+    ) {
       throw new LangfuseNotFoundError("Slack integration is not configured");
     }
 
