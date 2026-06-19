@@ -77,6 +77,3 @@ patchedDependencies:
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
-peerDependencyRules:
-  allowedVersions:
-    "next-auth@4.24.13>nodemailer": "8"
