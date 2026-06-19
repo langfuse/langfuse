@@ -40,22 +40,27 @@ export async function createMediaUploadUrl(params: {
     field,
   } = body;
 
-  const linkUploadedMedia = (mediaId: string) =>
-    datasetId && datasetItemId
-      ? declarePendingDatasetItemMedia({
-          projectId,
-          datasetId,
-          datasetItemId,
-          mediaId,
-          field: field as DatasetItemMediaField,
-        })
-      : linkMediaToTraceOrObservation({
-          projectId,
-          traceId,
-          observationId,
-          mediaId,
-          field,
-        });
+  const linkUploadedMedia = (mediaId: string) => {
+    if (datasetId && datasetItemId) {
+      return declarePendingDatasetItemMedia({
+        projectId,
+        datasetId,
+        datasetItemId,
+        mediaId,
+        field: field as DatasetItemMediaField,
+      });
+    }
+    // Validation guarantees a trace context here (traceId + field).
+    if (traceId && field) {
+      return linkMediaToTraceOrObservation({
+        projectId,
+        traceId,
+        observationId,
+        mediaId,
+        field,
+      });
+    }
+  };
 
   try {
     const existingMedia = await prisma.media.findUnique({
@@ -282,16 +287,12 @@ async function upsertMediaRecord(params: {
 
 async function linkMediaToTraceOrObservation(params: {
   projectId: string;
-  traceId?: string | null;
+  traceId: string;
   observationId?: string | null;
   mediaId: string;
-  field?: string | null;
+  field: string;
 }) {
   const { projectId, traceId, observationId, mediaId, field } = params;
-
-  // Without a trace context the media is uploaded for dataset use; the
-  // association (and retention marking) happens at dataset item write time.
-  if (!traceId || !field) return;
 
   if (observationId) {
     await prisma.$queryRaw`

@@ -728,9 +728,8 @@ export const datasetRouter = createTRPCRouter({
       // Return null if item doesn't exist at this version (not created yet or deleted)
       return item;
     }),
-  // Issue a presigned upload URL for media attached to a dataset item from the
-  // UI (no trace context). The dataset item association is created when the
-  // item is saved, which parses the media reference out of the item JSON.
+  // Issue a presigned upload URL for media attached to a dataset item, declaring
+  // a pending association that is claimed when the item is written.
   getItemMediaUploadUrl: protectedProjectProcedure
     .input(
       z.object({
