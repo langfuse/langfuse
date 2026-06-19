@@ -183,7 +183,7 @@ export const DatasetItemDetailPage = ({
             {item.data?.sourceTraceId && (
               <Button variant="ghost" size="icon-xs" asChild>
                 <Link
-                  href={`/project/${projectId}/traces/${item.data.sourceTraceId}`}
+                  href={`/project/${projectId}/traces/${item.data.sourceTraceId}${item.data.sourceObservationId ? `?observation=${item.data.sourceObservationId}` : ""}`}
                   title={`View source ${item.data.sourceObservationId ? "observation" : "trace"}`}
                 >
                   <ListTree className="h-4 w-4" />
