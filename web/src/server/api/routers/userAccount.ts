@@ -104,7 +104,7 @@ export const userAccountRouter = createTRPCRouter({
         // on the v4 events tables (see useSearchBarEnabled) and no longer has a
         // dialog tile. Kept in the allowlist as dead plumbing for a safe
         // rollback; drop once the GA rollout is confirmed stable.
-        flag: z.enum(["inAppAgent", "searchBar"]),
+        flag: z.enum(["searchBar"]),
         enabled: z.boolean(),
       }),
     )
