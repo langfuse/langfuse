@@ -1,6 +1,6 @@
 import { type NextApiResponse } from "next";
 import { SLACK_PENDING_INSTALL_TTL_MS } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
+import { getCookieOptions } from "@/src/server/utils/cookies";
 
 /**
  * httpOnly cookie carrying the one-time claim that authorizes linking a pending
@@ -27,16 +27,20 @@ export function setPendingInstallClaimCookie(
   const value = encodeURIComponent(
     JSON.stringify({ teamId, claim } satisfies ClaimCookiePayload),
   );
-  const secure = env.NEXTAUTH_URL?.startsWith("https://") ?? false;
-  const cookie = [
+  // Reuse the shared cookie defaults (same as the project cookie / next-auth)
+  // so secure/domain/path behave consistently — notably `secure` is set on
+  // Vercel deploys where NEXTAUTH_URL omits the protocol.
+  const options = getCookieOptions();
+  const parts = [
     `${PENDING_INSTALL_CLAIM_COOKIE}=${value}`,
-    "Path=/",
-    "HttpOnly",
+    `Path=${options.path}`,
     "SameSite=Lax",
     `Max-Age=${MAX_AGE_SECONDS}`,
-    ...(secure ? ["Secure"] : []),
-  ].join("; ");
-  appendSetCookie(res, cookie);
+  ];
+  if (options.domain) parts.push(`Domain=${options.domain}`);
+  if (options.httpOnly) parts.push("HttpOnly");
+  if (options.secure) parts.push("Secure");
+  appendSetCookie(res, parts.join("; "));
 }
 
 /**
