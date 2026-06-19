@@ -2,7 +2,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  InterfaceDeclaration,
   JsxAttribute,
   Node,
   Project,
@@ -627,19 +626,9 @@ function rewriteStrictPropType(
   propName: string,
   values: PropValue[],
 ) {
-  const interfaceDeclaration = sourceFile.getInterface(propsTypeName);
-  if (interfaceDeclaration) {
-    ensurePropOnTypeLiteralOrInterface(
-      interfaceDeclaration,
-      propName,
-      createPropUnionType(values),
-    );
-    omitInheritedLoosePropFromInterface(interfaceDeclaration, propName);
-    return;
-  }
-
   const typeAliasDeclaration =
     sourceFile.getTypeAlias(propsTypeName) ??
+    convertInterfaceToTypeAlias(sourceFile, propsTypeName) ??
     extractInlinePropsType(sourceFile, componentName, propsTypeName);
 
   ensurePropOnTypeAlias(
@@ -905,6 +894,8 @@ function replaceStaticPropValueDefinition(
   const unsupportedUsages: UnsupportedUsage[] = [];
   let updatedDefinition = false;
 
+  convertInterfaceToTypeAlias(sourceFile, propsTypeName);
+
   const fromProperty = getPropsProperty(
     sourceFile,
     propsTypeName,
@@ -973,6 +964,8 @@ function removeStaticPropValueFromDefinition(
 ): ReplacementSummary {
   const unsupportedUsages: UnsupportedUsage[] = [];
   let updatedDefinition = false;
+
+  convertInterfaceToTypeAlias(sourceFile, propsTypeName);
 
   const fromProperty = getPropsProperty(
     sourceFile,
@@ -1145,7 +1138,7 @@ function ensurePropOnTypeAlias(
   const typeNode = typeAliasDeclaration.getTypeNodeOrThrow();
 
   if (Node.isTypeLiteral(typeNode)) {
-    ensurePropOnTypeLiteralOrInterface(typeNode, propName, type);
+    ensurePropOnTypeLiteral(typeNode, propName, type);
     return;
   }
 
@@ -1155,7 +1148,7 @@ function ensurePropOnTypeAlias(
       .find((node): node is TypeLiteralNode => Node.isTypeLiteral(node));
 
     if (typeLiteral) {
-      ensurePropOnTypeLiteralOrInterface(typeLiteral, propName, type);
+      ensurePropOnTypeLiteral(typeLiteral, propName, type);
       omitInheritedLoosePropFromIntersection(typeNode, propName);
       return;
     }
@@ -1240,8 +1233,44 @@ function extractInlinePropsType(
   return typeAliasDeclaration;
 }
 
-function ensurePropOnTypeLiteralOrInterface(
-  declaration: InterfaceDeclaration | TypeLiteralNode,
+function convertInterfaceToTypeAlias(
+  sourceFile: SourceFile,
+  propsTypeName: string,
+): TypeAliasDeclaration | undefined {
+  const interfaceDeclaration = sourceFile.getInterface(propsTypeName);
+  if (!interfaceDeclaration) return undefined;
+
+  const exportKeyword = interfaceDeclaration.isExported() ? "export " : "";
+  const typeParameters = interfaceDeclaration
+    .getTypeParameters()
+    .map((typeParameter) => typeParameter.getText())
+    .join(", ");
+  const typeParameterText = typeParameters ? `<${typeParameters}>` : "";
+  const inheritedTypes = interfaceDeclaration
+    .getExtends()
+    .map((heritageType) => heritageType.getText());
+  const memberText = interfaceDeclaration
+    .getMembers()
+    .map((member) => member.getText())
+    .join("\n");
+  const indentedMemberText = memberText
+    .split("\n")
+    .map((line) => `  ${line}`)
+    .join("\n");
+  const typeLiteral = `{
+${indentedMemberText}
+}`;
+  const typeText = [...inheritedTypes, typeLiteral].join(" & ");
+
+  interfaceDeclaration.replaceWithText(
+    `${exportKeyword}type ${propsTypeName}${typeParameterText} = ${typeText};`,
+  );
+
+  return sourceFile.getTypeAliasOrThrow(propsTypeName);
+}
+
+function ensurePropOnTypeLiteral(
+  declaration: TypeLiteralNode,
   propName: string,
   type: string,
 ) {
@@ -1258,18 +1287,6 @@ function ensurePropOnTypeLiteralOrInterface(
     hasQuestionToken: true,
     type,
   });
-}
-
-function omitInheritedLoosePropFromInterface(
-  interfaceDeclaration: InterfaceDeclaration,
-  propName: string,
-) {
-  for (const heritageType of interfaceDeclaration.getExtends()) {
-    const text = heritageType.getText();
-    if (!shouldOmitInheritedProp(text)) continue;
-
-    heritageType.replaceWithText(omitLooseProp(text, propName));
-  }
 }
 
 function omitInheritedLoosePropFromIntersection(
