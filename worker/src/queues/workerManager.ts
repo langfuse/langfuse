@@ -1,3 +1,4 @@
+import { hostname } from "os";
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
 import {
   convertQueueNameToMetricName,
@@ -15,6 +16,8 @@ import {
   resolveQueueInstance,
   SHARDED_QUEUE_BASE_NAMES,
 } from "./shardedQueueRegistry";
+
+const HOST_NAME = hostname();
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
@@ -177,6 +180,20 @@ export class WorkerManager {
       recordIncrement(oldMetric + ".error");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
+        ...shardTag,
+      });
+    });
+    // Counts intermediate re-enqueues (LFE-10063), not just the terminal
+    // "stalled more than allowable limit" the "failed" handler catches.
+    worker.on("stalled", (jobId: string) => {
+      // detectedOnHost: the stall-checker pod, which may differ from the pod
+      // whose lock expired.
+      logger.warn(
+        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${HOST_NAME}`,
+      );
+      recordIncrement(oldMetric + ".stalled");
+      recordIncrement(baseMetric + ".rate", 1, {
+        type: "stalled",
         ...shardTag,
       });
     });

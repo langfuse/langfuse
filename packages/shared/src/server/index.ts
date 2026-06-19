@@ -28,6 +28,7 @@ export * from "./evals/codeEvalExecution";
 export * from "./evals/evalScoreIds";
 export * from "./evals/extractObservationVariables";
 export * from "./utils/traceId";
+export * from "./auth/apiKeyCache";
 export * from "./auth/apiKeys";
 export * from "./auth/invalidateApiKeys";
 export * from "./auth/customSsoProvider";
