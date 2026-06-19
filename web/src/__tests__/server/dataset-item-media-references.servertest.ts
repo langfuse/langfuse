@@ -14,7 +14,10 @@ import {
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
-import { createDatasetItem } from "@langfuse/shared/src/server";
+import {
+  createDatasetItem,
+  createManyDatasetItems,
+} from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { env } from "@/src/env.mjs";
 import { MediaContentType } from "@/src/features/media/validation";
@@ -113,6 +116,9 @@ const createDatasetWithItem = async (
 
   return { datasetName, datasetItemId: result.datasetItem.id };
 };
+
+const createDataset = () =>
+  prisma.dataset.create({ data: { id: v4(), name: v4(), projectId } });
 
 describe("Dataset item media references (public API read path)", () => {
   it("resolves media references on the single item endpoint", async () => {
@@ -234,41 +240,62 @@ describe("Dataset item media tRPC procedures", () => {
   const validSha256 = () =>
     crypto.createHash("sha256").update(v4()).digest("base64");
 
-  it("issues a trace-less upload URL and links nothing", async () => {
-    const result = await caller.datasets.getItemMediaUploadUrl({
+  const requestUploadUrl = (args: {
+    datasetId: string;
+    datasetItemId?: string;
+    contentLength?: number;
+  }) =>
+    caller.datasets.getItemMediaUploadUrl({
       projectId,
+      datasetId: args.datasetId,
+      datasetItemId: args.datasetItemId ?? v4(),
+      field: "input",
       contentType: MediaContentType.PNG,
-      contentLength: 1234,
+      contentLength: args.contentLength ?? 1234,
       sha256Hash: validSha256(),
+    });
+
+  it("issues an upload URL and declares a pending association", async () => {
+    const dataset = await createDataset();
+    const datasetItemId = v4();
+    const result = await requestUploadUrl({
+      datasetId: dataset.id,
+      datasetItemId,
     });
 
     expect(result.mediaId).toBeDefined();
     expect(result.uploadUrl).toBeDefined();
-    await expect(
-      prisma.traceMedia.count({
-        where: { projectId, mediaId: result.mediaId },
-      }),
-    ).resolves.toBe(0);
+    // A pending (null validFrom) association is declared for the item.
+    const pending = await prisma.datasetItemMedia.findFirst({
+      where: { projectId, mediaId: result.mediaId, datasetItemValidFrom: null },
+    });
+    expect(pending).toMatchObject({
+      datasetId: dataset.id,
+      datasetItemId,
+      field: "input",
+      jsonPath: null,
+      referenceString: null,
+    });
+  });
+
+  it("rejects an upload for a dataset in another project", async () => {
+    // datasetId is not a dataset in this project
+    await expect(requestUploadUrl({ datasetId: v4() })).rejects.toThrow();
   });
 
   it("rejects uploads above the media size limit", async () => {
+    const dataset = await createDataset();
     await expect(
-      caller.datasets.getItemMediaUploadUrl({
-        projectId,
-        contentType: MediaContentType.PNG,
+      requestUploadUrl({
+        datasetId: dataset.id,
         contentLength: env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH + 1,
-        sha256Hash: validSha256(),
       }),
     ).rejects.toThrow(/File size must be less than/);
   });
 
   it("marks a dataset media upload complete", async () => {
-    const { mediaId } = await caller.datasets.getItemMediaUploadUrl({
-      projectId,
-      contentType: MediaContentType.PNG,
-      contentLength: 1234,
-      sha256Hash: validSha256(),
-    });
+    const dataset = await createDataset();
+    const { mediaId } = await requestUploadUrl({ datasetId: dataset.id });
 
     await caller.datasets.markItemMediaUploadComplete({
       projectId,
@@ -284,12 +311,8 @@ describe("Dataset item media tRPC procedures", () => {
   });
 
   it("allows idempotent successful upload completion", async () => {
-    const { mediaId } = await caller.datasets.getItemMediaUploadUrl({
-      projectId,
-      contentType: MediaContentType.PNG,
-      contentLength: 1234,
-      sha256Hash: validSha256(),
-    });
+    const dataset = await createDataset();
+    const { mediaId } = await requestUploadUrl({ datasetId: dataset.id });
     await caller.datasets.markItemMediaUploadComplete({
       projectId,
       mediaId,
@@ -315,12 +338,8 @@ describe("Dataset item media tRPC procedures", () => {
   // datasets:CUD must not be usable to overwrite an already-successful upload
   // (e.g. flip a trace media reference to a failed status).
   it("rejects marking an already-completed upload", async () => {
-    const { mediaId } = await caller.datasets.getItemMediaUploadUrl({
-      projectId,
-      contentType: MediaContentType.PNG,
-      contentLength: 1234,
-      sha256Hash: validSha256(),
-    });
+    const dataset = await createDataset();
+    const { mediaId } = await requestUploadUrl({ datasetId: dataset.id });
     await caller.datasets.markItemMediaUploadComplete({
       projectId,
       mediaId,
@@ -342,6 +361,59 @@ describe("Dataset item media tRPC procedures", () => {
       where: { projectId_id: { projectId, id: mediaId } },
     });
     expect(media?.uploadHttpStatus).toBe(200);
+  });
+
+  it("claims the pending association when the item is written", async () => {
+    const dataset = await createDataset();
+    const datasetItemId = v4();
+    const { mediaId } = await requestUploadUrl({
+      datasetId: dataset.id,
+      datasetItemId,
+    });
+    await caller.datasets.markItemMediaUploadComplete({
+      projectId,
+      mediaId,
+      uploadedAt: new Date(),
+      uploadHttpStatus: 200,
+    });
+
+    // Pending row exists before the item is written.
+    await expect(
+      prisma.datasetItemMedia.count({
+        where: { projectId, mediaId, datasetItemValidFrom: null },
+      }),
+    ).resolves.toBe(1);
+
+    const referenceString = `@@@langfuseMedia:type=image/png|id=${mediaId}|source=bytes@@@`;
+    const result = await createManyDatasetItems({
+      projectId,
+      items: [
+        {
+          id: datasetItemId,
+          datasetId: dataset.id,
+          input: { image: referenceString },
+        },
+      ],
+    });
+    expect(result.success).toBe(true);
+
+    // The pending row is consumed and a claimed row (validFrom + jsonPath set)
+    // is written from the item JSON.
+    await expect(
+      prisma.datasetItemMedia.count({
+        where: { projectId, mediaId, datasetItemValidFrom: null },
+      }),
+    ).resolves.toBe(0);
+    const claimed = await prisma.datasetItemMedia.findFirst({
+      where: { projectId, mediaId, datasetItemId },
+    });
+    expect(claimed).toMatchObject({
+      datasetItemId,
+      field: "input",
+      jsonPath: "$['image']",
+      referenceString,
+    });
+    expect(claimed?.datasetItemValidFrom).toEqual(expect.any(Date));
   });
 
   it("resolves a saved dataset item's media from the table", async () => {

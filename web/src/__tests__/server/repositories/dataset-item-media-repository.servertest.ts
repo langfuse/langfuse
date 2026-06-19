@@ -269,6 +269,9 @@ describe("Dataset Item Media Associations", () => {
     ).resolves.toBeNull();
   });
 
+  // Bulk-imported items are frequently never re-edited, so the media link must
+  // commit with the item write (keyed to the written version) rather than as a
+  // best-effort follow-up.
   it("records media references for bulk created items", async () => {
     const datasetId = await createDataset();
     const firstMedia = await createMediaRow();
@@ -285,9 +288,16 @@ describe("Dataset Item Media Associations", () => {
     if (!result.success) throw new Error("bulk create failed");
     const [first, second, third] = result.datasetItems;
 
-    await expect(getItemMediaRows(first.id)).resolves.toMatchObject([
+    const firstRows = await getItemMediaRows(first.id);
+    expect(firstRows).toMatchObject([
       { field: "input", jsonPath: "$['image']", mediaId: firstMedia.mediaId },
     ]);
+    // the link is keyed to the version that was actually written
+    const firstItem = await prisma.datasetItem.findFirst({
+      where: { projectId, id: first.id },
+    });
+    expect(firstRows[0]?.datasetItemValidFrom).toEqual(firstItem?.validFrom);
+
     await expect(getItemMediaRows(second.id)).resolves.toEqual([]);
     await expect(getItemMediaRows(third.id)).resolves.toMatchObject([
       {
@@ -296,31 +306,6 @@ describe("Dataset Item Media Associations", () => {
         mediaId: secondMedia.mediaId,
       },
     ]);
-  });
-
-  // Bulk-imported items are frequently never re-edited, so the media link must
-  // commit with the item write rather than as a best-effort follow-up.
-  it("links media of bulk created items", async () => {
-    const datasetId = await createDataset();
-    const media = await createMediaRow();
-
-    const result = await createManyDatasetItems({
-      projectId,
-      items: [{ datasetId, input: { image: media.referenceString } }],
-    });
-    if (!result.success) throw new Error("bulk create failed");
-
-    const stored = await prisma.media.findUnique({
-      where: { projectId_id: { projectId, id: media.mediaId } },
-    });
-    expect(stored).not.toBeNull();
-
-    // the link is keyed to the version that was actually written
-    const item = await prisma.datasetItem.findFirst({
-      where: { projectId, id: result.datasetItems[0].id },
-    });
-    const rows = await getItemMediaRows(result.datasetItems[0].id);
-    expect(rows[0]?.datasetItemValidFrom).toEqual(item?.validFrom);
   });
 
   // An unresolvable media reference must fail only its own item under partial
@@ -619,6 +604,58 @@ describe("Dataset Item Media Associations", () => {
           },
         }),
       ).resolves.toBeNull();
+    });
+
+    it("does not let a pending association protect media, and sweeps it", async () => {
+      const datasetId = await createDataset();
+      const pendingMedia = await createMediaRow();
+      // A pending association: declared at upload, the item was never written.
+      await prisma.datasetItemMedia.create({
+        data: {
+          id: v4(),
+          projectId,
+          datasetId,
+          datasetItemId: v4(),
+          datasetItemValidFrom: null,
+          field: "input",
+          jsonPath: null,
+          referenceString: null,
+          mediaId: pendingMedia.mediaId,
+        },
+      });
+
+      await prisma.media.update({
+        where: { projectId_id: { projectId, id: pendingMedia.mediaId } },
+        data: { createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3) },
+      });
+
+      const expired = await findExpiredMediaByProjectId({
+        projectId,
+        cutoffDate: new Date(Date.now() - 1000 * 60 * 60 * 24),
+      });
+      const relevantExpired = expired.filter(
+        (media) => media.id === pendingMedia.mediaId,
+      );
+
+      const deletedCount = await deleteMediaFiles({
+        projectId,
+        mediaFiles: relevantExpired,
+        storageClient: { deleteFiles: async () => {} },
+      });
+
+      // Pending row did not protect the media; it is deleted and the pending
+      // row is swept with it.
+      expect(deletedCount).toBe(1);
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: pendingMedia.mediaId } },
+        }),
+      ).resolves.toBeNull();
+      await expect(
+        prisma.datasetItemMedia.count({
+          where: { projectId, mediaId: pendingMedia.mediaId },
+        }),
+      ).resolves.toBe(0);
     });
   });
 

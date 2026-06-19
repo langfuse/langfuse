@@ -96,11 +96,14 @@ export async function deleteMediaFiles(params: {
 
   for (const batch of chunks) {
     const mediaIds = batch.map((f) => f.id);
+    // Only a claimed association (validFrom set) protects media; pending rows
+    // (null validFrom) don't, so abandoned uploads are reclaimed by retention.
     const datasetAssociatedMedia = await prisma.datasetItemMedia.findMany({
       select: { mediaId: true },
       where: {
         projectId,
         mediaId: { in: mediaIds },
+        datasetItemValidFrom: { not: null },
       },
       distinct: ["mediaId"],
     });
@@ -126,6 +129,15 @@ export async function deleteMediaFiles(params: {
         where: {
           projectId,
           mediaId: { in: deletableMediaIds },
+        },
+      }),
+      // Sweep leftover pending rows for the deleted media (claimed rows can't
+      // exist for deletable media).
+      prisma.datasetItemMedia.deleteMany({
+        where: {
+          projectId,
+          mediaId: { in: deletableMediaIds },
+          datasetItemValidFrom: null,
         },
       }),
       prisma.media.deleteMany({

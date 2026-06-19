@@ -11,7 +11,15 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { api } from "@/src/utils/api";
-import { useState, useMemo, useEffect, useRef, type RefObject } from "react";
+import {
+  useState,
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+  type RefObject,
+} from "react";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
@@ -140,26 +148,55 @@ export const NewDatasetItemForm = (props: {
   const selectedDatasetIds = form.watch("datasetIds");
   const selectedDatasetCount = selectedDatasetIds.length;
 
+  // Items don't exist until submit, so generate a stable id per selected
+  // dataset up front; createMany writes each item with its id, so media
+  // declared during editing is claimed. The upload `field` is cosmetic — the
+  // dataset service derives the real field from the item JSON on write.
+  const itemIdByDataset = useRef(new Map<string, string>());
+  const getDatasetItemId = useCallback((datasetId: string) => {
+    const existing = itemIdByDataset.current.get(datasetId);
+    if (existing) return existing;
+    const id = crypto.randomUUID();
+    itemIdByDataset.current.set(datasetId, id);
+    return id;
+  }, []);
+  const uploadDatasetId = selectedDatasetIds[0] ?? "";
   const { uploadFile, pendingUploads } = useDatasetItemMediaUpload({
     projectId: props.projectId,
+    datasetId: uploadDatasetId,
+    datasetItemId: uploadDatasetId ? getDatasetItemId(uploadDatasetId) : "",
   });
   const inputEditorRef = useRef<ReactCodeMirrorRef>(null);
   const expectedOutputEditorRef = useRef<ReactCodeMirrorRef>(null);
   const metadataEditorRef = useRef<ReactCodeMirrorRef>(null);
 
+  const uploadMedia = useCallback(
+    async (file: File): Promise<string | null> => {
+      if (!uploadDatasetId) {
+        showErrorToast(
+          "Select a dataset first",
+          "Choose a dataset before attaching media.",
+        );
+        return null;
+      }
+      return uploadFile(file, "input");
+    },
+    [uploadDatasetId, uploadFile],
+  );
+
   const handleFileUpload =
     (editorRef: RefObject<ReactCodeMirrorRef | null>) => async (file: File) => {
-      const referenceString = await uploadFile(file);
+      const referenceString = await uploadMedia(file);
       if (referenceString)
         insertMediaReferenceAtCursor(editorRef, referenceString);
     };
 
   // Shared across all three editors: drop/paste uploads the file and inserts
-  // its reference into whichever editor fired the event. `uploadFile` is a
+  // its reference into whichever editor fired the event. `uploadMedia` is a
   // fresh reference each render, so route it through a ref to build the
   // extension once and avoid reconfiguring CodeMirror on every keystroke.
-  const uploadFileRef = useRef(uploadFile);
-  uploadFileRef.current = uploadFile;
+  const uploadFileRef = useRef(uploadMedia);
+  uploadFileRef.current = uploadMedia;
   const mediaDropPasteExtensions = useMemo(
     () => [
       createMediaDropPasteExtension({
@@ -267,6 +304,7 @@ export const NewDatasetItemForm = (props: {
       .mutateAsync({
         projectId: props.projectId,
         items: values.datasetIds.map((datasetId) => ({
+          id: getDatasetItemId(datasetId),
           datasetId,
           input: values.input,
           expectedOutput: values.expectedOutput,

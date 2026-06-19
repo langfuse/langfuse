@@ -47,12 +47,26 @@ export async function resolveDatasetItemMediaReferences(props: {
     },
     orderBy: [{ field: "asc" }, { jsonPath: "asc" }],
   });
-  if (referenceRows.length === 0) return referencesByItem;
+  // The exact-version query never returns pending rows, so claimed rows always
+  // have validFrom/jsonPath/referenceString set; this narrows their types.
+  const claimedRows = referenceRows.filter(
+    (
+      row,
+    ): row is typeof row & {
+      datasetItemValidFrom: Date;
+      jsonPath: string;
+      referenceString: string;
+    } =>
+      row.datasetItemValidFrom !== null &&
+      row.jsonPath !== null &&
+      row.referenceString !== null,
+  );
+  if (claimedRows.length === 0) return referencesByItem;
 
   const mediaRecords = await prisma.media.findMany({
     where: {
       projectId: props.projectId,
-      id: { in: [...new Set(referenceRows.map((row) => row.mediaId))] },
+      id: { in: [...new Set(claimedRows.map((row) => row.mediaId))] },
       uploadHttpStatus: { in: [200, 201] },
     },
   });
@@ -81,7 +95,7 @@ export async function resolveDatasetItemMediaReferences(props: {
 
   // referenceRows arrive ordered by (field, jsonPath); pushing in that order
   // preserves it per item.
-  for (const row of referenceRows) {
+  for (const row of claimedRows) {
     const media = mediaById.get(row.mediaId);
     if (!media) {
       // A linked reference should always resolve; log the drift, drop the row.

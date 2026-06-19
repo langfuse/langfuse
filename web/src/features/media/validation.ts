@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { datasetItemMediaFields } from "@langfuse/shared";
+
 export enum MediaEnabledFields {
   Input = "input",
   Output = "output",
@@ -119,10 +121,7 @@ export enum MediaFileExtension {
   SEVEN_Z = "7z",
 }
 
-const GetMediaUploadUrlBaseSchema = z.object({
-  // Media for dataset items has neither traceId nor observationId set
-  traceId: z.string().nullish(),
-  observationId: z.string().nullish(),
+const commonMediaUploadFields = {
   contentType: z.enum(MediaContentType, {
     message: `Invalid content type. Only supporting ${Object.values(
       MediaContentType,
@@ -135,32 +134,36 @@ const GetMediaUploadUrlBaseSchema = z.object({
       /^[A-Za-z0-9+/=]{44}$/,
       "Must be a 44 character base64 encoded SHA-256 hash",
     ),
-  field: z
-    .enum(MediaEnabledFields, {
-      message: `Invalid field. Only supporting ${Object.values(
-        MediaEnabledFields,
-      ).join(", ")}`,
-    })
-    .nullish(),
+};
+
+// Media is attached to exactly one context: a trace/observation, or a dataset
+// item (which need not exist yet). The union enforces the required ids and the
+// per-context field set; the absent context's ids must be omitted.
+const TraceMediaUploadSchema = z.object({
+  ...commonMediaUploadFields,
+  traceId: z.string(),
+  observationId: z.string().nullish(),
+  field: z.enum(Object.values(MediaEnabledFields) as [string, ...string[]]),
+  datasetId: z.undefined().optional(),
+  datasetItemId: z.undefined().optional(),
 });
 
-export const GetMediaUploadUrlQuerySchema =
-  GetMediaUploadUrlBaseSchema.superRefine((value, ctx) => {
-    if (value.observationId && !value.traceId) {
-      ctx.addIssue({
-        code: "custom",
-        message: "traceId is required when observationId is provided",
-        path: ["traceId"],
-      });
-    }
-    if (value.traceId && !value.field) {
-      ctx.addIssue({
-        code: "custom",
-        message: "field is required when traceId is provided",
-        path: ["field"],
-      });
-    }
-  });
+const DatasetItemMediaUploadSchema = z.object({
+  ...commonMediaUploadFields,
+  datasetId: z.string(),
+  datasetItemId: z.string(),
+  field: z.enum(datasetItemMediaFields),
+  traceId: z.undefined().optional(),
+  observationId: z.undefined().optional(),
+});
+
+export const GetMediaUploadUrlQuerySchema = z.union(
+  [TraceMediaUploadSchema, DatasetItemMediaUploadSchema],
+  {
+    message:
+      "Provide either traceId with field input/output/metadata, or datasetId + datasetItemId with field input/expectedOutput/metadata.",
+  },
+);
 
 export type GetMediaUploadUrlQuery = z.infer<
   typeof GetMediaUploadUrlQuerySchema

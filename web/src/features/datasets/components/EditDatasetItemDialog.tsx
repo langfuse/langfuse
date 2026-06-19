@@ -105,6 +105,8 @@ export const EditDatasetItemDialog = ({
 
   const { uploadFile, pendingUploads } = useDatasetItemMediaUpload({
     projectId,
+    datasetId: datasetItem?.datasetId ?? "",
+    datasetItemId: datasetItem?.id ?? "",
   });
 
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
@@ -149,7 +151,9 @@ export const EditDatasetItemDialog = ({
                 editable={hasAccess}
                 projectId={projectId}
                 control={form.control}
-                onUploadMedia={hasAccess ? uploadFile : undefined}
+                onUploadMedia={
+                  hasAccess && datasetItem ? uploadFile : undefined
+                }
                 pendingUploads={pendingUploads}
               />
             </DialogBody>

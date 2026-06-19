@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MediaContentType } from "@/src/features/media/validation";
 import { api } from "@/src/utils/api";
+import { type DatasetItemMediaField } from "@langfuse/shared";
 
 const SUPPORTED_CONTENT_TYPES = new Set<string>(
   Object.values(MediaContentType),
@@ -36,8 +37,14 @@ async function sha256Base64(buffer: ArrayBuffer): Promise<string> {
  */
 export function useDatasetItemMediaUpload({
   projectId,
+  datasetId,
+  datasetItemId,
 }: {
   projectId: string;
+  datasetId: string;
+  // The item this upload is for. The item need not exist yet (the create form
+  // generates the id up front); the association is claimed when it is written.
+  datasetItemId: string;
 }) {
   const [pendingUploads, setPendingUploads] = useState<PendingMediaUpload[]>(
     [],
@@ -48,7 +55,10 @@ export function useDatasetItemMediaUpload({
     api.datasets.markItemMediaUploadComplete.useMutation();
 
   const uploadFile = useCallback(
-    async (file: File): Promise<string | null> => {
+    async (
+      file: File,
+      field: DatasetItemMediaField,
+    ): Promise<string | null> => {
       if (!SUPPORTED_CONTENT_TYPES.has(file.type)) {
         showErrorToast(
           "Unsupported file type",
@@ -77,6 +87,9 @@ export function useDatasetItemMediaUpload({
 
         const { mediaId, uploadUrl } = await getUploadUrl.mutateAsync({
           projectId,
+          datasetId,
+          datasetItemId,
+          field,
           contentType: file.type as MediaContentType,
           contentLength: file.size,
           sha256Hash,
@@ -119,7 +132,7 @@ export function useDatasetItemMediaUpload({
         setPendingUploads((prev) => prev.filter((u) => u.id !== pendingId));
       }
     },
-    [projectId, getUploadUrl, markUploadComplete],
+    [projectId, datasetId, datasetItemId, getUploadUrl, markUploadComplete],
   );
 
   return { uploadFile, pendingUploads };

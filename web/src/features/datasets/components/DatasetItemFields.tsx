@@ -9,6 +9,7 @@ import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import type { DatasetSchema } from "../utils/datasetItemUtils";
 import { type Control, type FieldPath, useWatch } from "react-hook-form";
 import { FormField } from "@/src/components/ui/form";
+import { type DatasetItemMediaField } from "@langfuse/shared";
 
 export type DatasetItemFormValues = {
   input: string;
@@ -36,9 +37,12 @@ type DatasetItemFieldsProps = {
   onInputChange?: (value: string) => void;
   onExpectedOutputChange?: (value: string) => void;
   onMetadataChange?: (value: string) => void;
-  // Enables the per-field media attach button (edit mode); uploads the file and
-  // returns the reference string to insert at the field's cursor.
-  onUploadMedia?: (file: File) => Promise<string | null>;
+  // Enables the per-field media attach button (edit mode); uploads the file for
+  // the given field and returns the reference string to insert at the cursor.
+  onUploadMedia?: (
+    file: File,
+    field: DatasetItemMediaField,
+  ) => Promise<string | null>;
   // In-flight uploads (edit mode), shown as placeholders in the attachments.
   pendingUploads?: PendingMediaUpload[];
 };
@@ -115,7 +119,11 @@ export const DatasetItemFields = ({
                 showErrors={showErrors}
                 hasSchemas={validation.hasSchemas}
                 isFormField
-                onUploadMedia={onUploadMedia}
+                onUploadMedia={
+                  onUploadMedia
+                    ? (file) => onUploadMedia(file, "input")
+                    : undefined
+                }
               />
             )}
           />
@@ -151,7 +159,11 @@ export const DatasetItemFields = ({
                 showErrors={showErrors}
                 hasSchemas={validation.hasSchemas}
                 isFormField
-                onUploadMedia={onUploadMedia}
+                onUploadMedia={
+                  onUploadMedia
+                    ? (file) => onUploadMedia(file, "expectedOutput")
+                    : undefined
+                }
               />
             )}
           />
@@ -183,7 +195,11 @@ export const DatasetItemFields = ({
                 field.onChange(v);
               }}
               isFormField
-              onUploadMedia={onUploadMedia}
+              onUploadMedia={
+                onUploadMedia
+                  ? (file) => onUploadMedia(file, "metadata")
+                  : undefined
+              }
             />
           )}
         />

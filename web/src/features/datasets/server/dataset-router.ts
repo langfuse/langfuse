@@ -26,6 +26,7 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
   InvalidRequestError,
+  datasetItemMediaFields,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -734,6 +735,12 @@ export const datasetRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
+        // Declares a pending association for this (item, field, media); the
+        // item need not exist yet. The dataset is verified to belong to the
+        // project in createMediaUploadUrl.
+        datasetId: z.string(),
+        datasetItemId: z.string(),
+        field: z.enum(datasetItemMediaFields),
         contentType: z.enum(MediaContentType),
         contentLength: z.number().positive().int(),
         sha256Hash: z
@@ -765,6 +772,9 @@ export const datasetRouter = createTRPCRouter({
           contentType: input.contentType,
           contentLength: input.contentLength,
           sha256Hash: input.sha256Hash,
+          datasetId: input.datasetId,
+          datasetItemId: input.datasetItemId,
+          field: input.field,
         },
       });
     }),
@@ -1384,6 +1394,9 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         items: z.array(
           z.object({
+            // Optional client-generated id so the UI can declare media uploads
+            // against the item before it exists; claimed on write.
+            id: z.string().optional(),
             datasetId: z.string(),
             input: z.string().nullish(),
             expectedOutput: z.string().nullish(),

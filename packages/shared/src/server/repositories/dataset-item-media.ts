@@ -147,16 +147,52 @@ export async function markDatasetMediaUploadComplete(props: {
 }
 
 /**
- * Records which media a dataset item version references in dataset_item_media
- * using the given transaction client. Enroll this in the same transaction as
- * the item write so an item is never committed without its media linked.
- * Referenced media must exist — call validateDatasetItemMediaReferences before
- * persisting the items.
- *
- * `replaceExisting` is for in-place updates with versioning disabled
- * (STATEFUL), where the item version (id, validFrom) stays the same and
- * removed references must be unlinked. Versioned updates write a new validFrom,
- * so old versions keep their rows and the delete is a no-op.
+ * Declares a pending media association at upload (a dataset_item_media row with
+ * null validFrom/jsonPath/referenceString), claimed when the item is written.
+ * Verifies the dataset belongs to the project; the item may not exist yet.
+ */
+export async function declarePendingDatasetItemMedia(props: {
+  projectId: string;
+  datasetId: string;
+  datasetItemId: string;
+  field: DatasetItemMediaField;
+  mediaId: string;
+}) {
+  const dataset = await prisma.dataset.findFirst({
+    where: { id: props.datasetId, projectId: props.projectId },
+    select: { id: true },
+  });
+  if (!dataset) {
+    throw new LangfuseNotFoundError(
+      `Dataset ${props.datasetId} not found in project ${props.projectId}`,
+    );
+  }
+
+  // createMany for skipDuplicates: re-declaring the same (item, field, media)
+  // is a no-op against the pending partial unique index (create would throw,
+  // and upsert can't target a partial index).
+  await prisma.datasetItemMedia.createMany({
+    data: [
+      {
+        projectId: props.projectId,
+        datasetId: props.datasetId,
+        datasetItemId: props.datasetItemId,
+        field: props.field,
+        mediaId: props.mediaId,
+        datasetItemValidFrom: null,
+        jsonPath: null,
+        referenceString: null,
+      },
+    ],
+    skipDuplicates: true,
+  });
+}
+
+/**
+ * Writes the dataset_item_media rows for an item version (enroll in the item
+ * write transaction). Associations are derived from the item JSON; a matching
+ * pending row declared at upload is consumed. `replaceExisting` unlinks removed
+ * references for in-place (STATEFUL) updates where the version is unchanged.
  */
 export async function linkDatasetItemMedia(
   tx: Prisma.TransactionClient,
@@ -168,29 +204,44 @@ export async function linkDatasetItemMedia(
   },
 ) {
   const { projectId, items, replaceExisting } = props;
+  if (items.length === 0) return;
 
-  const rows = items.flatMap((item) =>
-    collectMediaReferences(item).map((reference) => ({
-      projectId,
-      datasetId: item.datasetId,
-      datasetItemId: item.datasetItemId,
-      datasetItemValidFrom: item.datasetItemValidFrom,
-      ...reference,
-    })),
+  const rowsToInsert: Prisma.DatasetItemMediaCreateManyInput[] = items.flatMap(
+    (item) =>
+      collectMediaReferences(item).map((reference) => ({
+        projectId,
+        datasetId: item.datasetId,
+        datasetItemId: item.datasetItemId,
+        datasetItemValidFrom: item.datasetItemValidFrom,
+        field: reference.field,
+        jsonPath: reference.jsonPath,
+        referenceString: reference.referenceString,
+        mediaId: reference.mediaId,
+      })),
   );
 
-  // Hot path: items without media need no queries. With replaceExisting we
-  // still delete so references removed by the update are unlinked.
-  if (rows.length === 0 && !replaceExisting) return;
+  // Hot path: items without media still need the replaceExisting delete.
+  if (rowsToInsert.length === 0 && !replaceExisting) return;
 
   if (replaceExisting) {
     await deleteDatasetItemMediaLinks(tx, { projectId, itemVersions: items });
   }
 
-  if (rows.length > 0) {
+  if (rowsToInsert.length > 0) {
     await tx.datasetItemMedia.createMany({
-      data: rows,
+      data: rowsToInsert,
       skipDuplicates: true,
+    });
+    // Consume the claimed pending rows; unclaimed ones are swept by retention.
+    await tx.datasetItemMedia.deleteMany({
+      where: {
+        projectId,
+        datasetItemValidFrom: null,
+        OR: rowsToInsert.map((row) => ({
+          datasetItemId: row.datasetItemId,
+          mediaId: row.mediaId,
+        })),
+      },
     });
   }
 }

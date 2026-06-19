@@ -1407,13 +1407,17 @@ model DatasetItemMedia {
   // datasetId lets the dataset-delete worker clean them up directly
   datasetId            String   @map("dataset_id")
   datasetItemId        String   @map("dataset_item_id")
-  datasetItemValidFrom DateTime @map("dataset_item_valid_from")
+  // null while pending: the row is declared at media upload and stamped with
+  // the item version's validFrom when the item is written.
+  datasetItemValidFrom DateTime? @map("dataset_item_valid_from")
   // dataset item field containing the reference: input | expectedOutput | metadata
   field                String   @map("field")
+  // null while pending; the dataset service fills it from the item JSON on claim.
   // JSONPath of the string holding the media reference within the field, e.g. $['images'][0]
-  jsonPath             String   @map("json_path")
-  // the original @@@langfuseMedia:...@@@ string, so reads need no JSON parsing
-  referenceString      String   @map("reference_string")
+  jsonPath             String?  @map("json_path")
+  // null while pending; the original @@@langfuseMedia:...@@@ string, filled on
+  // claim so reads need no JSON parsing
+  referenceString      String?  @map("reference_string")
 
   @@unique([projectId, datasetItemId, datasetItemValidFrom, field, jsonPath], map: "dataset_item_media_item_version_field_path_key")
   @@index([projectId, mediaId])
