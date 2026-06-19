@@ -247,6 +247,36 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.
 
+## AI filter mode (Tab on an empty bar)
+
+The bar is also the home of AI-assisted filtering on v4 (it replaces the legacy
+sidebar "✨ wand" — `EventsTable` now passes `filterWithAI={!searchBarMode}`, so
+the wand only survives on non-bar/embedded surfaces and the v3 traces table).
+
+- **Entry.** On an EMPTY bar, `Tab` (or the "Ask AI ⇥" affordance) opens AI mode
+  — an empty draft has no highlighted completion, so this never shadows the
+  autocomplete's Tab-to-pick. `EventsSearchBarRow` owns the `'grammar' | 'ai'`
+  mode and gates availability on `isLangfuseCloud && organization.aiFeaturesEnabled`
+  (the server enforces it too). `SearchComposer` only takes an `onActivateAi`
+  callback + renders the affordance; it stays grammar-only.
+- **The component.** `components/SearchBarAiPrompt.tsx` — a plain NL input (not
+  the contenteditable). Enter generates, Esc cancels, blur-when-empty exits.
+- **The endpoint.** `server/router.ts` (`searchBar.generateFilter`), NOT the
+  legacy `naturalLanguageFilters.createCompletion`. Its prompt is built from
+  THIS registry (`server/buildFilterPrompt.ts`, derived from `FIELDS` +
+  `SCORE_COLUMNS`), so the model's vocabulary IS the grammar. It asks for a flat
+  `FilterState` (an array of `singleFilter`), then **round-trips it through
+  `filterStateToQueryText` server-side and returns only the filters that lower
+  to bar pills** — a hallucinated/non-v4 column lands in `skippedFilters` and is
+  dropped before it reaches the client. A unit test
+  (`__tests__/server/unit/searchBarFilterPrompt.servertest.ts`) asserts every
+  field's prompt-recommended `type` round-trips, so the prompt can't drift from
+  the reverse adapter.
+- **Apply-immediately.** The result is applied via the bar's existing
+  `setFilterState` (the SAME path the facet sidebar uses), so on returning to
+  grammar mode `resetTo` re-derives the generated filters as editable pills.
+  There is no separate AI→bar sync path.
+
 ## Extending to other views (the universality contract)
 
 The bar is intended to become the primary filter interface for **every**

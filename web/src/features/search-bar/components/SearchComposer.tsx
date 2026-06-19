@@ -16,7 +16,7 @@
 
 import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
-import { AlertCircle, X } from "lucide-react";
+import { AlertCircle, WandSparkles, X } from "lucide-react";
 
 import { Layer } from "@/src/components/ui/layer";
 import { cn } from "@/src/utils/tailwind";
@@ -286,10 +286,13 @@ function useLatest<T>(value: T) {
 export function SearchComposer({
   projectId,
   observed,
+  onActivateAi,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
+  /** When set, an empty bar shows an "Ask AI" affordance and Tab opens AI mode. */
+  onActivateAi?: () => void;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -860,6 +863,20 @@ export function SearchComposer({
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.nativeEvent.isComposing) return;
 
+    // Tab on an EMPTY bar opens AI mode (Raycast-style "Quick AI"). An empty
+    // draft has no highlighted completion to pick, so this never shadows the
+    // autocomplete's Tab-to-pick (which only fires once the user has typed).
+    if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      onActivateAi !== undefined &&
+      draft.trim().length === 0
+    ) {
+      event.preventDefault();
+      onActivateAi();
+      return;
+    }
+
     if (
       (event.metaKey || event.ctrlKey) &&
       (event.key === "z" || event.key === "Z")
@@ -1306,9 +1323,39 @@ export function SearchComposer({
         )}
       >
         {draft.length === 0 && (
-          <div className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate pr-8 font-mono text-xs">
+          <div
+            className={cn(
+              "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
+              onActivateAi !== undefined ? "pr-24" : "pr-8",
+            )}
+          >
             {COMPOSER_PLACEHOLDER}
           </div>
+        )}
+        {/* "Ask AI" affordance — only on an empty bar (Tab opens the same mode).
+            bg-background keeps it legible over the placeholder text behind it.
+            onMouseDown preventDefault so a click doesn't blur the editor first. */}
+        {onActivateAi !== undefined && draft.length === 0 && (
+          <button
+            type="button"
+            data-testid="search-bar-ask-ai"
+            aria-label="Ask AI to build filters"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onActivateAi();
+            }}
+            className={cn(
+              "absolute top-1/2 right-2 z-20 inline-flex -translate-y-1/2 items-center gap-1.5 rounded px-1.5 py-0.5",
+              "bg-background text-muted-foreground hover:text-foreground font-sans text-xs",
+            )}
+          >
+            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Ask AI</span>
+            <kbd className="border-border ml-0.5 rounded border px-1 font-mono text-[10px] leading-none">
+              ⇥
+            </kbd>
+          </button>
         )}
         <div
           ref={rootRef}

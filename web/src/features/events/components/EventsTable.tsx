@@ -1484,6 +1484,7 @@ export default function ObservationsEventsTable({
                 store={searchBarStore}
                 commit={searchBarCommit}
                 observed={observedOptions}
+                setFilterState={setFiltersWrapper}
               />
             )}
             {/* Toolbar spanning full width */}
@@ -1593,7 +1594,9 @@ export default function ObservationsEventsTable({
                 pageSize: paginationState.limit,
                 pageIndex: paginationState.page - 1,
               }}
-              filterWithAI
+              // In bar mode AI filtering lives in the search bar (Tab / "Ask AI"),
+              // so the legacy wand is only offered when the bar is absent.
+              filterWithAI={!searchBarMode}
             />
           </div>
         )}
@@ -1606,7 +1609,9 @@ export default function ObservationsEventsTable({
               // Remount the sidebar when the saved view changes so the new view's filters replace any stale draft UI state.
               key={viewControllers.selectedViewId ?? "no-view"}
               queryFilter={queryFilter}
-              filterWithAI
+              // In bar mode AI filtering lives in the search bar; only offer the
+              // sidebar wand on non-bar surfaces (embedded scoped tables).
+              filterWithAI={!searchBarMode}
             />
           )}
 
