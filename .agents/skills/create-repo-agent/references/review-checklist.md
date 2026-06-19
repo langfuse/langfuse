@@ -88,6 +88,7 @@ Use this checklist before merging any repo-agent workflow, skill, or self-improv
 - The schedule is not too frequent for provider rate limits, model cost, or reviewer attention.
 - `timeout-minutes`, max turns, and max budget bound runaway loops.
 - Manual dispatch inputs are sufficient for safe debugging without making the agent arbitrary.
+- Manual dry-run mode can skip the model step and exercise no-change plus allowlisted mock-diff paths without publishing.
 - No-change runs are cheap and legible.
 - Failure modes leave enough summary context for maintainers without exposing secrets.
 
