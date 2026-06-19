@@ -3,7 +3,7 @@ import {
   SplashScreen,
   type ValueProposition,
 } from "@/src/components/ui/splash-screen";
-import { Bot, Gauge, Zap, BarChart4, Code2 } from "lucide-react";
+import { Bot, Gauge, Zap, BarChart4 } from "lucide-react";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import { EvalTemplateSourceCodeLanguage } from "@langfuse/shared";
 
@@ -46,25 +46,30 @@ export function EvaluatorsOnboarding({ projectId }: EvaluatorsOnboardingProps) {
   ];
 
   if (enabled) {
-    const evaluatorTypes: ValueProposition[] = [
-      {
-        title: "LLM-as-a-judge evaluators",
-        description:
-          "Use an LLM to score outputs against natural-language criteria.",
-        icon: <Bot className="h-4 w-4" />,
-      },
-      {
-        title: "Code evaluators",
-        description: `Write ${codeEvaluatorLanguageDescription} logic for deterministic, custom scoring.`,
-        icon: <Code2 className="h-4 w-4" />,
-      },
-    ];
-
     return (
       <SplashScreen
         title="Get started with evaluations"
-        description="Use evaluators to score traces and observations automatically. Langfuse supports two evaluator types:"
-        valuePropositions={evaluatorTypes}
+        description={
+          <>
+            Use evaluators to score traces and observations automatically.
+            Langfuse supports two evaluator types:
+            <ul className="text-muted-foreground mx-auto mt-2 max-w-2xl list-disc space-y-2 pl-5 text-sm">
+              <li>
+                <span className="text-foreground font-medium">
+                  LLM-as-a-judge evaluators
+                </span>{" "}
+                use an LLM to score outputs against natural-language criteria.
+              </li>
+              <li>
+                <span className="text-foreground font-medium">
+                  Code evaluators
+                </span>{" "}
+                use {codeEvaluatorLanguageDescription} logic for deterministic,
+                custom scoring.
+              </li>
+            </ul>
+          </>
+        }
         primaryAction={{
           label: "Create Evaluator",
           href: `/project/${projectId}/evals/new`,
