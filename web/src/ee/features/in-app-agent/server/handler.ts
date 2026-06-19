@@ -135,12 +135,6 @@ export default async function handler(request: Request) {
       throw new ForbiddenError("User is not a member of this project");
     }
 
-    const isInAppAgentEnabled = auth.user.featureFlags.inAppAgent === true;
-
-    if (!isInAppAgentEnabled) {
-      throw new ForbiddenError("Assistant is not enabled for this user");
-    }
-
     if (
       !hasEntitlement({
         entitlement: "in-app-agent",

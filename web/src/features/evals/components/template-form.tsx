@@ -186,6 +186,7 @@ export type EvalTemplateFormPreFill = {
       maxTemperature: number;
     };
   };
+  shouldUseDefaultModel?: boolean;
 };
 
 export const InnerEvalTemplateForm = (props: {
@@ -212,9 +213,9 @@ export const InnerEvalTemplateForm = (props: {
 
   // Determine if we should use default model or custom model
   // If existing template has no provider, it was using default model
-  const isExistingUsingDefault = props.preFilledFormValues?.selectedModel
-    ? false
-    : true;
+  const shouldUseDefaultModel =
+    props.preFilledFormValues?.shouldUseDefaultModel ??
+    (props.preFilledFormValues?.selectedModel ? false : true);
 
   const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
     { projectId: props.projectId },
@@ -278,7 +279,7 @@ export const InnerEvalTemplateForm = (props: {
       categories: outputDefinitionFormValues.categories,
       shouldAllowMultipleMatches:
         outputDefinitionFormValues.shouldAllowMultipleMatches,
-      shouldUseDefaultModel: isExistingUsingDefault,
+      shouldUseDefaultModel,
     },
   });
 
