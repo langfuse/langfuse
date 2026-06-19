@@ -21,7 +21,11 @@ import {
   validateDatasetItemMediaReferences,
 } from "./dataset-item-media";
 import { FieldValidationError } from "../../utils/jsonSchemaValidation";
-import { DatasetItemDomain, DatasetItemDomainWithoutIO } from "../../domain";
+import {
+  DatasetItemDomain,
+  DatasetItemDomainWithoutIO,
+  type DatasetItemMediaField,
+} from "../../domain";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -916,7 +920,7 @@ export type CreateManyValidationError = {
   itemIndex: number;
   // "metadata" only occurs for media-reference errors; schema validation
   // reports input/expectedOutput.
-  field: "input" | "expectedOutput" | "metadata";
+  field: DatasetItemMediaField;
   errors: Array<{
     path: string;
     message: string;

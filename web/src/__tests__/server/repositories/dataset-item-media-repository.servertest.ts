@@ -552,63 +552,13 @@ describe("Dataset Item Media Associations", () => {
       ).resolves.toBe(1);
     });
 
-    it("skips dataset-associated media during retention deletion", async () => {
+    it("retention keeps claimed-associated media but deletes unassociated and pending media", async () => {
       const datasetId = await createDataset();
-      const associatedMedia = await createMediaRow();
-      const unassociatedMedia = await createMediaRow();
+      const associatedMedia = await createMediaRow(); // claimed -> protected
+      const unassociatedMedia = await createMediaRow(); // no row -> deleted
+      const pendingMedia = await createMediaRow(); // pending row only -> deleted
+
       await createItemWithMedia(datasetId, associatedMedia.referenceString);
-
-      const past = new Date(Date.now() - 1000 * 60 * 60 * 24 * 3);
-      await prisma.media.updateMany({
-        where: {
-          projectId,
-          id: { in: [associatedMedia.mediaId, unassociatedMedia.mediaId] },
-        },
-        data: { createdAt: past },
-      });
-
-      const expired = await findExpiredMediaByProjectId({
-        projectId,
-        cutoffDate: new Date(Date.now() - 1000 * 60 * 60 * 24),
-      });
-
-      const expiredIds = expired.map((media) => media.id);
-      expect(expiredIds).toContain(unassociatedMedia.mediaId);
-      expect(expiredIds).toContain(associatedMedia.mediaId);
-
-      const relevantExpired = expired.filter((media) =>
-        [associatedMedia.mediaId, unassociatedMedia.mediaId].includes(media.id),
-      );
-      const deletedPaths: string[] = [];
-      const deletedCount = await deleteMediaFiles({
-        projectId,
-        mediaFiles: relevantExpired,
-        storageClient: {
-          deleteFiles: async (paths) => {
-            deletedPaths.push(...paths);
-          },
-        },
-      });
-
-      expect(deletedCount).toBe(1);
-      expect(deletedPaths).toEqual([`media/${unassociatedMedia.mediaId}.png`]);
-      await expect(
-        prisma.media.findUnique({
-          where: { projectId_id: { projectId, id: associatedMedia.mediaId } },
-        }),
-      ).resolves.not.toBeNull();
-      await expect(
-        prisma.media.findUnique({
-          where: {
-            projectId_id: { projectId, id: unassociatedMedia.mediaId },
-          },
-        }),
-      ).resolves.toBeNull();
-    });
-
-    it("does not let a pending association protect media, and sweeps it", async () => {
-      const datasetId = await createDataset();
-      const pendingMedia = await createMediaRow();
       // A pending association: declared at upload, the item was never written.
       await prisma.datasetItemMedia.create({
         data: {
@@ -624,8 +574,13 @@ describe("Dataset Item Media Associations", () => {
         },
       });
 
-      await prisma.media.update({
-        where: { projectId_id: { projectId, id: pendingMedia.mediaId } },
+      const mediaIds = [
+        associatedMedia.mediaId,
+        unassociatedMedia.mediaId,
+        pendingMedia.mediaId,
+      ];
+      await prisma.media.updateMany({
+        where: { projectId, id: { in: mediaIds } },
         data: { createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3) },
       });
 
@@ -633,24 +588,51 @@ describe("Dataset Item Media Associations", () => {
         projectId,
         cutoffDate: new Date(Date.now() - 1000 * 60 * 60 * 24),
       });
-      const relevantExpired = expired.filter(
-        (media) => media.id === pendingMedia.mediaId,
+      // Retention enumerates all expired media (no marker); the dataset filter
+      // happens in deleteMediaFiles.
+      expect(expired.map((media) => media.id)).toEqual(
+        expect.arrayContaining(mediaIds),
+      );
+      const relevantExpired = expired.filter((media) =>
+        mediaIds.includes(media.id),
       );
 
+      const deletedPaths: string[] = [];
       const deletedCount = await deleteMediaFiles({
         projectId,
         mediaFiles: relevantExpired,
-        storageClient: { deleteFiles: async () => {} },
+        storageClient: {
+          deleteFiles: async (paths) => {
+            deletedPaths.push(...paths);
+          },
+        },
       });
 
-      // Pending row did not protect the media; it is deleted and the pending
-      // row is swept with it.
-      expect(deletedCount).toBe(1);
+      // Only a claimed (non-null validFrom) association protects media; the
+      // pending row does not, so unassociated and pending media are deleted.
+      expect(deletedCount).toBe(2);
+      expect([...deletedPaths].sort()).toEqual(
+        [
+          `media/${pendingMedia.mediaId}.png`,
+          `media/${unassociatedMedia.mediaId}.png`,
+        ].sort(),
+      );
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: associatedMedia.mediaId } },
+        }),
+      ).resolves.not.toBeNull();
+      await expect(
+        prisma.media.findUnique({
+          where: { projectId_id: { projectId, id: unassociatedMedia.mediaId } },
+        }),
+      ).resolves.toBeNull();
       await expect(
         prisma.media.findUnique({
           where: { projectId_id: { projectId, id: pendingMedia.mediaId } },
         }),
       ).resolves.toBeNull();
+      // the pending row is swept together with its media
       await expect(
         prisma.datasetItemMedia.count({
           where: { projectId, mediaId: pendingMedia.mediaId },

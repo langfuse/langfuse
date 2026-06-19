@@ -168,7 +168,7 @@ export async function declarePendingDatasetItemMedia(props: {
     );
   }
 
-  // createMany for skipDuplicates: re-declaring the same (item, field, media)
+  // createMany for skipDuplicates: redeclaring the same (item, field, media)
   // is a no-op against the pending partial unique index (create would throw,
   // and upsert can't target a partial index).
   await prisma.datasetItemMedia.createMany({
