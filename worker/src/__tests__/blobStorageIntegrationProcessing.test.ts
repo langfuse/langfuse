@@ -15,8 +15,7 @@ const originalCloudRegion = vi.hoisted(() => {
   return cloudRegion;
 });
 
-// Override only recordIncrement so the per-table attempt counter (LFE-10407) is
-// assertable; every real CH/storage export helper stays intact.
+// Override only recordIncrement so the attempt counter is assertable.
 const mockRecordIncrement = vi.hoisted(() => vi.fn());
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =

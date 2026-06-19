@@ -320,16 +320,14 @@ const processBlobStorageExport = async (config: {
         startedAt: Date.now(),
       });
 
-      // Count the attempt. Without a matching success/failure/aborted later, the
-      // residual surfaces silent hard kills (OOM/ungraceful death). See LFE-10407.
       recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
         outcome: "started" satisfies BlobTableExportOutcome,
         table: config.table,
         projectId: config.projectId,
       });
 
-      // Declared outside the try so the catch can tell a real upload success
-      // (followed by a later throw) from an actual export failure. See below.
+      // Outside the try so the catch can distinguish a real upload success from
+      // a failure.
       let uploadSucceeded = false;
 
       try {
@@ -447,10 +445,8 @@ const processBlobStorageExport = async (config: {
             data: fileStream,
             partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
           });
-          // Record success the instant the upload resolves, so the terminal
-          // counter reflects the upload outcome rather than whatever happens in
-          // the span-attribute `finally` below. A throwing setAttribute would
-          // otherwise propagate to the outer catch and miscount a real success.
+          // Record at the upload boundary so a throw in the `finally` below
+          // can't miscount a real success as a failure.
           uploadSucceeded = true;
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "success" satisfies BlobTableExportOutcome,
@@ -482,9 +478,7 @@ const processBlobStorageExport = async (config: {
           }
         }
       } catch (error) {
-        // Guard against double-counting: if the upload already succeeded and a
-        // later step threw, the `success` increment has fired — don't also emit
-        // `failure`.
+        // Skip if `success` already fired (a later step threw post-upload).
         if (!uploadSucceeded) {
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "failure" satisfies BlobTableExportOutcome,
