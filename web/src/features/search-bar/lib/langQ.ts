@@ -19,6 +19,11 @@
 
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
 import { canonicalKey, operatorIssue, resolveField } from "./fields";
+import { NEEDS_QUOTES, unquote } from "./quoting";
+
+// Re-exported for back-compat: quoting primitives now live in the shared
+// dependency-free `quoting.ts` (so `fields.ts` can use them too).
+export { NEEDS_QUOTES };
 
 export type Diagnostic = {
   from: number;
@@ -195,15 +200,6 @@ export function indexOfOutsideQuotes(s: string, ch: string): number {
   return -1;
 }
 
-function unquote(s: string): { value: string; quoted: boolean } {
-  const t = s.trim();
-  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) {
-    // Inverse of serializeValue: \" and \\ are escapes, everything else literal.
-    return { value: t.slice(1, -1).replace(/\\(["\\])/g, "$1"), quoted: true };
-  }
-  return { value: t, quoted: false };
-}
-
 // ---- term classification ----
 
 function isKeyword(raw: string): "and" | "or" | "not" | null {
@@ -295,17 +291,12 @@ function parseTermNode(
       severity: "error",
       message: `Unknown field "${keyRaw}"`,
     });
-  } else if (NEEDS_QUOTES.test(keyRaw)) {
-    // A key with quotes/spaces/grammar chars (e.g. `metadata."foo"`) has no
-    // representable form — the reverse adapter routes it to skippedFilters, so
-    // committing would silently clear the bar. Reject it at parse time instead.
-    diagnostics.push({
-      from: span.from,
-      to: span.from + colon,
-      severity: "error",
-      message: `Field name "${keyRaw}" cannot contain quotes or spaces`,
-    });
   }
+  // A dot-path key segment with grammar chars (`scores."Rouge Score"`,
+  // `metadata."my key"`) is allowed: resolveField unquotes it, and the
+  // serializer/reverse adapter re-quote it — so it round-trips instead of being
+  // rejected. Plain field keys never need quoting; a quoted unknown key falls
+  // out as "Unknown field" above.
 
   const key = ref === null ? keyRaw : canonicalKey(ref);
 
@@ -837,7 +828,6 @@ export function termAt(
 
 // ---- serializer ----
 
-export const NEEDS_QUOTES = /[\s:,()"\\]/;
 // A value/term that STARTS with an operator prefix would otherwise be reparsed
 // as that operator (`name:>5` → comparison, `name:=x` → exact), and a leading
 // `-` would be read as negation when the term is free text (`-foo`). Only the
