@@ -65,6 +65,12 @@ export const ObservationIoParserConfigListItemSchema =
         name: z.string().nullish(),
       })
       .nullish(),
+    updatedByUser: z
+      .object({
+        image: z.string().nullish(),
+        name: z.string().nullish(),
+      })
+      .nullish(),
   });
 
 export const ObservationIoParserProjectPreferenceSchema = z.object({

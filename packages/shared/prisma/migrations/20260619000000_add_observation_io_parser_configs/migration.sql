@@ -29,11 +29,8 @@ CREATE TABLE "observation_io_parser_preferences" (
 );
 
 CREATE UNIQUE INDEX "observation_io_parser_configs_project_id_name_key" ON "observation_io_parser_configs"("project_id", "name");
-CREATE INDEX "observation_io_parser_configs_project_id_enabled_priority_idx" ON "observation_io_parser_configs"("project_id", "enabled", "priority");
 CREATE UNIQUE INDEX "observation_io_parser_preferences_project_user_key" ON "observation_io_parser_preferences"("project_id", "user_id") WHERE "user_id" IS NOT NULL;
 CREATE UNIQUE INDEX "observation_io_parser_preferences_project_key" ON "observation_io_parser_preferences"("project_id") WHERE "user_id" IS NULL;
-CREATE INDEX "observation_io_parser_preferences_project_id_idx" ON "observation_io_parser_preferences"("project_id");
-CREATE INDEX "observation_io_parser_preferences_selected_config_id_idx" ON "observation_io_parser_preferences"("selected_config_id");
 
 ALTER TABLE "observation_io_parser_configs" ADD CONSTRAINT "observation_io_parser_configs_project_id_fkey" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "observation_io_parser_configs" ADD CONSTRAINT "observation_io_parser_configs_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;

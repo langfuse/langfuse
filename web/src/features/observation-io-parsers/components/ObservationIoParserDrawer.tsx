@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Braces, Pencil, Plus, Trash2 } from "lucide-react";
+import { Braces, Lock, MoreVertical, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   eventsTableCols,
   OBSERVATION_IO_PARSER_BLOCKED_FILTER_COLUMNS,
@@ -35,6 +35,13 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { Separator } from "@/src/components/ui/separator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/src/components/ui/dropdown-menu";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
@@ -170,15 +177,22 @@ export function ObservationIoParserDrawer({
   trigger,
   editConfigId,
   onEditConfigIdChange,
+  open,
+  onOpenChange,
 }: {
   projectId: string;
   currentFilters?: FilterState;
   trigger?: ReactNode | null;
   editConfigId?: string | null;
   onEditConfigIdChange?: (configId: string | null) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isOpen = open ?? uncontrolledOpen;
+  const setIsOpen = onOpenChange ?? setUncontrolledOpen;
   const [draft, setDraft] = useState<ParserDraft | null>(null);
+  const [dropdownId, setDropdownId] = useState<string | null>(null);
   const draftFiltersRef = useRef<FilterState | null>(null);
   const utils = api.useUtils();
 
@@ -344,6 +358,8 @@ export function ObservationIoParserDrawer({
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isSettingDefault =
+    projectPreferenceMutation.isPending || userPreferenceMutation.isPending;
 
   return (
     <>
@@ -378,138 +394,158 @@ export function ObservationIoParserDrawer({
           </DrawerHeader>
 
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <div className="grid gap-3 border-b p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">Project</div>
-                  <div className="text-muted-foreground text-xs">
-                    {projectPreference.data?.enabled ? "Enabled" : "Disabled"}
-                  </div>
-                </div>
-                <Switch
-                  checked={projectPreference.data?.enabled ?? false}
-                  disabled={
-                    !hasWriteAccess || projectPreferenceMutation.isPending
-                  }
-                  onCheckedChange={(enabled) =>
-                    projectPreferenceMutation.mutate({ projectId, enabled })
-                  }
-                />
-              </div>
-              <div className="grid gap-1">
-                <span className="text-xs font-medium">Project default</span>
-                <Select
-                  value={projectPreference.data?.selectedConfigId ?? "__first"}
-                  disabled={
-                    !hasWriteAccess ||
-                    projectPreferenceMutation.isPending ||
-                    configsByPriority.length === 0
-                  }
-                  onValueChange={(selectedConfigId) =>
-                    projectPreferenceMutation.mutate({
-                      projectId,
-                      enabled: projectPreference.data?.enabled ?? false,
-                      selectedConfigId:
-                        selectedConfigId === "__first"
-                          ? null
-                          : selectedConfigId,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__first">First active parser</SelectItem>
-                    {configsByPriority.map((config) => (
-                      <SelectItem key={config.id} value={config.id}>
-                        {config.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">Mine</div>
-                  <div className="text-muted-foreground text-xs">
-                    {(userPreference.data?.enabled ?? true)
-                      ? "Enabled"
-                      : "Disabled"}
-                  </div>
-                </div>
-                <Switch
-                  checked={userPreference.data?.enabled ?? true}
-                  disabled={userPreferenceMutation.isPending}
-                  onCheckedChange={(enabled) =>
-                    userPreferenceMutation.mutate({ projectId, enabled })
-                  }
-                />
-              </div>
-            </div>
-
             <div className="divide-border divide-y">
               {configsByPriority.length === 0 ? (
                 <div className="text-muted-foreground p-4 text-sm">
                   No parsers
                 </div>
               ) : (
-                configsByPriority.map((config) => (
-                  <div key={config.id} className="grid gap-2 p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-sm font-medium">
-                            {config.name}
-                          </span>
-                          <Badge
-                            variant={config.enabled ? "success" : "secondary"}
-                            size="sm"
-                          >
-                            {config.enabled ? "On" : "Off"}
-                          </Badge>
-                          <Badge variant="outline" size="sm">
-                            {config.priority}
-                          </Badge>
-                        </div>
-                        {config.description ? (
-                          <div className="text-muted-foreground mt-1 line-clamp-2 text-xs">
-                            {config.description}
+                configsByPriority.map((config) => {
+                  const isUserDefault =
+                    userPreference.data?.enabled !== false &&
+                    userPreference.data?.selectedConfigId === config.id;
+                  const isProjectDefault =
+                    projectPreference.data?.enabled === true &&
+                    projectPreference.data?.selectedConfigId === config.id;
+                  const canSetDefault = config.enabled || isUserDefault;
+                  const canSetProjectDefault =
+                    config.enabled || isProjectDefault;
+
+                  return (
+                    <div key={config.id} className="grid gap-2 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="truncate text-sm font-medium">
+                              {config.name}
+                            </span>
+                            <Badge
+                              variant={config.enabled ? "success" : "secondary"}
+                              size="sm"
+                            >
+                              {config.enabled ? "On" : "Off"}
+                            </Badge>
+                            {isUserDefault ? (
+                              <Badge variant="secondary" size="sm">
+                                Your default
+                              </Badge>
+                            ) : null}
+                            {isProjectDefault ? (
+                              <Badge variant="outline" size="sm">
+                                Project default
+                              </Badge>
+                            ) : null}
                           </div>
-                        ) : null}
+                          {config.description ? (
+                            <div className="text-muted-foreground mt-1 line-clamp-2 text-xs">
+                              {config.description}
+                            </div>
+                          ) : null}
+                        </div>
+                        <DropdownMenu
+                          open={dropdownId === config.id}
+                          onOpenChange={(open) =>
+                            setDropdownId(open ? config.id : null)
+                          }
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon-xs"
+                              className="shrink-0"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="flex flex-col *:w-full *:justify-start">
+                            <DropdownMenuItem
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openEditDialog(config);
+                                setDropdownId(null);
+                              }}
+                              disabled={!hasWriteAccess}
+                            >
+                              {hasWriteAccess ? (
+                                <Pencil className="mr-2 h-4 w-4" />
+                              ) : (
+                                <Lock className="mr-2 h-4 w-4" />
+                              )}
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                userPreferenceMutation.mutate({
+                                  projectId,
+                                  enabled: true,
+                                  selectedConfigId: isUserDefault
+                                    ? null
+                                    : config.id,
+                                });
+                                setDropdownId(null);
+                              }}
+                              disabled={isSettingDefault || !canSetDefault}
+                            >
+                              {isUserDefault
+                                ? "Remove as my default"
+                                : "Set as my default"}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                projectPreferenceMutation.mutate({
+                                  projectId,
+                                  enabled: !isProjectDefault,
+                                  selectedConfigId: isProjectDefault
+                                    ? null
+                                    : config.id,
+                                });
+                                setDropdownId(null);
+                              }}
+                              disabled={
+                                !hasWriteAccess ||
+                                isSettingDefault ||
+                                !canSetProjectDefault
+                              }
+                            >
+                              {isProjectDefault
+                                ? "Remove as project default"
+                                : "Set as project default"}
+                              {!hasWriteAccess ? (
+                                <Lock className="ml-auto h-4 w-4" />
+                              ) : null}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                if (window.confirm(`Delete ${config.name}?`)) {
+                                  deleteMutation.mutate({
+                                    projectId,
+                                    id: config.id,
+                                  });
+                                }
+                                setDropdownId(null);
+                              }}
+                              disabled={
+                                !hasWriteAccess || deleteMutation.isPending
+                              }
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          onClick={() => openEditDialog(config)}
-                          disabled={!hasWriteAccess}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          disabled={!hasWriteAccess || deleteMutation.isPending}
-                          onClick={() => {
-                            if (window.confirm(`Delete ${config.name}?`)) {
-                              deleteMutation.mutate({
-                                projectId,
-                                id: config.id,
-                              });
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                      <div className="text-muted-foreground flex flex-wrap gap-2 text-xs">
+                        <span>{config.filters.length} filters</span>
+                        <span>{config.instructions.fields.length} fields</span>
                       </div>
                     </div>
-                    <div className="text-muted-foreground flex flex-wrap gap-2 text-xs">
-                      <span>{config.filters.length} filters</span>
-                      <span>{config.instructions.fields.length} fields</span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

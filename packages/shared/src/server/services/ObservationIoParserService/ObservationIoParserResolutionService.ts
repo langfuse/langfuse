@@ -160,9 +160,7 @@ export class ObservationIoParserResolutionService {
       ? activeConfigs.filter(
           (config) => config.id === preference.selectedConfigId,
         )
-      : input.userId
-        ? activeConfigs.slice(0, 1)
-        : activeConfigs;
+      : activeConfigs;
 
     if (candidateConfigs.length === 0) {
       return ParsedObservationIoResponseSchema.parse({

@@ -83,6 +83,12 @@ export class ObservationIoParserConfigService {
             name: true,
           },
         },
+        updatedByUser: {
+          select: {
+            image: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -326,14 +332,6 @@ export class ObservationIoParserConfigService {
         : null,
     ]);
 
-    if (!projectPreference.enabled) {
-      return {
-        enabled: false,
-        disabledScope: "project",
-        selectedConfigId: null,
-      };
-    }
-
     if (userPreference && !userPreference.enabled) {
       return {
         enabled: false,
@@ -346,7 +344,8 @@ export class ObservationIoParserConfigService {
       enabled: true,
       disabledScope: null,
       selectedConfigId:
-        userPreference?.selectedConfigId ?? projectPreference.selectedConfigId,
+        userPreference?.selectedConfigId ??
+        (projectPreference.enabled ? projectPreference.selectedConfigId : null),
     };
   }
 }

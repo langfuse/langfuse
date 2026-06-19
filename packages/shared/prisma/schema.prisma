@@ -1599,7 +1599,6 @@ model ObservationIoParserConfig {
   updatedByUser User?   @relation("ObservationIoParserConfigUpdatedByUser", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@unique([projectId, name])
-  @@index([projectId, enabled, priority])
   @@map("observation_io_parser_configs")
 }
 
@@ -1626,8 +1625,6 @@ model ObservationIoParserPreference {
   // Uniqueness enforced via partial indexes in migration:
   // - User preferences: UNIQUE(project_id, user_id) WHERE user_id IS NOT NULL
   // - Project preference: UNIQUE(project_id) WHERE user_id IS NULL
-  @@index([projectId])
-  @@index([selectedConfigId])
   @@map("observation_io_parser_preferences")
 }
 
