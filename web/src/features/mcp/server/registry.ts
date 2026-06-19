@@ -19,16 +19,13 @@ import { logger } from "@langfuse/shared/src/server";
  *
  * Combines tool definition (for MCP protocol) with handler (for execution)
  */
-export interface RegisteredTool {
+export interface RegisteredTool<TName extends string = string> {
   /** Tool definition for MCP protocol */
-  definition: ToolDefinition;
+  definition: ToolDefinition<TName>;
 
   /** Tool handler function - accepts any input type */
 
   handler: ToolHandler<any>;
-
-  /** Whether in-app agent API keys may discover and call this tool. */
-  allowInAppAgentKey?: boolean;
 }
 
 /**
@@ -57,7 +54,7 @@ export interface McpFeatureModule {
   description: string;
 
   /** Tools provided by this feature */
-  tools: RegisteredTool[];
+  tools: readonly RegisteredTool[];
 
   /**
    * Optional: Check if feature is enabled for the given context
@@ -128,10 +125,6 @@ class ToolRegistry {
 
       // Add all tools from enabled feature
       for (const tool of feature.tools) {
-        if (!this.canUseTool(tool, context)) {
-          continue;
-        }
-
         definitions.push(tool.definition);
       }
     }
@@ -163,23 +156,30 @@ class ToolRegistry {
     const feature = this.getFeatureForTool(name);
     if (!feature) return undefined;
 
-    if (!this.canUseTool(tool, context)) {
+    if (feature.isEnabled && !(await feature.isEnabled(context))) {
       return undefined;
     }
 
-    if (feature.isEnabled && !(await feature.isEnabled(context))) {
+    if (!this.canCallTool(tool, context)) {
       return undefined;
     }
 
     return tool;
   }
 
-  private canUseTool(tool: RegisteredTool, context: ServerContext): boolean {
-    if (context.isInAppAgentKey === true && tool.allowInAppAgentKey !== true) {
-      return false;
+  private canCallTool(tool: RegisteredTool, context: ServerContext): boolean {
+    if (context.isInAppAgentKey !== true) {
+      return true;
     }
 
-    return true;
+    // In-app-agent keys may always call read-only tools. Mutating tools require
+    // the server-minted run secret, while human approval is enforced in the
+    // in-app agent runtime before the tool call reaches this registry.
+    if (tool.definition.annotations?.readOnlyHint === true) {
+      return true;
+    }
+
+    return context.hasInAppAgentMcpRunSecret === true;
   }
 
   /**

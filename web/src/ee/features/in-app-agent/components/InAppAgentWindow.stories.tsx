@@ -433,6 +433,8 @@ const meta = preview.meta({
     selectedConversationId: undefined,
     onLoadMoreConversations: fn(),
     onNewConversation: fn(),
+    onApproveToolCall: fn(),
+    onRejectToolCall: fn(),
     onSelectConversation: fn(),
     onClose: fn(),
     onExpandedChange: fn(),
@@ -441,6 +443,44 @@ const meta = preview.meta({
     showCloseButton: true,
   },
   render: (args) => <StatefulInAppAgentWindow {...args} />,
+});
+
+export const ToolApprovalRequired = meta.story({
+  args: {
+    isInputDisabled: true,
+    selectedConversationId: "conversation-1",
+    messages: [
+      {
+        id: "user-1",
+        role: "user",
+        content: {
+          type: "text",
+          text: "Create a dataset for regression examples.",
+        },
+      },
+      {
+        id: "approval-1",
+        role: "assistant",
+        content: {
+          type: "toolGroup",
+          tools: [
+            {
+              type: "tool",
+              name: "langfuse_upsertDataset",
+              args: JSON.stringify({
+                name: "regression-examples",
+                description: "Examples used for release regression tests",
+              }),
+              approval: {
+                id: "approval-1",
+                status: "pending",
+              },
+            },
+          ],
+        },
+      },
+    ],
+  },
 });
 
 export const Empty = meta.story({

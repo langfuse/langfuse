@@ -1,4 +1,5 @@
 import { EventType } from "@ag-ui/core";
+import { randomUUID } from "crypto";
 import { type Session } from "next-auth";
 import { getServerSession } from "next-auth";
 
@@ -13,8 +14,18 @@ import {
   type AgUiEvent,
   InAppAgentRuntimeStateSchema,
   type AgUiMessage,
+  ResumeForwardedPropsSchema,
+  type ResumeForwardedProps,
 } from "@/src/ee/features/in-app-agent/schema";
 import { createAgUiStream } from "@/src/ee/features/in-app-agent/server/agent";
+import {
+  consumeAndValidatePendingToolApproval,
+  getInAppAgentMcpRunSecretRedisKey,
+  IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS,
+  parseInAppAgentInterruptEvent,
+  storePendingToolApproval,
+  validatePendingToolApproval,
+} from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import {
   createRun,
   ensureOwnedConversation,
@@ -225,6 +236,15 @@ export default async function handler(request: Request) {
       conversationId,
       userId: auth.userId,
     });
+
+    if (isResumeAgentInput(sanitizedInput)) {
+      await validatePendingToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        forwardedProps: sanitizedInput.forwardedProps,
+      });
+    }
+
     const conversationMessages = await getConversationMessagesForReplay({
       prisma,
       projectId,
@@ -237,8 +257,30 @@ export default async function handler(request: Request) {
 
     return await withInAppAgentMcpApiKeyCleanup(
       projectId,
-      async (mcpApiKey, cleanupMcpApiKey) => {
+      async (mcpApiKey, runSecret, cleanupMcpApiKey) => {
         let runCreated = false;
+        let pendingToolApprovalConsumed = false;
+        let streamCreated = false;
+        let approvedToolResultPersisted = false;
+        const resumeApprovalRequest = isResumeAgentInput(sanitizedInput)
+          ? sanitizedInput.forwardedProps.command.resume.approvalRequest
+          : undefined;
+
+        const restorePendingToolApprovalIfRetryable = () => {
+          if (
+            !pendingToolApprovalConsumed ||
+            !resumeApprovalRequest ||
+            approvedToolResultPersisted
+          ) {
+            return;
+          }
+
+          return storePendingToolApproval({
+            projectId,
+            conversationId: conversation.id,
+            approvalRequest: resumeApprovalRequest,
+          });
+        };
 
         try {
           await createRun({
@@ -275,6 +317,15 @@ export default async function handler(request: Request) {
 
           await replacePersistedRunEvents();
 
+          if (isResumeAgentInput(sanitizedInput)) {
+            await consumeAndValidatePendingToolApproval({
+              projectId,
+              conversationId: conversation.id,
+              forwardedProps: sanitizedInput.forwardedProps,
+            });
+            pendingToolApprovalConsumed = true;
+          }
+
           const finishCurrentRun = (error?: {
             errorCode: string;
             errorMessage: string;
@@ -290,7 +341,17 @@ export default async function handler(request: Request) {
             input: agentInput,
             signal: request.signal,
             options: {
-              onEvent: (event) => {
+              onEvent: async (event) => {
+                const approvalRequest = parseInAppAgentInterruptEvent(event);
+
+                if (approvalRequest) {
+                  await storePendingToolApproval({
+                    projectId,
+                    conversationId: conversation.id,
+                    approvalRequest,
+                  });
+                }
+
                 const persistedEvent = toPersistableAgentEvent(event);
 
                 if (!persistedEvent) {
@@ -301,6 +362,14 @@ export default async function handler(request: Request) {
                   return;
                 }
 
+                if (
+                  persistedEvent.type === EventType.TOOL_CALL_RESULT &&
+                  persistedEvent.toolCallId ===
+                    resumeApprovalRequest?.toolCallId
+                ) {
+                  approvedToolResultPersisted = true;
+                }
+
                 persistedEvents.push(persistedEvent);
 
                 if (!shouldFlushPersistedEvent(persistedEvent)) {
@@ -309,25 +378,32 @@ export default async function handler(request: Request) {
 
                 return replacePersistedRunEvents();
               },
+              onApprovedToolCallExecuted: () => {
+                approvedToolResultPersisted = true;
+              },
               onComplete: () =>
                 replacePersistedRunEvents().finally(() => finishCurrentRun()),
               onAbort: () =>
-                replacePersistedRunEvents().finally(() =>
-                  finishCurrentRun({
-                    errorCode: "cancelled",
-                    errorMessage: "Client aborted request",
-                  }),
-                ),
+                replacePersistedRunEvents()
+                  .then(() => restorePendingToolApprovalIfRetryable())
+                  .finally(() =>
+                    finishCurrentRun({
+                      errorCode: "cancelled",
+                      errorMessage: "Client aborted request",
+                    }),
+                  ),
               onError: (error) =>
-                replacePersistedRunEvents().finally(() =>
-                  finishCurrentRun({
-                    errorCode: "agent_error",
-                    errorMessage:
-                      error instanceof Error
-                        ? error.message
-                        : "Unknown agent error",
-                  }),
-                ),
+                replacePersistedRunEvents()
+                  .then(() => restorePendingToolApprovalIfRetryable())
+                  .finally(() =>
+                    finishCurrentRun({
+                      errorCode: "agent_error",
+                      errorMessage:
+                        error instanceof Error
+                          ? error.message
+                          : "Unknown agent error",
+                    }),
+                  ),
               onFinish: cleanupMcpApiKey,
               awsBedrock: {
                 region: env.LANGFUSE_AWS_BEDROCK_REGION,
@@ -338,6 +414,7 @@ export default async function handler(request: Request) {
                 url: getLangfuseMcpUrl(),
                 publicKey: mcpApiKey.publicKey,
                 secretKey: mcpApiKey.secretKey,
+                runSecret,
               },
               redirectAction: {
                 projectId,
@@ -369,6 +446,7 @@ export default async function handler(request: Request) {
                   : undefined,
             },
           });
+          streamCreated = true;
 
           return new Response(stream, {
             headers: {
@@ -391,6 +469,10 @@ export default async function handler(request: Request) {
                   ? error.message
                   : "Agent initialization failed",
             });
+          }
+
+          if (!streamCreated) {
+            await restorePendingToolApprovalIfRetryable();
           }
 
           throw error;
@@ -509,10 +591,15 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   projectId: string,
   createResponse: (
     mcpApiKey: Awaited<ReturnType<typeof createInAppAgentMcpApiKey>>,
+    runSecret: string,
     cleanupMcpApiKey: () => Promise<void>,
   ) => T | Promise<T>,
 ): Promise<T> {
+  // Each run gets a temporary in-app-agent API key plus a second per-run secret.
+  // The API key authenticates to MCP; the secret authorizes mutating MCP tools
+  // only through this server-created run path.
   const mcpApiKey = await createInAppAgentMcpApiKey(projectId);
+  const runSecret = randomUUID();
   let cleanupPromise: Promise<void> | undefined;
 
   const cleanupMcpApiKey = () => {
@@ -530,7 +617,13 @@ async function withInAppAgentMcpApiKeyCleanup<T>(
   };
 
   try {
-    return await createResponse(mcpApiKey, cleanupMcpApiKey);
+    await redis?.setex(
+      getInAppAgentMcpRunSecretRedisKey(mcpApiKey.id),
+      IN_APP_AGENT_MCP_RUN_SECRET_TTL_SECONDS,
+      runSecret,
+    );
+
+    return await createResponse(mcpApiKey, runSecret, cleanupMcpApiKey);
   } catch (err) {
     await cleanupMcpApiKey().catch((cleanupErr) => {
       logger.error("Failed to clean up in-app agent MCP API key", cleanupErr);
@@ -550,13 +643,62 @@ async function cleanupInAppAgentMcpApiKey(params: {
     scope: "PROJECT",
     redis,
   });
+  await redis?.del(getInAppAgentMcpRunSecretRedisKey(params.apiKeyId));
 }
 
-type SanitizedAgentInput = AgUiRunAgentInput & {
-  messages: [SanitizedUserMessage];
-};
+type SanitizedAgentInput = AgUiRunAgentInput &
+  (
+    | {
+        messages: [SanitizedUserMessage];
+        forwardedProps: Record<string, never>;
+      }
+    | {
+        messages: [];
+        forwardedProps: ResumeForwardedProps;
+      }
+  );
+
+function isResumeAgentInput(
+  input: SanitizedAgentInput,
+): input is AgUiRunAgentInput & {
+  messages: [];
+  forwardedProps: ResumeForwardedProps;
+} {
+  return "command" in input.forwardedProps;
+}
 
 function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
+  const forwardedProps = input.forwardedProps;
+
+  if (
+    forwardedProps !== undefined &&
+    (forwardedProps === null ||
+      typeof forwardedProps !== "object" ||
+      Array.isArray(forwardedProps))
+  ) {
+    throw new InvalidRequestError("Invalid forwarded props");
+  }
+
+  if (forwardedProps && Object.keys(forwardedProps).length > 0) {
+    const resumeForwardedProps =
+      ResumeForwardedPropsSchema.safeParse(forwardedProps);
+
+    if (!resumeForwardedProps.success) {
+      throw new InvalidRequestError("Invalid forwarded props");
+    }
+
+    return {
+      threadId: input.threadId,
+      runId: createInAppAgentRunId(),
+      ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
+      state: null,
+      messages: [],
+      tools: [],
+      context: input.context,
+      forwardedProps: resumeForwardedProps.data,
+    };
+  }
+
   const lastUserMessage = getLastUserMessage(input.messages);
 
   if (!lastUserMessage) {

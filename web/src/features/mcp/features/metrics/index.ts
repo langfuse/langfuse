@@ -6,7 +6,7 @@ import {
 } from "./tools/getMetricsSchema";
 import { queryMetricsTool, handleQueryMetrics } from "./tools/queryMetrics";
 
-export const metricsFeature: McpFeatureModule = {
+export const metricsFeature = {
   name: "metrics",
   description:
     "Analyze project usage, quality, cost, and performance metrics from Langfuse data",
@@ -14,14 +14,12 @@ export const metricsFeature: McpFeatureModule = {
     {
       definition: queryMetricsTool,
       handler: handleQueryMetrics,
-      allowInAppAgentKey: true,
     },
     {
       definition: getMetricsSchemaTool,
       handler: handleGetMetricsSchema,
-      allowInAppAgentKey: true,
     },
   ],
   isEnabled: async () =>
     env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true",
-};
+} as const satisfies McpFeatureModule;

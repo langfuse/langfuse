@@ -51,4 +51,7 @@ export interface ServerContext {
 
   /** Whether the authenticated API key is scoped to the in-app agent. */
   isInAppAgentKey?: boolean;
+
+  /** Whether this request has the active server-minted in-app agent run secret. */
+  hasInAppAgentMcpRunSecret?: boolean;
 }

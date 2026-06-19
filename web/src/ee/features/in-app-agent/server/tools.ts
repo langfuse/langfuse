@@ -21,6 +21,117 @@ import z from "zod";
 import { TABLE_AGGREGATION_OPTIONS } from "@/src/utils/date-range-utils";
 import { ObservationLevelDomain, TracingSearchType } from "@langfuse/shared";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import type { McpToolName } from "@/src/features/mcp/server/bootstrap";
+
+type InAppAgentMcpToolApproval = "auto" | "approval";
+
+// Exhaustive approval policy for Langfuse MCP tools. Keys use the unprefixed
+// MCP registry names; tests compare this map with toolRegistry so new MCP tools
+// must be classified before the in-app agent can auto/approval-gate them.
+export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS: Record<
+  McpToolName,
+  InAppAgentMcpToolApproval
+> = {
+  listAnnotationQueues: "auto",
+  createAnnotationQueue: "approval",
+  getAnnotationQueue: "auto",
+  listAnnotationQueueItems: "auto",
+  getAnnotationQueueItem: "auto",
+  createAnnotationQueueItem: "approval",
+  updateAnnotationQueueItem: "approval",
+  deleteAnnotationQueueItem: "approval",
+  createAnnotationQueueAssignment: "approval",
+  deleteAnnotationQueueAssignment: "approval",
+  createComment: "approval",
+  listComments: "auto",
+  getComment: "auto",
+  upsertDataset: "approval",
+  listDatasets: "auto",
+  getDataset: "auto",
+  upsertDatasetItem: "approval",
+  listDatasetItems: "auto",
+  getDatasetItem: "auto",
+  deleteDatasetItem: "approval",
+  createDatasetRunItem: "approval",
+  listDatasetRunItems: "auto",
+  listDatasetRuns: "auto",
+  getDatasetRun: "auto",
+  deleteDatasetRun: "approval",
+  listEvaluators: "auto",
+  getEvaluator: "auto",
+  upsertEvaluator: "approval",
+  deleteEvaluator: "approval",
+  listEvaluationRules: "auto",
+  getEvaluationRule: "auto",
+  createEvaluationRule: "approval",
+  updateEvaluationRule: "approval",
+  deleteEvaluationRule: "approval",
+  getHealth: "auto",
+  getMedia: "auto",
+  queryMetrics: "auto",
+  getMetricsSchema: "auto",
+  listModels: "auto",
+  createModel: "approval",
+  getModel: "auto",
+  deleteModel: "approval",
+  listObservations: "auto",
+  getObservation: "auto",
+  getObservationFieldSchema: "auto",
+  getObservationFilterSchema: "auto",
+  getObservationFilterValues: "auto",
+  getPrompt: "auto",
+  getPromptUnresolved: "auto",
+  listPrompts: "auto",
+  createTextPrompt: "approval",
+  createChatPrompt: "approval",
+  updatePromptLabels: "approval",
+  listScores: "auto",
+  getScore: "auto",
+  createScore: "approval",
+  listScoreConfigs: "auto",
+  getScoreConfig: "auto",
+  createScoreConfig: "approval",
+  updateScoreConfig: "approval",
+  deleteScoreConfig: "approval",
+};
+
+export const IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES = new Set([
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+]);
+
+// Tools in this set can run without a human-in-the-loop approval prompt. Every
+// other MCP tool is still exposed to the model, but Mastra suspends execution
+// until the user explicitly approves the exact call.
+export const IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES = new Set([
+  ...Object.entries(IN_APP_AGENT_LANGFUSE_MCP_TOOL_APPROVALS)
+    .filter(([, approval]) => approval === "auto")
+    .map(([toolName]) => `langfuse_${toolName}`),
+  ...IN_APP_AGENT_AUTO_APPROVED_EXTERNAL_TOOL_NAMES,
+]);
+
+type InAppAgentTool = object;
+
+export function withInAppAgentToolApproval<TTool extends InAppAgentTool>(
+  tools: Record<string, TTool>,
+): Record<string, TTool | (TTool & { requireApproval: true })> {
+  // Mastra's approval gate is the user-facing HITL boundary. The MCP run secret
+  // is a separate server-side guard checked by the Langfuse MCP endpoint.
+  return Object.fromEntries(
+    Object.entries(tools).map(([toolName, tool]) => [
+      toolName,
+      isInAppAgentAutoApprovedToolName(toolName)
+        ? tool
+        : { ...tool, requireApproval: true },
+    ]),
+  ) as Record<string, TTool | (TTool & { requireApproval: true })>;
+}
+
+function isInAppAgentAutoApprovedToolName(toolName: string): boolean {
+  return (
+    toolName.startsWith("langfuseDocs_") ||
+    IN_APP_AGENT_AUTO_APPROVED_TOOL_NAMES.has(toolName)
+  );
+}
 
 const InAppAgentRedirectDestinationSchema = z.enum([
   "dashboards",

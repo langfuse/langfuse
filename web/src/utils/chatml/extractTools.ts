@@ -3,6 +3,7 @@ import {
   normalizeToolDefinitionsForChatMl,
 } from "@langfuse/shared";
 import type { PlaygroundTool } from "@/src/features/playground/page/types";
+import { safeJsonParse } from "@/src/utils/json";
 
 const EMPTY_TOOL_PARAMETERS = {
   type: "object",
@@ -12,11 +13,8 @@ const EMPTY_TOOL_PARAMETERS = {
 function parseIfString(value: unknown): unknown {
   if (typeof value !== "string") return value;
 
-  try {
-    return JSON.parse(value);
-  } catch {
-    return value;
-  }
+  const parsed = safeJsonParse(value);
+  return parsed === undefined ? value : parsed;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

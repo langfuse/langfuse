@@ -37,17 +37,24 @@ export function ControlledInAppAgentWindow(
     isSubmitting,
     loadMoreConversations,
     messages,
+    pendingToolApprovals,
+    approveToolCall,
+    rejectToolCall,
     selectConversation,
     selectedConversationId,
     submit,
     submitFeedback,
   } = useInAppAiAgent();
   const isInputDisabled =
-    isRunning || isSubmitting || isSelectedConversationHydrating;
+    isRunning ||
+    isSubmitting ||
+    isSelectedConversationHydrating ||
+    pendingToolApprovals.length > 0;
 
   const drawerMessages = useMemo(
-    () => getDrawerMessages({ error, isRunning, messages }),
-    [error, isRunning, messages],
+    () =>
+      getDrawerMessages({ error, isRunning, messages, pendingToolApprovals }),
+    [error, isRunning, messages, pendingToolApprovals],
   );
 
   const closeButtonProps =
@@ -72,6 +79,8 @@ export function ControlledInAppAgentWindow(
       onNewConversation={() => selectConversation(null)}
       onExpandedChange={props.onExpandedChange}
       onSubmit={submit}
+      onApproveToolCall={approveToolCall}
+      onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}
     />

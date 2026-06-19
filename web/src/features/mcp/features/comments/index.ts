@@ -3,7 +3,7 @@ import { createCommentTool, handleCreateComment } from "./tools/createComment";
 import { getCommentTool, handleGetComment } from "./tools/getComment";
 import { handleListComments, listCommentsTool } from "./tools/listComments";
 
-export const commentsFeature: McpFeatureModule = {
+export const commentsFeature = {
   name: "comments",
   description: "Create and inspect comments",
   tools: [
@@ -11,12 +11,10 @@ export const commentsFeature: McpFeatureModule = {
     {
       definition: listCommentsTool,
       handler: handleListComments,
-      allowInAppAgentKey: true,
     },
     {
       definition: getCommentTool,
       handler: handleGetComment,
-      allowInAppAgentKey: true,
     },
   ],
-};
+} as const satisfies McpFeatureModule;

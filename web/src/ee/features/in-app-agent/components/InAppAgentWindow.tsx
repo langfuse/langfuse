@@ -31,6 +31,7 @@ import {
   type InAppAgentMessageRole,
 } from "./InAppAgentMessage";
 import type { InAppAgentMessageFeedbackValue } from "@/src/ee/features/in-app-agent/schema";
+import { InAppAgentToolCallCard } from "@/src/ee/features/in-app-agent/components/InAppAgentToolCallCard";
 
 const AUTO_SCROLL_THRESHOLD_PX = 50;
 const SCROLL_DIRECTION_TOLERANCE_PX = 1;
@@ -96,6 +97,8 @@ export type InAppAgentWindowProps = {
   onExpandedChange: (isExpanded: boolean) => void;
   onLoadMoreConversations: () => void;
   onNewConversation: () => void;
+  onApproveToolCall: (approvalId: string) => Promise<void>;
+  onRejectToolCall: (approvalId: string) => Promise<void>;
   onSelectConversation: (conversationId: string) => void;
   onSubmit: (input: string) => boolean | Promise<boolean>;
   onSubmitFeedback: (params: {
@@ -121,6 +124,8 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onExpandedChange,
     onLoadMoreConversations,
     onNewConversation,
+    onApproveToolCall,
+    onRejectToolCall,
     onSelectConversation,
     onSubmit,
     onSubmitFeedback,
@@ -133,6 +138,34 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const [input, setInput] = useState("");
   const hasUserMessage = messages.some((message) => message.role === "user");
+  const pendingToolCalls = messages.flatMap((message) =>
+    message.content.type === "toolGroup"
+      ? message.content.tools.filter((tool) => tool.approval)
+      : [],
+  );
+  const visibleMessages = messages
+    .map((message) => {
+      if (message.content.type !== "toolGroup") {
+        return message;
+      }
+
+      const visibleTools = message.content.tools.filter(
+        (tool) => !tool.approval,
+      );
+
+      if (visibleTools.length === 0) {
+        return null;
+      }
+
+      return {
+        ...message,
+        content: {
+          ...message.content,
+          tools: visibleTools,
+        },
+      } satisfies InAppAgentWindowMessage;
+    })
+    .filter((message): message is InAppAgentWindowMessage => message !== null);
 
   const submitInput = (content: string) => {
     const trimmedContent = content.trim();
@@ -390,20 +423,20 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
 
             <ol className="flex w-full flex-col gap-3 pb-4">
-              {messages.map((message, index) => {
+              {visibleMessages.map((message, index) => {
                 const hasFullWidthContent =
                   message.content.type === "toolGroup" ||
                   message.content.type === "redirectAction";
 
-                const nextUserMessageIndex = messages.findIndex(
+                const nextUserMessageIndex = visibleMessages.findIndex(
                   (nextMessage, nextIndex) =>
                     nextIndex > index && nextMessage.role === "user",
                 );
                 const nextTurnStartIndex =
                   nextUserMessageIndex === -1
-                    ? messages.length
+                    ? visibleMessages.length
                     : nextUserMessageIndex;
-                const isLastMessageOfTurn = messages
+                const isLastMessageOfTurn = visibleMessages
                   .slice(index + 1, nextTurnStartIndex)
                   .every((nextMessage) => nextMessage.role !== "assistant");
                 const feedbackRunId =
@@ -457,6 +490,31 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             ) : null}
           </div>
         </div>
+        {pendingToolCalls.length > 0 ? (
+          <div
+            className={cn(
+              "shrink-0 pt-1.5",
+              isExpanded ? "px-1.5 pb-2" : "px-3 pb-2",
+            )}
+          >
+            <div
+              className={cn(
+                "flex flex-col gap-2",
+                isExpanded && "mx-auto max-w-3xl",
+              )}
+            >
+              {pendingToolCalls.map((tool, index) => (
+                <InAppAgentToolCallCard
+                  key={`${tool.approval?.id ?? tool.name}-${index}`}
+                  tool={tool}
+                  isCompact={!isExpanded}
+                  onApproveToolCall={onApproveToolCall}
+                  onRejectToolCall={onRejectToolCall}
+                />
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div
           className={cn(
             "p-1.5",

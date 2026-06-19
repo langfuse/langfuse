@@ -23,6 +23,7 @@ import {
   protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import {
+  getConversationMessagesForDisplay,
   getConversationMessages,
   getOwnedConversationOrThrow,
   serializeConversation,
@@ -110,7 +111,7 @@ export const inAppAgentRouter = createTRPCRouter({
         userId: ctx.session.user.id,
       });
 
-      const messages = await getConversationMessages({
+      const messages = await getConversationMessagesForDisplay({
         prisma: ctx.prisma,
         projectId: input.projectId,
         conversationId: input.conversationId,

@@ -12,16 +12,22 @@ import type { Langfuse } from "langfuse";
 import {
   type AgUiEvent,
   type AgUiRunAgentInput,
+  type InAppAgentToolApprovalRequest,
 } from "@/src/ee/features/in-app-agent/schema";
+import { createManualToolApprovalRunInput } from "@/src/ee/features/in-app-agent/server/human-in-the-loop";
 import type {
   InAppAgentPromptMetadata,
   InAppAgentTracingConfig,
 } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
-import { createRedirectActionTool } from "@/src/ee/features/in-app-agent/server/tools";
+import {
+  createRedirectActionTool,
+  withInAppAgentToolApproval,
+} from "@/src/ee/features/in-app-agent/server/tools";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import { IN_APP_AGENT_MCP_RUN_SECRET_HEADER } from "@/src/ee/features/in-app-agent/constants";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -32,8 +38,8 @@ const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
 const MAX_AGENT_STEPS = 10;
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
 
-// Since the agent only has read only permissions, we can safely include the current screen context in the system prompt without risking sensitive information being leaked through tool calls.
-// The moment we allow write actions or network access in the agent, this needs to be sanitized.
+// Screen context is included as data only. Tool execution safety is enforced by
+// deterministic in-app tool approval below, not by model instructions.
 // TODO: LFE-10246
 function formatScreenContext(context: AgUiRunAgentInput["context"]): string {
   if (context.length === 0) {
@@ -52,6 +58,7 @@ ${context.map((item) => `- ${item.description}: ${item.value}`).join("\n")}
 
 type CreateAgUiStreamOptions = {
   onEvent?: (event: AgUiEvent) => void | Promise<void>;
+  onApprovedToolCallExecuted?: () => void | Promise<void>;
   onComplete?: () => void | Promise<void>;
   onAbort?: () => void | Promise<void>;
   onError?: (error: unknown) => void | Promise<void>;
@@ -65,6 +72,7 @@ type CreateAgUiStreamOptions = {
     url: string;
     publicKey: string;
     secretKey: string;
+    runSecret: string;
   };
   redirectAction: {
     projectId: string;
@@ -323,7 +331,7 @@ export async function createAgUiStream(params: {
         awsProfile,
         instructions,
       })
-        .then(({ adapter, cleanup, interrupt }) => {
+        .then(async ({ adapter, cleanup, interrupt, executeToolCall }) => {
           if (ending || closed || params.signal.aborted) {
             interrupt();
             cleanup().catch((error) => {
@@ -340,7 +348,34 @@ export async function createAgUiStream(params: {
           cleanupAdapter = cleanup;
           interruptAdapter = interrupt;
 
-          subscription = adapter.run(params.input).subscribe({
+          const runInput = await createManualToolApprovalRunInput({
+            input: params.input,
+            executeToolCall,
+            onApprovedToolCallExecuted:
+              params.options.onApprovedToolCallExecuted,
+          });
+          const pendingSyntheticEvents = [...runInput.syntheticEvents];
+
+          if (!runInput.shouldContinue) {
+            const terminalEvents = [
+              createRunStartedEvent(params.input),
+              ...pendingSyntheticEvents,
+            ];
+
+            instrumentation?.recordEvents(terminalEvents);
+            for (const syntheticEvent of terminalEvents) {
+              enqueueEvent(syntheticEvent);
+            }
+
+            closeController(() => {
+              instrumentation?.end({});
+              instrumentation?.flush();
+              return params.options.onComplete?.();
+            });
+            return;
+          }
+
+          subscription = adapter.run(runInput.input).subscribe({
             next(event) {
               if (ending || closed) {
                 return;
@@ -372,6 +407,17 @@ export async function createAgUiStream(params: {
                     ? handleStreamedRunError
                     : undefined,
                 );
+
+                if (
+                  agUiEvent.type === EventType.RUN_STARTED &&
+                  pendingSyntheticEvents.length > 0
+                ) {
+                  instrumentation?.recordEvents(pendingSyntheticEvents);
+                  for (const syntheticEvent of pendingSyntheticEvents) {
+                    enqueueEvent(syntheticEvent);
+                  }
+                  pendingSyntheticEvents.length = 0;
+                }
               }
             },
             error(error) {
@@ -487,6 +533,11 @@ export async function createAgUiStream(params: {
   });
 }
 
+type ExecutableInAppAgentTool = {
+  execute?: (inputData: unknown, context: unknown) => Promise<unknown>;
+  toModelOutput?: (output: unknown) => unknown;
+};
+
 async function createMastraAdapter(params: {
   input: AgUiRunAgentInput;
   signal: AbortSignal;
@@ -512,6 +563,8 @@ async function createMastraAdapter(params: {
         requestInit: {
           headers: {
             Authorization: params.langfuseMcpAuthHeader,
+            [IN_APP_AGENT_MCP_RUN_SECRET_HEADER]:
+              params.options.langfuseMcp.runSecret,
           },
         },
       },
@@ -536,14 +589,14 @@ async function createMastraAdapter(params: {
       });
     }
 
-    const tools = {
+    const tools = withInAppAgentToolApproval({
       ...prefixToolsetTools("langfuse", toolsets.langfuse),
       ...prefixToolsetTools("langfuseDocs", toolsets.langfuseDocs),
       [IN_APP_AGENT_REDIRECT_TOOL_NAME]: createRedirectActionTool({
         projectId: params.options.redirectAction.projectId,
         isV4Enabled: params.options.redirectAction.isV4Enabled,
       }),
-    };
+    });
 
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
@@ -569,6 +622,37 @@ async function createMastraAdapter(params: {
 
     return {
       adapter,
+      executeToolCall: async (
+        approvalRequest: InAppAgentToolApprovalRequest,
+      ) => {
+        const tool = tools[approvalRequest.toolName] as
+          | ExecutableInAppAgentTool
+          | undefined;
+
+        if (!tool?.execute) {
+          throw new Error(
+            `Approved in-app agent tool is not executable: ${approvalRequest.toolName}`,
+          );
+        }
+
+        const result = await tool.execute(approvalRequest.args ?? {}, {
+          abortSignal: params.signal,
+          observe: {
+            span: async <T>(_: string, fn: () => Promise<T> | T) => fn(),
+            log: () => undefined,
+          },
+          agent: {
+            agentId: "langfuse-in-app-assistant",
+            toolCallId: approvalRequest.toolCallId,
+            messages: params.input.messages,
+            threadId: params.input.threadId,
+            resourceId: params.input.threadId,
+            suspend: async () => undefined,
+          },
+        });
+
+        return tool.toModelOutput ? tool.toModelOutput(result) : result;
+      },
       interrupt: () => agent.abortRunStream(params.input.runId),
       cleanup: () => mcpClient.disconnect(),
     };
@@ -618,6 +702,8 @@ type MastraStreamChunk = {
     toolName?: string;
     argsTextDelta?: string;
     args?: unknown;
+    resumeSchema?: unknown;
+    suspendPayload?: unknown;
   };
 };
 
@@ -732,6 +818,37 @@ export function patchMastraToolCallInputStreaming(adapter: MastraAgent) {
             }
             break;
           }
+          case "tool-call-approval": {
+            const { toolCallId, toolName, args, resumeSchema } =
+              mastraChunk.payload ?? {};
+            if (!toolCallId || !toolName) {
+              callbacks.onError(
+                new Error(
+                  "Malformed tool-call-approval: missing toolCallId or toolName in payload",
+                ),
+              );
+              return true;
+            }
+
+            streamingToolCalls.delete(toolCallId);
+            synthesizedToolCallIds.delete(toolCallId);
+
+            return processor.handleChunk({
+              type: "tool-call-suspended",
+              payload: {
+                toolCallId,
+                toolName,
+                args,
+                resumeSchema,
+                suspendPayload: {
+                  type: "approval",
+                  toolCallId,
+                  toolName,
+                  args,
+                },
+              },
+            });
+          }
           case "tool-call-suspended": {
             const { toolCallId } = mastraChunk.payload ?? {};
             if (toolCallId) {
@@ -820,6 +937,15 @@ function normalizeAdapterEvent(
   }
 
   return [event];
+}
+
+function createRunStartedEvent(input: AgUiRunAgentInput): AgUiEvent {
+  return {
+    type: EventType.RUN_STARTED,
+    threadId: input.threadId,
+    runId: input.runId,
+    ...(input.parentRunId ? { parentRunId: input.parentRunId } : {}),
+  };
 }
 
 function createRunErrorEvent(
