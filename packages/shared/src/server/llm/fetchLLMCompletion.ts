@@ -572,7 +572,7 @@ export async function fetchLLMCompletion(
     // location flows into the Vertex host both SDKs build from it
     // (https://${location}-aiplatform.googleapis.com), so reject anything that
     // could reshape that host and exfiltrate the Google OAuth bearer token.
-    if (location && !VERTEX_LOCATION_PATTERN.test(location)) {
+    if (location !== undefined && !VERTEX_LOCATION_PATTERN.test(location)) {
       throw new Error(
         "Invalid Vertex AI location. Locations must be a single Vertex region identifier.",
       );
@@ -635,6 +635,16 @@ export async function fetchLLMCompletion(
         createClient: (options) =>
           new AnthropicVertex({
             ...options,
+            // The base Anthropic SDK defaults apiKey/authToken from
+            // ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN when undefined, which on
+            // Vertex would ship as headers that win over Google's OAuth token
+            // and leak the operator's Anthropic credentials. Force both null so
+            // auth comes only from googleAuth (the vertex-sdk type omits these
+            // fields though the base client still honors them).
+            ...({ apiKey: null, authToken: null } as {
+              apiKey: null;
+              authToken: null;
+            }),
             region: anthropicVertexRegion,
             projectId: serviceAccountKey?.project_id,
             // @anthropic-ai/vertex-sdk depends on its own google-auth-library
