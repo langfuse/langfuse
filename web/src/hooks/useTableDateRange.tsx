@@ -19,13 +19,14 @@ export function useTableDateRange(
   projectId: string,
   options: {
     defaultRelativeAggregation?: TableDateRangeAggregationOption;
+    storageKey?: string;
   } = {},
 ): UseTableDateRangeOutput {
   const fallbackAggregation = options.defaultRelativeAggregation ?? "last1Day";
 
   // Get stored preference from local storage
   const [storedDateRange, setStoredDateRange] = useSessionStorage(
-    `tableDateRangeState-${projectId}`,
+    options.storageKey ?? `tableDateRangeState-${projectId}`,
     getAbbreviatedTimeRange(fallbackAggregation),
   );
 
