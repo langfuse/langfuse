@@ -675,9 +675,14 @@ class S3StorageService implements StorageService {
       // Non-reversible shape of the credentials (length + character-class
       // flags, never the value) so a SignatureDoesNotMatch can be triaged as a
       // truncated/altered/mismatched secret without another round of re-pasting.
+      // Derived from the same AND-gated `credentials` the S3Client received, not
+      // raw params: when only one of id/secret is set, the SDK falls back to the
+      // default credential chain, and the shape must report `absent` to match —
+      // otherwise a partial config logs a phantom empty-secret for creds the SDK
+      // never used.
       credentials: summarizeCredentialShape(
-        params.accessKeyId,
-        params.secretAccessKey,
+        credentials?.accessKeyId,
+        credentials?.secretAccessKey,
       ),
     });
 
