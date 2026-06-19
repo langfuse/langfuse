@@ -78,16 +78,16 @@ types:
     properties:
       traceId:
         type: optional<string>
-        docs: The trace the media is associated with.
+        docs: The trace the media is associated with. Null for dataset item media uploads.
       observationId:
         type: optional<string>
-        docs: The observation the media is associated with.
+        docs: The observation ID associated with the media record. If the media record is associated directly with a trace, this will be null.
       datasetId:
         type: optional<string>
-        docs: The dataset the media belongs to.
+        docs: The dataset the media belongs to. Null for trace/observation media uploads.
       datasetItemId:
         type: optional<string>
-        docs: The dataset item the media is associated with (need not exist yet).
+        docs: The dataset item the media is associated with (need not exist yet). Null for trace/observation media uploads.
       contentType: MediaContentType
       contentLength:
         type: integer

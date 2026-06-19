@@ -138,14 +138,16 @@ const commonMediaUploadFields = {
 
 // Media is attached to exactly one context: a trace/observation, or a dataset
 // item (which need not exist yet). The union enforces the required ids and the
-// per-context field set; the absent context's ids must be omitted.
+// per-context field set. The absent context's ids may be omitted or sent as
+// null (the active side still demands real strings, so the XOR holds) — this
+// lets SDKs that serialize unset fields as null validate without omitting keys.
 const TraceMediaUploadSchema = z.object({
   ...commonMediaUploadFields,
   traceId: z.string(),
   observationId: z.string().nullish(),
   field: z.enum(Object.values(MediaEnabledFields) as [string, ...string[]]),
-  datasetId: z.undefined().optional(),
-  datasetItemId: z.undefined().optional(),
+  datasetId: z.null().optional(),
+  datasetItemId: z.null().optional(),
 });
 
 const DatasetItemMediaUploadSchema = z.object({
@@ -153,8 +155,8 @@ const DatasetItemMediaUploadSchema = z.object({
   datasetId: z.string(),
   datasetItemId: z.string(),
   field: z.enum(datasetItemMediaFields),
-  traceId: z.undefined().optional(),
-  observationId: z.undefined().optional(),
+  traceId: z.null().optional(),
+  observationId: z.null().optional(),
 });
 
 export const GetMediaUploadUrlQuerySchema = z.union(
