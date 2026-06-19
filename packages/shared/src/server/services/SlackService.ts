@@ -266,8 +266,17 @@ export class SlackService {
 
               // Opportunistically purge other workspaces' expired pending rows
               // so abandoned installs can't accumulate (no dedicated cron; reads
-              // also filter on expiry). Reuses the shared cleanup query.
-              await this.deleteExpiredPendingInstallations();
+              // also filter on expiry). Best-effort: the install already
+              // committed above, so a cleanup failure must not surface as a
+              // failed install (reads filter on expiry anyway).
+              try {
+                await this.deleteExpiredPendingInstallations();
+              } catch (cleanupError) {
+                logger.warn(
+                  "Opportunistic purge of expired pending Slack installs failed",
+                  { error: cleanupError },
+                );
+              }
 
               logger.info("Slack installation stored as pending (no project)", {
                 teamId,
