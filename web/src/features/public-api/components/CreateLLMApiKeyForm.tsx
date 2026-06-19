@@ -694,11 +694,18 @@ export function CreateLLMApiKeyForm({
                       return;
                     }
                     setShowOtherModelInfo(false);
+                    // Only reset the base URL when the adapter actually
+                    // changes. Bouncing through the "other model" sentinel and
+                    // back to the same adapter looks like a value change to
+                    // Radix, but must not wipe a custom base URL the user
+                    // already entered.
+                    if (value !== field.value) {
+                      form.setValue(
+                        "baseURL",
+                        getCustomizedBaseURL(value as LLMAdapter),
+                      );
+                    }
                     field.onChange(value as LLMAdapter);
-                    form.setValue(
-                      "baseURL",
-                      getCustomizedBaseURL(value as LLMAdapter),
-                    );
                   }}
                   disabled={isFieldDisabled("adapter")}
                 >
