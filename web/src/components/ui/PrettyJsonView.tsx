@@ -1447,7 +1447,7 @@ export function PrettyJsonView(props: {
             {remainingMarkdownMedia.map((m) => (
               <LangfuseMediaView
                 mediaAPIReturnValue={m}
-                asFileIcon={true}
+                variant="icon"
                 key={m.mediaId}
               />
             ))}
@@ -1466,7 +1466,7 @@ export function PrettyJsonView(props: {
               {props.media.map((m) => (
                 <LangfuseMediaView
                   mediaAPIReturnValue={m}
-                  asFileIcon={true}
+                  variant="icon"
                   key={m.mediaId}
                 />
               ))}

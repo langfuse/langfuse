@@ -25,15 +25,25 @@ import {
   Volume2,
 } from "lucide-react";
 
+// Above this, "preview" media falls back to the click-to-open icon instead of
+// rendering inline, so a large file isn't fetched/decoded just by opening a view.
+const PREVIEW_AUTO_EXPAND_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+
 export const LangfuseMediaView = ({
   mediaReferenceString,
   mediaAPIReturnValue,
-  asFileIcon = false,
+  variant = "inline",
 }: {
   mediaReferenceString?: string | ParsedMediaReferenceType;
   mediaAPIReturnValue?: Omit<MediaReturnType, "field"> &
     Partial<Pick<MediaReturnType, "field">>;
-  asFileIcon?: boolean;
+  // How to render media:
+  // - "inline": render previewable media (image/audio/video) in place and a
+  //   file icon for the rest — for media embedded in content (markdown/JSON).
+  // - "icon": a compact file tile that expands on click — for attachment lists.
+  // - "preview": like "icon", but previewable media starts already expanded.
+  // Non-previewable types (e.g. PDF) are always a click-to-open icon.
+  variant?: "inline" | "icon" | "preview";
 }) => {
   let mediaData: { id: string; type: MediaContentType } | null = null;
 
@@ -87,8 +97,17 @@ export const LangfuseMediaView = ({
 
   if (!mediaUrl) return null;
 
-  if (asFileIcon) {
-    return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
+  if (variant === "icon" || variant === "preview") {
+    const autoExpand =
+      variant === "preview" &&
+      (data?.contentLength ?? 0) <= PREVIEW_AUTO_EXPAND_MAX_BYTES;
+    return (
+      <FileViewer
+        src={mediaUrl}
+        contentType={mediaData.type}
+        defaultExpanded={autoExpand}
+      />
+    );
   }
 
   if (mediaData.type.startsWith("image")) {
@@ -111,24 +130,28 @@ export const LangfuseMediaView = ({
 function FileViewer({
   src,
   contentType,
+  defaultExpanded = false,
 }: {
   src?: string;
   contentType: MediaContentType;
+  defaultExpanded?: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [compactImageWidth, setCompactImageWidth] = useState<string>();
-
-  if (!src) return null;
-
   const mimeType = String(contentType);
-
-  const fileName = src.split("/").pop()?.split("?")[0] || "";
   const fileType = mimeType.split("/")[0];
-  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
   const isImage = fileType === "image";
   const isAudio = fileType === "audio";
   const isVideo = fileType === "video";
   const isPreviewable = isImage || isAudio || isVideo;
+
+  const [isExpanded, setIsExpanded] = useState(
+    defaultExpanded && isPreviewable,
+  );
+  const [compactImageWidth, setCompactImageWidth] = useState<string>();
+
+  if (!src) return null;
+
+  const fileName = src.split("/").pop()?.split("?")[0] || "";
+  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
 
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");

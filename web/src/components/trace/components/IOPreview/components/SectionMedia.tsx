@@ -21,7 +21,7 @@ export function SectionMedia({ media }: SectionMediaProps) {
         {media.map((m) => (
           <LangfuseMediaView
             mediaAPIReturnValue={m}
-            asFileIcon={!m.contentType.startsWith("image")}
+            variant={m.contentType.startsWith("image") ? "inline" : "icon"}
             key={m.mediaId}
           />
         ))}
