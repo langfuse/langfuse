@@ -19,7 +19,7 @@
     "@repo/eslint-plugin": "workspace:*",
     "eslint-config-next": "16.2.9",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-config-turbo": "2.9.14",
+    "eslint-config-turbo": "2.9.18",
     "eslint-plugin-only-warn": "^1.1.0",
     "globals": "^16.0.0",
     "typescript-eslint": "^8.57.1"

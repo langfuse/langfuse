@@ -50,7 +50,7 @@
     "husky": "^9.1.7",
     "prettier": "^3.8.3",
     "release-it": "^19.2.4",
-    "turbo": "2.9.14"
+    "turbo": "2.9.18"
   },
   "release-it": {
     "git": {
