@@ -54,8 +54,6 @@ type ObservationIoParserConfig =
 
 type ParserFieldDraft = {
   id: string;
-  key: string;
-  label: string;
   source: "input" | "output" | "metadata";
   jsonPath: string;
   display: "auto" | "json" | "markdown";
@@ -73,8 +71,6 @@ type ParserDraft = {
 
 const newFieldDraft = (): ParserFieldDraft => ({
   id: `${Date.now()}-${Math.random()}`,
-  key: "value",
-  label: "Value",
   source: "output",
   jsonPath: "$",
   display: "auto",
@@ -100,8 +96,10 @@ const draftFromConfig = (config: ObservationIoParserConfig): ParserDraft => ({
   priority: config.priority,
   filters: config.filters,
   fields: config.instructions.fields.map((field) => ({
-    ...field,
-    id: `${field.key}-${Math.random()}`,
+    source: field.source,
+    jsonPath: field.jsonPath,
+    display: field.display,
+    id: `${field.source}-${field.jsonPath}-${Math.random()}`,
   })),
 });
 
@@ -638,32 +636,6 @@ export function ObservationIoParserDrawer({
                     key={field.id}
                     className="grid gap-2 rounded-md border p-2"
                   >
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                      <Input
-                        value={field.key}
-                        placeholder="key"
-                        onChange={(event) => {
-                          const fields = [...draft.fields];
-                          fields[index] = {
-                            ...field,
-                            key: event.target.value,
-                          };
-                          setDraft({ ...draft, fields });
-                        }}
-                      />
-                      <Input
-                        value={field.label}
-                        placeholder="label"
-                        onChange={(event) => {
-                          const fields = [...draft.fields];
-                          fields[index] = {
-                            ...field,
-                            label: event.target.value,
-                          };
-                          setDraft({ ...draft, fields });
-                        }}
-                      />
-                    </div>
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-[8rem_1fr_auto]">
                       <Select
                         value={field.source}

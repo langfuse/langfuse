@@ -28,22 +28,16 @@ describe("executeObservationIoParserInstructions", () => {
         version: 1,
         fields: [
           {
-            key: "question",
-            label: "Question",
             source: "input",
             jsonPath: "$.messages[0].content",
             display: "auto",
           },
           {
-            key: "answer",
-            label: "Answer",
             source: "output",
             jsonPath: "$.choices[0].message.content",
             display: "markdown",
           },
           {
-            key: "tenant",
-            label: "Tenant",
             source: "metadata",
             jsonPath: "$.tenant",
             display: "auto",
@@ -60,8 +54,13 @@ describe("executeObservationIoParserInstructions", () => {
     });
 
     expect(result.fields).toMatchObject([
-      { key: "question", value: "What is up?", status: "ok" },
-      { key: "answer", value: "Nothing much.", status: "ok" },
+      { key: "content", label: "Content", value: "What is up?", status: "ok" },
+      {
+        key: "content_2",
+        label: "Content 2",
+        value: "Nothing much.",
+        status: "ok",
+      },
       { key: "tenant", value: "acme", status: "ok" },
     ]);
     expect(result.serializedSize).toBeGreaterThan(0);
@@ -73,8 +72,6 @@ describe("executeObservationIoParserInstructions", () => {
         version: 1,
         fields: [
           {
-            key: "missing",
-            label: "Missing",
             source: "output",
             jsonPath: "$.doesNotExist",
             display: "auto",
@@ -88,12 +85,51 @@ describe("executeObservationIoParserInstructions", () => {
 
     expect(result.fields).toEqual([
       {
-        key: "missing",
-        label: "Missing",
+        key: "does_not_exist",
+        label: "Does Not Exist",
         source: "output",
         display: "auto",
         value: null,
         status: "miss",
+      },
+    ]);
+  });
+
+  it("infers field identity from source and JSONPath", () => {
+    const result = executeObservationIoParserInstructions({
+      instructions: {
+        version: 1,
+        fields: [
+          {
+            source: "output",
+            jsonPath: "$.quality",
+            display: "auto",
+          },
+          {
+            source: "metadata",
+            jsonPath: "$",
+            display: "json",
+          },
+        ],
+      },
+      sourceData: {
+        output: { quality: "good" },
+        metadata: { environment: "development" },
+      },
+    });
+
+    expect(result.fields).toMatchObject([
+      {
+        key: "quality",
+        label: "Quality",
+        value: "good",
+        status: "ok",
+      },
+      {
+        key: "metadata",
+        label: "Metadata",
+        value: { environment: "development" },
+        status: "ok",
       },
     ]);
   });

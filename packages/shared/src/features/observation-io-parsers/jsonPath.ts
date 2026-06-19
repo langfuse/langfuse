@@ -124,16 +124,84 @@ export function getSerializedSize(value: unknown): number {
   }
 }
 
+const getLastJsonPathKey = (jsonPath: string): string | null => {
+  const matches = [
+    ...jsonPath.matchAll(
+      /(?:\.([A-Za-z_$][\w$-]*)|\[['"]([^'"]+)['"]\]|\["([^"]+)"\])/g,
+    ),
+  ];
+  const lastMatch = matches
+    .map((match) => match[1] ?? match[2] ?? match[3])
+    .filter(Boolean)
+    .at(-1);
+
+  return lastMatch ?? null;
+};
+
+const normalizeFieldKey = (value: string): string => {
+  const key = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/[^A-Za-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .replace(/_{2,}/g, "_")
+    .toLowerCase();
+
+  if (!key) return "value";
+  return /^\d/.test(key) ? `field_${key}` : key;
+};
+
+const formatFieldLabel = (value: string): string => {
+  const label = value
+    .trim()
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!label) return "Value";
+
+  return label.replace(/\b\w/g, (character) => character.toUpperCase());
+};
+
+const inferFieldIdentity = (
+  field: ObservationIoParserInstructions["fields"][number],
+  usedKeys: Set<string>,
+): { key: string; label: string } => {
+  const pathKey = getLastJsonPathKey(field.jsonPath);
+  const baseValue = pathKey ?? field.source;
+  const baseKey = normalizeFieldKey(baseValue);
+  let key = baseKey;
+  let suffix = 2;
+
+  while (usedKeys.has(key)) {
+    key = `${baseKey}_${suffix}`;
+    suffix += 1;
+  }
+
+  usedKeys.add(key);
+
+  return {
+    key,
+    label:
+      key === baseKey
+        ? formatFieldLabel(baseValue)
+        : `${formatFieldLabel(baseValue)} ${suffix - 1}`,
+  };
+};
+
 export function executeObservationIoParserInstructions(props: {
   instructions: ObservationIoParserInstructions;
   sourceData: ObservationIoParserSourceData;
 }): { fields: ObservationIoParserFieldResult[]; serializedSize: number } {
+  const usedKeys = new Set<string>();
   const fields = props.instructions.fields.map((field) => {
+    const identity = inferFieldIdentity(field, usedKeys);
     const validation = validateObservationIoParserJsonPath(field.jsonPath);
     if (!validation.success) {
       return {
-        key: field.key,
-        label: field.label,
+        key: identity.key,
+        label: identity.label,
         source: field.source,
         display: field.display ?? "auto",
         value: null,
@@ -150,8 +218,8 @@ export function executeObservationIoParserInstructions(props: {
 
       if (value === undefined) {
         return {
-          key: field.key,
-          label: field.label,
+          key: identity.key,
+          label: identity.label,
           source: field.source,
           display: field.display ?? "auto",
           value: null,
@@ -160,8 +228,8 @@ export function executeObservationIoParserInstructions(props: {
       }
 
       return {
-        key: field.key,
-        label: field.label,
+        key: identity.key,
+        label: identity.label,
         source: field.source,
         display: field.display ?? "auto",
         value,
@@ -169,8 +237,8 @@ export function executeObservationIoParserInstructions(props: {
       };
     } catch (error) {
       return {
-        key: field.key,
-        label: field.label,
+        key: identity.key,
+        label: identity.label,
         source: field.source,
         display: field.display ?? "auto",
         value: null,

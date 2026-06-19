@@ -14,33 +14,15 @@ export const ObservationIoParserDisplaySchema = z.enum([
 ]);
 
 export const ObservationIoParserFieldInstructionSchema = z.object({
-  key: z.string().trim().min(1).max(80),
-  label: z.string().trim().min(1).max(120),
   source: ObservationIoParserSourceSchema,
   jsonPath: z.string().trim().min(1).max(500),
   display: ObservationIoParserDisplaySchema.default("auto"),
 });
 
-export const ObservationIoParserInstructionsSchema = z
-  .object({
-    version: z.literal(1),
-    fields: z.array(ObservationIoParserFieldInstructionSchema).min(1).max(50),
-  })
-  .superRefine((instructions, ctx) => {
-    const seenKeys = new Set<string>();
-
-    instructions.fields.forEach((field, index) => {
-      const normalizedKey = field.key.toLowerCase();
-      if (seenKeys.has(normalizedKey)) {
-        ctx.addIssue({
-          code: "custom",
-          message: `Duplicate field key "${field.key}"`,
-          path: ["fields", index, "key"],
-        });
-      }
-      seenKeys.add(normalizedKey);
-    });
-  });
+export const ObservationIoParserInstructionsSchema = z.object({
+  version: z.literal(1),
+  fields: z.array(ObservationIoParserFieldInstructionSchema).min(1).max(50),
+});
 
 export const ObservationIoParserConfigDomainSchema = z.object({
   id: z.string(),
