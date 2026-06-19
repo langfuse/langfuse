@@ -226,6 +226,65 @@ describe("fetchLLMCompletion provider error classification", () => {
     expect(modelInstance.temperature).toBe(0);
   });
 
+  it("applies the adaptive thinking structured output workaround for Claude on Vertex", async () => {
+    const thinkingDuringStructuredOutput: unknown[] = [];
+    const modelInstance = {
+      thinking: { type: "disabled" },
+      invoke: anthropicInvokeMock,
+      pipe: vi.fn().mockReturnValue({
+        invoke: anthropicInvokeMock,
+      }),
+      withStructuredOutput: vi.fn().mockImplementation(function () {
+        thinkingDuringStructuredOutput.push(modelInstance.thinking);
+        return {
+          invoke: anthropicInvokeMock,
+        };
+      }),
+    };
+
+    chatAnthropicConstructorMock.mockImplementationOnce(function () {
+      return modelInstance;
+    });
+    anthropicInvokeMock.mockResolvedValue({ result: "ok" });
+
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Return structured output.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model: "claude-fable-5",
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "us-east5",
+          },
+        },
+        structuredOutputSchema: {
+          type: "object",
+          properties: {
+            result: { type: "string" },
+          },
+          required: ["result"],
+          additionalProperties: false,
+        },
+      }),
+    ).resolves.toEqual({ result: "ok" });
+
+    expect(thinkingDuringStructuredOutput).toEqual([{ type: "adaptive" }]);
+    expect(modelInstance.thinking).toEqual({ type: "disabled" });
+  });
+
   it("rejects Claude on Vertex model names that are not single path segments", async () => {
     await expect(
       fetchLLMCompletion({

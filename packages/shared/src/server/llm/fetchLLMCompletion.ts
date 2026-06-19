@@ -712,8 +712,13 @@ export async function fetchLLMCompletion(
         ? { method: "functionCalling" as const }
         : undefined;
       const createStructuredOutputModel = () => {
+        const isAnthropicChatModel =
+          modelParams.adapter === LLMAdapter.Anthropic ||
+          (modelParams.adapter === LLMAdapter.VertexAI &&
+            isClaudeModel(modelParams.model));
+
         if (
-          modelParams.adapter !== LLMAdapter.Anthropic ||
+          !isAnthropicChatModel ||
           !isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model)
         ) {
           return (chatModel as ChatOpenAI).withStructuredOutput(
