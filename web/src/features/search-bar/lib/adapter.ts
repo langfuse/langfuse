@@ -31,6 +31,7 @@ import {
   SCORE_COLUMNS,
   type FieldDef,
 } from "./fields";
+import { quoteIfNeeded } from "./quoting";
 
 export type SingleEventsFilter = FilterState[number];
 
@@ -554,7 +555,7 @@ function lowerMetadata(
 ): void {
   if (node.values.length > 1) {
     errors.push(
-      `metadata.${key} supports a single value — any-of metadata groups are not supported`,
+      `metadata.${quoteIfNeeded(key)} supports a single value — any-of metadata groups are not supported`,
     );
     return;
   }
@@ -586,7 +587,7 @@ function lowerMetadata(
   // surface the same suggestion.
   if (negated) {
     errors.push(
-      `negated equality on metadata is not representable — use -metadata.${key}:*value* (does not contain)`,
+      `negated equality on metadata is not representable — use -metadata.${quoteIfNeeded(key)}:*value* (does not contain)`,
     );
     return;
   }
@@ -614,7 +615,13 @@ function lowerScores(
   scoreTypes?: ScoreTypeContext,
 ): void {
   const columns = SCORE_COLUMNS[level];
-  const path = level === "trace" ? `traceScores.${key}` : `scores.${key}`;
+  // Quoted so the example syntax in error messages parses for grammar-char
+  // names (`scores."Rouge Score":<n`). `path` is used only in messages here;
+  // the lowered columns come from SCORE_COLUMNS.
+  const path =
+    level === "trace"
+      ? `traceScores.${quoteIfNeeded(key)}`
+      : `scores.${quoteIfNeeded(key)}`;
 
   const lowerNumeric = (): void => {
     const numbers = parseNumbers(node, path, errors);
