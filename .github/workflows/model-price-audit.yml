@@ -70,7 +70,7 @@ jobs:
               ;;
           esac
 
-          if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 500 ]; then
+          if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9][0-9]?$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 500 ]; then
             echo "::error::max_turns must be a whole number between 1 and 500"
             exit 1
           fi
