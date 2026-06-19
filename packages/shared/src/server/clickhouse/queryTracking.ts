@@ -114,6 +114,40 @@ export async function pollQueryStatus(
 }
 
 /**
+ * Reads the result row count for a completed query from system.query_log.
+ * Used by the blob-export raw-passthrough path (LFE-10402), where rows are
+ * never materialized in JS so the count can't be tallied client-side.
+ * Returns undefined if the query_log row isn't present yet.
+ */
+export async function getQueryResultRows(
+  queryId: string,
+): Promise<number | undefined> {
+  const result = await queryClickhouse<{ result_rows: string }>({
+    query: `
+      SELECT result_rows
+      FROM ${systemTableRef("system.query_log")}
+      WHERE query_id = {queryId: String}
+        AND type = 'QueryFinish'
+      ORDER BY event_time_microseconds DESC
+      LIMIT 1
+    `,
+    params: { queryId },
+    clickhouseSettings: {
+      skip_unavailable_shards: 1,
+    },
+    tags: {
+      feature: "query-tracking",
+      operation: "getQueryResultRows",
+    },
+  });
+
+  const raw = result[0]?.result_rows;
+  if (raw === undefined) return undefined;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+/**
  * Gets the error message for a failed query from system.query_log.
  */
 export async function getQueryError(
