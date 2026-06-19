@@ -510,14 +510,6 @@ abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected havingClauses: string[] = [];
   protected orderByClause: string = "";
-
-  /**
-   * The built ORDER BY clause (empty string if none was set). Lets wrapper
-   * queries re-apply an inner builder's exact sort.
-   */
-  getOrderByClause(): string {
-    return this.orderByClause;
-  }
   protected limitByClause: string = "";
   protected limitClause: string = "";
   protected params: Record<string, any> = {};
@@ -994,18 +986,6 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
     this.rawSelectExpressions.push(...expressions);
 
     return this;
-  }
-
-  /**
-   * True if any projection (field set, raw expression, or IO selection) has
-   * been added.
-   */
-  hasSelectExpressions(): boolean {
-    return (
-      this.selectFields.size > 0 ||
-      this.rawSelectExpressions.length > 0 ||
-      this.ioFields !== null
-    );
   }
 
   /**
