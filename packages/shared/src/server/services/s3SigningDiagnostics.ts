@@ -27,10 +27,14 @@
  * backend matched the access key id but the HMAC computed from the secret did
  * not — i.e. the stored secret is not the partner of the stored access key.
  * The usual culprits are a truncated or altered paste (wrong length, stray
- * whitespace, a non-breaking space / smart character that `trim()` leaves) or a
- * secret from a different/rotated key pair. These fields expose exactly those
- * signals without ever logging the credential value: only the length, whether
- * it matches the base64 alphabet, and whitespace/non-ascii flags.
+ * whitespace, or a stray non-ascii character such as a "smart" quote or
+ * zero-width space that survives `trim()`) or a secret from a different/rotated
+ * key pair. These fields expose exactly those signals without ever logging the
+ * credential value: only the length, whether it matches the base64 alphabet,
+ * and whitespace/non-ascii flags. (Note: a non-breaking space is a Unicode
+ * space separator, so it is caught by both the whitespace flags and
+ * `secretHasNonAscii`; `secretHasNonAscii` earns its keep on non-whitespace
+ * characters the others miss.)
  *
  * The access key id is an identifier (sent in plaintext in every signed
  * request's `Authorization` header), not a secret; even so we never log it

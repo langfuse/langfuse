@@ -206,15 +206,33 @@ describe("summarizeCredentialShape", () => {
     expect(shape.secretHasSurroundingWhitespace).toBe(true);
   });
 
-  it("flags a non-breaking space that trim() would not strip", () => {
-    // U+00A0 (NBSP) is whitespace-like but trim() leaves it: a common paste
-    // hazard that yields SignatureDoesNotMatch with otherwise-correct keys.
+  it("flags a trailing non-breaking space across every relevant signal", () => {
+    // U+00A0 (NBSP) is a Unicode space separator: ECMAScript WhiteSpace
+    // includes it, so `\s` matches it and `trim()` strips it. A trailing NBSP
+    // therefore lights up all three signals — assert each so none regresses.
     const nbsp = String.fromCharCode(0x00a0);
     const shape = summarizeCredentialShape(
       "GOOG1EXAMPLE",
       `${cleanGcsSecret}${nbsp}`,
     );
+    expect(shape.secretHasWhitespace).toBe(true);
+    expect(shape.secretHasSurroundingWhitespace).toBe(true);
     expect(shape.secretHasNonAscii).toBe(true);
+    expect(shape.secretLooksBase64).toBe(false);
+  });
+
+  it("flags a non-ascii character that the whitespace checks miss", () => {
+    // The reason secretHasNonAscii exists separately: a non-whitespace unicode
+    // char (here a “smart” double quote, U+201C) is neither matched by `\s`
+    // nor stripped by `trim()`, so only secretHasNonAscii catches it.
+    const smartQuote = String.fromCharCode(0x201c);
+    const shape = summarizeCredentialShape(
+      "GOOG1EXAMPLE",
+      `${smartQuote}${cleanGcsSecret}`,
+    );
+    expect(shape.secretHasNonAscii).toBe(true);
+    expect(shape.secretHasWhitespace).toBe(false);
+    expect(shape.secretHasSurroundingWhitespace).toBe(false);
     expect(shape.secretLooksBase64).toBe(false);
   });
 
