@@ -1,5 +1,6 @@
-import { pipeline } from "stream";
+import { pipeline, Transform } from "stream";
 import { createGzip } from "zlib";
+import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -14,6 +15,9 @@ import {
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
   getCurrentSpan,
+  instrumentAsync,
+  recordGauge,
+  recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
@@ -25,6 +29,13 @@ import {
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 import {
+  registerInFlightBlobExport,
+  unregisterInFlightBlobExport,
+  BLOB_TABLE_EXPORT_METRIC,
+  type BlobTableExportOutcome,
+} from "./inFlightExports";
+import { WORKER_HOST_ID } from "../../utils/hostId";
+import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   BlobStorageExportMode,
@@ -35,6 +46,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
+import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
@@ -202,6 +214,31 @@ const getFileTypeProperties = (fileType: BlobStorageIntegrationFileType) => {
   }
 };
 
+class ByteCounter extends Transform {
+  bytes = 0;
+  _transform(
+    chunk: Buffer,
+    _encoding: string,
+    callback: (error: Error | null, data?: Buffer) => void,
+  ) {
+    this.bytes += chunk.length;
+    callback(null, chunk);
+  }
+}
+
+async function* countedStream<T>(
+  source: AsyncGenerator<T>,
+  stats: { rows: number; sourceWaitMs: number },
+): AsyncGenerator<T> {
+  let lastYield = performance.now();
+  for await (const value of source) {
+    stats.sourceWaitMs += performance.now() - lastYield;
+    stats.rows++;
+    yield value;
+    lastYield = performance.now();
+  }
+}
+
 const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
@@ -219,6 +256,8 @@ const processBlobStorageExport = async (config: {
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
+  bullmqJobId: string | undefined;
+  bullmqAttemptsMade: number;
 }) => {
   logger.info(
     `[BLOB INTEGRATION] Processing ${config.table} export for project ${config.projectId}`,
@@ -241,113 +280,245 @@ const processBlobStorageExport = async (config: {
     connectionValidation: blobStorageEndpointConnectionValidationOptions(),
   });
 
-  try {
-    const blobStorageProps = getFileTypeProperties(config.fileType);
-
-    // Create the file path with prefix if available
-    const timestamp = config.maxTimestamp
-      .toISOString()
-      .replace(/:/g, "-")
-      .substring(0, 19);
-    const extension = config.compressed
-      ? `${blobStorageProps.extension}.gz`
-      : blobStorageProps.extension;
-    const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-    const uploadContentType = config.compressed
-      ? "application/gzip"
-      : blobStorageProps.contentType;
-
-    // Fetch data based on table type
-    const exportFieldGroups =
-      config.exportFieldGroups && config.exportFieldGroups.length > 0
-        ? config.exportFieldGroups
-        : [...OBSERVATION_FIELD_GROUPS_FULL];
-
-    let dataStream: AsyncGenerator<Record<string, unknown>>;
-
-    switch (config.table) {
-      case "traces":
-        dataStream = getTracesForBlobStorageExport(
-          config.projectId,
-          config.minTimestamp,
-          config.maxTimestamp,
-        );
-        break;
-      case "observations":
-        dataStream = enrichObservationStream(
-          getObservationsForBlobStorageExport(
-            config.projectId,
-            config.minTimestamp,
-            config.maxTimestamp,
-            exportFieldGroups,
-          ),
-          config.projectId,
-          "model_id",
-          false, // v3 query already returns latency in seconds
-          exportFieldGroups,
-        );
-        break;
-      case "scores":
-        dataStream = getScoresForBlobStorageExport(
-          config.projectId,
-          config.minTimestamp,
-          config.maxTimestamp,
-        );
-        break;
-      case "observations_v2": // observations_v2 is the events table
-        dataStream = enrichObservationStream(
-          getEventsForBlobStorageExport(
-            config.projectId,
-            config.minTimestamp,
-            config.maxTimestamp,
-            exportFieldGroups,
-          ),
-          config.projectId,
-          "model_id",
-          config.convertV4LatencyToSeconds,
-          exportFieldGroups,
-        );
-        break;
-      default:
-        throw new Error(`Unsupported table type: ${config.table}`);
-    }
-
-    const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
-      if (err) {
-        logger.error(
-          "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
-          err,
-        );
+  await instrumentAsync(
+    {
+      name: `blob-export-table`,
+      spanKind: SpanKind.INTERNAL,
+    },
+    async (span) => {
+      span.setAttribute("blob.table", config.table);
+      span.setAttribute("blob.projectId", config.projectId);
+      span.setAttribute("blob.compressed", config.compressed);
+      span.setAttribute("blob.fileType", config.fileType);
+      span.setAttribute(
+        "blob.window.minTimestamp",
+        config.minTimestamp.toISOString(),
+      );
+      span.setAttribute(
+        "blob.window.maxTimestamp",
+        config.maxTimestamp.toISOString(),
+      );
+      // Identity + host to group concurrent duplicate runs of the same window.
+      if (config.bullmqJobId !== undefined) {
+        span.setAttribute("messaging.bullmq.job.id", config.bullmqJobId);
       }
-    };
+      span.setAttribute("job.attemptsMade", config.bullmqAttemptsMade);
+      span.setAttribute("host.name", WORKER_HOST_ID);
 
-    const formatTransform = streamTransformations[config.fileType]();
-    const fileStream = config.compressed
-      ? pipeline(dataStream, formatTransform, createGzip(), pipelineCallback)
-      : pipeline(dataStream, formatTransform, pipelineCallback);
+      // Event-loop delay during the stream: if it spikes, lock renewal can't
+      // fire and the job re-enqueues as stalled (LFE-10063). Torn down below.
+      const eventLoopDelay = monitorEventLoopDelay({ resolution: 20 });
+      eventLoopDelay.enable();
 
-    // Upload the file to cloud storage
-    // For CSV exports, use larger part size to handle big files
-    // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
-    // This prevents hitting AWS's 10,000 part limit on large exports
+      // In-flight so a SIGTERM abort is loggable distinctly from a stall-timeout.
+      const inFlightHandle = registerInFlightBlobExport({
+        jobId: config.bullmqJobId,
+        projectId: config.projectId,
+        table: config.table,
+        minTimestamp: config.minTimestamp.toISOString(),
+        maxTimestamp: config.maxTimestamp.toISOString(),
+        startedAt: Date.now(),
+      });
 
-    await storageService.uploadFileBuffered({
-      fileName: filePath,
-      fileType: uploadContentType,
-      data: fileStream,
-      partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
-    });
+      recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+        outcome: "started" satisfies BlobTableExportOutcome,
+        table: config.table,
+        projectId: config.projectId,
+      });
 
-    logger.info(
-      `[BLOB INTEGRATION] Successfully exported ${config.table} records for project ${config.projectId}`,
-    );
-  } catch (error) {
-    logger.error(
-      `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId}`,
-      error,
-    );
-    throw error;
-  }
+      // Outside the try so the catch can distinguish a real upload success from
+      // a failure.
+      let uploadSucceeded = false;
+
+      try {
+        const blobStorageProps = getFileTypeProperties(config.fileType);
+
+        const timestamp = config.maxTimestamp
+          .toISOString()
+          .replace(/:/g, "-")
+          .substring(0, 19);
+        const extension = config.compressed
+          ? `${blobStorageProps.extension}.gz`
+          : blobStorageProps.extension;
+        const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
+        const uploadContentType = config.compressed
+          ? "application/gzip"
+          : blobStorageProps.contentType;
+
+        const exportFieldGroups =
+          config.exportFieldGroups && config.exportFieldGroups.length > 0
+            ? config.exportFieldGroups
+            : [...OBSERVATION_FIELD_GROUPS_FULL];
+
+        let rawStream: AsyncGenerator<Record<string, unknown>>;
+
+        switch (config.table) {
+          case "traces":
+            rawStream = getTracesForBlobStorageExport(
+              config.projectId,
+              config.minTimestamp,
+              config.maxTimestamp,
+            );
+            break;
+          case "observations":
+            rawStream = enrichObservationStream(
+              getObservationsForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+                exportFieldGroups,
+              ),
+              config.projectId,
+              "model_id",
+              false, // v3 query already returns latency in seconds
+              exportFieldGroups,
+            );
+            break;
+          case "scores":
+            rawStream = getScoresForBlobStorageExport(
+              config.projectId,
+              config.minTimestamp,
+              config.maxTimestamp,
+            );
+            break;
+          case "observations_v2": // observations_v2 is the events table
+            rawStream = enrichObservationStream(
+              getEventsForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+                exportFieldGroups,
+              ),
+              config.projectId,
+              "model_id",
+              config.convertV4LatencyToSeconds,
+              exportFieldGroups,
+            );
+            break;
+          default:
+            throw new Error(`Unsupported table type: ${config.table}`);
+        }
+
+        const sourceStats = { rows: 0, sourceWaitMs: 0 };
+        const dataStream = countedStream(rawStream, sourceStats);
+
+        const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
+          if (err) {
+            logger.error(
+              "[BLOB INTEGRATION] Getting data from DB for blob storage integration failed: ",
+              err,
+            );
+          }
+        };
+
+        const serializedCounter = new ByteCounter();
+        const compressedCounter = config.compressed ? new ByteCounter() : null;
+        const formatTransform = streamTransformations[config.fileType]();
+
+        const fileStream = compressedCounter
+          ? pipeline(
+              dataStream,
+              formatTransform,
+              serializedCounter,
+              createGzip(),
+              compressedCounter,
+              pipelineCallback,
+            )
+          : pipeline(
+              dataStream,
+              formatTransform,
+              serializedCounter,
+              pipelineCallback,
+            );
+
+        // Upload the file to cloud storage
+        // For CSV exports, use larger part size to handle big files
+        // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
+        // This prevents hitting AWS's 10,000 part limit on large exports
+        let uploadStartMs: number | undefined;
+        try {
+          uploadStartMs = performance.now();
+
+          await storageService.uploadFileBuffered({
+            fileName: filePath,
+            fileType: uploadContentType,
+            data: fileStream,
+            partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
+          });
+          // Record at the upload boundary so a throw in the `finally` below
+          // can't miscount a real success as a failure.
+          uploadSucceeded = true;
+          recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+            outcome: "success" satisfies BlobTableExportOutcome,
+            table: config.table,
+            projectId: config.projectId,
+          });
+
+          logger.info(
+            `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
+              `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
+              `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
+              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
+          );
+        } finally {
+          span.setAttribute("blob.rows", sourceStats.rows);
+          span.setAttribute(
+            "blob.sourceWaitMs",
+            Math.round(sourceStats.sourceWaitMs),
+          );
+          span.setAttribute("blob.serializedBytes", serializedCounter.bytes);
+          if (uploadStartMs !== undefined) {
+            span.setAttribute(
+              "blob.uploadDurationMs",
+              Math.round(performance.now() - uploadStartMs),
+            );
+          }
+          if (compressedCounter) {
+            span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
+          }
+        }
+      } catch (error) {
+        // Skip if `success` already fired (a later step threw post-upload).
+        if (!uploadSucceeded) {
+          recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+            outcome: "failure" satisfies BlobTableExportOutcome,
+            table: config.table,
+            projectId: config.projectId,
+          });
+        }
+        logger.error(
+          `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
+            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID})`,
+          error,
+        );
+        throw error;
+      } finally {
+        unregisterInFlightBlobExport(inFlightHandle);
+
+        // ns → ms; the histogram yields NaN/Infinity with zero samples.
+        eventLoopDelay.disable();
+        const toFiniteMs = (ns: number): number =>
+          Number.isFinite(ns) ? ns / 1e6 : 0;
+        const maxMs = toFiniteMs(eventLoopDelay.max);
+        const p99Ms = toFiniteMs(eventLoopDelay.percentile(99));
+        const meanMs = toFiniteMs(eventLoopDelay.mean);
+        const delayTags = { table: config.table, unit: "milliseconds" };
+        recordGauge(
+          "langfuse.blobstorage.event_loop_delay.max",
+          maxMs,
+          delayTags,
+        );
+        recordGauge(
+          "langfuse.blobstorage.event_loop_delay.p99",
+          p99Ms,
+          delayTags,
+        );
+        span.setAttribute("blob.eventLoopDelay.maxMs", Math.round(maxMs));
+        span.setAttribute("blob.eventLoopDelay.p99Ms", Math.round(p99Ms));
+        span.setAttribute("blob.eventLoopDelay.meanMs", Math.round(meanMs));
+      }
+    },
+  );
 };
 
 export const handleBlobStorageIntegrationProjectJob = async (
@@ -359,6 +530,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+    // BullMQ job id (distinct from the payload id above) + attempt count.
+    if (job.id !== undefined) {
+      span.setAttribute("messaging.bullmq.job.id", job.id);
+    }
+    span.setAttribute("job.attemptsMade", job.attemptsMade);
+    span.setAttribute("host.name", WORKER_HOST_ID);
   }
 
   logger.info(
@@ -479,6 +656,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
       convertV4LatencyToSeconds,
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
+      bullmqJobId: job.id,
+      bullmqAttemptsMade: job.attemptsMade,
     };
 
     // Check if this project should only export traces (legacy behavior via env var)

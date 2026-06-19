@@ -158,8 +158,16 @@ describe("langQ parser", () => {
     expect(parse('input:*""').valid).toBe(true);
   });
 
-  it("rejects a key with quotes or spaces", () => {
-    expect(parse('metadata."foo":bar').valid).toBe(false);
+  it("accepts a quoted dot-path key (score/metadata names with spaces)", () => {
+    // Quoting the segment after a dot prefix is how a score/metadata name with
+    // spaces or grammar chars is addressed; it parses and round-trips.
+    expect(parse('metadata."foo":bar').valid).toBe(true);
+    expect(parse('scores."Rouge Score":>=1').valid).toBe(true);
+    expect(parse('traceScores."Hallucination Check":faithful').valid).toBe(
+      true,
+    );
+    // A quoted UNKNOWN plain field is still rejected (resolves to nothing).
+    expect(parse('"level":ERROR').valid).toBe(false);
   });
 
   it("emits a single diagnostic for a bare AND, not a doubled one", () => {

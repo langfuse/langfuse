@@ -46,6 +46,10 @@ Generally available on the v4 events tables (no opt-in). Based on the
   (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
   way (bare = contains, `:=` = exact) but still suggest observed values.
 - `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
+- dot-path names with spaces/grammar chars are **quoted after the prefix**:
+  `scores."Rouge Score":>=1`, `traceScores."Hallucination Check":faithful`,
+  `metadata."my key":eu` (the quotes are stripped to the real key when lowering;
+  the reverse adapter and completions re-quote them — so they round-trip)
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
 
@@ -130,9 +134,10 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 
 - **No silent drops or rewrites.** Every filter is either rendered in the bar,
   preserved untouched via `skippedFilters` (shapes the grammar can't express —
-  `positionInTrace`, keys with grammar chars, single-value `all of`), or a
-  commit-blocking diagnostic. Never silently dropped, reordered into a
-  different filter, or rewritten.
+  `positionInTrace`, single-value `all of`), or a commit-blocking diagnostic.
+  Never silently dropped, reordered into a different filter, or rewritten.
+  (Score/metadata keys with grammar chars are no longer skipped — they render
+  with a quoted segment, `scores."Rouge Score"`, and round-trip.)
 - **validate ↔ lower parity, across _every_ site.** `draftValid` (store),
   token classification (`deriveComposerSegments`), and the commit gate
   (`planCommit` → `validateQuery` + `astToFilterState`) must all lower with the
@@ -142,7 +147,19 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 - **Negation is not a primitive.** `-`/`NOT` lower to existing inverse
   operators (`none of`, `does not contain`, `is null`) or flip a comparison /
   boolean. Anything without a native inverse is a diagnostic (`fields.ts`
-  `negationIssue` is the spec) — the backend has no general NOT.
+  `negationIssue` is the spec) — the backend has no general NOT. (Negated exact
+  on a `textSearch` field — `-name:=v` — is representable: it lowers to a
+  `stringOptions none of`, the exact-inequality form the facet emits when one
+  value is unchecked. It is NOT `does not contain`.)
+- **User-authored filters are never auto-removed.** The bar reads the sidebar's
+  **explicit** `FilterState`, so the managed-environment implicit default
+  (`environment none of [hidden internal envs]`, derived into _effective_ state
+  by `features/filters/lib/managedEnvironmentPolicy.ts`) never shows as a token.
+  That policy strips exactly one shape from explicit state — that same implicit
+  `none of [hidden]` default (which the facet also re-creates on "clear back to
+  default"). A user-authored positive selection (`environment:default`, typed or
+  saved) is kept explicit even when it equals the current default set; the user
+  returns to the default by removing the filter, never by us inferring it.
 
 ## Ownership map
 
@@ -171,8 +188,22 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 - `components/`:
   - `SearchComposer.tsx` — the stateful contenteditable CONTROLLER: browser
     owns selection, mutations flow through `beforeinput`, undo/redo/caret/
-    autocomplete state. Picking a value advances to "append next"; ArrowRight
-    at the end of the query exits the last token. Paste inserts cleaned text
+    autocomplete state. **Trailing space is the "start the next filter"
+    affordance, applied uniformly.** The RESTING draft carries a trailing space
+    when non-empty: it is baked into the URL→draft derivation
+    (`useEventsSearchBar`'s `restingDraft`, also returned by `commit`), so it is
+    present from the first paint. That is why clicking past the text — or landing
+    after a commit — never has to MUTATE the draft to insert it (which flickered
+    the caret from inside the last pill to after a freshly-added space); the
+    caret just lands after the already-present space. Completing a filter at the
+    end of the query — a pick-at-end (value or ready-to-run suggestion),
+    ArrowRight-at-end, a click past the text, or Enter that commits with the
+    caret at the end — leaves the caret AFTER that trailing space (outside the
+    last pill), reopening field suggestions. (The space is trimmed on commit, so
+    it never reaches the filter state; the commit echo's `resetTo` no-ops because
+    it's AST-equal to the committed form.) Picks that still need input — a bare
+    `field:` key, a `metadata.`/`scores.` prefix, an open `tags:(` group — and
+    mid-query edits keep the caret in place instead. Paste inserts cleaned text
     (line-breaks/tabs → spaces) into the draft, which auto-tokenizes like typed
     text — there is no special structured-vs-raw paste branch. Editing a
     value works by placing the caret in it (click/arrow): the value-stage
