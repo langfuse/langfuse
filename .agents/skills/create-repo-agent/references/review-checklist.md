@@ -62,14 +62,15 @@ Use this checklist before merging any repo-agent workflow, skill, or self-improv
 - Staged blobs are compared to worktree files after `git add`.
 - Staged machine-readable files are validated from `git show ":path"`.
 - `git diff --cached --check` runs before commit.
-- Validators run again after the local commit or bundle step.
+- Validators run again after the local commit and before patch artifact creation.
 
 ## Publish Path
 
 - The publish job runs only after validated changes.
 - The publish job does not invoke the LLM.
 - Git hooks are disabled for bot commit paths.
-- The publish job imports a validated bundle or equivalent artifact, not a mutable workspace with unvalidated files.
+- The publish job applies a validated patch artifact to the triggering base commit, not a mutable workspace with unvalidated files.
+- The publish job re-checks the applied commit's changed files against the same path allowlist before pushing.
 - The bot branch is force-pushed intentionally and only to the expected repo.
 - Existing PRs are updated instead of creating duplicates.
 - Reviewer requests are non-fatal.
@@ -89,7 +90,7 @@ Use this checklist before merging any repo-agent workflow, skill, or self-improv
 - The schedule is not too frequent for provider rate limits, model cost, or reviewer attention.
 - `timeout-minutes`, max turns, and max budget bound runaway loops.
 - Manual dispatch inputs are sufficient for safe debugging without making the agent arbitrary.
-- Manual dry-run mode can skip the model step and exercise no-change plus allowlisted mock-diff paths without publishing.
+- Manual dry-run mode can skip the model step and exercise no-change plus allowlisted mock-diff patch paths without publishing.
 - No-change runs are cheap and legible.
 - Failure modes leave enough summary context for maintainers without exposing secrets.
 

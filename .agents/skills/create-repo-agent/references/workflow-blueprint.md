@@ -7,7 +7,7 @@ Use this blueprint when implementing or changing a scheduled/manual repo agent i
 - `name`: explicit maintenance task name.
 - `on.schedule`: use a predictable low-noise cadence.
 - `on.workflow_dispatch.inputs`: keep inputs small and validate every input before interpolation into agent args.
-- Include a manual dry-run input for new agents. It should skip the model step, emit synthetic structured output, and optionally create a safe allowlisted mock diff so validation, artifact, and no-publish paths can be debugged without model spend.
+- Include a manual dry-run input for new agents. It should skip the model step, emit synthetic structured output, and optionally create a safe allowlisted mock diff so validation, patch artifact, and no-publish paths can be debugged without model spend.
 - `permissions`: default to `contents: read`.
 - `concurrency`: one stable group per agent, usually `cancel-in-progress: true`.
 - `env`: branch names and PR titles only; do not put secrets in top-level env.
@@ -109,7 +109,7 @@ Then:
 - Compute a changed-line count and reject oversized diffs.
 - Write a diff stat to the job summary.
 
-## Commit And Bundle Preparation
+## Commit And Patch Preparation
 
 Prepare the PR artifact inside the audit job only after diff validation:
 
@@ -126,7 +126,8 @@ Prepare the PR artifact inside the audit job only after diff validation:
 - Run `git diff --cached --check`.
 - Commit with `git -c core.hooksPath=/dev/null commit --no-verify`.
 - Re-run validators.
-- Create a git bundle for the bot branch.
+- Create a patch with `git format-patch -1 --stdout HEAD`; use `--binary` only when the allowlist intentionally permits binary files.
+- Verify the patch file exists and is not empty.
 - Create a PR body artifact with scope, validation, diff stat, and agent summary.
 
 ## Publish Job
@@ -134,8 +135,10 @@ Prepare the PR artifact inside the audit job only after diff validation:
 The publish job owns GitHub writes:
 
 - It runs only when the audit job reports changes.
-- It downloads the bundle and PR body artifact.
-- It imports the bundle into a clean temporary repository.
+- It downloads the patch and PR body artifact.
+- It fetches sufficient source-ref history into a clean temporary repository and checks out the triggering commit SHA exactly.
+- It applies the patch with `git am --3way`.
+- It re-checks the applied commit's changed files against the same path allowlist and runs `git diff --check HEAD^ HEAD`.
 - It pushes the bot branch with `GH_ACCESS_TOKEN` or another reviewed bot secret.
 - It creates or updates a PR against `main`.
 - It requests reviewers non-fatally with `|| true`.
@@ -176,9 +179,9 @@ Use dry-run mode to debug the workflow machinery around an agent without invokin
 
 - Add a `workflow_dispatch` choice input with a YAML-safe disabled value as the default.
 - Validate the input before using it.
-- Guard the LLM action with `if: <dry-run-mode> == 'off'`.
+- Guard the LLM action with an explicit disabled-mode check, for example `if: <dry-run-mode> == 'disabled'`.
 - Add a mock step for dry runs that writes the same structured output shape as the LLM action.
 - Provide a no-change mode to test clean exits.
-- Provide an allowlisted mock-diff mode to test diff validation, staging, commit, bundle creation, and artifact upload.
-- Skip the publish job for every dry-run mode, even when the mock diff produces a bundle.
+- Provide an allowlisted mock-diff mode to test diff validation, staging, commit, patch creation, and artifact upload.
+- Skip the publish job for every dry-run mode, even when the mock diff produces a patch artifact.
 - Make dry-run summaries explicit so maintainers never confuse synthetic output with a real provider audit.
