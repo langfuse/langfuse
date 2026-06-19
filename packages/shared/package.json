@@ -95,6 +95,7 @@
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
+    "@anthropic-ai/vertex-sdk": "^0.17.1",
     "@aws-sdk/client-cloudwatch": "^3.1013.0",
     "@aws-sdk/client-lambda": "^3.1046.0",
     "@aws-sdk/client-s3": "^3.1013.0",

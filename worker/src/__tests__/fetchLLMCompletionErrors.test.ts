@@ -13,6 +13,20 @@ const chatAnthropicConstructorMock = vi.fn().mockImplementation(function () {
   };
 });
 
+const mockGcpServiceAccountKey = {
+  type: "service_account",
+  project_id: "test-project",
+  private_key_id: "test-key-id",
+  private_key: "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----\n",
+  client_email: "test@test-project.iam.gserviceaccount.com",
+  client_id: "1234567890",
+  auth_uri: "https://accounts.google.com/o/oauth2/auth",
+  token_uri: "https://oauth2.googleapis.com/token",
+  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+  client_x509_cert_url:
+    "https://www.googleapis.com/robot/v1/metadata/x509/test%40test-project.iam.gserviceaccount.com",
+} as const;
+
 process.env.CLICKHOUSE_URL ??= "http://localhost:8123";
 process.env.CLICKHOUSE_USER ??= "default";
 process.env.CLICKHOUSE_PASSWORD ??= "password";
@@ -143,5 +157,72 @@ describe("fetchLLMCompletion provider error classification", () => {
       responseStatusCode: 401,
       isRetryable: false,
     });
+  });
+
+  it("forwards Anthropic options and normalizes sampling params for Claude on Vertex", async () => {
+    const modelInstance = {
+      topP: -1,
+      temperature: 0,
+      invoke: anthropicInvokeMock,
+      pipe: vi.fn().mockReturnValue({
+        invoke: anthropicInvokeMock,
+      }),
+      withStructuredOutput: vi.fn().mockReturnValue({
+        invoke: anthropicInvokeMock,
+      }),
+    };
+
+    chatAnthropicConstructorMock.mockImplementationOnce(function () {
+      return modelInstance;
+    });
+    anthropicInvokeMock.mockResolvedValue({ content: "ok" });
+
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Score this observation.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model: "claude-sonnet-4-6",
+          temperature: 0,
+          max_tokens: 10,
+          providerOptions: {
+            thinking: {
+              type: "enabled",
+              budget_tokens: 16000,
+            },
+          },
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "us-east5",
+          },
+        },
+      }),
+    ).resolves.toEqual({ text: "ok" });
+
+    expect(chatAnthropicConstructorMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "claude-sonnet-4-6",
+        temperature: 0,
+        topP: undefined,
+        invocationKwargs: {
+          thinking: {
+            type: "enabled",
+            budget_tokens: 16000,
+          },
+        },
+      }),
+    );
+    expect(modelInstance.topP).toBeUndefined();
+    expect(modelInstance.temperature).toBe(0);
   });
 });

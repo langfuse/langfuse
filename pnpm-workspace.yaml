@@ -72,6 +72,10 @@ overrides:
   "@ai-sdk/provider-utils@<=4.0.26": 4.0.27
   "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.27"
   "@copilotkit/runtime@0.0.0-mme-ag-ui-0-0-46-20260227141603>@ag-ui/langgraph": 0.0.29
+  # Keep Anthropic's Vertex client on an SDK version that emits Vertex rawPredict URLs.
+  # Remove once @langchain/anthropic allows the same SDK range.
+  # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
+  "@anthropic-ai/vertex-sdk>@anthropic-ai/sdk": 0.104.1
 patchedDependencies:
   next-auth@4.24.13: patches/next-auth@4.24.13.patch
 publicHoistPattern:
