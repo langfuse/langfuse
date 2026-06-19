@@ -6,9 +6,22 @@ import { Check } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
 
+type CheckboxProps = Omit<
+  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>,
+  "className"
+> & {
+  className?:
+    | "h-4 w-4"
+    | "mr-1 h-4 w-4"
+    | "mr-1"
+    | "mt-1 opacity-60 data-[state=checked]:mt-[5px]"
+    | "opacity-60"
+    | "pointer-events-auto";
+};
+
 const Checkbox = React.forwardRef<
   React.ComponentRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
+  CheckboxProps
 >(({ className, ...props }, ref) => (
   <CheckboxPrimitive.Root
     ref={ref}
