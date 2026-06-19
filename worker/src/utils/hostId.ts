@@ -20,7 +20,8 @@ function resolveWorkerHostId(): string {
   if (osHost && osHost !== "0.0.0.0" && osHost !== "localhost") return osHost;
 
   const envHost = process.env.HOSTNAME;
-  if (envHost && envHost !== "0.0.0.0") return envHost;
+  if (envHost && envHost !== "0.0.0.0" && envHost !== "localhost")
+    return envHost;
 
   return "unknown";
 }
