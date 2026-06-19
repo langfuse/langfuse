@@ -142,6 +142,8 @@ const ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS = [
   "claude-haiku-4-5",
 ] as const;
 
+const ANTHROPIC_VERTEX_MODEL_NAME_PATTERN = /^[A-Za-z0-9_.@-]+$/;
+
 function isAnthropicAlwaysAdaptiveThinkingModel(modelName: string): boolean {
   return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
     modelName.includes(model),
@@ -203,6 +205,17 @@ function normalizeAnthropicSamplingParams(
 
 function isClaudeModel(modelName: string): boolean {
   return modelName.toLowerCase().includes("claude");
+}
+
+function assertValidAnthropicVertexModelName(modelName: string) {
+  if (
+    !ANTHROPIC_VERTEX_MODEL_NAME_PATTERN.test(modelName) ||
+    modelName.includes("..")
+  ) {
+    throw new Error(
+      "Invalid Anthropic Vertex AI model name. Model names must be a single Vertex model ID segment.",
+    );
+  }
 }
 
 function shouldNormalizeContentBlocks(modelParams: ModelParams): boolean {
@@ -572,6 +585,7 @@ export async function fetchLLMCompletion(
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
     if (isClaudeModel(modelParams.model)) {
+      assertValidAnthropicVertexModelName(modelParams.model);
       const anthropicVertexGoogleAuth = new GoogleAuth({
         ...authOptions,
         scopes: authOptions?.scopes ?? VERTEX_AI_AUTH_SCOPES,

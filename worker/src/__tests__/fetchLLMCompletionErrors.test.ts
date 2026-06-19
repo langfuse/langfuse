@@ -225,4 +225,37 @@ describe("fetchLLMCompletion provider error classification", () => {
     expect(modelInstance.topP).toBeUndefined();
     expect(modelInstance.temperature).toBe(0);
   });
+
+  it("rejects Claude on Vertex model names that are not single path segments", async () => {
+    await expect(
+      fetchLLMCompletion({
+        streaming: false,
+        messages: [
+          {
+            role: "user",
+            content: "Score this observation.",
+            type: "public-api-created",
+          },
+        ],
+        modelParams: {
+          provider: "vertexai",
+          adapter: "google-vertex-ai",
+          model:
+            "../../../../../../../projects/victim/locations/us-east5/publishers/anthropic/models/claude-3-5-sonnet",
+          temperature: 0,
+          max_tokens: 10,
+        },
+        llmConnection: {
+          secretKey: encrypt(JSON.stringify(mockGcpServiceAccountKey)),
+          config: {
+            location: "us-east5",
+          },
+        },
+      }),
+    ).rejects.toThrow(
+      "Invalid Anthropic Vertex AI model name. Model names must be a single Vertex model ID segment.",
+    );
+
+    expect(chatAnthropicConstructorMock).not.toHaveBeenCalled();
+  });
 });
