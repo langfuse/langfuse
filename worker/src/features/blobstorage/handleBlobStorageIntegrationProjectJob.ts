@@ -17,6 +17,7 @@ import {
   getCurrentSpan,
   instrumentAsync,
   recordGauge,
+  recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
@@ -30,6 +31,8 @@ import {
 import {
   registerInFlightBlobExport,
   unregisterInFlightBlobExport,
+  BLOB_TABLE_EXPORT_METRIC,
+  type BlobTableExportOutcome,
 } from "./inFlightExports";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -317,6 +320,14 @@ const processBlobStorageExport = async (config: {
         startedAt: Date.now(),
       });
 
+      // Count the attempt. Without a matching success/failure/aborted later, the
+      // residual surfaces silent hard kills (OOM/ungraceful death). See LFE-10407.
+      recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+        outcome: "started" satisfies BlobTableExportOutcome,
+        table: config.table,
+        projectId: config.projectId,
+      });
+
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
@@ -456,7 +467,18 @@ const processBlobStorageExport = async (config: {
             span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
           }
         }
+
+        recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+          outcome: "success" satisfies BlobTableExportOutcome,
+          table: config.table,
+          projectId: config.projectId,
+        });
       } catch (error) {
+        recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+          outcome: "failure" satisfies BlobTableExportOutcome,
+          table: config.table,
+          projectId: config.projectId,
+        });
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
             `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID})`,

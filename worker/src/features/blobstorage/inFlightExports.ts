@@ -1,5 +1,20 @@
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import { WORKER_HOST_ID } from "../../utils/hostId";
+
+// Per-table export attempt counter. `started` fires when an attempt begins,
+// `success`/`failure` on graceful completion, `aborted` for exports interrupted
+// by a SIGTERM drain. The residual `started - success - failure - aborted` over
+// a window counts silent hard kills (OOM/ungraceful death), which emit nothing
+// at all. Defined here (the leaf module) so the handler can import it without a
+// cycle. See LFE-10407.
+export const BLOB_TABLE_EXPORT_METRIC =
+  "langfuse.blobstorage.table_export.count";
+
+export type BlobTableExportOutcome =
+  | "started"
+  | "success"
+  | "failure"
+  | "aborted";
 
 export type InFlightBlobExport = {
   jobId: string | undefined;
@@ -53,5 +68,14 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
         `window=[${entry.minTimestamp}, ${entry.maxTimestamp}] ` +
         `elapsedMs=${now - entry.startedAt}`,
     );
+    // Count the shutdown interruption so it's subtracted from the hard-kill
+    // residual. Note: an export that still completes within the grace period
+    // also emits `success`, so `aborted` slightly overcounts for cheap tables;
+    // the expensive exports that dominate the thrash never finish in time.
+    recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+      outcome: "aborted" satisfies BlobTableExportOutcome,
+      table: entry.table,
+      projectId: entry.projectId,
+    });
   }
 };

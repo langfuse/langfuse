@@ -15,6 +15,15 @@ const originalCloudRegion = vi.hoisted(() => {
   return cloudRegion;
 });
 
+// Override only recordIncrement so the per-table attempt counter (LFE-10407) is
+// assertable; every real CH/storage export helper stays intact.
+const mockRecordIncrement = vi.hoisted(() => vi.fn());
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return { ...actual, recordIncrement: mockRecordIncrement };
+});
+
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -335,11 +344,28 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       ]);
 
       // When
+      mockRecordIncrement.mockClear();
       await handleBlobStorageIntegrationProjectJob({
         data: { payload: { projectId } },
       } as Job);
 
       // Then
+      // Each of the 4 tables emits a started + success attempt counter (LFE-10407).
+      for (const table of [
+        "traces",
+        "observations",
+        "scores",
+        "observations_v2",
+      ]) {
+        for (const outcome of ["started", "success"]) {
+          expect(mockRecordIncrement).toHaveBeenCalledWith(
+            "langfuse.blobstorage.table_export.count",
+            1,
+            { outcome, table, projectId },
+          );
+        }
+      }
+
       const files = await s3StorageService.listFiles(s3Prefix);
       const projectFiles = files.filter((f) => f.file.includes(projectId));
 

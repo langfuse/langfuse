@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// The tracker only needs a logger; stub the heavy shared server barrel.
+const mockRecordIncrement = vi.hoisted(() => vi.fn());
+
+// The tracker only needs a logger + metric sink; stub the heavy shared barrel.
 vi.mock("@langfuse/shared/src/server", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  recordIncrement: mockRecordIncrement,
 }));
 
 import {
@@ -11,6 +14,7 @@ import {
   getInFlightBlobExportCount,
   logInFlightBlobExportsOnShutdown,
   resetInFlightBlobExports,
+  BLOB_TABLE_EXPORT_METRIC,
 } from "../features/blobstorage/inFlightExports";
 
 const makeEntry = (table: string) => ({
@@ -24,7 +28,10 @@ const makeEntry = (table: string) => ({
 
 describe("inFlightExports", () => {
   // Singleton registry — drain it so tests are order-independent.
-  beforeEach(() => resetInFlightBlobExports());
+  beforeEach(() => {
+    resetInFlightBlobExports();
+    mockRecordIncrement.mockClear();
+  });
 
   it("tracks and clears in-flight exports by handle", () => {
     expect(getInFlightBlobExportCount()).toBe(0);
@@ -57,5 +64,39 @@ describe("inFlightExports", () => {
     const h = registerInFlightBlobExport(makeEntry("traces"));
     expect(() => logInFlightBlobExportsOnShutdown()).not.toThrow();
     unregisterInFlightBlobExport(h);
+  });
+
+  it("emits an aborted increment per in-flight export on shutdown", () => {
+    // Empty registry: nothing to abort.
+    logInFlightBlobExportsOnShutdown();
+    expect(mockRecordIncrement).not.toHaveBeenCalled();
+
+    const h1 = registerInFlightBlobExport(makeEntry("observations_v2"));
+    const h2 = registerInFlightBlobExport(makeEntry("scores"));
+
+    logInFlightBlobExportsOnShutdown();
+
+    expect(mockRecordIncrement).toHaveBeenCalledTimes(2);
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      BLOB_TABLE_EXPORT_METRIC,
+      1,
+      {
+        outcome: "aborted",
+        table: "observations_v2",
+        projectId: "p-1",
+      },
+    );
+    expect(mockRecordIncrement).toHaveBeenCalledWith(
+      BLOB_TABLE_EXPORT_METRIC,
+      1,
+      {
+        outcome: "aborted",
+        table: "scores",
+        projectId: "p-1",
+      },
+    );
+
+    unregisterInFlightBlobExport(h1);
+    unregisterInFlightBlobExport(h2);
   });
 });
