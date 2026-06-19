@@ -102,7 +102,7 @@ jobs:
           API_TIMEOUT_MS: "900000"
           BASH_DEFAULT_TIMEOUT_MS: "120000"
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}
           github_token: ${{ github.token }}
           display_report: "true"
           prompt: |
