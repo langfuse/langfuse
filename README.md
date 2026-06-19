@@ -376,3 +376,6 @@ This helps us to:
 The telemetry does not include raw traces, prompts, observations, scores, or dataset contents. We document the exact fields that are collected, where they are sent, and the implementation reference in our [telemetry docs](https://langfuse.com/self-hosting/security/telemetry).
 
 For Langfuse OSS, you can opt out by setting `TELEMETRY_ENABLED=false`.
+
+<!-- Scarf pixel — cookie-free, privacy-friendly analytics for README views (no cookies, no IP/PII stored). https://docs.scarf.sh/web-traffic/ . The `page` parameter is recommended by Scarf for GitHub READMEs, where GitHub's Camo image proxy otherwise obscures the source page. -->
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=51a1912d-b16d-43a0-80b7-c3d6ab43e1a7&page=README.md" />
