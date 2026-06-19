@@ -1,5 +1,6 @@
 import { globalIgnores } from "eslint/config";
 import storybook from "eslint-plugin-storybook";
+import eslintPluginTailwindcss from "eslint-plugin-tailwindcss";
 
 import nextConfig from "@repo/eslint-config/next";
 
@@ -8,6 +9,21 @@ export default [
 
   ...nextConfig,
   ...storybook.configs["flat/recommended"],
+  {
+    ...eslintPluginTailwindcss.configs.recommended,
+    settings: {
+      tailwindcss: {
+        cssConfigPath: "src/styles/globals.css",
+      },
+    },
+    rules: {
+      "tailwindcss/classnames-order": "off",
+      "tailwindcss/no-custom-classname": "warn",
+      // TODO: Enable these rule later
+      // "tailwindcss/no-arbitrary-value": "warn",
+      // "tailwindcss/no-contradicting-classname": "warn",
+    },
+  },
 
   // Design-system component APIs must use explicit variants instead of styling escape hatches.
   {
