@@ -11,8 +11,6 @@ type CheckboxProps = Omit<
   "className"
 > & {
   className?:
-    | "h-4 w-4"
-    | "mr-1 h-4 w-4"
     | "mr-1"
     | "mt-1 opacity-60 data-[state=checked]:mt-[5px]"
     | "opacity-60"

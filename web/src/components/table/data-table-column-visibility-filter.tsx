@@ -130,7 +130,6 @@ function ColumnVisibilityListItem<TData, TValue>({
               toggleColumn(column.accessorKey);
           }}
           disabled={!column.enableHiding || isFixedPosition}
-          className="h-4 w-4"
         />
         <span
           className={cn(
