@@ -116,6 +116,7 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       replacementEndpoint: string;
       docsUrl: string;
     };
+    mockResponseSerializationError?: boolean;
   }) {
     const handler = createAuthedProjectAPIRoute({
       name: "Test Route",
@@ -135,6 +136,15 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
       },
       query: {},
     });
+
+    if (options?.mockResponseSerializationError) {
+      const writeJson = res.json.bind(res);
+      vi.spyOn(res, "json")
+        .mockImplementationOnce(() => {
+          throw new RangeError("Invalid string length");
+        })
+        .mockImplementation((body) => writeJson(body));
+    }
 
     await handler(req, res);
 
@@ -232,6 +242,18 @@ describe("createAuthedProjectAPIRoute auth error handling", () => {
     expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
       errorContract: undefined,
       upgradePath,
+    });
+  });
+
+  it("throws a 422 payload error when response serialization exceeds V8 string limits", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    await expect(
+      callRoute({ mockResponseSerializationError: true }),
+    ).rejects.toMatchObject({
+      name: "PayloadTooLargeError",
+      httpCode: 422,
+      message: "Response payload is too large",
     });
   });
 });

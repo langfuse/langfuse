@@ -17,6 +17,7 @@ import {
   getCurrentSpan,
   instrumentAsync,
   recordGauge,
+  recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
@@ -30,6 +31,8 @@ import {
 import {
   registerInFlightBlobExport,
   unregisterInFlightBlobExport,
+  BLOB_TABLE_EXPORT_METRIC,
+  type BlobTableExportOutcome,
 } from "./inFlightExports";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
@@ -317,6 +320,16 @@ const processBlobStorageExport = async (config: {
         startedAt: Date.now(),
       });
 
+      recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+        outcome: "started" satisfies BlobTableExportOutcome,
+        table: config.table,
+        projectId: config.projectId,
+      });
+
+      // Outside the try so the catch can distinguish a real upload success from
+      // a failure.
+      let uploadSucceeded = false;
+
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
@@ -432,6 +445,14 @@ const processBlobStorageExport = async (config: {
             data: fileStream,
             partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
           });
+          // Record at the upload boundary so a throw in the `finally` below
+          // can't miscount a real success as a failure.
+          uploadSucceeded = true;
+          recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+            outcome: "success" satisfies BlobTableExportOutcome,
+            table: config.table,
+            projectId: config.projectId,
+          });
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
@@ -457,6 +478,14 @@ const processBlobStorageExport = async (config: {
           }
         }
       } catch (error) {
+        // Skip if `success` already fired (a later step threw post-upload).
+        if (!uploadSucceeded) {
+          recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+            outcome: "failure" satisfies BlobTableExportOutcome,
+            table: config.table,
+            projectId: config.projectId,
+          });
+        }
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
             `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID})`,

@@ -6,7 +6,11 @@ import {
   upsertClickhouse,
 } from "./clickhouse";
 import { logger } from "../logger";
-import { InternalServerError, LangfuseNotFoundError } from "../../errors";
+import {
+  InternalServerError,
+  LangfuseNotFoundError,
+  PayloadTooLargeError,
+} from "../../errors";
 import { prisma } from "../../db";
 import { ObservationRecordReadType } from "./definitions";
 import { FilterState } from "../../types";
@@ -236,7 +240,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     if (payloadSize >= env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES) {
       const errorMessage = `Observations in trace are too large: ${(payloadSize / 1e6).toFixed(2)}MB exceeds limit of ${(env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES / 1e6).toFixed(2)}MB`;
 
-      throw new Error(errorMessage);
+      throw new PayloadTooLargeError(errorMessage);
     }
   }
 

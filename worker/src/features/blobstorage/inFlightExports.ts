@@ -1,5 +1,17 @@
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import { WORKER_HOST_ID } from "../../utils/hostId";
+
+// Per-table attempt counter. Residual `started - success - failure - aborted`
+// counts silent hard kills (OOM) that emit nothing. Lives here to avoid an
+// import cycle with the handler. See LFE-10407.
+export const BLOB_TABLE_EXPORT_METRIC =
+  "langfuse.blobstorage.table_export.count";
+
+export type BlobTableExportOutcome =
+  | "started"
+  | "success"
+  | "failure"
+  | "aborted";
 
 export type InFlightBlobExport = {
   jobId: string | undefined;
@@ -53,5 +65,11 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
         `window=[${entry.minTimestamp}, ${entry.maxTimestamp}] ` +
         `elapsedMs=${now - entry.startedAt}`,
     );
+    // May double with `success` if the export finishes within the grace period.
+    recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+      outcome: "aborted" satisfies BlobTableExportOutcome,
+      table: entry.table,
+      projectId: entry.projectId,
+    });
   }
 };
