@@ -88,6 +88,9 @@ export const CreateOrEditAnnotationQueueButton = ({
   });
 
   useEffect(() => {
+    // Re-seed when the dialog opens so reopening discards any unsaved edits;
+    // the component now stays mounted per table row instead of remounting.
+    if (!isOpen) return;
     if (queueId && queueQuery.data) {
       form.reset({
         name: queueQuery.data.name,
@@ -105,7 +108,7 @@ export const CreateOrEditAnnotationQueueButton = ({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queueId, queueQuery.data]);
+  }, [queueId, queueQuery.data, isOpen]);
 
   const utils = api.useUtils();
 
@@ -116,7 +119,9 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const queueCountData = api.annotationQueues.count.useQuery(
     { projectId },
-    { enabled: hasQueueAccess },
+    // The count only feeds the create button's limit check; skip it when
+    // editing (e.g. the per-row table action button) where it goes unused.
+    { enabled: hasQueueAccess && !queueId },
   );
 
   const configsData = api.scoreConfigs.all.useQuery(

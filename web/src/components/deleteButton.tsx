@@ -114,6 +114,9 @@ export function DeleteButton({
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
+        // Reset the type-to-confirm input on close so the confirmation must be
+        // re-typed each time (the component now stays mounted per table row).
+        if (!o) setDeleteConfirmationInput("");
         onPopoverOpenChange?.(o);
       }}
     >
