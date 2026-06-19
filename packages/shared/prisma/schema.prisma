@@ -1762,9 +1762,15 @@ model Monitor {
 // Slack Integration: Stores centralized Slack workspace connection for each project
 // One project can connect to one Slack workspace, supporting multiple channel automations
 model SlackIntegration {
-  id        String  @id @default(cuid())
-  projectId String  @unique @map("project_id")
-  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
+
+  // projectId is NULL for a "pending" Marketplace installation that has not yet
+  // been linked to a project (the Direct Install URL must 302 straight to OAuth,
+  // so the token is issued before the user picks a project). Once linked it is
+  // set to the chosen project. NULLs are distinct under @unique, so multiple
+  // pending rows can coexist; a linked project still maps 1:1.
+  projectId String?  @unique @map("project_id")
+  project   Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   // Installation details (encrypted using shared encryption utilities)
   teamId    String @map("team_id") // Slack workspace ID
@@ -1772,10 +1778,16 @@ model SlackIntegration {
   botToken  String @map("bot_token") // Encrypted bot token for API calls
   botUserId String @map("bot_user_id") // Bot user ID for workspace
 
+  // Pending-only fields (NULL once linked): when an unlinked pending install is
+  // purged, and the hashed one-time claim token required to link it.
+  expiresAt      DateTime? @map("expires_at")
+  claimTokenHash String?   @map("claim_token_hash")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@index([teamId])
+  @@index([expiresAt])
   @@map("slack_integrations")
 }
 

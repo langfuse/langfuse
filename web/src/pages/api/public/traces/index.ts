@@ -30,6 +30,7 @@ import {
   getTracesCountForPublicApi,
 } from "@/src/features/public-api/server/traces";
 import { env } from "@/src/env.mjs";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares(
   {
@@ -73,6 +74,7 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetTracesV1Query,
       responseSchema: GetTracesV1Response,
+      rateLimitUpgradePath: legacyPublicApiRateLimitUpgradePaths.tracesList,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         // Api-performance controls.

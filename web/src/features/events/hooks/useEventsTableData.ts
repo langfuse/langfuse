@@ -1,4 +1,4 @@
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import { useMemo } from "react";
 import {
   type FilterState,
@@ -111,6 +111,7 @@ export function useEventsTableData({
 
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
+    ...sendAsPostOption,
     enabled: observations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,

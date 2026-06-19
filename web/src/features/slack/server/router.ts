@@ -1,14 +1,21 @@
 import {
   createTRPCRouter,
+  authenticatedProcedure,
+  protectedProcedureWithoutTracing,
   protectedProjectProcedure,
+  protectedProjectProcedureWithoutTracing,
 } from "@/src/server/api/trpc";
 import { z } from "zod";
 import { SlackService, SlackApiError } from "@langfuse/shared/src/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import { logger } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
+import { readPendingInstallClaimCookie } from "@/src/features/slack/server/pendingInstallClaimCookie";
 
 export const slackRouter = createTRPCRouter({
   /**
@@ -373,5 +380,160 @@ export const slackRouter = createTRPCRouter({
           message: userMessage,
         });
       }
+    }),
+
+  /**
+   * Get the pending (unlinked) Marketplace installation for a Slack workspace.
+   * Used by the /slack/direct-setup onboarding page to show which workspace is being
+   * linked. Authenticated but not project-scoped: the install isn't owned by a
+   * project yet. Returns null if there is no pending install or it has expired.
+   */
+  // The claim is a bearer token for a live bot token: it is delivered as an
+  // httpOnly cookie (never a URL param or tRPC input) and read server-side
+  // here. Non-traced so the cookie-derived claim never reaches input telemetry.
+  getPendingInstallation: protectedProcedureWithoutTracing
+    .input(z.object({ teamId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const claim = readPendingInstallClaimCookie(
+        ctx.headers.cookie,
+        input.teamId,
+      );
+      const pending = claim
+        ? await SlackService.getInstance().getClaimedPendingInstallation(
+            input.teamId,
+            claim,
+          )
+        : null;
+
+      return {
+        isPending: pending !== null,
+        teamId: pending?.teamId ?? null,
+        teamName: pending?.teamName ?? null,
+      };
+    }),
+
+  /**
+   * Drives the /slack/direct-setup onboarding page: the user's projects grouped by
+   * organization, limited to those the user can configure automations on (the
+   * same scope linkPendingInstallation enforces), each flagged with whether
+   * Slack is already connected. Scoped to the user's own session, so it never
+   * leaks other tenants' projects or connection status.
+   */
+  getConnectableProjects: authenticatedProcedure.query(async ({ ctx }) => {
+    const orgs = (ctx.session.user?.organizations ?? [])
+      .map((org) => ({
+        orgId: org.id,
+        orgName: org.name,
+        projects: org.projects.filter(
+          (project) =>
+            !project.deletedAt &&
+            hasProjectAccess({
+              session: ctx.session,
+              projectId: project.id,
+              scope: "automations:CUD",
+            }),
+        ),
+      }))
+      .filter((org) => org.projects.length > 0);
+
+    const projectIds = orgs.flatMap((org) =>
+      org.projects.map((project) => project.id),
+    );
+    if (projectIds.length === 0) return [];
+
+    const connectedRows = await ctx.prisma.slackIntegration.findMany({
+      where: { projectId: { in: projectIds } },
+      select: { projectId: true },
+    });
+    const connectedSet = new Set(connectedRows.map((row) => row.projectId));
+
+    return orgs.map((org) => ({
+      orgId: org.orgId,
+      orgName: org.orgName,
+      projects: org.projects.map((project) => ({
+        projectId: project.id,
+        projectName: project.name,
+        isConnected: connectedSet.has(project.id),
+      })),
+    }));
+  }),
+
+  /**
+   * Link a pending Marketplace installation to a project. Requires
+   * automations:CUD on the chosen project. Moves the pending install in place;
+   * replaces any existing integration for the project.
+   */
+  // The claim arrives as an httpOnly cookie (see getPendingInstallation), read
+  // server-side — never a tRPC input. Non-traced for the same reason.
+  linkPendingInstallation: protectedProjectProcedureWithoutTracing
+    .input(
+      z.object({
+        projectId: z.string(),
+        teamId: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      const claim = readPendingInstallClaimCookie(
+        ctx.headers.cookie,
+        input.teamId,
+      );
+      const linked = claim
+        ? await SlackService.getInstance().linkPendingInstallation(
+            input.teamId,
+            input.projectId,
+            claim,
+          )
+        : null;
+
+      if (!linked) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message:
+            "This Slack installation has expired or was not found. Please reinstall the app from Slack.",
+        });
+      }
+
+      // The link already committed (the pending row is consumed). Don't let an
+      // audit-log failure reject the mutation — a retry would then hit
+      // NOT_FOUND and wrongly tell the user to reinstall. Mirrors the in-app
+      // Connect flow in oauth-handlers.ts.
+      try {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "slackIntegration",
+          resourceId: linked.id,
+          action: "create",
+          after: {
+            teamId: linked.teamId,
+            teamName: linked.teamName,
+            linkedFromMarketplace: true,
+          },
+        });
+      } catch (auditError) {
+        logger.warn(
+          "Failed to create audit log for linked Slack installation",
+          {
+            error: auditError,
+            projectId: input.projectId,
+          },
+        );
+      }
+
+      logger.info("Linked pending Slack installation to project", {
+        projectId: input.projectId,
+        teamId: linked.teamId,
+      });
+
+      return {
+        success: true,
+        teamId: linked.teamId,
+        teamName: linked.teamName,
+      };
     }),
 });
