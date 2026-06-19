@@ -17,6 +17,7 @@ import {
   deriveComposerSegments,
   type FilterSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
+import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
 
 // Word joiner around pills: gives the DOM caret boundaries between tokens
 // without changing the query text. Stripped before the text reaches the model
@@ -61,7 +62,11 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
   const raw = segment.raw;
   const dash = segment.negated ? "-" : "";
   const body = segment.negated ? raw.slice(1) : raw;
-  const colon = body.indexOf(":");
+  // Quote-aware split: a dot-path key may carry a quoted segment with an inner
+  // colon (`metadata."foo:bar":*x*`), so the field/value separator is the first
+  // colon OUTSIDE quotes — exactly where the parser splits. A bare indexOf(":")
+  // would cut inside the quoted key and mis-render the value.
+  const colon = indexOfOutsideQuotes(body, ":");
   const value = colon === -1 ? "" : body.slice(colon + 1);
   // Numeric values (latency:>2, totalTokens:100, totalCost:0.5) read as number
   // literals, not strings — color them distinctly. Grouped/text/boolean values
