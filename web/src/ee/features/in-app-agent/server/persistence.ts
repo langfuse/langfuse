@@ -5,15 +5,18 @@ import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 import type {
   InAppAgentConversation,
+  InAppAgentRunFeedback as PrismaInAppAgentRunFeedback,
   Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 
+import { createInAppAgentRunFeedbackId } from "@/src/ee/features/in-app-agent/ids";
 import {
   AgUiMessageSchema,
   InAppAgentRedirectActionToolResultSchema,
   type AgUiEvent,
   type AgUiMessage,
+  type InAppAgentRunFeedback,
 } from "@/src/ee/features/in-app-agent/schema";
 import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/eventCompaction";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
@@ -293,6 +296,106 @@ export async function getConversationMessages(params: {
   return getMessagesFromPersistedEvents(await getConversationEvents(params));
 }
 
+export async function getConversationMessagesWithFeedback(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+}) {
+  const [messages, feedback] = await Promise.all([
+    getConversationMessages(params),
+    getConversationRunFeedback(params),
+  ]);
+  const feedbackByMessageId = new Map(
+    feedback.map((item) => [item.messageId, serializeRunFeedback(item)]),
+  );
+
+  return messages.map((message): AgUiMessage => {
+    if (message.role !== "assistant") {
+      return message;
+    }
+
+    const messageFeedback = feedbackByMessageId.get(message.id);
+
+    if (!messageFeedback) {
+      return message;
+    }
+
+    return {
+      ...message,
+      feedback: messageFeedback,
+    };
+  });
+}
+
+export async function getConversationRunFeedback(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+}) {
+  return params.prisma.inAppAgentRunFeedback.findMany({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      createdByUserId: params.userId,
+    },
+  });
+}
+
+export async function deleteRunFeedback(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  messageId: string;
+  userId: string;
+}) {
+  await params.prisma.inAppAgentRunFeedback.deleteMany({
+    where: {
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      messageId: params.messageId,
+      createdByUserId: params.userId,
+    },
+  });
+}
+
+export async function upsertRunFeedback(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  messageId: string;
+  userId: string;
+  value: InAppAgentRunFeedback["value"];
+  comment: string | null;
+}) {
+  const feedback = await params.prisma.inAppAgentRunFeedback.upsert({
+    where: {
+      projectId_conversationId_messageId_createdByUserId: {
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+        messageId: params.messageId,
+        createdByUserId: params.userId,
+      },
+    },
+    create: {
+      id: createInAppAgentRunFeedbackId(),
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+      messageId: params.messageId,
+      createdByUserId: params.userId,
+      value: params.value === "thumbs_up",
+      comment: params.comment,
+    },
+    update: {
+      value: params.value === "thumbs_up",
+      comment: params.comment,
+    },
+  });
+
+  return serializeRunFeedback(feedback);
+}
+
 export async function getConversationMessagesForReplay(params: {
   prisma: PrismaClient;
   projectId: string;
@@ -336,6 +439,15 @@ function sanitizeConversationMessagesForReplay(
   return stripAssistantRunIds(
     dropEmptyAssistantMessages(messagesWithoutOrphanToolCalls),
   );
+}
+
+function serializeRunFeedback(
+  feedback: PrismaInAppAgentRunFeedback,
+): InAppAgentRunFeedback {
+  return {
+    value: feedback.value ? "thumbs_up" : "thumbs_down",
+    comment: feedback.comment,
+  };
 }
 
 export function shouldFlushPersistedEvent(event: AgUiEvent) {

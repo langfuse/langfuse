@@ -4,3 +4,4 @@ import { createId } from "@paralleldrive/cuid2";
 export const createInAppAgentConversationId = () => `aconv_${createId()}`;
 export const createInAppAgentRunId = () => `arun_${createId()}`;
 export const createInAppAgentMessageId = () => `amsg_${createId()}`;
+export const createInAppAgentRunFeedbackId = () => `afbk_${createId()}`;

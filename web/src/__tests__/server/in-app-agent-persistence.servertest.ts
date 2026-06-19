@@ -4,7 +4,10 @@ import { randomUUID } from "crypto";
 
 import type { Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  getScoreById,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import {
   createInAppAgentConversationId,
@@ -23,9 +26,11 @@ import {
 } from "@/src/ee/features/in-app-agent/server/persistence";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import waitForExpect from "wait-for-expect";
 
 describe("in-app agent persistence", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
@@ -33,6 +38,7 @@ describe("in-app agent persistence", () => {
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
   });
 
   const createCaller = async (
@@ -43,7 +49,7 @@ describe("in-app agent persistence", () => {
 
     await prisma.organization.update({
       where: { id: setup.orgId },
-      data: { aiFeaturesEnabled: true },
+      data: { aiFeaturesEnabled: true, aiTelemetryEnabled: true },
     });
 
     await prisma.user.create({
@@ -246,6 +252,43 @@ describe("in-app agent persistence", () => {
     });
   };
 
+  const createPersistedAssistantMessage = async (params: {
+    projectId: string;
+    userId: string;
+    userMessageId: string;
+    userContent: string;
+    assistantMessageId: string;
+    assistantChunks: string[];
+  }) => {
+    const conversation = await createConversation({
+      projectId: params.projectId,
+      userId: params.userId,
+    });
+    const run = await createConversationRun({
+      projectId: params.projectId,
+      conversationId: conversation.id,
+      userId: params.userId,
+    });
+    const events = await startCompactRun({
+      projectId: params.projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      messageId: params.userMessageId,
+      content: params.userContent,
+    });
+    await appendAssistantText({
+      projectId: params.projectId,
+      conversationId: conversation.id,
+      runId: run.id,
+      events,
+      messageId: params.assistantMessageId,
+      chunks: params.assistantChunks,
+    });
+    await finishRun({ prisma, runId: run.id, projectId: params.projectId });
+
+    return { conversation, run };
+  };
+
   it("stores compacted events and restores multi-turn messages", async () => {
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
@@ -426,7 +469,210 @@ describe("in-app agent persistence", () => {
     );
   });
 
-  it("requires feedback run ids to match persisted assistant messages", async () => {
+  it("stores feedback, hydrates it on conversation load, and attaches a score to the agent run observation", async () => {
+    const scoreProjectId = `in-app-agent-feedback-${randomUUID()}`;
+    (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID = scoreProjectId;
+
+    const { caller, projectId, userId } = await createCaller();
+    const { conversation, run } = await createPersistedAssistantMessage({
+      projectId,
+      userId,
+      userMessageId: "user-message-feedback",
+      userContent: "Can you summarize this?",
+      assistantMessageId: "assistant-message-feedback",
+      assistantChunks: ["Here is the summary."],
+    });
+
+    const created = await caller.submitFeedback({
+      projectId,
+      conversationId: conversation.id,
+      messageId: "assistant-message-feedback",
+      value: "thumbs_down",
+      comment: "Missed the main point",
+    });
+    const expectedObservationId = run.id;
+    const expectedScoreId = `afbs_assistant-message-feedback_${userId}`;
+
+    expect(created.feedback).toMatchObject({
+      value: "thumbs_down",
+      comment: "Missed the main point",
+    });
+
+    const storedFeedback = await prisma.inAppAgentRunFeedback.findMany({
+      where: { projectId, conversationId: conversation.id },
+    });
+    expect(storedFeedback).toHaveLength(1);
+    expect(storedFeedback[0]).toMatchObject({
+      projectId,
+      conversationId: conversation.id,
+      messageId: "assistant-message-feedback",
+      createdByUserId: userId,
+      value: false,
+      comment: "Missed the main point",
+    });
+
+    const restored = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+    expect(restored.messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "assistant-message-feedback",
+          role: "assistant",
+          feedback: expect.objectContaining({
+            value: "thumbs_down",
+            comment: "Missed the main point",
+          }),
+        }),
+      ]),
+    );
+
+    await waitForExpect(async () => {
+      const score = await getScoreById({
+        projectId: scoreProjectId,
+        scoreId: expectedScoreId,
+      });
+      expect(score).toMatchObject({
+        id: expectedScoreId,
+        projectId: scoreProjectId,
+        traceId: conversation.id,
+        observationId: expectedObservationId,
+        name: "in_app_agent_feedback",
+        value: 0,
+        source: "ANNOTATION",
+        comment: "Missed the main point",
+      });
+    });
+
+    const updated = await caller.submitFeedback({
+      projectId,
+      conversationId: conversation.id,
+      messageId: "assistant-message-feedback",
+      value: "thumbs_up",
+      comment: "   ",
+    });
+    expect(updated.feedback).toMatchObject({
+      value: "thumbs_up",
+      comment: null,
+    });
+
+    const updatedFeedback = await prisma.inAppAgentRunFeedback.findMany({
+      where: { projectId, conversationId: conversation.id },
+    });
+    expect(updatedFeedback).toHaveLength(1);
+    expect(updatedFeedback[0]).toMatchObject({
+      value: true,
+      comment: null,
+    });
+  });
+
+  it("deletes persisted feedback when feedback value is cleared", async () => {
+    (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID =
+      `in-app-agent-feedback-clear-${randomUUID()}`;
+
+    const { caller, projectId, userId } = await createCaller();
+    const { conversation } = await createPersistedAssistantMessage({
+      projectId,
+      userId,
+      userMessageId: "user-message-feedback-clear",
+      userContent: "Can you summarize this?",
+      assistantMessageId: "assistant-message-feedback-clear",
+      assistantChunks: ["Here is the summary."],
+    });
+
+    await caller.submitFeedback({
+      projectId,
+      conversationId: conversation.id,
+      messageId: "assistant-message-feedback-clear",
+      value: "thumbs_up",
+      comment: "Helpful",
+    });
+
+    await expect(
+      prisma.inAppAgentRunFeedback.findMany({
+        where: { projectId, conversationId: conversation.id },
+      }),
+    ).resolves.toHaveLength(1);
+
+    await expect(
+      caller.submitFeedback({
+        projectId,
+        conversationId: conversation.id,
+        messageId: "assistant-message-feedback-clear",
+        value: null,
+      }),
+    ).resolves.toEqual({ feedback: null });
+
+    await expect(
+      prisma.inAppAgentRunFeedback.findMany({
+        where: { projectId, conversationId: conversation.id },
+      }),
+    ).resolves.toEqual([]);
+
+    const restored = await caller.getConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+    const restoredMessage = restored.messages.find(
+      (message) => message.id === "assistant-message-feedback-clear",
+    );
+    expect(restoredMessage).toMatchObject({
+      id: "assistant-message-feedback-clear",
+      role: "assistant",
+    });
+    expect(restoredMessage).not.toHaveProperty("feedback");
+  });
+
+  it("rejects feedback when AI telemetry is disabled", async () => {
+    const scoreProjectId = `in-app-agent-feedback-disabled-${randomUUID()}`;
+    (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID = scoreProjectId;
+
+    const { caller, orgId, projectId, userId } = await createCaller();
+    await prisma.organization.update({
+      where: { id: orgId },
+      data: { aiTelemetryEnabled: false },
+    });
+
+    const { conversation } = await createPersistedAssistantMessage({
+      projectId,
+      userId,
+      userMessageId: "user-message-feedback-no-telemetry",
+      userContent: "Can you summarize this without telemetry?",
+      assistantMessageId: "assistant-message-feedback-no-telemetry",
+      assistantChunks: ["Here is the private summary."],
+    });
+
+    await expect(
+      caller.submitFeedback({
+        projectId,
+        conversationId: conversation.id,
+        messageId: "assistant-message-feedback-no-telemetry",
+        value: "thumbs_down",
+        comment: "Do not export this comment",
+      }),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+      message: "Assistant feedback is not enabled",
+    });
+    const expectedScoreId = `afbs_assistant-message-feedback-no-telemetry_${userId}`;
+
+    const storedFeedback = await prisma.inAppAgentRunFeedback.findMany({
+      where: { projectId, conversationId: conversation.id },
+    });
+    expect(storedFeedback).toHaveLength(0);
+
+    const score = await getScoreById({
+      projectId: scoreProjectId,
+      scoreId: expectedScoreId,
+    });
+    expect(score).toBeUndefined();
+  });
+
+  it("rejects feedback for non-assistant text messages", async () => {
+    (env as any).LANGFUSE_AI_FEATURES_PROJECT_ID =
+      `in-app-agent-feedback-rejected-${randomUUID()}`;
+
     const { caller, projectId, userId } = await createCaller();
     const conversation = await createConversation({ projectId, userId });
     const run = await createConversationRun({
@@ -434,45 +680,25 @@ describe("in-app agent persistence", () => {
       conversationId: conversation.id,
       userId,
     });
-    const events = await startCompactRun({
+    await startCompactRun({
       projectId,
       conversationId: conversation.id,
       runId: run.id,
-      messageId: "feedback-user",
-      content: "Answer me",
-    });
-    await appendAssistantText({
-      projectId,
-      conversationId: conversation.id,
-      runId: run.id,
-      events,
-      messageId: "feedback-assistant",
-      chunks: ["Here is an answer"],
+      messageId: "user-message-feedback-rejected",
+      content: "This is a user message",
     });
 
     await expect(
       caller.submitFeedback({
         projectId,
         conversationId: conversation.id,
-        messageId: "feedback-assistant",
-        runId: createInAppAgentRunId(),
-        value: null,
-        comment: null,
+        messageId: "user-message-feedback-rejected",
+        value: "thumbs_up",
       }),
-    ).rejects.toThrow(
-      "Feedback can only be submitted for persisted assistant messages",
-    );
-
-    await expect(
-      caller.submitFeedback({
-        projectId,
-        conversationId: conversation.id,
-        messageId: "feedback-assistant",
-        runId: run.id,
-        value: null,
-        comment: null,
-      }),
-    ).resolves.toEqual({ feedback: null });
+    ).rejects.toMatchObject({
+      code: "BAD_REQUEST",
+      message: "Feedback can only be submitted for assistant text messages",
+    });
   });
 
   it("does not reduce partial assistant content before the end event", async () => {

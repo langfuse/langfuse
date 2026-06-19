@@ -29,23 +29,21 @@ const AgUiToolCallSchema = z.object({
   encryptedValue: z.string().optional(),
 });
 
-export const InAppAgentMessageFeedbackValueSchema = z.enum([
+export const InAppAgentRunFeedbackValueSchema = z.enum([
   "thumbs_up",
   "thumbs_down",
 ]);
 
-export type InAppAgentMessageFeedbackValue = z.infer<
-  typeof InAppAgentMessageFeedbackValueSchema
+export type InAppAgentRunFeedbackValue = z.infer<
+  typeof InAppAgentRunFeedbackValueSchema
 >;
 
-export const InAppAgentMessageFeedbackSchema = z.object({
-  value: InAppAgentMessageFeedbackValueSchema,
+export const InAppAgentRunFeedbackSchema = z.object({
+  value: InAppAgentRunFeedbackValueSchema,
   comment: z.string().nullable(),
 });
 
-export type InAppAgentMessageFeedback = z.infer<
-  typeof InAppAgentMessageFeedbackSchema
->;
+export type InAppAgentRunFeedback = z.infer<typeof InAppAgentRunFeedbackSchema>;
 
 // Changes to this schema need to be backwards-compatible as messages with this are already persisted.
 export const InAppAgentRedirectActionToolResultSchema = z.object({
@@ -115,7 +113,7 @@ export const AgUiMessageSchema = z.discriminatedUnion("role", [
     role: z.literal("assistant"),
     content: z.string().optional(),
     toolCalls: z.array(AgUiToolCallSchema).optional(),
-    feedback: InAppAgentMessageFeedbackSchema.optional(),
+    feedback: InAppAgentRunFeedbackSchema.optional(),
     runId: z.string().optional(),
   }),
   AgUiBaseMessageSchema.extend({

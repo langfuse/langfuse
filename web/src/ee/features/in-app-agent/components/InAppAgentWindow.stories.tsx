@@ -426,6 +426,7 @@ const meta = preview.meta({
   args: {
     error: null,
     isExpanded: false,
+    isFeedbackEnabled: true,
     isInputDisabled: false,
     conversations,
     hasMoreConversations: false,
