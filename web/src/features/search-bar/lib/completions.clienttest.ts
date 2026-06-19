@@ -348,7 +348,7 @@ describe("planInputCompletions", () => {
     expect(labels).toContain("*abc*");
   });
 
-  it("does NOT offer scope switches for a negated input/output value", () => {
+  it("offers contains + exact for a negated input/output value, but no scope switches", () => {
     // tokenSpan covers the leading `-`, so a scope rewrite would splice it away
     // and flip `does not contain` → `contains` (the complement). The value
     // stage must suppress the switches when negated (match-op refinements stay).
@@ -359,15 +359,28 @@ describe("planInputCompletions", () => {
       expect(ids, q).not.toContain("scope:output");
       expect(ids, q).not.toContain("scope:input");
       expect(ids, q).not.toContain("scope:default");
-      // Only the contains glob survives negation: starts/ends/exact have no
-      // inverse operator, so offering them would yield drafts the validator
-      // rejects. Contains stays; the other three are gone.
+      // Starts/ends-with have no inverse operator, so they are gone. Contains
+      // stays, and on a textSearch field exact stays too: `-input:=refund`
+      // lowers to a `stringOptions none of` (exact inequality), distinct from
+      // the substring `-input:refund` (does not contain).
       const labels = opts.map((o) => o.label);
-      expect(labels, q).toContain("*refund*");
+      expect(labels, q).toContain("*refund*"); // contains (does not contain)
+      expect(labels, q).toContain("=refund"); // exact (does not equal)
       expect(labels, q).not.toContain("refund*"); // starts with
       expect(labels, q).not.toContain("*refund"); // ends with
-      expect(labels, q).not.toContain("=refund"); // exact
     }
+  });
+
+  it("offers exact on a negated id/name value (none-of), distinct from contains", () => {
+    // id/name are textSearch fields with observed-value pickers. `-name:=foo`
+    // is representable (-> stringOptions none of) and meaningfully different from
+    // the substring `-name:foo` (does not contain), so the value stage offers it.
+    const opts = flattenOptions(plan("-name:foo", "-name:foo".length));
+    const labels = opts.map((o) => o.label);
+    expect(labels).toContain("*foo*"); // contains (does not contain)
+    expect(labels).toContain("=foo"); // exact (does not equal -> none of)
+    expect(labels).not.toContain("foo*"); // starts with — no inverse op
+    expect(labels).not.toContain("*foo"); // ends with — no inverse op
   });
 
   it("offers only contains on a negated exactOption value", () => {
@@ -383,25 +396,61 @@ describe("planInputCompletions", () => {
     expect(labels).not.toContain("=foo"); // exact — redundant w/ bare value
   });
 
-  it("does not suggest observed metadata/score names with grammar chars", () => {
-    // An observed score named `foo:bar` can't be suggested as `scores.foo:bar`:
-    // picking it would reparse with the key split at the first colon and commit
-    // a filter on a different key. Filter such names out of the key-path stage.
+  it("offers observed metadata/score names with grammar chars, quoted for insertion", () => {
+    // An observed score named `foo:bar` (or a name with spaces) IS suggested:
+    // the INSERTED text quotes the segment (`scores."foo:bar"`) so it re-lexes
+    // as one token, while the LABEL stays the readable bare form (so it ranks
+    // against the user's typed prefix).
     const observed = {
       ...OBSERVED,
       scores_avg: [{ value: "accuracy" }, { value: "foo:bar" }],
-      metadata: [{ value: "region" }, { value: "a:b" }],
+      metadata: [{ value: "region" }, { value: "a b" }],
     };
-    const scoreLabels = flattenOptions(plan("scores.", 7, { observed })).map(
-      (o) => o.label,
+    const scoreOpts = flattenOptions(plan("scores.", 7, { observed }));
+    expect(scoreOpts.map((o) => o.label)).toContain("scores.accuracy");
+    const fooBar = scoreOpts.find((o) => o.label === "scores.foo:bar");
+    expect(fooBar && "fieldId" in fooBar && fooBar.fieldId).toBe(
+      'scores."foo:bar"',
     );
-    expect(scoreLabels).toContain("scores.accuracy");
-    expect(scoreLabels).not.toContain("scores.foo:bar");
-    const metaLabels = flattenOptions(plan("metadata.", 9, { observed })).map(
-      (o) => o.label,
+    const metaOpts = flattenOptions(plan("metadata.", 9, { observed }));
+    expect(metaOpts.map((o) => o.label)).toContain("metadata.region");
+    const spaced = metaOpts.find((o) => o.label === "metadata.a b");
+    expect(spaced && "fieldId" in spaced && spaced.fieldId).toBe(
+      'metadata."a b"',
     );
-    expect(metaLabels).toContain("metadata.region");
-    expect(metaLabels).not.toContain("metadata.a:b");
+  });
+
+  it("keeps the key-path popover open while typing the quote for a spaced name", () => {
+    // The documented syntax is `scores."Rouge Score"`; typing the leading quote
+    // must keep ranking the (bare-labelled) options instead of closing the
+    // popover. Works the same for metadata.
+    const observed = {
+      ...OBSERVED,
+      scores_avg: [{ value: "Rouge Score" }],
+      metadata: [{ value: "my key" }],
+    };
+    for (const q of ['scores."', 'scores."Rou', 'scores."Rouge Score']) {
+      const opts = flattenOptions(plan(q, q.length, { observed }));
+      const hit = opts.find(
+        (o) => "fieldId" in o && o.fieldId === 'scores."Rouge Score"',
+      );
+      expect(hit, q).toBeDefined();
+    }
+    const metaOpts = flattenOptions(plan('metadata."my', 12, { observed }));
+    expect(
+      metaOpts.find((o) => "fieldId" in o && o.fieldId === 'metadata."my key"'),
+    ).toBeDefined();
+  });
+
+  it("quotes a spaced score name in the numeric compare-op example", () => {
+    const observed = { ...OBSERVED, scores_avg: [{ value: "Rouge Score" }] };
+    const q = 'scores."Rouge Score":';
+    const details = flattenOptions(plan(q, q.length, { observed }))
+      .map((o) => ("detail" in o ? o.detail : undefined))
+      .filter(Boolean);
+    expect(details.some((d) => d?.includes('scores."Rouge Score":'))).toBe(
+      true,
+    );
   });
 
   it("keeps the value stage live for a glob value (re-form + re-scope)", () => {

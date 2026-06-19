@@ -6,7 +6,7 @@ This guide walks you through setting up and testing the Langfuse Slack integrati
 
 - Node.js and pnpm installed
 - Access to a Slack workspace where you can create apps
-- macOS (for mkcert installation)
+- A tunneling tool for a public HTTPS URL (ngrok, or VS Code port forwarding)
 
 ## Setup Steps
 
@@ -36,33 +36,45 @@ This guide walks you through setting up and testing the Langfuse Slack integrati
    SLACK_STATE_SECRET=your_state_secret_here
    ```
 
-### 4. Set Up HTTPS for Local Development
+### 4. Expose your local server over a public HTTPS URL
 
-The Slack OAuth flow requires HTTPS. Set up local certificates:
+Slack's OAuth flow (and the Marketplace "Direct Install" flow) only redirects
+back to a **publicly reachable HTTPS URL** — `http://localhost:3000` is rejected
+with `bad_redirect_uri`. The simplest way to get one in dev is a tunnel:
 
-```bash
-# Install mkcert
-brew install mkcert
+- **ngrok** (`brew install ngrok`):
+  ```bash
+  ngrok http 3000
+  ```
+  Use the printed `https://<subdomain>.ngrok-free.app` URL.
+- **VS Code port forwarding**: open the **Ports** panel, forward port `3000`,
+  and set its visibility to **Public**. Use the printed
+  `https://<id>-3000.<region>.devtunnels.ms` URL.
 
-# Install the local CA
-mkcert -install
+Then point Langfuse and Slack at that URL:
 
-# Generate certificates for localhost
-mkcert localhost 127.0.0.1
+1. Set `NEXTAUTH_URL` in your `.env` to the tunnel URL (it is used to build the
+   OAuth `redirect_uri`):
+   ```bash
+   NEXTAUTH_URL="https://<your-tunnel-host>"
+   ```
+2. In your Slack app's **OAuth & Permissions** settings, register the redirect
+   URL `https://<your-tunnel-host>/api/public/slack/oauth` (the `app_manifest.json`
+   ships the `localhost` URL; replace/add your tunnel host).
 
-# Move certificates to web directory
-mv localhost+1*.pem web/
-```
+> Tunnel hosts usually change each run (unless you have a reserved domain), so
+> update both `NEXTAUTH_URL` and the Slack redirect URL whenever it changes.
 
 ### 5. Start Development Server
 
 From the repository root, run:
 
 ```bash
-pnpm run dev:https
+pnpm run dev
 ```
 
-This starts the Next.js development server with HTTPS enabled on `https://localhost:3000`.
+The tunnel from step 4 terminates TLS and forwards to your local server, so plain
+HTTP dev is fine — no local certificates needed.
 
 ### 6. Test the Integration
 
@@ -76,17 +88,11 @@ This starts the Next.js development server with HTTPS enabled on `https://localh
 
 ### Common Issues
 
-- **"Invalid redirect URI"**: Ensure your Slack app's OAuth redirect URLs include `https://localhost:3000/api/public/slack/oauth`
-- **Certificate errors**: Make sure you've installed the mkcert CA and moved the certificates to the `web/` directory
+- **`bad_redirect_uri` / "Invalid redirect URI"**: `NEXTAUTH_URL` and the redirect
+  URL registered in your Slack app must both be the exact public HTTPS tunnel
+  host (`https://<your-tunnel-host>/api/public/slack/oauth`). A `localhost` or
+  `http://` value will be rejected. If your tunnel host changed, update both.
 - **Environment variables not found**: Verify your `.env` file is in the correct location and contains the Slack credentials
-
-### SSL Certificate Issues
-
-If you encounter SSL certificate warnings in your browser:
-
-1. Make sure you ran `mkcert -install` to install the local CA
-2. Try accessing `https://localhost:3000` directly and accept the certificate
-3. Restart your development server after certificate changes
 
 ## Features
 

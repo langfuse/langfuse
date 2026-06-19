@@ -95,6 +95,7 @@
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
+    "@anthropic-ai/vertex-sdk": "^0.17.1",
     "@aws-sdk/client-cloudwatch": "^3.1013.0",
     "@aws-sdk/client-lambda": "^3.1046.0",
     "@aws-sdk/client-s3": "^3.1013.0",
@@ -135,12 +136,12 @@
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
     "next-auth": "^4.24.13",
-    "nodemailer": "^8.0.11",
+    "nodemailer": "^7.0.11",
     "oci-common": "^2.125.0",
     "oci-objectstorage": "^2.125.0",
     "safe-regex2": "^5.0.0",
     "slackify-markdown": "^5.0.0",
-    "undici": "^7.24.6",
+    "undici": "^7.28.0",
     "uuid": "^14.0.0",
     "winston": "^3.15.0",
     "zod": "^4.3.6"
@@ -150,7 +151,7 @@
     "@repo/typescript-config": "workspace:*",
     "@types/lodash": "^4.17.24",
     "@types/node": "^24.3.0",
-    "@types/nodemailer": "^8.0.1",
+    "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.11.10",
     "@types/react": "19.2.14",
     "eslint": "^9.39.2",
@@ -159,7 +160,7 @@
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

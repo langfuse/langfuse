@@ -22,7 +22,8 @@ import {
 } from "./adapter";
 import type { ASTNode, FilterNode } from "./ast";
 import { resolveField, SCORE_COLUMNS, type FieldRef } from "./fields";
-import { NEEDS_QUOTES, serialize } from "./langQ";
+import { serialize } from "./langQ";
+import { quoteIfNeeded } from "./quoting";
 
 // Legacy filters address columns by id ("userId") or display name ("User ID").
 const COLUMN_ID_BY_KEY = new Map<string, string>();
@@ -49,17 +50,19 @@ function negate(node: FilterNode): ASTNode {
 }
 
 function scorePathOf(column: string, key: string): string | null {
+  // Quote the score name iff it has grammar chars so it re-lexes as one token
+  // (`scores."Rouge Score"`); resolveField unquotes it on the way back.
   if (
     column === SCORE_COLUMNS.observation.numeric ||
     column === SCORE_COLUMNS.observation.categorical
   ) {
-    return `scores.${key}`;
+    return `scores.${quoteIfNeeded(key)}`;
   }
   if (
     column === SCORE_COLUMNS.trace.numeric ||
     column === SCORE_COLUMNS.trace.categorical
   ) {
-    return `traceScores.${key}`;
+    return `traceScores.${quoteIfNeeded(key)}`;
   }
   return null;
 }
@@ -79,18 +82,21 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       if (id === null || filter.value.length === 0) return null;
       // A stringOptions/arrayOptions filter is EXACT-set semantics. On a
       // `textSearch` field (id/name) the bar reads a bare single value as
-      // `contains`, so a single-value any-of would silently flip exact→substring
-      // on the next commit (and a single-value none-of → does-not-contain). The
-      // grouped multi-value forms reparse to exact any-of/none-of, so only the
-      // single-value forms need care.
+      // `contains`, so a single-value any-of/none-of would silently flip
+      // exact→substring on the next commit. The single-value forms therefore use
+      // the explicit exact operator (`name:=abc` / `-name:=abc`); the grouped
+      // multi-value forms already reparse to exact any-of/none-of.
       const ref = resolveField(id);
       const isTextSearch =
         ref?.type === "field" && ref.field.syncMode === "textSearch";
       if (filter.operator === "none of") {
-        // `-id:=abc` (negated exact) is not representable, so a single none-of on
-        // a textSearch field has no faithful grammar form — skip it (preserved via
-        // skippedFilters) rather than rewrite it to `does not contain`.
-        if (isTextSearch && filter.value.length === 1) return null;
+        // On a textSearch field a single none-of is exact-inequality: emit the
+        // negated exact form (`-name:=abc`), which lowers back to stringOptions
+        // none-of — NOT the bare `-name:abc`, which is does-not-contain
+        // (substring). The grouped/option forms use the bare `=` any-of shape.
+        if (isTextSearch && filter.value.length === 1) {
+          return negate(filterNode(id, "exact", filter.value));
+        }
         return negate(filterNode(id, "=", filter.value));
       }
       if (filter.operator === "all of") {
@@ -172,11 +178,9 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
     case "stringObject": {
       const id = columnIdOf(filter.column);
       if (id !== "metadata") return null;
-      // A key with grammar chars (`:`, space, …) would reparse as a different
-      // key/value pair, silently corrupting the filter. Can't be expressed in
-      // the grammar — skip so the container preserves it (no silent rewrite).
-      if (NEEDS_QUOTES.test(filter.key)) return null;
-      const key = `metadata.${filter.key}`;
+      // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
+      // token (`metadata."my key"`); resolveField unquotes it on the way back.
+      const key = `metadata.${quoteIfNeeded(filter.key)}`;
       if (filter.operator === "does not contain") {
         return negate(filterNode(key, "~", [filter.value]));
       }
@@ -190,14 +194,12 @@ function lowerSingle(filter: FilterState[number]): ASTNode | null {
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
-      if (NEEDS_QUOTES.test(filter.key)) return null;
       const path = scorePathOf(filter.column, filter.key);
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
       return filterNode(path, op, [String(filter.value)]);
     }
     case "categoryOptions": {
-      if (NEEDS_QUOTES.test(filter.key)) return null;
       const path = scorePathOf(filter.column, filter.key);
       if (path === null || filter.value.length === 0) return null;
       const node = filterNode(path, "=", filter.value);

@@ -391,6 +391,22 @@ describe("astToFilterState", () => {
     ]);
   });
 
+  it("lowers negated exact on id/name to stringOptions none-of (exact inequality)", () => {
+    // `-name:=abc` is exact-inequality — the faithful flat form is
+    // stringOptions none-of (there is no `string !=`). It is the inverse of the
+    // positive `name:=abc` (`string =`) and the shape the facet emits when one
+    // value is unchecked, so it must lower cleanly rather than error.
+    for (const column of ["id", "name"]) {
+      const r = lower(`-${column}:=abc`);
+      expect(r.errors).toEqual([]);
+      expect(r.filters).toEqual([
+        { type: "stringOptions", column, operator: "none of", value: ["abc"] },
+      ]);
+    }
+    // The commit gate accepts it (no longer a "not representable" error).
+    expect(validateQuery("-name:=abc").valid).toBe(true);
+  });
+
   it("lowers input:/output: to real column filters (not searchType)", () => {
     const r = lower("input:refund");
     expect(r.errors).toEqual([]);
@@ -424,6 +440,62 @@ describe("astToFilterState", () => {
       const r = lower(text);
       expect(r.errors.length, `expected errors: ${text}`).toBeGreaterThan(0);
     }
+  });
+
+  it("lowers quoted dot-path keys (score/metadata names with spaces)", () => {
+    // A score or metadata name containing spaces is addressed with a quoted
+    // segment after the prefix: `scores."Rouge Score"`. The quotes are stripped
+    // to the real key in the lowered FilterState.
+    expect(lower('scores."Rouge Score":>=1').filters).toEqual([
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "Rouge Score",
+        operator: ">=",
+        value: 1,
+      },
+    ]);
+    expect(lower('traceScores."Hallucination Check":faithful').filters).toEqual(
+      [
+        {
+          type: "categoryOptions",
+          column: "trace_score_categories",
+          key: "Hallucination Check",
+          operator: "any of",
+          value: ["faithful"],
+        },
+      ],
+    );
+    expect(lower('metadata."my key":eu').filters).toEqual([
+      {
+        type: "stringObject",
+        column: "metadata",
+        key: "my key",
+        operator: "=",
+        value: "eu",
+      },
+    ]);
+    expect(validateQuery('scores."Rouge Score":>=1').valid).toBe(true);
+  });
+
+  it("quotes grammar-char keys in error-message example syntax", () => {
+    // The suggested example syntax in diagnostics must itself parse for a
+    // spaced/colon key — i.e. show the quoted form, not the bare one.
+    const errsFor = (text: string) => lower(text).errors.join(" • ");
+    // metadata any-of group → "supports a single value"
+    expect(errsFor('metadata."my key":(a OR b)')).toContain(
+      'metadata."my key"',
+    );
+    // negated metadata exact → suggestion quotes the key
+    expect(errsFor('-metadata."my key":=foo')).toContain('-metadata."my key"');
+    // numeric score any-of → "expects a single numeric value"
+    expect(errsFor('scores."Rouge Score":(0.1 OR 0.2)')).toContain(
+      'scores."Rouge Score"',
+    );
+    // string-glob op on a score → operatorIssue example quotes the key
+    expect(errsFor('scores."Rouge Score":foo*')).toContain(
+      'scores."Rouge Score"',
+    );
   });
 });
 
@@ -585,10 +657,10 @@ describe("filterStateToQueryText", () => {
     expect(back.filters).toEqual([multi]);
   });
 
-  it("skips keyed filters whose key carries grammar chars (would mis-parse)", () => {
-    // `metadata.foo:bar` would reparse as key `metadata.foo` value `bar:…` and
-    // silently corrupt the filter — so a key with a colon (or any NEEDS_QUOTES
-    // char) must be preserved via skippedFilters, not serialized into text.
+  it("renders keyed filters whose key carries grammar chars via a quoted segment", () => {
+    // A metadata/score key with spaces, colons, or other grammar chars is now
+    // addressable with a quoted segment after the prefix (`metadata."foo:bar"`,
+    // `scores."rate test"`); it round-trips instead of being skipped.
     const colonKeyMeta: FilterState[number] = {
       type: "stringObject",
       column: "metadata",
@@ -596,20 +668,59 @@ describe("filterStateToQueryText", () => {
       operator: "contains",
       value: "x",
     };
-    const colonKeyScore: FilterState[number] = {
+    const spacedScore: FilterState[number] = {
       type: "categoryOptions",
       column: "score_categories",
-      key: "rate:test",
+      key: "rate test",
       operator: "any of",
-      value: ["5"],
+      value: ["high"],
     };
-    const r = filterStateToQueryText([colonKeyMeta, colonKeyScore]);
-    expect(r.text).toBe("");
-    expect(r.skippedFilters).toEqual([colonKeyMeta, colonKeyScore]);
-    // A normal key still serializes into the query text (contains → `*x*`).
+    const r = filterStateToQueryText([colonKeyMeta, spacedScore]);
+    expect(r.skippedFilters).toEqual([]);
+    expect(r.text).toBe('metadata."foo:bar":*x* scores."rate test":high');
+    // Both round-trip back to the same FilterState.
+    expect(astToFilterState(validateQuery(r.text).ast).filters).toEqual([
+      colonKeyMeta,
+      spacedScore,
+    ]);
+    // A normal key still serializes bare (contains → `*x*`).
     expect(
       filterStateToQueryText([{ ...colonKeyMeta, key: "region" }]).text,
     ).toBe("metadata.region:*x*");
+  });
+
+  it("round-trips score names with spaces (numeric + categorical, no skip)", () => {
+    const numeric: FilterState = [
+      {
+        type: "numberObject",
+        column: "scores_avg",
+        key: "Rouge Score",
+        operator: ">=",
+        value: 1,
+      },
+    ];
+    const numericResult = filterStateToQueryText(numeric);
+    expect(numericResult.skippedFilters).toEqual([]);
+    expect(numericResult.text).toBe('scores."Rouge Score":>=1');
+    expect(
+      astToFilterState(validateQuery(numericResult.text).ast).filters,
+    ).toEqual(numeric);
+
+    const categorical: FilterState = [
+      {
+        type: "categoryOptions",
+        column: "trace_score_categories",
+        key: "Hallucination Check",
+        operator: "any of",
+        value: ["faithful"],
+      },
+    ];
+    const catResult = filterStateToQueryText(categorical);
+    expect(catResult.skippedFilters).toEqual([]);
+    expect(catResult.text).toBe('traceScores."Hallucination Check":faithful');
+    expect(astToFilterState(validateQuery(catResult.text).ast).filters).toEqual(
+      categorical,
+    );
   });
 
   it("serializes metadata equality as the bare form, not :=value", () => {
@@ -765,19 +876,30 @@ describe("filterStateToQueryText", () => {
     expect(astToFilterState(validateQuery(text).ast).filters).toEqual(filters);
   });
 
-  it("preserves a single-value stringOptions none-of on id/name via skippedFilters", () => {
-    // `-id:=abc` (negated exact) is not representable, so rather than rewrite it
-    // to `does not contain` (a substring flip), the bar must skip + preserve it.
-    const filters: FilterState = [
-      {
-        type: "stringOptions",
-        column: "name",
-        operator: "none of",
-        value: ["abc"],
-      },
-    ];
-    const { skippedFilters } = filterStateToQueryText(filters);
-    expect(skippedFilters).toEqual(filters);
+  it("renders a single-value stringOptions none-of on id/name as negated exact", () => {
+    // A single none-of on a textSearch field is exact-inequality. The faithful
+    // grammar form is the negated exact `-name:=abc` (which lowers back to
+    // stringOptions none-of), NOT `-name:abc` (does-not-contain / substring).
+    // This is the facet "uncheck one value" shape — it must render in the bar,
+    // not vanish into skippedFilters.
+    for (const column of ["id", "name"]) {
+      const filters: FilterState = [
+        {
+          type: "stringOptions",
+          column,
+          operator: "none of",
+          value: ["abc"],
+        },
+      ];
+      const { text, skipped, skippedFilters } = filterStateToQueryText(filters);
+      expect(skipped).toEqual([]);
+      expect(skippedFilters).toEqual([]);
+      expect(text).toBe(`-${column}:=abc`);
+      // And it round-trips back to the same stringOptions none-of filter.
+      expect(astToFilterState(validateQuery(text).ast).filters).toEqual(
+        filters,
+      );
+    }
   });
 
   it("round-trips option values with operator-prefix, keyword, and empty forms", () => {

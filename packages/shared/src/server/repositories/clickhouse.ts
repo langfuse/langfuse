@@ -1,3 +1,4 @@
+import { type Readable } from "stream";
 import { env } from "../../env";
 import {
   clickhouseClient,
@@ -9,7 +10,13 @@ import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
+import {
+  type Span,
+  context,
+  isSpanContextValid,
+  SpanKind,
+  trace,
+} from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
 import {
   StorageService,
@@ -180,7 +187,7 @@ export async function upsertClickhouse<
               ],
               format: "JSONEachRow",
               clickhouse_settings: {
-                log_comment: JSON.stringify(opts.tags ?? {}),
+                log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
               },
             });
           }
@@ -206,7 +213,7 @@ export async function upsertClickhouse<
         })),
         format: "JSONEachRow",
         clickhouse_settings: {
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
         },
       });
       // same logic as for prisma. we want to see queries in development
@@ -283,6 +290,94 @@ export async function* queryClickhouseStream<T>(
     );
   } finally {
     span.end();
+  }
+}
+
+/**
+ * Raw passthrough read: returns the unparsed ClickHouse HTTP response body as a
+ * byte stream, with `FORMAT JSONEachRow` appended to the query. Unlike
+ * {@link queryClickhouseStream} there is NO per-row JS work — no `.json()`
+ * parse, no iteration, no re-serialization — so the JSONL bytes can be piped
+ * straight into gzip → upload. Used by the blob-export raw-passthrough path
+ * (LFE-10402) for CPU-bound large exports.
+ *
+ * Because rows are never parsed, mid-stream ClickHouse exceptions are NOT
+ * detected here (see {@link handleExceptionRow}). The caller MUST verify the
+ * query completed cleanly after draining the stream — e.g. via
+ * `pollQueryStatus(queryId)` against system.query_log — otherwise a query that
+ * fails after a 200 + partial body silently yields a truncated/garbage file.
+ *
+ * Routes through the same `clickhouseClient` (service + settings) as the parsed
+ * path so serialization settings (e.g. 64-bit int quoting) match, keeping the
+ * output parsed-equal to the standard path.
+ */
+export async function queryClickhouseStreamRaw(
+  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
+): Promise<{ stream: Readable; queryId: string }> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const tracer = getTracer("clickhouse-query-stream-raw");
+  const span = tracer.startSpan("clickhouse-query-stream-raw", {
+    kind: SpanKind.CLIENT,
+  });
+
+  let queryId: string | undefined;
+  try {
+    setSpanQueryAttributes(span, opts.query);
+
+    const res = await context
+      .with(trace.setSpan(context.active(), span), () =>
+        clickhouseClient(
+          opts.clickhouseConfigs,
+          opts.preferredClickhouseService,
+        ).exec({
+          query: `${opts.query}\nFORMAT JSONEachRow`,
+          query_params: opts.params,
+          abort_signal: opts.abortSignal,
+          clickhouse_settings: {
+            ...opts.clickhouseSettings,
+            log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
+          },
+        }),
+      )
+      .catch((error) => {
+        throw ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          opts.tags,
+        );
+      });
+
+    queryId = res.query_id;
+    span.setAttribute("ch.queryId", queryId);
+    recordSummaryOnSpan(span, res.response_headers);
+
+    const stream = res.stream as unknown as Readable;
+    // The span stays open until the byte stream is fully consumed so its
+    // duration reflects the read, not just the request handshake. Node emits
+    // 'close' after both 'end' and 'error' (autoDestroy), so guard against the
+    // double end() — otherwise the OTel SDK logs "end() called more than once".
+    let spanEnded = false;
+    const endSpan = () => {
+      if (spanEnded) return;
+      spanEnded = true;
+      span.end();
+    };
+    stream.once("end", endSpan);
+    stream.once("error", endSpan);
+    stream.once("close", endSpan);
+
+    return { stream, queryId };
+  } catch (error) {
+    span.end();
+    if (error instanceof ClickHouseResourceError) {
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(error.errorType, enriched, error.tags);
+    }
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      opts.tags,
+    );
   }
 }
 
@@ -370,6 +465,18 @@ function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("db.operation.name", "SELECT");
 }
 
+export function tagsWithTraceId(
+  tags: Record<string, string> | undefined,
+): Record<string, string> {
+  const ctx = trace.getActiveSpan()?.spanContext();
+  if (!ctx || !isSpanContextValid(ctx)) return tags ?? {};
+  // Use a distinct, OTel-specific key so this never collides with a
+  // caller-supplied `traceId` tag (e.g. the Langfuse business trace ID used
+  // for query_log JOINs in dataset-run-items). A single log_comment row can
+  // then carry both identifiers.
+  return { ...tags, otel_trace_id: ctx.traceId };
+}
+
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
@@ -389,7 +496,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query_params: opts.params,
     clickhouse_settings: {
       ...opts.clickhouseSettings,
-      log_comment: JSON.stringify(opts.tags ?? {}),
+      log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
     },
   });
 
@@ -567,7 +674,7 @@ export async function commandClickhouse(opts: {
         ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
         },
       });
       // same logic as for prisma. we want to see queries in development
