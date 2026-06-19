@@ -240,6 +240,13 @@ function getComponentPropsParameter(
     return initializer.getParameters()[0];
   }
 
+  const forwardRefRenderFunction = initializer
+    ? getForwardRefRenderFunction(initializer)
+    : undefined;
+  if (forwardRefRenderFunction) {
+    return forwardRefRenderFunction.getParameters()[0];
+  }
+
   return undefined;
 }
 
@@ -1195,11 +1202,28 @@ function extractInlinePropsType(
 
   const variableDeclaration = sourceFile.getVariableDeclaration(componentName);
   const initializer = variableDeclaration?.getInitializer();
+  if (!variableDeclaration || !initializer) {
+    throw new Error(
+      `Could not find interface, type, function, or variable component ${componentName} with inline props`,
+    );
+  }
+
+  const forwardRefPropsType = getForwardRefPropsType(initializer);
+  if (forwardRefPropsType) {
+    const typeAliasDeclaration = insertTypeAliasBeforeVariableDeclaration(
+      sourceFile,
+      variableDeclaration,
+      propsTypeName,
+      forwardRefPropsType.getText(),
+    );
+    forwardRefPropsType.replaceWithText(propsTypeName);
+
+    return typeAliasDeclaration;
+  }
+
   if (
-    !variableDeclaration ||
-    !initializer ||
-    (!Node.isArrowFunction(initializer) &&
-      !Node.isFunctionExpression(initializer))
+    !Node.isArrowFunction(initializer) &&
+    !Node.isFunctionExpression(initializer)
   ) {
     throw new Error(
       `Could not find interface, type, function, or variable component ${componentName} with inline props`,
@@ -1214,6 +1238,56 @@ function extractInlinePropsType(
     );
   }
 
+  const typeAliasDeclaration = insertTypeAliasBeforeVariableDeclaration(
+    sourceFile,
+    variableDeclaration,
+    propsTypeName,
+    propsType.getText(),
+  );
+  propsParameter.setType(propsTypeName);
+
+  return typeAliasDeclaration;
+}
+
+function getForwardRefRenderFunction(initializer: Node) {
+  if (!Node.isCallExpression(initializer) || !isForwardRefCall(initializer)) {
+    return undefined;
+  }
+
+  const renderFunction = initializer.getArguments()[0];
+  if (
+    Node.isArrowFunction(renderFunction) ||
+    Node.isFunctionExpression(renderFunction)
+  ) {
+    return renderFunction;
+  }
+
+  return undefined;
+}
+
+function getForwardRefPropsType(initializer: Node) {
+  if (!Node.isCallExpression(initializer) || !isForwardRefCall(initializer)) {
+    return undefined;
+  }
+
+  return initializer.getTypeArguments()[1];
+}
+
+function isForwardRefCall(initializer: Node): boolean {
+  if (!Node.isCallExpression(initializer)) return false;
+
+  const expressionText = initializer.getExpression().getText();
+  return (
+    expressionText === "forwardRef" || expressionText.endsWith(".forwardRef")
+  );
+}
+
+function insertTypeAliasBeforeVariableDeclaration(
+  sourceFile: SourceFile,
+  variableDeclaration: Node,
+  propsTypeName: string,
+  type: string,
+): TypeAliasDeclaration {
   const variableStatement = variableDeclaration.getFirstAncestorByKindOrThrow(
     SyntaxKind.VariableStatement,
   );
@@ -1221,16 +1295,13 @@ function extractInlinePropsType(
     .getStatements()
     .findIndex((statement) => statement === variableStatement);
   if (statementIndex === -1) {
-    throw new Error(`Could not find ${componentName} statement position`);
+    throw new Error(`Could not find ${propsTypeName} statement position`);
   }
 
-  const typeAliasDeclaration = sourceFile.insertTypeAlias(statementIndex, {
+  return sourceFile.insertTypeAlias(statementIndex, {
     name: propsTypeName,
-    type: propsType.getText(),
+    type,
   });
-  propsParameter.setType(propsTypeName);
-
-  return typeAliasDeclaration;
 }
 
 function convertInterfaceToTypeAlias(
