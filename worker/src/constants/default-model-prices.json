@@ -2844,7 +2844,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-03-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -2858,8 +2858,8 @@
           "input_modality_1": 1e-7,
           "prompt_token_count": 1e-7,
           "promptTokenCount": 1e-7,
-          "input_cached_tokens": 2.5e-8,
-          "cached_content_token_count": 2.5e-8,
+          "input_cached_tokens": 1e-8,
+          "cached_content_token_count": 1e-8,
           "output": 4e-7,
           "output_text": 4e-7,
           "output_modality_1": 4e-7,
@@ -2868,7 +2868,7 @@
           "thoughtsTokenCount": 4e-7,
           "thoughts_token_count": 4e-7,
           "output_reasoning": 4e-7,
-          "input_audio_tokens": 5e-7
+          "input_audio_tokens": 3e-7
         }
       }
     ]
