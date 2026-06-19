@@ -1,5 +1,6 @@
 import { env } from "../../env";
 import { queryClickhouse } from "../repositories";
+import { convertDateToClickhouseDateTime } from "./client";
 
 // ============================================================================
 // Types
@@ -13,6 +14,24 @@ export type QueryStatus = "running" | "completed" | "failed" | "not_found";
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * system.query_log is partitioned by `toYYYYMM(event_date)`. Filtering only by
+ * query_id forces a scan of every retained partition (fanned across replicas on
+ * clusters). When the caller knows roughly when the query was issued, bound
+ * `event_date` so the planner can partition-prune. `since` should already
+ * include a safety margin for worker/ClickHouse clock skew.
+ */
+function queryLogSinceBound(since: Date | undefined): {
+  clause: string;
+  params: Record<string, string>;
+} {
+  if (!since) return { clause: "", params: {} };
+  return {
+    clause: "AND event_date >= toDate({since: DateTime64(6)})",
+    params: { since: convertDateToClickhouseDateTime(since) },
+  };
 }
 
 /**
@@ -40,6 +59,7 @@ function systemTableRef(
 export async function pollQueryStatus(
   queryId: string,
   tags?: Record<string, string>,
+  since?: Date,
 ): Promise<QueryStatus> {
   const tagsWithDefaults = {
     feature: "query-tracking",
@@ -68,6 +88,7 @@ export async function pollQueryStatus(
     return "running";
   }
   // Check query_log for completion status
+  const sinceBound = queryLogSinceBound(since);
   const result = await queryClickhouse<{
     type: string;
     exception_code: string;
@@ -76,10 +97,11 @@ export async function pollQueryStatus(
       SELECT type, exception_code
       FROM ${systemTableRef("system.query_log")}
       WHERE query_id = {queryId: String}
+        ${sinceBound.clause}
       ORDER BY event_time_microseconds DESC
       LIMIT 1
     `,
-    params: { queryId },
+    params: { queryId, ...sinceBound.params },
     clickhouseConfigs: {
       request_timeout: 60_000,
     },
@@ -121,17 +143,20 @@ export async function pollQueryStatus(
  */
 export async function getQueryResultRows(
   queryId: string,
+  since?: Date,
 ): Promise<number | undefined> {
+  const sinceBound = queryLogSinceBound(since);
   const result = await queryClickhouse<{ result_rows: string }>({
     query: `
       SELECT result_rows
       FROM ${systemTableRef("system.query_log")}
       WHERE query_id = {queryId: String}
         AND type = 'QueryFinish'
+        ${sinceBound.clause}
       ORDER BY event_time_microseconds DESC
       LIMIT 1
     `,
-    params: { queryId },
+    params: { queryId, ...sinceBound.params },
     clickhouseSettings: {
       skip_unavailable_shards: 1,
     },
@@ -152,7 +177,9 @@ export async function getQueryResultRows(
  */
 export async function getQueryError(
   queryId: string,
+  since?: Date,
 ): Promise<string | undefined> {
+  const sinceBound = queryLogSinceBound(since);
   const result = await queryClickhouse<{ exception_message: string }>({
     query: `
       SELECT exception as exception_message
@@ -160,10 +187,11 @@ export async function getQueryError(
       WHERE query_id = {queryId: String}
         AND type != 'QueryStart'
         AND exception != ''
+        ${sinceBound.clause}
       ORDER BY event_time_microseconds DESC
       LIMIT 1
     `,
-    params: { queryId },
+    params: { queryId, ...sinceBound.params },
     clickhouseSettings: {
       skip_unavailable_shards: 1,
     },

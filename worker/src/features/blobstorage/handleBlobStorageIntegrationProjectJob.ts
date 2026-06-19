@@ -252,13 +252,22 @@ async function* countedStream<T>(
 // filename is overwritten on the next successful run. Returns result_rows.
 const PASSTHROUGH_QUERY_LOG_POLL_ATTEMPTS = 12;
 const PASSTHROUGH_QUERY_LOG_POLL_DELAY_MS = 2_500; // ~30s total budget
+// Lower bound passed to the system.query_log lookups so they can partition-prune
+// instead of scanning every retained partition. Generous enough to absorb
+// worker/ClickHouse clock skew (query_log is partitioned by month, so this only
+// ever widens the scan to the current — and rarely the previous — partition).
+const PASSTHROUGH_QUERY_LOG_SKEW_BUFFER_MS = 6 * 60 * 60 * 1000; // 6h
 
 const verifyRawPassthroughCompletion = async (
   queryId: string,
   table: string,
+  startedAt: Date,
 ): Promise<number | undefined> => {
   const tags = { feature: "blobstorage", table };
-  let status = await pollQueryStatus(queryId, tags);
+  const since = new Date(
+    startedAt.getTime() - PASSTHROUGH_QUERY_LOG_SKEW_BUFFER_MS,
+  );
+  let status = await pollQueryStatus(queryId, tags, since);
   for (
     let attempt = 0;
     attempt < PASSTHROUGH_QUERY_LOG_POLL_ATTEMPTS &&
@@ -267,12 +276,12 @@ const verifyRawPassthroughCompletion = async (
     attempt++
   ) {
     await sleep(PASSTHROUGH_QUERY_LOG_POLL_DELAY_MS);
-    status = await pollQueryStatus(queryId, tags);
+    status = await pollQueryStatus(queryId, tags, since);
   }
 
   if (status !== "completed") {
     const chError =
-      status === "failed" ? await getQueryError(queryId) : undefined;
+      status === "failed" ? await getQueryError(queryId, since) : undefined;
     throw new Error(
       `Raw passthrough export query did not complete cleanly ` +
         `(query_id=${queryId} status=${status})` +
@@ -280,7 +289,17 @@ const verifyRawPassthroughCompletion = async (
     );
   }
 
-  return getQueryResultRows(queryId);
+  // The upload is already verified clean (QueryFinish) at this point, so a
+  // failed row-count read must not invalidate it — treat the count as unknown.
+  try {
+    return await getQueryResultRows(queryId, since);
+  } catch (rowsError) {
+    logger.warn(
+      `[BLOB INTEGRATION] Failed to read result_rows for verified passthrough query ${queryId}`,
+      rowsError,
+    );
+    return undefined;
+  }
 };
 
 // Best-effort removal of an already-committed passthrough object whose source
@@ -440,6 +459,9 @@ const processBlobStorageExport = async (config: {
         const sourceStats = { rows: 0, sourceWaitMs: 0 };
         let passthroughRows: number | undefined;
         let passthroughQueryId: string | undefined;
+        // Captured just before the query is issued, so the post-hoc query_log
+        // lookups can partition-prune on event_date instead of full scans.
+        let passthroughQueryStartedAt: Date | undefined;
 
         let fileStream: Readable;
 
@@ -447,6 +469,7 @@ const processBlobStorageExport = async (config: {
           // Stream ClickHouse JSONEachRow bytes straight through: no row parse,
           // no enrichment, no re-serialization. Shaping (latency→s, dropped
           // price columns, field-group selection) is already baked into the SQL.
+          passthroughQueryStartedAt = new Date();
           const { stream, queryId } =
             config.table === "observations"
               ? await getObservationsForBlobStorageExportRaw(
@@ -570,6 +593,7 @@ const processBlobStorageExport = async (config: {
               passthroughRows = await verifyRawPassthroughCompletion(
                 passthroughQueryId,
                 config.table,
+                passthroughQueryStartedAt ?? new Date(),
               );
             } catch (verifyError) {
               await deletePotentiallyCorruptExport(storageService, filePath);
