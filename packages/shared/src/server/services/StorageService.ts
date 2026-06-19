@@ -28,6 +28,7 @@ import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
 import {
   buildS3RequestDiagnostics,
   isS3SigningError,
+  summarizeCredentialShape,
   type S3SigningDiagnosticsContext,
 } from "./s3SigningDiagnostics";
 import * as objectstorage from "oci-objectstorage";
@@ -671,6 +672,13 @@ class S3StorageService implements StorageService {
       endpoint: params.endpoint,
       region: params.region,
       forcePathStyle: params.forcePathStyle,
+      // Non-reversible shape of the credentials (length + character-class
+      // flags, never the value) so a SignatureDoesNotMatch can be triaged as a
+      // truncated/altered/mismatched secret without another round of re-pasting.
+      credentials: summarizeCredentialShape(
+        params.accessKeyId,
+        params.secretAccessKey,
+      ),
     });
 
     // Create a separate client for generating presigned URLs

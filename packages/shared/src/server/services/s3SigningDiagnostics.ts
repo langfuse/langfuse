@@ -12,16 +12,83 @@
  * credentials.
  *
  * These helpers summarize the *signing inputs* of the request that failed so
- * the difference shows up in logs. They never read credentials (no
- * `Authorization` header), the secret, or the payload — only the framing
- * headers and the structured error fields.
+ * the difference shows up in logs. They never log the credential values (no
+ * `Authorization` header, no secret) or the payload — only the framing
+ * headers, the structured error fields, and a non-reversible *shape* of the
+ * credentials (length + character-class flags; see {@link S3CredentialShape}).
  */
+
+/**
+ * Non-reversible *shape* of the configured S3 credentials. Surfaced so a
+ * `SignatureDoesNotMatch` can be triaged when the operator insists the
+ * key/secret are correct and re-pasting them has not helped.
+ *
+ * `SignatureDoesNotMatch` (vs `InvalidAccessKeyId`/`AccessDenied`) means the
+ * backend matched the access key id but the HMAC computed from the secret did
+ * not — i.e. the stored secret is not the partner of the stored access key.
+ * The usual culprits are a truncated or altered paste (wrong length, stray
+ * whitespace, a non-breaking space / smart character that `trim()` leaves) or a
+ * secret from a different/rotated key pair. These fields expose exactly those
+ * signals without ever logging the credential value: only the length, whether
+ * it matches the base64 alphabet, and whitespace/non-ascii flags.
+ *
+ * The access key id is an identifier (sent in plaintext in every signed
+ * request's `Authorization` header), not a secret; even so we never log it
+ * verbatim — we classify it (`gcs-hmac` for `GOOG…`, `aws` for `AKIA`/`ASIA`)
+ * so a key pasted into the wrong provider's field is obvious.
+ */
+export interface S3CredentialShape {
+  accessKeyIdPresent: boolean;
+  accessKeyIdLength: number;
+  accessKeyIdType: "gcs-hmac" | "aws" | "other" | "absent";
+  secretPresent: boolean;
+  secretLength: number;
+  secretLooksBase64: boolean;
+  secretHasWhitespace: boolean;
+  secretHasSurroundingWhitespace: boolean;
+  secretHasNonAscii: boolean;
+}
+
+function classifyAccessKeyIdType(
+  id: string,
+): Exclude<S3CredentialShape["accessKeyIdType"], "absent"> {
+  if (id.startsWith("GOOG")) return "gcs-hmac";
+  if (/^A(KIA|SIA)/.test(id)) return "aws";
+  return "other";
+}
+
+/**
+ * Summarize the credential pair without exposing either value. Null-safe so
+ * host/instance-role configs (no explicit credentials) report `absent` rather
+ * than throwing.
+ */
+export function summarizeCredentialShape(
+  accessKeyId: string | undefined,
+  secretAccessKey: string | undefined,
+): S3CredentialShape {
+  const id = accessKeyId ?? "";
+  const secret = secretAccessKey ?? "";
+  return {
+    accessKeyIdPresent: id.length > 0,
+    accessKeyIdLength: id.length,
+    accessKeyIdType: id.length === 0 ? "absent" : classifyAccessKeyIdType(id),
+    secretPresent: secret.length > 0,
+    secretLength: secret.length,
+    secretLooksBase64:
+      secret.length > 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(secret),
+    secretHasWhitespace: /\s/.test(secret),
+    secretHasSurroundingWhitespace: secret !== secret.trim(),
+    // Anything outside printable ASCII (0x20–0x7E): NBSP, smart quotes, etc.
+    secretHasNonAscii: /[^\x20-\x7e]/.test(secret),
+  };
+}
 
 export interface S3SigningDiagnosticsContext {
   bucketName: string;
   endpoint?: string;
   region?: string;
   forcePathStyle: boolean;
+  credentials?: S3CredentialShape;
 }
 
 /**

@@ -3,6 +3,7 @@ import {
   buildS3RequestDiagnostics,
   classifyContentSha256Mode,
   isS3SigningError,
+  summarizeCredentialShape,
   summarizeS3Error,
   summarizeS3SigningHeaders,
 } from "./s3SigningDiagnostics";
@@ -161,6 +162,81 @@ describe("buildS3RequestDiagnostics", () => {
     expect(diagnostics.request.method).toBeUndefined();
     expect(diagnostics.request.contentSha256Mode).toBe("absent");
     expect(diagnostics.error.message).toBe("boom");
+  });
+});
+
+describe("summarizeCredentialShape", () => {
+  // A representative GCS HMAC secret: 40 chars, base64 alphabet, no whitespace.
+  const cleanGcsSecret = "Ab3+/Cd4ef5GH6ij7KL8mn9OP0qr1ST2uv3WX4yz";
+
+  it("reports a clean GCS HMAC credential pair", () => {
+    const shape = summarizeCredentialShape(
+      "GOOG1EXAMPLEACCESSKEYID",
+      cleanGcsSecret,
+    );
+
+    expect(shape).toEqual({
+      accessKeyIdPresent: true,
+      accessKeyIdLength: 23,
+      accessKeyIdType: "gcs-hmac",
+      secretPresent: true,
+      secretLength: 40,
+      secretLooksBase64: true,
+      secretHasWhitespace: false,
+      secretHasSurroundingWhitespace: false,
+      secretHasNonAscii: false,
+    });
+  });
+
+  it("flags a truncated secret (wrong length, the SignatureDoesNotMatch tell)", () => {
+    const shape = summarizeCredentialShape(
+      "GOOG1EXAMPLE",
+      cleanGcsSecret.slice(0, 20),
+    );
+    expect(shape.secretLength).toBe(20);
+    expect(shape.secretPresent).toBe(true);
+  });
+
+  it("flags stray surrounding whitespace from a sloppy paste", () => {
+    const shape = summarizeCredentialShape(
+      "GOOG1EXAMPLE",
+      `  ${cleanGcsSecret}\n`,
+    );
+    expect(shape.secretHasWhitespace).toBe(true);
+    expect(shape.secretHasSurroundingWhitespace).toBe(true);
+  });
+
+  it("flags a non-breaking space that trim() would not strip", () => {
+    // U+00A0 (NBSP) is whitespace-like but trim() leaves it: a common paste
+    // hazard that yields SignatureDoesNotMatch with otherwise-correct keys.
+    const nbsp = String.fromCharCode(0x00a0);
+    const shape = summarizeCredentialShape(
+      "GOOG1EXAMPLE",
+      `${cleanGcsSecret}${nbsp}`,
+    );
+    expect(shape.secretHasNonAscii).toBe(true);
+    expect(shape.secretLooksBase64).toBe(false);
+  });
+
+  it("classifies an AWS-style access key id (wrong-provider paste)", () => {
+    const shape = summarizeCredentialShape(
+      "AKIAIOSFODNN7EXAMPLE",
+      cleanGcsSecret,
+    );
+    expect(shape.accessKeyIdType).toBe("aws");
+  });
+
+  it("handles absent credentials (host/instance-role) without throwing", () => {
+    const shape = summarizeCredentialShape(undefined, undefined);
+    expect(shape.accessKeyIdPresent).toBe(false);
+    expect(shape.accessKeyIdType).toBe("absent");
+    expect(shape.secretPresent).toBe(false);
+    expect(shape.secretLength).toBe(0);
+  });
+
+  it("never embeds the secret value", () => {
+    const shape = summarizeCredentialShape("GOOG1EXAMPLE", cleanGcsSecret);
+    expect(JSON.stringify(shape)).not.toContain(cleanGcsSecret);
   });
 });
 
