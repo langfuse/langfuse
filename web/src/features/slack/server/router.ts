@@ -499,17 +499,31 @@ export const slackRouter = createTRPCRouter({
         });
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "slackIntegration",
-        resourceId: linked.id,
-        action: "create",
-        after: {
-          teamId: linked.teamId,
-          teamName: linked.teamName,
-          linkedFromMarketplace: true,
-        },
-      });
+      // The link already committed (the pending row is consumed). Don't let an
+      // audit-log failure reject the mutation — a retry would then hit
+      // NOT_FOUND and wrongly tell the user to reinstall. Mirrors the in-app
+      // Connect flow in oauth-handlers.ts.
+      try {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "slackIntegration",
+          resourceId: linked.id,
+          action: "create",
+          after: {
+            teamId: linked.teamId,
+            teamName: linked.teamName,
+            linkedFromMarketplace: true,
+          },
+        });
+      } catch (auditError) {
+        logger.warn(
+          "Failed to create audit log for linked Slack installation",
+          {
+            error: auditError,
+            projectId: input.projectId,
+          },
+        );
+      }
 
       logger.info("Linked pending Slack installation to project", {
         projectId: input.projectId,
