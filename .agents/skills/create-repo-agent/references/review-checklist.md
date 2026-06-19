@@ -12,6 +12,7 @@ Use this checklist before merging any repo-agent workflow, skill, or self-improv
 - The publish path can push files not covered by the allowlist.
 - Self-improvement can edit security boundaries without path allowlists, invariant prompts, and human PR review.
 - Manual inputs are interpolated before validation.
+- `workflow_dispatch` choice values use YAML boolean-like tokens such as `off`, `on`, `yes`, `no`, `true`, or `false`.
 - The agent can change generated files, dependency locks, package manager config, CI trust settings, or secrets without an explicit task and dedicated review.
 
 ## Scope And Objective

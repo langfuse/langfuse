@@ -2,7 +2,10 @@ name: Default Model Price Audit
 
 on:
   schedule:
-    - cron: "17 5 * * 1"
+    # Tuesday and Friday evening in San Francisco.
+    # 02:17 UTC is 19:17 PDT and 18:17 PST.
+    - cron: "17 2 * * 3"
+    - cron: "17 2 * * 6"
   workflow_dispatch:
     inputs:
       claude_model:
@@ -24,10 +27,10 @@ on:
       dry_run_mode:
         description: "Debug mode: skip Claude and use synthetic output"
         required: false
-        default: "off"
+        default: "disabled"
         type: choice
         options:
-          - off
+          - disabled
           - no_changes
           - mock_workflow_diff
 
@@ -70,7 +73,7 @@ jobs:
           CLAUDE_MODEL: ${{ github.event.inputs.claude_model || 'sonnet' }}
           CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '250' }}
           CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '15' }}
-          AUDIT_DRY_RUN_MODE: ${{ github.event.inputs.dry_run_mode || 'off' }}
+          AUDIT_DRY_RUN_MODE: ${{ github.event.inputs.dry_run_mode || 'disabled' }}
         run: |
           set -euo pipefail
 
@@ -93,9 +96,12 @@ jobs:
           fi
 
           case "$AUDIT_DRY_RUN_MODE" in
-            off | no_changes | mock_workflow_diff) ;;
+            disabled | no_changes | mock_workflow_diff) ;;
+            false)
+              AUDIT_DRY_RUN_MODE="disabled"
+              ;;
             *)
-              echo "::error::dry_run_mode must be one of: off, no_changes, mock_workflow_diff"
+              echo "::error::dry_run_mode must be one of: disabled, no_changes, mock_workflow_diff"
               exit 1
               ;;
           esac
@@ -122,7 +128,7 @@ jobs:
 
       - name: Run Claude price audit
         id: claude-audit
-        if: steps.validate-inputs.outputs.dry_run_mode == 'off'
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
         uses: anthropics/claude-code-action@4d7e1f0cd85743fdc93b1c8040ab54395da024e2 # v1.0.149
         env:
           API_TIMEOUT_MS: "900000"
@@ -179,7 +185,7 @@ jobs:
 
       - name: Mock Claude price audit
         id: mock-claude-audit
-        if: steps.validate-inputs.outputs.dry_run_mode != 'off'
+        if: steps.validate-inputs.outputs.dry_run_mode != 'disabled'
         env:
           DRY_RUN_MODE: ${{ steps.validate-inputs.outputs.dry_run_mode }}
         run: |
@@ -396,7 +402,7 @@ jobs:
           {
             echo "Automated default model price audit."
             echo
-            if [ "$DRY_RUN_MODE" != "off" ]; then
+            if [ "$DRY_RUN_MODE" != "disabled" ]; then
               echo "**Dry run mode:** \`$DRY_RUN_MODE\`"
               echo
               echo "This artifact was generated to debug post-agent workflow steps. The publish job is skipped for dry runs."
@@ -441,7 +447,7 @@ jobs:
 
   publish:
     needs: audit
-    if: needs.audit.outputs.has_changes == 'true' && needs.audit.outputs.dry_run_mode == 'off'
+    if: needs.audit.outputs.has_changes == 'true' && needs.audit.outputs.dry_run_mode == 'disabled'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     steps:
