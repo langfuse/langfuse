@@ -10,6 +10,7 @@ import { getServerAuthSession } from "@/src/server/auth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
 import { setPendingInstallClaimCookie } from "@/src/features/slack/server/pendingInstallClaimCookie";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 /**
  * SlackOAuthHandlers
@@ -74,7 +75,7 @@ export async function handleCallback(
               "Slack OAuth callback completed without a team id or name",
               { projectId, teamId },
             );
-            res.redirect("/slack/direct-setup");
+            res.redirect(getSafeRedirectPath("/slack/direct-setup"));
             return;
           }
 
@@ -90,7 +91,7 @@ export async function handleCallback(
               logger.error("Slack OAuth callback could not issue claim token", {
                 teamId,
               });
-              res.redirect("/slack/direct-setup");
+              res.redirect(getSafeRedirectPath("/slack/direct-setup"));
               return;
             }
             // Deliver the claim as an httpOnly cookie bound to this browser
@@ -102,7 +103,7 @@ export async function handleCallback(
             const onboardingUrl = `/slack/direct-setup?team_id=${encodeURIComponent(
               teamId,
             )}&team_name=${encodeURIComponent(teamName)}`;
-            res.redirect(onboardingUrl);
+            res.redirect(getSafeRedirectPath(onboardingUrl));
             return;
           }
 
@@ -145,7 +146,7 @@ export async function handleCallback(
 
           // Redirect to project-specific Slack settings page
           const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(teamName)}`;
-          res.redirect(redirectUrl);
+          res.redirect(getSafeRedirectPath(redirectUrl));
         },
 
         failure: async (error) => {
