@@ -56,7 +56,6 @@ const meta = preview.meta({
     open: true,
     onOpenChange: fn(),
     state: {
-      inAppAgent: { enabled: true, onToggle: fn(), isToggling: false },
       searchBar: { enabled: false, onToggle: fn(), isToggling: false },
     },
   },
@@ -68,12 +67,6 @@ export const Default = meta.story({});
 export const Warning = meta.story({
   args: {
     state: {
-      inAppAgent: {
-        enabled: false,
-        warningReason:
-          "The Assistant button is only shown inside a project. Open a project to use it after enabling the preview.",
-        onToggle: fn(),
-      },
       searchBar: {
         enabled: false,
         warningReason:
@@ -87,7 +80,6 @@ export const Warning = meta.story({
 export const Loading = meta.story({
   args: {
     state: {
-      inAppAgent: { enabled: true, onToggle: fn(), isToggling: true },
       searchBar: { enabled: false, onToggle: fn(), isToggling: false },
     },
   },

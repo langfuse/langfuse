@@ -1,4 +1,4 @@
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 
 export type UsePrefetchObservationParams = {
@@ -32,6 +32,7 @@ export function usePrefetchObservation({
           truncated: false, // Must match useLogViewObservationIO for cache hit
         },
         {
+          ...sendAsPostOption,
           staleTime: 5 * 60 * 1000, // 5 minutes
         },
       );
