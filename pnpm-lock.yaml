@@ -303,8 +303,8 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       undici:
-        specifier: ^7.24.6
-        version: 7.25.0
+        specifier: ^7.28.0
+        version: 7.28.0
       uuid:
         specifier: ^14.0.0
         version: 14.0.0
@@ -11024,8 +11024,8 @@ packages:
     resolution: {integrity: sha512-3IWdCpjgxp15CbJnsi/Y9TCDE7HWVN19j1hmzVhoAkY/+CJx449tVxT5wZc1Gwg8J+P0LWvzlBzxYRnHJ+1i7Q==}
     engines: {node: '>=20.18.1'}
 
-  undici@7.25.0:
-    resolution: {integrity: sha512-xXnp4kTyor2Zq+J1FfPI6Eq3ew5h6Vl0F/8d9XU5zZQf1tX9s2Su1/3PiMmUANFULpmksxkClamIZcaUqryHsQ==}
+  undici@7.28.0:
+    resolution: {integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==}
     engines: {node: '>=20.18.1'}
 
   unicode-emoji-json@0.8.0:
@@ -18096,7 +18096,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.25.0
+      undici: 7.28.0
       whatwg-mimetype: 4.0.0
 
   chokidar@4.0.3:
@@ -23266,7 +23266,7 @@ snapshots:
 
   undici@7.24.5: {}
 
-  undici@7.25.0: {}
+  undici@7.28.0: {}
 
   unicode-emoji-json@0.8.0: {}
 
