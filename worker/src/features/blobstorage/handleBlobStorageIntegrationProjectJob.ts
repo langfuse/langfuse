@@ -253,10 +253,13 @@ async function* countedStream<T>(
 const PASSTHROUGH_QUERY_LOG_POLL_ATTEMPTS = 12;
 const PASSTHROUGH_QUERY_LOG_POLL_DELAY_MS = 2_500; // ~30s total budget
 // Lower bound passed to the system.query_log lookups so they can partition-prune
-// instead of scanning every retained partition. Generous enough to absorb
-// worker/ClickHouse clock skew (query_log is partitioned by month, so this only
-// ever widens the scan to the current — and rarely the previous — partition).
-const PASSTHROUGH_QUERY_LOG_SKEW_BUFFER_MS = 6 * 60 * 60 * 1000; // 6h
+// instead of scanning every retained partition. query_log is partitioned by
+// month (toYYYYMM(event_date)), so a generous buffer is effectively free — it
+// only ever widens the scan to the current and (near a month boundary) previous
+// partition. Sized to comfortably absorb worker/ClickHouse clock skew. Times are
+// UTC end-to-end (convertDateToClickhouseDateTime emits UTC; CH runs UTC), so no
+// timezone conversion is involved.
+const PASSTHROUGH_QUERY_LOG_SKEW_BUFFER_MS = 24 * 60 * 60 * 1000; // 24h
 
 const verifyRawPassthroughCompletion = async (
   queryId: string,
