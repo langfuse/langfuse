@@ -887,6 +887,53 @@ describe("LLM Connection Tests", () => {
       expect((completion as CompletionWithReasoning).text).toContain("4");
     }, 30_000);
 
+    test("Claude model routes through Anthropic publisher endpoint", async () => {
+      checkEnvVar();
+
+      const claudeVertexModel = "claude-3-haiku@20240307";
+
+      try {
+        const completion = await fetchLLMCompletion({
+          streaming: false,
+          messages: [
+            {
+              role: "user",
+              content: "What is 2+2? Answer only with the number.",
+              type: ChatMessageType.PublicAPICreated,
+            },
+          ],
+          modelParams: {
+            provider: "google-vertex-ai",
+            adapter: LLMAdapter.VertexAI,
+            model: claudeVertexModel,
+            temperature: 0,
+            max_tokens: 10,
+          },
+          llmConnection: {
+            secretKey: encrypt(
+              process.env.LANGFUSE_LLM_CONNECTION_VERTEXAI_KEY!,
+            ),
+            config: { location: "us-east5" },
+          },
+        });
+
+        expect(typeof completion).toBe("object");
+        expect((completion as CompletionWithReasoning).text).toContain("4");
+      } catch (error) {
+        const message = String(error);
+
+        // The CI project currently does not have access to Anthropic publisher
+        // models. The regression signal is that Claude-on-Vertex reaches the
+        // Anthropic publisher endpoint instead of /v1/v1/messages or Google's
+        // Gemini/Gemma publisher path.
+        expect(message).toContain(
+          `/publishers/anthropic/models/${claudeVertexModel}`,
+        );
+        expect(message).not.toContain("/v1/v1/messages");
+        expect(message).not.toContain("/publishers/google/");
+      }
+    }, 30_000);
+
     test("streaming completion", async () => {
       checkEnvVar();
 
