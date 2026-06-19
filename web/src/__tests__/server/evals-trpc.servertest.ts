@@ -640,6 +640,80 @@ describe("evals trpc", () => {
         'Filter column "Scores (numeric)" is not supported for target "trace".',
       );
     });
+
+    it("creates an inactive clone of an existing evaluator configuration", async () => {
+      const { project, caller } = await prepare();
+
+      const evalTemplate = await prisma.evalTemplate.create({
+        data: {
+          projectId: project.id,
+          name: "clone-source-template",
+          version: 1,
+          prompt: "Score this response",
+          outputDefinition: createNumericEvalOutputDefinition({
+            reasoningDescription: "Why",
+            scoreDescription: "How good",
+          }),
+        },
+      });
+
+      const sourceConfig = await prisma.jobConfiguration.create({
+        data: {
+          projectId: project.id,
+          jobType: "EVAL",
+          evalTemplateId: evalTemplate.id,
+          scoreName: "source-score",
+          filter: [],
+          targetObject: EvalTargetObject.EVENT,
+          variableMapping: [
+            {
+              templateVariable: "input",
+              selectedColumnId: "input",
+              jsonSelector: null,
+            },
+          ],
+          sampling: 1,
+          delay: 10_000,
+          status: "ACTIVE",
+          timeScope: ["NEW", "EXISTING"],
+        },
+      });
+
+      const response = await caller.evals.createJob({
+        projectId: project.id,
+        evalTemplateId: evalTemplate.id,
+        scoreName: "source-score (copy)",
+        target: EvalTargetObject.EVENT,
+        filter: [],
+        mapping: [
+          {
+            templateVariable: "input",
+            selectedColumnId: "input",
+            jsonSelector: null,
+          },
+        ],
+        sampling: 1,
+        delay: 10_000,
+        timeScope: ["NEW"],
+        status: "INACTIVE",
+      });
+
+      expect(response.id).not.toEqual(sourceConfig.id);
+
+      const clonedConfig = await prisma.jobConfiguration.findUnique({
+        where: { id: response.id },
+      });
+
+      expect(clonedConfig).toMatchObject({
+        projectId: project.id,
+        evalTemplateId: evalTemplate.id,
+        scoreName: "source-score (copy)",
+        targetObject: EvalTargetObject.EVENT,
+        status: "INACTIVE",
+        timeScope: ["NEW"],
+        delay: 10_000,
+      });
+    });
   });
 
   describe("evals.updateConfig", () => {
