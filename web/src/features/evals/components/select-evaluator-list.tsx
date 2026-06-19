@@ -1,6 +1,7 @@
 import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
+import { cn } from "@/src/utils/tailwind";
 import {
   Dialog,
   DialogBody,
@@ -341,21 +342,22 @@ function CreateLlmEvaluatorWizard({
         </BreadcrumbList>
       </Breadcrumb>
 
-      {activeStep === "connection" ? (
-        <DialogBody className="space-y-4">
-          <p className="text-muted-foreground text-sm">
-            LLM-as-a-judge evaluators need an LLM connection for scoring. Set a
-            project default connection now to continue defining the evaluator.
-          </p>
-          <InlineDefaultEvalModelSetup
-            projectId={projectId}
-            onSuccess={onProviderConfigured}
-            submitLabel="Save and continue"
-          />
-        </DialogBody>
-      ) : (
-        renderEvalTemplateForm(shouldUseDefaultModel)
-      )}
+      <DialogBody
+        className={cn("space-y-4", activeStep !== "connection" && "hidden")}
+      >
+        <p className="text-muted-foreground text-sm">
+          LLM-as-a-judge evaluators need an LLM connection for scoring. Set a
+          project default connection now to continue defining the evaluator.
+        </p>
+        <InlineDefaultEvalModelSetup
+          projectId={projectId}
+          onSuccess={onProviderConfigured}
+          submitLabel="Save and continue"
+        />
+      </DialogBody>
+      <div className={cn(activeStep !== "define" && "hidden")}>
+        {renderEvalTemplateForm(shouldUseDefaultModel)}
+      </div>
     </>
   );
 }

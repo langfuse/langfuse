@@ -53,7 +53,7 @@ export function EvaluatorsOnboarding({ projectId }: EvaluatorsOnboardingProps) {
           <>
             Use evaluators to score traces and observations automatically.
             Langfuse supports two evaluator types:
-            <ul className="text-muted-foreground mx-auto mt-2 max-w-2xl list-disc space-y-2 pl-5 text-sm">
+            <ul className="text-muted-foreground mx-auto mt-2 max-w-2xl list-disc space-y-2 pl-5 text-left text-sm">
               <li>
                 <span className="text-foreground font-medium">
                   LLM-as-a-judge evaluators
