@@ -14,13 +14,13 @@ on:
           - sonnet
           - opus
       max_turns:
-        description: "Maximum Claude Code agent turns (1-50)"
+        description: "Maximum Claude Code agent turns (1-500)"
         required: false
-        default: "20"
+        default: "250"
       max_budget_usd:
         description: "Maximum Claude API spend for the audit (whole USD, 1-20)"
         required: false
-        default: "5"
+        default: "15"
 
 permissions:
   contents: read
@@ -57,8 +57,8 @@ jobs:
       - name: Validate workflow inputs
         env:
           CLAUDE_MODEL: ${{ github.event.inputs.claude_model || 'sonnet' }}
-          CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '20' }}
-          CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '5' }}
+          CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '250' }}
+          CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '15' }}
         run: |
           set -euo pipefail
 
@@ -71,12 +71,12 @@ jobs:
           esac
 
           if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 50 ]; then
-            echo "::error::max_turns must be a whole number between 1 and 50"
+            echo "::error::max_turns must be a whole number between 1 and 500"
             exit 1
           fi
 
           if [[ ! "$CLAUDE_MAX_BUDGET_USD" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_BUDGET_USD" -gt 20 ]; then
-            echo "::error::max_budget_usd must be a whole USD amount between 1 and 20"
+            echo "::error::max_budget_usd must be a whole USD amount between 1 and 15"
             exit 1
           fi
 
@@ -145,8 +145,8 @@ jobs:
             - If there is a diff, list every changed model, the official source URL, the provider unit price, the converted per-token value, every workflow or skill-reference improvement, and the validation commands run.
           claude_args: |
             --model ${{ github.event.inputs.claude_model || 'sonnet' }}
-            --max-turns ${{ github.event.inputs.max_turns || '20' }}
-            --max-budget-usd ${{ github.event.inputs.max_budget_usd || '5' }}
+            --max-turns ${{ github.event.inputs.max_turns || '250' }}
+            --max-budget-usd ${{ github.event.inputs.max_budget_usd || '15' }}
             --no-session-persistence
             --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
             --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
