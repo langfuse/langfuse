@@ -4,9 +4,10 @@ import { Agent } from "@mastra/core/agent";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
-import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
+import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import type { MastraAgent } from "@ag-ui/mastra";
 
 const adapterEvents = vi.hoisted(() => ({
@@ -495,6 +496,9 @@ describe("createAgUiStream", () => {
         currentDate: expect.any(String),
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
         screenContext: "",
+        sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
+          (environment) => `"${environment}"`,
+        ).join(", "),
       }),
     );
     expect(Agent).toHaveBeenCalledWith(

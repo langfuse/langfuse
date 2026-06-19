@@ -19,6 +19,7 @@ import type {
 } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createRedirectActionTool } from "@/src/ee/features/in-app-agent/server/tools";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 
@@ -93,6 +94,9 @@ export async function createAgUiStream(params: {
       currentDate: new Date().toISOString(),
       redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
       screenContext: formatScreenContext(params.input.context),
+      sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
+        (environment) => `"${environment}"`,
+      ).join(", "),
     },
   });
   const instrumentation = createInAppAgentInstrumentation({
@@ -754,6 +758,7 @@ async function getSystemPromptInstructions(params: {
     currentDate: string;
     redirectToolName: string;
     screenContext: string;
+    sidebarHiddenEnvironments: string;
   };
 }): Promise<{ instructions: string; prompt: InAppAgentPromptMetadata }> {
   if (params.useLocalPrompt) {
