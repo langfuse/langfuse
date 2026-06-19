@@ -133,9 +133,13 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
         ))::int as seconds_past_cutoff
       FROM projects p
       INNER JOIN media m ON m.project_id = p.id
+      -- Only a claimed association (validFrom set) protects media; pending rows
+      -- (null validFrom) are sweepable, matching deleteMediaFiles. Counting them
+      -- here would hide projects whose only expired media is abandoned uploads.
       LEFT JOIN dataset_item_media dim
         ON dim.project_id = m.project_id
         AND dim.media_id = m.id
+        AND dim.dataset_item_valid_from IS NOT NULL
       WHERE p.retention_days > 0
         AND p.deleted_at IS NULL
         AND m.created_at <= NOW() - (p.retention_days || ' days')::interval
