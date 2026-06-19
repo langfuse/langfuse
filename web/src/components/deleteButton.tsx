@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/router";
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { LockIcon, TrashIcon } from "lucide-react";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@/src/features/rbac/constants/projectAccessRights";
 import { api } from "@/src/utils/api";
@@ -27,6 +29,7 @@ export type DeleteButtonProps = {
   icon?: boolean;
   enabled?: boolean;
   variant?: ButtonProps["variant"];
+  size?: ButtonProps["size"];
   title?: string;
   className?: string;
   // forwarded explicitly because the base component does not spread unknown
@@ -69,6 +72,7 @@ export function DeleteButton({
   enabled = true,
   title,
   className,
+  size,
   captureDeleteOpen,
   captureDeleteSuccess,
   entityToDeleteName,
@@ -80,6 +84,7 @@ export function DeleteButton({
   "aria-label": ariaLabel,
 }: BaseDeleteButtonProps) {
   const [isDeleted, setIsDeleted] = useState(false);
+  const [open, setOpen] = useState(false);
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const [deleteConfirmationInput, setDeleteConfirmationInput] = useState("");
@@ -104,34 +109,70 @@ export function DeleteButton({
   ]);
 
   return (
-    <Popover key={itemId ?? "delete-action"} onOpenChange={onPopoverOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant={variant ?? (icon ? "outline-solid" : "ghost")}
-          size={icon ? "icon" : "default"}
-          title={title}
-          aria-label={ariaLabel}
-          className={className}
-          disabled={!hasAccess || !enabled}
-          onClick={(e) => {
-            e.stopPropagation();
-            captureDeleteOpen(capture, isTableAction);
-          }}
-        >
-          {icon ? (
-            <TrashIcon className="h-4 w-4" />
-          ) : (
-            <>
-              {hasAccess ? (
-                <TrashIcon className="mr-2 h-4 w-4" />
-              ) : (
-                <LockIcon className="mr-2 h-4 w-4" />
-              )}
-              Delete
-            </>
-          )}
-        </Button>
-      </PopoverTrigger>
+    <Popover
+      key={itemId ?? "delete-action"}
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        // Reset the type-to-confirm input on close so the confirmation must be
+        // re-typed each time (the component now stays mounted per table row).
+        if (!o) setDeleteConfirmationInput("");
+        onPopoverOpenChange?.(o);
+      }}
+    >
+      {icon ? (
+        // Icon-only: a compact button with a built-in tooltip; the popover is
+        // opened from onClick since the tooltip wrapper can't be a trigger.
+        <PopoverAnchor asChild>
+          <span className="inline-flex">
+            <IconOnlyButton
+              icon={<TrashIcon className="h-4 w-4" />}
+              label={title ?? "Delete"}
+              aria-label={ariaLabel ?? "delete"}
+              disabledReason={
+                hasAccess
+                  ? undefined
+                  : `You don't have permission to delete this ${entityToDeleteName}.`
+              }
+              variant={variant ?? "outline-solid"}
+              size={size ?? "icon"}
+              className={className}
+              disabled={!enabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                captureDeleteOpen(capture, isTableAction);
+                // Opening via controlled state (PopoverAnchor, not
+                // PopoverTrigger) means Radix never echoes onOpenChange, so
+                // notify consumers explicitly.
+                setOpen(true);
+                onPopoverOpenChange?.(true);
+              }}
+            />
+          </span>
+        </PopoverAnchor>
+      ) : (
+        <PopoverTrigger asChild>
+          <Button
+            variant={variant ?? "ghost"}
+            size={size ?? "default"}
+            title={title}
+            aria-label={ariaLabel}
+            className={className}
+            disabled={!hasAccess || !enabled}
+            onClick={(e) => {
+              e.stopPropagation();
+              captureDeleteOpen(capture, isTableAction);
+            }}
+          >
+            {hasAccess ? (
+              <TrashIcon className="mr-2 h-4 w-4" />
+            ) : (
+              <LockIcon className="mr-2 h-4 w-4" />
+            )}
+            Delete
+          </Button>
+        </PopoverTrigger>
+      )}
       <PopoverContent onClick={(e) => e.stopPropagation()}>
         {deleteBlocker ?? (
           <>
