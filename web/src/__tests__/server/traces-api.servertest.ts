@@ -834,7 +834,7 @@ describe("/api/public/traces API Endpoint", () => {
     });
   });
 
-  it("should return 413 if observations are too large when fetching single trace", async () => {
+  it("should return 422 if observations are too large when fetching single trace", async () => {
     // See LFE-4882 for context
     const traceId = randomUUID();
     const trace = createTrace({
@@ -871,7 +871,7 @@ describe("/api/public/traces API Endpoint", () => {
       auth,
     );
 
-    expect(response.status).toBe(413);
+    expect(response.status).toBe(422);
     expect(response.body).toMatchObject({
       error: "PayloadTooLargeError",
       message: expect.stringMatching(
