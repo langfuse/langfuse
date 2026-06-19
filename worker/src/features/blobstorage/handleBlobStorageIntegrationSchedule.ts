@@ -8,6 +8,10 @@ import { randomUUID } from "crypto";
 
 let legacyJobsDrained = false;
 
+// Match the floor of getMaxRunAgeMs in deriveSyncStatus so the scheduler
+// and UI agree on when a stuck runStartedAt is stale.
+const STALE_RUN_TTL_MS = 60 * 60 * 1000;
+
 export const handleBlobStorageIntegrationSchedule = async () => {
   const now = new Date();
 
@@ -20,10 +24,27 @@ export const handleBlobStorageIntegrationSchedule = async () => {
       where: {
         enabled: true,
         OR: [
-          // Never synced before
-          { lastSyncAt: null },
-          // Next sync is due
-          { nextSyncAt: { lte: now } },
+          { runStartedAt: null },
+          { runStartedAt: { lt: new Date(now.getTime() - STALE_RUN_TTL_MS) } },
+        ],
+        AND: [
+          {
+            OR: [
+              {
+                AND: [
+                  { lastSyncAt: null },
+                  { lastError: null },
+                  {
+                    OR: [
+                      { exportStartDate: null },
+                      { exportStartDate: { lte: now } },
+                    ],
+                  },
+                ],
+              },
+              { nextSyncAt: { lte: now } },
+            ],
+          },
         ],
       },
     });

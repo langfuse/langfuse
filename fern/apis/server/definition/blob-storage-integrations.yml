@@ -124,7 +124,7 @@ types:
       exportMode: BlobStorageExportMode
       exportStartDate:
         type: optional<datetime>
-        docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE)
+        docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE). Must not be later than today's date.
       compressed:
         type: optional<boolean>
         docs: Enable gzip compression for exported files (.csv.gz, .json.gz, .jsonl.gz). Defaults to true.
@@ -182,8 +182,9 @@ types:
       Sync status of the blob storage integration:
       - `disabled` — integration is not enabled
       - `error` — last export failed (see `lastError` for details)
-      - `idle` — enabled but has never exported yet
+      - `running` — an export job is currently being processed
       - `queued` — next export is overdue (`nextSyncAt` is in the past) and waiting to be picked up by the worker
+      - `idle` — enabled but has never exported yet and no export is queued
       - `up_to_date` — all available data has been exported; next export is scheduled for the future
 
       **ETL usage**: poll this endpoint and check for `up_to_date` status. Compare `lastSyncAt` against your
@@ -191,6 +192,7 @@ types:
       so `lastSyncAt` will always be at least 20 minutes behind real-time.
     enum:
       - idle
+      - running
       - queued
       - up_to_date
       - disabled
@@ -210,10 +212,10 @@ types:
         docs: When the next export is scheduled. Null if no sync has occurred yet.
       lastError:
         type: nullable<string>
-        docs: Raw error message from the storage provider (S3/Azure/GCS) if the last export failed. Cleared on successful export.
+        docs: Raw error message from the storage provider (S3/Azure/GCS) if the last export failed. Cleared when a new export run starts and on successful export.
       lastErrorAt:
         type: nullable<datetime>
-        docs: When the last error occurred. Cleared on successful export.
+        docs: When the last error occurred. Cleared when a new export run starts and on successful export.
 
   BlobStorageIntegrationDeletionResponse:
     properties:

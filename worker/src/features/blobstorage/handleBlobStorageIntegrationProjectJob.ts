@@ -106,7 +106,7 @@ const getMinTimestampForExport = async (
   lastSyncAt: Date | null,
   exportMode: BlobStorageExportMode,
   exportStartDate: Date | null,
-): Promise<Date> => {
+): Promise<Date | null> => {
   // If we have a lastSyncAt, use it (this is for subsequent exports)
   if (lastSyncAt) {
     return lastSyncAt;
@@ -156,11 +156,12 @@ const getMinTimestampForExport = async (
           return date;
         }
 
-        // If no data exists, use current time as a fallback
+        // No data in ClickHouse yet — return null so the caller skips the
+        // empty-window writeback and the next scheduler tick re-queries.
         logger.info(
-          `[BLOB INTEGRATION] No historical data found for project ${projectId}, using current time`,
+          `[BLOB INTEGRATION] No historical data found for project ${projectId}, deferring`,
         );
-        return new Date(0);
+        return null;
       } catch (error) {
         logger.error(
           `[BLOB INTEGRATION] Error querying ClickHouse for minimum timestamp for project ${projectId}`,
@@ -714,7 +715,7 @@ const processBlobStorageExport = async (config: {
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
-  const { projectId } = job.data.payload;
+  const { projectId, isManualRun, originalNextSyncAt } = job.data.payload;
 
   const span = getCurrentSpan();
   if (span) {
@@ -750,52 +751,106 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Blob storage integration is disabled for project ${projectId}`,
     );
-    return;
-  }
-
-  // Sync between lastSyncAt and now - 30 minutes
-  // Cap the export to one frequency period to enable chunked historic exports
-  const minTimestamp = await getMinTimestampForExport(
-    projectId,
-    blobStorageIntegration.lastSyncAt,
-    blobStorageIntegration.exportMode,
-    blobStorageIntegration.exportStartDate,
-  );
-
-  logger.info(
-    `[BLOB INTEGRATION] Calculated minTimestamp for project ${projectId}: ${minTimestamp}, isValid: ${!isNaN(minTimestamp.getTime())}, getTime: ${minTimestamp.getTime()}, exportMode: ${blobStorageIntegration.exportMode}, lastSyncAt: ${blobStorageIntegration.lastSyncAt}, exportStartDate: ${blobStorageIntegration.exportStartDate}`,
-  );
-
-  const now = new Date();
-  const uncappedMaxTimestamp = new Date(
-    now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS,
-  );
-  const frequencyIntervalMs = getFrequencyIntervalMs(
-    blobStorageIntegration.exportFrequency,
-  );
-
-  // Cap maxTimestamp to one frequency period ahead of minTimestamp
-  // This ensures large historic exports are broken into manageable chunks
-  const maxTimestamp = new Date(
-    Math.min(
-      minTimestamp.getTime() + frequencyIntervalMs,
-      uncappedMaxTimestamp.getTime(),
-    ),
-  );
-
-  logger.info(
-    `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
-  );
-
-  // Skip export if the time window is empty or invalid
-  if (minTimestamp >= maxTimestamp) {
-    logger.info(
-      `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
-    );
+    await prisma.blobStorageIntegration.updateMany({
+      where: { projectId, runStartedAt: { not: null } },
+      data: { runStartedAt: null },
+    });
     return;
   }
 
   try {
+    // Sync between lastSyncAt and now - BLOB_STORAGE_LAG_BUFFER_MS (20 minutes)
+    // Cap the export to one frequency period to enable chunked historic exports
+    const minTimestamp = await getMinTimestampForExport(
+      projectId,
+      blobStorageIntegration.lastSyncAt,
+      blobStorageIntegration.exportMode,
+      blobStorageIntegration.exportStartDate,
+    );
+
+    const now = new Date();
+    const frequencyIntervalMs = getFrequencyIntervalMs(
+      blobStorageIntegration.exportFrequency,
+    );
+
+    // No data in ClickHouse yet — schedule a retry without advancing lastSyncAt
+    // so the next tick re-queries and picks up any late-arriving traces.
+    if (minTimestamp === null) {
+      logger.info(
+        `[BLOB INTEGRATION] No data found for project ${projectId}, scheduling retry`,
+      );
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: {
+          runStartedAt: null,
+          nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
+        },
+      });
+      return;
+    }
+
+    logger.info(
+      `[BLOB INTEGRATION] Calculated minTimestamp for project ${projectId}: ${minTimestamp}, isValid: ${!isNaN(minTimestamp.getTime())}, getTime: ${minTimestamp.getTime()}, exportMode: ${blobStorageIntegration.exportMode}, lastSyncAt: ${blobStorageIntegration.lastSyncAt}, exportStartDate: ${blobStorageIntegration.exportStartDate}`,
+    );
+
+    const uncappedMaxTimestamp = new Date(
+      now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS,
+    );
+
+    // Cap maxTimestamp to one frequency period ahead of minTimestamp
+    // This ensures large historic exports are broken into manageable chunks
+    const maxTimestamp = new Date(
+      Math.min(
+        minTimestamp.getTime() + frequencyIntervalMs,
+        uncappedMaxTimestamp.getTime(),
+      ),
+    );
+
+    logger.info(
+      `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
+    );
+
+    // Skip export if the time window is empty or invalid.
+    // Advance lastSyncAt so a never-synced integration leaves "idle" state,
+    // floored at existing progress or minTimestamp (respects exportStartDate).
+    // When exportStartDate is still in the future, don't advance lastSyncAt —
+    // the integration hasn't started yet and getMinTimestampForExport must
+    // continue returning exportStartDate on the next run.
+    // Base nextSyncAt on `now` so 20-min frequency — where lag buffer ==
+    // frequency interval — lands in the future.
+    if (minTimestamp >= maxTimestamp) {
+      logger.info(
+        `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+      );
+      const shouldAdvanceLastSyncAt = minTimestamp.getTime() <= now.getTime();
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: {
+          runStartedAt: null,
+          lastError: null,
+          lastErrorAt: null,
+          ...(shouldAdvanceLastSyncAt && {
+            lastSyncAt: new Date(
+              Math.min(
+                Math.max(
+                  (blobStorageIntegration.lastSyncAt ?? minTimestamp).getTime(),
+                  uncappedMaxTimestamp.getTime(),
+                ),
+                now.getTime(),
+              ),
+            ),
+          }),
+          nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
+        },
+      });
+      return;
+    }
+
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: { runStartedAt: new Date(), lastError: null, lastErrorAt: null },
+    });
+
     // Fail loudly rather than export from unpopulated tables when an enriched
     // source survives on a deployment without the enriched path, e.g. after a
     // V4-preview rollback. The catch persists lastError and notifies admins
@@ -937,8 +992,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     let nextSyncAt: Date;
     if (caughtUp) {
-      // Normal mode: schedule for the next frequency period
-      nextSyncAt = new Date(maxTimestamp.getTime() + frequencyIntervalMs);
+      // Normal mode: base on `now` so 20-min frequency (where lag buffer ==
+      // frequency interval) lands in the future instead of ≈ now.
+      nextSyncAt = new Date(now.getTime() + frequencyIntervalMs);
       logger.info(
         `[BLOB INTEGRATION] Caught up with exports for project ${projectId}. Next sync at ${nextSyncAt.toISOString()}`,
       );
@@ -960,26 +1016,39 @@ export const handleBlobStorageIntegrationProjectJob = async (
         nextSyncAt,
         lastError: null,
         lastErrorAt: null,
+        runStartedAt: null,
       },
     });
 
-    // If still catching up, immediately queue the next chunk job
+    // If still catching up, immediately queue the next chunk job.
+    // Wrapped in its own try/catch: the chunk already committed successfully
+    // (lastSyncAt advanced, data in S3), so an enqueue failure is transient —
+    // nextSyncAt=now lets the scheduler self-recover on its next tick.
     if (!caughtUp) {
-      const queue = BlobStorageIntegrationProcessingQueue.getInstance();
-      if (queue) {
-        const jobId = `${projectId}-${maxTimestamp.toISOString()}`;
-        await queue.add(
-          QueueJobs.BlobStorageIntegrationProcessingJob,
-          {
-            id: randomUUID(),
-            name: QueueJobs.BlobStorageIntegrationProcessingJob,
-            timestamp: new Date(),
-            payload: { projectId },
-          },
-          { jobId, removeOnFail: true },
-        );
-        logger.info(
-          `[BLOB INTEGRATION] Queued next catch-up chunk for project ${projectId} with jobId ${jobId}`,
+      try {
+        const queue = BlobStorageIntegrationProcessingQueue.getInstance();
+        if (queue) {
+          const jobId = `${projectId}-${maxTimestamp.toISOString()}`;
+          await queue.add(
+            QueueJobs.BlobStorageIntegrationProcessingJob,
+            {
+              id: randomUUID(),
+              name: QueueJobs.BlobStorageIntegrationProcessingJob,
+              timestamp: new Date(),
+              payload: { projectId },
+            },
+            { jobId, removeOnFail: true },
+          );
+          logger.info(
+            `[BLOB INTEGRATION] Queued next catch-up chunk for project ${projectId} with jobId ${jobId}`,
+          );
+        }
+      } catch (enqueueError) {
+        logger.warn(
+          `[BLOB INTEGRATION] Failed to enqueue next catch-up chunk for project ${projectId}; scheduler will retry on next tick`,
+          enqueueError instanceof Error
+            ? { message: enqueueError.message }
+            : {},
         );
       }
     }
@@ -990,12 +1059,29 @@ export const handleBlobStorageIntegrationProjectJob = async (
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
+    const FALLBACK_FREQUENCY_MS = 24 * 60 * 60 * 1000;
+    let failFrequencyMs: number;
+    try {
+      failFrequencyMs = getFrequencyIntervalMs(
+        blobStorageIntegration.exportFrequency,
+      );
+    } catch {
+      failFrequencyMs = FALLBACK_FREQUENCY_MS;
+    }
+
     try {
       await prisma.blobStorageIntegration.update({
         where: { projectId },
         data: {
           lastError: errorMessage,
           lastErrorAt: new Date(),
+          runStartedAt: null,
+          ...((isManualRun || !blobStorageIntegration.lastSyncAt) && {
+            nextSyncAt:
+              originalNextSyncAt && originalNextSyncAt > new Date()
+                ? originalNextSyncAt
+                : new Date(Date.now() + failFrequencyMs),
+          }),
         },
       });
     } catch (persistError) {

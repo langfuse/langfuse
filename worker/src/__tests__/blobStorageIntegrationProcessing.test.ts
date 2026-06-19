@@ -42,10 +42,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { Job } from "bullmq";
-import {
-  handleBlobStorageIntegrationProjectJob,
-  BLOB_STORAGE_LAG_BUFFER_MS,
-} from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
+import { handleBlobStorageIntegrationProjectJob } from "../features/blobstorage/handleBlobStorageIntegrationProjectJob";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -611,9 +608,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         },
       );
 
-      // Should be set to 7 days in the future from maxTimestamp (now - lag buffer)
+      // nextSyncAt is based on wall-clock `now`, not maxTimestamp
       const expectedNextSync = new Date(
-        now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS + 7 * 24 * 60 * 60 * 1000,
+        now.getTime() + 7 * 24 * 60 * 60 * 1000,
       );
 
       if (updatedIntegration?.nextSyncAt) {
@@ -1310,10 +1307,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect.fail("nextSyncAt and lastSyncAt should be set");
       }
 
-      // nextSyncAt should be 1 hour after lastSyncAt (normal scheduling)
-      const expectedNextSync = new Date(
-        updatedIntegration.lastSyncAt.getTime() + 60 * 60 * 1000,
-      );
+      // nextSyncAt should be ~1 hour after `now` (normal scheduling bases on
+      // wall-clock, not lastSyncAt, so 20-min frequency doesn't schedule ≈ now)
+      const expectedNextSync = new Date(now.getTime() + 60 * 60 * 1000);
       const tolerance = 1000; // 1 second tolerance
 
       expect(

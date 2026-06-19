@@ -1232,6 +1232,9 @@ model BlobStorageIntegration {
   // Shared with LFE-10394; extend the zod schema, do not duplicate the column.
   exportTuning Json? @map("export_tuning")
 
+  // Run tracking
+  runStartedAt DateTime? @map("run_started_at")
+
   // Error tracking
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")

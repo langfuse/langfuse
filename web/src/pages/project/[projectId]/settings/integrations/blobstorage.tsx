@@ -41,7 +41,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -81,6 +81,19 @@ export default function BlobStorageIntegrationSettings() {
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: 50 * 60 * 1000, // 50 minutes
+      refetchInterval: (query) => {
+        const cfg = query.state.data?.config;
+        if (!cfg) return false;
+        const status = deriveSyncStatus({
+          enabled: cfg.enabled,
+          lastError: cfg.lastError,
+          lastSyncAt: cfg.lastSyncAt ? new Date(cfg.lastSyncAt) : null,
+          nextSyncAt: cfg.nextSyncAt ? new Date(cfg.nextSyncAt) : null,
+          runStartedAt: cfg.runStartedAt ? new Date(cfg.runStartedAt) : null,
+          exportFrequency: cfg.exportFrequency,
+        });
+        return status === "running" || status === "queued" ? 5_000 : false;
+      },
     },
   );
 
@@ -96,10 +109,15 @@ export default function BlobStorageIntegrationSettings() {
           nextSyncAt: state.data.config.nextSyncAt
             ? new Date(state.data.config.nextSyncAt)
             : null,
+          runStartedAt: state.data.config.runStartedAt
+            ? new Date(state.data.config.runStartedAt)
+            : null,
+          exportFrequency: state.data.config.exportFrequency,
         });
 
   const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
     up_to_date: "active",
+    running: "running",
     queued: "queued",
     idle: "pending",
     disabled: "disabled",
@@ -247,8 +265,6 @@ const BlobStorageIntegrationSettingsForm = ({
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { project } = useQueryProject();
-  const [integrationType, setIntegrationType] =
-    useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
@@ -318,34 +334,42 @@ const BlobStorageIntegrationSettingsForm = ({
     disabled: isLoading,
   });
 
+  const integrationType =
+    blobStorageForm.watch("type") ?? BlobStorageIntegrationType.S3;
+
   useEffect(() => {
-    setIntegrationType(state?.type || BlobStorageIntegrationType.S3);
-    blobStorageForm.reset({
-      type: state?.type || BlobStorageIntegrationType.S3,
-      bucketName: state?.bucketName || "",
-      endpoint: state?.endpoint || null,
-      region: state?.region || "auto",
-      accessKeyId: state?.accessKeyId || "",
-      secretAccessKey: state?.secretAccessKey || null,
-      prefix: state?.prefix || "",
-      exportFrequency: (state?.exportFrequency || "daily") as
-        | "every_20_minutes"
-        | "daily"
-        | "weekly"
-        | "hourly",
-      enabled: state?.enabled || false,
-      forcePathStyle: state?.forcePathStyle || false,
-      fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
-      exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
-      exportStartDate: state?.exportStartDate || null,
-      exportSource: getExportSourceFormValue(state?.exportSource, availability),
-      // Empty array in the DB means "export everything" (the worker falls back
-      // to all groups), so surface it as the full selection in the form.
-      exportFieldGroups: state?.exportFieldGroups?.length
-        ? (state.exportFieldGroups as ObservationFieldGroupFull[])
-        : [...OBSERVATION_FIELD_GROUPS_FULL],
-      compressed: state?.compressed ?? true,
-    });
+    blobStorageForm.reset(
+      {
+        type: state?.type || BlobStorageIntegrationType.S3,
+        bucketName: state?.bucketName || "",
+        endpoint: state?.endpoint || null,
+        region: state?.region || "auto",
+        accessKeyId: state?.accessKeyId || "",
+        secretAccessKey: state?.secretAccessKey || null,
+        prefix: state?.prefix || "",
+        exportFrequency: (state?.exportFrequency || "daily") as
+          | "every_20_minutes"
+          | "daily"
+          | "weekly"
+          | "hourly",
+        enabled: state?.enabled || false,
+        forcePathStyle: state?.forcePathStyle || false,
+        fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
+        exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
+        exportStartDate: state?.exportStartDate || null,
+        exportSource: getExportSourceFormValue(
+          state?.exportSource,
+          availability,
+        ),
+        // Empty array in the DB means "export everything" (the worker falls back
+        // to all groups), so surface it as the full selection in the form.
+        exportFieldGroups: state?.exportFieldGroups?.length
+          ? (state.exportFieldGroups as ObservationFieldGroupFull[])
+          : [...OBSERVATION_FIELD_GROUPS_FULL],
+        compressed: state?.compressed ?? true,
+      },
+      state ? { keepDirtyValues: true } : undefined,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, availability]);
 
@@ -413,8 +437,7 @@ const BlobStorageIntegrationSettingsForm = ({
   }
 
   const handleIntegrationTypeChange = (value: BlobStorageIntegrationType) => {
-    setIntegrationType(value);
-    blobStorageForm.setValue("type", value);
+    blobStorageForm.setValue("type", value, { shouldDirty: true });
   };
 
   return (
@@ -904,6 +927,10 @@ const BlobStorageIntegrationSettingsForm = ({
                 <FormControl>
                   <Input
                     type="date"
+                    max={(() => {
+                      const t = new Date();
+                      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+                    })()}
                     value={
                       field.value instanceof Date
                         ? field.value.toISOString().split("T")[0]

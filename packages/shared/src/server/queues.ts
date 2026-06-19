@@ -127,6 +127,8 @@ export const MixpanelIntegrationProcessingEventSchema = z.object({
 });
 export const BlobStorageIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
+  isManualRun: z.boolean().optional(),
+  originalNextSyncAt: z.coerce.date().nullable().optional(),
 });
 export const ExperimentCreateEventSchema = z.object({
   projectId: z.string(),

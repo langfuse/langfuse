@@ -34,7 +34,20 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   exportMode: z
     .enum(BlobStorageExportMode)
     .default(BlobStorageExportMode.FULL_HISTORY),
-  exportStartDate: z.coerce.date().optional().nullable(),
+  exportStartDate: z.coerce
+    .date()
+    .refine(
+      (d) => {
+        if (!d) return true;
+        // 27h tolerance covers all real-world TZ offsets (UTC-12 to UTC+14 = 26h span + 1h margin).
+        // The HTML date picker sends YYYY-MM-DD parsed as UTC midnight; on a UTC server,
+        // an east-of-UTC user's local today can be up to 14h ahead of server UTC.
+        return d.getTime() <= Date.now() + 27 * 60 * 60 * 1000;
+      },
+      { message: "Export start date cannot be in the future" },
+    )
+    .optional()
+    .nullable(),
   exportSource: z
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
@@ -55,6 +68,7 @@ export type BlobStorageIntegrationFormSchema = z.infer<
 
 export type BlobStorageSyncStatus =
   | "idle"
+  | "running"
   | "queued"
   | "up_to_date"
   | "disabled"

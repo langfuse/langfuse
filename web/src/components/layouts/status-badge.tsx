@@ -3,7 +3,7 @@ import { type ReactNode } from "react";
 
 const statusCategories = {
   active: ["production", "live", "active", "public"],
-  pending: ["pending", "waiting", "queued"],
+  pending: ["pending", "waiting", "queued", "running"],
   delayed: ["delayed"],
   inactive: ["disabled", "inactive"],
   paused: ["paused"],

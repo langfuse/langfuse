@@ -96,12 +96,22 @@ export const CreateBlobStorageIntegrationRequest = z
         (value) => value === "" || value.endsWith("/"),
         "Prefix must be empty or end with a forward slash",
       ),
-    exportFrequency: z.string(),
+    exportFrequency: z.enum(["every_20_minutes", "hourly", "daily", "weekly"]),
     enabled: z.boolean(),
     forcePathStyle: z.boolean(),
     fileType: BlobStorageIntegrationFileType,
     exportMode: BlobStorageExportMode,
-    exportStartDate: z.coerce.date().nullable().optional(),
+    exportStartDate: z.coerce
+      .date()
+      .refine(
+        (d) => {
+          if (!d) return true;
+          return d.getTime() <= Date.now() + 27 * 60 * 60 * 1000;
+        },
+        { message: "Export start date cannot be in the future" },
+      )
+      .nullable()
+      .optional(),
     compressed: z.boolean().optional().default(true),
     exportSource: BlobStorageExportSource.nullable().optional(),
     exportFieldGroups: z
@@ -172,6 +182,7 @@ export type BlobStorageIntegrationResponseType = z.infer<
 
 export const BlobStorageSyncStatus = z.enum([
   "idle",
+  "running",
   "queued",
   "up_to_date",
   "disabled",

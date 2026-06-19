@@ -277,24 +277,56 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           });
         }
 
+        await ctx.prisma.blobStorageIntegration.update({
+          where: { projectId: input.projectId },
+          data: {
+            nextSyncAt: new Date(),
+            lastError: null,
+            lastErrorAt: null,
+          },
+        });
+
         // Create a unique job ID for manual runs to avoid conflicts
         const jobId = `${input.projectId}-manual-${new Date().toISOString()}`;
 
-        // Enqueue the processing job
-        await blobStorageIntegrationProcessingQueue.add(
-          QueueJobs.BlobStorageIntegrationProcessingJob,
-          {
-            id: randomUUID(),
-            name: QueueJobs.BlobStorageIntegrationProcessingJob,
-            timestamp: new Date(),
-            payload: {
-              projectId: input.projectId,
+        try {
+          await blobStorageIntegrationProcessingQueue.add(
+            QueueJobs.BlobStorageIntegrationProcessingJob,
+            {
+              id: randomUUID(),
+              name: QueueJobs.BlobStorageIntegrationProcessingJob,
+              timestamp: new Date(),
+              payload: {
+                projectId: input.projectId,
+                isManualRun: true,
+                originalNextSyncAt:
+                  integration.nextSyncAt && integration.nextSyncAt > new Date()
+                    ? integration.nextSyncAt
+                    : null,
+              },
             },
-          },
-          {
-            jobId,
-          },
-        );
+            {
+              jobId,
+            },
+          );
+        } catch (enqueueError) {
+          await ctx.prisma.blobStorageIntegration
+            .update({
+              where: { projectId: input.projectId },
+              data: {
+                nextSyncAt: integration.nextSyncAt,
+                lastError: integration.lastError,
+                lastErrorAt: integration.lastErrorAt,
+              },
+            })
+            .catch((rollbackError) =>
+              logger.error(
+                "Failed to roll back blob storage integration state after enqueue failure",
+                rollbackError,
+              ),
+            );
+          throw enqueueError;
+        }
 
         logger.info(
           `Manual blob storage integration job queued for project ${input.projectId}`,
