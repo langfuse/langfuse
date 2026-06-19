@@ -3,6 +3,7 @@ import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
+import { unstablePublicEvalsErrorContract } from "@/src/features/public-api/server/unstable-public-api-error-contract";
 import {
   BaseError,
   LangfuseNotFoundError,
@@ -399,6 +400,72 @@ describe("withMiddlewares error handling", () => {
   });
 
   describe("Generic error handling", () => {
+    const callHandlerWithResponseSerializationError = async (
+      options?: Parameters<typeof withMiddlewares>[1],
+    ) => {
+      const error = new RangeError("Invalid string length");
+
+      const handler = withMiddlewares(
+        {
+          GET: async (_req, res) => {
+            res.status(200).json({ data: "too-large" });
+          },
+        },
+        options,
+      );
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      const writeJson = res.json.bind(res);
+      vi.spyOn(res, "json")
+        .mockImplementationOnce(() => {
+          throw error;
+        })
+        .mockImplementation((body) => writeJson(body));
+
+      await handler(req, res);
+
+      return res;
+    };
+
+    it("should handle response serialization RangeError with 413 status", async () => {
+      const res = await callHandlerWithResponseSerializationError();
+
+      expect(res._getStatusCode()).toBe(413);
+      const jsonData = JSON.parse(res._getData());
+      expect(jsonData).toMatchObject({
+        message: "Response payload is too large",
+        error: "PayloadTooLargeError",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "PayloadTooLargeError",
+          message: "Response payload is too large",
+        }),
+      );
+      expect(traceException).not.toHaveBeenCalled();
+    });
+
+    it("should preserve unstable error contract for response serialization RangeError", async () => {
+      const res = await callHandlerWithResponseSerializationError({
+        errorContract: unstablePublicEvalsErrorContract,
+      });
+
+      expect(res._getStatusCode()).toBe(413);
+      const jsonData = JSON.parse(res._getData());
+      expect(jsonData).toMatchObject({
+        message: "Response payload is too large",
+        code: "invalid_request",
+      });
+      expect(jsonData).not.toHaveProperty("error");
+      expect(traceException).not.toHaveBeenCalled();
+    });
+
     it("should handle generic Error instances with 500 status", async () => {
       const error = new Error("Something went wrong");
 

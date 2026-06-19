@@ -6,6 +6,7 @@ import {
   BaseError,
   LangfuseNotFoundError,
   MethodNotAllowedError,
+  PayloadTooLargeError,
   UnauthorizedError,
 } from "@langfuse/shared";
 import {
@@ -79,6 +80,11 @@ const logBaseError = (error: BaseError) => {
   logger.error(error);
 };
 
+const isResponsePayloadTooLargeError = (
+  error: unknown,
+): error is RangeError =>
+  error instanceof RangeError && error.message === "Invalid string length";
+
 export function withMiddlewares(
   handlers: Handlers,
   options?: MiddlewareOptions,
@@ -130,6 +136,23 @@ export function withMiddlewares(
           return res.status(422).json({
             message: errorMessage,
             error: "Request timed out",
+          });
+        }
+
+        if (isResponsePayloadTooLargeError(error)) {
+          const payloadError = new PayloadTooLargeError();
+          logBaseError(payloadError);
+
+          if (options?.errorContract === unstablePublicEvalsErrorContract) {
+            return sendUnstablePublicApiErrorResponse(
+              res,
+              toUnstablePublicApiError(payloadError),
+            );
+          }
+
+          return res.status(payloadError.httpCode).json({
+            message: payloadError.message,
+            error: payloadError.name,
           });
         }
 
