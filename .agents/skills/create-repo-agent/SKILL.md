@@ -7,7 +7,7 @@ description: Use when designing, implementing, reviewing, or hardening Langfuse 
 
 ## Purpose
 
-Build repo agents that can run unattended without granting the model broad write credentials, arbitrary shell, or uncontrolled network access. The default architecture is a read-only audit job that produces a validated bundle plus a separate publisher job that owns GitHub writes.
+Build repo agents that can run unattended without granting the model broad write credentials, arbitrary shell, or uncontrolled network access. The default architecture is a read-only audit job that produces a validated patch artifact plus a separate publisher job that owns GitHub writes.
 
 Use this skill together with the domain skill for the files the agent will maintain. For example, a pricing agent must also use `add-model-price`.
 

@@ -203,7 +203,7 @@ jobs:
           const output = {
             summary:
               mode === "mock_workflow_diff"
-                ? "Dry run: skipped Claude and created a mock workflow diff to exercise validation, commit, bundle, and artifact upload steps."
+                ? "Dry run: skipped Claude and created a mock workflow diff to exercise validation, commit, patch, and artifact upload steps."
                 : "Dry run: skipped Claude and created no repository diff to exercise the no-change path.",
             changedModels: [],
             skillReferenceUpdates: [],
@@ -397,7 +397,8 @@ jobs:
           git -c core.hooksPath=/dev/null commit --no-verify -m "$PR_TITLE"
           node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
           node scripts/agents/sync-agent-shims.mjs --check
-          git bundle create "$RUNNER_TEMP/model-price-audit.bundle" "$BOT_BRANCH"
+          git format-patch --binary -1 --stdout HEAD > "$RUNNER_TEMP/model-price-audit.patch"
+          test -s "$RUNNER_TEMP/model-price-audit.patch"
 
           {
             echo "Automated default model price audit."
@@ -419,6 +420,7 @@ jobs:
             echo "- \`node scripts/agents/sync-agent-shims.mjs --check\`"
             echo "- \`git diff --check\`"
             echo "- staged pricing blob validation"
+            echo "- patch artifact generated with \`git format-patch --binary -1\`"
             echo
             echo "## Diff Stat"
             echo
@@ -440,7 +442,7 @@ jobs:
         with:
           name: model-price-audit-pr
           path: |
-            ${{ runner.temp }}/model-price-audit.bundle
+            ${{ runner.temp }}/model-price-audit.patch
             ${{ runner.temp }}/model-price-audit-pr-body.md
           if-no-files-found: error
           retention-days: 1
@@ -466,13 +468,37 @@ jobs:
 
           GIT_BIN="$(command -v git)"
           GH_BIN="$(command -v gh)"
-          BUNDLE_PATH="$RUNNER_TEMP/model-price-audit-pr/model-price-audit.bundle"
+          PATCH_PATH="$RUNNER_TEMP/model-price-audit-pr/model-price-audit.patch"
           BODY_PATH="$RUNNER_TEMP/model-price-audit-pr/model-price-audit-pr-body.md"
           PUSH_REPO="$RUNNER_TEMP/push-model-price-audit"
+          SOURCE_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
 
           mkdir -p "$PUSH_REPO"
           "$GIT_BIN" -C "$PUSH_REPO" init -q
-          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags --depth=1 "$SOURCE_REPO_URL" "$GITHUB_REF"
+          fetched_sha="$("$GIT_BIN" -C "$PUSH_REPO" rev-parse FETCH_HEAD)"
+          if [ "$fetched_sha" != "$GITHUB_SHA" ]; then
+            echo "::error::Fetched $GITHUB_REF at $fetched_sha, expected triggering SHA $GITHUB_SHA"
+            exit 1
+          fi
+          "$GIT_BIN" -C "$PUSH_REPO" checkout -q -b "$BRANCH_NAME" FETCH_HEAD
+          "$GIT_BIN" -C "$PUSH_REPO" config user.name "langfuse-bot"
+          "$GIT_BIN" -C "$PUSH_REPO" config user.email "langfuse-bot@langfuse.com"
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c core.hooksPath=/dev/null \
+            am --3way "$PATCH_PATH"
+
+          allowed_file_regex='^(\.github/workflows/model-price-audit\.yml|worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
+          mapfile -t applied_files < <("$GIT_BIN" -C "$PUSH_REPO" diff-tree --no-commit-id --name-only -r HEAD | sort -u)
+          for applied_file in "${applied_files[@]}"; do
+            if [[ ! "$applied_file" =~ $allowed_file_regex ]]; then
+              echo "::error::Refusing to push a patch that changes a file outside the allowed pricing surface: $applied_file"
+              exit 1
+            fi
+          done
+
+          "$GIT_BIN" -C "$PUSH_REPO" diff --check HEAD^ HEAD
 
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
             -C "$PUSH_REPO" \
