@@ -283,6 +283,26 @@ const verifyRawPassthroughCompletion = async (
   return getQueryResultRows(queryId);
 };
 
+// Best-effort removal of an already-committed passthrough object whose source
+// query did not verify as successful. A delete failure must not mask the
+// original verification error, so it is logged and swallowed.
+const deletePotentiallyCorruptExport = async (
+  storageService: StorageService,
+  filePath: string,
+): Promise<void> => {
+  try {
+    await storageService.deleteFiles([filePath]);
+    logger.warn(
+      `[BLOB INTEGRATION] Deleted unverified passthrough export object ${filePath}`,
+    );
+  } catch (deleteError) {
+    logger.error(
+      `[BLOB INTEGRATION] Failed to delete unverified passthrough export object ${filePath}`,
+      deleteError,
+    );
+  }
+};
+
 const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
@@ -540,12 +560,21 @@ const processBlobStorageExport = async (config: {
 
           // Passthrough skips parse-time exception detection, so confirm the
           // ClickHouse query finished cleanly (and read its row count) before
-          // treating the uploaded object as valid.
+          // treating the uploaded object as valid. The object is already
+          // committed at this point, so if verification fails (query errored, or
+          // query_log is unreadable) delete it: the deterministic filename is
+          // only overwritten on retry in catch-up mode, not when caught up, so
+          // a corrupt object could otherwise linger as an orphan.
           if (passthroughEligible && passthroughQueryId) {
-            passthroughRows = await verifyRawPassthroughCompletion(
-              passthroughQueryId,
-              config.table,
-            );
+            try {
+              passthroughRows = await verifyRawPassthroughCompletion(
+                passthroughQueryId,
+                config.table,
+              );
+            } catch (verifyError) {
+              await deletePotentiallyCorruptExport(storageService, filePath);
+              throw verifyError;
+            }
           }
 
           // On passthrough the count comes from query_log; "unknown" (count not
