@@ -144,6 +144,12 @@ const ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS = [
 
 const ANTHROPIC_VERTEX_MODEL_NAME_PATTERN = /^[A-Za-z0-9_.@-]+$/;
 
+// Vertex region identifiers are lowercase alphanumerics plus hyphens
+// (e.g. "us-east5", "europe-west1") with the special "global"/"us"/"eu"
+// endpoints. Disallowing every URL delimiter keeps an attacker-controlled
+// location from reshaping the Vertex host the SDKs build from it.
+const VERTEX_LOCATION_PATTERN = /^[a-z0-9-]+$/;
+
 function isAnthropicAlwaysAdaptiveThinkingModel(modelName: string): boolean {
   return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
     modelName.includes(model),
@@ -563,6 +569,15 @@ export async function fetchLLMCompletion(
       ? VertexAIConfigSchema.parse(config)
       : { location: undefined };
 
+    // location flows into the Vertex host both SDKs build from it
+    // (https://${location}-aiplatform.googleapis.com), so reject anything that
+    // could reshape that host and exfiltrate the Google OAuth bearer token.
+    if (location && !VERTEX_LOCATION_PATTERN.test(location)) {
+      throw new Error(
+        "Invalid Vertex AI location. Locations must be a single Vertex region identifier.",
+      );
+    }
+
     // Handle both explicit credentials and default provider chain (ADC)
     // Only allow default provider chain in self-hosted or internal AI features
     const shouldUseDefaultCredentials =
@@ -602,7 +617,14 @@ export async function fetchLLMCompletion(
         topP: modelParams.top_p,
         callbacks: finalCallbacks,
         maxRetries,
-        invocationKwargs: getAnthropicInvocationKwargs(modelParams),
+        invocationKwargs: (() => {
+          const { model: _ignoredModelOverride, ...sanitized } =
+            (getAnthropicInvocationKwargs(modelParams) ?? {}) as Record<
+              string,
+              unknown
+            >;
+          return sanitized;
+        })(),
         clientOptions: {
           timeout: timeoutMs,
           defaultHeaders: extraHeaders,
