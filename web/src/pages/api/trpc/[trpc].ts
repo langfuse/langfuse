@@ -18,6 +18,13 @@ export const config = {
 export default createNextApiHandler({
   router: appRouter,
   createContext: createTRPCContext,
+  // Allow queries to be sent as POST. The client only does this for `*.batchIO`
+  // queries, whose per-row payload would otherwise inflate the GET URL and trip
+  // HTTP 431 (see `POST_QUERY_PATHS` in src/utils/api.ts). This flag is
+  // handler-wide (tRPC has no per-procedure option), but it only widens the
+  // accepted method for queries (read-only); mutations remain POST-only, so the
+  // GET-mutation protection is unchanged.
+  allowMethodOverride: true,
   onError: ({ path, error }) => {
     const { logLevel, shouldTrace } = getTRPCErrorReporting(error);
     const message = `tRPC route failed on ${path ?? "<no-path>"}: ${error.message}`;
