@@ -123,7 +123,7 @@
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.76.3",
     "date-fns": "^3.6.0",
-    "dd-trace": "5.97.0",
+    "dd-trace": "5.108.0",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.2",
     "google-auth-library": "^10.6.2",
