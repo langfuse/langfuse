@@ -397,7 +397,7 @@ jobs:
           git -c core.hooksPath=/dev/null commit --no-verify -m "$PR_TITLE"
           node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
           node scripts/agents/sync-agent-shims.mjs --check
-          git format-patch --binary -1 --stdout HEAD > "$RUNNER_TEMP/model-price-audit.patch"
+          git format-patch -1 --stdout HEAD > "$RUNNER_TEMP/model-price-audit.patch"
           test -s "$RUNNER_TEMP/model-price-audit.patch"
 
           {
@@ -420,7 +420,7 @@ jobs:
             echo "- \`node scripts/agents/sync-agent-shims.mjs --check\`"
             echo "- \`git diff --check\`"
             echo "- staged pricing blob validation"
-            echo "- patch artifact generated with \`git format-patch --binary -1\`"
+            echo "- patch artifact generated with \`git format-patch -1\`"
             echo
             echo "## Diff Stat"
             echo
@@ -475,13 +475,12 @@ jobs:
 
           mkdir -p "$PUSH_REPO"
           "$GIT_BIN" -C "$PUSH_REPO" init -q
-          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags --depth=1 "$SOURCE_REPO_URL" "$GITHUB_REF"
-          fetched_sha="$("$GIT_BIN" -C "$PUSH_REPO" rev-parse FETCH_HEAD)"
-          if [ "$fetched_sha" != "$GITHUB_SHA" ]; then
-            echo "::error::Fetched $GITHUB_REF at $fetched_sha, expected triggering SHA $GITHUB_SHA"
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags --depth=100 "$SOURCE_REPO_URL" "$GITHUB_REF"
+          if ! "$GIT_BIN" -C "$PUSH_REPO" cat-file -e "$GITHUB_SHA^{commit}"; then
+            echo "::error::Triggering commit $GITHUB_SHA was not found in the fetched $GITHUB_REF history"
             exit 1
           fi
-          "$GIT_BIN" -C "$PUSH_REPO" checkout -q -b "$BRANCH_NAME" FETCH_HEAD
+          "$GIT_BIN" -C "$PUSH_REPO" checkout -q -b "$BRANCH_NAME" "$GITHUB_SHA"
           "$GIT_BIN" -C "$PUSH_REPO" config user.name "langfuse-bot"
           "$GIT_BIN" -C "$PUSH_REPO" config user.email "langfuse-bot@langfuse.com"
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \

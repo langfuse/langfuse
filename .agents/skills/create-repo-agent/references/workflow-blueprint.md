@@ -126,7 +126,7 @@ Prepare the PR artifact inside the audit job only after diff validation:
 - Run `git diff --cached --check`.
 - Commit with `git -c core.hooksPath=/dev/null commit --no-verify`.
 - Re-run validators.
-- Create a patch with `git format-patch --binary -1 --stdout HEAD`.
+- Create a patch with `git format-patch -1 --stdout HEAD`; use `--binary` only when the allowlist intentionally permits binary files.
 - Verify the patch file exists and is not empty.
 - Create a PR body artifact with scope, validation, diff stat, and agent summary.
 
@@ -136,7 +136,7 @@ The publish job owns GitHub writes:
 
 - It runs only when the audit job reports changes.
 - It downloads the patch and PR body artifact.
-- It fetches the triggering base commit into a clean temporary repository.
+- It fetches sufficient source-ref history into a clean temporary repository and checks out the triggering commit SHA exactly.
 - It applies the patch with `git am --3way`.
 - It re-checks the applied commit's changed files against the same path allowlist and runs `git diff --check HEAD^ HEAD`.
 - It pushes the bot branch with `GH_ACCESS_TOKEN` or another reviewed bot secret.
