@@ -14,9 +14,9 @@ on:
           - sonnet
           - opus
       max_turns:
-        description: "Maximum Claude Code agent turns (1-20)"
+        description: "Maximum Claude Code agent turns (1-50)"
         required: false
-        default: "8"
+        default: "20"
       max_budget_usd:
         description: "Maximum Claude API spend for the audit (whole USD, 1-20)"
         required: false
@@ -57,7 +57,7 @@ jobs:
       - name: Validate workflow inputs
         env:
           CLAUDE_MODEL: ${{ github.event.inputs.claude_model || 'sonnet' }}
-          CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '8' }}
+          CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '20' }}
           CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '5' }}
         run: |
           set -euo pipefail
@@ -70,8 +70,8 @@ jobs:
               ;;
           esac
 
-          if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 20 ]; then
-            echo "::error::max_turns must be a whole number between 1 and 20"
+          if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 50 ]; then
+            echo "::error::max_turns must be a whole number between 1 and 50"
             exit 1
           fi
 
@@ -115,6 +115,7 @@ jobs:
             - .agents/skills/add-model-price/references/workflow-and-validation.md
 
             Allowed edit surface:
+            - .github/workflows/model-price-audit.yml
             - worker/src/constants/default-model-prices.json
             - packages/shared/src/server/llm/types.ts
             - .agents/skills/add-model-price/references/*.md
@@ -124,8 +125,9 @@ jobs:
             2. Make only surgical edits with official provider evidence.
             3. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
             4. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
-            5. Re-run the deterministic validation script before finishing.
-            6. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
+            5. If the audit reveals that future runs need a sharper prompt, narrower or broader official provider WebFetch domains, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output.
+            6. Re-run the deterministic validation script before finishing.
+            7. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
 
             Hard constraints:
             - Do not change generated files.
@@ -133,19 +135,21 @@ jobs:
             - Do not run git push or create a PR.
             - Do not add broad future-model wildcard regexes.
             - Do not edit `.agents/skills/add-model-price/SKILL.md` or `.agents/skills/add-model-price/scripts/**`.
+            - Workflow self-improvements must preserve the schedule/manual triggers, repo guard, read-only audit permissions, explicit read-only GitHub token, separate publish job, secret names, input validation, diff allowlist, hook-disabled commit path, staged-blob checks, artifact handoff, and non-fatal reviewer request.
+            - Do not grant the audit job write permissions, `id-token: write`, package-manager tools, arbitrary shell tools, arbitrary network tools, `gh`, or `git push`.
             - Keep the first entry in every selectable model array unchanged unless the audit explicitly changes the default model.
             - Use the allowed exact `date -u +%Y-%m-%dT00:00:00.000Z` command if you need the current timestamp.
 
             Final response:
             - If there is no diff, say that no pricing changes were made and list the notable unresolved findings.
-            - If there is a diff, list every changed model, the official source URL, the provider unit price, the converted per-token value, and the validation commands run.
+            - If there is a diff, list every changed model, the official source URL, the provider unit price, the converted per-token value, every workflow or skill-reference improvement, and the validation commands run.
           claude_args: |
             --model ${{ github.event.inputs.claude_model || 'sonnet' }}
-            --max-turns ${{ github.event.inputs.max_turns || '8' }}
+            --max-turns ${{ github.event.inputs.max_turns || '20' }}
             --max-budget-usd ${{ github.event.inputs.max_budget_usd || '5' }}
             --no-session-persistence
-            --allowedTools "Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
-            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","changedModels","skillReferenceUpdates","unresolvedFindings","validation"]}'
+            --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
+            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
 
       - name: Write Claude audit summary
         env:
@@ -171,6 +175,9 @@ jobs:
               "",
               "Skill reference updates:",
               list(output.skillReferenceUpdates),
+              "",
+              "Workflow updates:",
+              list(output.workflowUpdates),
               "",
               "Unresolved findings:",
               list(output.unresolvedFindings),
@@ -206,7 +213,7 @@ jobs:
             exit 0
           fi
 
-          allowed_file_regex='^(worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
+          allowed_file_regex='^(\.github/workflows/model-price-audit\.yml|worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
           for changed_file in "${changed_files[@]}"; do
             if [[ ! "$changed_file" =~ $allowed_file_regex ]]; then
               echo "::error::Claude changed a file outside the allowed pricing surface: $changed_file"
@@ -255,7 +262,7 @@ jobs:
             exit 0
           fi
 
-          allowed_file_regex='^(worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
+          allowed_file_regex='^(\.github/workflows/model-price-audit\.yml|worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
           for changed_file in "${changed_files[@]}"; do
             if [[ ! "$changed_file" =~ $allowed_file_regex ]]; then
               echo "::error::Refusing to stage a file outside the allowed pricing surface: $changed_file"
@@ -317,7 +324,7 @@ jobs:
             echo "## Scope"
             echo
             echo "- Audits default model pricing data with official provider evidence."
-            echo "- Edits are restricted to pricing JSON, shared selectable model lists, and pricing skill reference docs."
+            echo "- Edits are restricted to pricing JSON, shared selectable model lists, pricing skill reference docs, and this audit workflow."
             echo
             echo "## Validation"
             echo
