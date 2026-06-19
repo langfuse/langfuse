@@ -352,8 +352,15 @@ export async function queryClickhouseStreamRaw(
 
     const stream = res.stream as unknown as Readable;
     // The span stays open until the byte stream is fully consumed so its
-    // duration reflects the read, not just the request handshake.
-    const endSpan = () => span.end();
+    // duration reflects the read, not just the request handshake. Node emits
+    // 'close' after both 'end' and 'error' (autoDestroy), so guard against the
+    // double end() — otherwise the OTel SDK logs "end() called more than once".
+    let spanEnded = false;
+    const endSpan = () => {
+      if (spanEnded) return;
+      spanEnded = true;
+      span.end();
+    };
     stream.once("end", endSpan);
     stream.once("error", endSpan);
     stream.once("close", endSpan);

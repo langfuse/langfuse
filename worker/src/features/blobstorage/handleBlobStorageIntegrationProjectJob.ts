@@ -388,22 +388,15 @@ const processBlobStorageExport = async (config: {
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
         // where ClickHouse FORMAT JSONEachRow bytes map 1:1 to the file. Any
-        // other request falls back to the standard path with a warning.
-        const passthroughRequested = config.rawPassthrough;
+        // other request falls back to the standard path. The integration-level
+        // ineligibility warning is emitted once by the dispatcher; here we just
+        // select the path per table (scores/traces always use the standard path,
+        // so per-table fallback is expected and not worth a warning).
         const passthroughEligible =
-          passthroughRequested &&
+          config.rawPassthrough &&
           config.fileType === BlobStorageIntegrationFileType.JSONL &&
           (config.table === "observations" ||
             config.table === "observations_v2");
-
-        if (passthroughRequested && !passthroughEligible) {
-          logger.warn(
-            `[BLOB INTEGRATION] rawPassthrough requested for project ${config.projectId} ` +
-              `but not eligible (table=${config.table}, fileType=${config.fileType}); ` +
-              `using the standard export path. Passthrough requires JSONL output of ` +
-              `observations or observations_v2.`,
-          );
-        }
 
         span.setAttribute(
           "blob.path",
@@ -555,8 +548,10 @@ const processBlobStorageExport = async (config: {
             );
           }
 
+          // On passthrough the count comes from query_log; "unknown" (count not
+          // yet flushed) is distinct from a genuinely empty export.
           const rows = passthroughEligible
-            ? (passthroughRows ?? 0)
+            ? (passthroughRows ?? "unknown")
             : sourceStats.rows;
 
           logger.info(
@@ -567,10 +562,16 @@ const processBlobStorageExport = async (config: {
               `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
           );
         } finally {
-          span.setAttribute(
-            "blob.rows",
-            passthroughEligible ? (passthroughRows ?? 0) : sourceStats.rows,
-          );
+          // Omit blob.rows on the passthrough path when the count is unknown
+          // (query_log not yet flushed, or verification failed) so observability
+          // can tell "unknown" apart from a genuinely empty export.
+          if (passthroughEligible) {
+            if (passthroughRows !== undefined) {
+              span.setAttribute("blob.rows", passthroughRows);
+            }
+          } else {
+            span.setAttribute("blob.rows", sourceStats.rows);
+          }
           // sourceWaitMs is a per-row JS metric; not meaningful for passthrough.
           if (!passthroughEligible) {
             span.setAttribute(
@@ -780,6 +781,25 @@ export const handleBlobStorageIntegrationProjectJob = async (
       env.LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS.includes(
         projectId,
       );
+
+    // Warn once per run if rawPassthrough is enabled but no table will actually
+    // use it. Passthrough only applies to JSONL exports of observations /
+    // observations_v2; every non-trace-only export source includes one of those,
+    // so the only integration-level ineligibility is a non-JSONL file type or a
+    // trace-only project. The per-table fallback for scores/traces is expected
+    // dispatch and is intentionally not warned about (avoids ~hourly log noise).
+    if (
+      exportTuning.rawPassthrough &&
+      (blobStorageIntegration.fileType !==
+        BlobStorageIntegrationFileType.JSONL ||
+        isTraceOnlyProject)
+    ) {
+      logger.warn(
+        `[BLOB INTEGRATION] rawPassthrough enabled for project ${projectId} but no eligible table will use it ` +
+          `(fileType=${blobStorageIntegration.fileType}, traceOnly=${isTraceOnlyProject}); exporting via the standard path. ` +
+          `Passthrough requires JSONL output of observations or observations_v2.`,
+      );
+    }
 
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
