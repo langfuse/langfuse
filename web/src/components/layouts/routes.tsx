@@ -247,7 +247,6 @@ export const ROUTES: Route[] = [
     title: "Assistant",
     section: RouteSection.Secondary,
     pathname: "",
-    featureFlag: "inAppAgent",
     show: ({ organization, projectId, isLangfuseCloud }) =>
       isLangfuseCloud && organization !== undefined && projectId !== undefined,
     menuNode: <InAppAiAgentButton />,

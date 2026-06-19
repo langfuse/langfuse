@@ -3,10 +3,15 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseStreamRaw,
   upsertClickhouse,
 } from "./clickhouse";
 import { logger } from "../logger";
-import { InternalServerError, LangfuseNotFoundError } from "../../errors";
+import {
+  InternalServerError,
+  LangfuseNotFoundError,
+  PayloadTooLargeError,
+} from "../../errors";
 import { prisma } from "../../db";
 import { ObservationRecordReadType } from "./definitions";
 import { FilterState } from "../../types";
@@ -236,7 +241,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     if (payloadSize >= env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES) {
       const errorMessage = `Observations in trace are too large: ${(payloadSize / 1e6).toFixed(2)}MB exceeds limit of ${(env.LANGFUSE_API_TRACE_OBSERVATIONS_SIZE_LIMIT_BYTES / 1e6).toFixed(2)}MB`;
 
-      throw new Error(errorMessage);
+      throw new PayloadTooLargeError(errorMessage);
     }
   }
 
@@ -1827,12 +1832,17 @@ const LEGACY_OBSERVATION_EXPORT_SQL_OVERRIDES: Record<string, string> = {
   model_id: "internal_model_id as model_id",
 };
 
-export const getObservationsForBlobStorageExport = function (
+// Shared SQL+params builder for the observations blob-export. Both the parsed
+// stream (standard path) and the raw-passthrough path (LFE-10402) run the
+// SAME query, so the output is parsed-equal by construction. Note latency is
+// already converted to seconds in the SELECT (no JS conversion needed), so this
+// query is identical for both paths.
+const buildObservationsForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-) {
+  fieldGroups: ObservationFieldGroupFull[],
+) => {
   // core is always required (provides id, trace_id, start/end_time used for deduplication)
   const effectiveGroups = new Set<ObservationFieldGroupFull>([
     "core",
@@ -1857,7 +1867,7 @@ export const getObservationsForBlobStorageExport = function (
     LIMIT 1 BY id, project_id, type
   `;
 
-  const records = queryClickhouseStream<Record<string, unknown>>({
+  return {
     query,
     params: {
       projectId,
@@ -1873,10 +1883,45 @@ export const getObservationsForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
-    preferredClickhouseService: "ReadOnly",
-  });
+    preferredClickhouseService: "ReadOnly" as const,
+  };
+};
 
-  return records;
+export const getObservationsForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+) {
+  return queryClickhouseStream<Record<string, unknown>>(
+    buildObservationsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
+  );
+};
+
+// Raw-passthrough variant (LFE-10402): returns the unparsed JSONEachRow byte
+// stream + query_id. The caller must verify completion via the query_id (the
+// price columns are NOT added here — that enrichment is dropped on this path).
+export const getObservationsForBlobStorageExportRaw = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  abortSignal?: AbortSignal,
+) {
+  return queryClickhouseStreamRaw({
+    ...buildObservationsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
+    abortSignal,
+  });
 };
 
 export const getGenerationsForAnalyticsIntegrations = async function* (
