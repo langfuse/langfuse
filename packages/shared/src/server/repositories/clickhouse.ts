@@ -1,4 +1,3 @@
-import { type Readable } from "stream";
 import { env } from "../../env";
 import {
   clickhouseClient,
@@ -294,50 +293,33 @@ export async function* queryClickhouseStream<T>(
 }
 
 /**
- * Raw passthrough read: returns the unparsed ClickHouse HTTP response body as a
- * byte stream, with `FORMAT JSONEachRow` appended to the query. Unlike
- * {@link queryClickhouseStream} there is NO per-row JS work — no `.json()`
- * parse, no iteration, no re-serialization — so the JSONL bytes can be piped
- * straight into gzip → upload. Used by the blob-export raw-passthrough path
- * (LFE-10402) for CPU-bound large exports.
- *
- * Because rows are never parsed, mid-stream ClickHouse exceptions are NOT
- * detected here (see {@link handleExceptionRow}). The caller MUST verify the
- * query completed cleanly after draining the stream — e.g. via
- * `pollQueryStatus(queryId)` against system.query_log — otherwise a query that
- * fails after a 200 + partial body silently yields a truncated/garbage file.
- *
- * Routes through the same `clickhouseClient` (service + settings) as the parsed
- * path so serialization settings (e.g. 64-bit int quoting) match, keeping the
- * output parsed-equal to the standard path.
+ * Raw passthrough read for the blob-export path (LFE-10402): yields each row's
+ * unparsed JSONEachRow text (no trailing newline) instead of its parsed object.
+ * Skips the per-row `JSON.parse` (`row.json()`) and lets the caller skip the
+ * re-serialize step — the dominant CPU cost on large exports — while reusing the
+ * exact same client machinery as {@link queryClickhouseStream}, including its
+ * built-in mid-stream exception detection (ClickHouse ≥ 25.11 tags a failed
+ * stream and the client errors it). A failed query therefore throws here, just
+ * like the parsed path, so the pipeline aborts instead of emitting a truncated
+ * object — no out-of-band system.query_log check needed.
  */
-export async function queryClickhouseStreamRaw(
-  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
-): Promise<{ stream: Readable; queryId: string }> {
+export async function* queryClickhouseStreamRawText(
+  opts: ClickhouseQueryOpts,
+): AsyncGenerator<string> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
-  const tracer = getTracer("clickhouse-query-stream-raw");
-  const span = tracer.startSpan("clickhouse-query-stream-raw", {
+  const tracer = getTracer("clickhouse-query-stream-raw-text");
+  const span = tracer.startSpan("clickhouse-query-stream-raw-text", {
     kind: SpanKind.CLIENT,
   });
 
   let queryId: string | undefined;
+
   try {
     setSpanQueryAttributes(span, opts.query);
 
     const res = await context
       .with(trace.setSpan(context.active(), span), () =>
-        clickhouseClient(
-          opts.clickhouseConfigs,
-          opts.preferredClickhouseService,
-        ).exec({
-          query: `${opts.query}\nFORMAT JSONEachRow`,
-          query_params: opts.params,
-          abort_signal: opts.abortSignal,
-          clickhouse_settings: {
-            ...opts.clickhouseSettings,
-            log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
-          },
-        }),
+        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span }),
       )
       .catch((error) => {
         throw ClickHouseResourceError.wrapIfResourceError(
@@ -348,26 +330,13 @@ export async function queryClickhouseStreamRaw(
 
     queryId = res.query_id;
     span.setAttribute("ch.queryId", queryId);
-    recordSummaryOnSpan(span, res.response_headers);
 
-    const stream = res.stream as unknown as Readable;
-    // The span stays open until the byte stream is fully consumed so its
-    // duration reflects the read, not just the request handshake. Node emits
-    // 'close' after both 'end' and 'error' (autoDestroy), so guard against the
-    // double end() — otherwise the OTel SDK logs "end() called more than once".
-    let spanEnded = false;
-    const endSpan = () => {
-      if (spanEnded) return;
-      spanEnded = true;
-      span.end();
-    };
-    stream.once("end", endSpan);
-    stream.once("error", endSpan);
-    stream.once("close", endSpan);
-
-    return { stream, queryId };
+    for await (const rows of res.stream()) {
+      for (const row of rows) {
+        yield row.text;
+      }
+    }
   } catch (error) {
-    span.end();
     if (error instanceof ClickHouseResourceError) {
       const enriched = enrichWithQueryId(error, queryId);
       throw enriched === error
@@ -378,6 +347,8 @@ export async function queryClickhouseStreamRaw(
       enrichWithQueryId(error as Error, queryId),
       opts.tags,
     );
+  } finally {
+    span.end();
   }
 }
 

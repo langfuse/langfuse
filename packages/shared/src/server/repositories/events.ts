@@ -80,7 +80,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
-  queryClickhouseStreamRaw,
+  queryClickhouseStreamRawText,
 } from "./clickhouse";
 import {
   EventsObservationRecordReadType,
@@ -3569,28 +3569,27 @@ export const getEventsForBlobStorageExport = function (
   );
 };
 
-// Raw-passthrough variant (LFE-10402): returns the unparsed JSONEachRow byte
-// stream + query_id. When `convertLatencyToSeconds` is set, latency/ttft are
-// divided by 1000 in SQL (matching what the JS path would have done); otherwise
-// they stay in ms (legacy integrations). Price columns are NOT added.
+// Raw-passthrough variant (LFE-10402): yields each row's unparsed JSONEachRow
+// text, skipping the per-row parse/enrich/serialize cycle. When
+// `convertLatencyToSeconds` is set, latency/ttft are divided by 1000 in SQL
+// (matching what the JS path would have done); otherwise they stay in ms (legacy
+// integrations). Price columns are NOT added.
 export const getEventsForBlobStorageExportRaw = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
   convertLatencyToSeconds: boolean = false,
-  abortSignal?: AbortSignal,
 ) {
-  return queryClickhouseStreamRaw({
-    ...buildEventsForBlobStorageExportQuery(
+  return queryClickhouseStreamRawText(
+    buildEventsForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
       fieldGroups,
       convertLatencyToSeconds,
     ),
-    abortSignal,
-  });
+  );
 };
 
 /**
