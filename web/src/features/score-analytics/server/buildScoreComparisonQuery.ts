@@ -684,6 +684,27 @@ export function buildScoreComparisonQuery(params: {
 
     UNION ALL
 
+    -- Bounds row: always emitted (even when there are no matched pairs and the
+    -- heatmap is empty) so the frontend can label numeric histogram buckets with
+    -- the real data range instead of estimating it from mean ± std.
+    SELECT
+      'bounds' as result_type,
+      CAST(global_min AS Nullable(Float64)) as col1,
+      CAST(global_max AS Nullable(Float64)) as col2,
+      CAST(min1 AS Nullable(Float64)) as col3,
+      CAST(max1 AS Nullable(Float64)) as col4,
+      CAST(min2 AS Nullable(Float64)) as col5,
+      CAST(max2 AS Nullable(Float64)) as col6,
+      CAST(NULL AS Nullable(Float64)) as col7,
+      CAST(NULL AS Nullable(Float64)) as col8,
+      CAST(NULL AS Nullable(String)) as col9,
+      CAST(NULL AS Nullable(String)) as col10,
+      CAST(NULL AS Nullable(Float64)) as col11,
+      CAST(NULL AS Nullable(Float64)) as col12
+    FROM bounds
+
+    UNION ALL
+
     SELECT
       'heatmap' as result_type,
       CAST(bin_x AS Float64) as col1,

@@ -285,6 +285,99 @@ describe("Score Comparison Analytics tRPC", () => {
       ).toBeGreaterThanOrEqual(0);
       expect(result.samplingMetadata.actualSampleSize).toBe(1); // Matches matchedCount
       expect(result.samplingMetadata.samplingExpression).toBeNull();
+
+      // Bounds are derived from the actual data and stay within the data range
+      expect(result.bounds).not.toBeNull();
+      expect(result.bounds?.globalMin).toBe(0.8);
+      expect(result.bounds?.globalMax).toBe(0.9);
+    });
+
+    // Regression test for #13331: when comparing two numeric scores that share
+    // no attachment points, there are no matched pairs and the heatmap is empty.
+    // The bounds row must still be returned so the frontend can label histogram
+    // buckets with the real data range instead of estimating it from mean ± std
+    // (which produced an out-of-range x-axis, e.g. -0.08 to 1.70 for [0, 1] data).
+    it("should return data bounds even when there are no matched pairs", async () => {
+      const now = new Date();
+      const fromTimestamp = new Date(now.getTime() - 3600000);
+      const toTimestamp = new Date(now.getTime() + 3600000);
+
+      const scoreName1 = `test-bounds-score1-${v4()}`;
+      const scoreName2 = `test-bounds-score2-${v4()}`;
+
+      // Two numeric scores bounded to [0, 1], each on its own set of traces so
+      // they never match. score1 spans 0.2..0.9, score2 spans 0.1..1.0.
+      const scores = [
+        createTraceScore({
+          project_id: projectId,
+          trace_id: v4(),
+          observation_id: null,
+          name: scoreName1,
+          source: "ANNOTATION",
+          data_type: "NUMERIC",
+          value: 0.2,
+          timestamp: now.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: v4(),
+          observation_id: null,
+          name: scoreName1,
+          source: "ANNOTATION",
+          data_type: "NUMERIC",
+          value: 0.9,
+          timestamp: now.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: v4(),
+          observation_id: null,
+          name: scoreName2,
+          source: "ANNOTATION",
+          data_type: "NUMERIC",
+          value: 0.1,
+          timestamp: now.getTime(),
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: v4(),
+          observation_id: null,
+          name: scoreName2,
+          source: "ANNOTATION",
+          data_type: "NUMERIC",
+          value: 1.0,
+          timestamp: now.getTime(),
+        }),
+      ];
+
+      await createScoresCh(scores);
+
+      const result = await getScoreComparisonAnalyticsWithPreflight({
+        projectId,
+        score1: { name: scoreName1, dataType: "NUMERIC", source: "ANNOTATION" },
+        score2: { name: scoreName2, dataType: "NUMERIC", source: "ANNOTATION" },
+        fromTimestamp,
+        toTimestamp,
+        interval: { count: 1, unit: "day" },
+        nBins: 10,
+      });
+
+      // No shared attachment points -> no matched pairs, empty heatmap.
+      expect(result.counts.matchedCount).toBe(0);
+      expect(result.heatmap).toEqual([]);
+
+      // Bounds are still available and reflect the real per-score data ranges.
+      expect(result.bounds).not.toBeNull();
+      expect(result.bounds?.min1).toBe(0.2);
+      expect(result.bounds?.max1).toBe(0.9);
+      expect(result.bounds?.min2).toBe(0.1);
+      expect(result.bounds?.max2).toBe(1.0);
+      expect(result.bounds?.globalMin).toBe(0.1);
+      expect(result.bounds?.globalMax).toBe(1.0);
+
+      // Crucially, the global range never overshoots the real [0, 1] data range.
+      expect(result.bounds?.globalMin).toBeGreaterThanOrEqual(0);
+      expect(result.bounds?.globalMax).toBeLessThanOrEqual(1);
     });
 
     // Test 2: Returns empty results when no scores exist

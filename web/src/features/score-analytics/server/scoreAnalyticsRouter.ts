@@ -369,6 +369,7 @@ export const scoreAnalyticsRouter = createTRPCRouter({
 
       // Parse results by result_type
       const countsRow = results.find((r) => r.result_type === "counts");
+      const boundsRow = results.find((r) => r.result_type === "bounds");
       const heatmapRows = results.filter((r) => r.result_type === "heatmap");
       const confusionRows = results.filter(
         (r) => r.result_type === "confusion",
@@ -425,6 +426,19 @@ export const scoreAnalyticsRouter = createTRPCRouter({
           score2Total: countsRow?.col2 ?? 0,
           matchedCount: countsRow?.col3 ?? 0,
         },
+        // Real data bounds for numeric scores, computed across all filtered
+        // scores (not just matched pairs). Available even when matchedCount = 0,
+        // unlike the heatmap which only carries bounds for matched data.
+        bounds: boundsRow
+          ? {
+              globalMin: boundsRow.col1,
+              globalMax: boundsRow.col2,
+              min1: boundsRow.col3,
+              max1: boundsRow.col4,
+              min2: boundsRow.col5,
+              max2: boundsRow.col6,
+            }
+          : null,
         heatmap: heatmapRows.map((row) => ({
           binX: row.col1 ?? 0,
           binY: row.col2 ?? 0,
