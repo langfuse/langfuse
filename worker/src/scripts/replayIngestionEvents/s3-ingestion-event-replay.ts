@@ -21,6 +21,7 @@ import {
   QueueJobs,
   QueueName,
   rawEventBucketPrefix,
+  rawOtelEventBucketPath,
   SecondaryIngestionQueue,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
@@ -348,7 +349,10 @@ async function convertCsvToJsonl(
             },
           },
           data: {
-            fileKey: keyValue,
+            // OTel events are downloaded by fileKey verbatim, so re-apply the
+            // upload prefix (parseEventKey strips it). Mirrors how the standard
+            // branch below rebuilds its path via rawEventBucketPrefix.
+            fileKey: rawOtelEventBucketPath(keyValue),
           },
         };
 
