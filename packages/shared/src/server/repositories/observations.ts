@@ -3,7 +3,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
-  queryClickhouseStreamRaw,
+  queryClickhouseStreamRawText,
   upsertClickhouse,
 } from "./clickhouse";
 import { logger } from "../logger";
@@ -1903,25 +1903,23 @@ export const getObservationsForBlobStorageExport = function (
   );
 };
 
-// Raw-passthrough variant (LFE-10402): returns the unparsed JSONEachRow byte
-// stream + query_id. The caller must verify completion via the query_id (the
-// price columns are NOT added here — that enrichment is dropped on this path).
+// Raw-passthrough variant (LFE-10402): yields each row's unparsed JSONEachRow
+// text, skipping the per-row parse/enrich/serialize cycle. Price columns are
+// NOT added here — that enrichment is dropped on this path.
 export const getObservationsForBlobStorageExportRaw = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-  abortSignal?: AbortSignal,
 ) {
-  return queryClickhouseStreamRaw({
-    ...buildObservationsForBlobStorageExportQuery(
+  return queryClickhouseStreamRawText(
+    buildObservationsForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
       fieldGroups,
     ),
-    abortSignal,
-  });
+  );
 };
 
 export const getGenerationsForAnalyticsIntegrations = async function* (
