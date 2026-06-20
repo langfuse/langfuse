@@ -87,7 +87,7 @@ clickhouse client \
   --user="${CLICKHOUSE_USER}" \
   --password="${CLICKHOUSE_PASSWORD}" \
   --database="${CLICKHOUSE_DB}" \
-  --multiquery <<EOF
+  --multiquery <<'EOF'
 
 -- Staging table for the dual-write pipeline that populates events_full.
 -- Ingestion writes every observation (and trace-as-synthetic-observation) here
