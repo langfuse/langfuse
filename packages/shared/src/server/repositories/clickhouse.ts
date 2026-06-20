@@ -298,10 +298,16 @@ export async function* queryClickhouseStream<T>(
  * Skips the per-row `JSON.parse` (`row.json()`) and lets the caller skip the
  * re-serialize step — the dominant CPU cost on large exports — while reusing the
  * exact same client machinery as {@link queryClickhouseStream}, including its
- * built-in mid-stream exception detection (ClickHouse ≥ 25.11 tags a failed
- * stream and the client errors it). A failed query therefore throws here, just
- * like the parsed path, so the pipeline aborts instead of emitting a truncated
- * object — no out-of-band system.query_log check needed.
+ * built-in mid-stream exception detection. A failed query therefore throws here,
+ * just like the parsed path, so the pipeline aborts instead of emitting a
+ * truncated object — no out-of-band system.query_log check needed.
+ *
+ * IMPORTANT: that mid-stream detection only works on ClickHouse >= 25.11 (it
+ * relies on the `x-clickhouse-exception-tag` response header). On older servers
+ * a query that fails after a 200 response is NOT detected and this can silently
+ * yield a truncated object. The only caller (blob raw-passthrough export) is an
+ * experimental, per-project opt-in gated on that version — see
+ * RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION in features/analytics-integrations.
  */
 export async function* queryClickhouseStreamRawText(
   opts: ClickhouseQueryOpts,
