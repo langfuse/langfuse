@@ -18,6 +18,7 @@ import type {
 import {
   query as queryModel,
   getValidAggregationsForMeasureType,
+  METADATA_DIMENSION_KEY_REGEX,
 } from "../types";
 import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors";
@@ -35,8 +36,6 @@ type AppliedDimensionType = {
   type?: string;
   key?: string;
 };
-
-const METADATA_KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 type AppliedMetricType = {
   sql: string;
@@ -237,9 +236,9 @@ export class QueryBuilder {
             `Dimension '${dimension.field}' is a stringObject and requires a 'key' (e.g. {"field":"${dimension.field}","key":"agentName"}).`,
           );
         }
-        if (!METADATA_KEY_PATTERN.test(dimension.key)) {
+        if (!METADATA_DIMENSION_KEY_REGEX.test(dimension.key)) {
           throw new InvalidRequestError(
-            `Dimension '${dimension.field}' key '${dimension.key}' must match ${METADATA_KEY_PATTERN}.`,
+            `Dimension '${dimension.field}' key '${dimension.key}' must match ${METADATA_DIMENSION_KEY_REGEX}.`,
           );
         }
       } else if (dimension.key) {

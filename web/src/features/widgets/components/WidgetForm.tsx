@@ -18,6 +18,7 @@ import {
   viewDeclarations,
   views,
   viewsV2,
+  METADATA_DIMENSION_KEY_REGEX,
   type QueryType,
   type ViewVersion,
   type metricAggregations,
@@ -1002,6 +1003,18 @@ export function WidgetForm({
       );
   }, [selectedView, viewVersion]);
 
+  // Pivot tables have no per-dimension key input, so stringObject dimensions
+  // (e.g. metadata, which needs a key) are not selectable as pivot rows.
+  const availablePivotDimensions = useMemo(
+    () =>
+      availableDimensions.filter(
+        (d) =>
+          viewDeclarations[viewVersion][selectedView]?.dimensions?.[d.value]
+            ?.type !== "stringObject",
+      ),
+    [availableDimensions, selectedView, viewVersion],
+  );
+
   // Create a dynamic query based on the selected view
   const query = useMemo<QueryType>(() => {
     // Calculate fromTimestamp and toTimestamp from dateRange
@@ -1018,7 +1031,7 @@ export function WidgetForm({
           ? [
               {
                 field: selectedDimension,
-                ...(viewDeclarations.v1[selectedView]?.dimensions?.[
+                ...(viewDeclarations[viewVersion][selectedView]?.dimensions?.[
                   selectedDimension
                 ]?.type === "stringObject" && selectedDimensionKey
                   ? { key: selectedDimensionKey }
@@ -1257,6 +1270,7 @@ export function WidgetForm({
       setSelectedAggregation(result.snapshot.selectedAggregation);
       setSelectedMetrics(result.snapshot.selectedMetrics);
       setSelectedDimension(result.snapshot.selectedDimension);
+      setSelectedDimensionKey(result.snapshot.selectedDimensionKey);
       setPivotDimensions(result.snapshot.pivotDimensions);
       setUserFilterState(result.snapshot.userFilterState);
       setRowLimit(result.snapshot.rowLimit);
@@ -1362,15 +1376,24 @@ export function WidgetForm({
     if (
       selectedChartType !== "PIVOT_TABLE" &&
       selectedDimension !== "none" &&
-      viewDeclarations.v1[selectedView]?.dimensions?.[selectedDimension]
-        ?.type === "stringObject" &&
-      !selectedDimensionKey.trim()
+      viewDeclarations[viewVersion][selectedView]?.dimensions?.[
+        selectedDimension
+      ]?.type === "stringObject"
     ) {
-      showErrorToast(
-        "Error",
-        `Breakdown by '${selectedDimension}' requires a key (e.g. 'agentName').`,
-      );
-      return;
+      if (!selectedDimensionKey.trim()) {
+        showErrorToast(
+          "Error",
+          `Breakdown by '${selectedDimension}' requires a key (e.g. 'agentName').`,
+        );
+        return;
+      }
+      if (!METADATA_DIMENSION_KEY_REGEX.test(selectedDimensionKey)) {
+        showErrorToast(
+          "Error",
+          `Key '${selectedDimensionKey}' is invalid. Use only letters, digits, and underscores, starting with a letter or underscore.`,
+        );
+        return;
+      }
     }
 
     const saveDimensions =
@@ -1380,7 +1403,7 @@ export function WidgetForm({
           ? [
               {
                 field: selectedDimension,
-                ...(viewDeclarations.v1[selectedView]?.dimensions?.[
+                ...(viewDeclarations[viewVersion][selectedView]?.dimensions?.[
                   selectedDimension
                 ]?.type === "stringObject" && selectedDimensionKey
                   ? { key: selectedDimensionKey }
@@ -1925,7 +1948,7 @@ export function WidgetForm({
                       </SelectContent>
                     </Select>
                     {selectedDimension !== "none" &&
-                      viewDeclarations.v1[selectedView]?.dimensions?.[
+                      viewDeclarations[viewVersion][selectedView]?.dimensions?.[
                         selectedDimension
                       ]?.type === "stringObject" && (
                         <Input
@@ -1990,7 +2013,7 @@ export function WidgetForm({
                               {index >= 0 && (
                                 <SelectItem value="none">None</SelectItem>
                               )}
-                              {availableDimensions
+                              {availablePivotDimensions
                                 .filter(
                                   (d) => !selectedDimensions.includes(d.value),
                                 )

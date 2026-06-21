@@ -83,6 +83,7 @@ export type ImportedWidgetFormSnapshot = {
     label: string;
   }[];
   selectedDimension: string;
+  selectedDimensionKey: string;
   pivotDimensions: string[];
   userFilterState: FilterState;
   rowLimit: number;
@@ -374,6 +375,7 @@ export function toImportedWidgetFormSnapshot(
       label: `${startCase(metric.agg)} ${startCase(metric.measure)}`,
     })),
     selectedDimension: importedDimensions[0]?.field ?? "none",
+    selectedDimensionKey: importedDimensions[0]?.key ?? "",
     pivotDimensions: importedDimensions.map((dimension) => dimension.field),
     userFilterState: normalizeStoredWidgetFiltersForEditor(
       widget.view,

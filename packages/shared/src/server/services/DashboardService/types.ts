@@ -1,6 +1,7 @@
 import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilter } from "../../../";
+import { METADATA_DIMENSION_KEY_REGEX } from "../../../features/query/types";
 
 export const BaseTimeSeriesChartConfig = z.object({});
 export const BaseTotalValueChartConfig = z.object({
@@ -50,10 +51,7 @@ export const PivotTableChartConfig = BaseTotalValueChartConfig.extend({
 // Define dimension schema
 export const DimensionSchema = z.object({
   field: z.string(),
-  key: z
-    .string()
-    .regex(/^[A-Za-z_][A-Za-z0-9_]*$/)
-    .optional(),
+  key: z.string().regex(METADATA_DIMENSION_KEY_REGEX).optional(),
 });
 
 // Define metric schema
