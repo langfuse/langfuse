@@ -543,6 +543,7 @@ export const PromptDetail = ({
                       <PromptTextView
                         content={String(promptGraph.data.resolvedPrompt)}
                         title="Text Prompt (resolved)"
+                        renderRichContent={false}
                       />
                     ) : (
                       <PromptTextView

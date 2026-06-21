@@ -11,9 +11,11 @@ export const PROMPT_TEXT_VIEW_MODE_STORAGE_KEY = "promptDetailTextViewMode";
 export const PromptTextView = ({
   content,
   title,
+  renderRichContent = true,
 }: {
   content: string;
   title: string;
+  renderRichContent?: boolean;
 }) => {
   const [viewMode, setViewMode] = useLocalStorage<PromptTextViewMode>(
     PROMPT_TEXT_VIEW_MODE_STORAGE_KEY,
@@ -41,7 +43,9 @@ export const PromptTextView = ({
         <MarkdownView markdown={content} title={title} />
       ) : (
         <CodeView
-          content={renderRichPromptContent(content)}
+          content={
+            renderRichContent ? renderRichPromptContent(content) : content
+          }
           originalContent={content}
           title={title}
         />

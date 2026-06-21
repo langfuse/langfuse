@@ -66,4 +66,18 @@ describe("PromptTextView", () => {
       screen.getByRole("heading", { name: "Instructions" }),
     ).toBeInTheDocument();
   });
+
+  it("does not render rich content when renderRichContent is false", () => {
+    const { container } = render(
+      <MarkdownContextProvider>
+        <PromptTextView
+          content={PROMPT}
+          title="Text Prompt"
+          renderRichContent={false}
+        />
+      </MarkdownContextProvider>,
+    );
+    const codeElement = container.querySelector("code");
+    expect(codeElement?.textContent).toBe(PROMPT);
+  });
 });
