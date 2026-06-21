@@ -292,6 +292,72 @@ export async function* queryClickhouseStream<T>(
   }
 }
 
+/**
+ * Raw passthrough read for the blob-export path (LFE-10402): yields each row's
+ * unparsed JSONEachRow text (no trailing newline) instead of its parsed object.
+ * Skips the per-row `JSON.parse` (`row.json()`) and lets the caller skip the
+ * re-serialize step — the dominant CPU cost on large exports — while reusing the
+ * exact same client machinery as {@link queryClickhouseStream}, including its
+ * built-in mid-stream exception detection. A failed query therefore throws here,
+ * just like the parsed path, so the pipeline aborts instead of emitting a
+ * truncated object — no out-of-band system.query_log check needed.
+ *
+ * IMPORTANT: that mid-stream detection only works on ClickHouse >= 25.11 (it
+ * relies on the `x-clickhouse-exception-tag` response header). On older servers
+ * a query that fails after a 200 response is NOT detected and this can silently
+ * yield a truncated object. The only caller (blob raw-passthrough export) is an
+ * experimental, per-project opt-in gated on that version — see
+ * RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION in features/analytics-integrations.
+ */
+export async function* queryClickhouseStreamRawText(
+  opts: ClickhouseQueryOpts,
+): AsyncGenerator<string> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const tracer = getTracer("clickhouse-query-stream-raw-text");
+  const span = tracer.startSpan("clickhouse-query-stream-raw-text", {
+    kind: SpanKind.CLIENT,
+  });
+
+  let queryId: string | undefined;
+
+  try {
+    setSpanQueryAttributes(span, opts.query);
+
+    const res = await context
+      .with(trace.setSpan(context.active(), span), () =>
+        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span }),
+      )
+      .catch((error) => {
+        throw ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          opts.tags,
+        );
+      });
+
+    queryId = res.query_id;
+    span.setAttribute("ch.queryId", queryId);
+
+    for await (const rows of res.stream()) {
+      for (const row of rows) {
+        yield row.text;
+      }
+    }
+  } catch (error) {
+    if (error instanceof ClickHouseResourceError) {
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(error.errorType, enriched, error.tags);
+    }
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      opts.tags,
+    );
+  } finally {
+    span.end();
+  }
+}
+
 function enrichWithQueryId(error: Error, queryId: string | undefined): Error {
   if (!queryId) return error;
   const enriched = new Error(`${error.message} [query_id: ${queryId}]`, {

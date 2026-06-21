@@ -1,4 +1,4 @@
-import { pipeline, Transform } from "stream";
+import { pipeline, Transform, type Readable } from "stream";
 import { createGzip } from "zlib";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
@@ -11,9 +11,11 @@ import {
   StorageServiceFactory,
   streamTransformations,
   getObservationsForBlobStorageExport,
+  getObservationsForBlobStorageExportRaw,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
+  getEventsForBlobStorageExportRaw,
   getCurrentSpan,
   instrumentAsync,
   recordGauge,
@@ -43,6 +45,7 @@ import {
   type ObservationFieldGroupFull,
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
+  resolveBlobExportTuning,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
@@ -239,6 +242,17 @@ async function* countedStream<T>(
   }
 }
 
+// Appends a newline to each raw JSONEachRow line and emits it as bytes, so the
+// passthrough path produces the same JSONL framing as the standard formatter
+// without re-serializing (the line is already JSON from ClickHouse).
+const createRawJsonlNewlineTransform = (): Transform =>
+  new Transform({
+    writableObjectMode: true,
+    transform(line: string, _encoding, callback) {
+      callback(null, Buffer.from(line + "\n"));
+    },
+  });
+
 const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
@@ -256,6 +270,7 @@ const processBlobStorageExport = async (config: {
   compressed: boolean;
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
+  rawPassthrough: boolean;
   bullmqJobId: string | undefined;
   bullmqAttemptsMade: number;
 }) => {
@@ -350,57 +365,23 @@ const processBlobStorageExport = async (config: {
             ? config.exportFieldGroups
             : [...OBSERVATION_FIELD_GROUPS_FULL];
 
-        let rawStream: AsyncGenerator<Record<string, unknown>>;
+        // Raw passthrough (LFE-10402) is opt-in per project and only valid for
+        // JSONL output of the enriched-observation tables — the only formats
+        // where ClickHouse FORMAT JSONEachRow bytes map 1:1 to the file. Any
+        // other request falls back to the standard path. The integration-level
+        // ineligibility warning is emitted once by the dispatcher; here we just
+        // select the path per table (scores/traces always use the standard path,
+        // so per-table fallback is expected and not worth a warning).
+        const passthroughEligible =
+          config.rawPassthrough &&
+          config.fileType === BlobStorageIntegrationFileType.JSONL &&
+          (config.table === "observations" ||
+            config.table === "observations_v2");
 
-        switch (config.table) {
-          case "traces":
-            rawStream = getTracesForBlobStorageExport(
-              config.projectId,
-              config.minTimestamp,
-              config.maxTimestamp,
-            );
-            break;
-          case "observations":
-            rawStream = enrichObservationStream(
-              getObservationsForBlobStorageExport(
-                config.projectId,
-                config.minTimestamp,
-                config.maxTimestamp,
-                exportFieldGroups,
-              ),
-              config.projectId,
-              "model_id",
-              false, // v3 query already returns latency in seconds
-              exportFieldGroups,
-            );
-            break;
-          case "scores":
-            rawStream = getScoresForBlobStorageExport(
-              config.projectId,
-              config.minTimestamp,
-              config.maxTimestamp,
-            );
-            break;
-          case "observations_v2": // observations_v2 is the events table
-            rawStream = enrichObservationStream(
-              getEventsForBlobStorageExport(
-                config.projectId,
-                config.minTimestamp,
-                config.maxTimestamp,
-                exportFieldGroups,
-              ),
-              config.projectId,
-              "model_id",
-              config.convertV4LatencyToSeconds,
-              exportFieldGroups,
-            );
-            break;
-          default:
-            throw new Error(`Unsupported table type: ${config.table}`);
-        }
-
-        const sourceStats = { rows: 0, sourceWaitMs: 0 };
-        const dataStream = countedStream(rawStream, sourceStats);
+        span.setAttribute(
+          "blob.path",
+          passthroughEligible ? "passthrough" : "standard",
+        );
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
@@ -413,23 +394,123 @@ const processBlobStorageExport = async (config: {
 
         const serializedCounter = new ByteCounter();
         const compressedCounter = config.compressed ? new ByteCounter() : null;
-        const formatTransform = streamTransformations[config.fileType]();
 
-        const fileStream = compressedCounter
-          ? pipeline(
-              dataStream,
-              formatTransform,
-              serializedCounter,
-              createGzip(),
-              compressedCounter,
-              pipelineCallback,
-            )
-          : pipeline(
-              dataStream,
-              formatTransform,
-              serializedCounter,
-              pipelineCallback,
-            );
+        // Both paths tally rows in JS via countedStream (the passthrough yields
+        // raw row text rather than parsed objects, but still iterates).
+        const sourceStats = { rows: 0, sourceWaitMs: 0 };
+
+        let fileStream: Readable;
+
+        if (passthroughEligible) {
+          // Stream ClickHouse JSONEachRow row text straight through: skip the
+          // per-row JSON.parse, enrichment, and re-serialize. Shaping (latency→s,
+          // dropped price columns, field-group selection) is baked into the SQL.
+          // The client's own mid-stream exception detection (CH ≥ 25.11) errors
+          // the stream on a failed query, which aborts the upload — no committed
+          // object and no out-of-band system.query_log check needed.
+          const rawRows =
+            config.table === "observations"
+              ? getObservationsForBlobStorageExportRaw(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                )
+              : getEventsForBlobStorageExportRaw(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                  config.convertV4LatencyToSeconds,
+                );
+
+          const dataStream = countedStream(rawRows, sourceStats);
+          const jsonlNewline = createRawJsonlNewlineTransform();
+
+          fileStream = compressedCounter
+            ? pipeline(
+                dataStream,
+                jsonlNewline,
+                serializedCounter,
+                createGzip(),
+                compressedCounter,
+                pipelineCallback,
+              )
+            : pipeline(
+                dataStream,
+                jsonlNewline,
+                serializedCounter,
+                pipelineCallback,
+              );
+        } else {
+          let rawStream: AsyncGenerator<Record<string, unknown>>;
+
+          switch (config.table) {
+            case "traces":
+              rawStream = getTracesForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+              );
+              break;
+            case "observations":
+              rawStream = enrichObservationStream(
+                getObservationsForBlobStorageExport(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                ),
+                config.projectId,
+                "model_id",
+                false, // v3 query already returns latency in seconds
+                exportFieldGroups,
+              );
+              break;
+            case "scores":
+              rawStream = getScoresForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+              );
+              break;
+            case "observations_v2": // observations_v2 is the events table
+              rawStream = enrichObservationStream(
+                getEventsForBlobStorageExport(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                ),
+                config.projectId,
+                "model_id",
+                config.convertV4LatencyToSeconds,
+                exportFieldGroups,
+              );
+              break;
+            default:
+              throw new Error(`Unsupported table type: ${config.table}`);
+          }
+
+          const dataStream = countedStream(rawStream, sourceStats);
+          const formatTransform = streamTransformations[config.fileType]();
+
+          fileStream = compressedCounter
+            ? pipeline(
+                dataStream,
+                formatTransform,
+                serializedCounter,
+                createGzip(),
+                compressedCounter,
+                pipelineCallback,
+              )
+            : pipeline(
+                dataStream,
+                formatTransform,
+                serializedCounter,
+                pipelineCallback,
+              );
+        }
 
         // Upload the file to cloud storage
         // For CSV exports, use larger part size to handle big files
@@ -457,6 +538,7 @@ const processBlobStorageExport = async (config: {
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
               `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
+              `path=${passthroughEligible ? "passthrough" : "standard"} ` +
               `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
               `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
           );
@@ -637,6 +719,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
     const convertV4LatencyToSeconds =
       blobStorageIntegration.createdAt >= new Date("2026-04-01T00:00:00Z");
 
+    // Per-project export tuning (set via DB directly; no UI/tRPC write path).
+    // Malformed/absent column resolves to defaults — never throws.
+    const { resolved: exportTuning, warnings: exportTuningWarnings } =
+      resolveBlobExportTuning(blobStorageIntegration.exportTuning);
+    for (const warning of exportTuningWarnings) {
+      logger.warn(
+        `[BLOB INTEGRATION] exportTuning for project ${projectId}: ${warning}`,
+      );
+    }
+
     const executionConfig = {
       projectId,
       minTimestamp,
@@ -656,6 +748,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       convertV4LatencyToSeconds,
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
+      rawPassthrough: exportTuning.rawPassthrough,
       bullmqJobId: job.id,
       bullmqAttemptsMade: job.attemptsMade,
     };
@@ -665,6 +758,25 @@ export const handleBlobStorageIntegrationProjectJob = async (
       env.LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS.includes(
         projectId,
       );
+
+    // Warn once per run if rawPassthrough is enabled but no table will actually
+    // use it. Passthrough only applies to JSONL exports of observations /
+    // observations_v2; every non-trace-only export source includes one of those,
+    // so the only integration-level ineligibility is a non-JSONL file type or a
+    // trace-only project. The per-table fallback for scores/traces is expected
+    // dispatch and is intentionally not warned about (avoids ~hourly log noise).
+    if (
+      exportTuning.rawPassthrough &&
+      (blobStorageIntegration.fileType !==
+        BlobStorageIntegrationFileType.JSONL ||
+        isTraceOnlyProject)
+    ) {
+      logger.warn(
+        `[BLOB INTEGRATION] rawPassthrough enabled for project ${projectId} but no eligible table will use it ` +
+          `(fileType=${blobStorageIntegration.fileType}, traceOnly=${isTraceOnlyProject}); exporting via the standard path. ` +
+          `Passthrough requires JSONL output of observations or observations_v2.`,
+      );
+    }
 
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
