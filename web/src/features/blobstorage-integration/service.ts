@@ -167,7 +167,7 @@ export async function upsertBlobStorageIntegration(params: {
         // Reset sync state when export mode changes so the new mode's
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
-        ...(existing?.lastError
+        ...(existing?.lastError && data.enabled
           ? { lastError: null, lastErrorAt: null, nextSyncAt: new Date() }
           : {}),
         ...(modeChanged
