@@ -552,15 +552,9 @@ export async function deleteDatasetItem(props: {
           },
         });
 
-        await deleteDatasetItemMediaLinks(tx, {
-          projectId: props.projectId,
-          itemVersions: [
-            {
-              datasetItemId: item.id,
-              datasetItemValidFrom: item.validFrom,
-            },
-          ],
-        });
+        // Versioning preserves history: keep the invalidated version's
+        // dataset_item_media rows so the historical view still resolves its
+        // media. They are dropped when the dataset itself is deleted.
       });
     },
   });

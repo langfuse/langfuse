@@ -1818,7 +1818,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
       ]);
     });
 
-    it("removes current version media rows on delete", async () => {
+    it("keeps media rows on delete so historical versions still resolve", async () => {
       const datasetId = v4();
       await prisma.dataset.create({
         data: { id: datasetId, name: v4(), projectId },
@@ -1838,6 +1838,8 @@ describe("Dataset Items Repository - Versioning Tests", () => {
         datasetId,
       });
 
+      // Versioning preserves history: the deleted version's media link stays so
+      // the historical view still resolves it.
       await expect(
         prisma.datasetItemMedia.findMany({
           where: {
@@ -1846,7 +1848,7 @@ describe("Dataset Items Repository - Versioning Tests", () => {
             datasetItemValidFrom: created.validFrom,
           },
         }),
-      ).resolves.toEqual([]);
+      ).resolves.toHaveLength(1);
       await expect(
         prisma.media.findUnique({
           where: { projectId_id: { projectId, id: media.mediaId } },
