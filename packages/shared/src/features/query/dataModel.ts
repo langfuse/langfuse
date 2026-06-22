@@ -241,13 +241,16 @@ export const eventsTracesView: ViewDeclarationType = {
         "formatDateTime(min(events_traces.start_time), '%Y-%m')",
     },
     metadata: {
-      sql: "events_traces.metadata_values[indexOf(events_traces.metadata_names, '{key}')]",
+      // `{key}` is replaced with a bound ClickHouse parameter in
+      // QueryBuilder.mapDimensions (mirrors StringObjectFilter), so the key is
+      // never interpolated into the SQL string.
+      sql: "nullIf(events_traces.metadata_values[indexOf(events_traces.metadata_names, {key})], '')",
       alias: "metadata",
       type: "stringObject",
       description:
         "Custom metadata key from the trace (provide a key, e.g. 'agentName').",
       aggregationFunction:
-        "argMaxIf(events_traces.metadata_values[indexOf(events_traces.metadata_names, '{key}')], events_traces.event_ts, has(events_traces.metadata_names, '{key}'))",
+        "argMaxIf(events_traces.metadata_values[indexOf(events_traces.metadata_names, {key})], events_traces.event_ts, has(events_traces.metadata_names, {key}))",
     },
   },
   measures: {
@@ -1211,7 +1214,10 @@ export const eventsObservationsView: ViewDeclarationType = {
       uiHidden: true, // Only available as filter, not as breakdown dimension
     },
     metadata: {
-      sql: "events_observations.metadata_values[indexOf(events_observations.metadata_names, '{key}')]",
+      // `{key}` is replaced with a bound ClickHouse parameter in
+      // QueryBuilder.mapDimensions (mirrors StringObjectFilter), so the key is
+      // never interpolated into the SQL string.
+      sql: "nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, {key})], '')",
       alias: "metadata",
       type: "stringObject",
       description:

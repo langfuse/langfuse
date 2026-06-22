@@ -101,14 +101,13 @@ export const viewsV2 = z.enum([
 export const viewVersions = z.enum(["v1", "v2"]);
 export type ViewVersion = z.infer<typeof viewVersions>;
 
-// Identifier-safe key for stringObject dimensions (e.g. a metadata key).
-// Shared by the dimension schema, the query builder's SQL interpolation guard,
-// and the widget form's client-side validation so all three stay in sync.
-export const METADATA_DIMENSION_KEY_REGEX = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
 export const dimension = z.object({
   field: z.string(),
-  key: z.string().regex(METADATA_DIMENSION_KEY_REGEX).optional(),
+  // For stringObject dimensions (e.g. metadata) this is the object key to break
+  // down on. The value is bound as a ClickHouse query parameter (see
+  // QueryBuilder.mapDimensions), so any string is accepted — matching the
+  // metadata filter contract (StringObjectFilter).
+  key: z.string().optional(),
 });
 
 export const metricAggregations = z.enum([

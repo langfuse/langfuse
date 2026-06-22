@@ -18,7 +18,6 @@ import {
   viewDeclarations,
   views,
   viewsV2,
-  METADATA_DIMENSION_KEY_REGEX,
   type QueryType,
   type ViewVersion,
   type metricAggregations,
@@ -1378,22 +1377,14 @@ export function WidgetForm({
       selectedDimension !== "none" &&
       viewDeclarations[viewVersion][selectedView]?.dimensions?.[
         selectedDimension
-      ]?.type === "stringObject"
+      ]?.type === "stringObject" &&
+      !selectedDimensionKey.trim()
     ) {
-      if (!selectedDimensionKey.trim()) {
-        showErrorToast(
-          "Error",
-          `Breakdown by '${selectedDimension}' requires a key (e.g. 'agentName').`,
-        );
-        return;
-      }
-      if (!METADATA_DIMENSION_KEY_REGEX.test(selectedDimensionKey)) {
-        showErrorToast(
-          "Error",
-          `Key '${selectedDimensionKey}' is invalid. Use only letters, digits, and underscores, starting with a letter or underscore.`,
-        );
-        return;
-      }
+      showErrorToast(
+        "Error",
+        `Breakdown by '${selectedDimension}' requires a key (e.g. 'agentName').`,
+      );
+      return;
     }
 
     const saveDimensions =
