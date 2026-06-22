@@ -549,18 +549,17 @@ const processBlobStorageExport = async (config: {
             table: config.table,
             projectId: config.projectId,
             path: passthroughEligible ? "passthrough" : "standard",
-            gzipLevel: config.gzipLevel ?? ZLIB_DEFAULT_LEVEL,
           };
           recordIncrement(
             "langfuse.blob_export.serialized_bytes",
             serializedCounter.bytes,
             byteTags,
           );
-          if (compressedCounter) {
+          if (compressedCounter && gzipStats) {
             recordIncrement(
               "langfuse.blob_export.compressed_bytes",
               compressedCounter.bytes,
-              byteTags,
+              { ...byteTags, gzipLevel: gzipStats.level },
             );
           }
 
