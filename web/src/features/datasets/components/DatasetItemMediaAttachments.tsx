@@ -56,16 +56,22 @@ export function collectMediaReferenceStrings(
 }
 
 /**
- * Inserts a media reference as a JSON string literal at the editor's current
- * selection. Wrapping in quotes makes it a valid value when the cursor sits in
- * a value slot; the form's JSON validation surfaces misplacement otherwise.
+ * Inserts a media reference as a JSON string literal. Wrapping in quotes makes
+ * it a valid value when inserted in a value slot; the form's JSON validation
+ * surfaces misplacement otherwise. Inserts at `anchor` (the drop position) when
+ * given, else at the current selection.
  */
 function insertMediaReferenceIntoView(
   view: EditorView,
   referenceString: string,
+  anchor?: number,
 ): void {
   const insert = JSON.stringify(referenceString);
-  const { from, to } = view.state.selection.main;
+  // Clamp the drop anchor: the document may have shrunk during an async upload.
+  const pos =
+    anchor != null ? Math.min(anchor, view.state.doc.length) : undefined;
+  const { from, to } =
+    pos != null ? { from: pos, to: pos } : view.state.selection.main;
   view.dispatch({
     changes: { from, to, insert },
     selection: { anchor: from + insert.length },
@@ -102,16 +108,26 @@ export function createMediaDropPasteExtension({
   // Failures are surfaced via toast inside `onUploadMedia` (which resolves to
   // null rather than rejecting), so this never throws; the trailing `.catch`
   // just keeps the fire-and-forget promise from floating.
-  const uploadAndInsert = async (view: EditorView, files: File[]) => {
+  const uploadAndInsert = async (
+    view: EditorView,
+    files: File[],
+    anchor?: number,
+  ) => {
+    // Anchor the first insert to the drop position; later files follow the
+    // cursor moved by the previous insert, preserving drop order.
+    let nextAnchor = anchor;
     for (const file of files) {
       const referenceString = await onUploadMedia(file);
-      if (referenceString) insertMediaReferenceIntoView(view, referenceString);
+      if (referenceString) {
+        insertMediaReferenceIntoView(view, referenceString, nextAnchor);
+        nextAnchor = undefined;
+      }
     }
   };
 
   return createFileDropPasteExtension({
-    onFiles: (files, view) => {
-      uploadAndInsert(view, files).catch(() => {});
+    onFiles: (files, view, anchor) => {
+      uploadAndInsert(view, files, anchor).catch(() => {});
     },
   });
 }

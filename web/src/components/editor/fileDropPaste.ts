@@ -19,17 +19,13 @@ function extractTransferFiles(data: DataTransfer | null | undefined): File[] {
 }
 
 /**
- * CodeMirror extension that intercepts files dropped onto or pasted into the
- * editor and forwards them to `onFiles`. For drops the cursor is moved to the
- * drop position first (so the handler can insert there); pastes use the current
- * cursor. Only intercepts when files are present, so plain text drop/paste is
- * left to the editor's native handling. Callers implement `onFiles` for their
- * domain, e.g. uploading media and inserting a reference string at the cursor.
+ * CodeMirror extension that forwards dropped/pasted files to `onFiles` with the
+ * insert position (drop coords / paste caret). Plain text is left to the editor.
  */
 export function createFileDropPasteExtension({
   onFiles,
 }: {
-  onFiles: (files: File[], view: EditorView) => void;
+  onFiles: (files: File[], view: EditorView, anchor?: number) => void;
 }): Extension {
   return EditorView.domEventHandlers({
     drop(event, view) {
@@ -37,15 +33,15 @@ export function createFileDropPasteExtension({
       if (files.length === 0) return false;
       event.preventDefault();
       const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-      if (pos != null) view.dispatch({ selection: { anchor: pos } });
-      onFiles(files, view);
+      onFiles(files, view, pos ?? undefined);
       return true;
     },
     paste(event, view) {
       const files = extractTransferFiles(event.clipboardData);
       if (files.length === 0) return false;
       event.preventDefault();
-      onFiles(files, view);
+      // Freeze the caret at paste time so an async upload can't drift the insert.
+      onFiles(files, view, view.state.selection.main.from);
       return true;
     },
   });
