@@ -14,7 +14,7 @@ export type GzipStats = {
   activeMs: number;
 };
 
-// zlib's default compression level (Z_DEFAULT_COMPRESSION === 6). Surfaced
+// zlib resolves Z_DEFAULT_COMPRESSION (-1) to compression level 6. Surfaced
 // explicitly so the gauge reports the real level even when none is configured.
 export const ZLIB_DEFAULT_LEVEL = 6;
 

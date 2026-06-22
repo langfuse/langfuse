@@ -36,8 +36,9 @@ describe("TimedGzip", () => {
     const { output, stats } = await runGzip(Readable.from([input]), 6);
 
     expect(gunzipSync(output).equals(input)).toBe(true);
-    // Real compression work was attributed to the gzip step.
-    expect(stats.activeMs).toBeGreaterThanOrEqual(0);
+    // Real compression work was attributed to the gzip step: zlib offloads each
+    // write to the libuv threadpool, so the write->callback delta is always > 0.
+    expect(stats.activeMs).toBeGreaterThan(0);
     // It actually compressed (input is highly repetitive).
     expect(output.length).toBeLessThan(input.length);
   });
@@ -50,7 +51,7 @@ describe("TimedGzip", () => {
     const { output, stats } = await runGzip(Readable.from(chunks), 1);
 
     expect(gunzipSync(output).equals(expected)).toBe(true);
-    expect(stats.activeMs).toBeGreaterThanOrEqual(0);
+    expect(stats.activeMs).toBeGreaterThan(0);
   });
 
   it("level 0 stores without shrinking but still wraps in valid gzip", async () => {
