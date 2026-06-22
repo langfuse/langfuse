@@ -56,7 +56,7 @@ const filterByName = (
  * (Enter); the anchor's `onClick` stops propagation so a left-click navigates
  * once rather than also firing `onSelect`.
  */
-export const SwitcherMenu = ({
+const SwitcherMenu = ({
   trigger,
   triggerClassName,
   headerLink,
@@ -170,3 +170,5 @@ export const SwitcherMenu = ({
     </Popover>
   );
 };
+
+export default SwitcherMenu;

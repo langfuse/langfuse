@@ -20,10 +20,9 @@ import {
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/ui/badge";
-import {
-  SwitcherMenu,
+import SwitcherMenu, {
   type SwitcherItem,
-} from "@/src/components/layouts/SwitcherMenu";
+} from "@/src/components/layouts/switcher-menu";
 
 const BreadcrumbComponent = ({
   items,
