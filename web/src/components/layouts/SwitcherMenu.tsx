@@ -12,7 +12,6 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-  defaultFilter,
 } from "@/src/components/ui/command";
 import { Settings } from "lucide-react";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
@@ -29,16 +28,21 @@ export type SwitcherItem = {
 };
 
 /**
- * Score the search only against the visible name (passed through `keywords`),
+ * Match the search against the visible name only (passed through `keywords`),
  * never the id in `value`. `value` stays the id so cmdk can disambiguate
- * same-named orgs/projects, but the id must not leak into the fuzzy match
- * (otherwise e.g. "seed" matches "Langfuse Demo" via its id "demo-org-id").
+ * same-named orgs/projects, but the id must not leak into matching. We use a
+ * plain case-insensitive substring test rather than cmdk's fuzzy scorer so the
+ * list only shows true name matches (fuzzy would surface near-zero noise, e.g.
+ * "seed" loosely matching "Langfuse Demo").
  */
 const filterByName = (
   _value: string,
   search: string,
   keywords?: string[],
-): number => defaultFilter?.(keywords?.join(" ") ?? "", search) ?? 0;
+): number =>
+  (keywords?.join(" ") ?? "").toLowerCase().includes(search.toLowerCase())
+    ? 1
+    : 0;
 
 /**
  * A searchable switcher dropdown (org or project) rendered as a Popover + cmdk
