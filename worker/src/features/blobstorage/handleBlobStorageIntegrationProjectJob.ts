@@ -348,6 +348,7 @@ const processBlobStorageExport = async (config: {
       // Outside the try so the catch can distinguish a real upload success from
       // a failure.
       let uploadSucceeded = false;
+      let heartbeat: ReturnType<typeof setInterval> | undefined;
 
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
@@ -406,6 +407,24 @@ const processBlobStorageExport = async (config: {
         // Both paths tally rows in JS via countedStream (the passthrough yields
         // raw row text rather than parsed objects, but still iterates).
         const sourceStats = { rows: 0, sourceWaitMs: 0 };
+
+        const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+        const heartbeatTags = {
+          table: config.table,
+          projectId: config.projectId,
+        };
+        heartbeat = setInterval(() => {
+          recordGauge(
+            "langfuse.blobstorage.export_heartbeat.rows",
+            sourceStats.rows,
+            heartbeatTags,
+          );
+          recordGauge(
+            "langfuse.blobstorage.export_heartbeat.serialized_bytes",
+            serializedCounter.bytes,
+            heartbeatTags,
+          );
+        }, HEARTBEAT_INTERVAL_MS);
 
         let fileStream: Readable;
 
@@ -545,6 +564,24 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
           });
 
+          const byteTags = {
+            table: config.table,
+            projectId: config.projectId,
+            path: passthroughEligible ? "passthrough" : "standard",
+          };
+          recordIncrement(
+            "langfuse.blob_export.serialized_bytes",
+            serializedCounter.bytes,
+            byteTags,
+          );
+          if (compressedCounter && gzipStats) {
+            recordIncrement(
+              "langfuse.blob_export.compressed_bytes",
+              compressedCounter.bytes,
+              { ...byteTags, gzipLevel: gzipStats.level },
+            );
+          }
+
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
               `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
@@ -633,6 +670,7 @@ const processBlobStorageExport = async (config: {
         );
         throw error;
       } finally {
+        clearInterval(heartbeat);
         unregisterInFlightBlobExport(inFlightHandle);
 
         // ns → ms; the histogram yields NaN/Infinity with zero samples.
