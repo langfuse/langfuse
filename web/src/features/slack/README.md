@@ -38,9 +38,9 @@ This guide walks you through setting up and testing the Langfuse Slack integrati
 
 ### 4. Expose your local server over a public HTTPS URL
 
-Slack's OAuth flow (and the Marketplace "Direct Install" flow) only redirects
-back to a **publicly reachable HTTPS URL** — `http://localhost:3000` is rejected
-with `bad_redirect_uri`. The simplest way to get one in dev is a tunnel:
+Slack's OAuth flow only redirects back to a **publicly reachable HTTPS URL** —
+`http://localhost:3000` is rejected with `bad_redirect_uri`. The simplest way to
+get one in dev is a tunnel:
 
 - **ngrok** (`brew install ngrok`):
   ```bash

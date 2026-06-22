@@ -12,11 +12,25 @@
 // writer is harmless to an older worker.
 import { z } from "zod";
 
+// Minimum ClickHouse version for safe raw passthrough. The passthrough relies on
+// ClickHouse's mid-stream exception tagging (the `x-clickhouse-exception-tag`
+// response header + end-of-stream marker) so the client errors the stream when a
+// query fails after a 200 response. That mechanism only exists in ClickHouse
+// >= 25.11. On older servers a query that fails mid-stream is NOT detected and
+// the passthrough can silently upload a truncated/garbage object — so operators
+// MUST NOT enable `rawPassthrough` on self-hosted ClickHouse below this version.
+// Langfuse Cloud runs a newer ClickHouse, so this only affects self-hosters.
+export const RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION = "25.11";
+
 export const BlobExportTuningSchema = z.object({
-  // LFE-10402 raw-passthrough export path: stream ClickHouse JSONEachRow bytes
+  // LFE-10402 raw-passthrough export path: stream ClickHouse JSONEachRow row text
   // straight to gzip → upload, skipping the per-row JS parse/enrich/serialize
   // pipeline. Only honored for JSONL exports of the observations / events
   // tables; ignored (with a warning) otherwise. Drops the model price columns.
+  //
+  // EXPERIMENTAL + self-hosting caveat: requires ClickHouse
+  // >= RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION (see above) for mid-stream failure
+  // detection. Do not enable on older self-hosted ClickHouse.
   rawPassthrough: z.boolean().optional(),
 });
 
