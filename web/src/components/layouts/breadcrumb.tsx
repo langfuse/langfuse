@@ -5,23 +5,8 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/src/components/ui/breadcrumb";
-import { Fragment, type ReactNode, useState } from "react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/src/components/ui/command";
-import { ChevronDownIcon, PlusIcon, Settings, Slash } from "lucide-react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Fragment } from "react";
+import { ChevronDownIcon, PlusIcon, Slash } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
 import { env } from "@/src/env.mjs";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -35,125 +20,10 @@ import {
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/ui/badge";
-import { cn } from "@/src/utils/tailwind";
-
-type SwitcherItem = {
-  id: string;
-  name: string;
-  href: string;
-  settingsHref: string;
-};
-
-/**
- * A searchable switcher dropdown (org or project) rendered as a Popover + cmdk
- * Command. The header link and footer action live outside the CommandList so
- * they are never filtered out by the search. `items === undefined` means the
- * session is still loading.
- */
-const SwitcherMenu = ({
-  trigger,
-  triggerClassName,
-  headerLink,
-  items,
-  searchPlaceholder,
-  emptyText,
-  separatorBeforeId,
-  footer,
-}: {
-  trigger: ReactNode;
-  triggerClassName?: string;
-  headerLink: { label: string; href: string };
-  items: SwitcherItem[] | undefined;
-  searchPlaceholder: string;
-  emptyText: string;
-  separatorBeforeId?: string;
-  footer?: ReactNode;
-}) => {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-
-  const navigate = (href: string) => {
-    setOpen(false);
-    router.push(href);
-  };
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        className={cn("text-primary flex items-center gap-1", triggerClassName)}
-      >
-        {trigger}
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 p-0">
-        <Command>
-          <Link
-            href={headerLink.href}
-            className="block px-3 py-2 text-sm font-semibold hover:underline"
-            onClick={() => setOpen(false)}
-          >
-            {headerLink.label}
-          </Link>
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
-            {items === undefined ? (
-              <div className="text-muted-foreground flex items-center px-3 py-2 text-sm">
-                <span className="mr-1.5 inline-flex">
-                  <Spinner size="sm" />
-                </span>
-                Loading...
-              </div>
-            ) : (
-              <>
-                <CommandEmpty>{emptyText}</CommandEmpty>
-                <CommandGroup>
-                  {items.map((item) => (
-                    <Fragment key={item.id}>
-                      {separatorBeforeId === item.id && <CommandSeparator />}
-                      <CommandItem
-                        value={`${item.name} ${item.id}`}
-                        onSelect={() => navigate(item.href)}
-                        className="flex cursor-pointer justify-between gap-2"
-                      >
-                        <span
-                          className="overflow-hidden text-ellipsis whitespace-nowrap"
-                          title={item.name}
-                        >
-                          {item.name}
-                        </span>
-                        <Button
-                          asChild
-                          variant="ghost"
-                          size="xs"
-                          className="hover:bg-background -my-1 ml-4"
-                        >
-                          <div
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              navigate(item.settingsHref);
-                            }}
-                          >
-                            <Settings size={12} />
-                          </div>
-                        </Button>
-                      </CommandItem>
-                    </Fragment>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
-          </CommandList>
-          {footer ? (
-            <>
-              <CommandSeparator />
-              <div className="p-1">{footer}</div>
-            </>
-          ) : null}
-        </Command>
-      </PopoverContent>
-    </Popover>
-  );
-};
+import {
+  SwitcherMenu,
+  type SwitcherItem,
+} from "@/src/components/layouts/SwitcherMenu";
 
 const BreadcrumbComponent = ({
   items,
