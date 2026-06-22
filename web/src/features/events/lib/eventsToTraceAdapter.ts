@@ -74,14 +74,20 @@ export function adaptEventsToTraceFormat(params: {
 
   const traceTags = latestTaggedEvent?.traceTags;
 
+  const latestStart = sorted[sorted.length - 1]!.startTime.getTime();
   const endTimes = events
     .map((e) => e.endTime)
     .filter((t): t is Date => t !== null);
   const latestEnd =
     endTimes.length > 0 ? Math.max(...endTimes.map((d) => d.getTime())) : null;
-  const latencyMs = latestEnd
-    ? latestEnd - earliest.startTime.getTime()
-    : undefined;
+  const latestTimestamp =
+    events.length > 1
+      ? Math.max(latestStart, latestEnd ?? latestStart)
+      : (latestEnd ?? undefined);
+  const latencyMs =
+    latestTimestamp !== undefined
+      ? latestTimestamp - earliest.startTime.getTime()
+      : undefined;
 
   // Create synthetic trace from observations
   const trace: SyntheticTrace = {

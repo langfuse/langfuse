@@ -105,4 +105,46 @@ describe("adaptEventsToTraceFormat", () => {
       safeKey: "output-value",
     });
   });
+
+  it("falls back to the latest start time when computing trace latency without end times", () => {
+    const result = adaptEventsToTraceFormat({
+      events: [
+        createEvent({
+          id: "obs-1",
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: null,
+        }),
+        createEvent({
+          id: "obs-2",
+          parentObservationId: "obs-1",
+          startTime: new Date("2024-01-01T00:00:03.000Z"),
+          endTime: null,
+        }),
+      ],
+      traceId: "trace-1",
+    });
+
+    expect(result.trace.latency).toBe(3);
+  });
+
+  it("uses the latest start time when it is after the latest end time", () => {
+    const result = adaptEventsToTraceFormat({
+      events: [
+        createEvent({
+          id: "obs-1",
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: new Date("2024-01-01T00:00:01.000Z"),
+        }),
+        createEvent({
+          id: "obs-2",
+          parentObservationId: "obs-1",
+          startTime: new Date("2024-01-01T00:00:03.000Z"),
+          endTime: null,
+        }),
+      ],
+      traceId: "trace-1",
+    });
+
+    expect(result.trace.latency).toBe(3);
+  });
 });
