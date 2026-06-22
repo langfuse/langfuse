@@ -337,6 +337,6 @@ async function processMembershipInvitations(email: string, userId: string) {
       }),
     ),
   );
-  
+
   return joinedReadableRealProjectViaInvitation;
 }
