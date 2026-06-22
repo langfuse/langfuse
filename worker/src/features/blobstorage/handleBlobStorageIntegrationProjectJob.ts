@@ -1016,14 +1016,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    // Update integration after successful processing. Use updateMany with a
-    // CAS guard on updatedAt so a mid-run Save (e.g. mode change resetting
-    // lastSyncAt) is not silently overwritten by the stale snapshot.
+    // Use updateMany with a CAS guard on exportMode so a mid-run mode change
+    // (which resets lastSyncAt) is not silently overwritten by stale values.
+    // We guard on exportMode rather than updatedAt because the handler itself
+    // writes runStartedAt mid-run, which bumps updatedAt.
     const { count: successUpdateCount } =
       await prisma.blobStorageIntegration.updateMany({
         where: {
           projectId,
-          updatedAt: blobStorageIntegration.updatedAt,
+          exportMode: blobStorageIntegration.exportMode,
         },
         data: {
           lastSyncAt: maxTimestamp,
