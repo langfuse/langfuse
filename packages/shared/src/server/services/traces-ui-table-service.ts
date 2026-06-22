@@ -431,14 +431,21 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
                   column: "timestamp_to_date",
                   order: orderBy.order,
                 },
-                { column: "timestamp", order: orderBy.order },
+                orderBy,
                 { column: "event_ts", order: "DESC" as "DESC" },
               ]
-            : null,
-          orderBy ?? null,
+            : [orderBy ?? null],
         ].flat(),
         orderByCols,
       );
+
+      const shouldWrapDefaultDedupQuery =
+        defaultOrder && ["metrics", "rows", "identifiers"].includes(select);
+
+      const innerSelect = shouldWrapDefaultDedupQuery
+        ? `${sqlSelect},
+            t.event_ts as _event_ts`
+        : sqlSelect;
 
       // complex query ahead:
       // - we only join scores and observations if we really need them to speed up default views
@@ -447,10 +454,10 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
       // - we order by todate(timestamp), event_ts desc per default and do not use FINAL.
       //   In this case, CH is able to read the data only from the latest date from disk and filtering them in memory. No need to read all data e.g. for 1 month from disk.
 
-      const query = `
+      const baseQuery = `
         ${observationsAndScoresCTE}
 
-        SELECT ${sqlSelect}
+        SELECT ${innerSelect}
         -- FINAL is used for non default ordering.
         FROM traces t  ${defaultOrder || select === "count" ? "" : "FINAL"}
         ${select === "metrics" || requiresObservationsJoin ? `LEFT JOIN observations_stats o on o.project_id = t.project_id and o.trace_id = t.id` : ""}
@@ -458,6 +465,24 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         WHERE t.project_id = {projectId: String}
         ${tracesFilterRes ? `AND ${tracesFilterRes.query}` : ""}
         ${search.query}
+      `;
+
+      const wrappedDefaultOrderQuery = `
+        SELECT *
+        FROM (
+          ${baseQuery}
+        ) result
+        ${chOrderBy
+          .replaceAll("t.event_ts", "result._event_ts")
+          .replaceAll("t.timestamp", "result.timestamp")}
+        LIMIT 1 BY result.id, result.project_id
+        ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
+      `;
+
+      const query = shouldWrapDefaultDedupQuery
+        ? wrappedDefaultOrderQuery
+        : `
+        ${baseQuery}
         ${chOrderBy}
         -- This is used for metrics and row queries. Count has only one result.
         -- This is only used for default ordering. Otherwise, we use final.
