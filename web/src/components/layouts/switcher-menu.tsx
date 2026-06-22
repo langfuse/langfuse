@@ -28,12 +28,10 @@ export type SwitcherItem = {
 };
 
 /**
- * Match the search against the visible name only (passed through `keywords`),
- * never the id in `value`. `value` stays the id so cmdk can disambiguate
- * same-named orgs/projects, but the id must not leak into matching. We use a
- * plain case-insensitive substring test rather than cmdk's fuzzy scorer so the
- * list only shows true name matches (fuzzy would surface near-zero noise, e.g.
- * "seed" loosely matching "Langfuse Demo").
+ * Match the search against the name (via `keywords`) only, never the id in
+ * `value`. `value` stays the id so cmdk can disambiguate same-named items.
+ * Substring rather than cmdk's fuzzy scorer, which scores scattered-character
+ * matches just above zero and so would leak unrelated rows into the list.
  */
 const filterByName = (
   _value: string,
@@ -45,16 +43,14 @@ const filterByName = (
     : 0;
 
 /**
- * A searchable switcher dropdown (org or project) rendered as a Popover + cmdk
- * Command. The header link and footer action live outside the CommandList so
- * they are never filtered out by the search. `items === undefined` means the
- * session is still loading.
+ * Searchable org/project switcher: a Popover wrapping a cmdk Command. The
+ * header link and footer sit outside the CommandList so search never filters
+ * them; `items === undefined` means the session is still loading.
  *
- * Rows render their content as real `<Link>` anchors so the browser keeps
- * middle-click, ⌘/Ctrl+Click "open in new tab", the right-click context menu,
- * and the URL hover preview. `onSelect` is retained for cmdk keyboard nav
- * (Enter); the anchor's `onClick` stops propagation so a left-click navigates
- * once rather than also firing `onSelect`.
+ * Rows are real `<Link>` anchors so native middle/⌘-click "open in new tab",
+ * the context menu, and hover preview keep working. `onSelect` handles the
+ * keyboard (Enter); the anchor's `onClick` stops propagation so a left-click
+ * navigates once instead of also firing `onSelect`.
  */
 const SwitcherMenu = ({
   trigger,
