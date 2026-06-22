@@ -93,6 +93,7 @@ jobs:
             llm_connections:
               - 'packages/shared/package.json'
               - 'packages/shared/src/server/llm/fetchLLMCompletion.ts'
+              - 'packages/shared/src/server/llm/utils.ts'
 
   lint:
     runs-on: blacksmith-4vcpu-ubuntu-2404
