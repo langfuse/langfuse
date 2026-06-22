@@ -2,16 +2,14 @@ import { Transform } from "stream";
 import { createGzip, type Gzip } from "zlib";
 
 export type GzipStats = {
-  // zlib level actually used (the resolved tuning level, or the zlib default
-  // when none was configured). Recorded so a measurement can be tied to a level.
   level: number;
-  // Active compression time, summed per input chunk as the latency from handing
-  // the chunk to zlib until zlib reports it consumed (zlib offloads to the libuv
-  // threadpool). This isolates compression work from the idle gaps spent waiting
-  // on the next ClickHouse row; under sustained downstream backpressure it also
-  // absorbs upload-wait, which is itself a useful "gzip is not the bottleneck"
-  // signal. Use together with input/output bytes to derive throughput + ratio.
+  // Wall-clock time from handing a chunk to zlib until the write callback fires.
+  // Includes both compression CPU and downstream backpressure pauses.
   activeMs: number;
+  // Subset of activeMs spent waiting for the downstream consumer (S3 upload) to
+  // drain. Measured as the gap between push() returning false (gzip.pause()) and
+  // the next _read() call (gzip.resume()). Pure gzip CPU ≈ activeMs - backpressureMs.
+  backpressureMs: number;
 };
 
 // zlib resolves Z_DEFAULT_COMPRESSION (-1) to compression level 6. Surfaced
@@ -28,6 +26,7 @@ export const ZLIB_DEFAULT_LEVEL = 6;
  */
 export class TimedGzip extends Transform {
   private readonly gzip: Gzip;
+  private bpStart: number | null = null;
 
   constructor(
     level: number | undefined,
@@ -36,12 +35,23 @@ export class TimedGzip extends Transform {
     super();
     this.gzip = level === undefined ? createGzip() : createGzip({ level });
     this.gzip.on("data", (chunk: Buffer) => {
-      if (!this.push(chunk)) this.gzip.pause();
+      if (!this.push(chunk)) {
+        this.gzip.pause();
+        if (this.bpStart === null) this.bpStart = performance.now();
+      }
     });
     this.gzip.on("error", (err: Error) => this.destroy(err));
   }
 
+  private creditBackpressure() {
+    if (this.bpStart !== null) {
+      this.stats.backpressureMs += performance.now() - this.bpStart;
+      this.bpStart = null;
+    }
+  }
+
   _read() {
+    this.creditBackpressure();
     this.gzip.resume();
   }
 
@@ -69,8 +79,9 @@ export class TimedGzip extends Transform {
       callback();
     });
     this.gzip.end();
-    // Ensure the readable side is flowing so the trailing `data`/`end` fire even
-    // if downstream had paused us right before flush.
+    // Credit any outstanding backpressure before resuming, so the interval
+    // between the last pause and this resume is not lost or mis-attributed.
+    this.creditBackpressure();
     this.gzip.resume();
   }
 
