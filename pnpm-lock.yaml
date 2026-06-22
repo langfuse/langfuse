@@ -659,9 +659,6 @@ importers:
       dompurify:
         specifier: ^3.4.9
         version: 3.4.9
-      eslint-plugin-tailwindcss:
-        specifier: 4.0.2
-        version: 4.0.2(eslint@9.39.4(jiti@2.7.0))(tailwindcss@4.2.2)(typescript@5.9.2)
       fastest-levenshtein:
         specifier: ^1.0.16
         version: 1.0.16
@@ -900,6 +897,9 @@ importers:
       eslint-plugin-storybook:
         specifier: 10.3.6
         version: 10.3.6(eslint@9.39.4(jiti@2.7.0))(storybook@10.3.6(@testing-library/dom@10.0.0)(prettier@3.8.3)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(typescript@5.9.2)
+      eslint-plugin-tailwindcss:
+        specifier: 4.0.2
+        version: 4.0.2(eslint@9.39.4(jiti@2.7.0))(tailwindcss@4.2.2)(typescript@5.9.2)
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0

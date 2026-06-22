@@ -857,7 +857,7 @@ export const MonitorForm = ({
               </Section>
             </CardContent>
             <CardFooter className="mt-auto">
-              <div className="flex-inherit w-full items-center pt-4">
+              <div className="w-full items-center pt-4">
                 <Button
                   type="submit"
                   size="lg"

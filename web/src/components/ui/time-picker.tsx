@@ -95,7 +95,7 @@ export function TimePicker({ date, setDate, className }: TimePickerProps) {
       <div className="ml-1 flex items-center">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="text-s whitespace-nowrap">{shortTimezone}</span>
+            <span className="whitespace-nowrap">{shortTimezone}</span>
           </TooltipTrigger>
           <TooltipContent side="bottom" align="center">
             {timezoneDetails}
