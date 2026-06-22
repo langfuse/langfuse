@@ -16,11 +16,7 @@
 // AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
 // is a substring search) yet keep their observed-value picker.
 
-import {
-  eventsTableCols,
-  type ColumnDefinition,
-  type TracingSearchType,
-} from "@langfuse/shared";
+import type { ColumnDefinition, TracingSearchType } from "@langfuse/shared";
 
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
@@ -248,6 +244,63 @@ export function createFieldRegistryFromColumns(
   });
 }
 
+const EVENT_COLUMN_NAME_ALIASES: Record<string, string[]> = {
+  latency: ["Latency (s)"],
+  timeToFirstToken: ["Time To First Token (s)"],
+  inputCost: ["Input Cost ($)"],
+  outputCost: ["Output Cost ($)"],
+  totalCost: ["Cost ($)"],
+  toolNames: ["Available Tool Names"],
+  toolDefinitions: ["Available Tools"],
+};
+
+const EVENT_OBJECT_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "Metadata",
+    id: "metadata",
+    type: "stringObject",
+    internal: "metadata",
+  },
+];
+
+function displayNameFromFieldId(id: string): string {
+  const spaced = id.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+function columnFromField(field: FieldDef): ColumnDefinition {
+  const aliases = [
+    ...field.aliases,
+    ...(EVENT_COLUMN_NAME_ALIASES[field.id] ?? []),
+  ];
+  const base = {
+    name: displayNameFromFieldId(field.id),
+    id: field.id,
+    internal: field.id,
+    nullable: field.nullable,
+    aliases,
+  };
+
+  if (field.syncMode === "arrayOption") {
+    return { ...base, type: "arrayOptions", options: [] };
+  }
+
+  if (field.syncMode === "exactOption") {
+    return { ...base, type: "stringOptions", options: [] };
+  }
+
+  switch (field.kind) {
+    case "number":
+      return { ...base, type: "number" };
+    case "datetime":
+      return { ...base, type: "datetime" };
+    case "boolean":
+      return { ...base, type: "boolean" };
+    case "text":
+      return { ...base, type: "string" };
+  }
+}
+
 // prettier-ignore
 export const FIELDS: FieldDef[] = [
   { id: "id", aliases: ["spanid", "span_id", "observationid", "observation_id"], kind: "text", syncMode: "textSearch", suggestObservedValues: true, description: "Observation/span identifier" },
@@ -334,7 +387,7 @@ const DEFAULT_SCORE_PATHS: ScorePathDef[] = [
 export const eventsSearchBarRegistry = createFieldRegistry({
   id: "events",
   fields: FIELDS,
-  columns: eventsTableCols,
+  columns: [...FIELDS.map(columnFromField), ...EVENT_OBJECT_COLUMNS],
 });
 
 export type FieldRef =
