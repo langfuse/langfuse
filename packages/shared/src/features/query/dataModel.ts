@@ -240,6 +240,18 @@ export const eventsTracesView: ViewDeclarationType = {
       aggregationFunction:
         "formatDateTime(min(events_traces.start_time), '%Y-%m')",
     },
+    metadata: {
+      // `{key}` is replaced with a bound ClickHouse parameter in
+      // QueryBuilder.mapDimensions (mirrors StringObjectFilter), so the key is
+      // never interpolated into the SQL string.
+      sql: "nullIf(events_traces.metadata_values[indexOf(events_traces.metadata_names, {key})], '')",
+      alias: "metadata",
+      type: "stringObject",
+      description:
+        "Custom metadata key from the trace (provide a key, e.g. 'agentName').",
+      aggregationFunction:
+        "argMaxIf(events_traces.metadata_values[indexOf(events_traces.metadata_names, {key})], events_traces.event_ts, has(events_traces.metadata_names, {key}))",
+    },
   },
   measures: {
     count: {
@@ -1200,6 +1212,16 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "ID of the experiment this observation belongs to.",
       highCardinality: true,
       uiHidden: true, // Only available as filter, not as breakdown dimension
+    },
+    metadata: {
+      // `{key}` is replaced with a bound ClickHouse parameter in
+      // QueryBuilder.mapDimensions (mirrors StringObjectFilter), so the key is
+      // never interpolated into the SQL string.
+      sql: "nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, {key})], '')",
+      alias: "metadata",
+      type: "stringObject",
+      description:
+        "Custom metadata key from the observation (provide a key, e.g. 'agentName').",
     },
   },
   measures: {

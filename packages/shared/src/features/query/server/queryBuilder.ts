@@ -206,7 +206,10 @@ export class QueryBuilder {
     if (
       dimension.explodeArray ||
       dimension.pairExpand ||
-      dimension.aggregationFunction
+      dimension.aggregationFunction ||
+      // stringObject dims carry a `{key}` placeholder resolved only in
+      // mapDimensions; the entity-bucket path would emit it unsubstituted.
+      dimension.type === "stringObject"
     ) {
       throw new InvalidRequestError(
         `Invalid entity dimension: ${field}. Entity dimensions must be scalar view dimensions.`,
@@ -217,9 +220,11 @@ export class QueryBuilder {
   }
 
   private mapDimensions(
-    dimensions: Array<{ field: string }>,
+    dimensions: Array<{ field: string; key?: string }>,
     view: ViewDeclarationType,
+    parameters: Record<string, unknown>,
   ): AppliedDimensionType[] {
+    let stringObjectCount = 0;
     return dimensions.map((dimension) => {
       if (!(dimension.field in view.dimensions)) {
         throw new InvalidRequestError(
@@ -227,8 +232,52 @@ export class QueryBuilder {
         );
       }
       const dim = view.dimensions[dimension.field];
+
+      if (dim.type !== "stringObject") {
+        if (dimension.key) {
+          throw new InvalidRequestError(
+            `Dimension '${dimension.field}' does not accept a 'key' (only stringObject dimensions do).`,
+          );
+        }
+        return {
+          ...dim,
+          table: dim.relationTable || view.name,
+          explodeArray: dim.explodeArray,
+          pairExpand: dim.pairExpand,
+        };
+      }
+
+      // stringObject dimension (e.g. metadata): the key selects which object
+      // entry to break down on.
+      if (!dimension.key) {
+        throw new InvalidRequestError(
+          `Dimension '${dimension.field}' is a stringObject and requires a 'key' (e.g. {"field":"${dimension.field}","key":"agentName"}).`,
+        );
+      }
+      // The result column alias is fixed per dimension (e.g. "metadata"), so two
+      // stringObject dimensions in one query would collide on that alias. Reject
+      // rather than emit ambiguous SQL.
+      if (++stringObjectCount > 1) {
+        throw new InvalidRequestError(
+          `Only one stringObject dimension (e.g. 'metadata') is supported per query.`,
+        );
+      }
+
+      // Bind the user-supplied key as a ClickHouse query parameter instead of
+      // interpolating it into the SQL string, mirroring StringObjectFilter. The
+      // dimension SQL declares a `{key}` placeholder which we replace with the
+      // bound-parameter reference.
+      const keyParam = `metadataDimKey${randomUUID().replace(/-/g, "").slice(0, 8)}`;
+      parameters[keyParam] = dimension.key;
+      const keyRef = `{${keyParam}: String}`;
+
       return {
         ...dim,
+        sql: dim.sql.replaceAll("{key}", keyRef),
+        aggregationFunction: dim.aggregationFunction?.replaceAll(
+          "{key}",
+          keyRef,
+        ),
         table: dim.relationTable || view.name,
         explodeArray: dim.explodeArray,
         pairExpand: dim.pairExpand,
@@ -270,8 +319,13 @@ export class QueryBuilder {
     view: ViewDeclarationType,
   ) {
     for (const filter of filters) {
-      // Validate filters on dimension fields
-      if (filter.column in view.dimensions) {
+      // Validate filters on dimension fields. stringObject dimensions (e.g.
+      // metadata) are excluded here so they fall through to the dedicated
+      // stringObject validation below, matching how they are filtered.
+      if (
+        filter.column in view.dimensions &&
+        view.dimensions[filter.column].type !== "stringObject"
+      ) {
         const dimension = view.dimensions[filter.column];
 
         // Array fields (like tags) validation
@@ -348,7 +402,15 @@ export class QueryBuilder {
     view: ViewDeclarationType,
   ): ViewDeclarationType["dimensions"][string] | undefined {
     if (filterColumn in view.dimensions) {
-      return view.dimensions[filterColumn];
+      const dimension = view.dimensions[filterColumn];
+      // stringObject dimensions (e.g. metadata) carry a `{key}` placeholder in
+      // their SQL that is only resolved for breakdowns in mapDimensions. As
+      // filter columns they must go through the dedicated key/value stringObject
+      // path (below), not be treated as plain dimension columns.
+      if (dimension.type === "stringObject") {
+        return undefined;
+      }
+      return dimension;
     }
     // Fallback: scoreName/traceName → "name" dimension (LFE-4838)
     if (filterColumn.endsWith("Name") && "name" in view.dimensions) {
@@ -1468,7 +1530,11 @@ export class QueryBuilder {
     }
 
     // Map dimensions and metrics
-    const appliedDimensions = this.mapDimensions(query.dimensions, view);
+    const appliedDimensions = this.mapDimensions(
+      query.dimensions,
+      view,
+      parameters,
+    );
     const appliedMetrics = this.mapMetrics(query.metrics, view);
     const appliedBucketingDimension = this.applyBucketingDimension(query, view);
 

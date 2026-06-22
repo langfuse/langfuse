@@ -45,7 +45,7 @@ export default function NewWidget() {
     name: string;
     description: string;
     view: string;
-    dimensions: { field: string }[];
+    dimensions: { field: string; key?: string }[];
     metrics: { measure: string; agg: string }[];
     filters: any[];
     chartType: DashboardWidgetChartType;

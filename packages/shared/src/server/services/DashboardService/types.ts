@@ -50,6 +50,7 @@ export const PivotTableChartConfig = BaseTotalValueChartConfig.extend({
 // Define dimension schema
 export const DimensionSchema = z.object({
   field: z.string(),
+  key: z.string().optional(),
 });
 
 // Define metric schema

@@ -2,6 +2,7 @@ import {
   buildWidgetImportAllowedValues,
   importWidgetFile,
   parseAndNormalizeImportedWidget,
+  toImportedWidgetFormSnapshot,
 } from "./import-export-utils";
 
 describe("parseAndNormalizeImportedWidget", () => {
@@ -147,5 +148,41 @@ describe("parseAndNormalizeImportedWidget", () => {
 
     expect(result.snapshot.selectedView).toBe("traces");
     expect(result.snapshot.widgetMinVersion).toBe(1);
+  });
+});
+
+describe("toImportedWidgetFormSnapshot", () => {
+  it("preserves the stringObject dimension key", () => {
+    const snapshot = toImportedWidgetFormSnapshot({
+      name: "Tokens by agent",
+      description: "",
+      view: "observations",
+      dimensions: [{ field: "metadata", key: "agentName" }],
+      metrics: [{ measure: "count", agg: "count" }],
+      filters: [],
+      chartType: "LINE_TIME_SERIES",
+      chartConfig: { type: "LINE_TIME_SERIES" },
+      minVersion: 2,
+    });
+
+    expect(snapshot.selectedDimension).toBe("metadata");
+    expect(snapshot.selectedDimensionKey).toBe("agentName");
+  });
+
+  it("defaults the dimension key to empty when absent", () => {
+    const snapshot = toImportedWidgetFormSnapshot({
+      name: "Count by name",
+      description: "",
+      view: "observations",
+      dimensions: [{ field: "name" }],
+      metrics: [{ measure: "count", agg: "count" }],
+      filters: [],
+      chartType: "LINE_TIME_SERIES",
+      chartConfig: { type: "LINE_TIME_SERIES" },
+      minVersion: 2,
+    });
+
+    expect(snapshot.selectedDimension).toBe("name");
+    expect(snapshot.selectedDimensionKey).toBe("");
   });
 });

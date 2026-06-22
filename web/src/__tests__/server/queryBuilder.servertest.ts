@@ -566,6 +566,260 @@ describe("queryBuilder", () => {
         expect(Number(result.data[0].count_count)).toBe(1);
       });
 
+      it("should use metadata key as dimension (stringObject) on v2 observations view", async () => {
+        const projectId = randomUUID();
+        const traceA = randomUUID();
+        const traceB = randomUUID();
+        const traceC = randomUUID();
+        const traceD = randomUUID();
+        const events = [
+          createEvent({
+            project_id: projectId,
+            trace_id: traceA,
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent A"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceB,
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent A"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceC,
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent B"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceD,
+            metadata_names: ["other"],
+            metadata_values: ["thing"],
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "metadata", key: "agentName" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+        );
+
+        const buckets = result.reduce<Record<string, number>>((acc, row) => {
+          acc[String(row.metadata)] = Number(row.count_count);
+          return acc;
+        }, {});
+
+        expect(buckets["Agent A"]).toBe(2);
+        expect(buckets["Agent B"]).toBe(1);
+        // Event without 'agentName' has no slot for the key; nullIf maps the
+        // empty lookup to NULL so it forms its own bucket rather than colliding
+        // with a real empty-string value.
+        expect(buckets["null"]).toBe(1);
+      });
+
+      it("should use metadata key as dimension (stringObject) on v2 traces view", async () => {
+        const projectId = randomUUID();
+        // Two events on the same trace: the breakdown must collapse to one
+        // bucket per trace via argMaxIf, not double-count spans.
+        const traceA = randomUUID();
+        const events = [
+          createEvent({
+            project_id: projectId,
+            trace_id: traceA,
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent A"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: traceA,
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent A"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: randomUUID(),
+            metadata_names: ["agentName"],
+            metadata_values: ["Agent B"],
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "traces",
+            dimensions: [{ field: "metadata", key: "agentName" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+        );
+
+        const buckets = result.reduce<Record<string, number>>((acc, row) => {
+          acc[String(row.metadata)] = Number(row.count_count);
+          return acc;
+        }, {});
+
+        // Two spans on traceA collapse to one trace bucket for "Agent A".
+        expect(buckets["Agent A"]).toBe(1);
+        expect(buckets["Agent B"]).toBe(1);
+      });
+
+      it("should reject stringObject dimension without a key (v2)", async () => {
+        const projectId = randomUUID();
+        await expect(
+          executeQuery(
+            projectId,
+            {
+              view: "observations",
+              dimensions: [{ field: "metadata" }],
+              metrics: [{ measure: "count", aggregation: "count" }],
+              filters: [],
+              timeDimension: null,
+              fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+              toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+              orderBy: null,
+            },
+            "v2",
+          ),
+        ).rejects.toThrow(/requires a 'key'/);
+      });
+
+      it("should reject a 'key' on a non-stringObject dimension (v2)", async () => {
+        const projectId = randomUUID();
+        await expect(
+          executeQuery(
+            projectId,
+            {
+              view: "observations",
+              dimensions: [{ field: "name", key: "agentName" }],
+              metrics: [{ measure: "count", aggregation: "count" }],
+              filters: [],
+              timeDimension: null,
+              fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+              toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+              orderBy: null,
+            },
+            "v2",
+          ),
+        ).rejects.toThrow(/does not accept a 'key'/);
+      });
+
+      it("should reject more than one stringObject dimension (v2)", async () => {
+        const projectId = randomUUID();
+        await expect(
+          executeQuery(
+            projectId,
+            {
+              view: "observations",
+              dimensions: [
+                { field: "metadata", key: "agentName" },
+                { field: "metadata", key: "modelName" },
+              ],
+              metrics: [{ measure: "count", aggregation: "count" }],
+              filters: [],
+              timeDimension: null,
+              fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+              toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+              orderBy: null,
+            },
+            "v2",
+          ),
+        ).rejects.toThrow(/Only one stringObject dimension/);
+      });
+
+      it("should reject a stringObject dimension used as an entityDimension (v2)", async () => {
+        const projectId = randomUUID();
+        await expect(
+          executeQuery(
+            projectId,
+            {
+              view: "observations",
+              dimensions: [],
+              metrics: [{ measure: "count", aggregation: "count" }],
+              filters: [],
+              timeDimension: null,
+              entityDimension: { field: "metadata" },
+              fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+              toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+              orderBy: null,
+            } as Parameters<typeof executeQuery>[1],
+            "v2",
+          ),
+        ).rejects.toThrow(/Entity dimensions must be scalar/);
+      });
+
+      it("should still filter by metadata on v2 after metadata became a dimension", async () => {
+        // Regression guard: adding `metadata` as a breakdown dimension must not
+        // hijack the metadata *filter* path (stringObject key/value), which is
+        // handled separately from plain dimension filtering.
+        const projectId = randomUUID();
+        const events = [
+          createEvent({
+            project_id: projectId,
+            trace_id: randomUUID(),
+            metadata_names: ["customer"],
+            metadata_values: ["acme"],
+            start_time: Date.now() * 1000,
+          }),
+          createEvent({
+            project_id: projectId,
+            trace_id: randomUUID(),
+            metadata_names: ["customer"],
+            metadata_values: ["globex"],
+            start_time: Date.now() * 1000,
+          }),
+        ];
+        await createEventsCh(events);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "metadata",
+                type: "stringObject",
+                key: "customer",
+                operator: "=",
+                value: "acme",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          } as Parameters<typeof executeQuery>[1],
+          "v2",
+        );
+
+        expect(Number(result[0]?.count_count)).toBe(1);
+      });
+
       it("should filter traces by tags using 'any of' operator", async () => {
         // Setup
         const projectId = randomUUID();

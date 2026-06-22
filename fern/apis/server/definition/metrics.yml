@@ -123,7 +123,8 @@ service:
                 "view": string,           // Required. One of "observations", "scores-numeric", "scores-categorical"
                 "dimensions": [           // Optional. Default: []
                   {
-                    "field": string       // Field to group by (see available dimensions above)
+                    "field": string,      // Field to group by (see available dimensions above)
+                    "key": string         // Optional. Required only for object fields such as "metadata": the object key to break down on (e.g. "agentName").
                   }
                 ],
                 "metrics": [              // Required. At least one metric must be provided

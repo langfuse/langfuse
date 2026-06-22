@@ -103,6 +103,11 @@ export type ViewVersion = z.infer<typeof viewVersions>;
 
 export const dimension = z.object({
   field: z.string(),
+  // For stringObject dimensions (e.g. metadata) this is the object key to break
+  // down on. The value is bound as a ClickHouse query parameter (see
+  // QueryBuilder.mapDimensions), so any string is accepted — matching the
+  // metadata filter contract (StringObjectFilter).
+  key: z.string().optional(),
 });
 
 export const metricAggregations = z.enum([
