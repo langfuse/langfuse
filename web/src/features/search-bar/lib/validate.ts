@@ -11,7 +11,11 @@
 // whole query without errors.
 
 import type { ASTNode, Span } from "./ast";
-import { astToFilterState, type ScoreTypeContext } from "./adapter";
+import {
+  astToFilterState,
+  registryFromContext,
+  type ScoreTypeContext,
+} from "./adapter";
 import { nullableFields, resolveField } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
@@ -33,8 +37,6 @@ function nodeSpan(node: ASTNode, textLength: number): Span {
   return node.parenSpan ?? node.span ?? { from: 0, to: textLength };
 }
 
-const NULLABLE_FIELD_IDS = new Set(nullableFields().map((f) => f.id));
-
 /**
  * `has:` on a column that always has a value matches everything — and its
  * negation (`-has:` / `NOT has:`) lowers to `IS NULL`, which is vacuously
@@ -45,18 +47,21 @@ function hasFilterWarnings(
   node: ASTNode,
   textLength: number,
   out: Diagnostic[],
+  scoreTypes?: ScoreTypeContext,
   negated = false,
 ): void {
+  const registry = registryFromContext(scoreTypes);
+  const nullableFieldIds = new Set(nullableFields(registry).map((f) => f.id));
   switch (node.kind) {
     case "filter": {
-      const ref = resolveField(node.key);
+      const ref = resolveField(node.key, registry);
       if (ref === null || ref.type !== "pseudo" || ref.id !== "has") return;
       for (const v of node.values) {
-        const target = resolveField(v);
+        const target = resolveField(v, registry);
         if (
           target !== null &&
           target.type === "field" &&
-          !NULLABLE_FIELD_IDS.has(target.field.id)
+          !nullableFieldIds.has(target.field.id)
         ) {
           const span = nodeSpan(node, textLength);
           out.push({
@@ -74,12 +79,12 @@ function hasFilterWarnings(
     case "text":
       return;
     case "not":
-      hasFilterWarnings(node.child, textLength, out, !negated);
+      hasFilterWarnings(node.child, textLength, out, scoreTypes, !negated);
       return;
     case "and":
     case "or":
       for (const c of node.children)
-        hasFilterWarnings(c, textLength, out, negated);
+        hasFilterWarnings(c, textLength, out, scoreTypes, negated);
       return;
   }
 }
@@ -103,7 +108,7 @@ export function semanticDiagnostics(
     for (const message of errors) {
       out.push({ from: span.from, to: span.to, severity: "error", message });
     }
-    hasFilterWarnings(node, textLength, out);
+    hasFilterWarnings(node, textLength, out, scoreTypes);
   }
 
   return out;
@@ -145,7 +150,7 @@ export function validateQuery(
   text: string,
   scoreTypes?: ScoreTypeContext,
 ): ParseResult {
-  const res = parse(text);
+  const res = parse(text, registryFromContext(scoreTypes));
   const diagnostics = dedupeMergedDiagnostics([
     ...res.diagnostics,
     ...semanticDiagnostics(res.ast, text.length, scoreTypes),

@@ -9,7 +9,11 @@
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
-import { astToFilterState, type ScoreTypeContext } from "./adapter";
+import {
+  astToFilterState,
+  registryFromContext,
+  type ScoreTypeContext,
+} from "./adapter";
 import { serialize, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
@@ -42,6 +46,7 @@ export function planCommit(
   draftText: string,
   scoreTypes?: ScoreTypeContext,
 ): CommitResult {
+  const registry = registryFromContext(scoreTypes);
   const res = validateQuery(draftText.trim(), scoreTypes);
   if (!res.valid) {
     return { status: "invalid", diagnostics: res.diagnostics };
@@ -69,7 +74,11 @@ export function planCommit(
     status: "committed",
     filters,
     searchQuery,
-    searchType: searchType ?? DEFAULT_SEARCH_TYPE,
+    searchType:
+      searchType ??
+      (registry.freeText.enabled
+        ? [...registry.freeText.defaultSearchType]
+        : []),
     canonical: serialize(res.ast),
   };
 }

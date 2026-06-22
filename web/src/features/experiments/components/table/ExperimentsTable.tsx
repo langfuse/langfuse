@@ -53,6 +53,10 @@ import { type ExperimentsTableRow, type ExperimentsTableProps } from "./types";
 import { useExperimentFilterOptions } from "../../hooks/useExperimentFilterOptions";
 import { RunEvaluationDialog } from "@/src/features/batch-actions/components/RunEvaluationDialog";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { createExperimentsSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 import {
   Accordion,
   AccordionContent,
@@ -137,6 +141,14 @@ export default function ExperimentsTable({
     projectId,
     oldFilterState,
   });
+  const searchBarRegistry = useMemo(
+    () => createExperimentsSearchBarRegistry(filterConfig.columnDefinitions),
+    [filterConfig],
+  );
+  const searchBarObserved = useMemo(
+    () => toObservedOptions(filterOptions, isFilterOptionsPending),
+    [filterOptions, isFilterOptionsPending],
+  );
 
   const queryFilter = useSidebarFilterState(filterConfig, filterOptions, {
     loading: isFilterOptionsPending,
@@ -165,6 +177,14 @@ export default function ExperimentsTable({
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
   );
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId,
+    enabled: true,
+    registry: searchBarRegistry,
+    filterState: queryFilter.explicitFilterState,
+    observed: searchBarObserved,
+    setFilterState: setFiltersWrapper,
+  });
 
   const combinedFilterState = queryFilter.filterState.concat(
     dateRangeFilter,
@@ -618,6 +638,14 @@ export default function ExperimentsTable({
     <>
       <DataTableControlsProvider>
         <div className="flex h-full w-full flex-col">
+          <SearchBarRow
+            projectId={projectId}
+            store={searchBarStore}
+            commit={searchBarCommit}
+            observed={searchBarObserved}
+            registry={searchBarRegistry}
+          />
+
           {/* Toolbar spanning full width */}
           <DataTableToolbar
             columns={columns}

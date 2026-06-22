@@ -62,6 +62,10 @@ import {
   TableIconButtonLoadingCell,
   TableTextLoadingCell,
 } from "@/src/components/table/loading-cells";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { createEvaluatorsSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 
 function LegacyBadgeCell({ status }: { status: string }) {
   return (
@@ -122,10 +126,13 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
     order: "ASC",
   });
 
-  const newFilterOptions = {
-    status: ["ACTIVE", "PAUSED", "INACTIVE"],
-    target: evalConfigTargetValues,
-  };
+  const newFilterOptions = useMemo(
+    () => ({
+      status: ["ACTIVE", "PAUSED", "INACTIVE"],
+      target: evalConfigTargetValues,
+    }),
+    [],
+  );
 
   const queryFilter = useSidebarFilterState(
     evaluatorFilterConfig,
@@ -136,6 +143,25 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
       sessionFilterContextId: projectId,
     },
   );
+  const searchBarRegistry = useMemo(
+    () =>
+      createEvaluatorsSearchBarRegistry(
+        evaluatorFilterConfig.columnDefinitions,
+      ),
+    [],
+  );
+  const searchBarObserved = useMemo(
+    () => toObservedOptions(newFilterOptions, false),
+    [newFilterOptions],
+  );
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId,
+    enabled: true,
+    registry: searchBarRegistry,
+    filterState: queryFilter.explicitFilterState,
+    observed: searchBarObserved,
+    setFilterState: queryFilter.setFilterState,
+  });
 
   const { evaluators, rows, totalCount, hasLegacyEvals } =
     useEvaluatorTableData({
@@ -460,6 +486,14 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
             </Callout>
           </div>
         )}
+
+        <SearchBarRow
+          projectId={projectId}
+          store={searchBarStore}
+          commit={searchBarCommit}
+          observed={searchBarObserved}
+          registry={searchBarRegistry}
+        />
 
         {/* Toolbar spanning full width */}
         <DataTableToolbar

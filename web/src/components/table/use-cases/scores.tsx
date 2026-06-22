@@ -62,6 +62,10 @@ import { useTableViewManager } from "@/src/components/table/table-view-presets/h
 import TableIdOrName from "@/src/components/table/table-id";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { createScoresSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 
 export type ScoresTableRow = {
   id: string;
@@ -128,6 +132,10 @@ export default function ScoresTable({
   const scoresFilterConfig = useMemo(
     () => getScoreFilterConfig(hiddenColumns),
     [hiddenColumns],
+  );
+  const searchBarRegistry = useMemo(
+    () => createScoresSearchBarRegistry(scoresFilterConfig.columnDefinitions),
+    [scoresFilterConfig],
   );
   const hiddenColumnSet = useMemo(
     () => new Set<string>(hiddenColumns),
@@ -362,6 +370,27 @@ export default function ScoresTable({
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
   );
+
+  const searchBarObserved = React.useMemo(
+    () => toObservedOptions(newFilterOptions, isSidebarFilterLoading),
+    [isSidebarFilterLoading, newFilterOptions],
+  );
+  const showSearchBar =
+    useEventsBackedScores &&
+    !peekContext &&
+    !disableUrlPersistence &&
+    !userId &&
+    !traceId &&
+    !observationId &&
+    localStorageSuffix.length === 0;
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId,
+    enabled: showSearchBar,
+    registry: searchBarRegistry,
+    filterState: queryFilter.explicitFilterState,
+    observed: searchBarObserved,
+    setFilterState: setFiltersWrapper,
+  });
 
   const filterState = createFilterState(
     queryFilter.effectiveFilterState.concat(dateRangeFilter),
@@ -920,6 +949,15 @@ export default function ScoresTable({
       defaultSidebarCollapsed={scoresFilterConfig.defaultSidebarCollapsed}
     >
       <div className="flex h-full w-full flex-col">
+        {showSearchBar && (
+          <SearchBarRow
+            projectId={projectId}
+            store={searchBarStore}
+            commit={searchBarCommit}
+            observed={searchBarObserved}
+            registry={searchBarRegistry}
+          />
+        )}
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           columns={columns}

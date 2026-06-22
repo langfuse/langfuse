@@ -5,26 +5,38 @@
 // toolbar row below so the bar's left edge aligns with it.
 
 import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import {
+  eventsSearchBarRegistry,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
 import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
 import { SearchBarStoreProvider } from "@/src/features/search-bar/store/SearchBarStoreProvider";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 
-export function EventsSearchBarRow({
+export function SearchBarRow({
   projectId,
   store,
   commit,
   observed,
+  registry = eventsSearchBarRegistry,
 }: {
   projectId: string;
   store: SearchBarStore;
   commit: () => string | null;
   observed: ObservedOptions | undefined;
+  registry?: FieldRegistry;
 }) {
   return (
     <div className="min-w-0 px-2 pt-2 pb-1">
       <SearchBarStoreProvider store={store} commit={commit}>
-        <SearchComposer projectId={projectId} observed={observed} />
+        <SearchComposer
+          projectId={projectId}
+          observed={observed}
+          registry={registry}
+        />
       </SearchBarStoreProvider>
     </div>
   );
 }
+
+export const EventsSearchBarRow = SearchBarRow;

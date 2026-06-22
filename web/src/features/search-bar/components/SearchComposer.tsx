@@ -25,6 +25,10 @@ import {
   deriveComposerSegments,
   type ComposerSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
+import {
+  eventsSearchBarRegistry,
+  type FieldRegistry,
+} from "@/src/features/search-bar/lib/fields";
 import { serializeValue, termAt } from "@/src/features/search-bar/lib/langQ";
 import {
   scoreTypeContextFromObserved,
@@ -286,10 +290,12 @@ function useLatest<T>(value: T) {
 export function SearchComposer({
   projectId,
   observed,
+  registry = eventsSearchBarRegistry,
 }: {
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
+  registry?: FieldRegistry;
 }) {
   const storeApi = useSearchBarStoreApi();
   const commitToFilterState = useSearchBarCommit();
@@ -325,8 +331,8 @@ export function SearchComposer({
   // routes `scores.<name>` token validity by the same observed score type the
   // store and commit gate use.
   const scoreTypes = React.useMemo(
-    () => scoreTypeContextFromObserved(observed),
-    [observed],
+    () => scoreTypeContextFromObserved(observed, registry),
+    [observed, registry],
   );
 
   // Recents are a COMPLETE saved query: picking one REPLACES the whole draft
@@ -339,14 +345,15 @@ export function SearchComposer({
   const recents = React.useMemo(
     () =>
       autocompleteOpen && draft.trim().length === 0
-        ? getRecentSearches(projectId)
+        ? getRecentSearches(projectId, registry.id)
         : NO_RECENTS,
-    [autocompleteOpen, draft, projectId],
+    [autocompleteOpen, draft, projectId, registry.id],
   );
 
   const plan: CompletionPlan | null =
     autocompleteOpen && selectionCollapsed
       ? planInputCompletions({
+          registry,
           input: draft,
           caret: Math.min(caret, draft.length),
           observed,

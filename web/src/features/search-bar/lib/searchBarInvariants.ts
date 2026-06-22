@@ -17,16 +17,12 @@
 //          itself and stays valid. (Regressed in #4: serializeValue emitted a
 //          bare reserved token — `or`, `!important` — that the parser rejects.)
 //
-// "Repeats itself per view": when a second filterable view adopts the bar, call
-// runSearchBarInvariants({ name, fields, extraKeys, ... }) with that view's
-// registry. The generators read `view.fields`, so they cover new/changed fields
-// automatically. Today parse/validate/lower close over the single global FIELDS
-// registry; when the grammar is parameterized over an injected registry (the
-// seam in README "Extending to other views"), thread `view.registry` into the
-// parse/validate/lower calls below — the generators and assertions do not
-// change.
+// "Repeats itself per view": when another filterable view adopts the bar, call
+// runSearchBarInvariants({ name, registry, extraKeys, ... }). The generators
+// read `view.registry.fields`, so they cover new/changed fields automatically,
+// while parse/validate/lower/reverse all use the same injected registry.
 
-import type { FieldDef } from "./fields";
+import type { FieldDef, FieldRegistry } from "./fields";
 import type { ScoreTypeContext } from "./adapter";
 import type { FilterState } from "@langfuse/shared";
 import { parse, serialize } from "./langQ";
@@ -39,7 +35,8 @@ export type RegistryUnderTest = {
   /** Label for failure messages (e.g. "events v4"). */
   name: string;
   /** The field registry the grammar resolves against. */
-  fields: FieldDef[];
+  registry: FieldRegistry;
+  fields?: FieldDef[];
   /**
    * Grammar-overlay keys that are not plain fields: dot-path examples
    * (`metadata.region`, `scores.accuracy`, `traceScores.nps`) and the `has:`
@@ -95,7 +92,10 @@ function sameFilters(a: FilterState, b: FilterState): boolean {
 
 /** Every query string the matrix generates for a view. */
 export function generateQueryCases(view: RegistryUnderTest): string[] {
-  const keys = [...view.fields.map((f) => f.id), ...view.extraKeys];
+  const keys = [
+    ...(view.fields ?? view.registry.fields).map((f) => f.id),
+    ...view.extraKeys,
+  ];
   const cases: string[] = [];
   for (const key of keys) {
     // `has:` entries already carry their own value in extraKeys.
@@ -124,9 +124,11 @@ export function generateQueryCases(view: RegistryUnderTest): string[] {
 function checkParity(
   text: string,
   ctx: ScoreTypeContext | undefined,
+  registry: FieldRegistry,
 ): InvariantFailure | null {
-  if (!validateQuery(text, ctx).valid) return null; // gate rejects → no claim
-  const errors = astToFilterState(parse(text).ast, ctx).errors;
+  const fullCtx = { ...ctx, registry };
+  if (!validateQuery(text, fullCtx).valid) return null; // gate rejects → no claim
+  const errors = astToFilterState(parse(text, registry).ast, fullCtx).errors;
   if (errors.length === 0) return null;
   return {
     invariant: "INV-1 commit-gate parity",
@@ -139,13 +141,18 @@ function checkParity(
 function checkFilterStateRoundTrip(
   text: string,
   ctx: ScoreTypeContext | undefined,
+  registry: FieldRegistry,
 ): InvariantFailure | null {
-  if (!validateQuery(text, ctx).valid) return null;
-  const first = astToFilterState(parse(text).ast, ctx);
+  const fullCtx = { ...ctx, registry };
+  if (!validateQuery(text, fullCtx).valid) return null;
+  const first = astToFilterState(parse(text, registry).ast, fullCtx);
   if (first.errors.length > 0 || first.filters.length === 0) return null;
   const fs1 = first.filters;
-  const forward = filterStateToQueryText(fs1);
-  const fs2 = astToFilterState(parse(forward.text).ast, ctx).filters;
+  const forward = filterStateToQueryText(fs1, { registry });
+  const fs2 = astToFilterState(
+    parse(forward.text, registry).ast,
+    fullCtx,
+  ).filters;
   // Filters with no grammar form are preserved via skippedFilters, not text.
   const expected = fs1.filter(
     (f) => !forward.skippedFilters.some((s) => stable(s) === stable(f)),
@@ -161,9 +168,12 @@ function checkFilterStateRoundTrip(
 }
 
 /** INV-3: a free-text value re-parses to itself and stays valid. */
-function checkSerializeSymmetry(value: string): InvariantFailure | null {
+function checkSerializeSymmetry(
+  value: string,
+  registry: FieldRegistry,
+): InvariantFailure | null {
   const text = serialize({ kind: "text", value });
-  const res = parse(text);
+  const res = parse(text, registry);
   const ast = res.ast;
   const ok = res.valid && ast?.kind === "text" && ast.value === value;
   if (ok) return null;
@@ -189,14 +199,14 @@ export function runSearchBarInvariants(
 
   for (const text of generateQueryCases(view)) {
     for (const ctx of contexts) {
-      const parity = checkParity(text, ctx);
+      const parity = checkParity(text, ctx, view.registry);
       if (parity) failures.push(parity);
-      const roundTrip = checkFilterStateRoundTrip(text, ctx);
+      const roundTrip = checkFilterStateRoundTrip(text, ctx, view.registry);
       if (roundTrip) failures.push(roundTrip);
     }
   }
   for (const value of view.freeTextValues) {
-    const symmetry = checkSerializeSymmetry(value);
+    const symmetry = checkSerializeSymmetry(value, view.registry);
     if (symmetry) failures.push(symmetry);
   }
   return failures;

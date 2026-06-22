@@ -4,15 +4,18 @@
 const KEY_PREFIX = "lf-search-bar-recents";
 const MAX = 8;
 
-function storageKey(projectId: string): string {
-  return `${KEY_PREFIX}:${projectId}`;
+function storageKey(projectId: string, registryId: string): string {
+  return `${KEY_PREFIX}:${projectId}:${registryId}`;
 }
 
-export function getRecentSearches(projectId: string): string[] {
+export function getRecentSearches(
+  projectId: string,
+  registryId = "events",
+): string[] {
   if (typeof localStorage === "undefined") return [];
   try {
     const raw = JSON.parse(
-      localStorage.getItem(storageKey(projectId)) ?? "[]",
+      localStorage.getItem(storageKey(projectId, registryId)) ?? "[]",
     ) as unknown;
     return Array.isArray(raw)
       ? raw.filter((x): x is string => typeof x === "string")
@@ -22,16 +25,23 @@ export function getRecentSearches(projectId: string): string[] {
   }
 }
 
-export function recordRecentSearch(projectId: string, query: string): void {
+export function recordRecentSearch(
+  projectId: string,
+  query: string,
+  registryId = "events",
+): void {
   if (typeof localStorage === "undefined") return;
   const trimmed = query.trim();
   if (trimmed.length === 0) return;
   const next = [
     trimmed,
-    ...getRecentSearches(projectId).filter((q) => q !== trimmed),
+    ...getRecentSearches(projectId, registryId).filter((q) => q !== trimmed),
   ].slice(0, MAX);
   try {
-    localStorage.setItem(storageKey(projectId), JSON.stringify(next));
+    localStorage.setItem(
+      storageKey(projectId, registryId),
+      JSON.stringify(next),
+    );
   } catch {
     // storage full/blocked — recents are best-effort
   }

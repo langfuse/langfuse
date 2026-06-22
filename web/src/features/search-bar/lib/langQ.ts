@@ -18,7 +18,13 @@
 // are rejected with targeted messages in validate.ts, not here.
 
 import type { ASTNode, CompareOp, FilterNode, Span, TextNode } from "./ast";
-import { canonicalKey, operatorIssue, resolveField } from "./fields";
+import {
+  canonicalKey,
+  eventsSearchBarRegistry,
+  operatorIssue,
+  resolveField,
+  type FieldRegistry,
+} from "./fields";
 import { NEEDS_QUOTES, unquote } from "./quoting";
 
 // Re-exported for back-compat: quoting primitives now live in the shared
@@ -261,6 +267,7 @@ function parseTermNode(
   raw: string,
   span: Span,
   diagnostics: Diagnostic[],
+  registry: FieldRegistry,
 ): FilterNode | TextNode {
   const reserved = reservedTokenIssue(raw);
   if (reserved !== null) {
@@ -282,7 +289,7 @@ function parseTermNode(
 
   const keyRaw = raw.slice(0, colon);
   const valueRaw = raw.slice(colon + 1);
-  const ref = keyRaw.length === 0 ? null : resolveField(keyRaw);
+  const ref = keyRaw.length === 0 ? null : resolveField(keyRaw, registry);
 
   if (ref === null) {
     diagnostics.push({
@@ -560,7 +567,10 @@ function parseGroupedValues(
 
 // ---- parser ----
 
-export function parse(input: string): ParseResult {
+export function parse(
+  input: string,
+  registry: FieldRegistry = eventsSearchBarRegistry,
+): ParseResult {
   const diagnostics: Diagnostic[] = [];
   const tokens = lex(input, diagnostics);
   let pos = 0;
@@ -733,13 +743,14 @@ export function parse(input: string): ParseResult {
         severity: "error",
         message: "Negation (-) only applies to field filters, e.g. -env:dev",
       });
-      return parseTermNode(t.raw, t.span, diagnostics);
+      return parseTermNode(t.raw, t.span, diagnostics, registry);
     }
     if (t.raw.startsWith("-") && t.raw.length > 1) {
       const inner = parseTermNode(
         t.raw.slice(1),
         { from: t.span.from + 1, to: t.span.to },
         diagnostics,
+        registry,
       );
       if (inner.kind === "text") {
         // "-foo" as free text would be a negated search term; not supported.
@@ -753,7 +764,7 @@ export function parse(input: string): ParseResult {
       }
       return { kind: "not", child: inner, span: t.span };
     }
-    return parseTermNode(t.raw, t.span, diagnostics);
+    return parseTermNode(t.raw, t.span, diagnostics, registry);
   }
 
   let ast = parseOr();

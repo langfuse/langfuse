@@ -64,6 +64,10 @@ import { TableSelectionManager } from "@/src/features/table/components/TableSele
 import { useScoreColumns } from "@/src/features/scores/hooks/useScoreColumns";
 import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 import { BatchExportTableButton } from "@/src/components/BatchExportTableButton";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { createSessionsSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 
 export type SessionTableRow = {
   id: string;
@@ -99,6 +103,11 @@ export default function SessionsTable({
   const sessionsFilterConfig = useMemo(
     () => getSessionFilterConfig(omittedFilter),
     [omittedFilter],
+  );
+  const searchBarRegistry = useMemo(
+    () =>
+      createSessionsSearchBarRegistry(sessionsFilterConfig.columnDefinitions),
+    [sessionsFilterConfig],
   );
   const { setDetailPageList } = useDetailPageLists();
   const { timeRange, setTimeRange } = useTableDateRange(projectId);
@@ -278,6 +287,20 @@ export default function SessionsTable({
     (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
     [],
   );
+
+  const searchBarObserved = useMemo(
+    () => toObservedOptions(newFilterOptions, isSidebarFilterLoading),
+    [isSidebarFilterLoading, newFilterOptions],
+  );
+  const showSearchBar = isBetaEnabled && !userId;
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId,
+    enabled: showSearchBar,
+    registry: searchBarRegistry,
+    filterState: queryFilter.explicitFilterState,
+    observed: searchBarObserved,
+    setFilterState: setFiltersWrapper,
+  });
 
   const combinedFilterState = queryFilter.effectiveFilterState.concat(
     userIdFilter,
@@ -813,6 +836,15 @@ export default function SessionsTable({
   return (
     <DataTableControlsProvider tableName={sessionsFilterConfig.tableName}>
       <div className="flex h-full w-full flex-col">
+        {showSearchBar && (
+          <SearchBarRow
+            projectId={projectId}
+            store={searchBarStore}
+            commit={searchBarCommit}
+            observed={searchBarObserved}
+            registry={searchBarRegistry}
+          />
+        )}
         {/* Toolbar spanning full width */}
         <DataTableToolbar
           filterState={queryFilter.explicitFilterState}

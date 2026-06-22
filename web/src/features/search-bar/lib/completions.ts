@@ -20,11 +20,13 @@ import {
   termAt,
 } from "./langQ";
 import {
-  FIELDS,
+  eventsSearchBarRegistry,
   nullableFields,
   resolveField,
   type FieldDef,
   type FieldRef,
+  type FieldRegistry,
+  type ScoreColumns,
 } from "./fields";
 import { quoteIfNeeded } from "./quoting";
 import type { ObservedOptions } from "./observed-options";
@@ -161,6 +163,15 @@ const PATTERN_OPTIONS: CompletionOption[] = [
   },
 ];
 
+const PATTERN_REQUIRED_FIELDS: Record<string, string | null> = {
+  "pat:contains": "name",
+  "pat:anyof": "level",
+  "pat:negation": "environment",
+  "pat:comparison": "latency",
+  "pat:has": null,
+  "pat:allof": "tags",
+};
+
 /** Case-insensitive match; prefix matches rank before substring matches. */
 function filterRank(label: string, query: string): number | null {
   if (query.length === 0) return 0;
@@ -182,8 +193,11 @@ function rankFilter<T extends { label: string }>(
     .map((x) => x.o);
 }
 
-function fieldOptions(includeVirtual = true): CompletionOption[] {
-  const opts: CompletionOption[] = FIELDS.map((f: FieldDef) => ({
+function fieldOptions(
+  registry: FieldRegistry,
+  includeVirtual = true,
+): CompletionOption[] {
+  const opts: CompletionOption[] = registry.fields.map((f: FieldDef) => ({
     id: `field:${f.id}`,
     kind: "field",
     label: f.id,
@@ -191,37 +205,33 @@ function fieldOptions(includeVirtual = true): CompletionOption[] {
     fieldId: f.id,
   }));
   if (includeVirtual) {
-    opts.push(
-      {
+    for (const prefix of registry.metadataPrefixes) {
+      opts.push({
         id: "field:metadata.",
         kind: "field",
-        label: "metadata.",
-        detail: "metadata key path, e.g. metadata.region:eu",
-        fieldId: "metadata.",
-      },
-      {
-        id: "field:scores.",
+        label: prefix,
+        detail: `${prefix} key path, e.g. ${prefix}region:eu`,
+        fieldId: prefix,
+      });
+    }
+    for (const path of registry.scorePaths) {
+      opts.push({
+        id: `field:${path.canonicalPrefix}`,
         kind: "field",
-        label: "scores.",
-        detail:
-          "score by name, e.g. scores.accuracy:>0.8 or scores.feedback:positive",
-        fieldId: "scores.",
-      },
-      {
-        id: "field:traceScores.",
-        kind: "field",
-        label: "traceScores.",
-        detail: "trace-level score by name, e.g. traceScores.nps:>8",
-        fieldId: "traceScores.",
-      },
-      {
+        label: path.canonicalPrefix,
+        detail: path.description,
+        fieldId: path.canonicalPrefix,
+      });
+    }
+    if (registry.hasPseudoField) {
+      opts.push({
         id: "field:has",
         kind: "field",
         label: "has",
         detail: "field has a value, e.g. has:endTime (-has: for missing)",
         fieldId: "has",
-      },
-    );
+      });
+    }
   }
   return opts;
 }
@@ -232,10 +242,16 @@ const SUGGESTION_FIELDS = ["level", "type", "environment", "name"];
 
 function querySuggestionOptions(
   observed: ObservedOptions | undefined,
+  registry: FieldRegistry,
 ): CompletionOption[] {
   if (observed === undefined) return [];
   const out: CompletionOption[] = [];
-  for (const fieldId of SUGGESTION_FIELDS) {
+  const fields =
+    registry.suggestionFieldIds.length > 0
+      ? registry.suggestionFieldIds
+      : SUGGESTION_FIELDS;
+  for (const fieldId of fields) {
+    if (resolveField(fieldId, registry) === null) continue;
     const top = observed[fieldId]?.[0];
     if (top === undefined) continue;
     const insert = `${fieldId}:${serializeValue(top.value)}`;
@@ -412,27 +428,40 @@ function matchOperatorOptions(
 type PathKind = {
   prefix: string;
   canonical: string;
+  column: string;
   level?: "observation" | "trace";
+  columns?: ScoreColumns;
 };
 
 // Must mirror fields.ts TRACE_SCORE_PREFIXES / resolveField — every alias the
 // parser resolves needs a suggestion entry, or that spelling parses but offers
 // no score-name dropdown. (`tracescore.` singular matches the `score.`/`scores.`
 // observation-level pair.)
-const PATH_PREFIXES: PathKind[] = [
-  { prefix: "metadata.", canonical: "metadata." },
-  { prefix: "tracescores.", canonical: "traceScores.", level: "trace" },
-  { prefix: "trace_scores.", canonical: "traceScores.", level: "trace" },
-  { prefix: "tracescore.", canonical: "traceScores.", level: "trace" },
-  { prefix: "scores.", canonical: "scores.", level: "observation" },
-  { prefix: "score.", canonical: "scores.", level: "observation" },
-];
+function pathPrefixes(registry: FieldRegistry): PathKind[] {
+  return [
+    ...registry.metadataPrefixes.map((prefix) => ({
+      prefix,
+      canonical: prefix,
+      column: prefix.endsWith(".") ? prefix.slice(0, -1) : prefix,
+    })),
+    ...registry.scorePaths.flatMap((path) =>
+      path.prefixes.map((prefix) => ({
+        prefix,
+        canonical: path.canonicalPrefix,
+        column: path.columns.numeric,
+        level: path.level,
+        columns: path.columns,
+      })),
+    ),
+  ];
+}
 
 function pathKindOf(
   keyPart: string,
+  registry: FieldRegistry,
 ): { kind: PathKind; typedKey: string } | null {
   const lower = keyPart.toLowerCase();
-  for (const kind of PATH_PREFIXES) {
+  for (const kind of pathPrefixes(registry)) {
     if (lower.startsWith(kind.prefix)) {
       return { kind, typedKey: keyPart.slice(kind.prefix.length) };
     }
@@ -459,8 +488,8 @@ function keyPathOptions(
   // still matches (otherwise the first `"` drops every option and the popover
   // silently closes).
   const rankKey = typedKey.replace(/^"/, "").replace(/"$/, "");
-  if (kind.canonical === "metadata.") {
-    const options = observedValues(observed, "metadata").map((o) => ({
+  if (kind.level === undefined) {
+    const options = observedValues(observed, kind.column).map((o) => ({
       id: `key:metadata.${o.value}`,
       kind: "field" as const,
       label: `metadata.${o.value}`,
@@ -472,10 +501,8 @@ function keyPathOptions(
       options: rankFilter(options, `metadata.${rankKey}`),
     };
   }
-  const numericColumn =
-    kind.level === "trace" ? "trace_scores_avg" : "scores_avg";
-  const categoricalColumn =
-    kind.level === "trace" ? "trace_score_categories" : "score_categories";
+  const numericColumn = kind.columns?.numeric ?? "";
+  const categoricalColumn = kind.columns?.categorical ?? "";
   const seen = new Map<string, string>();
   for (const o of observedValues(observed, numericColumn))
     seen.set(o.value, "numeric score");
@@ -502,6 +529,7 @@ function keyPathOptions(
 
 type ValueStageInput = {
   ref: FieldRef;
+  registry: FieldRegistry;
   typed: string;
   valuePrefix: string;
   observed: ObservedOptions | undefined;
@@ -518,6 +546,7 @@ function valueStageSections(
   input: ValueStageInput,
 ): { sections: CompletionSection[]; loading: boolean } | null {
   const { ref, typed, valuePrefix, observed, tokenSpan, negated } = input;
+  const { registry } = input;
 
   // An operator prefix was already typed: the rest is free-form entry.
   if (valuePrefix.length > 0) return null;
@@ -525,7 +554,7 @@ function valueStageSections(
   switch (ref.type) {
     case "pseudo": {
       // `has` is the only pseudo-field: suggest the nullable fields it can name.
-      const all = nullableFields().map((f) => ({
+      const all = nullableFields(registry).map((f) => ({
         id: `value:${f.id}`,
         kind: "value" as const,
         label: f.id,
@@ -561,17 +590,12 @@ function valueStageSections(
 
     case "scores": {
       if (observed === undefined) return { sections: [], loading: true };
-      const numericColumn =
-        ref.level === "trace" ? "trace_scores_avg" : "scores_avg";
-      const categoricalColumn =
-        ref.level === "trace" ? "trace_score_categories" : "score_categories";
+      const numericColumn = ref.columns.numeric;
+      const categoricalColumn = ref.columns.categorical;
       // Quoted for the example shown in the compare-op tooltip — a spaced score
       // name must read as `scores."Rouge Score":>0.8`, not the unparsable bare
       // form. (The data lookups above use the unquoted column names.)
-      const path =
-        ref.level === "trace"
-          ? `traceScores.${quoteIfNeeded(ref.key)}`
-          : `scores.${quoteIfNeeded(ref.key)}`;
+      const path = `${ref.canonicalPrefix}${quoteIfNeeded(ref.key)}`;
       const isNumeric = observedValues(observed, numericColumn).some(
         (o) => o.value === ref.key,
       );
@@ -653,9 +677,13 @@ function valueStageSections(
         // whole token to the other scope. NOT when negated: tokenSpan covers the
         // leading `-`, so the rewrite would drop it and flip the filter to its
         // complement (mirrors the free-text → scope path, gated on !negated).
+        const scope = f.id === "input" || f.id === "output" ? f.id : undefined;
         const scopeSwitches =
-          !negated && (f.id === "input" || f.id === "output")
-            ? scopeSwitchOptions(f.id, typed, tokenSpan)
+          !negated &&
+          scope !== undefined &&
+          registry.freeText.enabled &&
+          registry.freeText.scopeFields.includes(scope)
+            ? scopeSwitchOptions(scope, typed, tokenSpan)
             : [];
         return {
           sections: [
@@ -758,6 +786,7 @@ function groupedValueSegment(
 }
 
 export type InputCompletionContext = {
+  registry?: FieldRegistry;
   /** Active input text (the token(s) being typed). */
   input: string;
   /** Caret offset within `input`. */
@@ -890,6 +919,7 @@ export function planInputCompletions(
   ctx: InputCompletionContext,
 ): CompletionPlan | null {
   const { input, caret } = ctx;
+  const registry = ctx.registry ?? eventsSearchBarRegistry;
 
   const term = termAt(input, caret);
   const start = term?.from ?? caret;
@@ -914,8 +944,11 @@ export function planInputCompletions(
         to,
         loading: false,
         sections: [
-          ...section(SECTION_SUGGESTIONS, querySuggestionOptions(ctx.observed)),
-          ...section(SECTION_FIELDS, fieldOptions()),
+          ...section(
+            SECTION_SUGGESTIONS,
+            querySuggestionOptions(ctx.observed, registry),
+          ),
+          ...section(SECTION_FIELDS, fieldOptions(registry)),
           ...section(
             SECTION_RECENT,
             recentOptions(ctx.recents, ctx.currentQueryText),
@@ -929,7 +962,7 @@ export function planInputCompletions(
     const keyPart = colon === -1 ? tokenBody : tokenBody.slice(0, colon);
 
     // Dot paths (metadata./scores./traceScores.) suggest observed keys.
-    const path = pathKindOf(keyPart);
+    const path = pathKindOf(keyPart, registry);
     if (path !== null) {
       const { title, options } = keyPathOptions(
         path.kind,
@@ -956,11 +989,11 @@ export function planInputCompletions(
       };
     }
 
-    const resolvedKey = colon === -1 ? null : resolveField(keyPart);
+    const resolvedKey = colon === -1 ? null : resolveField(keyPart, registry);
     // The COMPLETE key of an existing filter is a switcher (like a complete
     // value): offer every field, current one first, and leave Enter unarmed.
     // A partial key prefix-filters and arms Enter-to-complete.
-    const allFields = fieldOptions();
+    const allFields = fieldOptions(registry);
     const fields =
       resolvedKey !== null
         ? (() => {
@@ -985,7 +1018,12 @@ export function planInputCompletions(
         ? rankFilter(PATTERN_OPTIONS, tokenBody).filter(
             // The term already starts with `-`; the negation pattern carries
             // its own `-`, so suggesting it would splice `--environment:`.
-            (p) => !(negated && p.id === "pat:negation"),
+            (p) => {
+              if (negated && p.id === "pat:negation") return false;
+              const required = PATTERN_REQUIRED_FIELDS[p.id] ?? null;
+              if (required === null) return registry.hasPseudoField;
+              return resolveField(required, registry) !== null;
+            },
           )
         : [];
     // Free-text guidance: a bare word (or a coalesced multi-word run) can become
@@ -996,7 +1034,9 @@ export function planInputCompletions(
     // re-quotes once instead of emitting a doubly-quoted `input:"\"…\""`.
     const run =
       colon === -1 && !negated
-        ? freeTextRun(ctx.currentQueryText, caret)
+        ? registry.freeText.enabled
+          ? freeTextRun(ctx.currentQueryText, caret)
+          : null
         : null;
     const searchScopes: CompletionOption[] =
       run !== null
@@ -1033,7 +1073,7 @@ export function planInputCompletions(
       // unchanged.
       autoHighlight:
         colon === -1
-          ? resolveField(keyPart) !== null
+          ? resolveField(keyPart, registry) !== null
           : resolvedKey === null && fields.length > 0,
       sections: [
         ...section(SECTION_FIELDS, fields),
@@ -1046,7 +1086,7 @@ export function planInputCompletions(
 
   // Value stage: complete the comma segment under the caret.
   const keyRaw = tokenBody.slice(0, colon);
-  const ref = resolveField(keyRaw);
+  const ref = resolveField(keyRaw, registry);
   if (ref === null) return null;
 
   const valuePart = tokenBody.slice(colon + 1);
@@ -1090,6 +1130,7 @@ export function planInputCompletions(
 
   const staged = valueStageSections({
     ref,
+    registry,
     typed,
     valuePrefix,
     observed: ctx.observed,

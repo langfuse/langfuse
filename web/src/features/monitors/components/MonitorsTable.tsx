@@ -24,6 +24,10 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { SearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { useTableSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { createMonitorsSearchBarRegistry } from "@/src/features/search-bar/lib/registries";
 import TagList from "@/src/features/tag/components/TagList";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
@@ -136,6 +140,23 @@ export function MonitorsTable() {
       sessionFilterContextId: projectId ?? null,
     },
   );
+  const searchBarRegistry = useMemo(
+    () =>
+      createMonitorsSearchBarRegistry(monitorFilterConfig.columnDefinitions),
+    [],
+  );
+  const searchBarObserved = useMemo(
+    () => toObservedOptions(newFilterOptions, filterOptions.isPending),
+    [newFilterOptions, filterOptions.isPending],
+  );
+  const { store: searchBarStore, commit: searchBarCommit } = useTableSearchBar({
+    projectId,
+    enabled: Boolean(projectId),
+    registry: searchBarRegistry,
+    filterState: queryFilter.explicitFilterState,
+    observed: searchBarObserved,
+    setFilterState: queryFilter.setFilterState,
+  });
 
   const monitorFilter = useMemo(
     () => filterStateToListMonitorFilter(queryFilter.filterState),
@@ -257,6 +278,14 @@ export function MonitorsTable() {
 
   return (
     <div className="flex h-full w-full flex-col">
+      <SearchBarRow
+        projectId={projectId}
+        store={searchBarStore}
+        commit={searchBarCommit}
+        observed={searchBarObserved}
+        registry={searchBarRegistry}
+      />
+
       <ResizableFilterLayout>
         <DataTableControls queryFilter={queryFilter} />
         <div className="flex flex-1 flex-col overflow-hidden">

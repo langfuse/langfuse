@@ -9,11 +9,14 @@
 //   complete from free typing only)
 
 import type { ScoreTypeContext } from "./adapter";
+import { eventsSearchBarRegistry, type FieldRegistry } from "./fields";
 
 export type ObservedValue = { value: string; count?: number };
 export type ObservedOptions = Record<string, ObservedValue[]>;
 
-type RawOption = string | { value: string; count?: number };
+type RawOption =
+  | string
+  | { value: string; count?: number; displayValue?: string };
 
 type RawFilterOptions = Record<
   string,
@@ -73,15 +76,41 @@ export function toObservedOptions(
  */
 export function scoreTypeContextFromObserved(
   observed: ObservedOptions | undefined,
+  registry: FieldRegistry = eventsSearchBarRegistry,
 ): ScoreTypeContext {
   const names = (column: string): Set<string> =>
     new Set((observed?.[column] ?? []).map((o) => o.value));
-  return {
-    numericScoreNames: names("scores_avg"),
-    categoricalScoreNames: names("score_categories"),
-    traceNumericScoreNames: names("trace_scores_avg"),
-    traceCategoricalScoreNames: names("trace_score_categories"),
+  const context: ScoreTypeContext = {
+    registry,
+    numericScoreNames: new Set(),
+    categoricalScoreNames: new Set(),
+    traceNumericScoreNames: new Set(),
+    traceCategoricalScoreNames: new Set(),
   };
+  for (const path of registry.scorePaths) {
+    const numeric = names(path.columns.numeric);
+    const categorical = names(path.columns.categorical);
+    if (path.level === "trace") {
+      context.traceNumericScoreNames = new Set([
+        ...(context.traceNumericScoreNames ?? []),
+        ...numeric,
+      ]);
+      context.traceCategoricalScoreNames = new Set([
+        ...(context.traceCategoricalScoreNames ?? []),
+        ...categorical,
+      ]);
+    } else {
+      context.numericScoreNames = new Set([
+        ...(context.numericScoreNames ?? []),
+        ...numeric,
+      ]);
+      context.categoricalScoreNames = new Set([
+        ...(context.categoricalScoreNames ?? []),
+        ...categorical,
+      ]);
+    }
+  }
+  return context;
 }
 
 function nameSetsEqual(
@@ -109,6 +138,7 @@ export function scoreTypeContextEqual(
 ): boolean {
   if (a === b) return true;
   return (
+    a?.registry === b?.registry &&
     nameSetsEqual(a?.numericScoreNames, b?.numericScoreNames) &&
     nameSetsEqual(a?.categoricalScoreNames, b?.categoricalScoreNames) &&
     nameSetsEqual(a?.traceNumericScoreNames, b?.traceNumericScoreNames) &&

@@ -16,6 +16,12 @@
 // AUTOCOMPLETE picker independently — `id`/`name` are textSearch (so `id:abc`
 // is a substring search) yet keep their observed-value picker.
 
+import {
+  eventsTableCols,
+  type ColumnDefinition,
+  type TracingSearchType,
+} from "@langfuse/shared";
+
 import type { CompareOp } from "./ast";
 import { quoteIfNeeded, unquote } from "./quoting";
 
@@ -42,6 +48,205 @@ export type FieldDef = {
    */
   suggestObservedValues?: boolean;
 };
+
+export type ScoreColumns = {
+  numeric: string;
+  categorical: string;
+};
+
+export type ScorePathDef = {
+  /**
+   * Lowercase prefixes accepted by the grammar, e.g. `scores.` and `score.`.
+   * The parser compares lower-cased user input against these values.
+   */
+  prefixes: string[];
+  /** Canonical query-text spelling emitted by reverse adapters/completions. */
+  canonicalPrefix: string;
+  level: "observation" | "trace";
+  columns: ScoreColumns;
+  description: string;
+};
+
+export type SearchBarFreeTextConfig =
+  | {
+      enabled: true;
+      defaultSearchType: readonly TracingSearchType[];
+      scopeFields: readonly string[];
+    }
+  | { enabled: false };
+
+export type FieldRegistry = {
+  id: string;
+  fields: FieldDef[];
+  byName: ReadonlyMap<string, FieldDef>;
+  columnIdByKey: ReadonlyMap<string, string>;
+  metadataPrefixes: readonly string[];
+  scorePaths: readonly ScorePathDef[];
+  suggestionFieldIds: readonly string[];
+  hasPseudoField: boolean;
+  freeText: SearchBarFreeTextConfig;
+};
+
+type CreateFieldRegistryInput = {
+  id: string;
+  fields: FieldDef[];
+  columns: readonly ColumnDefinition[];
+  metadataPrefixes?: readonly string[];
+  scorePaths?: readonly ScorePathDef[];
+  suggestionFieldIds?: readonly string[];
+  hasPseudoField?: boolean;
+  freeText?: SearchBarFreeTextConfig;
+};
+
+function createColumnIdByKey(
+  columns: readonly ColumnDefinition[],
+): ReadonlyMap<string, string> {
+  const byKey = new Map<string, string>();
+  for (const col of columns) {
+    byKey.set(col.id.toLowerCase(), col.id);
+    byKey.set(col.name.toLowerCase(), col.id);
+    for (const alias of col.aliases ?? []) {
+      byKey.set(alias.toLowerCase(), col.id);
+    }
+  }
+  return byKey;
+}
+
+export function createFieldRegistry({
+  id,
+  fields,
+  columns,
+  metadataPrefixes,
+  scorePaths,
+  suggestionFieldIds,
+  hasPseudoField,
+  freeText,
+}: CreateFieldRegistryInput): FieldRegistry {
+  const byName = new Map<string, FieldDef>();
+  for (const f of fields) {
+    byName.set(f.id.toLowerCase(), f);
+    for (const a of f.aliases) byName.set(a.toLowerCase(), f);
+  }
+
+  const effectiveFreeText = freeText ?? {
+    enabled: true as const,
+    defaultSearchType: ["id", "content"],
+    scopeFields: ["input", "output"],
+  };
+
+  return {
+    id,
+    fields,
+    byName,
+    columnIdByKey: createColumnIdByKey(columns),
+    metadataPrefixes: (metadataPrefixes ?? [METADATA_PREFIX]).map((p) =>
+      p.toLowerCase(),
+    ),
+    scorePaths: scorePaths ?? DEFAULT_SCORE_PATHS,
+    suggestionFieldIds: suggestionFieldIds ?? [
+      "level",
+      "type",
+      "environment",
+      "name",
+    ],
+    hasPseudoField: hasPseudoField ?? true,
+    freeText: effectiveFreeText,
+  };
+}
+
+type ColumnRegistryOverlay = {
+  aliases?: Record<string, string[]>;
+  fieldOverrides?: Record<string, Partial<FieldDef>>;
+  hiddenFields?: readonly string[];
+  metadataPrefixes?: readonly string[];
+  scorePaths?: readonly ScorePathDef[];
+  suggestionFieldIds?: readonly string[];
+  hasPseudoField?: boolean;
+  freeText?: SearchBarFreeTextConfig;
+};
+
+function kindForColumn(column: ColumnDefinition): FieldKind | null {
+  switch (column.type) {
+    case "number":
+      return "number";
+    case "datetime":
+      return "datetime";
+    case "boolean":
+      return "boolean";
+    case "string":
+    case "stringOptions":
+    case "arrayOptions":
+      return "text";
+    default:
+      return null;
+  }
+}
+
+function syncModeForColumn(column: ColumnDefinition): SyncMode | null {
+  switch (column.type) {
+    case "stringOptions":
+      return "exactOption";
+    case "arrayOptions":
+      return "arrayOption";
+    case "number":
+    case "datetime":
+    case "boolean":
+    case "string":
+      return "textSearch";
+    default:
+      return null;
+  }
+}
+
+export function createFieldRegistryFromColumns(
+  id: string,
+  columns: readonly ColumnDefinition[],
+  overlay: ColumnRegistryOverlay = {},
+): FieldRegistry {
+  const hidden = new Set(overlay.hiddenFields ?? []);
+  const fields: FieldDef[] = [];
+
+  for (const column of columns) {
+    if (hidden.has(column.id)) continue;
+    const kind = kindForColumn(column);
+    const syncMode = syncModeForColumn(column);
+    if (kind === null || syncMode === null) continue;
+
+    const override = overlay.fieldOverrides?.[column.id] ?? {};
+    const aliases = [
+      ...(column.aliases ?? []),
+      ...(overlay.aliases?.[column.id] ?? []),
+    ].map((alias) => alias.toLowerCase());
+
+    fields.push({
+      id: column.id,
+      kind,
+      syncMode,
+      description: column.name,
+      nullable: column.nullable,
+      ...override,
+      aliases: override.aliases ?? aliases,
+    });
+  }
+
+  return createFieldRegistry({
+    id,
+    fields,
+    columns,
+    metadataPrefixes:
+      overlay.metadataPrefixes ??
+      (columns.some(
+        (column) => column.id === "metadata" && column.type === "stringObject",
+      )
+        ? [METADATA_PREFIX]
+        : []),
+    scorePaths: overlay.scorePaths ?? [],
+    suggestionFieldIds:
+      overlay.suggestionFieldIds ?? fields.slice(0, 4).map((field) => field.id),
+    hasPseudoField: overlay.hasPseudoField,
+    freeText: overlay.freeText ?? { enabled: false },
+  });
+}
 
 // prettier-ignore
 export const FIELDS: FieldDef[] = [
@@ -87,12 +292,6 @@ export const FIELDS: FieldDef[] = [
   { id: "output", aliases: [], kind: "text", syncMode: "textSearch", description: "Observation output", nullable: true },
 ];
 
-const byName = new Map<string, FieldDef>();
-for (const f of FIELDS) {
-  byName.set(f.id.toLowerCase(), f);
-  for (const a of f.aliases) byName.set(a, f);
-}
-
 export const METADATA_PREFIX = "metadata.";
 
 // Score dot-paths. Lowercased prefixes accepted by the grammar; the
@@ -114,10 +313,40 @@ export const SCORE_COLUMNS = {
   },
 } as const;
 
+const DEFAULT_SCORE_PATHS: ScorePathDef[] = [
+  {
+    prefixes: SCORE_PREFIXES,
+    canonicalPrefix: "scores.",
+    level: "observation",
+    columns: SCORE_COLUMNS.observation,
+    description:
+      "score by name, e.g. scores.accuracy:>0.8 or scores.feedback:positive",
+  },
+  {
+    prefixes: TRACE_SCORE_PREFIXES,
+    canonicalPrefix: "traceScores.",
+    level: "trace",
+    columns: SCORE_COLUMNS.trace,
+    description: "trace-level score by name, e.g. traceScores.nps:>8",
+  },
+];
+
+export const eventsSearchBarRegistry = createFieldRegistry({
+  id: "events",
+  fields: FIELDS,
+  columns: eventsTableCols,
+});
+
 export type FieldRef =
   | { type: "field"; field: FieldDef }
   | { type: "metadata"; key: string }
-  | { type: "scores"; key: string; level: "observation" | "trace" }
+  | {
+      type: "scores";
+      key: string;
+      level: "observation" | "trace";
+      columns: ScoreColumns;
+      canonicalPrefix: string;
+    }
   | { type: "pseudo"; id: typeof HAS_KEY };
 
 /**
@@ -125,31 +354,39 @@ export type FieldRef =
  * metadata/score dot path (the key keeps its case), or a pseudo-field.
  * Null = unknown key.
  */
-export function resolveField(name: string): FieldRef | null {
+export function resolveField(
+  name: string,
+  registry: FieldRegistry = eventsSearchBarRegistry,
+): FieldRef | null {
   const lower = name.toLowerCase();
   // The segment after a dot-path prefix may be quoted to carry spaces/grammar
   // chars (`scores."Rouge Score"`, `metadata."my key"`); unquote it to the real
   // key. refName re-quotes it on the way back out.
-  if (lower.startsWith(METADATA_PREFIX)) {
-    const key = unquote(name.slice(METADATA_PREFIX.length)).value;
-    return key.length > 0 ? { type: "metadata", key } : null;
-  }
-  for (const prefix of TRACE_SCORE_PREFIXES) {
+  for (const prefix of registry.metadataPrefixes) {
     if (lower.startsWith(prefix)) {
       const key = unquote(name.slice(prefix.length)).value;
-      return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
+      return key.length > 0 ? { type: "metadata", key } : null;
     }
   }
-  for (const prefix of SCORE_PREFIXES) {
-    if (lower.startsWith(prefix)) {
-      const key = unquote(name.slice(prefix.length)).value;
-      return key.length > 0
-        ? { type: "scores", key, level: "observation" }
-        : null;
+  for (const path of registry.scorePaths) {
+    for (const prefix of path.prefixes) {
+      if (lower.startsWith(prefix)) {
+        const key = unquote(name.slice(prefix.length)).value;
+        return key.length > 0
+          ? {
+              type: "scores",
+              key,
+              level: path.level,
+              columns: path.columns,
+              canonicalPrefix: path.canonicalPrefix,
+            }
+          : null;
+      }
     }
   }
-  if (lower === HAS_KEY) return { type: "pseudo", id: lower };
-  const field = byName.get(lower);
+  if (registry.hasPseudoField && lower === HAS_KEY)
+    return { type: "pseudo", id: lower };
+  const field = registry.byName.get(lower);
   return field ? { type: "field", field } : null;
 }
 
@@ -159,18 +396,22 @@ export function resolveField(name: string): FieldRef | null {
  * (no colon), so without this guard committing one would silently set the
  * full-text searchQuery to the bare prefix.
  */
-export function isDanglingDotPrefix(value: string): boolean {
+export function isDanglingDotPrefix(
+  value: string,
+  registry: FieldRegistry = eventsSearchBarRegistry,
+): boolean {
   const lower = value.toLowerCase();
   return (
-    lower === METADATA_PREFIX ||
-    SCORE_PREFIXES.includes(lower) ||
-    TRACE_SCORE_PREFIXES.includes(lower)
+    registry.metadataPrefixes.includes(lower) ||
+    registry.scorePaths.some((path) => path.prefixes.includes(lower))
   );
 }
 
 /** Fields that can be unset — the value domain of `has:` / `-has:`. */
-export function nullableFields(): FieldDef[] {
-  return FIELDS.filter((f) => f.nullable === true);
+export function nullableFields(
+  registry: FieldRegistry = eventsSearchBarRegistry,
+): FieldDef[] {
+  return registry.fields.filter((f) => f.nullable === true);
 }
 
 // ---- operator validity ----
@@ -323,9 +564,7 @@ export function refName(ref: FieldRef): string {
     case "metadata":
       return `metadata.${quoteIfNeeded(ref.key)}`;
     case "scores":
-      return ref.level === "trace"
-        ? `traceScores.${quoteIfNeeded(ref.key)}`
-        : `scores.${quoteIfNeeded(ref.key)}`;
+      return `${ref.canonicalPrefix}${quoteIfNeeded(ref.key)}`;
     case "pseudo":
       return ref.id;
   }
@@ -334,4 +573,27 @@ export function refName(ref: FieldRef): string {
 /** Canonical query-text key for a resolved field reference. */
 export function canonicalKey(ref: FieldRef): string {
   return refName(ref);
+}
+
+export function columnIdOf(
+  column: string,
+  registry: FieldRegistry = eventsSearchBarRegistry,
+): string | null {
+  return registry.columnIdByKey.get(column.toLowerCase()) ?? null;
+}
+
+export function scorePathOf(
+  column: string,
+  key: string,
+  registry: FieldRegistry = eventsSearchBarRegistry,
+): string | null {
+  for (const path of registry.scorePaths) {
+    if (
+      column === path.columns.numeric ||
+      column === path.columns.categorical
+    ) {
+      return `${path.canonicalPrefix}${quoteIfNeeded(key)}`;
+    }
+  }
+  return null;
 }
