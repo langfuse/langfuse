@@ -6,6 +6,7 @@ settings:
 
 overrides:
   esbuild: 0.28.1
+  undici@7: 7.28.0
   zod: 4.3.6
   nanoid: ^3.3.8
   katex: ^0.16.21
@@ -307,7 +308,7 @@ importers:
         specifier: ^5.0.0
         version: 5.0.0
       undici:
-        specifier: ^7.28.0
+        specifier: 7.28.0
         version: 7.28.0
       uuid:
         specifier: ^14.0.0
@@ -11044,10 +11045,6 @@ packages:
 
   undici-types@7.10.0:
     resolution: {integrity: sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag==}
-
-  undici@7.24.5:
-    resolution: {integrity: sha512-3IWdCpjgxp15CbJnsi/Y9TCDE7HWVN19j1hmzVhoAkY/+CJx449tVxT5wZc1Gwg8J+P0LWvzlBzxYRnHJ+1i7Q==}
-    engines: {node: '>=20.18.1'}
 
   undici@7.28.0:
     resolution: {integrity: sha512-cRZYrTDwWznlnRiPjggAGxZXanty6M8RV1ff8Wm4LWXBp7/IG8v5DnOm74DtUBp9OONpK75YlPnIjQqX0dBDtA==}
@@ -22330,7 +22327,7 @@ snapshots:
       proxy-agent: 7.0.0
       semver: 7.7.4
       tinyglobby: 0.2.15
-      undici: 7.24.5
+      undici: 7.28.0
       url-join: 5.0.0
       wildcard-match: 5.1.4
       yargs-parser: 22.0.0
@@ -23313,8 +23310,6 @@ snapshots:
   undici-types@5.26.5: {}
 
   undici-types@7.10.0: {}
-
-  undici@7.24.5: {}
 
   undici@7.28.0: {}
 
