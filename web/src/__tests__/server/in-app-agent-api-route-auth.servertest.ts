@@ -25,6 +25,14 @@ const rateLimitMocks = vi.hoisted(() => ({
   rateLimitRequest: vi.fn(),
 }));
 
+const agentMocks = vi.hoisted(() => ({
+  createAgUiStream: vi.fn(),
+}));
+
+const langfuseClientMocks = vi.hoisted(() => ({
+  getLangfuseClient: vi.fn(() => ({})),
+}));
+
 vi.mock("next-auth", () => ({
   getServerSession: authMocks.getServerSession,
 }));
@@ -51,9 +59,19 @@ vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
   }),
 }));
 
+vi.mock("@/src/ee/features/in-app-agent/server/agent", () => ({
+  createAgUiStream: agentMocks.createAgUiStream,
+}));
+
+vi.mock("@/src/features/natural-language-filters/server/utils", () => ({
+  getLangfuseClient: langfuseClientMocks.getLangfuseClient,
+}));
+
 describe("in-app agent public API route auth", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    agentMocks.createAgUiStream.mockResolvedValue(new ReadableStream());
+    langfuseClientMocks.getLangfuseClient.mockReturnValue({});
     rateLimitMocks.rateLimitRequest.mockResolvedValue({
       isRateLimited: () => false,
       res: undefined,
@@ -125,9 +143,13 @@ describe("in-app agent public API route auth", () => {
   it("returns 429 when an in-app agent run exceeds the rate limit", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+    const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+    const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
 
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
+    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
 
     const { org, project } = await createOrgProjectAndApiKey();
 
@@ -199,15 +221,23 @@ describe("in-app agent public API route auth", () => {
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
       (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+      (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY =
+        originalAiFeaturesPublicKey;
+      (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY =
+        originalAiFeaturesSecretKey;
     }
   });
 
   it("rate-limits instance admins who are not project members", async () => {
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     const originalBedrockModel = env.LANGFUSE_AWS_BEDROCK_MODEL;
+    const originalAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+    const originalAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
 
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     (env as any).LANGFUSE_AWS_BEDROCK_MODEL = "test-model";
+    (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY = "pk-lf-test";
+    (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY = "sk-lf-test";
 
     const { org, project } = await createOrgProjectAndApiKey();
 
@@ -278,6 +308,10 @@ describe("in-app agent public API route auth", () => {
     } finally {
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
       (env as any).LANGFUSE_AWS_BEDROCK_MODEL = originalBedrockModel;
+      (env as any).LANGFUSE_AI_FEATURES_PUBLIC_KEY =
+        originalAiFeaturesPublicKey;
+      (env as any).LANGFUSE_AI_FEATURES_SECRET_KEY =
+        originalAiFeaturesSecretKey;
     }
   });
 });
@@ -299,7 +333,7 @@ function createInAppAgentSession(params: {
       email: "test@example.com",
       image: null,
       admin: params.admin ?? false,
-      featureFlags: { inAppAgent: true },
+      featureFlags: {},
       organizations: includeProjectMembership
         ? [
             {

@@ -6,7 +6,7 @@ import {
   BatchEvalSourceTable as SourceTable,
   getEvalTargetObjectFromSourceTable,
 } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   Dialog,
   DialogBody,
@@ -119,6 +119,7 @@ export function RunEvaluationDialog(props: RunEvaluationDialogProps) {
       truncated: false,
     },
     {
+      ...sendAsPostOption,
       enabled:
         isBetaEnabled &&
         Boolean(

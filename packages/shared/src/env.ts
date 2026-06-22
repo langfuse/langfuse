@@ -297,6 +297,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3600), // 1 hour
+  LANGFUSE_INGEST_FAILURE_PROJECT_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .gt(60)
+    .default(3600), // 1 hour
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -454,21 +459,6 @@ const EnvSchema = z.object({
   LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
     .enum(["true", "false"])
     .default("false"),
-  // Temporary kill-switch for the observations v2 subquery-IN rewrite
-  // (JOIN-free alternative to the CTE+JOIN split query).
-  LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
-    .enum(["true", "false"])
-    .default("false"),
-  // Run the subquery-IN rewrite as a shadow query alongside the CTE+JOIN
-  // path and emit comparison metrics. Remove after validation.
-  LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY: z
-    .enum(["true", "false"])
-    .default("false"),
-  LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY_SAMPLE_RATE: z.coerce
-    .number()
-    .min(0)
-    .max(1)
-    .default(0.01),
   // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
   // When enabled, projects ingesting via OTEL API skip the FINAL modifier on some observations queries for better performance.
   LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z

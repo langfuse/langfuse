@@ -49,6 +49,7 @@ import {
   getDatasetItemById,
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
+  tagsWithTraceId,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -1435,10 +1436,12 @@ export class IngestionService {
           format: "JSONEachRow",
           query_params: { projectId, entityId, ...additionalFilters.params },
           clickhouse_settings: {
-            log_comment: JSON.stringify({
-              feature: "ingestion",
-              projectId,
-            }),
+            log_comment: JSON.stringify(
+              tagsWithTraceId({
+                feature: "ingestion",
+                projectId,
+              }),
+            ),
           },
         });
 

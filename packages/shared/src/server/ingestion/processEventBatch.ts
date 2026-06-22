@@ -42,6 +42,7 @@ import {
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
+import { markProjectIngestFailure } from "../redis/ingestionFailureTracking";
 
 let s3StorageServiceClient: StorageService;
 
@@ -300,8 +301,16 @@ export const processEventBatch = async (
               error: result.reason,
             },
           );
-          // Fire and forget - don't await, don't block the error flow
           markProjectS3Slowdown(authCheck.scope.projectId!).catch(() => {});
+          markProjectIngestFailure(authCheck.scope.projectId!, {
+            source: "process_event_batch",
+            reason: "s3_slowdown",
+          });
+        } else {
+          markProjectIngestFailure(authCheck.scope.projectId!, {
+            source: "process_event_batch",
+            reason: "s3_upload_error",
+          });
         }
 
         logger.error("Failed to upload event to S3", {

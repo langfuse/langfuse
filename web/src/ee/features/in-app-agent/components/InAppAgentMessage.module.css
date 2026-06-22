@@ -12,6 +12,14 @@
   @apply prose-headings:my-2.5 text-sm leading-4.5;
 }
 
+.Streamdown blockquote {
+  @apply text-muted-foreground;
+}
+
+.Streamdown a {
+  @apply text-primary-accent;
+}
+
 .Streamdown > div > *:first-child {
   @apply mt-0!;
 }

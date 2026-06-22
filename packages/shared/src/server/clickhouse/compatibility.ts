@@ -31,6 +31,17 @@ type ClickHouseCompatibilityRule = {
   overrideEnvKey: ClickHouseCompatibilityEnvKey;
 };
 
+type ComputedClickHouseCompatibilityFlag = {
+  id: string;
+  setting: string;
+  value: ClickHouseSettings[string];
+  reason: string;
+  override: ClickHouseCompatibilityEnvValue;
+  versionBands: ClickHouseVersionBand[];
+  matchesVersionBand: boolean;
+  applied: boolean;
+};
+
 type ResolveClickHouseCompatibilityParams = {
   version?: string | null;
   overrides?: Partial<
@@ -41,6 +52,8 @@ type ResolveClickHouseCompatibilityParams = {
 type ResolvedClickHouseCompatibility = {
   settings: ClickHouseSettings;
   appliedRules: ClickHouseCompatibilityRule[];
+  parsedVersion: ClickHouseVersion | null;
+  flags: ComputedClickHouseCompatibilityFlag[];
 };
 
 const CLICKHOUSE_COMPATIBILITY_RULES: ClickHouseCompatibilityRule[] = [
@@ -100,28 +113,38 @@ export const resolveClickHouseCompatibility = ({
   const parsedVersion = version ? parseClickHouseVersion(version) : null;
   const settings: ClickHouseSettings = {};
   const appliedRules: ClickHouseCompatibilityRule[] = [];
+  const flags: ComputedClickHouseCompatibilityFlag[] = [];
 
   for (const rule of CLICKHOUSE_COMPATIBILITY_RULES) {
     const override =
       overrides?.[rule.overrideEnvKey] ?? env[rule.overrideEnvKey] ?? "auto";
+    const matchesVersionBand =
+      parsedVersion !== null &&
+      rule.versionBands.some((band) =>
+        isClickHouseVersionInBand(parsedVersion, band),
+      );
 
-    if (override === "false") continue;
+    const applied =
+      override === "true" || (override === "auto" && matchesVersionBand);
 
-    const shouldApply =
-      override === "true" ||
-      (override === "auto" &&
-        parsedVersion &&
-        rule.versionBands.some((band) =>
-          isClickHouseVersionInBand(parsedVersion, band),
-        ));
+    flags.push({
+      id: rule.id,
+      setting: rule.setting,
+      value: rule.value,
+      reason: rule.reason,
+      override,
+      versionBands: rule.versionBands,
+      matchesVersionBand,
+      applied,
+    });
 
-    if (shouldApply) {
+    if (applied) {
       settings[rule.setting] = rule.value;
       appliedRules.push(rule);
     }
   }
 
-  return { settings, appliedRules };
+  return { settings, appliedRules, parsedVersion, flags };
 };
 
 export const getClickHouseCompatibilitySettings = (): ClickHouseSettings =>
@@ -133,14 +156,29 @@ export const initializeClickhouseCompatibility = async (): Promise<void> => {
 
   initializationPromise = (async () => {
     try {
-      detectedClickHouseVersion = await fetchClickHouseVersion();
+      const clickHouseVersion = await fetchClickHouseVersion();
       const resolved = resolveClickHouseCompatibility({
-        version: detectedClickHouseVersion,
+        version: clickHouseVersion,
       });
+
+      logger.info("Resolved ClickHouse compatibility from version", {
+        clickhouseVersion: clickHouseVersion,
+        parsedClickHouseVersion: resolved.parsedVersion,
+        computedCompatibilityFlags: resolved.flags,
+        settings: resolved.settings,
+      });
+
+      if (!resolved.parsedVersion) {
+        throw new Error(
+          `ClickHouse returned an unsupported version: ${clickHouseVersion}`,
+        );
+      }
+
+      detectedClickHouseVersion = clickHouseVersion;
 
       if (resolved.appliedRules.length > 0) {
         logger.info("Applying ClickHouse compatibility settings", {
-          clickhouseVersion: detectedClickHouseVersion,
+          clickhouseVersion: clickHouseVersion,
           settings: resolved.settings,
           rules: resolved.appliedRules.map((rule) => ({
             id: rule.id,
@@ -150,7 +188,7 @@ export const initializeClickhouseCompatibility = async (): Promise<void> => {
         });
       } else {
         logger.info("No ClickHouse compatibility settings required", {
-          clickhouseVersion: detectedClickHouseVersion,
+          clickhouseVersion: clickHouseVersion,
         });
       }
     } catch (error) {
@@ -179,10 +217,6 @@ const fetchClickHouseVersion = async (): Promise<string> => {
 
     if (!version) {
       throw new Error("ClickHouse version query returned no version");
-    }
-
-    if (!parseClickHouseVersion(version)) {
-      throw new Error(`ClickHouse returned an unsupported version: ${version}`);
     }
 
     return version;

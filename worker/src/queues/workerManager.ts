@@ -11,6 +11,7 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../env";
+import { WORKER_HOST_ID } from "../utils/hostId";
 import {
   resolveQueueInstance,
   SHARDED_QUEUE_BASE_NAMES,
@@ -177,6 +178,20 @@ export class WorkerManager {
       recordIncrement(oldMetric + ".error");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
+        ...shardTag,
+      });
+    });
+    // Counts intermediate re-enqueues (LFE-10063), not just the terminal
+    // "stalled more than allowable limit" the "failed" handler catches.
+    worker.on("stalled", (jobId: string) => {
+      // detectedOnHost: the stall-checker pod, which may differ from the pod
+      // whose lock expired.
+      logger.warn(
+        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${WORKER_HOST_ID}`,
+      );
+      recordIncrement(oldMetric + ".stalled");
+      recordIncrement(baseMetric + ".rate", 1, {
+        type: "stalled",
         ...shardTag,
       });
     });

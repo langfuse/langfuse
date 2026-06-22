@@ -67,6 +67,8 @@ describe("in-app agent persistence", () => {
             cloudConfig: undefined,
             name: "Test Organization",
             metadata: {},
+            aiFeaturesEnabled: true,
+            aiTelemetryEnabled: true,
             projects: [
               {
                 id: setup.projectId,
@@ -74,16 +76,14 @@ describe("in-app agent persistence", () => {
                 name: "Test Project",
                 deletedAt: null,
                 retentionDays: null,
+                hasTraces: false,
                 metadata: {},
+                createdAt: new Date().toISOString(),
               },
             ],
           },
         ],
-        featureFlags: {
-          inAppAgent: true,
-          templateFlag: true,
-          excludeClickhouseRead: false,
-        },
+        featureFlags: {},
         admin: false,
       },
       environment: {} as any,

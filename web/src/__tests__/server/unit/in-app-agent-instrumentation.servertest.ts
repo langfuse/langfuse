@@ -7,19 +7,14 @@ const traceId = "0123456789abcdef0123456789abcdef";
 const agentRunObservationId = "run-1";
 
 const mocks = vi.hoisted(() => {
-  const toolSpan = {
-    update: vi.fn(),
-    end: vi.fn(),
-  };
-  const agentSpan = {
+  const agentGeneration = {
     observationId: "run-1",
     traceId: "0123456789abcdef0123456789abcdef",
-    span: vi.fn(() => toolSpan),
     update: vi.fn(),
     end: vi.fn(),
   };
   const trace = {
-    span: vi.fn(() => agentSpan),
+    generation: vi.fn(() => agentGeneration),
     update: vi.fn(),
   };
   const handler = {
@@ -30,8 +25,7 @@ const mocks = vi.hoisted(() => {
   };
 
   return {
-    agentSpan,
-    toolSpan,
+    agentGeneration,
     trace,
     handler,
     processTracedEvents: vi.fn(async () => undefined),
@@ -129,14 +123,13 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.handler.langfuse.trace.mock.calls[0][0]).not.toHaveProperty(
       "input",
     );
-    expect(mocks.trace.span).toHaveBeenCalledWith(
+    expect(mocks.trace.generation).toHaveBeenCalledWith(
       expect.objectContaining({
         id: agentRunObservationId,
         name: "agent-run",
         input: "hello",
       }),
     );
-    expect(mocks.agentSpan.span).not.toHaveBeenCalled();
     expect(mocks.handler.langfuse.enqueue).toHaveBeenCalledWith(
       "tool-create",
       expect.objectContaining({
@@ -152,8 +145,10 @@ describe("InAppAgentInstrumentation", () => {
         metadata: expect.objectContaining({ toolCallId: "tool-1" }),
       }),
     );
-    expect(mocks.agentSpan.update).toHaveBeenCalledWith(
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
+        name: "agent-run",
+        input: "hello",
         output: "hi there",
       }),
     );
@@ -164,7 +159,7 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.trace.update.mock.calls[0][0]).not.toHaveProperty("output");
   });
 
-  it("records run failures on the agent span", () => {
+  it("records run failures on the agent generation", () => {
     const instrumentation = createInstrumentation();
 
     instrumentation.recordEvents([
@@ -190,11 +185,66 @@ describe("InAppAgentInstrumentation", () => {
         metadata: expect.objectContaining({ error: "agent failed" }),
       }),
     );
-    expect(mocks.agentSpan.update).toHaveBeenCalledWith(
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
+        name: "agent-run",
+        input: "hello",
         level: "ERROR",
         statusMessage: "agent failed",
         metadata: expect.objectContaining({ error: "agent failed" }),
+      }),
+    );
+  });
+
+  it("sets static prompt metadata on the trace and agent generation", () => {
+    const instrumentation = createInstrumentation(undefined, {
+      name: "in-app-agent-system-prompt",
+      version: 3,
+    });
+
+    expect(mocks.getInternalTracingHandler).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: {
+          name: "in-app-agent-system-prompt",
+          version: 3,
+        },
+        metadata: {
+          langfuse_project_id: "project-1",
+          prompt_name: "in-app-agent-system-prompt",
+          prompt_version: 3,
+        },
+      }),
+    );
+    expect(mocks.handler.langfuse.trace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: {
+          langfuse_project_id: "project-1",
+          prompt_name: "in-app-agent-system-prompt",
+          prompt_version: 3,
+        },
+      }),
+    );
+    expect(mocks.trace.generation).toHaveBeenCalledWith({
+      id: agentRunObservationId,
+      name: "agent-run",
+      input: "hello",
+      metadata: {
+        langfuse_project_id: "project-1",
+        prompt_name: "in-app-agent-system-prompt",
+        prompt_version: 3,
+      },
+      promptName: "in-app-agent-system-prompt",
+      promptVersion: 3,
+    });
+
+    instrumentation.end();
+
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-run",
+        input: "hello",
+        promptName: "in-app-agent-system-prompt",
+        promptVersion: 3,
       }),
     );
   });
@@ -215,13 +265,17 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.handler.langfuse.trace.mock.calls[0][0]).not.toHaveProperty(
       "input",
     );
-    expect(mocks.agentSpan.update).toHaveBeenCalledWith(
-      expect.objectContaining({ output: "second turn output" }),
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-run",
+        input: "hello",
+        output: "second turn output",
+      }),
     );
     expect(mocks.trace.update.mock.calls[0][0]).not.toHaveProperty("output");
   });
 
-  it("records AG-UI context in the agent span input", () => {
+  it("records AG-UI context in the agent generation input", () => {
     createInstrumentation({
       context: [
         {
@@ -232,7 +286,7 @@ describe("InAppAgentInstrumentation", () => {
       ],
     });
 
-    expect(mocks.trace.span).toHaveBeenCalledWith(
+    expect(mocks.trace.generation).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "agent-run",
         input: {
@@ -272,12 +326,16 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    expect(mocks.agentSpan.update).toHaveBeenCalledWith(
-      expect.objectContaining({ output: "chunk output" }),
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "agent-run",
+        input: "hello",
+        output: "chunk output",
+      }),
     );
   });
 
-  it("records reasoning text in agent span metadata", () => {
+  it("records reasoning text in agent generation metadata", () => {
     const instrumentation = createInstrumentation();
 
     instrumentation.recordEvents([
@@ -300,8 +358,10 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    expect(mocks.agentSpan.update).toHaveBeenCalledWith(
+    expect(mocks.agentGeneration.update).toHaveBeenCalledWith(
       expect.objectContaining({
+        name: "agent-run",
+        input: "hello",
         output: "Done",
         metadata: expect.objectContaining({ reasoning: "Checking filters" }),
       }),
@@ -320,11 +380,17 @@ describe("InAppAgentInstrumentation", () => {
       },
     ]);
 
-    expect(mocks.agentSpan.span).not.toHaveBeenCalled();
+    expect(mocks.handler.langfuse.enqueue).not.toHaveBeenCalledWith(
+      "tool-create",
+      expect.anything(),
+    );
   });
 });
 
-function createInstrumentation(overrides?: Partial<AgUiRunAgentInput>) {
+function createInstrumentation(
+  overrides?: Partial<AgUiRunAgentInput>,
+  prompt?: { name: string; version: number },
+) {
   return new InAppAgentInstrumentation({
     input: { ...input, ...overrides },
     metadata: { langfuse_project_id: "project-1" },
@@ -332,5 +398,6 @@ function createInstrumentation(overrides?: Partial<AgUiRunAgentInput>) {
     traceId,
     targetProjectId: "project-1",
     environment: "prod",
+    prompt,
   });
 }

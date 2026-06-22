@@ -21,7 +21,7 @@ import {
 import { Input } from "@/src/components/ui/input";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Edit, PlusIcon } from "lucide-react";
+import { Edit, Pen, PlusIcon } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { Form } from "@/src/components/ui/form";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -36,6 +36,7 @@ import { useRouter } from "next/router";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { ActionButton } from "@/src/components/ActionButton";
+import { IconOnlyButton } from "@/src/components/IconOnlyButton";
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import {
@@ -53,11 +54,13 @@ export const CreateOrEditAnnotationQueueButton = ({
   queueId,
   variant = "secondary",
   size,
+  isTableAction = false,
 }: {
   projectId: string;
   queueId?: string;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
+  isTableAction?: boolean;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -75,7 +78,9 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const queueQuery = api.annotationQueues.byId.useQuery(
     { projectId, queueId: queueId as string },
-    { enabled: !!queueId && hasQueueAccess },
+    // Only needed once the edit dialog is open; otherwise this fires for every
+    // row that eagerly mounts the inline table-action button.
+    { enabled: !!queueId && hasQueueAccess && isOpen },
   );
 
   const form = useForm({
@@ -83,6 +88,9 @@ export const CreateOrEditAnnotationQueueButton = ({
   });
 
   useEffect(() => {
+    // Re-seed when the dialog opens so reopening discards any unsaved edits;
+    // the component now stays mounted per table row instead of remounting.
+    if (!isOpen) return;
     if (queueId && queueQuery.data) {
       form.reset({
         name: queueQuery.data.name,
@@ -100,7 +108,7 @@ export const CreateOrEditAnnotationQueueButton = ({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queueId, queueQuery.data]);
+  }, [queueId, queueQuery.data, isOpen]);
 
   const utils = api.useUtils();
 
@@ -111,7 +119,9 @@ export const CreateOrEditAnnotationQueueButton = ({
 
   const queueCountData = api.annotationQueues.count.useQuery(
     { projectId },
-    { enabled: hasQueueAccess },
+    // The count only feeds the create button's limit check; skip it when
+    // editing (e.g. the per-row table action button) where it goes unused.
+    { enabled: hasQueueAccess && !queueId },
   );
 
   const configsData = api.scoreConfigs.all.useQuery(
@@ -210,31 +220,57 @@ export const CreateOrEditAnnotationQueueButton = ({
     }
   };
 
+  // Table rows render a compact icon button and rely on the disabled state plus
+  // a tooltip; everywhere else uses the labeled ActionButton with its built-in
+  // access/limit messaging.
+  const triggerButton = isTableAction ? (
+    <IconOnlyButton
+      icon={<Pen className="h-4 w-4" />}
+      label="Edit"
+      aria-label="edit"
+      disabledReason={
+        hasQueueAccess
+          ? undefined
+          : "You don't have permission to edit this queue."
+      }
+      onClick={(event) => {
+        event.stopPropagation();
+        setIsOpen(true);
+      }}
+    />
+  ) : (
+    <ActionButton
+      variant={variant}
+      onClick={() => setIsOpen(true)}
+      className="justify-start"
+      icon={
+        queueId ? (
+          <Edit className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <PlusIcon className="h-4 w-4" aria-hidden="true" />
+        )
+      }
+      hasAccess={hasQueueAccess}
+      limitValue={queueCountData.data}
+      limit={queueLimit}
+      size={size}
+    >
+      <span className="ml-1 text-sm font-normal">
+        {queueId ? "Edit" : "New queue"}
+      </span>
+    </ActionButton>
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <ActionButton
-          variant={variant}
-          onClick={() => setIsOpen(true)}
-          className="justify-start"
-          icon={
-            queueId ? (
-              <Edit className="h-4 w-4" aria-hidden="true" />
-            ) : (
-              <PlusIcon className="h-4 w-4" aria-hidden="true" />
-            )
-          }
-          hasAccess={hasQueueAccess}
-          limitValue={queueCountData.data}
-          limit={queueLimit}
-          size={size}
-        >
-          <span className="ml-1 text-sm font-normal">
-            {queueId ? "Edit" : "New queue"}
-          </span>
-        </ActionButton>
-      </DialogTrigger>
-      {configsData.data && (
+      {isTableAction ? (
+        triggerButton
+      ) : (
+        <DialogTrigger asChild>{triggerButton}</DialogTrigger>
+      )}
+      {/* For an edit, also wait for the queue data so the form opens populated
+          rather than briefly showing empty fields while byId loads. */}
+      {configsData.data && (!queueId || queueQuery.data) && (
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>

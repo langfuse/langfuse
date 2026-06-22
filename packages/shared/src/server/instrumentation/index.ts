@@ -5,6 +5,7 @@ import {
 import * as opentelemetry from "@opentelemetry/api";
 import * as dd from "dd-trace";
 import { env } from "../../env";
+import { API_KEY_CACHE_KEY_PREFIX } from "../auth/apiKeyCache";
 import { logger } from "../logger";
 
 // type CallbackFn<T> = () => T;
@@ -25,8 +26,8 @@ export function ioredisRequestHook(
     return;
   }
   const args = [...cmdArgs].map(String);
-  // Redact API key cache values: SET [prefix:]api-key:{hash} <json>
-  if (args[0]?.includes("api-key:")) {
+  // Redact API key cache values.
+  if (args[0]?.includes(API_KEY_CACHE_KEY_PREFIX)) {
     for (let i = 1; i < args.length; i++) {
       args[i] = "[REDACTED]";
     }

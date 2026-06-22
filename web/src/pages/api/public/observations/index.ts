@@ -19,6 +19,7 @@ import {
   generateObservationsForPublicApi,
   getObservationsCountForPublicApi,
 } from "@/src/features/public-api/server/observations";
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
 export default withMiddlewares(
   {
@@ -28,6 +29,8 @@ export default withMiddlewares(
       rateLimitResource: "public-api-legacy",
       querySchema: GetObservationsV1Query,
       responseSchema: GetObservationsV1Response,
+      rateLimitUpgradePath:
+        legacyPublicApiRateLimitUpgradePaths.observationsList,
       rejectInEventsOnlyMode: true,
       fn: async ({ query, auth }) => {
         const filterProps = {

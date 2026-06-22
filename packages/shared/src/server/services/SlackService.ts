@@ -135,6 +135,7 @@ export class SlackService {
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
+      directInstall: false,
       installUrlOptions: {
         scopes: SLACK_BOT_SCOPES as unknown as string[],
       },

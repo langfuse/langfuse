@@ -46,6 +46,10 @@ Generally available on the v4 events tables (no opt-in). Based on the
   (quote a literal `*`, e.g. `statusMessage:"a*b"`). `name:`/`id:` work the same
   way (bare = contains, `:=` = exact) but still suggest observed values.
 - `metadata.region:eu`, `scores.accuracy:>0.8`, `traceScores.nps:positive`
+- dot-path names with spaces/grammar chars are **quoted after the prefix**:
+  `scores."Rouge Score":>=1`, `traceScores."Hallucination Check":faithful`,
+  `metadata."my key":eu` (the quotes are stripped to the real key when lowering;
+  the reverse adapter and completions re-quote them — so they round-trip)
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
 
@@ -130,9 +134,10 @@ committedText ──resetTo──▶ store.draft ──(type/pick/remove)──�
 
 - **No silent drops or rewrites.** Every filter is either rendered in the bar,
   preserved untouched via `skippedFilters` (shapes the grammar can't express —
-  `positionInTrace`, keys with grammar chars, single-value `all of`), or a
-  commit-blocking diagnostic. Never silently dropped, reordered into a
-  different filter, or rewritten.
+  `positionInTrace`, single-value `all of`), or a commit-blocking diagnostic.
+  Never silently dropped, reordered into a different filter, or rewritten.
+  (Score/metadata keys with grammar chars are no longer skipped — they render
+  with a quoted segment, `scores."Rouge Score"`, and round-trip.)
 - **validate ↔ lower parity, across _every_ site.** `draftValid` (store),
   token classification (`deriveComposerSegments`), and the commit gate
   (`planCommit` → `validateQuery` + `astToFilterState`) must all lower with the

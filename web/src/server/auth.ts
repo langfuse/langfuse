@@ -848,20 +848,24 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud
-                          ? canToggleV4({
-                              userCreatedAt: dbUser.createdAt,
-                              organizations: dbUser.organizationMemberships.map(
-                                (orgMembership) => ({
-                                  id: orgMembership.organization.id,
-                                  createdAt:
-                                    orgMembership.organization.createdAt,
-                                }),
-                              ),
-                              excludedOrganizationIds:
-                                env.NEXT_PUBLIC_DEMO_ORG_ID
-                                  ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-                                  : [],
-                            })
+                          ? canToggleV4(
+                              {
+                                userCreatedAt: dbUser.createdAt,
+                                organizations:
+                                  dbUser.organizationMemberships.map(
+                                    (orgMembership) => ({
+                                      id: orgMembership.organization.id,
+                                      createdAt:
+                                        orgMembership.organization.createdAt,
+                                    }),
+                                  ),
+                                excludedOrganizationIds:
+                                  env.NEXT_PUBLIC_DEMO_ORG_ID
+                                    ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+                                    : [],
+                              },
+                              { isLangfuseCloudAdmin: dbUser.admin },
+                            )
                           : true
                         : false,
                     canCreateOrganizations: canCreateOrganizations(

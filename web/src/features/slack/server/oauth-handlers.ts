@@ -9,6 +9,7 @@ import { env } from "@/src/env.mjs";
 import { getServerAuthSession } from "@/src/server/auth";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
+import { getSafeRedirectPath } from "@/src/utils/redirect";
 
 /**
  * SlackOAuthHandlers
@@ -36,13 +37,6 @@ export async function handleInstallPath(
       redirectUri: `${env.NEXTAUTH_URL}/api/public/slack/oauth`,
     };
 
-    // hack because nextjs dev server support for https is experimental
-    if (env.NODE_ENV === "development") {
-      installOptions.redirectUri = installOptions.redirectUri?.replace(
-        "http://",
-        "https://",
-      );
-    }
     return await SlackService.getInstance()
       .getInstaller()
       .handleInstallPath(req, res, undefined, installOptions);
@@ -115,7 +109,7 @@ export async function handleCallback(
 
           // Redirect to project-specific Slack settings page
           const redirectUrl = `/project/${projectId}/settings/integrations/slack?success=true&team_name=${encodeURIComponent(installation.team?.name || "")}`;
-          res.redirect(redirectUrl);
+          res.redirect(getSafeRedirectPath(redirectUrl));
         },
 
         failure: async (error) => {

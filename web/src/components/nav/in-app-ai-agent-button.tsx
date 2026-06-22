@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useSession } from "next-auth/react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -27,13 +26,10 @@ import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvi
 const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
 
 export const InAppAiAgentButton = () => {
-  const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
   const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const isInAppAgentEnabled =
-    session.data?.user?.featureFlags.inAppAgent === true;
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -90,7 +86,7 @@ export const InAppAiAgentButton = () => {
     floatingPanelHandle.initializeGeometry();
   }, [floatingPanelHandle, isExpanded, open, portalContainer]);
 
-  if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
+  if (!isAvailable || !hasInAppAgentEntitlement) {
     return null;
   }
 

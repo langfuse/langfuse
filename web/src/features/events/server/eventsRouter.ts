@@ -88,7 +88,7 @@ export const eventsRouter = createTRPCRouter({
       });
 
       if (hasNoMatches) {
-        return { observations: [] };
+        return { observations: [], hasMore: false };
       }
 
       return instrumentAsync(

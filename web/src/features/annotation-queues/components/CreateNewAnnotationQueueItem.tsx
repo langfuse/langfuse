@@ -136,7 +136,7 @@ export const CreateNewAnnotationQueueItem = ({
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent>
+      <DropdownMenuContent className="max-h-[min(300px,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto">
         <DropdownMenuLabel>In queue(s)</DropdownMenuLabel>
         {queues.data?.queues.length ? (
           queues.data?.queues.map((queue) => (

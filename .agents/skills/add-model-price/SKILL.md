@@ -16,6 +16,8 @@ updates in `packages/shared/`.
 - Updating provider prices, cache pricing, or tier conditions
 - Expanding regex coverage for Bedrock, Vertex, Azure, or provider-prefixed
   model names
+- Auditing default model prices for stale, missing, or unmatched provider
+  pricing
 
 ## How to Read This Skill
 
@@ -49,6 +51,7 @@ updates in `packages/shared/`.
 | Provider sources and price keys | You need official pricing URLs, per-token conversion, or provider-specific usage keys | [references/provider-sources-and-price-keys.md](references/provider-sources-and-price-keys.md) |
 | Match patterns                  | You are editing `matchPattern` regexes or provider coverage                           | [references/match-patterns.md](references/match-patterns.md)                                   |
 | Workflow and validation         | You are applying the end-to-end edit process or checking common mistakes              | [references/workflow-and-validation.md](references/workflow-and-validation.md)                 |
+| Automated audit mode            | You are running a scheduled/default-price audit and need CI-safe edit rules           | [references/automated-audit.md](references/automated-audit.md)                                 |
 
 ## Deterministic Helpers
 

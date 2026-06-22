@@ -105,17 +105,21 @@ export async function getEventList(params: GetObservationsListParams) {
     searchQuery: params.searchQuery,
     searchType: params.searchType,
     orderBy: params.orderBy,
-    limit: params.limit,
+    limit: params.limit + 1,
     offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
     selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
 
-  const observations =
+  const fetchedObservations =
     await getObservationsWithModelDataFromEventsTable(queryOpts);
+  const hasMore = fetchedObservations.length > params.limit;
+  const observations = hasMore
+    ? fetchedObservations.slice(0, params.limit)
+    : fetchedObservations;
 
   if (observations.length === 0) {
-    return { observations };
+    return { observations, hasMore };
   }
 
   const traceIds = Array.from(
@@ -214,7 +218,7 @@ export async function getEventList(params: GetObservationsListParams) {
       : {},
   }));
 
-  return { observations: observationsWithScores };
+  return { observations: observationsWithScores, hasMore };
 }
 
 /**

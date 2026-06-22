@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import {
   type ExperimentItemsTableRow,
   type ExperimentOutputData,
@@ -118,6 +118,7 @@ export function useExperimentItemsTableData({
 
   // Fetch IO data for visible items
   const batchIOQuery = api.experiments.batchIO.useQuery(batchIOPayload!, {
+    ...sendAsPostOption,
     enabled: hasSelectedRuns && itemsQuery.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,

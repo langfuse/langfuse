@@ -18,6 +18,11 @@ const eventsView: RegistryUnderTest = {
     "metadata.region",
     "scores.accuracy",
     "traceScores.nps",
+    // Quoted dot-path segments: score/metadata names with spaces + grammar
+    // chars must round-trip through the quoting just like bare keys.
+    'scores."Rouge Score"',
+    'traceScores."Hallucination Check"',
+    'metadata."my key"',
     "has:endTime",
     "has:latency",
   ],

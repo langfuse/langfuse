@@ -7,6 +7,7 @@ import { server } from "../index";
 import { freeAllTokenizers } from "../features/tokenisation/usage";
 import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage";
 import { WorkerManager } from "../queues/workerManager";
+import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 import {
@@ -61,6 +62,9 @@ export const onShutdown: NodeJS.SignalsListener = async (signal) => {
   for (const runner of monitorRunners) {
     runner.stop();
   }
+
+  // Before closeWorkers(), while the registry is still populated (LFE-10388).
+  logInFlightBlobExportsOnShutdown();
 
   // Shutdown workers (https://docs.bullmq.io/guide/going-to-production#gracefully-shut-down-workers)
   await WorkerManager.closeWorkers();

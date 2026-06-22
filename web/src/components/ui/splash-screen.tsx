@@ -28,7 +28,7 @@ export interface Step {
 
 export interface SplashScreenProps {
   title: string;
-  description: string;
+  description: string | React.ReactNode;
   waitingFor?: string;
   image?: {
     src: string;
@@ -118,7 +118,7 @@ export function SplashScreen({
           </StatusBadge>
         )}
         <h2 className="mb-2 text-2xl font-bold">{title}</h2>
-        <p className="text-muted-foreground">{description}</p>
+        <div className="text-muted-foreground">{description}</div>
       </div>
 
       <div className="mb-8 flex w-full flex-wrap justify-center gap-4">

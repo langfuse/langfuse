@@ -8,6 +8,7 @@ import {
   IngestionEventType,
   isS3SlowDownError,
   logger,
+  markProjectIngestFailure,
   markProjectS3Slowdown,
   QueueName,
   rawEventBucketPrefix,
@@ -324,6 +325,15 @@ export const ingestionQueueProcessorBuilder = (
           { projectId, error: e },
         );
         await markProjectS3Slowdown(projectId);
+        markProjectIngestFailure(projectId, {
+          source: "ingestion_queue",
+          reason: "s3_slowdown",
+        });
+      } else {
+        markProjectIngestFailure(job.data.payload.authCheck.scope.projectId, {
+          source: "ingestion_queue",
+          reason: "processing_error",
+        });
       }
 
       logger.error(

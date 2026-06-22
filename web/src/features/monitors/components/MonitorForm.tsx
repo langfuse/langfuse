@@ -297,7 +297,7 @@ export const MonitorForm = ({
       modelOptions: data?.providedModelName ?? [],
       toolNamesOptions: data?.toolNames ?? [],
       calledToolNamesOptions: data?.calledToolNames ?? [],
-      observationLevelOptions: [],
+      observationLevelOptions: data?.level ?? [],
       experimentNameOptions: data?.experimentName ?? [],
       experimentDatasetOptions: (() => {
         const ids = new Set(
@@ -312,7 +312,7 @@ export const MonitorForm = ({
             })) ?? []
         );
       })(),
-      observationTypeOptions: [],
+      observationTypeOptions: data?.type ?? [],
     };
   }, [eventsFilterOptions.data, datasets.data, watched.view]);
 

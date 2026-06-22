@@ -279,7 +279,11 @@ export const langgraphAdapter: ProviderAdapter = {
     // REJECTIONS: Reject AI SDK v5, OpenAI Agents SDK, Semantic Kernel and Pydantic formats
     if (meta && typeof meta === "object") {
       // Check scope.name for AI SDK, OpenAI Agents, or Semantic Kernel
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
 
         // Reject AI SDK v5 (scope.name === "ai")

@@ -13,18 +13,16 @@ import { Switch } from "@/src/components/ui/switch";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 
-import inAppAgentDarkIllustration from "../assets/in-app-agent-dark.svg";
-import inAppAgentLightIllustration from "../assets/in-app-agent-light.svg";
 import filterSearchBarDarkIllustration from "../assets/filter-search-bar-dark.svg";
 import filterSearchBarLightIllustration from "../assets/filter-search-bar-light.svg";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts.
- *  NOTE: "searchBar" is retired (the bar is GA on the v4 events tables) and no
- *  longer renders a tile — see ControlledFeaturePreviewModal. It is kept in the
- *  type + registry below only as dead code for a safe rollback.
+ *  NOTE: the current flag is retired and no longer renders a tile — see
+ *  ControlledFeaturePreviewModal. It is kept in the type + registry below only
+ *  as dead code for a safe rollback.
  *  TODO(remove ~2026-06-19): drop "searchBar" here once GA is confirmed. */
-export type PreviewFlag = "inAppAgent" | "searchBar";
+export type PreviewFlag = "searchBar";
 
 type PreviewIllustration = {
   light: React.ComponentProps<typeof Image>["src"];
@@ -54,21 +52,6 @@ export type PreviewState = {
 // Static registry — one entry per preview. Order = sidebar order; each
 // preview ships separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
-  {
-    flag: "inAppAgent",
-    title: "Langfuse Assistant",
-    sidebarLabel: "Langfuse Assistant",
-    description:
-      "Explore project data, understand connected Langfuse resources, and get practical help while investigating your application.",
-    details:
-      "This experimental preview can help you inspect traces and observations, look up related scores or prompts, and answer practical questions while you work in a project. Today, it is most useful for exploring project data and understanding how different Langfuse resources connect. Over time, the goal is to help teams generate insights faster and improve their agentic products with less manual investigation.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions/14196",
-    illustration: {
-      light: inAppAgentLightIllustration,
-      dark: inAppAgentDarkIllustration,
-      alt: "Langfuse Assistant connects traces, scores, and prompts to answer project questions.",
-    },
-  },
   // TODO(remove ~2026-06-19): dead registry entry — "searchBar" is GA on the v4
   // events tables and no longer surfaced in the dialog (no state entry in
   // ControlledFeaturePreviewModal), so this is filtered out and never renders.

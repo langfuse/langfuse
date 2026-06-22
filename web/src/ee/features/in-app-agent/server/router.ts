@@ -229,12 +229,6 @@ async function assertInAppAgentAvailable({
     );
   }
 
-  const isInAppAgentEnabled = ctx.session.user.featureFlags.inAppAgent === true;
-
-  if (!isInAppAgentEnabled) {
-    throw new ForbiddenError("Assistant is not enabled for this user");
-  }
-
   throwIfNoEntitlement({
     entitlement: "in-app-agent",
     sessionUser: ctx.session.user,
