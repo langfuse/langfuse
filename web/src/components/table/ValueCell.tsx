@@ -218,9 +218,14 @@ function ValueCellActionsMenu({
   const router = useRouter();
   const { value, type, hasChildren } = row.original;
 
+  const filterValue = String(value);
   const isScalarLeaf =
     !hasChildren &&
-    (type === "string" || type === "number" || type === "boolean");
+    (type === "string" || type === "number" || type === "boolean") &&
+    // Skip empty values: `contains ""` matches every row (ClickHouse
+    // position(x, "") === 1, and Map[missingKey] defaults to "") while
+    // `does not contain ""` matches none — both shortcuts would be no-ops.
+    filterValue.length > 0;
 
   // Metadata is a flat Map(String, String), so a nested value can only be
   // matched as a substring of its top-level branch. We use contains/does not
@@ -229,7 +234,6 @@ function ValueCellActionsMenu({
   const metadataKey = resolveTopLevelMetadataKey(row);
   const includeOperator: MetadataFilterOperator = "contains";
   const excludeOperator: MetadataFilterOperator = "does not contain";
-  const filterValue = String(value);
   const displayValue = type === "string" ? `"${filterValue}"` : filterValue;
 
   const handleCopyData = () => {
