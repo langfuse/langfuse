@@ -423,19 +423,18 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
           clickhouseTableName: "traces",
         },
       ];
+      const defaultOrderByEntries = defaultOrder
+        ? [
+            {
+              column: "timestamp_to_date",
+              order: orderBy.order,
+            },
+            orderBy,
+            { column: "event_ts", order: "DESC" as "DESC" },
+          ]
+        : [orderBy ?? null];
       const chOrderBy = orderByToClickhouseSql(
-        [
-          defaultOrder
-            ? [
-                {
-                  column: "timestamp_to_date",
-                  order: orderBy.order,
-                },
-                orderBy,
-                { column: "event_ts", order: "DESC" as "DESC" },
-              ]
-            : [orderBy ?? null],
-        ].flat(),
+        defaultOrderByEntries,
         orderByCols,
       );
 
@@ -472,9 +471,26 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
         FROM (
           ${baseQuery}
         ) result
-        ${chOrderBy
-          .replaceAll("t.event_ts", "result._event_ts")
-          .replaceAll("t.timestamp", "result.timestamp")}
+        ${orderByToClickhouseSql(defaultOrderByEntries, [
+          {
+            clickhouseSelect: "toDate(result.timestamp)",
+            uiTableName: "timestamp_to_date",
+            uiTableId: "timestamp_to_date",
+            clickhouseTableName: "traces",
+          },
+          {
+            clickhouseSelect: "result.timestamp",
+            uiTableName: "timestamp",
+            uiTableId: "timestamp",
+            clickhouseTableName: "traces",
+          },
+          {
+            clickhouseSelect: "result._event_ts",
+            uiTableName: "event_ts",
+            uiTableId: "event_ts",
+            clickhouseTableName: "traces",
+          },
+        ])}
         LIMIT 1 BY result.id, result.project_id
         ${limit !== undefined && page !== undefined ? `LIMIT {limit: Int32} OFFSET {offset: Int32}` : ""}
       `;
