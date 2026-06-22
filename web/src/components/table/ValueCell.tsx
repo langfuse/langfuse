@@ -2,10 +2,7 @@ import { memo, type JSX, useState } from "react";
 import { useRouter } from "next/router";
 import { type Row } from "@tanstack/react-table";
 import { urlRegex } from "@langfuse/shared";
-import {
-  type JsonTableRow,
-  convertRowIdToKeyPath,
-} from "@/src/components/table/utils/jsonExpansionUtils";
+import { type JsonTableRow } from "@/src/components/table/utils/jsonExpansionUtils";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -190,6 +187,22 @@ function resolveTopLevelMetadataKey(row: Row<JsonTableRow>): string {
 }
 
 /**
+ * Builds the dotted key path from the row's actual keys (root → leaf). Unlike
+ * `convertRowIdToKeyPath`, which reconstructs the path from the hyphen-joined
+ * row id, this is lossless for keys that themselves contain `-` (e.g.
+ * `x-request-id`).
+ */
+function resolveKeyPath(row: Row<JsonTableRow>): string {
+  const keys: string[] = [];
+  let cursor: Row<JsonTableRow> | undefined = row;
+  while (cursor) {
+    keys.unshift(String(cursor.original.key));
+    cursor = cursor.getParentRow() ?? undefined;
+  }
+  return keys.join(".");
+}
+
+/**
  * The per-row overflow menu shown in metadata views. Containers offer "Copy
  * structure"; scalar leaves offer "Copy value" plus filter shortcuts. Rendered
  * only when `metadataActions` is provided, so `useRouter` stays off the hot
@@ -203,18 +216,19 @@ function ValueCellActionsMenu({
   metadataActions: MetadataFilterActions;
 }) {
   const router = useRouter();
-  const { value, type, hasChildren, level } = row.original;
+  const { value, type, hasChildren } = row.original;
 
   const isScalarLeaf =
     !hasChildren &&
     (type === "string" || type === "number" || type === "boolean");
 
-  // Top-level scalars filter their own key by "="; nested scalars can only be
-  // matched as a "contains" on their top-level branch (metadata is a flat map).
-  const metadataKey =
-    level === 0 ? row.original.key : resolveTopLevelMetadataKey(row);
-  const includeOperator: MetadataFilterOperator =
-    level === 0 ? "=" : "contains";
+  // Metadata is a flat Map(String, String), so a nested value can only be
+  // matched as a substring of its top-level branch. We use contains/does not
+  // contain uniformly (top-level included) so Include and Exclude stay exact
+  // complements — stringObject has no "!=" to invert an exact "=".
+  const metadataKey = resolveTopLevelMetadataKey(row);
+  const includeOperator: MetadataFilterOperator = "contains";
+  const excludeOperator: MetadataFilterOperator = "does not contain";
   const filterValue = String(value);
   const displayValue = type === "string" ? `"${filterValue}"` : filterValue;
 
@@ -222,7 +236,7 @@ function ValueCellActionsMenu({
     copyTextToClipboard(getCopyValue(value));
   };
   const handleCopyPath = () => {
-    copyTextToClipboard(convertRowIdToKeyPath(row.id));
+    copyTextToClipboard(resolveKeyPath(row));
   };
   const navigateWithFilter = (operator: MetadataFilterOperator) => {
     router.push(
@@ -281,13 +295,13 @@ function ValueCellActionsMenu({
             </DropdownMenuItem>
             <DropdownMenuItem
               className="text-xs"
-              onSelect={() => navigateWithFilter("does not contain")}
+              onSelect={() => navigateWithFilter(excludeOperator)}
             >
               <FilterX className="mr-2 h-3.5 w-3.5 shrink-0" />
               <span className="flex min-w-0 flex-col">
                 <span>Exclude from filter</span>
                 <span className="text-muted-foreground truncate font-mono">
-                  metadata.{metadataKey} does not contain {displayValue}
+                  metadata.{metadataKey} {excludeOperator} {displayValue}
                 </span>
               </span>
             </DropdownMenuItem>

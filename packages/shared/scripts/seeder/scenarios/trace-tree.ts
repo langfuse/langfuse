@@ -339,16 +339,18 @@ const run = async (
         scenario: "trace-tree",
         "node.depth": String(node.depth),
         ...(isFailedToolRetryPair ? { "retry.count": "2" } : {}),
-        // Nested, OTel-style metadata so the metadata view's filter shortcuts
-        // exercise both top-level (=) and nested-branch (contains) shapes.
-        scope: {
+        // Nested branches are JSON-encoded strings, mirroring how OTel metadata
+        // round-trips through the Map(String, String) column (each value is
+        // parsed back into a tree for display). This is what lets the metadata
+        // view's nested-branch "contains" filter shortcut land on real data.
+        scope: JSON.stringify({
           name: "@flue/opentelemetry",
           version: "1.0.0-beta.1",
-        },
-        attributes: {
+        }),
+        attributes: JSON.stringify({
           "flue.tool.name": isGeneration ? "lookup_weather" : "noop",
           "flue.tool.call_id": `call_${node.index}`,
-        },
+        }),
       },
       provided_model_name: isGeneration ? "gpt-4o" : null,
       internal_model_id: null,
