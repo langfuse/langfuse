@@ -111,6 +111,10 @@ interface DataTableToolbarProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   filterColumnDefinition?: ColumnDefinition[];
   searchConfig?: SearchConfig;
+  /** Authoritative search query to persist into saved views. Use when the
+   * toolbar's own search field is hidden (e.g. search-bar mode) so the live
+   * query — not the toolbar's stale local mirror — is captured. */
+  currentSearchQuery?: string;
   actionButtons?: React.ReactNode;
   filterState?: FilterState;
   setFilterState?:
@@ -136,6 +140,7 @@ interface DataTableToolbarProps<TData, TValue> {
   viewConfig?: TableViewConfig;
   filterWithAI?: boolean;
   className?: string;
+  rowClassName?: string;
   viewModeToggle?: React.ReactNode;
 }
 
@@ -181,6 +186,7 @@ export function DataTableToolbar<TData, TValue>({
   columns,
   filterColumnDefinition,
   searchConfig,
+  currentSearchQuery,
   actionButtons,
   filterState,
   setFilterState,
@@ -197,6 +203,7 @@ export function DataTableToolbar<TData, TValue>({
   multiSelect,
   environmentFilter,
   className,
+  rowClassName,
   orderByState,
   viewConfig,
   filterWithAI = false,
@@ -225,7 +232,12 @@ export function DataTableToolbar<TData, TValue>({
   const hasNewSidebar = !filterColumnDefinition && filterState !== undefined;
   return (
     <div className={cn("grid h-fit w-full gap-0 px-2", className)}>
-      <div className="@container my-2 flex flex-wrap items-center gap-2">
+      <div
+        className={cn(
+          "@container my-2 flex flex-wrap items-center gap-2",
+          rowClassName,
+        )}
+      >
         {hasNewSidebar && <FilterToggleButton filterState={filterState} />}
         {!!columnVisibility && !!columnOrder && !!viewConfig && (
           <TableViewPresetsDrawer
@@ -235,7 +247,7 @@ export function DataTableToolbar<TData, TValue>({
               filters: filterState ?? [],
               columnOrder,
               columnVisibility,
-              searchQuery: searchString,
+              searchQuery: currentSearchQuery ?? searchString,
             }}
             systemFilterPresets={viewConfig.systemFilterPresets}
           />
@@ -423,7 +435,7 @@ export function DataTableToolbar<TData, TValue>({
           />
         )}
 
-        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @6xl:ml-auto">
+        <div className="flex flex-row flex-wrap gap-2 pr-0.5 @3xl:ml-auto">
           {!!columnVisibility && !!setColumnVisibility && (
             <DataTableColumnVisibilityFilter
               columns={columns}

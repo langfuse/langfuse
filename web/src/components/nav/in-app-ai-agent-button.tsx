@@ -1,12 +1,5 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useSession } from "next-auth/react";
 import { BotMessageSquare } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
@@ -20,46 +13,35 @@ import {
 } from "@/src/components/ui/dialog";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { ControlledInAppAgentWindow } from "@/src/ee/features/in-app-agent/components";
+import {
+  InAppAgentWindowShell,
+  useInAppAgentWindowShellPanelControl,
+} from "@/src/ee/features/in-app-agent/components/InAppAgentWindowShell";
 import { useInAppAiAgent } from "@/src/ee/features/in-app-agent/components/InAppAiAgentProvider";
 import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { AIFeaturesDisabledNotice } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
-import { cn } from "@/src/utils/tailwind";
 
 const IN_APP_AI_AGENT_WINDOW_Z_INDEX = 51;
 
 export const InAppAiAgentButton = () => {
-  const session = useSession();
   const { organization } = useQueryProjectOrOrganization();
   const { isAvailable, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
   const hasInAppAgentEntitlement = useHasEntitlement("in-app-agent");
-  const isInAppAgentEnabled =
-    session.data?.user?.featureFlags.inAppAgent === true;
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
-  const [anchorStyle, setAnchorStyle] = useState<CSSProperties>();
   const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
     null,
   );
   const [enableDialogOpen, setEnableDialogOpen] = useState(false);
 
-  const updateAnchorStyle = () => {
-    const button = buttonRef.current;
-
-    if (!button) {
-      return;
-    }
-
-    const rect = button.getBoundingClientRect();
-
-    setAnchorStyle({
-      left: rect.right - 6,
-    });
-  };
+  const floatingPanelHandle = useInAppAgentWindowShellPanelControl({
+    anchorRef: buttonRef,
+  });
 
   useEffect(() => {
     setPortalContainer(document.body);
@@ -91,23 +73,20 @@ export const InAppAiAgentButton = () => {
     );
   }, [isExpanded]);
 
-  useEffect(() => {
-    if (!open || isExpanded) {
+  useLayoutEffect(() => {
+    if (
+      !open ||
+      !portalContainer ||
+      isExpanded ||
+      floatingPanelHandle.geometry
+    ) {
       return;
     }
 
-    updateAnchorStyle();
+    floatingPanelHandle.initializeGeometry();
+  }, [floatingPanelHandle, isExpanded, open, portalContainer]);
 
-    window.addEventListener("resize", updateAnchorStyle);
-    window.addEventListener("scroll", updateAnchorStyle, true);
-
-    return () => {
-      window.removeEventListener("resize", updateAnchorStyle);
-      window.removeEventListener("scroll", updateAnchorStyle, true);
-    };
-  }, [isExpanded, open]);
-
-  if (!isAvailable || !hasInAppAgentEntitlement || !isInAppAgentEnabled) {
+  if (!isAvailable || !hasInAppAgentEntitlement) {
     return null;
   }
 
@@ -118,9 +97,16 @@ export const InAppAiAgentButton = () => {
       return;
     }
 
-    updateAnchorStyle();
     setSupportDrawerOpen(false);
-    setOpen((currentOpen) => !currentOpen);
+    setOpen((currentOpen) => {
+      const nextOpen = !currentOpen;
+
+      if (nextOpen) {
+        floatingPanelHandle.resetGeometry();
+      }
+
+      return nextOpen;
+    });
   };
 
   return (
@@ -131,32 +117,29 @@ export const InAppAiAgentButton = () => {
       </SidebarMenuButton>
       {open && portalContainer
         ? createPortal(
-            <div
-              ref={panelRef}
-              data-ignore-outside-interaction
-              className={cn(
-                "fixed origin-top-left",
-                isExpanded
-                  ? "inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3"
-                  : "bottom-2",
-              )}
-              style={
-                isExpanded
-                  ? { zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
-                  : { ...anchorStyle, zIndex: IN_APP_AI_AGENT_WINDOW_Z_INDEX }
-              }
+            <InAppAgentWindowShell
+              floatingPanelHandle={floatingPanelHandle}
+              isExpanded={isExpanded}
+              panelRef={panelRef}
+              zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
             >
-              <ControlledInAppAgentWindow
-                zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
-                isExpanded={isExpanded}
-                onExpandedChange={(nextIsExpanded) => {
-                  previousPanelRectRef.current =
-                    panelRef.current?.getBoundingClientRect() ?? null;
-                  setIsExpanded(nextIsExpanded);
-                }}
-                onClose={() => setOpen(false)}
-              />
-            </div>,
+              {({ isHeaderDragHandleEnabled }) => (
+                <ControlledInAppAgentWindow
+                  isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
+                  zIndex={IN_APP_AI_AGENT_WINDOW_Z_INDEX}
+                  isExpanded={isExpanded}
+                  onExpandedChange={(nextIsExpanded) => {
+                    previousPanelRectRef.current =
+                      panelRef.current?.getBoundingClientRect() ?? null;
+                    setIsExpanded(nextIsExpanded);
+                  }}
+                  onClose={() => {
+                    floatingPanelHandle.clearGeometry();
+                    setOpen(false);
+                  }}
+                />
+              )}
+            </InAppAgentWindowShell>,
             portalContainer,
           )
         : null}

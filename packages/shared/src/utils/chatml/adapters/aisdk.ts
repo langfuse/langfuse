@@ -418,7 +418,11 @@ export const aisdkAdapter: ProviderAdapter = {
 
     // STRONG INDICATORS: AI SDK v5 telemetry markers
     if (meta && typeof meta === "object") {
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (scope.name === "ai") return true;
       }

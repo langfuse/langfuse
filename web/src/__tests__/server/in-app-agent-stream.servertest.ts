@@ -4,6 +4,11 @@ import { Agent } from "@mastra/core/agent";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
+import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
+import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import type { MastraAgent } from "@ag-ui/mastra";
 
 const adapterEvents = vi.hoisted(() => ({
   items: [] as AgUiEvent[],
@@ -27,6 +32,11 @@ const instrumentationMocks = vi.hoisted(() => {
   };
 });
 
+const promptMocks = vi.hoisted(() => ({
+  compile: vi.fn(() => "Prompt-managed assistant instructions"),
+  getPrompt: vi.fn(),
+}));
+
 vi.mock("@ag-ui/mastra", () => ({
   MastraAgent: vi.fn().mockImplementation(function () {
     return {
@@ -36,7 +46,6 @@ vi.mock("@ag-ui/mastra", () => ({
           complete: () => void;
         }) => {
           adapterEvents.inputs.push(input);
-
           for (const event of adapterEvents.items) {
             subscriber.next(event);
           }
@@ -117,9 +126,219 @@ vi.mock("@/src/ee/features/in-app-agent/server/instrumentation", () => ({
     instrumentationMocks.createInAppAgentInstrumentation,
 }));
 
+const createPatchedChunkProcessor = () => {
+  const forwardedChunks: unknown[] = [];
+  const onError = vi.fn();
+  const flush = vi.fn();
+  const adapter = {
+    createChunkProcessor: vi.fn(() => ({
+      handleChunk: (chunk: unknown) => {
+        forwardedChunks.push(chunk);
+        return false;
+      },
+      flush,
+    })),
+  };
+
+  patchMastraToolCallInputStreaming(adapter as unknown as MastraAgent);
+
+  const processor = adapter.createChunkProcessor({ onError });
+
+  return { forwardedChunks, onError, processor, flush };
+};
+
+describe("patchMastraToolCallInputStreaming", () => {
+  it("converts streamed tool-call input chunks to one native tool-call", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "tool-call-input-streaming-start",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuseDocs_search",
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-delta",
+      payload: {
+        toolCallId: "tool-call-1",
+        argsTextDelta: '{"query":"invite',
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-delta",
+      payload: {
+        toolCallId: "tool-call-1",
+        argsTextDelta: ' users"}',
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-input-streaming-end",
+      payload: { toolCallId: "tool-call-1" },
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([
+      {
+        type: "tool-call",
+        payload: {
+          toolCallId: "tool-call-1",
+          toolName: "langfuseDocs_search",
+          args: { query: "invite users" },
+        },
+      },
+    ]);
+  });
+
+  it("uses empty args when streamed tool-call input is malformed JSON", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "tool-call-input-streaming-start",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuseDocs_search",
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-delta",
+      payload: {
+        toolCallId: "tool-call-1",
+        argsTextDelta: '{"query":"invite users"',
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-input-streaming-end",
+      payload: { toolCallId: "tool-call-1" },
+    });
+
+    expect(onError).not.toHaveBeenCalled();
+    expect(forwardedChunks).toEqual([
+      {
+        type: "tool-call",
+        payload: {
+          toolCallId: "tool-call-1",
+          toolName: "langfuseDocs_search",
+          args: {},
+        },
+      },
+    ]);
+  });
+
+  it("suppresses one duplicate native tool-call after synthesizing it", () => {
+    const { forwardedChunks, processor } = createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "tool-call-input-streaming-start",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuseDocs_search",
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-delta",
+      payload: {
+        toolCallId: "tool-call-1",
+        argsTextDelta: '{"query":"invite users"}',
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call-input-streaming-end",
+      payload: { toolCallId: "tool-call-1" },
+    });
+    processor.handleChunk({
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuseDocs_search",
+        args: { query: "invite users" },
+      },
+    });
+    processor.handleChunk({
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-2",
+        toolName: "langfuse_search",
+        args: { traceId: "trace-1" },
+      },
+    });
+
+    expect(forwardedChunks).toEqual([
+      {
+        type: "tool-call",
+        payload: {
+          toolCallId: "tool-call-1",
+          toolName: "langfuseDocs_search",
+          args: { query: "invite users" },
+        },
+      },
+      {
+        type: "tool-call",
+        payload: {
+          toolCallId: "tool-call-2",
+          toolName: "langfuse_search",
+          args: { traceId: "trace-1" },
+        },
+      },
+    ]);
+  });
+
+  it("passes through native tool-calls that were not synthesized", () => {
+    const { forwardedChunks, processor } = createPatchedChunkProcessor();
+
+    processor.handleChunk({
+      type: "tool-call",
+      payload: {
+        toolCallId: "tool-call-1",
+        toolName: "langfuse_search",
+        args: { query: "errors" },
+      },
+    });
+
+    expect(forwardedChunks).toEqual([
+      {
+        type: "tool-call",
+        payload: {
+          toolCallId: "tool-call-1",
+          toolName: "langfuse_search",
+          args: { query: "errors" },
+        },
+      },
+    ]);
+  });
+
+  it("reports malformed tool-call deltas with no known tool name", () => {
+    const { forwardedChunks, onError, processor } =
+      createPatchedChunkProcessor();
+
+    const shouldStop = processor.handleChunk({
+      type: "tool-call-delta",
+      payload: {
+        toolCallId: "tool-call-1",
+        argsTextDelta: '{"query":"invite users"}',
+      },
+    });
+
+    expect(shouldStop).toBe(true);
+    expect(onError).toHaveBeenCalledWith(
+      new Error(
+        "Malformed tool-call-delta: missing toolName for unknown toolCallId in payload",
+      ),
+    );
+    expect(forwardedChunks).toEqual([]);
+  });
+});
+
 describe("createAgUiStream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    promptMocks.getPrompt.mockResolvedValue({
+      name: "in-app-agent-system-prompt",
+      version: 2,
+      compile: promptMocks.compile,
+    });
   });
 
   it("serializes valid events including adapter message snapshots", async () => {
@@ -146,6 +365,9 @@ describe("createAgUiStream", () => {
     };
     const persistedEvents: AgUiEvent[] = [];
     const eventOrder: string[] = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
     adapterEvents.inputs = [];
 
     adapterEvents.items = [
@@ -185,7 +407,7 @@ describe("createAgUiStream", () => {
       },
     ];
 
-    const stream = createAgUiStream({
+    const stream = await createAgUiStream({
       input,
       signal: new AbortController().signal,
       options: {
@@ -200,6 +422,12 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
         },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient,
+        useLocalPrompt: false,
         langfuseTracing: {
           environment: "langfuse-in-app-agent",
           metadata: { langfuse_project_id: "project-1" },
@@ -215,6 +443,7 @@ describe("createAgUiStream", () => {
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
     expect(adapterEvents.inputs).toEqual([input]);
+    const { Agent } = await import("@mastra/core/agent");
     expect(Agent).toHaveBeenCalledWith(
       expect.objectContaining({
         tools: {
@@ -222,6 +451,9 @@ describe("createAgUiStream", () => {
           langfuseDocs_search: expect.objectContaining({
             server: "langfuseDocs",
             execute: expect.any(Function),
+          }),
+          langfuse_proposeRedirect: expect.objectContaining({
+            id: "langfuse_proposeRedirect",
           }),
         },
       }),
@@ -233,6 +465,47 @@ describe("createAgUiStream", () => {
         choices: expect.any(Array),
       }),
     });
+
+    const redirectTool = vi.mocked(Agent).mock.calls[0]?.[0]?.tools?.[
+      IN_APP_AGENT_REDIRECT_TOOL_NAME
+    ] as
+      | {
+          execute?: (input: unknown) => Promise<unknown>;
+        }
+      | undefined;
+
+    await expect(
+      redirectTool?.execute?.({
+        label: "Open trace",
+        destination: "trace",
+        params: { traceId: "trace-1" },
+      }),
+    ).resolves.toEqual({
+      type: "redirectAction",
+      label: "Open trace",
+      href: "/project/project-1/traces/trace-1",
+    });
+
+    expect(promptMocks.getPrompt).toHaveBeenCalledWith(
+      "in-app-agent-system-prompt",
+      undefined,
+      { type: "text" },
+    );
+    expect(promptMocks.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentDate: expect.any(String),
+        redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+        screenContext: "",
+        sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
+          (environment) => `"${environment}"`,
+        ).join(", "),
+      }),
+    );
+    expect(Agent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: "Prompt-managed assistant instructions",
+      }),
+    );
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
@@ -266,6 +539,10 @@ describe("createAgUiStream", () => {
       tracing: expect.objectContaining({
         environment: "langfuse-in-app-agent",
         targetProjectId: "project-1",
+        prompt: {
+          name: "in-app-agent-system-prompt",
+          version: 2,
+        },
       }),
     });
     expect(
@@ -282,6 +559,88 @@ describe("createAgUiStream", () => {
     ]);
     expect(instrumentationMocks.instrumentation.end).toHaveBeenCalledWith({});
     expect(instrumentationMocks.instrumentation.flush).toHaveBeenCalled();
+  });
+
+  it("uses V4-compatible filters for traces redirect actions", async () => {
+    const { createAgUiStream } =
+      await import("@/src/ee/features/in-app-agent/server/agent");
+    const input = {
+      threadId: "conversation-1",
+      runId: "run-1",
+      messages: [
+        {
+          id: "user-message-1",
+          role: "user" as const,
+          content: "open checkout traces",
+        },
+      ],
+      tools: [],
+      context: [],
+      state: null,
+      forwardedProps: {},
+    };
+    adapterEvents.items = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
+
+    const stream = await createAgUiStream({
+      input,
+      signal: new AbortController().signal,
+      options: {
+        awsBedrock: { modelId: "test-model" },
+        langfuseMcp: {
+          url: "https://example.com/api/public/mcp",
+          publicKey: "pk",
+          secretKey: "sk",
+        },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: true,
+        },
+        langfuseClient,
+        useLocalPrompt: false,
+      },
+    });
+    await readStream(stream);
+
+    const redirectTool = vi.mocked(Agent).mock.calls[0]?.[0]?.tools?.[
+      IN_APP_AGENT_REDIRECT_TOOL_NAME
+    ] as
+      | {
+          execute?: (input: unknown) => Promise<unknown>;
+        }
+      | undefined;
+
+    const result = await redirectTool?.execute?.({
+      label: "Open traces tagged checkout",
+      destination: "traces",
+      params: {
+        filters: {
+          tags: ["checkout"],
+          sessionId: ["session-1"],
+          bookmarked: true,
+        },
+      },
+    });
+
+    expect(result).toMatchObject({
+      type: "redirectAction",
+      label: "Open traces tagged checkout",
+    });
+    const href = (result as { href: string }).href;
+    const filter = new URL(`https://langfuse.local${href}`).searchParams.get(
+      "filter",
+    );
+
+    expect(decodeFiltersGeneric(filter ?? "")).toEqual([
+      {
+        column: "tags",
+        operator: "any of",
+        type: "arrayOptions",
+        value: ["checkout"],
+      },
+    ]);
   });
 
   it("lets HttpAgent subscribers observe streamed run errors", async () => {
@@ -303,6 +662,9 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const runErrorMessage = "AWS credential provider failed: Token is expired.";
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
 
     adapterEvents.items = [
       {
@@ -318,7 +680,7 @@ describe("createAgUiStream", () => {
       },
     ];
 
-    const serverStream = createAgUiStream({
+    const serverStream = await createAgUiStream({
       input,
       signal: new AbortController().signal,
       options: {
@@ -328,6 +690,12 @@ describe("createAgUiStream", () => {
           publicKey: "pk",
           secretKey: "sk",
         },
+        redirectAction: {
+          projectId: "project-1",
+          isV4Enabled: false,
+        },
+        langfuseClient,
+        useLocalPrompt: false,
       },
     });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(

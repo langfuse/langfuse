@@ -31,6 +31,12 @@ describe("LangGraph Adapter", () => {
         metadata: { scope: { name: "langfuse-sdk" } },
       }),
     ).toBe(false);
+
+    // Regression: a null scope must not throw (typeof null === "object")
+    expect(() =>
+      langgraphAdapter.detect({ metadata: { scope: null } }),
+    ).not.toThrow();
+    expect(langgraphAdapter.detect({ metadata: { scope: null } })).toBe(false);
   });
 
   it("should normalize LangGraph messages with type-to-role conversion and tool_calls", () => {

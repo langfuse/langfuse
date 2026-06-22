@@ -6,6 +6,9 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/ha
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -168,7 +171,22 @@ export async function createProjectMembershipsOnSignup(
     }
 
     // Invites do not work for users without emails (some future SSO users)
-    if (user.email) await processMembershipInvitations(user.email, user.id);
+    const joinedRealOrganizationViaInvitation = user.email
+      ? await processMembershipInvitations(user.email, user.id)
+      : false;
+
+    if (
+      isCloudDeployment &&
+      !joinedRealOrganizationViaInvitation &&
+      canCreateOrganizations(user.email) &&
+      (options?.userWasJustCreated || isNewUser)
+    ) {
+      await provisionStarterOrganizationForNewUser({
+        prisma,
+        userId: user.id,
+        userName: user.name,
+      });
+    }
 
     if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
       const userRolloutState = await prisma.user.findUnique({
@@ -258,7 +276,21 @@ async function processMembershipInvitations(email: string, userId: string) {
       email: email.toLowerCase(),
     },
   });
-  if (invitationsForUser.length === 0) return;
+  if (invitationsForUser.length === 0) return false;
+
+  const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
+    (invitation) => {
+      if (
+        invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ||
+        !invitation.projectId
+      ) {
+        return false;
+      }
+
+      const projectRole = invitation.projectRole ?? invitation.orgRole;
+      return projectRoleAccessRights[projectRole].includes("project:read");
+    },
+  );
 
   // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
   const createOrgMembershipData = invitationsForUser.map((invitation) => ({
@@ -305,4 +337,6 @@ async function processMembershipInvitations(email: string, userId: string) {
       }),
     ),
   );
+  
+  return joinedReadableRealProjectViaInvitation;
 }

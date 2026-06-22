@@ -7,6 +7,7 @@ import {
   getS3EventStorageClient,
   type IngestionEventType,
   logger,
+  markProjectIngestFailure,
   OtelIngestionProcessor,
   processEventBatch,
   QueueName,
@@ -562,6 +563,11 @@ export const otelIngestionQueueProcessorBuilder = (
         });
         return;
       }
+
+      markProjectIngestFailure(job.data.payload.authCheck.scope.projectId, {
+        source: "otel_ingestion_queue",
+        reason: "processing_error",
+      });
 
       logger.error(
         `Failed job otel ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,

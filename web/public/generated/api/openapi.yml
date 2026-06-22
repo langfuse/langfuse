@@ -1,6 +1,6 @@
 openapi: 3.0.1
 info:
-  title: langfuse
+  title: server
   version: ''
   description: >-
     ## Authentication
@@ -74,7 +74,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
+      security: &ref_0
         - BasicAuth: []
     post:
       description: Create an annotation queue
@@ -114,8 +114,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -167,8 +166,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/annotation-queues/{queueId}/items:
     get:
       description: Get items for a specific annotation queue
@@ -235,8 +233,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Add an item to an annotation queue
       operationId: annotationQueues_createQueueItem
@@ -281,8 +278,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -340,8 +336,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     patch:
       description: Update an annotation queue item
       operationId: annotationQueues_updateQueueItem
@@ -392,8 +387,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -450,8 +444,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/annotation-queues/{queueId}/assignments:
     post:
       description: Create an assignment for a user to an annotation queue
@@ -497,8 +490,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -549,8 +541,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -598,8 +589,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     put:
       description: >-
         Create or update a blob storage integration for a specific project
@@ -641,8 +631,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -695,8 +684,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete a blob storage integration by ID (requires organization-scoped
@@ -742,8 +730,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/comments:
     post:
       description: >-
@@ -785,8 +772,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -872,8 +858,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/comments/{commentId}:
     get:
       description: Get a comment by id
@@ -919,8 +904,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/dataset-items:
     post:
       description: Create a dataset item
@@ -960,8 +944,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -1058,8 +1041,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/dataset-items/{id}:
     get:
       description: Get a dataset item
@@ -1104,8 +1086,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete a dataset item and all its run items. This action is
@@ -1151,8 +1132,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/dataset-run-items:
     post:
       description: Create a dataset run item
@@ -1192,8 +1172,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -1262,8 +1241,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/datasets:
     get:
       description: Get all datasets
@@ -1317,8 +1295,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Create a dataset
       operationId: datasets_create
@@ -1357,8 +1334,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -1409,8 +1385,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/datasets/{datasetName}/runs/{runName}:
     get:
       description: Get a dataset run and its items
@@ -1460,8 +1435,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: Delete a dataset run and all its run items. This action is irreversible.
       operationId: datasets_deleteRun
@@ -1510,8 +1484,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/datasets/{datasetName}/runs:
     get:
       description: Get dataset runs
@@ -1570,8 +1543,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/health:
     get:
       description: Check health of API and database
@@ -1663,25 +1635,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/IngestionResponse'
-              examples:
-                Example1:
-                  value:
-                    successes:
-                      - id: abcdef-1234-5678-90ab
-                        status: 201
-                    errors: []
-                Example2:
-                  value:
-                    successes:
-                      - id: abcdef-1234-5678-90ab
-                        status: 201
-                    errors: []
-                Example3:
-                  value:
-                    successes:
-                      - id: abcdef-1234-5678-90ab
-                        status: 201
-                    errors: []
         '400':
           description: ''
           content:
@@ -1707,8 +1660,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -1730,52 +1682,6 @@ paths:
                     debugging.
               required:
                 - batch
-            examples:
-              Example1:
-                value:
-                  batch:
-                    - id: abcdef-1234-5678-90ab
-                      timestamp: '2022-01-01T00:00:00.000Z'
-                      type: trace-create
-                      body:
-                        id: abcdef-1234-5678-90ab
-                        timestamp: '2022-01-01T00:00:00.000Z'
-                        environment: production
-                        name: My Trace
-                        userId: 1234-5678-90ab-cdef
-                        input: My input
-                        output: My output
-                        sessionId: 1234-5678-90ab-cdef
-                        release: 1.0.0
-                        version: 1.0.0
-                        metadata: My metadata
-                        tags:
-                          - tag1
-                          - tag2
-                        public: true
-              Example2:
-                value:
-                  batch:
-                    - id: abcdef-1234-5678-90ab
-                      timestamp: '2022-01-01T00:00:00.000Z'
-                      type: span-create
-                      body:
-                        id: abcdef-1234-5678-90ab
-                        traceId: 1234-5678-90ab-cdef
-                        startTime: '2022-01-01T00:00:00.000Z'
-                        environment: test
-              Example3:
-                value:
-                  batch:
-                    - id: abcdef-1234-5678-90ab
-                      timestamp: '2022-01-01T00:00:00.000Z'
-                      type: score-create
-                      body:
-                        id: abcdef-1234-5678-90ab
-                        traceId: 1234-5678-90ab-cdef
-                        name: My Score
-                        value: 0.9
-                        environment: default
   /api/public/metrics:
     get:
       description: >-
@@ -1876,8 +1782,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/observations/{observationId}:
     get:
       description: Get a observation
@@ -1925,8 +1830,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/observations:
     get:
       description: >-
@@ -2214,8 +2118,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/scores:
     post:
       description: Create a score (supports both trace and session scores)
@@ -2255,8 +2158,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2304,8 +2206,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/llm-connections:
     get:
       description: Get all LLM connections in a project
@@ -2359,8 +2260,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     put:
       description: >-
         Create or update an LLM connection. The connection is upserted on
@@ -2401,8 +2301,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2455,8 +2354,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/media/{mediaId}:
     get:
       description: Get a media record
@@ -2502,8 +2400,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     patch:
       description: Patch a media record
       operationId: media_patch
@@ -2544,8 +2441,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2591,8 +2487,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2896,8 +2791,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/models:
     post:
       description: Create a model
@@ -2937,8 +2831,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -2997,8 +2890,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/models/{id}:
     get:
       description: Get a model
@@ -3043,8 +2935,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete a model. Cannot delete models managed by Langfuse. You can create
@@ -3087,8 +2978,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/observations:
     get:
       description: >-
@@ -3492,8 +3382,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/otel/v1/traces:
     post:
       description: >-
@@ -3539,9 +3428,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OtelTraceResponse'
-              examples:
-                BasicTraceExport:
-                  value: {}
         '400':
           description: ''
           content:
@@ -3567,8 +3453,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3585,34 +3470,6 @@ paths:
                     the OTLP specification
               required:
                 - resourceSpans
-            examples:
-              BasicTraceExport:
-                value:
-                  resourceSpans:
-                    - resource:
-                        attributes:
-                          - key: service.name
-                            value:
-                              stringValue: my-service
-                          - key: service.version
-                            value:
-                              stringValue: 1.0.0
-                      scopeSpans:
-                        - scope:
-                            name: langfuse-sdk
-                            version: 2.60.3
-                          spans:
-                            - traceId: 0123456789abcdef0123456789abcdef
-                              spanId: 0123456789abcdef
-                              name: my-operation
-                              kind: 1
-                              startTimeUnixNano: '1747872000000000000'
-                              endTimeUnixNano: '1747872001000000000'
-                              attributes:
-                                - key: langfuse.observation.type
-                                  value:
-                                    stringValue: generation
-                              status: {}
   /api/public/organizations/memberships:
     get:
       description: >-
@@ -3654,8 +3511,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     put:
       description: >-
         Create or update a membership for the organization associated with the
@@ -3696,8 +3552,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3744,8 +3599,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3798,8 +3652,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     put:
       description: >-
         Create or update a membership for a specific project (requires
@@ -3846,8 +3699,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3900,8 +3752,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -3949,8 +3800,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/organizations/apiKeys:
     get:
       description: >-
@@ -3992,8 +3842,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/projects:
     get:
       description: >-
@@ -4036,8 +3885,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Create a new project (requires organization-scoped API key)
       operationId: projects_create
@@ -4076,8 +3924,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4145,8 +3992,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4216,8 +4062,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/projects/{projectId}/apiKeys:
     get:
       description: Get all API keys for a project (requires organization-scoped API key)
@@ -4262,8 +4107,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: >-
         Create a new API key for a project (requires organization-scoped API
@@ -4309,8 +4153,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4383,8 +4226,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/prompts/{name}/versions/{version}:
     patch:
       description: Update labels for a specific prompt version
@@ -4440,8 +4282,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4535,8 +4376,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete prompt versions. If neither version nor label is specified, all
@@ -4597,8 +4437,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/prompts:
     get:
       description: Get a list of prompt names with versions and labels
@@ -4690,8 +4529,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: Create a new version for the prompt with the given `name`
       operationId: prompts_create
@@ -4730,8 +4568,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -4779,8 +4616,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/scim/ResourceTypes:
     get:
       description: Get SCIM Resource Types (requires organization-scoped API key)
@@ -4820,8 +4656,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/scim/Schemas:
     get:
       description: Get SCIM Schemas (requires organization-scoped API key)
@@ -4861,8 +4696,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/scim/Users:
     get:
       description: List users in the organization (requires organization-scoped API key)
@@ -4923,8 +4757,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     post:
       description: >-
         Create a new user in the organization (requires organization-scoped API
@@ -4965,8 +4798,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -5041,8 +4873,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Remove a user from the organization (requires organization-scoped API
@@ -5089,8 +4920,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/score-configs:
     post:
       description: >-
@@ -5132,8 +4962,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -5194,8 +5023,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/score-configs/{configId}:
     get:
       description: Get a score config
@@ -5241,8 +5069,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     patch:
       description: Update a score config
       operationId: scoreConfigs_update
@@ -5287,8 +5114,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -5538,8 +5364,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/scores:
     get:
       description: |-
@@ -5764,8 +5589,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/v2/scores/{scoreId}:
     get:
       description: |-
@@ -5815,8 +5639,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/sessions:
     get:
       description: Get sessions
@@ -5903,8 +5726,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/sessions/{sessionId}:
     get:
       description: >-
@@ -5953,8 +5775,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/traces/{traceId}:
     get:
       description: Get a specific trace
@@ -6013,8 +5834,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: Delete a specific trace
       operationId: trace_delete
@@ -6059,8 +5879,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/traces:
     get:
       description: Get list of traces
@@ -6380,8 +6199,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: Delete multiple traces
       operationId: trace_deleteMultiple
@@ -6420,8 +6238,7 @@ paths:
           content:
             application/json:
               schema: {}
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -6538,91 +6355,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstableEvaluationRule'
-              examples:
-                CreateObservationEvaluationRule:
-                  value:
-                    id: erule_123
-                    name: answer-correctness-live
-                    evaluator:
-                      id: evaltmpl_123
-                      name: answer-correctness
-                      scope: project
-                      type: llm_as_judge
-                    target: observation
-                    enabled: true
-                    status: active
-                    sampling: 1
-                    filter:
-                      - type: stringOptions
-                        column: type
-                        operator: any of
-                        value:
-                          - GENERATION
-                    mapping:
-                      - variable: input
-                        source: input
-                      - variable: output
-                        source: output
-                    createdAt: '2026-03-30T09:20:00.000Z'
-                    updatedAt: '2026-03-30T09:20:00.000Z'
-                CreateCodeObservationEvaluationRule:
-                  value:
-                    id: erule_234
-                    name: toxicity-code-live
-                    evaluator:
-                      id: evaltmpl_234
-                      name: toxicity-detector
-                      scope: project
-                      type: code
-                    target: observation
-                    enabled: true
-                    status: active
-                    sampling: 1
-                    filter:
-                      - type: stringOptions
-                        column: type
-                        operator: any of
-                        value:
-                          - GENERATION
-                    mapping:
-                      - variable: input
-                        source: input
-                      - variable: output
-                        source: output
-                      - variable: metadata
-                        source: metadata
-                      - variable: experimentItemExpectedOutput
-                        source: expected_output
-                      - variable: experimentItemMetadata
-                        source: experiment_item_metadata
-                    createdAt: '2026-03-30T09:25:00.000Z'
-                    updatedAt: '2026-03-30T09:25:00.000Z'
-                CreateExperimentEvaluationRule:
-                  value:
-                    id: erule_456
-                    name: experiment-expected-output-match
-                    evaluator:
-                      id: evaltmpl_456
-                      name: expected-output-match
-                      scope: project
-                      type: llm_as_judge
-                    target: experiment
-                    enabled: true
-                    status: active
-                    sampling: 0.5
-                    filter:
-                      - type: stringOptions
-                        column: datasetId
-                        operator: any of
-                        value:
-                          - 550e8400-e29b-41d4-a716-446655440000
-                    mapping:
-                      - variable: output
-                        source: output
-                      - variable: expected_output
-                        source: expected_output
-                    createdAt: '2026-03-30T09:30:00.000Z'
-                    updatedAt: '2026-03-30T09:30:00.000Z'
         '400':
           description: ''
           content:
@@ -6672,73 +6404,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableCreateEvaluationRuleRequest'
-            examples:
-              CreateObservationEvaluationRule:
-                value:
-                  name: answer-correctness-live
-                  evaluator:
-                    name: answer-correctness
-                    scope: project
-                    type: llm_as_judge
-                  target: observation
-                  enabled: true
-                  sampling: 1
-                  filter:
-                    - type: stringOptions
-                      column: type
-                      operator: any of
-                      value:
-                        - GENERATION
-                  mapping:
-                    - variable: input
-                      source: input
-                    - variable: output
-                      source: output
-              CreateCodeObservationEvaluationRule:
-                value:
-                  name: toxicity-code-live
-                  evaluator:
-                    name: toxicity-detector
-                    scope: project
-                    type: code
-                  target: observation
-                  enabled: true
-                  sampling: 1
-                  filter:
-                    - type: stringOptions
-                      column: type
-                      operator: any of
-                      value:
-                        - GENERATION
-              CreateExperimentEvaluationRule:
-                value:
-                  name: experiment-expected-output-match
-                  evaluator:
-                    name: expected-output-match
-                    scope: project
-                    type: llm_as_judge
-                  target: experiment
-                  enabled: true
-                  sampling: 0.5
-                  filter:
-                    - type: stringOptions
-                      column: datasetId
-                      operator: any of
-                      value:
-                        - 550e8400-e29b-41d4-a716-446655440000
-                  mapping:
-                    - variable: output
-                      source: output
-                    - variable: expected_output
-                      source: expected_output
     get:
       description: >-
         List evaluation rules in the authenticated project.
@@ -6808,8 +6480,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/unstable/evaluation-rules/{evaluationRuleId}:
     get:
       description: >-
@@ -6874,8 +6545,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
     patch:
       description: >-
         Update an evaluation rule.
@@ -6987,8 +6657,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
@@ -7056,8 +6725,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/unstable/evaluators:
     post:
       description: >-
@@ -7144,113 +6812,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstableEvaluator'
-              examples:
-                CreateEvaluatorVersion:
-                  value:
-                    id: evaltmpl_123
-                    name: answer-correctness
-                    version: 2
-                    scope: project
-                    type: llm_as_judge
-                    prompt: |
-                      You are grading an answer.
-
-                      Input:
-                      {{input}}
-
-                      Output:
-                      {{output}}
-
-                      Return a score between 0 and 1.
-                    variables:
-                      - input
-                      - output
-                    outputDefinition:
-                      dataType: NUMERIC
-                      reasoning:
-                        description: Explain why the score was assigned.
-                      score:
-                        description: Correctness score between 0 and 1.
-                    modelConfig:
-                      provider: openai
-                      model: gpt-4.1-mini
-                    evaluationRuleCount: 0
-                    createdAt: '2026-03-30T09:00:00.000Z'
-                    updatedAt: '2026-03-30T09:00:00.000Z'
-                CreateTypeScriptCodeEvaluator:
-                  value:
-                    id: evaltmpl_ts_123
-                    name: exact-match
-                    version: 1
-                    scope: project
-                    type: code
-                    variables:
-                      - input
-                      - output
-                      - metadata
-                      - experimentItemExpectedOutput
-                      - experimentItemMetadata
-                    sourceCode: >
-                      function evaluate(ctx: EvaluationContext):
-                      EvaluationResult {
-                        const input = ctx.observation.input;
-                        const matchesOutput =
-                          input !== undefined && ctx.observation.output === input;
-
-                        return {
-                          scores: [
-                            {
-                              name: "Exact match",
-                              value: matchesOutput,
-                              dataType: "BOOLEAN",
-                              comment: matchesOutput
-                                ? "Output exactly matches the input."
-                                : "Output does not match the input.",
-                            },
-                          ],
-                        };
-                      }
-                    sourceCodeLanguage: TYPESCRIPT
-                    evaluationRuleCount: 0
-                    createdAt: '2026-03-30T09:10:00.000Z'
-                    updatedAt: '2026-03-30T09:10:00.000Z'
-                CreatePythonCodeEvaluator:
-                  value:
-                    id: evaltmpl_py_123
-                    name: exact-match
-                    version: 1
-                    scope: project
-                    type: code
-                    variables:
-                      - input
-                      - output
-                      - metadata
-                      - experimentItemExpectedOutput
-                      - experimentItemMetadata
-                    sourceCode: |
-                      def evaluate(ctx: EvaluationContext) -> EvaluationResult:
-                          """Evaluates one observation and returns one or more Langfuse scores."""
-                          input = ctx.observation.input
-                          matches_output = input is not None and ctx.observation.output == input
-
-                          return EvaluationResult(
-                              scores=[
-                                  Score(
-                                      name="Exact match",
-                                      value=matches_output,
-                                      data_type="BOOLEAN",
-                                      comment=(
-                                          "Output exactly matches the input."
-                                          if matches_output
-                                          else "Output does not match the input."
-                                      ),
-                                  )
-                              ]
-                          )
-                    sourceCodeLanguage: PYTHON
-                    evaluationRuleCount: 0
-                    createdAt: '2026-03-30T09:15:00.000Z'
-                    updatedAt: '2026-03-30T09:15:00.000Z'
         '400':
           description: ''
           content:
@@ -7300,88 +6861,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/unstableCreateEvaluatorRequest'
-            examples:
-              CreateEvaluatorVersion:
-                value:
-                  name: answer-correctness
-                  type: llm_as_judge
-                  prompt: |
-                    You are grading an answer.
-
-                    Input:
-                    {{input}}
-
-                    Output:
-                    {{output}}
-
-                    Return a score between 0 and 1.
-                  outputDefinition:
-                    dataType: NUMERIC
-                    reasoning:
-                      description: Explain why the score was assigned.
-                    score:
-                      description: Correctness score between 0 and 1.
-                  modelConfig:
-                    provider: openai
-                    model: gpt-4.1-mini
-              CreateTypeScriptCodeEvaluator:
-                value:
-                  name: exact-match
-                  type: code
-                  sourceCode: >
-                    function evaluate(ctx: EvaluationContext): EvaluationResult
-                    {
-                      const input = ctx.observation.input;
-                      const matchesOutput =
-                        input !== undefined && ctx.observation.output === input;
-
-                      return {
-                        scores: [
-                          {
-                            name: "Exact match",
-                            value: matchesOutput,
-                            dataType: "BOOLEAN",
-                            comment: matchesOutput
-                              ? "Output exactly matches the input."
-                              : "Output does not match the input.",
-                          },
-                        ],
-                      };
-                    }
-                  sourceCodeLanguage: TYPESCRIPT
-              CreatePythonCodeEvaluator:
-                value:
-                  name: exact-match
-                  type: code
-                  sourceCode: |
-                    def evaluate(ctx: EvaluationContext) -> EvaluationResult:
-                        """Evaluates one observation and returns one or more Langfuse scores."""
-                        input = ctx.observation.input
-                        matches_output = input is not None and ctx.observation.output == input
-
-                        return EvaluationResult(
-                            scores=[
-                                Score(
-                                    name="Exact match",
-                                    value=matches_output,
-                                    data_type="BOOLEAN",
-                                    comment=(
-                                        "Output exactly matches the input."
-                                        if matches_output
-                                        else "Output does not match the input."
-                                    ),
-                                )
-                            ]
-                        )
-                  sourceCodeLanguage: PYTHON
     get:
       description: >-
         List the evaluators available to the authenticated project.
@@ -7458,8 +6944,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
   /api/public/unstable/evaluators/{evaluatorId}:
     get:
       description: >-
@@ -7523,8 +7008,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
     delete:
       description: >-
         Delete an evaluator.
@@ -7602,8 +7086,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
-      security:
-        - BasicAuth: []
+      security: *ref_0
 components:
   schemas:
     AnnotationQueueStatus:
@@ -7643,6 +7126,7 @@ components:
       required:
         - id
         - name
+        - description
         - scoreConfigIds
         - createdAt
         - updatedAt
@@ -8046,15 +7530,23 @@ components:
         - projectId
         - type
         - bucketName
+        - endpoint
         - region
+        - accessKeyId
         - prefix
         - exportFrequency
         - enabled
         - forcePathStyle
         - fileType
         - exportMode
+        - exportStartDate
         - compressed
         - exportSource
+        - exportFieldGroups
+        - nextSyncAt
+        - lastSyncAt
+        - lastError
+        - lastErrorAt
         - createdAt
         - updatedAt
     BlobStorageIntegrationsResponse:
@@ -8140,6 +7632,10 @@ components:
         - projectId
         - syncStatus
         - enabled
+        - lastSyncAt
+        - nextSyncAt
+        - lastError
+        - lastErrorAt
     BlobStorageIntegrationDeletionResponse:
       title: BlobStorageIntegrationDeletionResponse
       type: object
@@ -8258,6 +7754,11 @@ components:
       required:
         - id
         - timestamp
+        - name
+        - sessionId
+        - release
+        - version
+        - userId
         - tags
         - public
         - environment
@@ -8451,14 +7952,23 @@ components:
             not start with 'langfuse'.
       required:
         - id
+        - traceId
         - type
+        - name
         - startTime
+        - endTime
+        - completionStartTime
+        - model
         - modelParameters
         - input
+        - version
         - metadata
         - output
         - usage
         - level
+        - statusMessage
+        - parentObservationId
+        - promptId
         - usageDetails
         - costDetails
         - environment
@@ -8524,6 +8034,18 @@ components:
           format: double
           nullable: true
           description: The time to the first token in seconds
+      required:
+        - promptName
+        - promptVersion
+        - modelId
+        - inputPrice
+        - outputPrice
+        - totalPrice
+        - calculatedInputCost
+        - calculatedOutputCost
+        - calculatedTotalCost
+        - latency
+        - timeToFirstToken
       allOf:
         - $ref: '#/components/schemas/Observation'
     ObservationV2:
@@ -8725,9 +8247,16 @@ components:
           description: The release version of the parent trace
       required:
         - id
+        - traceId
         - startTime
+        - endTime
         - projectId
+        - parentObservationId
         - type
+        - modelId
+        - inputPrice
+        - outputPrice
+        - totalPrice
     Usage:
       title: Usage
       type: object
@@ -8767,6 +8296,7 @@ components:
         - input
         - output
         - total
+        - unit
     ScoreConfig:
       title: ScoreConfig
       type: object
@@ -8895,7 +8425,11 @@ components:
         - timestamp
         - createdAt
         - updatedAt
+        - authorUserId
+        - comment
         - metadata
+        - configId
+        - queueId
         - environment
     NumericScoreV1:
       title: NumericScoreV1
@@ -9078,7 +8612,11 @@ components:
         - timestamp
         - createdAt
         - updatedAt
+        - authorUserId
+        - comment
         - metadata
+        - configId
+        - queueId
         - environment
     NumericScore:
       title: NumericScore
@@ -9289,7 +8827,10 @@ components:
       required:
         - id
         - name
+        - description
         - metadata
+        - inputSchema
+        - expectedOutputSchema
         - projectId
         - createdAt
         - updatedAt
@@ -9331,6 +8872,8 @@ components:
         - input
         - expectedOutput
         - metadata
+        - sourceTraceId
+        - sourceObservationId
         - datasetId
         - datasetName
         - createdAt
@@ -9365,6 +8908,7 @@ components:
         - datasetRunName
         - datasetItemId
         - traceId
+        - observationId
         - createdAt
         - updatedAt
     DatasetRun:
@@ -9400,6 +8944,7 @@ components:
       required:
         - id
         - name
+        - description
         - metadata
         - datasetId
         - datasetName
@@ -9542,6 +9087,11 @@ components:
         - id
         - modelName
         - matchPattern
+        - startDate
+        - inputPrice
+        - outputPrice
+        - totalPrice
+        - tokenizerId
         - tokenizerConfig
         - isLangfuseManaged
         - createdAt
@@ -9908,7 +9458,7 @@ components:
           nullable: true
         - type: integer
           nullable: true
-        - type: integer
+        - type: number
           format: float
           nullable: true
         - type: boolean
@@ -10134,10 +9684,8 @@ components:
         version:
           type: string
           description: Langfuse server version
-          example: 1.25.0
         status:
           type: string
-          example: OK
       required:
         - version
         - status
@@ -10569,7 +10117,6 @@ components:
           description: >-
             The name of the score. Always overrides "output" for correction
             scores.
-          example: novelty
         environment:
           type: string
           nullable: true
@@ -10898,7 +10445,6 @@ components:
           nullable: true
         name:
           type: string
-          example: novelty
         value:
           $ref: '#/components/schemas/CreateScoreValue'
           description: >-
@@ -13136,13 +12682,11 @@ components:
             To discover valid values for the current project, call `GET
             /api/public/llm-connections` and use one of the returned `provider`
             values.
-          example: openai
         model:
           type: string
           description: >-
             Model identifier exposed by the provider, for example
             `gpt-4.1-mini`.
-          example: gpt-4.1-mini
       required:
         - provider
         - model
@@ -13629,7 +13173,6 @@ components:
 
             Example: for the prompt `Judge {{input}} against {{output}}`, use
             `input` and `output`.
-          example: input
         source:
           $ref: '#/components/schemas/unstableEvaluationRuleMappingSource'
           description: >-
@@ -14024,7 +13567,6 @@ components:
         message:
           type: string
           description: Human-readable description of the failure.
-          example: 'Filter column "type" contains unsupported value(s): INVALID'
         code:
           $ref: '#/components/schemas/unstablePublicApiErrorCode'
           description: Stable machine-readable error code.
@@ -14070,13 +13612,11 @@ components:
         id:
           type: string
           description: Stable evaluation rule identifier.
-          example: erule_123
         name:
           type: string
           description: >-
             Human-readable deployment name. This is independent from the
             evaluator name.
-          example: answer-correctness-live
         evaluator:
           $ref: '#/components/schemas/unstableEvaluationRuleEvaluator'
           description: >-
@@ -14095,7 +13635,6 @@ components:
         enabled:
           type: boolean
           description: Desired enabled state configured by the client.
-          example: true
         status:
           $ref: '#/components/schemas/unstableEvaluationRuleStatus'
           description: >-
@@ -14118,7 +13657,6 @@ components:
             Must be greater than `0` and less than or equal to `1`.
             - `1` means evaluate every matching target.
             - `0.25` means evaluate approximately 25% of matching targets.
-          example: 1
         filter:
           type: array
           items:
@@ -14137,12 +13675,10 @@ components:
           type: string
           format: date-time
           description: Timestamp when the evaluation rule was created.
-          example: '2026-03-30T09:20:00.000Z'
         updatedAt:
           type: string
           format: date-time
           description: Timestamp when the evaluation rule was last updated.
-          example: '2026-03-30T09:20:00.000Z'
       required:
         - id
         - name
@@ -14150,6 +13686,8 @@ components:
         - target
         - enabled
         - status
+        - pausedReason
+        - pausedMessage
         - sampling
         - filter
         - mapping
@@ -14646,6 +14184,7 @@ components:
       required:
         - prompt
         - outputDefinition
+        - modelConfig
       allOf:
         - $ref: '#/components/schemas/unstableEvaluatorBase'
     unstableCodeEvaluator:
