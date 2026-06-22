@@ -84,11 +84,14 @@ const deleteMediaItemsForTraces = async (
             AND om.media_id = m.id
             AND om.trace_id NOT IN (${Prisma.join(traceIds)})
         )
+        -- Only a claimed association (validFrom set) protects media; pending
+        -- rows (null validFrom) are sweepable, matching deleteMediaFiles.
         AND NOT EXISTS (
           SELECT 1
           FROM dataset_item_media dim
           WHERE dim.project_id = m.project_id
             AND dim.media_id = m.id
+            AND dim.dataset_item_valid_from IS NOT NULL
         )
     `;
 
@@ -121,6 +124,16 @@ const deleteMediaItemsForTraces = async (
     });
 
     if (s3DeletedMediaIds.length > 0) {
+      // Sweep leftover pending rows for the deleted media (claimed rows can't
+      // exist for deletable media), matching deleteMediaFiles.
+      await tx.datasetItemMedia.deleteMany({
+        where: {
+          projectId,
+          mediaId: { in: s3DeletedMediaIds },
+          datasetItemValidFrom: null,
+        },
+      });
+
       await tx.$executeRaw`
         DELETE FROM media m
         WHERE
@@ -143,6 +156,7 @@ const deleteMediaItemsForTraces = async (
             FROM dataset_item_media dim
             WHERE dim.project_id = m.project_id
               AND dim.media_id = m.id
+              AND dim.dataset_item_valid_from IS NOT NULL
           )
       `;
     }
