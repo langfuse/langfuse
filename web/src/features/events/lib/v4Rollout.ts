@@ -37,8 +37,23 @@ export function shouldAutoEnableV4({
   return oldestOrganizationCreatedAt >= V4_DEFAULT_ENABLED_FROM_AT;
 }
 
-export function canToggleV4(context: V4RolloutContext): boolean {
+type CanToggleV4Options = {
+  // Langfuse Cloud staff superusers (the instance-level `User.admin` flag, not a
+  // customer's org/project ADMIN role) need the toggle on any tenant's project
+  // so they can reproduce v3/v4 behavior — even when their own account is new
+  // enough that the date-based rollout would otherwise auto-enable and lock it.
+  isLangfuseCloudAdmin?: boolean;
+};
+
+export function canToggleV4(
+  context: V4RolloutContext,
+  options: CanToggleV4Options = {},
+): boolean {
   if (process.env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "DEV") {
+    return true;
+  }
+
+  if (options.isLangfuseCloudAdmin) {
     return true;
   }
 

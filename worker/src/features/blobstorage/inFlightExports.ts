@@ -1,7 +1,17 @@
-import { hostname } from "os";
-import { logger } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
+import { WORKER_HOST_ID } from "../../utils/hostId";
 
-const HOST_NAME = hostname();
+// Per-table attempt counter. Residual `started - success - failure - aborted`
+// counts silent hard kills (OOM) that emit nothing. Lives here to avoid an
+// import cycle with the handler. See LFE-10407.
+export const BLOB_TABLE_EXPORT_METRIC =
+  "langfuse.blobstorage.table_export.count";
+
+export type BlobTableExportOutcome =
+  | "started"
+  | "success"
+  | "failure"
+  | "aborted";
 
 export type InFlightBlobExport = {
   jobId: string | undefined;
@@ -40,7 +50,7 @@ export const resetInFlightBlobExports = (): void => {
 export const logInFlightBlobExportsOnShutdown = (): void => {
   if (inFlightExports.size === 0) {
     logger.info(
-      `[BLOB INTEGRATION] No blob storage exports in-flight at shutdown on host ${HOST_NAME}`,
+      `[BLOB INTEGRATION] No blob storage exports in-flight at shutdown on host ${WORKER_HOST_ID}`,
     );
     return;
   }
@@ -50,10 +60,16 @@ export const logInFlightBlobExportsOnShutdown = (): void => {
     // "in-flight at shutdown", not "aborted": worker.close() drains gracefully,
     // so this export may still complete within the grace period.
     logger.warn(
-      `[BLOB INTEGRATION] Blob storage export in-flight at shutdown signal on host ${HOST_NAME}: ` +
+      `[BLOB INTEGRATION] Blob storage export in-flight at shutdown signal on host ${WORKER_HOST_ID}: ` +
         `jobId=${entry.jobId} projectId=${entry.projectId} table=${entry.table} ` +
         `window=[${entry.minTimestamp}, ${entry.maxTimestamp}] ` +
         `elapsedMs=${now - entry.startedAt}`,
     );
+    // May double with `success` if the export finishes within the grace period.
+    recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+      outcome: "aborted" satisfies BlobTableExportOutcome,
+      table: entry.table,
+      projectId: entry.projectId,
+    });
   }
 };

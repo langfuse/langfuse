@@ -1,6 +1,4 @@
-import { pipeline, Transform } from "stream";
-import { createGzip } from "zlib";
-import { hostname } from "os";
+import { pipeline, Transform, type Readable } from "stream";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
@@ -12,12 +10,16 @@ import {
   StorageServiceFactory,
   streamTransformations,
   getObservationsForBlobStorageExport,
+  getObservationsForBlobStorageExportRaw,
   getTracesForBlobStorageExport,
   getScoresForBlobStorageExport,
   getEventsForBlobStorageExport,
+  getEventsForBlobStorageExportRaw,
   getCurrentSpan,
   instrumentAsync,
   recordGauge,
+  recordHistogram,
+  recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
   QueueJobs,
@@ -31,7 +33,11 @@ import {
 import {
   registerInFlightBlobExport,
   unregisterInFlightBlobExport,
+  BLOB_TABLE_EXPORT_METRIC,
+  type BlobTableExportOutcome,
 } from "./inFlightExports";
+import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
+import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
@@ -40,6 +46,7 @@ import {
   type ObservationFieldGroupFull,
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
+  resolveBlobExportTuning,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import { randomUUID } from "crypto";
@@ -47,8 +54,6 @@ import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
 
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
-
-const HOST_NAME = hostname();
 
 export async function* enrichObservationStream(
   stream: AsyncGenerator<Record<string, unknown>>,
@@ -238,6 +243,17 @@ async function* countedStream<T>(
   }
 }
 
+// Appends a newline to each raw JSONEachRow line and emits it as bytes, so the
+// passthrough path produces the same JSONL framing as the standard formatter
+// without re-serializing (the line is already JSON from ClickHouse).
+const createRawJsonlNewlineTransform = (): Transform =>
+  new Transform({
+    writableObjectMode: true,
+    transform(line: string, _encoding, callback) {
+      callback(null, Buffer.from(line + "\n"));
+    },
+  });
+
 const processBlobStorageExport = async (config: {
   projectId: string;
   minTimestamp: Date;
@@ -253,8 +269,12 @@ const processBlobStorageExport = async (config: {
   table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
+  // zlib level for the gzip step; undefined => zlib default (6). Only relevant
+  // when `compressed` is true.
+  gzipLevel: number | undefined;
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
+  rawPassthrough: boolean;
   bullmqJobId: string | undefined;
   bullmqAttemptsMade: number;
 }) => {
@@ -302,7 +322,7 @@ const processBlobStorageExport = async (config: {
         span.setAttribute("messaging.bullmq.job.id", config.bullmqJobId);
       }
       span.setAttribute("job.attemptsMade", config.bullmqAttemptsMade);
-      span.setAttribute("host.name", HOST_NAME);
+      span.setAttribute("host.name", WORKER_HOST_ID);
 
       // Event-loop delay during the stream: if it spikes, lock renewal can't
       // fire and the job re-enqueues as stalled (LFE-10063). Torn down below.
@@ -318,6 +338,16 @@ const processBlobStorageExport = async (config: {
         maxTimestamp: config.maxTimestamp.toISOString(),
         startedAt: Date.now(),
       });
+
+      recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+        outcome: "started" satisfies BlobTableExportOutcome,
+        table: config.table,
+        projectId: config.projectId,
+      });
+
+      // Outside the try so the catch can distinguish a real upload success from
+      // a failure.
+      let uploadSucceeded = false;
 
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
@@ -339,57 +369,23 @@ const processBlobStorageExport = async (config: {
             ? config.exportFieldGroups
             : [...OBSERVATION_FIELD_GROUPS_FULL];
 
-        let rawStream: AsyncGenerator<Record<string, unknown>>;
+        // Raw passthrough (LFE-10402) is opt-in per project and only valid for
+        // JSONL output of the enriched-observation tables — the only formats
+        // where ClickHouse FORMAT JSONEachRow bytes map 1:1 to the file. Any
+        // other request falls back to the standard path. The integration-level
+        // ineligibility warning is emitted once by the dispatcher; here we just
+        // select the path per table (scores/traces always use the standard path,
+        // so per-table fallback is expected and not worth a warning).
+        const passthroughEligible =
+          config.rawPassthrough &&
+          config.fileType === BlobStorageIntegrationFileType.JSONL &&
+          (config.table === "observations" ||
+            config.table === "observations_v2");
 
-        switch (config.table) {
-          case "traces":
-            rawStream = getTracesForBlobStorageExport(
-              config.projectId,
-              config.minTimestamp,
-              config.maxTimestamp,
-            );
-            break;
-          case "observations":
-            rawStream = enrichObservationStream(
-              getObservationsForBlobStorageExport(
-                config.projectId,
-                config.minTimestamp,
-                config.maxTimestamp,
-                exportFieldGroups,
-              ),
-              config.projectId,
-              "model_id",
-              false, // v3 query already returns latency in seconds
-              exportFieldGroups,
-            );
-            break;
-          case "scores":
-            rawStream = getScoresForBlobStorageExport(
-              config.projectId,
-              config.minTimestamp,
-              config.maxTimestamp,
-            );
-            break;
-          case "observations_v2": // observations_v2 is the events table
-            rawStream = enrichObservationStream(
-              getEventsForBlobStorageExport(
-                config.projectId,
-                config.minTimestamp,
-                config.maxTimestamp,
-                exportFieldGroups,
-              ),
-              config.projectId,
-              "model_id",
-              config.convertV4LatencyToSeconds,
-              exportFieldGroups,
-            );
-            break;
-          default:
-            throw new Error(`Unsupported table type: ${config.table}`);
-        }
-
-        const sourceStats = { rows: 0, sourceWaitMs: 0 };
-        const dataStream = countedStream(rawStream, sourceStats);
+        span.setAttribute(
+          "blob.path",
+          passthroughEligible ? "passthrough" : "standard",
+        );
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
@@ -402,23 +398,129 @@ const processBlobStorageExport = async (config: {
 
         const serializedCounter = new ByteCounter();
         const compressedCounter = config.compressed ? new ByteCounter() : null;
-        const formatTransform = streamTransformations[config.fileType]();
+        // Paired with compressedCounter: both exist iff compression is on.
+        const gzipStats: GzipStats | null = compressedCounter
+          ? { level: config.gzipLevel ?? ZLIB_DEFAULT_LEVEL, activeMs: 0 }
+          : null;
 
-        const fileStream = compressedCounter
-          ? pipeline(
-              dataStream,
-              formatTransform,
-              serializedCounter,
-              createGzip(),
-              compressedCounter,
-              pipelineCallback,
-            )
-          : pipeline(
-              dataStream,
-              formatTransform,
-              serializedCounter,
-              pipelineCallback,
-            );
+        // Both paths tally rows in JS via countedStream (the passthrough yields
+        // raw row text rather than parsed objects, but still iterates).
+        const sourceStats = { rows: 0, sourceWaitMs: 0 };
+
+        let fileStream: Readable;
+
+        if (passthroughEligible) {
+          // Stream ClickHouse JSONEachRow row text straight through: skip the
+          // per-row JSON.parse, enrichment, and re-serialize. Shaping (latency→s,
+          // dropped price columns, field-group selection) is baked into the SQL.
+          // The client's own mid-stream exception detection (CH ≥ 25.11) errors
+          // the stream on a failed query, which aborts the upload — no committed
+          // object and no out-of-band system.query_log check needed.
+          const rawRows =
+            config.table === "observations"
+              ? getObservationsForBlobStorageExportRaw(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                )
+              : getEventsForBlobStorageExportRaw(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                  config.convertV4LatencyToSeconds,
+                );
+
+          const dataStream = countedStream(rawRows, sourceStats);
+          const jsonlNewline = createRawJsonlNewlineTransform();
+
+          fileStream =
+            compressedCounter && gzipStats
+              ? pipeline(
+                  dataStream,
+                  jsonlNewline,
+                  serializedCounter,
+                  new TimedGzip(config.gzipLevel, gzipStats),
+                  compressedCounter,
+                  pipelineCallback,
+                )
+              : pipeline(
+                  dataStream,
+                  jsonlNewline,
+                  serializedCounter,
+                  pipelineCallback,
+                );
+        } else {
+          let rawStream: AsyncGenerator<Record<string, unknown>>;
+
+          switch (config.table) {
+            case "traces":
+              rawStream = getTracesForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+              );
+              break;
+            case "observations":
+              rawStream = enrichObservationStream(
+                getObservationsForBlobStorageExport(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                ),
+                config.projectId,
+                "model_id",
+                false, // v3 query already returns latency in seconds
+                exportFieldGroups,
+              );
+              break;
+            case "scores":
+              rawStream = getScoresForBlobStorageExport(
+                config.projectId,
+                config.minTimestamp,
+                config.maxTimestamp,
+              );
+              break;
+            case "observations_v2": // observations_v2 is the events table
+              rawStream = enrichObservationStream(
+                getEventsForBlobStorageExport(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                ),
+                config.projectId,
+                "model_id",
+                config.convertV4LatencyToSeconds,
+                exportFieldGroups,
+              );
+              break;
+            default:
+              throw new Error(`Unsupported table type: ${config.table}`);
+          }
+
+          const dataStream = countedStream(rawStream, sourceStats);
+          const formatTransform = streamTransformations[config.fileType]();
+
+          fileStream =
+            compressedCounter && gzipStats
+              ? pipeline(
+                  dataStream,
+                  formatTransform,
+                  serializedCounter,
+                  new TimedGzip(config.gzipLevel, gzipStats),
+                  compressedCounter,
+                  pipelineCallback,
+                )
+              : pipeline(
+                  dataStream,
+                  formatTransform,
+                  serializedCounter,
+                  pipelineCallback,
+                );
+        }
 
         // Upload the file to cloud storage
         // For CSV exports, use larger part size to handle big files
@@ -434,12 +536,25 @@ const processBlobStorageExport = async (config: {
             data: fileStream,
             partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
           });
+          // Record at the upload boundary so a throw in the `finally` below
+          // can't miscount a real success as a failure.
+          uploadSucceeded = true;
+          recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+            outcome: "success" satisfies BlobTableExportOutcome,
+            table: config.table,
+            projectId: config.projectId,
+          });
 
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
-              `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${HOST_NAME} ` +
+              `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
+              `path=${passthroughEligible ? "passthrough" : "standard"} ` +
               `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
-              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
+              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}` +
+              (gzipStats && compressedCounter
+                ? ` gzipLevel=${gzipStats.level} gzipActiveMs=${Math.round(gzipStats.activeMs)} ` +
+                  `compressedBytes=${compressedCounter.bytes}`
+                : ""),
           );
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
@@ -457,11 +572,63 @@ const processBlobStorageExport = async (config: {
           if (compressedCounter) {
             span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
           }
+          if (gzipStats && compressedCounter) {
+            // Gauge the cost of the gzip step so a level change (or moving
+            // compression off the worker) can be evaluated against real data.
+            const activeMs = Math.round(gzipStats.activeMs);
+            // Input/output ratio (>1 = shrank); guard div-by-zero on empty exports.
+            const ratio =
+              compressedCounter.bytes > 0
+                ? serializedCounter.bytes / compressedCounter.bytes
+                : 0;
+            // Compression throughput over uncompressed input bytes.
+            const throughputMbPerSec =
+              gzipStats.activeMs > 0
+                ? serializedCounter.bytes / (gzipStats.activeMs * 1000)
+                : 0;
+
+            span.setAttribute("blob.gzip.level", gzipStats.level);
+            span.setAttribute("blob.gzip.activeMs", activeMs);
+            span.setAttribute("blob.gzip.ratio", Number(ratio.toFixed(3)));
+            span.setAttribute(
+              "blob.gzip.throughputMbPerSec",
+              Number(throughputMbPerSec.toFixed(2)),
+            );
+
+            const metricTags = {
+              table: config.table,
+              path: passthroughEligible ? "passthrough" : "standard",
+              gzipLevel: gzipStats.level,
+            };
+            recordHistogram(
+              "langfuse.blob_export.gzip.active_ms",
+              activeMs,
+              metricTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.gzip.ratio",
+              ratio,
+              metricTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.gzip.throughput_mb_per_sec",
+              throughputMbPerSec,
+              metricTags,
+            );
+          }
         }
       } catch (error) {
+        // Skip if `success` already fired (a later step threw post-upload).
+        if (!uploadSucceeded) {
+          recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
+            outcome: "failure" satisfies BlobTableExportOutcome,
+            table: config.table,
+            projectId: config.projectId,
+          });
+        }
         logger.error(
           `[BLOB INTEGRATION] Error exporting ${config.table} for project ${config.projectId} ` +
-            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${HOST_NAME})`,
+            `(jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID})`,
           error,
         );
         throw error;
@@ -508,7 +675,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       span.setAttribute("messaging.bullmq.job.id", job.id);
     }
     span.setAttribute("job.attemptsMade", job.attemptsMade);
-    span.setAttribute("host.name", HOST_NAME);
+    span.setAttribute("host.name", WORKER_HOST_ID);
   }
 
   logger.info(
@@ -610,6 +777,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
     const convertV4LatencyToSeconds =
       blobStorageIntegration.createdAt >= new Date("2026-04-01T00:00:00Z");
 
+    // Per-project export tuning (set via DB directly; no UI/tRPC write path).
+    // Malformed/absent column resolves to defaults — never throws.
+    const { resolved: exportTuning, warnings: exportTuningWarnings } =
+      resolveBlobExportTuning(blobStorageIntegration.exportTuning);
+    for (const warning of exportTuningWarnings) {
+      logger.warn(
+        `[BLOB INTEGRATION] exportTuning for project ${projectId}: ${warning}`,
+      );
+    }
+
     const executionConfig = {
       projectId,
       minTimestamp,
@@ -626,9 +803,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
+      gzipLevel: exportTuning.gzipLevel,
       convertV4LatencyToSeconds,
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
+      rawPassthrough: exportTuning.rawPassthrough,
       bullmqJobId: job.id,
       bullmqAttemptsMade: job.attemptsMade,
     };
@@ -638,6 +817,25 @@ export const handleBlobStorageIntegrationProjectJob = async (
       env.LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS.includes(
         projectId,
       );
+
+    // Warn once per run if rawPassthrough is enabled but no table will actually
+    // use it. Passthrough only applies to JSONL exports of observations /
+    // observations_v2; every non-trace-only export source includes one of those,
+    // so the only integration-level ineligibility is a non-JSONL file type or a
+    // trace-only project. The per-table fallback for scores/traces is expected
+    // dispatch and is intentionally not warned about (avoids ~hourly log noise).
+    if (
+      exportTuning.rawPassthrough &&
+      (blobStorageIntegration.fileType !==
+        BlobStorageIntegrationFileType.JSONL ||
+        isTraceOnlyProject)
+    ) {
+      logger.warn(
+        `[BLOB INTEGRATION] rawPassthrough enabled for project ${projectId} but no eligible table will use it ` +
+          `(fileType=${blobStorageIntegration.fileType}, traceOnly=${isTraceOnlyProject}); exporting via the standard path. ` +
+          `Passthrough requires JSONL output of observations or observations_v2.`,
+      );
+    }
 
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)

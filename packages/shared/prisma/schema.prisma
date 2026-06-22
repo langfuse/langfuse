@@ -1227,6 +1227,11 @@ model BlobStorageIntegration {
   exportFieldGroups String[]                         @default(["core", "basic", "time", "io", "metadata", "model", "usage", "prompt", "metrics", "tools", "trace_context"]) @map("export_field_groups")
   compressed        Boolean                          @default(true) @map("compressed")
 
+  // Per-project blob-export tuning (set via DB directly for now; no UI/tRPC
+  // write path). Validated/clamped at job time; null/malformed → defaults.
+  // Shared with LFE-10394; extend the zod schema, do not duplicate the column.
+  exportTuning Json? @map("export_tuning")
+
   // Error tracking
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
