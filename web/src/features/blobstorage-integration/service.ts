@@ -174,10 +174,7 @@ export async function upsertBlobStorageIntegration(params: {
         ...(modeChanged && data.enabled
           ? { lastError: null, lastErrorAt: null }
           : {}),
-        ...(existing?.runStartedAt &&
-        existing.runStartedAt.getTime() < Date.now() - 60 * 60 * 1000
-          ? { runStartedAt: null }
-          : {}),
+        runStartedAt: null,
       },
     });
 
