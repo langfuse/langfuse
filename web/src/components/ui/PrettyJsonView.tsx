@@ -57,6 +57,7 @@ import {
 import {
   ValueCell,
   getValueStringLength,
+  type MetadataFilterActions,
 } from "@/src/components/table/ValueCell";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 
@@ -541,6 +542,7 @@ function JsonPrettyTable({
   toggleCellExpansion,
   stickyTopLevelKey = false,
   showObservationTypeBadge = false,
+  metadataActions,
 }: {
   data: JsonTableRow[];
   expandAllRef?: React.RefObject<(() => void) | null>;
@@ -557,6 +559,7 @@ function JsonPrettyTable({
   toggleCellExpansion: (cellId: string) => void;
   stickyTopLevelKey?: boolean;
   showObservationTypeBadge?: boolean;
+  metadataActions?: MetadataFilterActions;
 }) {
   const headerRef = useRef<HTMLTableRowElement>(null);
   const topLevelRowRef = useRef<HTMLTableRowElement>(null);
@@ -685,6 +688,7 @@ function JsonPrettyTable({
           preserveStringWhitespace={
             row.original.key === "code_eval_source_code"
           }
+          metadataActions={metadataActions}
         />
       ),
     },
@@ -878,6 +882,9 @@ export function PrettyJsonView(props: {
   showObservationTypeBadge?: boolean;
   /** Content to render between header and main content (e.g., thinking blocks) */
   afterHeader?: React.ReactNode;
+  /** When set, rows show an actions menu with copy + add-to-filter shortcuts
+      (metadata views only). */
+  metadataActions?: MetadataFilterActions;
 }) {
   // Use pre-parsed data if available, otherwise parse on-demand
   const parsedJson = useMemo(() => {
@@ -1408,6 +1415,7 @@ export function PrettyJsonView(props: {
                   toggleCellExpansion={toggleCellExpansion}
                   stickyTopLevelKey={props.stickyTopLevelKey}
                   showObservationTypeBadge={props.showObservationTypeBadge}
+                  metadataActions={props.metadataActions}
                 />
               )}
             </div>

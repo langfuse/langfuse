@@ -24,6 +24,7 @@ import {
   shouldFlushPersistedEvent,
   toPersistableAgentEvent,
 } from "@/src/ee/features/in-app-agent/server/persistence";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import { getAuthOptions } from "@/src/server/auth";
 import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
@@ -134,12 +135,6 @@ export default async function handler(request: Request) {
       throw new ForbiddenError("User is not a member of this project");
     }
 
-    const isInAppAgentEnabled = auth.user.featureFlags.inAppAgent === true;
-
-    if (!isInAppAgentEnabled) {
-      throw new ForbiddenError("Assistant is not enabled for this user");
-    }
-
     if (
       !hasEntitlement({
         entitlement: "in-app-agent",
@@ -174,6 +169,9 @@ export default async function handler(request: Request) {
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const targetProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    const langfuseAiFeaturesPublicKey = env.LANGFUSE_AI_FEATURES_PUBLIC_KEY;
+    const langfuseAiFeaturesSecretKey = env.LANGFUSE_AI_FEATURES_SECRET_KEY;
+    const langfuseAiFeaturesHost = env.LANGFUSE_AI_FEATURES_HOST;
 
     if (!bedrockModelId) {
       throw new BaseError(
@@ -183,6 +181,27 @@ export default async function handler(request: Request) {
         true,
       );
     }
+
+    const useLocalPrompt = env.NODE_ENV === "development";
+
+    if (
+      !useLocalPrompt &&
+      (!langfuseAiFeaturesPublicKey || !langfuseAiFeaturesSecretKey)
+    ) {
+      throw new BaseError(
+        "PreconditionFailedError",
+        412,
+        "Missing credentials required to initialize langfuse client.",
+        true,
+      );
+    }
+
+    const langfuseClient = getLangfuseClient(
+      langfuseAiFeaturesPublicKey ?? "",
+      langfuseAiFeaturesSecretKey ?? "",
+      langfuseAiFeaturesHost,
+      false,
+    );
 
     // TODO: Add an additional user-level cap once the rate-limit service supports non-org keys.
     const rateLimitScope = getInAppAgentRateLimitScope(
@@ -267,7 +286,7 @@ export default async function handler(request: Request) {
               ...error,
             });
 
-          const stream = createAgUiStream({
+          const stream = await createAgUiStream({
             input: agentInput,
             signal: request.signal,
             options: {
@@ -324,6 +343,8 @@ export default async function handler(request: Request) {
                 projectId,
                 isV4Enabled: session.user?.v4BetaEnabled ?? false,
               },
+              langfuseClient,
+              useLocalPrompt,
               langfuseTracing:
                 project.organization.aiTelemetryEnabled && targetProjectId
                   ? {
