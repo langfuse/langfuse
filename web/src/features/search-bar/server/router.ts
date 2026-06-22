@@ -24,46 +24,17 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 import { z } from "zod";
-import {
-  BEDROCK_USE_DEFAULT_CREDENTIALS,
-  type FilterState,
-  singleFilter,
-} from "@langfuse/shared";
+import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { randomBytes } from "crypto";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { buildFilterSystemPrompt } from "./buildFilterPrompt";
-import { filterStateToQueryText } from "../lib/filter-state-to-query";
+import { parseGeneratedFilters } from "./parseFilterCompletion";
 
 const GenerateFilterInput = z.object({
   projectId: z.string(),
   prompt: z.string().min(1).max(2048),
 });
-
-const FilterArraySchema = z.array(singleFilter);
-
-/**
- * Extract a `FilterState` from the model's completion. Tries the whole string,
- * then a bracketed array, then a `{ "filters": [...] }` wrapper. Returns [] when
- * nothing parses (the client surfaces a "try again" message), mirroring the
- * legacy parser.
- */
-function parseFiltersFromCompletion(completion: string): FilterState {
-  const arrayMatch = completion.match(/\[[\s\S]*\]/)?.[0];
-  const candidates = [completion, arrayMatch].filter((c): c is string =>
-    Boolean(c),
-  );
-  for (const candidate of candidates) {
-    try {
-      const parsed = JSON.parse(candidate);
-      const filtersArray = Array.isArray(parsed) ? parsed : parsed.filters;
-      return FilterArraySchema.parse(filtersArray);
-    } catch {
-      // try the next candidate
-    }
-  }
-  return [];
-}
 
 export const searchBarRouter = createTRPCRouter({
   generateFilter: protectedProjectProcedure
@@ -182,26 +153,22 @@ export const searchBarRouter = createTRPCRouter({
           throw new Error("Expected LLM completion to be a string");
         }
 
-        const parsed = parseFiltersFromCompletion(llmCompletion);
+        // Parse the model output and keep only the filters that round-trip to
+        // bar grammar — a hallucinated/non-v4 column is dropped, never applied.
+        const { filters, queryText, droppedCount } =
+          parseGeneratedFilters(llmCompletion);
 
-        // Keep only the filters that round-trip to bar grammar — a hallucinated
-        // or non-v4 column lands in `skippedFilters` and is dropped here, so the
-        // client never receives a filter the bar can't show as an editable pill.
-        const { text, skippedFilters } = filterStateToQueryText(parsed);
-        const skipped = new Set(skippedFilters);
-        const filters = parsed.filter((f) => !skipped.has(f));
-
-        if (skippedFilters.length > 0) {
+        if (droppedCount > 0) {
           logger.warn(
             "Search-bar AI filter dropped non-representable filters",
             {
               projectId: input.projectId,
-              droppedCount: skippedFilters.length,
+              droppedCount,
             },
           );
         }
 
-        return { filters, queryText: text };
+        return { filters, queryText };
       } catch (error) {
         logger.error("Failed to generate search-bar AI filter", error);
         if (error instanceof TRPCError) {

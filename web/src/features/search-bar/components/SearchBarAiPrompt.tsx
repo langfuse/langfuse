@@ -50,8 +50,20 @@ export function SearchBarAiPrompt({
       onApply(result.filters as FilterState);
       onExit();
     } catch (err) {
+      // The tRPC error formatter masks INTERNAL_SERVER_ERROR messages to a
+      // generic "we have been notified" string, which reads like a Langfuse bug
+      // rather than "retry". Show our own friendly copy for that (and any
+      // codeless failure); surface the real message only for the informative
+      // precondition/forbidden cases.
+      const code = (err as { data?: { code?: string } } | null)?.data?.code;
+      const hasUsefulMessage =
+        err instanceof Error &&
+        code !== undefined &&
+        code !== "INTERNAL_SERVER_ERROR";
       setError(
-        err instanceof Error ? err.message : "Failed to generate filters.",
+        hasUsefulMessage
+          ? (err as Error).message
+          : "Couldn't reach the AI service. Please try again.",
       );
     }
   };
@@ -106,19 +118,28 @@ export function SearchBarAiPrompt({
           </span>
         ) : (
           <div className="flex shrink-0 items-center gap-1.5">
+            {value.trim().length > 0 && (
+              <kbd
+                title="Press Enter to generate"
+                className="border-border text-muted-foreground rounded border px-1 font-mono text-[10px] leading-none"
+              >
+                ↵
+              </kbd>
+            )}
             <kbd className="border-border text-muted-foreground rounded border px-1 font-mono text-[10px] leading-none">
               esc
             </kbd>
             <button
               type="button"
               aria-label="Generate filters"
+              title="Generate filters (Enter)"
               data-testid="search-bar-ai-submit"
               disabled={value.trim().length === 0}
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => submit()}
               className={cn(
-                "text-muted-foreground hover:text-foreground inline-flex h-5 w-5 items-center justify-center rounded-sm",
-                "disabled:cursor-not-allowed disabled:opacity-40",
+                "text-muted-foreground hover:text-foreground hover:bg-accent inline-flex h-5 w-5 items-center justify-center rounded-sm",
+                "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
               )}
             >
               <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />

@@ -1340,14 +1340,16 @@ export function SearchComposer({
             type="button"
             data-testid="search-bar-ask-ai"
             aria-label="Ask AI to build filters"
+            title="Describe filters in natural language (Tab)"
             onMouseDown={(event) => event.preventDefault()}
             onClick={(event) => {
               event.stopPropagation();
               onActivateAi();
             }}
             className={cn(
-              "absolute top-1/2 right-2 z-20 inline-flex -translate-y-1/2 items-center gap-1.5 rounded px-1.5 py-0.5",
-              "bg-background text-muted-foreground hover:text-foreground font-sans text-xs",
+              "absolute top-1/2 right-2 z-20 inline-flex -translate-y-1/2 items-center gap-1.5 rounded border border-transparent px-1.5 py-0.5",
+              "bg-background text-muted-foreground font-sans text-xs",
+              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
             )}
           >
             <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
