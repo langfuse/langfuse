@@ -214,7 +214,6 @@ const SingleOrganizationProjectOverviewTile = ({
 }) => {
   const session = useSession();
   const org = session.data?.user?.organizations.find((o) => o.id === orgId);
-  // Persist the expanded/collapsed state per org (expanded by default).
   const [expanded, setExpanded] = useLocalStorage(
     `org-overview-expanded-${orgId}`,
     true,
@@ -250,7 +249,8 @@ const SingleOrganizationProjectOverviewTile = ({
     <Collapsible
       key={orgId}
       open={open}
-      onOpenChange={isSearching ? undefined : setExpanded}
+      onOpenChange={setExpanded}
+      disabled={isSearching}
     >
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2 md:gap-3">
