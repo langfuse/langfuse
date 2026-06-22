@@ -610,7 +610,10 @@ const processBlobStorageExport = async (config: {
               )
             : 0;
           const gzipCpuMs = gzipStats
-            ? Math.round(gzipStats.activeMs - gzipStats.backpressureMs)
+            ? Math.max(
+                0,
+                Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
+              )
             : 0;
           const uploadWaitMs = gzipStats
             ? Math.round(gzipStats.backpressureMs)
@@ -645,7 +648,10 @@ const processBlobStorageExport = async (config: {
             span.setAttribute("blob.uploadDurationMs", totalUploadMs);
             if (uploadSucceeded) {
               const finalGzipCpuMs = gzipStats
-                ? Math.round(gzipStats.activeMs - gzipStats.backpressureMs)
+                ? Math.max(
+                    0,
+                    Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
+                  )
                 : 0;
               const finalUploadWaitMs = gzipStats
                 ? Math.round(gzipStats.backpressureMs)
@@ -688,7 +694,10 @@ const processBlobStorageExport = async (config: {
               compressedCounter.bytes > 0
                 ? serializedCounter.bytes / compressedCounter.bytes
                 : 0;
-            const pureGzipMs = gzipStats.activeMs - gzipStats.backpressureMs;
+            const pureGzipMs = Math.max(
+              0,
+              gzipStats.activeMs - gzipStats.backpressureMs,
+            );
             const throughputMbPerSec =
               pureGzipMs > 0
                 ? serializedCounter.bytes / (pureGzipMs * 1000)

@@ -6,9 +6,10 @@ export type GzipStats = {
   // Wall-clock time from handing a chunk to zlib until the write callback fires.
   // Includes both compression CPU and downstream backpressure pauses.
   activeMs: number;
-  // Subset of activeMs spent waiting for the downstream consumer (S3 upload) to
-  // drain. Measured as the gap between push() returning false (gzip.pause()) and
-  // the next _read() call (gzip.resume()). Pure gzip CPU ≈ activeMs - backpressureMs.
+  // Time spent waiting for the downstream consumer (S3 upload) to drain.
+  // Measured independently as the gap between push() returning false
+  // (gzip.pause()) and the next _read() call (gzip.resume()).
+  // Pure gzip CPU ≈ max(0, activeMs - backpressureMs).
   backpressureMs: number;
 };
 
