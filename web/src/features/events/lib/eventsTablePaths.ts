@@ -118,27 +118,32 @@ export function buildEventsTablePathForMetadataFilter({
     url.searchParams.get("filter") ?? "",
   );
 
-  // The Include/Exclude menu items are a toggle on one key+value: clicking the
-  // opposite must replace, not AND, since `contains "v" AND does not contain
-  // "v"` is always false. So drop an existing clause on the same key+value
-  // ONLY when it carries an operator this menu emits (contains / does not
-  // contain). Stricter clauses set elsewhere (the filter-builder defaults
-  // stringObject to `=`, plus starts/ends with) are preserved so a one-click
-  // Include doesn't silently broaden a user's exact filter — the new clause
-  // just ANDs with them. Clauses on other keys/values are untouched.
-  const withoutSameTarget = existingFilters.filter(
-    (f) =>
-      !(
-        f.column === "metadata" &&
-        f.type === "stringObject" &&
-        f.key === metadataKey &&
-        f.value === value &&
-        (f.operator === "contains" || f.operator === "does not contain")
-      ),
-  );
+  // Reconcile the new clause against any existing clause on this same
+  // key+value, direction-aware:
+  //  - Include (`contains`) only toggles the menu's OWN operators (contains /
+  //    does not contain). A stricter clause set elsewhere — the filter-builder
+  //    defaults stringObject to `=`, plus starts/ends with — is preserved, so a
+  //    one-click Include never broadens an exact filter (`= v AND contains v`
+  //    reduces to `= v`).
+  //  - Exclude (`does not contain`) contradicts EVERY positive clause on the
+  //    value (`= v`, `starts/ends with v` all imply it contains v), so it drops
+  //    them all; otherwise `= v AND does not contain v` is always false and
+  //    silently empties the table.
+  // Clauses on other keys/values are always left untouched (AND-merge).
+  const isExclude = operator === "does not contain";
+  const withoutConflicting = existingFilters.filter((f) => {
+    const sameTarget =
+      f.column === "metadata" &&
+      f.type === "stringObject" &&
+      f.key === metadataKey &&
+      f.value === value;
+    if (!sameTarget) return true;
+    if (isExclude) return false;
+    return f.operator !== "contains" && f.operator !== "does not contain";
+  });
 
   const filters: FilterState = [
-    ...withoutSameTarget,
+    ...withoutConflicting,
     {
       column: "metadata",
       type: "stringObject",
