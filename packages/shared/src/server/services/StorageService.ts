@@ -25,6 +25,12 @@ import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
 import { BufferedStreamUploader } from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
+import {
+  buildS3RequestDiagnostics,
+  isS3SigningError,
+  summarizeCredentialShape,
+  type S3SigningDiagnosticsContext,
+} from "./s3SigningDiagnostics";
 import * as objectstorage from "oci-objectstorage";
 import * as common from "oci-common";
 import { UploadManager as OciUploadManager } from "oci-objectstorage";
@@ -112,6 +118,69 @@ function createS3RequestHandler(
     httpAgent,
     httpsAgent,
   });
+}
+
+/**
+ * Register a diagnostics middleware on an {@link S3Client} that logs the
+ * framing headers actually sent and the structured error when a request fails
+ * with a signing/authorization error (e.g. `SignatureDoesNotMatch`).
+ *
+ * It runs at the `deserialize` step with `high` priority so it wraps the SDK's
+ * own deserializer: by then the request is fully built and signed (so the
+ * framing headers are final), and the SDK has turned an error response into a
+ * thrown `S3ServiceException` (so we see the typed error, not a raw response).
+ *
+ * Logging is gated to signing-related error codes so unrelated failures
+ * (`NoSuchKey`, `AccessDenied`, throttling, timeouts) don't emit a misleading
+ * signing-themed log or one line per SDK retry. Diagnostics are best-effort and
+ * never alter or mask the original failure.
+ */
+function addS3SigningDiagnosticsMiddleware(
+  client: S3Client,
+  context: S3SigningDiagnosticsContext,
+): void {
+  type S3MiddlewareArgs = { request?: unknown };
+  type S3MiddlewareNext = (args: S3MiddlewareArgs) => Promise<unknown>;
+
+  const diagnosticsMiddleware =
+    (next: S3MiddlewareNext) => async (args: S3MiddlewareArgs) => {
+      try {
+        return await next(args);
+      } catch (err) {
+        try {
+          const diagnostics = buildS3RequestDiagnostics(
+            args.request,
+            err,
+            context,
+          );
+          if (isS3SigningError(diagnostics.error)) {
+            logger.warn(
+              "S3 request failed with a signing/authorization error; emitting diagnostics (helps debug SignatureDoesNotMatch on non-AWS S3-compatible backends such as GCS interop)",
+              diagnostics,
+            );
+          }
+        } catch {
+          // Never let diagnostics logging mask the original failure.
+        }
+        throw err;
+      }
+    };
+
+  client.middlewareStack.add(
+    // Bridge the structural middleware to the SDK's middleware union without
+    // taking a direct dependency on @smithy/types. The handler reads only
+    // `request`, so the unused `input` field of the SDK's arg type is elided.
+    diagnosticsMiddleware as unknown as Parameters<
+      typeof client.middlewareStack.add
+    >[0],
+    {
+      step: "deserialize",
+      priority: "high",
+      name: "langfuseS3SigningDiagnostics",
+      tags: ["LANGFUSE", "DIAGNOSTICS"],
+      override: true,
+    },
+  );
 }
 
 function createAzureBlobPipeline(
@@ -593,6 +662,28 @@ class S3StorageService implements StorageService {
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler,
+    });
+
+    // Log signing/framing diagnostics for any failed S3 request on the upload
+    // client. Surfaces checksum/`aws-chunked` framing that non-AWS backends
+    // (e.g. GCS) reject with SignatureDoesNotMatch despite valid credentials.
+    addS3SigningDiagnosticsMiddleware(this.client, {
+      bucketName: params.bucketName,
+      endpoint: params.endpoint,
+      region: params.region,
+      forcePathStyle: params.forcePathStyle,
+      // Non-reversible shape of the credentials (length + character-class
+      // flags, never the value) so a SignatureDoesNotMatch can be triaged as a
+      // truncated/altered/mismatched secret without another round of re-pasting.
+      // Derived from the same AND-gated `credentials` the S3Client received, not
+      // raw params: when only one of id/secret is set, the SDK falls back to the
+      // default credential chain, and the shape must report `absent` to match —
+      // otherwise a partial config logs a phantom empty-secret for creds the SDK
+      // never used.
+      credentials: summarizeCredentialShape(
+        credentials?.accessKeyId,
+        credentials?.secretAccessKey,
+      ),
     });
 
     // Create a separate client for generating presigned URLs

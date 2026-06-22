@@ -297,6 +297,11 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(3600), // 1 hour
+  LANGFUSE_INGEST_FAILURE_PROJECT_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .gt(60)
+    .default(3600), // 1 hour
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
@@ -452,11 +457,6 @@ const EnvSchema = z.object({
   // Whether to add a `FINAL` modifier to the observations CTE in GET /api/public/traces.
   // Can be used to improve performance for self-hosters that are fully on the new OTel SDKs.
   LANGFUSE_API_CLICKHOUSE_DISABLE_OBSERVATIONS_FINAL: z
-    .enum(["true", "false"])
-    .default("false"),
-  // Temporary kill-switch for the observations v2 subquery-IN rewrite
-  // (JOIN-free alternative to the CTE+JOIN split query).
-  LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
     .enum(["true", "false"])
     .default("false"),
   // Enable Redis-based tracking of projects using OTEL API to optimize ClickHouse queries.
