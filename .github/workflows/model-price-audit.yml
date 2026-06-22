@@ -2,7 +2,10 @@ name: Default Model Price Audit
 
 on:
   schedule:
-    - cron: "17 5 * * 1"
+    # Tuesday and Friday evening in San Francisco.
+    # 02:17 UTC is 19:17 PDT and 18:17 PST.
+    - cron: "17 2 * * 3"
+    - cron: "17 2 * * 6"
   workflow_dispatch:
     inputs:
       claude_model:
@@ -14,13 +17,22 @@ on:
           - sonnet
           - opus
       max_turns:
-        description: "Maximum Claude Code agent turns (1-20)"
+        description: "Maximum Claude Code agent turns (1-500)"
         required: false
-        default: "8"
+        default: "250"
       max_budget_usd:
         description: "Maximum Claude API spend for the audit (whole USD, 1-20)"
         required: false
-        default: "5"
+        default: "15"
+      dry_run_mode:
+        description: "Debug mode: skip Claude and use synthetic output"
+        required: false
+        default: "disabled"
+        type: choice
+        options:
+          - disabled
+          - no_changes
+          - mock_workflow_diff
 
 permissions:
   contents: read
@@ -41,6 +53,7 @@ jobs:
     outputs:
       has_changes: ${{ steps.prepare.outputs.has_changes }}
       branch_name: ${{ steps.prepare.outputs.branch_name }}
+      dry_run_mode: ${{ steps.validate-inputs.outputs.dry_run_mode }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
@@ -55,10 +68,12 @@ jobs:
           package-manager-cache: false
 
       - name: Validate workflow inputs
+        id: validate-inputs
         env:
           CLAUDE_MODEL: ${{ github.event.inputs.claude_model || 'sonnet' }}
-          CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '8' }}
-          CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '5' }}
+          CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '250' }}
+          CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '15' }}
+          AUDIT_DRY_RUN_MODE: ${{ github.event.inputs.dry_run_mode || 'disabled' }}
         run: |
           set -euo pipefail
 
@@ -70,8 +85,8 @@ jobs:
               ;;
           esac
 
-          if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 20 ]; then
-            echo "::error::max_turns must be a whole number between 1 and 20"
+          if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9]{0,2}$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 500 ]; then
+            echo "::error::max_turns must be a whole number between 1 and 500"
             exit 1
           fi
 
@@ -80,9 +95,25 @@ jobs:
             exit 1
           fi
 
+          case "$AUDIT_DRY_RUN_MODE" in
+            disabled | no_changes | mock_workflow_diff) ;;
+            false)
+              AUDIT_DRY_RUN_MODE="disabled"
+              ;;
+            *)
+              echo "::error::dry_run_mode must be one of: disabled, no_changes, mock_workflow_diff"
+              exit 1
+              ;;
+          esac
+
+          echo "dry_run_mode=$AUDIT_DRY_RUN_MODE" >> "$GITHUB_OUTPUT"
+
       - name: Run pre-audit checks
         run: |
           set -euo pipefail
+
+          node scripts/agents/sync-agent-shims.mjs
+          node scripts/agents/sync-agent-shims.mjs --check
 
           node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs \
             > "$RUNNER_TEMP/pricing-validation-before.txt"
@@ -97,12 +128,13 @@ jobs:
 
       - name: Run Claude price audit
         id: claude-audit
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
         uses: anthropics/claude-code-action@4d7e1f0cd85743fdc93b1c8040ab54395da024e2 # v1.0.149
         env:
           API_TIMEOUT_MS: "900000"
           BASH_DEFAULT_TIMEOUT_MS: "120000"
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}
           github_token: ${{ github.token }}
           display_report: "true"
           prompt: |
@@ -115,6 +147,7 @@ jobs:
             - .agents/skills/add-model-price/references/workflow-and-validation.md
 
             Allowed edit surface:
+            - .github/workflows/model-price-audit.yml
             - worker/src/constants/default-model-prices.json
             - packages/shared/src/server/llm/types.ts
             - .agents/skills/add-model-price/references/*.md
@@ -124,8 +157,9 @@ jobs:
             2. Make only surgical edits with official provider evidence.
             3. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
             4. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
-            5. Re-run the deterministic validation script before finishing.
-            6. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
+            5. If the audit reveals that future runs need a sharper prompt, narrower or broader official provider WebFetch domains, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output.
+            6. Re-run the deterministic validation script before finishing.
+            7. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
 
             Hard constraints:
             - Do not change generated files.
@@ -133,23 +167,72 @@ jobs:
             - Do not run git push or create a PR.
             - Do not add broad future-model wildcard regexes.
             - Do not edit `.agents/skills/add-model-price/SKILL.md` or `.agents/skills/add-model-price/scripts/**`.
+            - Workflow self-improvements must preserve the schedule/manual triggers, repo guard, read-only audit permissions, explicit read-only GitHub token, separate publish job, secret names, input validation, diff allowlist, hook-disabled commit path, staged-blob checks, artifact handoff, and non-fatal reviewer request.
+            - Do not grant the audit job write permissions, `id-token: write`, package-manager tools, arbitrary shell tools, arbitrary network tools, `gh`, or `git push`.
             - Keep the first entry in every selectable model array unchanged unless the audit explicitly changes the default model.
             - Use the allowed exact `date -u +%Y-%m-%dT00:00:00.000Z` command if you need the current timestamp.
 
             Final response:
             - If there is no diff, say that no pricing changes were made and list the notable unresolved findings.
-            - If there is a diff, list every changed model, the official source URL, the provider unit price, the converted per-token value, and the validation commands run.
+            - If there is a diff, list every changed model, the official source URL, the provider unit price, the converted per-token value, every workflow or skill-reference improvement, and the validation commands run.
           claude_args: |
             --model ${{ github.event.inputs.claude_model || 'sonnet' }}
-            --max-turns ${{ github.event.inputs.max_turns || '8' }}
-            --max-budget-usd ${{ github.event.inputs.max_budget_usd || '5' }}
+            --max-turns ${{ github.event.inputs.max_turns || '250' }}
+            --max-budget-usd ${{ github.event.inputs.max_budget_usd || '15' }}
             --no-session-persistence
-            --allowedTools "Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
-            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","changedModels","skillReferenceUpdates","unresolvedFindings","validation"]}'
+            --allowedTools "Read(/.github/workflows/model-price-audit.yml),Read(/worker/src/constants/default-model-prices.json),Read(/packages/shared/src/server/llm/types.ts),Read(/.agents/skills/add-model-price/SKILL.md),Read(/.agents/skills/add-model-price/references/*.md),Edit(/.github/workflows/model-price-audit.yml),Edit(/worker/src/constants/default-model-prices.json),Edit(/packages/shared/src/server/llm/types.ts),Edit(/.agents/skills/add-model-price/references/*.md),Write(/.agents/skills/add-model-price/references/*.md),WebFetch(domain:platform.claude.com),WebFetch(domain:docs.anthropic.com),WebFetch(domain:openai.com),WebFetch(domain:ai.google.dev),WebFetch(domain:cloud.google.com),WebFetch(domain:aws.amazon.com),WebFetch(domain:azure.microsoft.com),Bash(date -u +%Y-%m-%dT00:00:00.000Z),Bash(node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs),Bash(node .agents/skills/add-model-price/scripts/test-match-pattern.mjs:*)"
+            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"changedModels":{"type":"array","items":{"type":"string"}},"skillReferenceUpdates":{"type":"array","items":{"type":"string"}},"workflowUpdates":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","changedModels","skillReferenceUpdates","workflowUpdates","unresolvedFindings","validation"]}'
 
-      - name: Write Claude audit summary
+      - name: Mock Claude price audit
+        id: mock-claude-audit
+        if: steps.validate-inputs.outputs.dry_run_mode != 'disabled'
         env:
-          STRUCTURED_OUTPUT: ${{ steps.claude-audit.outputs.structured_output }}
+          DRY_RUN_MODE: ${{ steps.validate-inputs.outputs.dry_run_mode }}
+        run: |
+          set -euo pipefail
+
+          if [ "$DRY_RUN_MODE" = "mock_workflow_diff" ]; then
+            {
+              echo
+              echo "# Dry-run mock diff generated by workflow_dispatch; publish job is skipped."
+            } >> .github/workflows/model-price-audit.yml
+          fi
+
+          node <<'NODE' > "$RUNNER_TEMP/claude-model-price-audit-mock.json"
+          const mode = process.env.DRY_RUN_MODE;
+          const output = {
+            summary:
+              mode === "mock_workflow_diff"
+                ? "Dry run: skipped Claude and created a mock workflow diff to exercise validation, commit, patch, and artifact upload steps."
+                : "Dry run: skipped Claude and created no repository diff to exercise the no-change path.",
+            changedModels: [],
+            skillReferenceUpdates: [],
+            workflowUpdates:
+              mode === "mock_workflow_diff"
+                ? [
+                    ".github/workflows/model-price-audit.yml - appended a dry-run-only comment so downstream diff handling can be debugged without spending Claude budget.",
+                  ]
+                : [],
+            unresolvedFindings: [],
+            validation: [
+              "dry_run_mode=" + mode,
+              "Claude action was skipped; downstream workflow steps used synthetic structured output.",
+            ],
+          };
+
+          process.stdout.write(JSON.stringify(output));
+          NODE
+
+          {
+            echo "structured_output<<JSON"
+            cat "$RUNNER_TEMP/claude-model-price-audit-mock.json"
+            echo
+            echo "JSON"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Write audit summary
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.claude-audit.outputs.structured_output || steps.mock-claude-audit.outputs.structured_output }}
         run: |
           set -euo pipefail
 
@@ -172,6 +255,9 @@ jobs:
               "Skill reference updates:",
               list(output.skillReferenceUpdates),
               "",
+              "Workflow updates:",
+              list(output.workflowUpdates),
+              "",
               "Unresolved findings:",
               list(output.unresolvedFindings),
               "",
@@ -183,7 +269,7 @@ jobs:
           NODE
 
           {
-            echo "## Claude audit summary"
+            echo "## Model price audit summary"
             echo
             cat "$RUNNER_TEMP/claude-model-price-audit.txt"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -206,7 +292,7 @@ jobs:
             exit 0
           fi
 
-          allowed_file_regex='^(worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
+          allowed_file_regex='^(\.github/workflows/model-price-audit\.yml|worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
           for changed_file in "${changed_files[@]}"; do
             if [[ ! "$changed_file" =~ $allowed_file_regex ]]; then
               echo "::error::Claude changed a file outside the allowed pricing surface: $changed_file"
@@ -240,6 +326,8 @@ jobs:
 
       - name: Prepare pull request artifact
         id: prepare
+        env:
+          DRY_RUN_MODE: ${{ steps.validate-inputs.outputs.dry_run_mode }}
         run: |
           set -euo pipefail
 
@@ -255,7 +343,7 @@ jobs:
             exit 0
           fi
 
-          allowed_file_regex='^(worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
+          allowed_file_regex='^(\.github/workflows/model-price-audit\.yml|worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
           for changed_file in "${changed_files[@]}"; do
             if [[ ! "$changed_file" =~ $allowed_file_regex ]]; then
               echo "::error::Refusing to stage a file outside the allowed pricing surface: $changed_file"
@@ -309,15 +397,22 @@ jobs:
           git -c core.hooksPath=/dev/null commit --no-verify -m "$PR_TITLE"
           node .agents/skills/add-model-price/scripts/validate-pricing-file.mjs
           node scripts/agents/sync-agent-shims.mjs --check
-          git bundle create "$RUNNER_TEMP/model-price-audit.bundle" "$BOT_BRANCH"
+          git format-patch -1 --stdout HEAD > "$RUNNER_TEMP/model-price-audit.patch"
+          test -s "$RUNNER_TEMP/model-price-audit.patch"
 
           {
             echo "Automated default model price audit."
             echo
+            if [ "$DRY_RUN_MODE" != "disabled" ]; then
+              echo "**Dry run mode:** \`$DRY_RUN_MODE\`"
+              echo
+              echo "This artifact was generated to debug post-agent workflow steps. The publish job is skipped for dry runs."
+              echo
+            fi
             echo "## Scope"
             echo
             echo "- Audits default model pricing data with official provider evidence."
-            echo "- Edits are restricted to pricing JSON, shared selectable model lists, and pricing skill reference docs."
+            echo "- Edits are restricted to pricing JSON, shared selectable model lists, pricing skill reference docs, and this audit workflow."
             echo
             echo "## Validation"
             echo
@@ -325,6 +420,7 @@ jobs:
             echo "- \`node scripts/agents/sync-agent-shims.mjs --check\`"
             echo "- \`git diff --check\`"
             echo "- staged pricing blob validation"
+            echo "- patch artifact generated with \`git format-patch -1\`"
             echo
             echo "## Diff Stat"
             echo
@@ -346,14 +442,14 @@ jobs:
         with:
           name: model-price-audit-pr
           path: |
-            ${{ runner.temp }}/model-price-audit.bundle
+            ${{ runner.temp }}/model-price-audit.patch
             ${{ runner.temp }}/model-price-audit-pr-body.md
           if-no-files-found: error
           retention-days: 1
 
   publish:
     needs: audit
-    if: needs.audit.outputs.has_changes == 'true'
+    if: needs.audit.outputs.has_changes == 'true' && needs.audit.outputs.dry_run_mode == 'disabled'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 15
     steps:
@@ -372,13 +468,36 @@ jobs:
 
           GIT_BIN="$(command -v git)"
           GH_BIN="$(command -v gh)"
-          BUNDLE_PATH="$RUNNER_TEMP/model-price-audit-pr/model-price-audit.bundle"
+          PATCH_PATH="$RUNNER_TEMP/model-price-audit-pr/model-price-audit.patch"
           BODY_PATH="$RUNNER_TEMP/model-price-audit-pr/model-price-audit-pr-body.md"
           PUSH_REPO="$RUNNER_TEMP/push-model-price-audit"
+          SOURCE_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
 
           mkdir -p "$PUSH_REPO"
           "$GIT_BIN" -C "$PUSH_REPO" init -q
-          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags "$BUNDLE_PATH" "$BRANCH_NAME:refs/heads/$BRANCH_NAME"
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags --depth=100 "$SOURCE_REPO_URL" "$GITHUB_REF"
+          if ! "$GIT_BIN" -C "$PUSH_REPO" cat-file -e "$GITHUB_SHA^{commit}"; then
+            echo "::error::Triggering commit $GITHUB_SHA was not found in the fetched $GITHUB_REF history"
+            exit 1
+          fi
+          "$GIT_BIN" -C "$PUSH_REPO" checkout -q -b "$BRANCH_NAME" "$GITHUB_SHA"
+          "$GIT_BIN" -C "$PUSH_REPO" config user.name "langfuse-bot"
+          "$GIT_BIN" -C "$PUSH_REPO" config user.email "langfuse-bot@langfuse.com"
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c core.hooksPath=/dev/null \
+            am --3way "$PATCH_PATH"
+
+          allowed_file_regex='^(\.github/workflows/model-price-audit\.yml|worker/src/constants/default-model-prices\.json|packages/shared/src/server/llm/types\.ts|\.agents/skills/add-model-price/references/[^/]+\.md)$'
+          mapfile -t applied_files < <("$GIT_BIN" -C "$PUSH_REPO" diff-tree --no-commit-id --name-only -r HEAD | sort -u)
+          for applied_file in "${applied_files[@]}"; do
+            if [[ ! "$applied_file" =~ $allowed_file_regex ]]; then
+              echo "::error::Refusing to push a patch that changes a file outside the allowed pricing surface: $applied_file"
+              exit 1
+            fi
+          done
+
+          "$GIT_BIN" -C "$PUSH_REPO" diff --check HEAD^ HEAD
 
           GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
             -C "$PUSH_REPO" \

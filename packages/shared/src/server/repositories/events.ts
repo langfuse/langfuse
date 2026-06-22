@@ -17,7 +17,7 @@ import {
   PreferredClickhouseService,
 } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { recordDistribution, recordIncrement } from "../instrumentation";
+import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
 import {
   convertClickhouseToDomain,
@@ -80,6 +80,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseStreamRawText,
 } from "./clickhouse";
 import {
   EventsObservationRecordReadType,
@@ -97,15 +98,10 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
-  buildEventsFullTableSubqueryQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
-import {
-  shouldUseObservationsSubqueryRewrite,
-  shouldRunObservationsShadowQuery,
-} from "../queries/clickhouse-sql/query-options";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
@@ -1477,120 +1473,6 @@ export const getObservationsFromEventsTableForPublicApi = async (
   return observations;
 };
 
-// ── Shadow query validation (remove after subquery-rewrite rollout) ──────────
-
-export type ShadowQueryOutcome =
-  | "match"
-  | "row_count_mismatch"
-  | "content_mismatch"
-  | "order_mismatch"
-  | "error";
-
-/** Test-only hook: captures the last shadow promise. Set `forceShadow` to
- *  bypass env checks (avoids module-identity issues in vitest). */
-export const _shadowQueryTestHook: {
-  promise: Promise<ShadowQueryOutcome> | null;
-  forceShadow: boolean;
-} = { promise: null, forceShadow: false };
-
-/**
- * Fire-and-forget: run the subquery-rewrite path alongside the authoritative
- * cte-join result and emit Datadog comparison metrics. Never throws; errors
- * are caught and counted. Called only when LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY
- * is enabled and the query would normally take the cte-join path.
- */
-function runSubqueryRewriteShadowQuery(
-  opts: PublicApiObservationsQuery & {
-    fields: ObservationFieldGroupPublicApi[];
-  },
-  options: BuildObservationsQueryComponentsOptions,
-  primaryRecords: Array<ObservationsTableQueryResultWitouhtTraceFields>,
-  primaryDurationMs: number,
-): void {
-  const { projectId } = opts;
-  const requestedFields = opts.fields ?? ["core", "basic"];
-  const METRIC_PREFIX = "langfuse.observations_v2.shadow_query";
-
-  const run = async (): Promise<ShadowQueryOutcome> => {
-    const { queryBuilder: shadowBuilder } = buildObservationsQueryComponents(
-      opts,
-      eventsTableNativeUiColumnDefinitions,
-      options,
-    );
-    applyOrderByForObservationsQuery(shadowBuilder);
-    applyCursorPagination(opts, shadowBuilder);
-
-    const shadowQueryBuilder = buildEventsFullTableSubqueryQuery({
-      projectId,
-      innerBuilder: shadowBuilder,
-      fieldSetNames: ["core", ...requestedFields],
-    });
-
-    const start = Date.now();
-    const shadowRecords =
-      await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
-        projectId,
-        shadowQueryBuilder,
-        "getObservationsV2_shadow_subquery_rewrite",
-        { queryPath: "shadow-subquery-rewrite" },
-      );
-    const shadowDurationMs = Date.now() - start;
-
-    recordDistribution(`${METRIC_PREFIX}.duration_ms`, shadowDurationMs);
-    recordDistribution(
-      `${METRIC_PREFIX}.duration_delta_ms`,
-      shadowDurationMs - primaryDurationMs,
-    );
-
-    const primaryIds = primaryRecords.map((r) => r.id);
-    const shadowIds = shadowRecords.map((r) => r.id);
-
-    if (primaryIds.length !== shadowIds.length) {
-      recordIncrement(`${METRIC_PREFIX}.row_count_mismatch`, 1);
-      logger.warn("Shadow query row count mismatch", {
-        projectId,
-        primaryCount: primaryIds.length,
-        shadowCount: shadowIds.length,
-        primarySample: primaryIds.slice(0, 5),
-        shadowSample: shadowIds.slice(0, 5),
-      });
-      return "row_count_mismatch";
-    }
-
-    const orderMatch = primaryIds.every((id, i) => id === shadowIds[i]);
-    if (!orderMatch) {
-      const primarySet = new Set(primaryIds);
-      const shadowSet = new Set(shadowIds);
-      const sameContent =
-        primarySet.size === shadowSet.size &&
-        shadowIds.every((id) => primarySet.has(id));
-      if (!sameContent) {
-        recordIncrement(`${METRIC_PREFIX}.content_mismatch`, 1);
-        logger.warn("Shadow query content mismatch", {
-          projectId,
-          primarySample: primaryIds.slice(0, 5),
-          shadowSample: shadowIds.slice(0, 5),
-        });
-        return "content_mismatch";
-      }
-      recordIncrement(`${METRIC_PREFIX}.order_mismatch`, 1);
-      logger.warn("Shadow query order mismatch", { projectId });
-      return "order_mismatch";
-    }
-
-    recordIncrement(`${METRIC_PREFIX}.match`, 1);
-    return "match";
-  };
-
-  _shadowQueryTestHook.promise = run().catch((err): ShadowQueryOutcome => {
-    recordIncrement(`${METRIC_PREFIX}.error`, 1);
-    logger.error("Shadow query failed", { projectId, error: err });
-    return "error";
-  });
-}
-
-// ── End shadow query validation ─────────────────────────────────────────────
-
 /**
  * V2 API: Get observations list from events table for public API
  * Returns partial observations based on requested field groups
@@ -1635,23 +1517,12 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
-  // Pick the query shape. The rewrite only replaces the CTE+JOIN split query
-  // (needsIOCTE); the simple path is untouched. External CTEs keep the
-  // CTE+JOIN path: their resolution inside the IN subquery is unverified, and
-  // no v2 filter currently produces one.
-  const queryPath: "simple" | "cte-join" | "subquery-rewrite" = !needsIOCTE
-    ? "simple"
-    : externalCTEs.length === 0 && shouldUseObservationsSubqueryRewrite()
-      ? "subquery-rewrite"
-      : "cte-join";
+  // Pick the query shape. When IO/expanded metadata is requested, use the
+  // CTE+JOIN split query that fetches those columns from events_full for the
+  // matched rows only; otherwise everything comes from events_core directly.
+  const queryPath: "simple" | "cte-join" = needsIOCTE ? "cte-join" : "simple";
 
-  // Shadow query eligibility: cte-join path, no external CTEs, flag enabled.
-  const shouldShadow =
-    queryPath === "cte-join" &&
-    externalCTEs.length === 0 &&
-    (_shadowQueryTestHook.forceShadow || shouldRunObservationsShadowQuery());
-
-  // Field groups projected on the base builder by the non-rewrite paths.
+  // Field groups projected on the base builder.
   // `io` (and `metadata` when it must come untruncated from events_full) is
   // fetched by the io CTE instead; selecting it on events_core would return
   // truncated values.
@@ -1685,30 +1556,13 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
         externalCTEs,
       }).orderByColumns(orderByForObservationsQuery("b", "id"));
       break;
-    case "subquery-rewrite":
-      // No projection on the base builder: it becomes the inner IN-subquery,
-      // which projects only the identity tuple (added by the build function).
-      builder = buildEventsFullTableSubqueryQuery({
-        projectId,
-        innerBuilder: baseBuilder,
-        fieldSetNames: ["core", ...requestedFields],
-      });
-      break;
   }
 
-  const primaryStart = Date.now();
   const records =
     await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
       projectId,
       builder,
-      undefined,
-      { queryPath },
     );
-  const primaryDurationMs = Date.now() - primaryStart;
-
-  if (shouldShadow) {
-    runSubqueryRewriteShadowQuery(opts, options, records, primaryDurationMs);
-  }
 
   return await enrichObservationsWithModelData(
     records,
@@ -3642,12 +3496,26 @@ export const hasAnyUserFromEventsTable = async (
  * Streams events from ClickHouse for blob storage export.
  * Uses EventsQueryBuilder for consistent query construction.
  */
-export const getEventsForBlobStorageExport = function (
+// metrics field set emits latency / time_to_first_token in MILLISECONDS. The
+// raw-passthrough path (LFE-10402) cannot convert ms→s in JS, so when requested
+// it selects the seconds-converted expressions directly in SQL instead. The
+// standard path keeps ms here and converts conditionally in JS, so it stays
+// byte-for-byte unchanged.
+const EVENTS_EXPORT_METRICS_SECONDS_SQL = [
+  "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time) / 1000) as latency",
+  "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time) / 1000) as \"time_to_first_token\"",
+];
+
+// Shared SQL+params builder for the events blob-export. `convertLatencyToSecondsInSql`
+// is only set by the raw-passthrough path; the standard path leaves it false so
+// its output is identical to today.
+const buildEventsForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-) {
+  fieldGroups: ObservationFieldGroupFull[],
+  convertLatencyToSecondsInSql: boolean,
+) => {
   const queryBuilder = new EventsQueryBuilder({ projectId });
 
   // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
@@ -3660,6 +3528,8 @@ export const getEventsForBlobStorageExport = function (
       queryBuilder.selectIO(false); // Full I/O, no truncation
     } else if (group === "model") {
       queryBuilder.selectFieldSet("model_export"); // "model_export" is the SQL field set name for the "model" group
+    } else if (group === "metrics" && convertLatencyToSecondsInSql) {
+      queryBuilder.selectRaw(...EVENTS_EXPORT_METRICS_SECONDS_SQL);
     } else {
       queryBuilder.selectFieldSet(group);
     }
@@ -3678,7 +3548,7 @@ export const getEventsForBlobStorageExport = function (
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  return queryClickhouseStream<Record<string, unknown>>({
+  return {
     query,
     params,
     tags: {
@@ -3690,8 +3560,48 @@ export const getEventsForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
-    preferredClickhouseService: "EventsReadOnly",
-  });
+    preferredClickhouseService: "EventsReadOnly" as const,
+  };
+};
+
+export const getEventsForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+) {
+  return queryClickhouseStream<Record<string, unknown>>(
+    buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      false, // standard path converts latency ms→s in JS
+    ),
+  );
+};
+
+// Raw-passthrough variant (LFE-10402): yields each row's unparsed JSONEachRow
+// text, skipping the per-row parse/enrich/serialize cycle. When
+// `convertLatencyToSeconds` is set, latency/ttft are divided by 1000 in SQL
+// (matching what the JS path would have done); otherwise they stay in ms (legacy
+// integrations). Price columns are NOT added.
+export const getEventsForBlobStorageExportRaw = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  convertLatencyToSeconds: boolean = false,
+) {
+  return queryClickhouseStreamRawText(
+    buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      convertLatencyToSeconds,
+    ),
+  );
 };
 
 /**

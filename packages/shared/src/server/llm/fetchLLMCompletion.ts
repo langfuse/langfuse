@@ -1,5 +1,9 @@
 import { type ZodType, z } from "zod";
 
+import {
+  AnthropicVertex,
+  type ClientOptions as AnthropicVertexClientOptions,
+} from "@anthropic-ai/vertex-sdk";
 import { ChatAnthropic, ChatAnthropicInput } from "@langchain/anthropic";
 import { ChatGoogle } from "@langchain/google";
 import { ChatBedrockConverse } from "@langchain/aws";
@@ -46,6 +50,7 @@ import {
 } from "./types";
 import type { BaseCallbackHandler } from "@langchain/core/callbacks/base";
 import { ProxyAgent } from "undici";
+import { GoogleAuth, type GoogleAuthOptions } from "google-auth-library";
 import { getInternalTracingHandler } from "./getInternalTracingHandler";
 import { decrypt } from "../../encryption";
 import {
@@ -93,6 +98,10 @@ const NON_RETRYABLE_LLM_ERROR_PATTERNS = [
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 const AZURE_OPENAI_API_KEY_HEADER = "api-key";
 const ANTHROPIC_API_KEY_HEADER = "x-api-key";
+const VERTEX_AI_AUTH_HEADER = "authorization";
+const VERTEX_AI_AUTH_SCOPES = [
+  "https://www.googleapis.com/auth/cloud-platform",
+];
 
 // Adapters whose models can return separate reasoning content. We route their
 // responses through `AIMessage#contentBlocks`, which normalizes provider-specific
@@ -120,10 +129,99 @@ const ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS = [
   "claude-mythos-5",
 ] as const;
 
+const ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS = [
+  "claude-fable-5",
+  "claude-mythos-5",
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-sonnet-4-6",
+  "claude-sonnet-4-5",
+  "claude-opus-4-1",
+  "claude-opus-4-5",
+  "claude-opus-4-6",
+  "claude-haiku-4-5",
+] as const;
+
+const ANTHROPIC_VERTEX_MODEL_NAME_PATTERN = /^[A-Za-z0-9_.@-]+$/;
+
+// Vertex region identifiers are lowercase alphanumerics plus hyphens
+// (e.g. "us-east5", "europe-west1") with the special "global"/"us"/"eu"
+// endpoints. Disallowing every URL delimiter keeps an attacker-controlled
+// location from reshaping the Vertex host the SDKs build from it.
+const VERTEX_LOCATION_PATTERN = /^[a-z0-9-]+$/;
+
 function isAnthropicAlwaysAdaptiveThinkingModel(modelName: string): boolean {
   return ANTHROPIC_ALWAYS_ADAPTIVE_THINKING_MODELS.some((model) =>
     modelName.includes(model),
   );
+}
+
+function shouldNormalizeAnthropicSamplingParams(modelName: string): boolean {
+  return ANTHROPIC_SAMPLING_PARAM_NORMALIZATION_MODELS.some((model) =>
+    modelName.includes(model),
+  );
+}
+
+function getAnthropicInvocationKwargs(modelParams: ModelParams) {
+  if (!isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model)) {
+    return modelParams.providerOptions;
+  }
+
+  return {
+    // @langchain/anthropic currently defaults ChatAnthropic.thinking to
+    // { type: "disabled" } and serializes it into every request.
+    // Claude Fable 5 and Claude Mythos 5 reject that explicit disabled
+    // mode because thinking defaults to adaptive when the field is
+    // omitted. Newer ChatAnthropic versions might fix this default, but
+    // remove this guard only after a developer has verified that the
+    // pinned/newer version no longer sends thinking.disabled by default.
+    thinking: undefined,
+    ...modelParams.providerOptions,
+  };
+}
+
+function normalizeAnthropicSamplingParams(
+  chatModel: ChatAnthropic,
+  modelParams: ModelParams,
+) {
+  if (!shouldNormalizeAnthropicSamplingParams(modelParams.model)) {
+    return;
+  }
+
+  if (chatModel.topP === -1) {
+    chatModel.topP = undefined;
+  }
+
+  // TopP and temperature cannot be specified both,
+  // but Langchain is setting placeholder values despite that.
+  if (
+    modelParams.temperature !== undefined &&
+    modelParams.top_p === undefined
+  ) {
+    chatModel.topP = undefined;
+  }
+
+  if (
+    modelParams.top_p !== undefined &&
+    modelParams.temperature === undefined
+  ) {
+    chatModel.temperature = undefined;
+  }
+}
+
+function isClaudeModel(modelName: string): boolean {
+  return modelName.toLowerCase().includes("claude");
+}
+
+function assertValidAnthropicVertexModelName(modelName: string) {
+  if (
+    !ANTHROPIC_VERTEX_MODEL_NAME_PATTERN.test(modelName) ||
+    modelName.includes("..")
+  ) {
+    throw new Error(
+      "Invalid Anthropic Vertex AI model name. Model names must be a single Vertex model ID segment.",
+    );
+  }
 }
 
 function shouldNormalizeContentBlocks(modelParams: ModelParams): boolean {
@@ -369,34 +467,6 @@ export async function fetchLLMCompletion(
   let chatModel: ChatOpenAI | ChatAnthropic | ChatBedrockConverse | ChatGoogle;
   let usesOpenAIResponsesApi = false;
   if (modelParams.adapter === LLMAdapter.Anthropic) {
-    const shouldNormalizeAnthropicSamplingParams =
-      modelParams.model?.includes("claude-fable-5") ||
-      modelParams.model?.includes("claude-mythos-5") ||
-      modelParams.model?.includes("claude-opus-4-8") ||
-      modelParams.model?.includes("claude-opus-4-7") ||
-      modelParams.model?.includes("claude-sonnet-4-6") ||
-      modelParams.model?.includes("claude-sonnet-4-5") ||
-      modelParams.model?.includes("claude-opus-4-1") ||
-      modelParams.model?.includes("claude-opus-4-5") ||
-      modelParams.model?.includes("claude-opus-4-6") ||
-      modelParams.model?.includes("claude-haiku-4-5");
-    const shouldUseAdaptiveThinking = isAnthropicAlwaysAdaptiveThinkingModel(
-      modelParams.model,
-    );
-    const anthropicInvocationKwargs = shouldUseAdaptiveThinking
-      ? {
-          // @langchain/anthropic currently defaults ChatAnthropic.thinking to
-          // { type: "disabled" } and serializes it into every request.
-          // Claude Fable 5 and Claude Mythos 5 reject that explicit disabled
-          // mode because thinking defaults to adaptive when the field is
-          // omitted. Newer ChatAnthropic versions might fix this default, but
-          // remove this guard only after a developer has verified that the
-          // pinned/newer version no longer sends thinking.disabled by default.
-          thinking: undefined,
-          ...modelParams.providerOptions,
-        }
-      : modelParams.providerOptions;
-
     const chatOptions: ChatAnthropicInput = {
       anthropicApiKey: apiKey,
       anthropicApiUrl: baseURL ?? undefined,
@@ -413,32 +483,11 @@ export async function fetchLLMCompletion(
       },
       temperature: modelParams.temperature,
       topP: modelParams.top_p,
-      invocationKwargs: anthropicInvocationKwargs,
+      invocationKwargs: getAnthropicInvocationKwargs(modelParams),
     };
 
     chatModel = new ChatAnthropic(chatOptions);
-
-    if (shouldNormalizeAnthropicSamplingParams) {
-      if (chatModel.topP === -1) {
-        chatModel.topP = undefined;
-      }
-
-      // TopP and temperature cannot be specified both,
-      // but Langchain is setting placeholder values despite that
-      if (
-        modelParams.temperature !== undefined &&
-        modelParams.top_p === undefined
-      ) {
-        chatModel.topP = undefined;
-      }
-
-      if (
-        modelParams.top_p !== undefined &&
-        modelParams.temperature === undefined
-      ) {
-        chatModel.temperature = undefined;
-      }
-    }
+    normalizeAnthropicSamplingParams(chatModel, modelParams);
   } else if (modelParams.adapter === LLMAdapter.OpenAI) {
     const processedBaseURL = processOpenAIBaseURL({
       url: baseURL,
@@ -520,9 +569,14 @@ export async function fetchLLMCompletion(
       ? VertexAIConfigSchema.parse(config)
       : { location: undefined };
 
-    const googleProviderOptions = googleProviderOptionsSchema.parse(
-      modelParams.providerOptions,
-    );
+    // location flows into the Vertex host both SDKs build from it
+    // (https://${location}-aiplatform.googleapis.com), so reject anything that
+    // could reshape that host and exfiltrate the Google OAuth bearer token.
+    if (location !== undefined && !VERTEX_LOCATION_PATTERN.test(location)) {
+      throw new Error(
+        "Invalid Vertex AI location. Locations must be a single Vertex region identifier.",
+      );
+    }
 
     // Handle both explicit credentials and default provider chain (ADC)
     // Only allow default provider chain in self-hosted or internal AI features
@@ -533,34 +587,100 @@ export async function fetchLLMCompletion(
     // This supports: GKE Workload Identity, Cloud Run service accounts, GCE metadata service, gcloud auth
     // Security: We intentionally ignore user-provided projectId when using ADC to prevent
     // privilege escalation attacks where users could access other GCP projects via the server's credentials
-    const authOptions = shouldUseDefaultCredentials
-      ? undefined // Always use ADC auto-detection, never allow user-specified projectId
-      : {
-          credentials: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey)),
-          projectId: GCPServiceAccountKeySchema.parse(JSON.parse(apiKey))
-            .project_id,
-        };
+    const serviceAccountKey = shouldUseDefaultCredentials
+      ? undefined
+      : GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
+    const authOptions: GoogleAuthOptions | undefined = serviceAccountKey
+      ? {
+          credentials: serviceAccountKey,
+          projectId: serviceAccountKey.project_id,
+        }
+      : undefined; // Always use ADC auto-detection, never allow user-specified projectId
 
     // Requests time out after 60 seconds for both public and private endpoints by default
     // Reference: https://cloud.google.com/vertex-ai/docs/predictions/get-online-predictions#send-request
-    chatModel = new ChatGoogle({
-      model: modelParams.model,
-      temperature: modelParams.temperature,
-      maxOutputTokens: modelParams.max_tokens,
-      topP: modelParams.top_p,
-      callbacks: finalCallbacks,
-      maxRetries,
-      location,
-      vertexai: true,
-      apiClient: createSecureVertexAIApiClient({
-        authOptions,
-        dispatcher: proxyDispatcher,
-      }),
-      ...(modelParams.maxReasoningTokens !== undefined && {
-        maxReasoningTokens: modelParams.maxReasoningTokens,
-      }),
-      ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
-    });
+    if (isClaudeModel(modelParams.model)) {
+      assertValidAnthropicVertexModelName(modelParams.model);
+      const anthropicVertexGoogleAuth = new GoogleAuth({
+        ...authOptions,
+        scopes: authOptions?.scopes ?? VERTEX_AI_AUTH_SCOPES,
+      });
+      const anthropicVertexRegion = location ?? "global";
+
+      // LangChain keeps Claude-on-Vertex on ChatAnthropic + AnthropicVertex
+      // while @langchain/google is still focused on Gemini/Gemma.
+      // https://github.com/langchain-ai/langchain-google/discussions/1422
+      chatModel = new ChatAnthropic({
+        model: modelParams.model,
+        temperature: modelParams.temperature,
+        maxTokens: modelParams.max_tokens,
+        topP: modelParams.top_p,
+        callbacks: finalCallbacks,
+        maxRetries,
+        invocationKwargs: (() => {
+          const { model: _ignoredModelOverride, ...sanitized } =
+            (getAnthropicInvocationKwargs(modelParams) ?? {}) as Record<
+              string,
+              unknown
+            >;
+          return sanitized;
+        })(),
+        clientOptions: {
+          timeout: timeoutMs,
+          defaultHeaders: extraHeaders,
+          fetch: secureLlmFetch("Anthropic Vertex AI endpoint", [
+            VERTEX_AI_AUTH_HEADER,
+          ]),
+        },
+        createClient: (options) =>
+          new AnthropicVertex({
+            ...options,
+            // The base Anthropic SDK defaults apiKey/authToken from
+            // ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN when undefined, which on
+            // Vertex would ship as headers that win over Google's OAuth token
+            // and leak the operator's Anthropic credentials. Force both null so
+            // auth comes only from googleAuth (the vertex-sdk type omits these
+            // fields though the base client still honors them).
+            ...({ apiKey: null, authToken: null } as {
+              apiKey: null;
+              authToken: null;
+            }),
+            region: anthropicVertexRegion,
+            projectId: serviceAccountKey?.project_id,
+            // @anthropic-ai/vertex-sdk depends on its own google-auth-library
+            // copy, so the structurally compatible GoogleAuth instance needs an
+            // explicit cast across duplicate private class declarations.
+            googleAuth: anthropicVertexGoogleAuth as unknown as NonNullable<
+              AnthropicVertexClientOptions["googleAuth"]
+            >,
+            maxRetries: 0,
+          }),
+      });
+      normalizeAnthropicSamplingParams(chatModel, modelParams);
+    } else {
+      const googleProviderOptions = googleProviderOptionsSchema.parse(
+        modelParams.providerOptions,
+      );
+
+      chatModel = new ChatGoogle({
+        model: modelParams.model,
+        temperature: modelParams.temperature,
+        maxOutputTokens: modelParams.max_tokens,
+        topP: modelParams.top_p,
+        callbacks: finalCallbacks,
+        maxRetries,
+        location,
+        vertexai: true,
+        apiClient: createSecureVertexAIApiClient({
+          authOptions,
+          dispatcher: proxyDispatcher,
+        }),
+        ...(modelParams.maxReasoningTokens !== undefined && {
+          maxReasoningTokens: modelParams.maxReasoningTokens,
+        }),
+        ...((googleProviderOptions as any) ?? {}), // Typecast as thinkingLevel is intentionally looser typed
+      });
+    }
   } else if (modelParams.adapter === LLMAdapter.GoogleAIStudio) {
     const googleProviderOptions = googleProviderOptionsSchema.parse(
       modelParams.providerOptions,
@@ -624,8 +744,13 @@ export async function fetchLLMCompletion(
         ? { method: "functionCalling" as const }
         : undefined;
       const createStructuredOutputModel = () => {
+        const isAnthropicChatModel =
+          modelParams.adapter === LLMAdapter.Anthropic ||
+          (modelParams.adapter === LLMAdapter.VertexAI &&
+            isClaudeModel(modelParams.model));
+
         if (
-          modelParams.adapter !== LLMAdapter.Anthropic ||
+          !isAnthropicChatModel ||
           !isAnthropicAlwaysAdaptiveThinkingModel(modelParams.model)
         ) {
           return (chatModel as ChatOpenAI).withStructuredOutput(
