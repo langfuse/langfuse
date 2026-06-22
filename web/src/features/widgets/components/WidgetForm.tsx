@@ -682,6 +682,26 @@ export function WidgetForm({
   const eventsFilterOptions = api.events.filterOptions.useQuery(
     {
       projectId,
+      startTimeFilter: dateRange
+        ? [
+            {
+              column: "startTime" as const,
+              type: "datetime" as const,
+              operator: ">=" as const,
+              value: dateRange.from,
+            },
+            ...(dateRange.to
+              ? [
+                  {
+                    column: "startTime" as const,
+                    type: "datetime" as const,
+                    operator: "<=" as const,
+                    value: dateRange.to,
+                  },
+                ]
+              : []),
+          ]
+        : undefined,
     },
     {
       trpc: {
