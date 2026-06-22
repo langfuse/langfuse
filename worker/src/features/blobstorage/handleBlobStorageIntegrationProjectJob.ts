@@ -715,7 +715,15 @@ const processBlobStorageExport = async (config: {
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
-  const { projectId, isManualRun, originalNextSyncAt } = job.data.payload;
+  const {
+    projectId,
+    isManualRun,
+    originalNextSyncAt: rawOriginalNextSyncAt,
+  } = job.data.payload;
+  // BullMQ JSON-serializes Date → string; coerce back so comparisons work.
+  const originalNextSyncAt = rawOriginalNextSyncAt
+    ? new Date(rawOriginalNextSyncAt as unknown as string)
+    : null;
 
   const span = getCurrentSpan();
   if (span) {
@@ -783,6 +791,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
         where: { projectId },
         data: {
           runStartedAt: null,
+          lastError: null,
+          lastErrorAt: null,
           nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
         },
       });

@@ -119,7 +119,7 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true },
+      select: { exportMode: true, lastError: true },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -167,6 +167,9 @@ export async function upsertBlobStorageIntegration(params: {
         // Reset sync state when export mode changes so the new mode's
         // start-date logic takes effect instead of continuing from the
         // previous mode's lastSyncAt.
+        ...(existing?.lastError
+          ? { lastError: null, lastErrorAt: null, nextSyncAt: new Date() }
+          : {}),
         ...(modeChanged
           ? {
               lastSyncAt: null,

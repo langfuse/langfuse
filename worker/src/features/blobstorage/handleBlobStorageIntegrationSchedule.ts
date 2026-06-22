@@ -34,6 +34,7 @@ export const handleBlobStorageIntegrationSchedule = async () => {
                 AND: [
                   { lastSyncAt: null },
                   { lastError: null },
+                  { nextSyncAt: null },
                   {
                     OR: [
                       { exportStartDate: null },
