@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { DialogTitle, type DialogProps } from "@radix-ui/react-dialog";
-import { Command as CommandPrimitive, defaultFilter } from "cmdk";
+import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 
 import { cn } from "@/src/utils/tailwind";
@@ -182,5 +182,4 @@ export {
   CommandItem,
   CommandShortcut,
   CommandSeparator,
-  defaultFilter,
 };
