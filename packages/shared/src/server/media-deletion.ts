@@ -113,22 +113,28 @@ export async function deleteMediaFiles(params: {
     const deletableBatch = batch.filter(
       (f) => !datasetAssociatedMediaIds.has(f.id),
     );
-    if (deletableBatch.length === 0) continue;
-
     const deletableMediaIds = deletableBatch.map((f) => f.id);
 
-    await storageClient.deleteFiles(deletableBatch.map((f) => f.bucketPath));
+    // Trace/observation links are cleaned up even for an all-protected batch, so
+    // only the S3 delete is skipped when nothing is deletable.
+    if (deletableBatch.length > 0) {
+      await storageClient.deleteFiles(deletableBatch.map((f) => f.bucketPath));
+    }
     await prisma.$transaction([
+      // Trace/observation links are removed for every media in the batch, not
+      // just the deletable ones: their traces/observations are deleted by the
+      // same retention job, so the links go even when the media itself is kept
+      // for a dataset item.
       prisma.traceMedia.deleteMany({
         where: {
           projectId,
-          mediaId: { in: deletableMediaIds },
+          mediaId: { in: mediaIds },
         },
       }),
       prisma.observationMedia.deleteMany({
         where: {
           projectId,
-          mediaId: { in: deletableMediaIds },
+          mediaId: { in: mediaIds },
         },
       }),
       // Sweep leftover pending rows for the deleted media (claimed rows can't
