@@ -8,6 +8,7 @@ const ExtraHeaderSchema = z.record(z.string(), z.string());
 export const RUNTIME_TIMEOUT_ADAPTERS = new Set([
   LLMAdapter.VertexAI,
   LLMAdapter.GoogleAIStudio,
+  LLMAdapter.OpenAI,
 ]);
 
 export async function executeWithRuntimeTimeout<T>({
