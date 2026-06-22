@@ -45,6 +45,45 @@ describe("extractValueFromObject", () => {
     });
   });
 
+  describe("JSONPath filter expressions", () => {
+    it('should return matching elements for filter expression $[?(@.role=="user")]', () => {
+      const obj = {
+        data: JSON.stringify([
+          { role: "user", content: "hi" },
+          { role: "assistant", content: "hello" },
+          { role: "user", content: "bye" },
+        ]),
+      };
+
+      const result = extractValueFromObject(
+        obj,
+        "data",
+        '$[?(@.role=="user")]',
+      );
+      expect(result.error).toBeNull();
+      expect(result.value).toEqual([
+        { role: "user", content: "hi" },
+        { role: "user", content: "bye" },
+      ]);
+    });
+
+    it("rejects constructor-based code execution in filter expressions", () => {
+      const obj = { data: JSON.stringify([{ role: "user" }]) };
+
+      // Classic jsonpath-plus RCE vector via the constructor chain. The
+      // sandboxed "safe" evaluator must reject it rather than execute it, so the
+      // expression errors and never resolves to a filtered match.
+      const result = extractValueFromObject(
+        obj,
+        "data",
+        '$[?(@.constructor.constructor("return true")())]',
+      );
+
+      expect(result.error).not.toBeNull();
+      expect(result.value).not.toEqual([{ role: "user" }]);
+    });
+  });
+
   describe("JSONPath single element access (backward compat)", () => {
     it("should preserve unsafe integers as strings when applying a selector", () => {
       const obj = {

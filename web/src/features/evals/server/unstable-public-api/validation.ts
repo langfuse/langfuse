@@ -284,7 +284,11 @@ function validateJsonPath(params: {
     JSONPath({
       path: jsonPath,
       json: {},
-      eval: false,
+      // `eval: "safe"` enables filter expressions (e.g. `$[?(@.role=="user")]`)
+      // via jsonpath-plus's sandboxed evaluator. `eval: false` disabled all
+      // filter expressions; "safe" keeps RCE protection (no Function/vm) while
+      // restoring this functionality.
+      eval: "safe",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
