@@ -283,6 +283,12 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const dataset = await ctx.prisma.dataset.findFirst({
         where: {
           projectId: input.projectId,
@@ -296,6 +302,12 @@ export const datasetRouter = createTRPCRouter({
   allDatasetMeta: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       return ctx.prisma.dataset.findMany({
         where: {
           projectId: input.projectId,
@@ -318,6 +330,12 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       // pathFilter: SQL WHERE clause to filter datasets by folder (e.g., "AND d.name LIKE 'folder/%'")
       const pathFilter = buildPathPrefixFilter(input.pathPrefix);
 
@@ -380,6 +398,12 @@ export const datasetRouter = createTRPCRouter({
   allDatasetsMetrics: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetIds: z.array(z.string()) }))
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       if (input.datasetIds.length === 0) return { metrics: [] };
 
       // Get dataset runs metrics
@@ -427,7 +451,13 @@ export const datasetRouter = createTRPCRouter({
         filter: z.array(singleFilter).nullable(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const count = await getDatasetRunItemsCountCh({
         projectId: input.projectId,
         filter: input.filter ?? [],
@@ -442,6 +472,12 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       return ctx.prisma.dataset.findUnique({
         where: {
           id_projectId: {
@@ -471,6 +507,12 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const run = await ctx.prisma.datasetRuns.findUnique({
         where: {
           id_projectId: {
@@ -498,6 +540,12 @@ export const datasetRouter = createTRPCRouter({
   baseRunDataByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       return ctx.prisma.datasetRuns.findMany({
         where: { datasetId: input.datasetId, projectId: input.projectId },
         select: {
@@ -512,6 +560,12 @@ export const datasetRouter = createTRPCRouter({
   runsByDatasetId: protectedProjectProcedure
     .input(datasetRunsTableSchema)
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       // Use helper function to determine if we need DRI metrics
       if (!requiresClickhouseLookups(input.filter ?? [])) {
         const [runs, totalRuns] = await Promise.all([
@@ -570,7 +624,13 @@ export const datasetRouter = createTRPCRouter({
 
   runsByDatasetIdMetrics: protectedProjectProcedure
     .input(datasetRunTableMetricsSchema)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       // Get runs that have metrics (only runs with dataset_run_items_rmt)
       const runsWithMetrics = await getDatasetRunsTableMetricsCh({
         projectId: input.projectId,
@@ -625,7 +685,13 @@ export const datasetRouter = createTRPCRouter({
         timestampFilter: timeFilter.optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const { timestampFilter } = input;
 
       const [numericScoreNames, categoricalScoreNames] = await Promise.all([
@@ -657,7 +723,13 @@ export const datasetRouter = createTRPCRouter({
         timestampFilter: timeFilter.optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const { projectId, timestampFilter } = input;
 
       const [numericScoreNames, categoricalScoreNames] = await Promise.all([
@@ -686,7 +758,13 @@ export const datasetRouter = createTRPCRouter({
         version: z.date().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const item = await getDatasetItemById({
         projectId: input.projectId,
         datasetItemId: input.datasetItemId,
@@ -707,7 +785,13 @@ export const datasetRouter = createTRPCRouter({
         version: z.date().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const item = await getDatasetItemById({
         projectId: input.projectId,
         datasetItemId: input.datasetItemId,
@@ -719,7 +803,13 @@ export const datasetRouter = createTRPCRouter({
     }),
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       return await getDatasetItemsCount({
         projectId: input.projectId,
         filterState: createDatasetItemFilterState({
@@ -729,7 +819,13 @@ export const datasetRouter = createTRPCRouter({
     }),
   listDatasetVersions: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       return await listDatasetVersions({
         projectId: input.projectId,
         datasetId: input.datasetId,
@@ -743,7 +839,13 @@ export const datasetRouter = createTRPCRouter({
         itemId: z.string(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       return await getDatasetItemVersionHistory({
         projectId: input.projectId,
         datasetId: input.datasetId,
@@ -758,7 +860,13 @@ export const datasetRouter = createTRPCRouter({
         version: z.date(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       return await getDatasetItemChangesSinceVersion({
         projectId: input.projectId,
         datasetId: input.datasetId,
@@ -778,6 +886,12 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       return await fetchDatasetItems({
         projectId: input.projectId,
         datasetId: input.datasetId,
@@ -1309,7 +1423,13 @@ export const datasetRouter = createTRPCRouter({
         ...optionalPaginationZod,
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const { datasetItemId, datasetId } = input;
 
       const filter = [
@@ -1392,6 +1512,12 @@ export const datasetRouter = createTRPCRouter({
       }),
     )
     .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const {
         datasetRunId,
         datasetItemIds,
@@ -1487,7 +1613,13 @@ export const datasetRouter = createTRPCRouter({
         ...paginationZod,
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const { filterByRun, datasetId, projectId, runIds, limit, page } = input;
 
       if (runIds.length === 0) {
@@ -1552,7 +1684,13 @@ export const datasetRouter = createTRPCRouter({
           .nullish(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const { filterByRun, datasetId, projectId, runIds } = input;
 
       // Rely on clickhouse to return only dataset item count that match the filters
@@ -1576,7 +1714,13 @@ export const datasetRouter = createTRPCRouter({
         observationId: z.string().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       const items = await getDatasetItems({
         projectId: input.projectId,
         filterState: createDatasetItemFilterState({
