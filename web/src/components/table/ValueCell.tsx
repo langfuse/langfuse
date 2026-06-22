@@ -223,8 +223,14 @@ function ValueCellActionsMenu({
   // branch, but `filterValue` is the JSON-parsed (unescaped) form shown in the
   // tree. When the value carries JSON-escapable characters (quotes,
   // backslashes, newlines) the two differ, so `contains` would never match —
-  // hide the shortcut rather than build a confidently-wrong filter. Top-level
-  // scalars are stored raw, so they are unaffected.
+  // hide the shortcut rather than build a confidently-wrong filter.
+  //
+  // Top-level scalars are *usually* stored raw (ingestion keeps top-level
+  // strings as-is), so we skip the check there. This heuristic misses the rare
+  // case of a top-level value that was itself JSON-encoded with escapes; we
+  // accept that miss because the alternative — always applying the check —
+  // would wrongly hide the far more common top-level raw string with literal
+  // newlines (which filters fine), since its encoded form also differs.
   const valueMatchesStoredForm =
     level === 0 || JSON.stringify(filterValue).slice(1, -1) === filterValue;
   const isScalarLeaf =

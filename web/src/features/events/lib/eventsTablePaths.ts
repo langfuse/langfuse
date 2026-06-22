@@ -118,27 +118,31 @@ export function buildEventsTablePathForMetadataFilter({
     url.searchParams.get("filter") ?? "",
   );
 
-  const isDuplicate = existingFilters.some(
+  // A given metadata key+value can only be Included OR Excluded, never both:
+  // `contains "v" AND does not contain "v"` is always false. Drop any existing
+  // clause on the same key+value (regardless of operator) before appending, so
+  // the paired Include/Exclude menu items act as a toggle and repeated clicks
+  // stay idempotent. Clauses on other keys/values are left untouched (AND).
+  const withoutSameTarget = existingFilters.filter(
     (f) =>
-      f.column === "metadata" &&
-      f.type === "stringObject" &&
-      f.key === metadataKey &&
-      f.operator === operator &&
-      f.value === value,
+      !(
+        f.column === "metadata" &&
+        f.type === "stringObject" &&
+        f.key === metadataKey &&
+        f.value === value
+      ),
   );
 
-  const filters: FilterState = isDuplicate
-    ? existingFilters
-    : [
-        ...existingFilters,
-        {
-          column: "metadata",
-          type: "stringObject",
-          key: metadataKey,
-          operator,
-          value,
-        },
-      ];
+  const filters: FilterState = [
+    ...withoutSameTarget,
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: metadataKey,
+      operator,
+      value,
+    },
+  ];
 
   params.set("filter", encodeFiltersGeneric(filters));
 
