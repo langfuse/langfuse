@@ -118,18 +118,22 @@ export function buildEventsTablePathForMetadataFilter({
     url.searchParams.get("filter") ?? "",
   );
 
-  // A given metadata key+value can only be Included OR Excluded, never both:
-  // `contains "v" AND does not contain "v"` is always false. Drop any existing
-  // clause on the same key+value (regardless of operator) before appending, so
-  // the paired Include/Exclude menu items act as a toggle and repeated clicks
-  // stay idempotent. Clauses on other keys/values are left untouched (AND).
+  // The Include/Exclude menu items are a toggle on one key+value: clicking the
+  // opposite must replace, not AND, since `contains "v" AND does not contain
+  // "v"` is always false. So drop an existing clause on the same key+value
+  // ONLY when it carries an operator this menu emits (contains / does not
+  // contain). Stricter clauses set elsewhere (the filter-builder defaults
+  // stringObject to `=`, plus starts/ends with) are preserved so a one-click
+  // Include doesn't silently broaden a user's exact filter — the new clause
+  // just ANDs with them. Clauses on other keys/values are untouched.
   const withoutSameTarget = existingFilters.filter(
     (f) =>
       !(
         f.column === "metadata" &&
         f.type === "stringObject" &&
         f.key === metadataKey &&
-        f.value === value
+        f.value === value &&
+        (f.operator === "contains" || f.operator === "does not contain")
       ),
   );
 
