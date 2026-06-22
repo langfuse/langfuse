@@ -156,6 +156,15 @@ const getWidgetFilterColumnSpecs = ({
           internal: "internalValue",
         },
       },
+      {
+        column: {
+          name: "Score Comment",
+          id: "scoreComment",
+          type: "string",
+          internal: "internalValue",
+          nullable: true,
+        },
+      },
     );
   }
 
