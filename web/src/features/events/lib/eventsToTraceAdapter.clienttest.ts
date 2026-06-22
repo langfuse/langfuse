@@ -127,6 +127,27 @@ describe("adaptEventsToTraceFormat", () => {
     expect(result.trace.latency).toBe(3);
   });
 
+  it("keeps trace latency unknown when events have identical start times and no end times", () => {
+    const result = adaptEventsToTraceFormat({
+      events: [
+        createEvent({
+          id: "obs-1",
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: null,
+        }),
+        createEvent({
+          id: "obs-2",
+          parentObservationId: "obs-1",
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: null,
+        }),
+      ],
+      traceId: "trace-1",
+    });
+
+    expect(result.trace.latency).toBeUndefined();
+  });
+
   it("uses the latest start time when it is after the latest end time", () => {
     const result = adaptEventsToTraceFormat({
       events: [

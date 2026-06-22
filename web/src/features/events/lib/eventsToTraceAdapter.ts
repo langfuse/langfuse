@@ -81,7 +81,8 @@ export function adaptEventsToTraceFormat(params: {
   const latestEnd =
     endTimes.length > 0 ? Math.max(...endTimes.map((d) => d.getTime())) : null;
   const latestTimestamp =
-    events.length > 1
+    events.length > 1 &&
+    (latestEnd !== null || latestStart !== earliest.startTime.getTime())
       ? Math.max(latestStart, latestEnd ?? latestStart)
       : (latestEnd ?? undefined);
   const latencyMs =
