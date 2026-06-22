@@ -545,6 +545,25 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
           });
 
+          const byteTags = {
+            table: config.table,
+            projectId: config.projectId,
+            path: passthroughEligible ? "passthrough" : "standard",
+            gzipLevel: config.gzipLevel ?? ZLIB_DEFAULT_LEVEL,
+          };
+          recordIncrement(
+            "langfuse.blob_export.serialized_bytes",
+            serializedCounter.bytes,
+            byteTags,
+          );
+          if (compressedCounter) {
+            recordIncrement(
+              "langfuse.blob_export.compressed_bytes",
+              compressedCounter.bytes,
+              byteTags,
+            );
+          }
+
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
               `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
