@@ -216,16 +216,25 @@ function ValueCellActionsMenu({
   metadataActions: MetadataFilterActions;
 }) {
   const router = useRouter();
-  const { value, type, hasChildren } = row.original;
+  const { value, type, hasChildren, level } = row.original;
 
   const filterValue = String(value);
+  // A nested value is matched as a substring of its JSON-ENCODED top-level
+  // branch, but `filterValue` is the JSON-parsed (unescaped) form shown in the
+  // tree. When the value carries JSON-escapable characters (quotes,
+  // backslashes, newlines) the two differ, so `contains` would never match —
+  // hide the shortcut rather than build a confidently-wrong filter. Top-level
+  // scalars are stored raw, so they are unaffected.
+  const valueMatchesStoredForm =
+    level === 0 || JSON.stringify(filterValue).slice(1, -1) === filterValue;
   const isScalarLeaf =
     !hasChildren &&
     (type === "string" || type === "number" || type === "boolean") &&
     // Skip empty values: `contains ""` matches every row (ClickHouse
     // position(x, "") === 1, and Map[missingKey] defaults to "") while
     // `does not contain ""` matches none — both shortcuts would be no-ops.
-    filterValue.length > 0;
+    filterValue.length > 0 &&
+    valueMatchesStoredForm;
 
   // Metadata is a flat Map(String, String), so a nested value can only be
   // matched as a substring of its top-level branch. We use contains/does not
