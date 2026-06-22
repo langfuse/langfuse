@@ -1,5 +1,4 @@
 import { pipeline, Transform, type Readable } from "stream";
-import { createGzip } from "zlib";
 import { monitorEventLoopDelay } from "perf_hooks";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
@@ -19,6 +18,7 @@ import {
   getCurrentSpan,
   instrumentAsync,
   recordGauge,
+  recordHistogram,
   recordIncrement,
   BlobStorageIntegrationProcessingQueue,
   queryClickhouse,
@@ -36,6 +36,7 @@ import {
   BLOB_TABLE_EXPORT_METRIC,
   type BlobTableExportOutcome,
 } from "./inFlightExports";
+import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
@@ -268,6 +269,9 @@ const processBlobStorageExport = async (config: {
   table: "traces" | "observations" | "scores" | "observations_v2"; // observations_v2 is the events table
   fileType: BlobStorageIntegrationFileType;
   compressed: boolean;
+  // zlib level for the gzip step; undefined => zlib default (6). Only relevant
+  // when `compressed` is true.
+  gzipLevel: number | undefined;
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
   rawPassthrough: boolean;
@@ -394,6 +398,10 @@ const processBlobStorageExport = async (config: {
 
         const serializedCounter = new ByteCounter();
         const compressedCounter = config.compressed ? new ByteCounter() : null;
+        // Paired with compressedCounter: both exist iff compression is on.
+        const gzipStats: GzipStats | null = compressedCounter
+          ? { level: config.gzipLevel ?? ZLIB_DEFAULT_LEVEL, activeMs: 0 }
+          : null;
 
         // Both paths tally rows in JS via countedStream (the passthrough yields
         // raw row text rather than parsed objects, but still iterates).
@@ -427,21 +435,22 @@ const processBlobStorageExport = async (config: {
           const dataStream = countedStream(rawRows, sourceStats);
           const jsonlNewline = createRawJsonlNewlineTransform();
 
-          fileStream = compressedCounter
-            ? pipeline(
-                dataStream,
-                jsonlNewline,
-                serializedCounter,
-                createGzip(),
-                compressedCounter,
-                pipelineCallback,
-              )
-            : pipeline(
-                dataStream,
-                jsonlNewline,
-                serializedCounter,
-                pipelineCallback,
-              );
+          fileStream =
+            compressedCounter && gzipStats
+              ? pipeline(
+                  dataStream,
+                  jsonlNewline,
+                  serializedCounter,
+                  new TimedGzip(config.gzipLevel, gzipStats),
+                  compressedCounter,
+                  pipelineCallback,
+                )
+              : pipeline(
+                  dataStream,
+                  jsonlNewline,
+                  serializedCounter,
+                  pipelineCallback,
+                );
         } else {
           let rawStream: AsyncGenerator<Record<string, unknown>>;
 
@@ -495,21 +504,22 @@ const processBlobStorageExport = async (config: {
           const dataStream = countedStream(rawStream, sourceStats);
           const formatTransform = streamTransformations[config.fileType]();
 
-          fileStream = compressedCounter
-            ? pipeline(
-                dataStream,
-                formatTransform,
-                serializedCounter,
-                createGzip(),
-                compressedCounter,
-                pipelineCallback,
-              )
-            : pipeline(
-                dataStream,
-                formatTransform,
-                serializedCounter,
-                pipelineCallback,
-              );
+          fileStream =
+            compressedCounter && gzipStats
+              ? pipeline(
+                  dataStream,
+                  formatTransform,
+                  serializedCounter,
+                  new TimedGzip(config.gzipLevel, gzipStats),
+                  compressedCounter,
+                  pipelineCallback,
+                )
+              : pipeline(
+                  dataStream,
+                  formatTransform,
+                  serializedCounter,
+                  pipelineCallback,
+                );
         }
 
         // Upload the file to cloud storage
@@ -540,7 +550,11 @@ const processBlobStorageExport = async (config: {
               `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
               `path=${passthroughEligible ? "passthrough" : "standard"} ` +
               `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
-              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}`,
+              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}` +
+              (gzipStats && compressedCounter
+                ? ` gzipLevel=${gzipStats.level} gzipActiveMs=${Math.round(gzipStats.activeMs)} ` +
+                  `compressedBytes=${compressedCounter.bytes}`
+                : ""),
           );
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
@@ -557,6 +571,50 @@ const processBlobStorageExport = async (config: {
           }
           if (compressedCounter) {
             span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
+          }
+          if (gzipStats && compressedCounter) {
+            // Gauge the cost of the gzip step so a level change (or moving
+            // compression off the worker) can be evaluated against real data.
+            const activeMs = Math.round(gzipStats.activeMs);
+            // Input/output ratio (>1 = shrank); guard div-by-zero on empty exports.
+            const ratio =
+              compressedCounter.bytes > 0
+                ? serializedCounter.bytes / compressedCounter.bytes
+                : 0;
+            // Compression throughput over uncompressed input bytes.
+            const throughputMbPerSec =
+              gzipStats.activeMs > 0
+                ? serializedCounter.bytes / (gzipStats.activeMs * 1000)
+                : 0;
+
+            span.setAttribute("blob.gzip.level", gzipStats.level);
+            span.setAttribute("blob.gzip.activeMs", activeMs);
+            span.setAttribute("blob.gzip.ratio", Number(ratio.toFixed(3)));
+            span.setAttribute(
+              "blob.gzip.throughputMbPerSec",
+              Number(throughputMbPerSec.toFixed(2)),
+            );
+
+            const metricTags = {
+              table: config.table,
+              path: passthroughEligible ? "passthrough" : "standard",
+              gzipLevel: gzipStats.level,
+            };
+            recordHistogram(
+              "langfuse.blob_export.gzip.active_ms",
+              activeMs,
+              metricTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.gzip.ratio",
+              ratio,
+              metricTags,
+            );
+            recordHistogram(
+              "langfuse.blob_export.gzip.throughput_mb_per_sec",
+              throughputMbPerSec,
+              metricTags,
+            );
           }
         }
       } catch (error) {
@@ -745,6 +803,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       type: blobStorageIntegration.type,
       fileType: blobStorageIntegration.fileType,
       compressed: blobStorageIntegration.compressed,
+      gzipLevel: exportTuning.gzipLevel,
       convertV4LatencyToSeconds,
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
