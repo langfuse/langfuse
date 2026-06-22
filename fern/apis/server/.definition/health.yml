@@ -1,0 +1,25 @@
+types:
+  HealthResponse:
+    examples:
+      - value:
+          status: OK
+          version: 1.25.0
+    properties:
+      status: string
+      version:
+        docs: Langfuse server version
+        type: string
+errors:
+  ServiceUnavailableError:
+    status-code: 503
+service:
+  auth: false
+  base-path: /api/public
+  endpoints:
+    health:
+      docs: Check health of API and database
+      errors:
+        - ServiceUnavailableError
+      method: GET
+      path: /health
+      response: HealthResponse

@@ -44,7 +44,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
         // an east-of-UTC user's local today can be up to 14h ahead of server UTC.
         return d.getTime() <= Date.now() + 27 * 60 * 60 * 1000;
       },
-      { message: "Export start date cannot be in the future" },
+      { message: "Export start date must be at most 24 hours in the future" },
     )
     .optional()
     .nullable(),

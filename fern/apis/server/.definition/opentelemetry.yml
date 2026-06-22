@@ -1,0 +1,179 @@
+types:
+  OtelAttribute:
+    docs: Key-value attribute pair for resources, scopes, or spans
+    properties:
+      key:
+        docs: Attribute key (e.g., "service.name", "langfuse.observation.type")
+        type: optional<string>
+      value:
+        docs: Attribute value
+        type: optional<OtelAttributeValue>
+  OtelAttributeValue:
+    docs: Attribute value wrapper supporting different value types
+    properties:
+      boolValue:
+        docs: Boolean value
+        type: optional<boolean>
+      doubleValue:
+        docs: Double value
+        type: optional<double>
+      intValue:
+        docs: Integer value
+        type: optional<integer>
+      stringValue:
+        docs: String value
+        type: optional<string>
+  OtelResource:
+    docs: Resource attributes identifying the source of telemetry
+    properties:
+      attributes:
+        docs: Resource attributes like service.name, service.version, etc.
+        type: optional<list<OtelAttribute>>
+  OtelResourceSpan:
+    docs: >-
+      Represents a collection of spans from a single resource as per OTLP
+      specification
+    properties:
+      resource:
+        docs: Resource information
+        type: optional<OtelResource>
+      scopeSpans:
+        docs: Array of scope spans
+        type: optional<list<OtelScopeSpan>>
+  OtelScope:
+    docs: Instrumentation scope information
+    properties:
+      attributes:
+        docs: Additional scope attributes
+        type: optional<list<OtelAttribute>>
+      name:
+        docs: Instrumentation scope name
+        type: optional<string>
+      version:
+        docs: Instrumentation scope version
+        type: optional<string>
+  OtelScopeSpan:
+    docs: Collection of spans from a single instrumentation scope
+    properties:
+      scope:
+        docs: Instrumentation scope information
+        type: optional<OtelScope>
+      spans:
+        docs: Array of spans
+        type: optional<list<OtelSpan>>
+  OtelSpan:
+    docs: Individual span representing a unit of work or operation
+    properties:
+      attributes:
+        docs: >-
+          Span attributes including Langfuse-specific attributes
+          (langfuse.observation.*)
+        type: optional<list<OtelAttribute>>
+      endTimeUnixNano:
+        docs: End time in nanoseconds since Unix epoch
+        type: optional<unknown>
+      kind:
+        docs: Span kind (1=INTERNAL, 2=SERVER, 3=CLIENT, 4=PRODUCER, 5=CONSUMER)
+        type: optional<integer>
+      name:
+        docs: Span name describing the operation
+        type: optional<string>
+      parentSpanId:
+        docs: Parent span ID if this is a child span
+        type: optional<unknown>
+      spanId:
+        docs: Span ID (8 bytes, hex-encoded string in JSON or Buffer in binary)
+        type: optional<unknown>
+      startTimeUnixNano:
+        docs: Start time in nanoseconds since Unix epoch
+        type: optional<unknown>
+      status:
+        docs: Span status object
+        type: optional<unknown>
+      traceId:
+        docs: Trace ID (16 bytes, hex-encoded string in JSON or Buffer in binary)
+        type: optional<unknown>
+  OtelTraceResponse:
+    docs: Response from trace export request. Empty object indicates success.
+    properties: {}
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    exportTraces:
+      docs: >
+        **OpenTelemetry Traces Ingestion Endpoint**
+
+
+        This endpoint implements the OTLP/HTTP specification for trace
+        ingestion, providing native OpenTelemetry integration for Langfuse
+        Observability.
+
+
+        **Supported Formats:**
+
+        - Binary Protobuf: `Content-Type: application/x-protobuf`
+
+        - JSON Protobuf: `Content-Type: application/json`
+
+        - Supports gzip compression via `Content-Encoding: gzip` header
+
+
+        **Specification Compliance:**
+
+        - Conforms to [OTLP/HTTP Trace
+        Export](https://opentelemetry.io/docs/specs/otlp/#otlphttp)
+
+        - Implements `ExportTraceServiceRequest` message format
+
+
+        **Documentation:**
+
+        - Integration guide:
+        https://langfuse.com/integrations/native/opentelemetry
+
+        - Data model: https://langfuse.com/docs/observability/data-model
+      examples:
+        - docs: Example JSON payload for exporting a simple trace with one span
+          name: BasicTraceExport
+          request:
+            resourceSpans:
+              - resource:
+                  attributes:
+                    - key: service.name
+                      value:
+                        stringValue: my-service
+                    - key: service.version
+                      value:
+                        stringValue: 1.0.0
+                scopeSpans:
+                  - scope:
+                      name: langfuse-sdk
+                      version: 2.60.3
+                    spans:
+                      - attributes:
+                          - key: langfuse.observation.type
+                            value:
+                              stringValue: generation
+                        endTimeUnixNano: '1747872001000000000'
+                        kind: 1
+                        name: my-operation
+                        spanId: 0123456789abcdef
+                        startTimeUnixNano: '1747872000000000000'
+                        status: {}
+                        traceId: 0123456789abcdef0123456789abcdef
+          response:
+            body: {}
+      method: POST
+      path: /otel/v1/traces
+      request:
+        body:
+          properties:
+            resourceSpans:
+              docs: >-
+                Array of resource spans containing trace data as defined in the
+                OTLP specification
+              type: list<OtelResourceSpan>
+        content-type: application/json
+        name: OtelTraceRequest
+      response: OtelTraceResponse

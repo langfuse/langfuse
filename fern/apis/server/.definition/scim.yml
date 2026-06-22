@@ -1,0 +1,181 @@
+imports:
+  commons: ./commons.yml
+types:
+  AuthenticationScheme:
+    properties:
+      description: string
+      name: string
+      primary: boolean
+      specUri: string
+      type: string
+  BulkConfig:
+    properties:
+      maxOperations: integer
+      maxPayloadSize: integer
+      supported: boolean
+  EmptyResponse:
+    docs: Empty response for 204 No Content responses
+    properties: {}
+  FilterConfig:
+    properties:
+      maxResults: integer
+      supported: boolean
+  ResourceMeta:
+    properties:
+      location: string
+      resourceType: string
+  ResourceType:
+    properties:
+      description: string
+      endpoint: string
+      id: string
+      meta: ResourceMeta
+      name: string
+      schema: string
+      schemaExtensions: list<SchemaExtension>
+      schemas: optional<list<string>>
+  ResourceTypesResponse:
+    properties:
+      Resources: list<ResourceType>
+      schemas: list<string>
+      totalResults: integer
+  SchemaExtension:
+    properties:
+      required: boolean
+      schema: string
+  SchemaResource:
+    properties:
+      attributes: list<unknown>
+      description: string
+      id: string
+      meta: ResourceMeta
+      name: string
+  SchemasResponse:
+    properties:
+      Resources: list<SchemaResource>
+      schemas: list<string>
+      totalResults: integer
+  ScimEmail:
+    properties:
+      primary: boolean
+      type: string
+      value: string
+  ScimFeatureSupport:
+    properties:
+      supported: boolean
+  ScimName:
+    properties:
+      formatted: optional<string>
+  ScimUser:
+    properties:
+      emails: list<ScimEmail>
+      id: string
+      meta: UserMeta
+      name: ScimName
+      schemas: list<string>
+      userName: string
+  ScimUsersListResponse:
+    properties:
+      itemsPerPage: integer
+      Resources: list<ScimUser>
+      schemas: list<string>
+      startIndex: integer
+      totalResults: integer
+  ServiceProviderConfig:
+    properties:
+      authenticationSchemes: list<AuthenticationScheme>
+      bulk: BulkConfig
+      changePassword: ScimFeatureSupport
+      documentationUri: string
+      etag: ScimFeatureSupport
+      filter: FilterConfig
+      meta: ResourceMeta
+      patch: ScimFeatureSupport
+      schemas: list<string>
+      sort: ScimFeatureSupport
+  UserMeta:
+    properties:
+      created: optional<string>
+      lastModified: optional<string>
+      resourceType: string
+service:
+  auth: true
+  base-path: /api/public/scim
+  endpoints:
+    createUser:
+      docs: >-
+        Create a new user in the organization (requires organization-scoped API
+        key)
+      method: POST
+      path: /Users
+      request:
+        body:
+          properties:
+            active:
+              docs: Whether the user is active
+              type: optional<boolean>
+            emails:
+              docs: User's email addresses
+              type: optional<list<ScimEmail>>
+            name:
+              docs: User's name information
+              type: ScimName
+            password:
+              docs: Initial password for the user
+              type: optional<string>
+            userName:
+              docs: User's email address (required)
+              type: string
+        name: CreateUserRequest
+      response: ScimUser
+    deleteUser:
+      docs: >-
+        Remove a user from the organization (requires organization-scoped API
+        key). Note that this only removes the user from the organization but
+        does not delete the user entity itself.
+      method: DELETE
+      path: /Users/{userId}
+      path-parameters:
+        userId: string
+      response: EmptyResponse
+    getResourceTypes:
+      docs: Get SCIM Resource Types (requires organization-scoped API key)
+      method: GET
+      path: /ResourceTypes
+      response: ResourceTypesResponse
+    getSchemas:
+      docs: Get SCIM Schemas (requires organization-scoped API key)
+      method: GET
+      path: /Schemas
+      response: SchemasResponse
+    getServiceProviderConfig:
+      docs: >-
+        Get SCIM Service Provider Configuration (requires organization-scoped
+        API key)
+      method: GET
+      path: /ServiceProviderConfig
+      response: ServiceProviderConfig
+    getUser:
+      docs: Get a specific user by ID (requires organization-scoped API key)
+      method: GET
+      path: /Users/{userId}
+      path-parameters:
+        userId: string
+      response: ScimUser
+    listUsers:
+      docs: List users in the organization (requires organization-scoped API key)
+      method: GET
+      path: /Users
+      request:
+        name: ListUsersRequest
+        query-parameters:
+          count:
+            docs: Maximum number of results to return (default 100)
+            type: optional<integer>
+          filter:
+            docs: Filter expression (e.g. userName eq "value")
+            type: optional<string>
+          startIndex:
+            docs: 1-based index of the first result to return (default 1)
+            type: optional<integer>
+      response: ScimUsersListResponse

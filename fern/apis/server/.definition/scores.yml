@@ -1,0 +1,171 @@
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+types:
+  GetScoresResponse:
+    properties:
+      data: list<GetScoresResponseData>
+      meta: pagination.MetaResponse
+  GetScoresResponseData:
+    discriminant: dataType
+    union:
+      BOOLEAN: GetScoresResponseDataBoolean
+      CATEGORICAL: GetScoresResponseDataCategorical
+      CORRECTION: GetScoresResponseDataCorrection
+      NUMERIC: GetScoresResponseDataNumeric
+      TEXT: GetScoresResponseDataText
+  GetScoresResponseDataBoolean:
+    extends: commons.BooleanScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+  GetScoresResponseDataCategorical:
+    extends: commons.CategoricalScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+  GetScoresResponseDataCorrection:
+    extends: commons.CorrectionScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+  GetScoresResponseDataNumeric:
+    extends: commons.NumericScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+  GetScoresResponseDataText:
+    extends: commons.TextScore
+    properties:
+      trace: optional<GetScoresResponseTraceData>
+  GetScoresResponseTraceData:
+    properties:
+      environment:
+        docs: The environment of the trace referenced by score
+        type: optional<string>
+      sessionId:
+        docs: The session ID associated with the trace referenced by score
+        type: optional<string>
+      tags:
+        docs: A list of tags associated with the trace referenced by score
+        type: optional<list<string>>
+      userId:
+        docs: The user ID associated with the trace referenced by score
+        type: optional<string>
+service:
+  auth: true
+  base-path: /api/public/v2
+  endpoints:
+    get-by-id:
+      docs: |
+        **Deprecated.** Use `GET /api/public/v3/scores` with the `id` filter
+        instead. This endpoint is no longer available on Langfuse v4 and later.
+
+        Get a score (supports both trace and session scores)
+      method: GET
+      path: /scores/{scoreId}
+      path-parameters:
+        scoreId:
+          docs: The unique langfuse identifier of a score
+          type: string
+      response: commons.Score
+    get-many:
+      docs: |
+        **Deprecated.** Use `GET /api/public/v3/scores` instead. This endpoint
+        is no longer available on Langfuse v4 and later.
+
+        Get a list of scores (supports both trace and session scores)
+      method: GET
+      path: /scores
+      request:
+        name: GetScoresRequest
+        query-parameters:
+          configId:
+            docs: Retrieve only scores with a specific configId.
+            type: optional<string>
+          datasetRunId:
+            docs: Retrieve only scores with a specific datasetRunId.
+            type: optional<string>
+          dataType:
+            docs: Retrieve only scores with a specific dataType.
+            type: optional<commons.ScoreDataType>
+          environment:
+            allow-multiple: true
+            docs: >-
+              Optional filter for scores where the environment is one of the
+              provided values.
+            type: optional<string>
+          fields:
+            docs: >-
+              Comma-separated list of field groups to include in the response.
+              Available field groups: 'score' (core score fields), 'trace'
+              (trace properties: userId, tags, environment, sessionId). If not
+              specified, both 'score' and 'trace' are returned by default.
+              Example: 'score' to exclude trace data, 'score,trace' to include
+              both. Note: When filtering by trace properties (using userId or
+              traceTags parameters), the 'trace' field group must be included,
+              otherwise a 400 error will be returned.
+            type: optional<string>
+          filter:
+            docs: >
+              A JSON stringified array of filter objects. Each object requires
+              type, column, operator, and value. Supports filtering by score
+              metadata using the stringObject type. Example:
+              [{"type":"stringObject","column":"metadata","key":"user_id","operator":"=","value":"abc123"}].
+              Supported types: stringObject (metadata key-value filtering),
+              string, number, datetime, stringOptions, arrayOptions. Supported
+              operators for stringObject: =, contains, does not contain, starts
+              with, ends with.
+            type: optional<string>
+          fromTimestamp:
+            docs: >-
+              Optional filter to only include scores created on or after a
+              certain datetime (ISO 8601)
+            type: optional<datetime>
+          limit:
+            docs: >-
+              Limit of items per page. Maximum 100. Defaults to 50. Requests
+              with a limit greater than 100 return HTTP 400. If you encounter
+              api issues due to too large page sizes, try to reduce the limit.
+            type: optional<integer>
+          name:
+            docs: Retrieve only scores with this name.
+            type: optional<string>
+          observationId:
+            docs: Comma-separated list of observation IDs to filter scores by.
+            type: optional<string>
+          operator:
+            docs: Retrieve only scores with <operator> value.
+            type: optional<string>
+          page:
+            docs: Page number, starts at 1.
+            type: optional<integer>
+          queueId:
+            docs: Retrieve only scores with a specific annotation queueId.
+            type: optional<string>
+          scoreIds:
+            docs: Comma-separated list of score IDs to limit the results to.
+            type: optional<string>
+          sessionId:
+            docs: Retrieve only scores with a specific sessionId.
+            type: optional<string>
+          source:
+            docs: Retrieve only scores from a specific source.
+            type: optional<commons.ScoreSource>
+          toTimestamp:
+            docs: >-
+              Optional filter to only include scores created before a certain
+              datetime (ISO 8601)
+            type: optional<datetime>
+          traceId:
+            docs: Retrieve only scores with a specific traceId.
+            type: optional<string>
+          traceTags:
+            allow-multiple: true
+            docs: >-
+              Only scores linked to traces that include all of these tags will
+              be returned.
+            type: optional<string>
+          userId:
+            docs: Retrieve only scores with this userId associated to the trace.
+            type: optional<string>
+          value:
+            docs: Retrieve only scores with <operator> value.
+            type: optional<double>
+      response: GetScoresResponse

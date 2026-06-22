@@ -1,0 +1,283 @@
+imports:
+  commons: ./commons.yml
+types:
+  BlobStorageExportFieldGroup:
+    docs: >-
+      Field group selecting which observation columns are included in the
+      export. Applies to all export sources; groups without a counterpart in the
+      legacy data model (e.g. `trace_context`) are omitted from the legacy
+      observations export.
+    enum:
+      - core
+      - basic
+      - time
+      - io
+      - metadata
+      - model
+      - usage
+      - prompt
+      - metrics
+      - tools
+      - trace_context
+  BlobStorageExportFrequency:
+    enum:
+      - every_20_minutes
+      - hourly
+      - daily
+      - weekly
+  BlobStorageExportMode:
+    enum:
+      - FULL_HISTORY
+      - FROM_TODAY
+      - FROM_CUSTOM_DATE
+  BlobStorageExportSource:
+    docs: >
+      What data the integration exports.
+
+      - `LEGACY_TRACES_OBSERVATIONS`: traces, observations, and scores tables.
+      Observation columns are controlled by `exportFieldGroups`; field groups
+      without a counterpart in this data model (e.g. `trace_context`) are
+      omitted.
+
+      - `OBSERVATIONS_V2`: same data model as the `/api/public/v2/observations`
+      endpoint, plus scores. Columns are controlled by `exportFieldGroups`.
+
+      - `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS`: both sets. Observation
+      columns of both portions are controlled by `exportFieldGroups`.
+
+
+      **Note:** `OBSERVATIONS_V2` and the enriched-observations portion of
+      `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` rely on the enriched
+      observations table (Langfuse Fast Preview / v4), which is currently
+      available on Langfuse Cloud only. See https://langfuse.com/docs/v4.
+    enum:
+      - LEGACY_TRACES_OBSERVATIONS
+      - OBSERVATIONS_V2
+      - LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS
+  BlobStorageIntegrationDeletionResponse:
+    properties:
+      message: string
+  BlobStorageIntegrationFileType:
+    enum:
+      - JSON
+      - CSV
+      - JSONL
+  BlobStorageIntegrationResponse:
+    properties:
+      accessKeyId: nullable<string>
+      bucketName: string
+      compressed: boolean
+      createdAt: datetime
+      enabled: boolean
+      endpoint: nullable<string>
+      exportFieldGroups:
+        docs: >
+          Field groups included in each exported observation row. An empty list
+          is treated as all groups during export.
+        type: nullable<list<BlobStorageExportFieldGroup>>
+      exportFrequency: BlobStorageExportFrequency
+      exportMode: BlobStorageExportMode
+      exportSource: BlobStorageExportSource
+      exportStartDate: nullable<datetime>
+      fileType: BlobStorageIntegrationFileType
+      forcePathStyle: boolean
+      id: string
+      lastError: nullable<string>
+      lastErrorAt: nullable<datetime>
+      lastSyncAt: nullable<datetime>
+      nextSyncAt: nullable<datetime>
+      prefix: string
+      projectId: string
+      region: string
+      type: BlobStorageIntegrationType
+      updatedAt: datetime
+  BlobStorageIntegrationsResponse:
+    properties:
+      data: list<BlobStorageIntegrationResponse>
+  BlobStorageIntegrationStatusResponse:
+    properties:
+      enabled: boolean
+      id: string
+      lastError:
+        docs: >-
+          Raw error message from the storage provider (S3/Azure/GCS) if the last
+          export failed. Cleared when a new export run starts and on successful
+          export.
+        type: nullable<string>
+      lastErrorAt:
+        docs: >-
+          When the last error occurred. Cleared when a new export run starts and
+          on successful export.
+        type: nullable<datetime>
+      lastSyncAt:
+        docs: >-
+          End of the last successfully exported time window. Compare against
+          your ETL bookmark to determine if new data is available. Null if the
+          integration has never synced.
+        type: nullable<datetime>
+      nextSyncAt:
+        docs: When the next export is scheduled. Null if no sync has occurred yet.
+        type: nullable<datetime>
+      projectId: string
+      syncStatus: BlobStorageSyncStatus
+  BlobStorageIntegrationType:
+    enum:
+      - S3
+      - S3_COMPATIBLE
+      - AZURE_BLOB_STORAGE
+  BlobStorageSyncStatus:
+    docs: >
+      Sync status of the blob storage integration:
+
+      - `disabled` — integration is not enabled
+
+      - `error` — last export failed (see `lastError` for details)
+
+      - `running` — an export job is currently being processed
+
+      - `queued` — next export is overdue (`nextSyncAt` is in the past) and
+      waiting to be picked up by the worker
+
+      - `idle` — enabled but has never exported yet and no export is queued
+
+      - `up_to_date` — all available data has been exported; next export is
+      scheduled for the future
+
+
+      **ETL usage**: poll this endpoint and check for `up_to_date` status.
+      Compare `lastSyncAt` against your
+
+      ETL bookmark to determine if new data is available. Note that exports run
+      with a 20-minute lag buffer,
+
+      so `lastSyncAt` will always be at least 20 minutes behind real-time.
+    enum:
+      - idle
+      - running
+      - queued
+      - up_to_date
+      - disabled
+      - error
+  CreateBlobStorageIntegrationRequest:
+    properties:
+      accessKeyId:
+        docs: Access key ID for authentication
+        type: optional<string>
+      bucketName:
+        docs: >-
+          Name of the storage bucket. For AZURE_BLOB_STORAGE, must be a valid
+          Azure container name (3-63 chars, lowercase letters, numbers, and
+          hyphens only, must start and end with a letter or number, no
+          consecutive hyphens).
+        type: string
+      compressed:
+        docs: >-
+          Enable gzip compression for exported files (.csv.gz, .json.gz,
+          .jsonl.gz). Defaults to true.
+        type: optional<boolean>
+      enabled:
+        docs: Whether the integration is active
+        type: boolean
+      endpoint:
+        docs: Custom endpoint URL (required for S3_COMPATIBLE type)
+        type: optional<string>
+      exportFieldGroups:
+        docs: >
+          Field groups to include in each exported observation row. Applies to
+          all export sources; must include `core` if provided. When omitted on
+          create, the column default (all groups) applies. When omitted on
+          update, the existing value is preserved.
+
+
+          `exportFieldGroups` requires `exportSource` to be provided in the same
+          request.
+        type: optional<list<BlobStorageExportFieldGroup>>
+      exportFrequency: BlobStorageExportFrequency
+      exportMode: BlobStorageExportMode
+      exportSource:
+        docs: >
+          Data to export. When omitted on update, the existing value is
+          preserved. When omitted on create: integrations on Langfuse Cloud
+          default to `OBSERVATIONS_V2`; self-hosted deployments fall back to
+          `LEGACY_TRACES_OBSERVATIONS`. Required when `exportFieldGroups` is
+          provided.
+
+
+          **Cloud-only project deprecation gate (effective 2026-05-20):** For
+          projects created on or after 2026-05-20 on Langfuse Cloud,
+          `LEGACY_TRACES_OBSERVATIONS` and
+          `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP 400.
+          Use `OBSERVATIONS_V2` for all new integrations. Self-hosted
+          deployments are unaffected.
+
+
+          **Cloud-only integration deprecation gate (effective 2026-06-22):** On
+          Langfuse Cloud, legacy export sources are only accepted for blob
+          storage integrations created before 2026-06-22, regardless of project
+          age. Requests that would create a new integration with
+          `LEGACY_TRACES_OBSERVATIONS` or
+          `LEGACY_TRACES_AND_ENRICHED_OBSERVATIONS` are rejected with HTTP 400.
+          Use `OBSERVATIONS_V2` instead. Self-hosted deployments are unaffected.
+        type: optional<BlobStorageExportSource>
+      exportStartDate:
+        docs: >-
+          Custom start date for exports (required when exportMode is
+          FROM_CUSTOM_DATE). Must not be later than today's date.
+        type: optional<datetime>
+      fileType: BlobStorageIntegrationFileType
+      forcePathStyle:
+        docs: Use path-style URLs for S3 requests
+        type: boolean
+      prefix:
+        docs: >-
+          Path prefix for exported files (must end with forward slash if
+          provided)
+        type: optional<string>
+      projectId:
+        docs: ID of the project in which to configure the blob storage integration
+        type: string
+      region:
+        docs: Storage region
+        type: string
+      secretAccessKey:
+        docs: Secret access key for authentication (will be encrypted when stored)
+        type: optional<string>
+      type: BlobStorageIntegrationType
+service:
+  auth: true
+  base-path: /api/public/integrations/blob-storage
+  endpoints:
+    deleteBlobStorageIntegration:
+      docs: >-
+        Delete a blob storage integration by ID (requires organization-scoped
+        API key)
+      method: DELETE
+      path: /{id}
+      path-parameters:
+        id: string
+      response: BlobStorageIntegrationDeletionResponse
+    getBlobStorageIntegrations:
+      docs: >-
+        Get all blob storage integrations for the organization (requires
+        organization-scoped API key)
+      method: GET
+      path: ''
+      response: BlobStorageIntegrationsResponse
+    getBlobStorageIntegrationStatus:
+      docs: >-
+        Get the sync status of a blob storage integration by integration ID
+        (requires organization-scoped API key)
+      method: GET
+      path: /{id}
+      path-parameters:
+        id: string
+      response: BlobStorageIntegrationStatusResponse
+    upsertBlobStorageIntegration:
+      docs: >-
+        Create or update a blob storage integration for a specific project
+        (requires organization-scoped API key). The configuration is validated
+        by performing a test upload to the bucket.
+      method: PUT
+      path: ''
+      request: CreateBlobStorageIntegrationRequest
+      response: BlobStorageIntegrationResponse

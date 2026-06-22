@@ -1016,19 +1016,28 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    // Update integration after successful processing
-    await prisma.blobStorageIntegration.update({
-      where: {
-        projectId,
-      },
-      data: {
-        lastSyncAt: maxTimestamp,
-        nextSyncAt,
-        lastError: null,
-        lastErrorAt: null,
-        runStartedAt: null,
-      },
-    });
+    // Update integration after successful processing. Use updateMany with a
+    // CAS guard on updatedAt so a mid-run Save (e.g. mode change resetting
+    // lastSyncAt) is not silently overwritten by the stale snapshot.
+    const { count: successUpdateCount } =
+      await prisma.blobStorageIntegration.updateMany({
+        where: {
+          projectId,
+          updatedAt: blobStorageIntegration.updatedAt,
+        },
+        data: {
+          lastSyncAt: maxTimestamp,
+          nextSyncAt,
+          lastError: null,
+          lastErrorAt: null,
+          runStartedAt: null,
+        },
+      });
+    if (successUpdateCount === 0) {
+      logger.info(
+        `[BLOB INTEGRATION] Row modified during run for project ${projectId} — skipping override of lastSyncAt`,
+      );
+    }
 
     // If still catching up, immediately queue the next chunk job.
     // Wrapped in its own try/catch: the chunk already committed successfully

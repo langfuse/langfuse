@@ -1,0 +1,135 @@
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+types:
+  DeleteLlmConnectionResponse:
+    properties:
+      message: string
+  LlmAdapter:
+    enum:
+      - name: Anthropic
+        value: anthropic
+      - name: OpenAI
+        value: openai
+      - name: Azure
+        value: azure
+      - name: Bedrock
+        value: bedrock
+      - name: GoogleVertexAI
+        value: google-vertex-ai
+      - name: GoogleAIStudio
+        value: google-ai-studio
+  LlmConnection:
+    docs: LLM API connection configuration (secrets excluded)
+    properties:
+      adapter:
+        docs: The adapter used to interface with the LLM
+        type: string
+      baseURL:
+        docs: Custom base URL for the LLM API
+        type: optional<string>
+      config:
+        docs: >-
+          Adapter-specific configuration. Required for Bedrock
+          (`{"region":"us-east-1"}`), optional for OpenAI
+          (`{"useResponsesApi":true}`), optional for VertexAI
+          (`{"location":"us-central1"}`), not used by other adapters.
+        type: optional<map<string, unknown>>
+      createdAt: datetime
+      customModels:
+        docs: List of custom model names available for this connection
+        type: list<string>
+      displaySecretKey:
+        docs: Masked version of the secret key for display purposes
+        type: string
+      extraHeaderKeys:
+        docs: >-
+          Keys of extra headers sent with requests (values excluded for
+          security)
+        type: list<string>
+      id: string
+      provider:
+        docs: >-
+          Provider name (e.g., 'openai', 'my-gateway'). Must be unique in
+          project, used for upserting.
+        type: string
+      updatedAt: datetime
+      withDefaultModels:
+        docs: Whether to include default models for this adapter
+        type: boolean
+  PaginatedLlmConnections:
+    properties:
+      data: list<LlmConnection>
+      meta: pagination.MetaResponse
+  UpsertLlmConnectionRequest:
+    docs: Request to create or update an LLM connection (upsert)
+    properties:
+      adapter:
+        docs: The adapter used to interface with the LLM
+        type: LlmAdapter
+      baseURL:
+        docs: Custom base URL for the LLM API
+        type: optional<string>
+      config:
+        docs: >
+          Adapter-specific configuration. Validation rules: - **Bedrock**:
+          Required. Must be `{"region": "<aws-region>"}` (e.g.,
+          `{"region":"us-east-1"}`) - **OpenAI**: Optional. If provided, must be
+          `{"useResponsesApi": <boolean>}` to control whether Langfuse routes
+          calls through OpenAI's Responses API. - **VertexAI**: Optional. If
+          provided, must be `{"location": "<gcp-location>"}` (e.g.,
+          `{"location":"us-central1"}`) - **Other adapters**: Not supported.
+          Omit this field or set to null.
+        type: optional<map<string, unknown>>
+      customModels:
+        docs: List of custom model names
+        type: optional<list<string>>
+      extraHeaders:
+        docs: Extra headers to send with requests
+        type: optional<map<string, string>>
+      provider:
+        docs: >-
+          Provider name (e.g., 'openai', 'my-gateway'). Must be unique in
+          project, used for upserting.
+        type: string
+      secretKey:
+        docs: Secret key for the LLM API.
+        type: string
+      withDefaultModels:
+        docs: Whether to include default models. Default is true.
+        type: optional<boolean>
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    delete:
+      docs: >-
+        Delete an LLM connection by id. Evaluators that depend on the deleted
+        connection are automatically paused.
+      method: DELETE
+      path: /llm-connections/{id}
+      path-parameters:
+        id: string
+      response: DeleteLlmConnectionResponse
+    list:
+      docs: Get all LLM connections in a project
+      method: GET
+      path: /llm-connections
+      request:
+        name: GetLlmConnectionsRequest
+        query-parameters:
+          limit:
+            docs: limit of items per page
+            type: optional<integer>
+          page:
+            docs: page number, starts at 1
+            type: optional<integer>
+      response: PaginatedLlmConnections
+    upsert:
+      docs: >-
+        Create or update an LLM connection. The connection is upserted on
+        provider.
+      method: PUT
+      path: /llm-connections
+      request: UpsertLlmConnectionRequest
+      response: LlmConnection

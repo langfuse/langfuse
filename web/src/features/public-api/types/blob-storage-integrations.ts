@@ -108,7 +108,7 @@ export const CreateBlobStorageIntegrationRequest = z
           if (!d) return true;
           return d.getTime() <= Date.now() + 27 * 60 * 60 * 1000;
         },
-        { message: "Export start date cannot be in the future" },
+        { message: "Export start date must be at most 24 hours in the future" },
       )
       .nullable()
       .optional(),

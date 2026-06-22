@@ -1,0 +1,206 @@
+imports:
+  commons: ./commons.yml
+types:
+  GetMediaResponse:
+    properties:
+      contentLength:
+        docs: The size of the media record in bytes
+        type: integer
+      contentType:
+        docs: The MIME type of the media record
+        type: string
+      mediaId:
+        docs: The unique langfuse identifier of a media record
+        type: string
+      uploadedAt:
+        docs: The date and time when the media record was uploaded
+        type: datetime
+      url:
+        docs: The download URL of the media record
+        type: string
+      urlExpiry:
+        docs: The expiry date and time of the media record download URL
+        type: string
+  GetMediaUploadUrlRequest:
+    properties:
+      contentLength:
+        docs: The size of the media record in bytes
+        type: integer
+      contentType: MediaContentType
+      field:
+        docs: >-
+          The trace / observation field the media record is associated with.
+          This can be one of `input`, `output`, `metadata`
+        type: string
+      observationId:
+        docs: >-
+          The observation ID associated with the media record. If the media
+          record is associated directly with a trace, this will be null.
+        type: optional<string>
+      sha256Hash:
+        docs: The SHA-256 hash of the media record
+        type: string
+      traceId:
+        docs: The trace ID associated with the media record
+        type: string
+  GetMediaUploadUrlResponse:
+    properties:
+      mediaId:
+        docs: The unique langfuse identifier of a media record
+        type: string
+      uploadUrl:
+        docs: >-
+          The presigned upload URL. If the asset is already uploaded, this will
+          be null
+        type: optional<string>
+  MediaContentType:
+    docs: The MIME type of the media record
+    enum:
+      - name: IMAGE_PNG
+        value: image/png
+      - name: IMAGE_JPEG
+        value: image/jpeg
+      - name: IMAGE_JPG
+        value: image/jpg
+      - name: IMAGE_WEBP
+        value: image/webp
+      - name: IMAGE_GIF
+        value: image/gif
+      - name: IMAGE_SVG_XML
+        value: image/svg+xml
+      - name: IMAGE_TIFF
+        value: image/tiff
+      - name: IMAGE_BMP
+        value: image/bmp
+      - name: IMAGE_AVIF
+        value: image/avif
+      - name: IMAGE_HEIC
+        value: image/heic
+      - name: AUDIO_MPEG
+        value: audio/mpeg
+      - name: AUDIO_MP3
+        value: audio/mp3
+      - name: AUDIO_WAV
+        value: audio/wav
+      - name: AUDIO_OGG
+        value: audio/ogg
+      - name: AUDIO_OGA
+        value: audio/oga
+      - name: AUDIO_AAC
+        value: audio/aac
+      - name: AUDIO_MP4
+        value: audio/mp4
+      - name: AUDIO_FLAC
+        value: audio/flac
+      - name: AUDIO_OPUS
+        value: audio/opus
+      - name: AUDIO_WEBM
+        value: audio/webm
+      - name: VIDEO_MP4
+        value: video/mp4
+      - name: VIDEO_WEBM
+        value: video/webm
+      - name: VIDEO_OGG
+        value: video/ogg
+      - name: VIDEO_MPEG
+        value: video/mpeg
+      - name: VIDEO_QUICKTIME
+        value: video/quicktime
+      - name: VIDEO_X_MSVIDEO
+        value: video/x-msvideo
+      - name: VIDEO_X_MATROSKA
+        value: video/x-matroska
+      - name: TEXT_PLAIN
+        value: text/plain
+      - name: TEXT_HTML
+        value: text/html
+      - name: TEXT_CSS
+        value: text/css
+      - name: TEXT_CSV
+        value: text/csv
+      - name: TEXT_MARKDOWN
+        value: text/markdown
+      - name: TEXT_X_PYTHON
+        value: text/x-python
+      - name: APPLICATION_JAVASCRIPT
+        value: application/javascript
+      - name: TEXT_X_TYPESCRIPT
+        value: text/x-typescript
+      - name: APPLICATION_X_YAML
+        value: application/x-yaml
+      - name: APPLICATION_PDF
+        value: application/pdf
+      - name: APPLICATION_MSWORD
+        value: application/msword
+      - name: APPLICATION_MS_EXCEL
+        value: application/vnd.ms-excel
+      - name: APPLICATION_OPENXML_SPREADSHEET
+        value: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      - name: APPLICATION_ZIP
+        value: application/zip
+      - name: APPLICATION_JSON
+        value: application/json
+      - name: APPLICATION_XML
+        value: application/xml
+      - name: APPLICATION_OCTET_STREAM
+        value: application/octet-stream
+      - name: APPLICATION_OPENXML_WORD
+        value: >-
+          application/vnd.openxmlformats-officedocument.wordprocessingml.document
+      - name: APPLICATION_OPENXML_PRESENTATION
+        value: >-
+          application/vnd.openxmlformats-officedocument.presentationml.presentation
+      - name: APPLICATION_RTF
+        value: application/rtf
+      - name: APPLICATION_X_NDJSON
+        value: application/x-ndjson
+      - name: APPLICATION_PARQUET
+        value: application/vnd.apache.parquet
+      - name: APPLICATION_GZIP
+        value: application/gzip
+      - name: APPLICATION_X_TAR
+        value: application/x-tar
+      - name: APPLICATION_X_7Z_COMPRESSED
+        value: application/x-7z-compressed
+  PatchMediaBody:
+    properties:
+      uploadedAt:
+        docs: The date and time when the media record was uploaded
+        type: datetime
+      uploadHttpError:
+        docs: The HTTP error message of the upload
+        type: optional<string>
+      uploadHttpStatus:
+        docs: The HTTP status code of the upload
+        type: integer
+      uploadTimeMs:
+        docs: The time in milliseconds it took to upload the media record
+        type: optional<integer>
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    get:
+      docs: Get a media record
+      method: GET
+      path: /media/{mediaId}
+      path-parameters:
+        mediaId:
+          docs: The unique langfuse identifier of a media record
+          type: string
+      response: GetMediaResponse
+    getUploadUrl:
+      docs: Get a presigned upload URL for a media record
+      method: POST
+      path: /media
+      request: GetMediaUploadUrlRequest
+      response: GetMediaUploadUrlResponse
+    patch:
+      docs: Patch a media record
+      method: PATCH
+      path: /media/{mediaId}
+      path-parameters:
+        mediaId:
+          docs: The unique langfuse identifier of a media record
+          type: string
+      request: PatchMediaBody

@@ -1,0 +1,86 @@
+imports:
+  commons: ./commons.yml
+  pagination: ./utils/pagination.yml
+types:
+  CreateCommentRequest:
+    properties:
+      authorUserId:
+        docs: The id of the user who created the comment.
+        type: optional<string>
+      content:
+        docs: >-
+          The content of the comment. May include markdown. Currently limited to
+          5000 characters.
+        type: string
+      objectId:
+        docs: >-
+          The id of the object to attach the comment to. If this does not
+          reference a valid existing object, an error will be thrown.
+        type: string
+      objectType:
+        docs: >-
+          The type of the object to attach the comment to (trace, observation,
+          session, prompt).
+        type: string
+      projectId:
+        docs: The id of the project to attach the comment to.
+        type: string
+  CreateCommentResponse:
+    properties:
+      id:
+        docs: The id of the created object in Langfuse
+        type: string
+  GetCommentsResponse:
+    properties:
+      data: list<commons.Comment>
+      meta: pagination.MetaResponse
+service:
+  auth: true
+  base-path: /api/public
+  endpoints:
+    create:
+      docs: >-
+        Create a comment. Comments may be attached to different object types
+        (trace, observation, session, prompt).
+      method: POST
+      path: /comments
+      request: CreateCommentRequest
+      response: CreateCommentResponse
+    get:
+      docs: Get all comments
+      method: GET
+      path: /comments
+      request:
+        name: GetCommentsRequest
+        query-parameters:
+          authorUserId:
+            docs: Filter comments by author user id.
+            type: optional<string>
+          limit:
+            docs: >-
+              Limit of items per page. If you encounter api issues due to too
+              large page sizes, try to reduce the limit
+            type: optional<integer>
+          objectId:
+            docs: >-
+              Filter comments by object id. If objectType is not provided, an
+              error will be thrown.
+            type: optional<string>
+          objectType:
+            docs: >-
+              Filter comments by object type (trace, observation, session,
+              prompt).
+            type: optional<string>
+          page:
+            docs: Page number, starts at 1.
+            type: optional<integer>
+      response: GetCommentsResponse
+    get-by-id:
+      docs: Get a comment by id
+      method: GET
+      path: /comments/{commentId}
+      path-parameters:
+        commentId:
+          docs: The unique langfuse identifier of a comment
+          type: string
+      response: commons.Comment
