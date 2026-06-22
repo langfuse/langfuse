@@ -351,6 +351,9 @@ export class IngestionService {
       telemetry_sdk_language: eventData.telemetrySdkLanguage,
       telemetry_sdk_name: eventData.telemetrySdkName,
       telemetry_sdk_version: eventData.telemetrySdkVersion,
+      langfuse_sdk_name: eventData.langfuseSdkName,
+      langfuse_sdk_version: eventData.langfuseSdkVersion,
+      langfuse_ingestion_version: eventData.langfuseIngestionVersion,
 
       // Storage
       blob_storage_file_path: fileKey,

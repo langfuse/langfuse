@@ -82,6 +82,9 @@ export type InternalTraceEventInput = {
   telemetrySdkLanguage?: string;
   telemetrySdkName?: string;
   telemetrySdkVersion?: string;
+  langfuseSdkName?: string | null;
+  langfuseSdkVersion?: string | null;
+  langfuseIngestionVersion?: string | null;
   blobStorageFilePath?: string;
   eventRaw?: string;
   eventBytes?: number;

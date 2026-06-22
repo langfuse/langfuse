@@ -245,6 +245,9 @@ CREATE TABLE IF NOT EXISTS events_full
     telemetry_sdk_language LowCardinality(String),
     telemetry_sdk_name String,
     telemetry_sdk_version String,
+    langfuse_sdk_name LowCardinality(Nullable(String)),
+    langfuse_sdk_version Nullable(String),
+    langfuse_ingestion_version LowCardinality(Nullable(String)),
 
     -- Generic props
     blob_storage_file_path String,
@@ -373,6 +376,9 @@ CREATE TABLE IF NOT EXISTS events_core
     telemetry_sdk_language LowCardinality(String),
     telemetry_sdk_name String,
     telemetry_sdk_version String,
+    langfuse_sdk_name LowCardinality(Nullable(String)),
+    langfuse_sdk_version Nullable(String),
+    langfuse_ingestion_version LowCardinality(Nullable(String)),
 
     -- Generic props
     blob_storage_file_path String,
@@ -408,7 +414,16 @@ SETTINGS
     enable_full_text_index = 1;
      -- cache_populated_by_fetch = 1; -- Not available in OSS ClickHouse
 
+ALTER TABLE events_full ADD COLUMN IF NOT EXISTS langfuse_sdk_name LowCardinality(Nullable(String)) AFTER telemetry_sdk_version;
+ALTER TABLE events_full ADD COLUMN IF NOT EXISTS langfuse_sdk_version Nullable(String) AFTER langfuse_sdk_name;
+ALTER TABLE events_full ADD COLUMN IF NOT EXISTS langfuse_ingestion_version LowCardinality(Nullable(String)) AFTER langfuse_sdk_version;
+
+ALTER TABLE events_core ADD COLUMN IF NOT EXISTS langfuse_sdk_name LowCardinality(Nullable(String)) AFTER telemetry_sdk_version;
+ALTER TABLE events_core ADD COLUMN IF NOT EXISTS langfuse_sdk_version Nullable(String) AFTER langfuse_sdk_name;
+ALTER TABLE events_core ADD COLUMN IF NOT EXISTS langfuse_ingestion_version LowCardinality(Nullable(String)) AFTER langfuse_sdk_version;
+
 -- Materialized view to populate events_core from events_full.
+DROP VIEW IF EXISTS events_core_mv;
 CREATE MATERIALIZED VIEW IF NOT EXISTS events_core_mv TO events_core AS
 SELECT
     project_id,
@@ -471,6 +486,9 @@ SELECT
     telemetry_sdk_language,
     telemetry_sdk_name,
     telemetry_sdk_version,
+    langfuse_sdk_name,
+    langfuse_sdk_version,
+    langfuse_ingestion_version,
     blob_storage_file_path,
     event_bytes,
     created_at,

@@ -5,6 +5,7 @@ import {
   markProjectIngestFailure,
   OtelIngestionProcessor,
   markProjectAsOtelUser,
+  parseLangfuseIngestionVersion,
 } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
@@ -18,9 +19,19 @@ function getLangfuseHeader(
   name: string,
 ): string | undefined {
   const hyphenVal = headers[name];
-  if (typeof hyphenVal === "string") return hyphenVal;
+  const hyphenString = Array.isArray(hyphenVal) ? hyphenVal[0] : hyphenVal;
+  if (typeof hyphenString === "string") {
+    const value = hyphenString.trim();
+    if (value) return value;
+  }
   const underscoreVal = headers[name.replaceAll("-", "_")];
-  if (typeof underscoreVal === "string") return underscoreVal;
+  const underscoreString = Array.isArray(underscoreVal)
+    ? underscoreVal[0]
+    : underscoreVal;
+  if (typeof underscoreString === "string") {
+    const value = underscoreString.trim();
+    if (value) return value;
+  }
   return undefined;
 }
 
@@ -146,12 +157,11 @@ export default withMiddlewares({
 
       // Reject unsupported future ingestion versions (> 4)
       // Lower versions are valid but use dual write (path A)
-      const parsedIngestionVersion = ingestionVersion
-        ? parseInt(ingestionVersion, 10)
-        : undefined;
+      const parsedIngestionVersion =
+        parseLangfuseIngestionVersion(ingestionVersion);
       if (
-        parsedIngestionVersion !== undefined &&
-        (isNaN(parsedIngestionVersion) || parsedIngestionVersion > 4)
+        parsedIngestionVersion === null ||
+        (parsedIngestionVersion !== undefined && parsedIngestionVersion > 4)
       ) {
         res.status(400);
         return {

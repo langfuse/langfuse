@@ -6,9 +6,13 @@ import {
   getCurrentSpan,
   getS3EventStorageClient,
   type IngestionEventType,
+  extractBaseLangfuseSdkVersion,
   logger,
   markProjectIngestFailure,
+  normalizeLangfuseSdkHeaders,
+  normalizeLangfuseSdkName,
   OtelIngestionProcessor,
+  parseLangfuseIngestionVersion,
   processEventBatch,
   QueueName,
   recordDistribution,
@@ -62,13 +66,14 @@ export function checkHeaderBasedDirectWrite(params: {
 
   // Check x-langfuse-ingestion-version (>= 4 means direct write eligible).
   // Values > 4 are rejected at the API route, so anything reaching here is valid.
-  const parsed = ingestionVersion ? parseInt(ingestionVersion, 10) : NaN;
-  if (!isNaN(parsed) && parsed >= 4) {
+  const parsed = parseLangfuseIngestionVersion(ingestionVersion);
+  if (parsed !== null && parsed !== undefined && parsed >= 4) {
     return true;
   }
 
   // Check Langfuse SDK name + version
-  if (!sdkName || !sdkVersion) {
+  const normalizedSdkName = normalizeLangfuseSdkName(sdkName);
+  if (!normalizedSdkName || !sdkVersion) {
     return false;
   }
 
@@ -76,13 +81,13 @@ export function checkHeaderBasedDirectWrite(params: {
     // compareVersions returns null when current >= minimum (no update needed).
     // Strip pre-release/build metadata so that e.g. 4.0.0-rc.1 qualifies as 4.0.0.
     // Also normalize Python PEP440 shorthand (e.g. 4.0.0b1, 4.0.0rc1) to the core version.
-    const baseVersion = extractBaseSdkVersion(sdkVersion);
+    const baseVersion = extractBaseLangfuseSdkVersion(sdkVersion);
 
-    if (sdkName === "python") {
+    if (normalizedSdkName === "python") {
       return compareVersions(baseVersion, "v4.0.0") === null;
     }
 
-    if (sdkName === "javascript") {
+    if (normalizedSdkName === "javascript") {
       return compareVersions(baseVersion, "v5.0.0") === null;
     }
   } catch {
@@ -92,23 +97,6 @@ export function checkHeaderBasedDirectWrite(params: {
   }
 
   return false;
-}
-
-function extractBaseSdkVersion(sdkVersion: string): string {
-  const version = sdkVersion.trim();
-
-  // Standard semver / semver pre-release / build metadata
-  if (/^v?\d+\.\d+\.\d+(?:[-+].+)?$/i.test(version)) {
-    return version.split(/[-+]/)[0];
-  }
-
-  // Python PEP 440 pre-release shorthand: 4.0.0a1, 4.0.0b1, 4.0.0rc1
-  const pep440Match = version.match(/^(v?\d+\.\d+\.\d+)(?:a|b|rc)\d+$/i);
-  if (pep440Match?.[1]) {
-    return pep440Match[1];
-  }
-
-  return version;
 }
 
 /**
@@ -474,6 +462,11 @@ export const otelIngestionQueueProcessorBuilder = (
       // Determine what processing is needed
       const shouldWriteToEventsTable =
         v4WritesToEventsTable(env) && useDirectEventWrite;
+      const langfuseSdkHeaders = normalizeLangfuseSdkHeaders({
+        sdkName: job.data.payload.sdkName,
+        sdkVersion: job.data.payload.sdkVersion,
+        ingestionVersion: job.data.payload.ingestionVersion,
+      });
 
       const evalConfigs = await fetchObservationEvalConfigs(projectId).catch(
         (error) => {
@@ -542,6 +535,13 @@ export const otelIngestionQueueProcessorBuilder = (
           // Step 3: Write to events table (independent of eval scheduling)
           if (shouldWriteToEventsTable) {
             try {
+              eventRecord.langfuse_sdk_name =
+                langfuseSdkHeaders.langfuseSdkName ?? null;
+              eventRecord.langfuse_sdk_version =
+                langfuseSdkHeaders.langfuseSdkVersion ?? null;
+              eventRecord.langfuse_ingestion_version =
+                langfuseSdkHeaders.langfuseIngestionVersion ?? null;
+
               ingestionService.writeEventRecord(eventRecord);
             } catch (error) {
               traceException(error);

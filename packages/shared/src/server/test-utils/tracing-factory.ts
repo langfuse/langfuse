@@ -289,6 +289,9 @@ export const createEvent = (
     telemetry_sdk_language: null,
     telemetry_sdk_name: null,
     telemetry_sdk_version: null,
+    langfuse_sdk_name: null,
+    langfuse_sdk_version: null,
+    langfuse_ingestion_version: null,
 
     // Generic props
     blob_storage_file_path: "",

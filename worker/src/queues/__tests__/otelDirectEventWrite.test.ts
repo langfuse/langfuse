@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { normalizeLangfuseSdkHeaders } from "@langfuse/shared/src/server";
 import {
   checkHeaderBasedDirectWrite,
   checkSdkVersionRequirements,
@@ -22,6 +23,11 @@ describe("checkHeaderBasedDirectWrite", () => {
       input: { sdkName: "python", sdkVersion: "4.2.1" },
       expected: true,
       label: "python 4.2.1 (above minimum)",
+    },
+    {
+      input: { sdkName: " Python ", sdkVersion: " v4.0.0 " },
+      expected: true,
+      label: "python with casing, spaces, and v prefix",
     },
     {
       input: { sdkName: "python", sdkVersion: "3.9.0" },
@@ -109,6 +115,16 @@ describe("checkHeaderBasedDirectWrite", () => {
       label: "ingestionVersion '4'",
     },
     {
+      input: { ingestionVersion: "04" },
+      expected: true,
+      label: "ingestionVersion with leading zero",
+    },
+    {
+      input: { ingestionVersion: "4abc" },
+      expected: false,
+      label: "malformed ingestionVersion",
+    },
+    {
       input: {
         ingestionVersion: "4",
         sdkName: undefined,
@@ -146,6 +162,36 @@ describe("checkHeaderBasedDirectWrite", () => {
     },
   ])("$label → $expected", ({ input, expected }) => {
     expect(checkHeaderBasedDirectWrite(input)).toBe(expected);
+  });
+});
+
+describe("normalizeLangfuseSdkHeaders", () => {
+  it("normalizes persisted Langfuse SDK header values", () => {
+    expect(
+      normalizeLangfuseSdkHeaders({
+        sdkName: " Python ",
+        sdkVersion: " v4.0.0-rc.1+build.7 ",
+        ingestionVersion: "04",
+      }),
+    ).toEqual({
+      langfuseSdkName: "python",
+      langfuseSdkVersion: "4.0.0",
+      langfuseIngestionVersion: "4",
+    });
+  });
+
+  it("keeps malformed but present versions visible while dropping empty headers", () => {
+    expect(
+      normalizeLangfuseSdkHeaders({
+        sdkName: "",
+        sdkVersion: "not-a-version",
+        ingestionVersion: "4abc",
+      }),
+    ).toEqual({
+      langfuseSdkName: undefined,
+      langfuseSdkVersion: "not-a-version",
+      langfuseIngestionVersion: "4abc",
+    });
   });
 });
 

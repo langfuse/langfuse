@@ -716,6 +716,9 @@ export const eventRecordBaseSchema = z.object({
   telemetry_sdk_language: z.string().nullish(),
   telemetry_sdk_name: z.string().nullish(),
   telemetry_sdk_version: z.string().nullish(),
+  langfuse_sdk_name: z.string().nullish(),
+  langfuse_sdk_version: z.string().nullish(),
+  langfuse_ingestion_version: z.string().nullish(),
 
   // Generic props
   blob_storage_file_path: z.string(),
