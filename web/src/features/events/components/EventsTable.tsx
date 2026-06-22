@@ -444,19 +444,21 @@ export default function ObservationsEventsTable({
     [filterOptions, isFilterOptionsPending],
   );
 
-  const { store: searchBarStore, commit: searchBarCommit } = useEventsSearchBar(
-    {
-      projectId,
-      enabled: searchBarMode,
-      filterState: queryFilter.explicitFilterState,
-      searchQuery,
-      searchType,
-      observed: observedOptions,
-      setFilterState: setFiltersWrapper,
-      setSearchQuery,
-      setSearchType,
-    },
-  );
+  const {
+    store: searchBarStore,
+    commit: searchBarCommit,
+    applyFilters: searchBarApplyFilters,
+  } = useEventsSearchBar({
+    projectId,
+    enabled: searchBarMode,
+    filterState: queryFilter.explicitFilterState,
+    searchQuery,
+    searchType,
+    observed: observedOptions,
+    setFilterState: setFiltersWrapper,
+    setSearchQuery,
+    setSearchType,
+  });
 
   // Disabled for now because perhaps confusing
   // const viewModeFilter: FilterState =
@@ -1484,7 +1486,7 @@ export default function ObservationsEventsTable({
                 store={searchBarStore}
                 commit={searchBarCommit}
                 observed={observedOptions}
-                setFilterState={setFiltersWrapper}
+                onApplyFilters={searchBarApplyFilters}
               />
             )}
             {/* Toolbar spanning full width */}

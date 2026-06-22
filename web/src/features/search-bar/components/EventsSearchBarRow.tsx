@@ -25,14 +25,18 @@ export function EventsSearchBarRow({
   store,
   commit,
   observed,
-  setFilterState,
+  onApplyFilters,
 }: {
   projectId: string;
   store: SearchBarStore;
   commit: () => string | null;
   observed: ObservedOptions | undefined;
-  /** Applies AI-generated filters (apply-immediately); the bar re-derives them. */
-  setFilterState: (filters: FilterState) => void;
+  /**
+   * Applies AI-generated filters (apply-immediately); the bar re-derives them.
+   * Preserves filters the grammar can't represent (no-silent-drop contract) —
+   * comes from `useEventsSearchBar.applyFilters`, not a raw `setFilterState`.
+   */
+  onApplyFilters: (filters: FilterState) => void;
 }) {
   const [aiMode, setAiMode] = React.useState(false);
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -47,7 +51,7 @@ export function EventsSearchBarRow({
       {aiMode && aiAvailable ? (
         <SearchBarAiPrompt
           projectId={projectId}
-          onApply={setFilterState}
+          onApply={onApplyFilters}
           onExit={() => setAiMode(false)}
         />
       ) : (

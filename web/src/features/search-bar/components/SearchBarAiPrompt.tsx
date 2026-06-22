@@ -49,22 +49,13 @@ export function SearchBarAiPrompt({
       }
       onApply(result.filters as FilterState);
       onExit();
-    } catch (err) {
-      // The tRPC error formatter masks INTERNAL_SERVER_ERROR messages to a
-      // generic "we have been notified" string, which reads like a Langfuse bug
-      // rather than "retry". Show our own friendly copy for that (and any
-      // codeless failure); surface the real message only for the informative
-      // precondition/forbidden cases.
-      const code = (err as { data?: { code?: string } } | null)?.data?.code;
-      const hasUsefulMessage =
-        err instanceof Error &&
-        code !== undefined &&
-        code !== "INTERNAL_SERVER_ERROR";
-      setError(
-        hasUsefulMessage
-          ? (err as Error).message
-          : "Couldn't reach the AI service. Please try again.",
-      );
+    } catch {
+      // Never surface raw server messages: a TRPCClientError is an Error, so its
+      // message could leak internal state, and the tRPC formatter masks 500s to
+      // an unhelpful "we have been notified" string anyway. The auth/precondition
+      // cases are unreachable behind the cloud + aiFeaturesEnabled gate. Show one
+      // generic, actionable message instead.
+      setError("Couldn't reach the AI service. Please try again.");
     }
   };
 

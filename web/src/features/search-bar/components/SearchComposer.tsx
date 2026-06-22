@@ -863,14 +863,16 @@ export function SearchComposer({
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.nativeEvent.isComposing) return;
 
-    // Tab on an EMPTY bar opens AI mode (Raycast-style "Quick AI"). An empty
-    // draft has no highlighted completion to pick, so this never shadows the
-    // autocomplete's Tab-to-pick (which only fires once the user has typed).
+    // Tab on an EMPTY bar opens AI mode (Raycast-style "Quick AI"). An empty bar
+    // CAN have a highlighted completion — recents are offered on an empty draft —
+    // so only hijack Tab when nothing is highlighted; an explicit highlight
+    // (ArrowDown onto a recent) keeps the Tab-to-pick handler below.
     if (
       event.key === "Tab" &&
       !event.shiftKey &&
       onActivateAi !== undefined &&
-      draft.trim().length === 0
+      draft.trim().length === 0 &&
+      highlightedRef.current === null
     ) {
       event.preventDefault();
       onActivateAi();

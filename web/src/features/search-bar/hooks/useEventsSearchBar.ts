@@ -78,7 +78,11 @@ export function useEventsSearchBar({
   setFilterState: (filters: FilterState) => void;
   setSearchQuery: (query: string | null) => void;
   setSearchType: (type: TracingSearchType[]) => void;
-}): { store: SearchBarStore; commit: () => string | null } {
+}): {
+  store: SearchBarStore;
+  commit: () => string | null;
+  applyFilters: (filters: FilterState) => void;
+} {
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
   const observedRef = useRef(observed);
@@ -130,6 +134,29 @@ export function useEventsSearchBar({
   const searchTypeRef = useRef(searchType);
   searchTypeRef.current = searchType;
 
+  // Re-attach the filters the grammar can't represent so neither a grammar
+  // commit nor an AI apply ever drops them (no-silent-drop contract) — but drop
+  // any skipped filter whose (column, key) the new set just produced, so an
+  // explicit edit replaces it instead of duplicating the column in URL state.
+  const mergeWithSkipped = useCallback((filters: FilterState): FilterState => {
+    const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
+    const preserved = skippedFiltersRef.current.filter(
+      (f) => !producedKeys.has(filterIdentity(f)),
+    );
+    return preserved.length > 0 ? [...filters, ...preserved] : filters;
+  }, []);
+
+  // Apply an externally-produced filter set (the AI filter generator) the same
+  // way a commit does — preserving skipped filters — instead of a raw replace
+  // that would silently drop them. AI returns only filters (no free text), so
+  // searchQuery/searchType are untouched.
+  const applyFilters = useCallback(
+    (filters: FilterState) => {
+      applyRef.current.setFilterState(mergeWithSkipped(filters));
+    },
+    [mergeWithSkipped],
+  );
+
   const commit = useCallback((): string | null => {
     const result = planCommit(
       store.getState().draft,
@@ -141,15 +168,8 @@ export function useEventsSearchBar({
     }
     const { setFilterState, setSearchQuery, setSearchType } = applyRef.current;
     // Re-attach the filters the grammar can't represent so the commit never
-    // drops them (no-silent-drop contract) — but drop any skipped filter whose
-    // (column, key) the bar just produced, so an explicit bar edit replaces it
-    // instead of duplicating the column in URL state.
-    const producedKeys = new Set(result.filters.map((f) => filterIdentity(f)));
-    const preserved = skippedFiltersRef.current.filter(
-      (f) => !producedKeys.has(filterIdentity(f)),
-    );
-    const committedFilters =
-      preserved.length > 0 ? [...result.filters, ...preserved] : result.filters;
+    // drops them (no-silent-drop contract; shared with the AI apply path).
+    const committedFilters = mergeWithSkipped(result.filters);
     setFilterState(committedFilters);
     setSearchQuery(result.searchQuery);
     // Only write searchType when it actually changed. planCommit coerces a
@@ -174,7 +194,7 @@ export function useEventsSearchBar({
         searchType: result.searchType,
       }).text,
     );
-  }, [store, projectId]);
+  }, [store, projectId, mergeWithSkipped]);
 
-  return { store, commit };
+  return { store, commit, applyFilters };
 }

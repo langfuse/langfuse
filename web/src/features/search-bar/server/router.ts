@@ -170,10 +170,14 @@ export const searchBarRouter = createTRPCRouter({
 
         return { filters, queryText };
       } catch (error) {
-        logger.error("Failed to generate search-bar AI filter", error);
+        // Already-shaped rejections (auth / precondition / not-found) are
+        // expected control flow, not backend faults — rethrow them without
+        // ERROR-level noise. Reserve `logger.error` for the unexpected, so it
+        // stays a signal for genuine failures.
         if (error instanceof TRPCError) {
           throw error;
         }
+        logger.error("Failed to generate search-bar AI filter", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:
