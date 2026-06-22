@@ -119,7 +119,7 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true, lastError: true },
+      select: { exportMode: true, lastError: true, runStartedAt: true },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -174,7 +174,10 @@ export async function upsertBlobStorageIntegration(params: {
         ...(modeChanged && data.enabled
           ? { lastError: null, lastErrorAt: null }
           : {}),
-        runStartedAt: null,
+        ...(existing?.runStartedAt &&
+        existing.runStartedAt.getTime() < Date.now() - 60 * 60 * 1000
+          ? { runStartedAt: null }
+          : {}),
       },
     });
 
