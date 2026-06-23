@@ -53,7 +53,11 @@ function overlayZIndexValue(utility: string): number | null {
 
 function* offendingZIndexUtilities(value: string): Generator<string> {
   for (const match of value.matchAll(/\S+/g)) {
-    const utility = stripVariants(normalizeTailwindToken(match[0]));
+    // Strip the variant chain first, THEN the important modifier. The `!` can
+    // sit after the variant prefix (`md:!z-50`, `hover:!z-9999`,
+    // `dark:!z-[9999]`); stripping variants first leaves `!z-50`, which
+    // normalizeTailwindToken then reduces to `z-50` so the matcher sees it.
+    const utility = normalizeTailwindToken(stripVariants(match[0]));
     if (overlayZIndexValue(utility) !== null) yield utility;
   }
 }

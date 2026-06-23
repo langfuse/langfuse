@@ -50,6 +50,19 @@ ruleTester.run("no-overlay-zindex", rule, {
       code: `<div className="!z-50" />`,
       errors: [{ messageId: "unexpected" }],
     },
+    // Important modifier sitting AFTER the variant prefix.
+    {
+      code: `<div className="md:!z-50" />`,
+      errors: [{ messageId: "unexpected" }],
+    },
+    {
+      code: `<div className="hover:!z-9999" />`,
+      errors: [{ messageId: "unexpected" }],
+    },
+    {
+      code: `<div className="dark:!z-[9999]" />`,
+      errors: [{ messageId: "unexpected" }],
+    },
     {
       code: `<div className="z-50!" />`,
       errors: [{ messageId: "unexpected" }],
