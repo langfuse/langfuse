@@ -7,7 +7,9 @@
 // AI mode (Tab on an empty bar, or the "Ask AI" affordance) swaps the grammar
 // composer for a natural-language prompt. The generated filters are applied
 // through `setFilterState` — the SAME path the facet sidebar uses — so the
-// composer re-derives them as editable pills when we switch back.
+// composer re-derives them as editable pills when we switch back. When opened
+// with filters present, the current query text is captured as refine context so
+// the model updates the existing filters instead of starting from scratch.
 
 import * as React from "react";
 
@@ -38,7 +40,12 @@ export function EventsSearchBarRow({
    */
   onApplyFilters: (filters: FilterState) => void;
 }) {
-  const [aiMode, setAiMode] = React.useState(false);
+  // `context` is the bar query text captured when AI mode opens, so the model
+  // can refine existing filters (empty when the bar is empty).
+  const [ai, setAi] = React.useState<{ open: boolean; context: string }>({
+    open: false,
+    context: "",
+  });
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { organization } = useQueryProject();
   // Mirror the legacy wand gate: Cloud + org-level AI features. The server
@@ -46,20 +53,27 @@ export function EventsSearchBarRow({
   const aiAvailable =
     isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
 
+  // The resting draft equals the committed query text, so it is the current
+  // filter set in bar grammar — exactly the refine context the model needs.
+  const activateAi = React.useCallback(() => {
+    setAi({ open: true, context: store.getState().draft.trim() });
+  }, [store]);
+
   return (
     <div className="min-w-0 px-2 pt-2 pb-1">
-      {aiMode && aiAvailable ? (
+      {ai.open && aiAvailable ? (
         <SearchBarAiPrompt
           projectId={projectId}
+          currentQuery={ai.context}
           onApply={onApplyFilters}
-          onExit={() => setAiMode(false)}
+          onExit={() => setAi({ open: false, context: "" })}
         />
       ) : (
         <SearchBarStoreProvider store={store} commit={commit}>
           <SearchComposer
             projectId={projectId}
             observed={observed}
-            onActivateAi={aiAvailable ? () => setAiMode(true) : undefined}
+            onActivateAi={aiAvailable ? activateAi : undefined}
           />
         </SearchBarStoreProvider>
       )}

@@ -34,6 +34,8 @@ import { parseGeneratedFilters } from "./parseFilterCompletion";
 const GenerateFilterInput = z.object({
   projectId: z.string(),
   prompt: z.string().min(1).max(2048),
+  /** Existing bar query text, so the model refines the current filters. */
+  currentQuery: z.string().max(4096).optional(),
 });
 
 export const searchBarRouter = createTRPCRouter({
@@ -90,7 +92,10 @@ export const searchBarRouter = createTRPCRouter({
         const now = new Date();
         const dayOfWeek = now.toLocaleDateString("en-US", { weekday: "long" });
         const currentDatetime = `${dayOfWeek}, ${now.toISOString()}`;
-        const systemPrompt = buildFilterSystemPrompt(currentDatetime);
+        const systemPrompt = buildFilterSystemPrompt(
+          currentDatetime,
+          input.currentQuery,
+        );
 
         const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;
         const targetProjectId = aiTelemetryEnabled

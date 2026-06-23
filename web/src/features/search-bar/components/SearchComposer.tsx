@@ -291,7 +291,7 @@ export function SearchComposer({
   projectId: string;
   /** Observed facet values for value suggestions; undefined = loading. */
   observed: ObservedOptions | undefined;
-  /** When set, an empty bar shows an "Ask AI" affordance and Tab opens AI mode. */
+  /** When set, a clickable "Ask AI" button is shown to build / refine filters. */
   onActivateAi?: () => void;
 }) {
   const storeApi = useSearchBarStoreApi();
@@ -863,22 +863,6 @@ export function SearchComposer({
   const onKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.nativeEvent.isComposing) return;
 
-    // Tab on an EMPTY bar opens AI mode (Raycast-style "Quick AI"). An empty bar
-    // CAN have a highlighted completion — recents are offered on an empty draft —
-    // so only hijack Tab when nothing is highlighted; an explicit highlight
-    // (ArrowDown onto a recent) keeps the Tab-to-pick handler below.
-    if (
-      event.key === "Tab" &&
-      !event.shiftKey &&
-      onActivateAi !== undefined &&
-      draft.trim().length === 0 &&
-      highlightedRef.current === null
-    ) {
-      event.preventDefault();
-      onActivateAi();
-      return;
-    }
-
     if (
       (event.metaKey || event.ctrlKey) &&
       (event.key === "z" || event.key === "Z")
@@ -1317,8 +1301,12 @@ export function SearchComposer({
           // break across a wrap. Balanced padding: a small, even gutter on all
           // sides (the left no longer dwarfs the inter-pill gap and top), py
           // centers a single line near min-h-9 and the box grows when wrapped.
-          // pr-8 keeps the top-right error icon clear of the last token.
-          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5 pr-8",
+          // Right gutter keeps the last token clear of the top-right control:
+          // the "Ask AI" button (pr-20), or the error icon (pr-8).
+          "border-input bg-background relative min-h-9 rounded-md border px-2 py-1.5",
+          onActivateAi !== undefined && !showGlobalDiagnostics
+            ? "pr-20"
+            : "pr-8",
           "focus-within:ring-ring focus-within:ring-1",
           showGlobalDiagnostics &&
             "border-destructive focus-within:ring-destructive/40",
@@ -1328,38 +1316,11 @@ export function SearchComposer({
           <div
             className={cn(
               "text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 truncate font-mono text-xs",
-              onActivateAi !== undefined ? "pr-24" : "pr-8",
+              onActivateAi !== undefined ? "pr-20" : "pr-8",
             )}
           >
             {COMPOSER_PLACEHOLDER}
           </div>
-        )}
-        {/* "Ask AI" affordance — only on an empty bar (Tab opens the same mode).
-            bg-background keeps it legible over the placeholder text behind it.
-            onMouseDown preventDefault so a click doesn't blur the editor first. */}
-        {onActivateAi !== undefined && draft.length === 0 && (
-          <button
-            type="button"
-            data-testid="search-bar-ask-ai"
-            aria-label="Ask AI to build filters"
-            title="Describe filters in natural language (Tab)"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={(event) => {
-              event.stopPropagation();
-              onActivateAi();
-            }}
-            className={cn(
-              "absolute top-1/2 right-2 z-20 inline-flex -translate-y-1/2 items-center gap-1.5 rounded border border-transparent px-1.5 py-0.5",
-              "bg-background text-muted-foreground font-sans text-xs",
-              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
-            )}
-          >
-            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Ask AI</span>
-            <kbd className="border-border ml-0.5 rounded border px-1 font-mono text-[10px] leading-none">
-              ⇥
-            </kbd>
-          </button>
         )}
         <div
           ref={rootRef}
@@ -1415,6 +1376,38 @@ export function SearchComposer({
             scoreTypes={scoreTypes}
           />
         </div>
+        {/* "Ask AI" affordance — a plain button, always available so filters can
+            be built from scratch OR refined. Placed AFTER the field in the DOM so
+            forward Tab moves from the field onto this button (not past the bar).
+            Deliberately NOT a Tab shortcut: while typing, Tab belongs to
+            autocomplete navigation. Hidden while the error icon occupies the
+            corner. bg-background keeps it legible; onMouseDown preventDefault so a
+            click doesn't blur the editor first. */}
+        {onActivateAi !== undefined && !showGlobalDiagnostics && (
+          <button
+            type="button"
+            data-testid="search-bar-ask-ai"
+            aria-label="Ask AI to build or refine filters"
+            title={
+              draft.trim().length === 0
+                ? "Describe filters in natural language"
+                : "Refine these filters with AI"
+            }
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onActivateAi();
+            }}
+            className={cn(
+              "absolute top-1.5 right-2 z-20 inline-flex items-center gap-1.5 rounded-md border border-transparent px-1.5 py-0.5",
+              "bg-background text-muted-foreground font-sans text-xs",
+              "hover:border-border hover:text-foreground hover:bg-accent transition-colors",
+            )}
+          >
+            <WandSparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Ask AI</span>
+          </button>
+        )}
         {/* Bar-local overlay stacking ladder: token text (base) < remove-X
             (z-20) < autocomplete popover (z-50). Both the X and the popover drop
             BELOW the bar, staying in-flow inside the table. The error tooltip is

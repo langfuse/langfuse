@@ -72,6 +72,19 @@ describe("buildFilterSystemPrompt", () => {
     expect(prompt).toContain(SCORE_COLUMNS.trace.numeric);
     expect(prompt).toContain(SCORE_COLUMNS.trace.categorical);
   });
+
+  it("omits the refine section without a current query", () => {
+    expect(prompt).not.toContain("Current filters (refine these)");
+  });
+
+  it("includes the current query as refine context when provided", () => {
+    const refinePrompt = buildFilterSystemPrompt(
+      "Monday, 2026-06-15T00:00:00.000Z",
+      "environment:production level:ERROR",
+    );
+    expect(refinePrompt).toContain("Current filters (refine these)");
+    expect(refinePrompt).toContain("environment:production level:ERROR");
+  });
 });
 
 describe("prompt field specs round-trip to bar grammar", () => {

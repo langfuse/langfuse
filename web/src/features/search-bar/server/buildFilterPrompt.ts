@@ -76,11 +76,21 @@ function fieldCatalogLine(field: FieldDef): string {
 
 /**
  * Build the full system prompt. `currentDatetime` anchors relative time
- * expressions ("today", "last 24h") to the request time.
+ * expressions ("today", "last 24h") to the request time. `currentQuery`, when
+ * present, is the user's existing filters (in this same syntax) so the model
+ * REFINES them and returns the complete updated set.
  */
-export function buildFilterSystemPrompt(currentDatetime: string): string {
+export function buildFilterSystemPrompt(
+  currentDatetime: string,
+  currentQuery?: string,
+): string {
   const catalog = FIELDS.map(fieldCatalogLine).join("\n");
   const nullableIds = FIELDS.filter((f) => f.nullable).map((f) => f.id);
+  const refine = (currentQuery ?? "").trim();
+  const refineSection =
+    refine.length > 0
+      ? `\n## Current filters (refine these)\n\nThe user already has these filters applied (same syntax as your output):\n\`${refine}\`\nTreat the request as a change to this set — add, modify, or remove filters as implied — and return the COMPLETE updated filter array (all the filters that should remain, not just the delta).\n`
+      : "";
 
   return `## Role
 
@@ -148,7 +158,7 @@ filter on the "input" or "output" column (e.g. find traces whose output mentions
 
 The current datetime is: ${currentDatetime}
 Use it to resolve relative time expressions against the startTime column.
-
+${refineSection}
 ## Examples
 
 Input: "slow production traces from the last 24 hours"
