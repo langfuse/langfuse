@@ -15,7 +15,10 @@ import {
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
 import { Badge } from "@/src/components/ui/badge";
+import { Button } from "@/src/components/ui/button";
 import { Checkbox } from "@/src/components/ui/checkbox";
+import TableLink from "@/src/components/table/table-link";
+import { Copy, Folder, Trash } from "lucide-react";
 
 // -----------------------------------------------------------------------------
 // Mock data
@@ -345,13 +348,13 @@ const plainColumns: LangfuseColumnDef<DemoRow>[] = [
 
 type PaginationMode = "offset" | "cursor" | "none";
 
-function useAsyncPagedData({
+function useAsyncPagedData<TRow>({
   rows,
   pageSize,
   mode,
   latencyMs = 450,
 }: {
-  rows: DemoRow[];
+  rows: TRow[];
   pageSize: number;
   mode: PaginationMode;
   latencyMs?: number;
@@ -380,7 +383,7 @@ function useAsyncPagedData({
     [latencyMs],
   );
 
-  const data: AsyncTableData<DemoRow[]> = {
+  const data: AsyncTableData<TRow[]> = {
     isLoading,
     isError: false,
     data: isLoading ? undefined : slice,
@@ -544,8 +547,15 @@ export const Error = meta.story({
 });
 
 // -----------------------------------------------------------------------------
-// 2. Kitchen sink (everything on, with arg knobs)
+// 2. Kitchen sink — dense "Traces-like" preset (everything on, with arg knobs)
 // -----------------------------------------------------------------------------
+// This is the dense, Traces-shaped table: an authored checkbox selection column
+// (added by the story, since DataTable has none), status badges, latency, a
+// multi-line IO cell, grouped score/cost headers, and the compact default
+// density. It mirrors what the real Traces/Observations tables render. The four
+// knobs (rowHeight / cellPadding / topAlignCells / shouldRenderGroupHeaders)
+// stay live so a reviewer can flip compact↔comfortable and toggle group headers.
+// Compare it against the comfortable "Prompts-like" preset below (section 6).
 
 function KitchenSinkStory(args: DataTableStoryArgs) {
   const { data, paginationProp } = useAsyncPagedData({
@@ -831,5 +841,251 @@ export const DensityShowcase = meta.story({
       <DensityPanel rowHeight="m" />
       <DensityPanel rowHeight="l" />
     </>
+  ),
+});
+
+// -----------------------------------------------------------------------------
+// 6. "Prompts-like" preset — comfortable density, folder/icon + tag + action cells
+// -----------------------------------------------------------------------------
+// Reproduces the real Prompts table (features/prompts/components/prompts-table.tsx)
+// so the comparison with the dense Traces-like KitchenSink is apples-to-apples:
+//   - cellPadding="comfortable" (the Prompts table's one-off override, set at
+//     prompts-table.tsx:482) instead of the compact default.
+//   - A first "Name" column that mixes a folder row (Folder icon + label, via the
+//     same TableLink + icon pattern as FolderBreadcrumbLink) with normal
+//     prompt-name link rows. This is where the "weird spacing for the folder
+//     icon" misalignment shows: the icon row's TableLink caps at `max-h-4`, so its
+//     baseline sits differently from the plain text-link rows beside it.
+//   - A "Versions"/"Type" pair: folder rows render null (empty cells), so the
+//     row-to-row column rhythm visibly breaks between folder and prompt rows.
+//   - A numeric link cell ("0"-style: TableLink wrapping a count) like the real
+//     "Number of Observations (7d)" column.
+//   - Tag-chip cells (Badges); folder rows render a fixed-height spacer instead
+//     (mirrors the `<div className="h-6" />` in the real Tags column that keeps
+//     folder + prompt rows the same height).
+//   - A trailing action-icon column (copy + delete ghost icon buttons), matching
+//     the real Actions column (DuplicateFolder/DeleteFolder vs DeletePrompt).
+
+type PromptDemoRow = {
+  id: string;
+  name: string;
+  type: "folder" | "text" | "chat";
+  version?: number;
+  createdAt?: string;
+  numberOfObservations?: number;
+  tags?: string[];
+};
+
+const PROMPT_ROWS: PromptDemoRow[] = [
+  { id: "f-checkout", name: "checkout", type: "folder" },
+  { id: "f-retrieval", name: "retrieval", type: "folder" },
+  {
+    id: "p-summarizer",
+    name: "summarizer",
+    type: "chat",
+    version: 12,
+    createdAt: "2026-06-21T14:30:00.000Z",
+    numberOfObservations: 18432,
+    tags: ["production", "rag", "reviewed"],
+  },
+  {
+    id: "p-classifier",
+    name: "intent-classifier",
+    type: "text",
+    version: 3,
+    createdAt: "2026-06-20T09:12:00.000Z",
+    numberOfObservations: 0,
+    tags: ["staging"],
+  },
+  {
+    id: "p-guardrail",
+    name: "guardrail-eval",
+    type: "text",
+    version: 7,
+    createdAt: "2026-06-19T22:05:00.000Z",
+    numberOfObservations: 944,
+    tags: [],
+  },
+  {
+    id: "p-rerank",
+    name: "rerank-step",
+    type: "chat",
+    version: 1,
+    createdAt: "2026-06-18T11:48:00.000Z",
+    numberOfObservations: 27,
+    tags: ["experimental", "latency-sensitive"],
+  },
+];
+
+const promptColumns: LangfuseColumnDef<PromptDemoRow>[] = [
+  {
+    accessorKey: "name",
+    id: "name",
+    header: "Name",
+    enableSorting: true,
+    size: 250,
+    cell: ({ row }) => {
+      const { name, type } = row.original;
+      if (type === "folder") {
+        // Folder row: TableLink with an icon node (Folder + label), exactly like
+        // FolderBreadcrumbLink. The icon path forces `max-h-4` on the link, which
+        // is the source of the folder-icon vertical-spacing quirk vs text rows.
+        return (
+          <TableLink
+            path=""
+            value={name}
+            title={name}
+            icon={
+              <div className="flex flex-row items-center gap-1">
+                <Folder className="h-4 w-4" />
+                {name}
+              </div>
+            }
+          />
+        );
+      }
+      return <TableLink path={`/prompts/${name}`} value={name} title={name} />;
+    },
+  },
+  {
+    accessorKey: "version",
+    id: "version",
+    header: "Versions",
+    enableSorting: true,
+    size: 70,
+    // Folder rows render null -> empty cell, breaking the column rhythm between
+    // folder and prompt rows (mirrors the real Versions column).
+    cell: ({ row }) =>
+      row.original.type === "folder" ? null : row.original.version,
+  },
+  {
+    accessorKey: "type",
+    id: "type",
+    header: "Type",
+    enableSorting: true,
+    size: 60,
+  },
+  {
+    accessorKey: "numberOfObservations",
+    id: "numberOfObservations",
+    header: "Number of Observations (7d)",
+    size: 170,
+    // "0"-style numeric link cell: a TableLink wrapping the count (the real table
+    // links through to a filtered observations view). 0 still renders a link.
+    cell: ({ row }) => {
+      if (row.original.type === "folder") return null;
+      const n = row.original.numberOfObservations ?? 0;
+      return <TableLink path="/observations" value={n.toLocaleString()} />;
+    },
+  },
+  {
+    accessorKey: "tags",
+    id: "tags",
+    header: "Tags",
+    enableSorting: true,
+    size: 160,
+    cell: ({ row }) => {
+      // Folder rows: fixed-height spacer so folder + prompt rows match height
+      // (h-6, exactly as the real Tags column does).
+      if (row.original.type === "folder") return <div className="h-6" />;
+      const tags = row.original.tags ?? [];
+      if (tags.length === 0) {
+        return <span className="text-muted-foreground text-xs">—</span>;
+      }
+      return (
+        <div className="flex flex-wrap gap-1">
+          {tags.map((tag) => (
+            <Badge key={tag} variant="tertiary" size="sm">
+              {tag}
+            </Badge>
+          ))}
+        </div>
+      );
+    },
+  },
+  {
+    accessorKey: "id",
+    id: "actions",
+    header: "Actions",
+    size: 70,
+    enableSorting: false,
+    // Trailing action-icon column: ghost icon buttons (copy/delete), matching the
+    // real Actions column. Folder rows get duplicate+delete; prompt rows delete.
+    cell: ({ row }) => {
+      if (row.original.type === "folder") {
+        return (
+          <div className="flex gap-1">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Duplicate folder"
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
+              <Trash className="h-4 w-4" />
+            </Button>
+          </div>
+        );
+      }
+      return (
+        <Button variant="ghost" size="icon-xs" aria-label="Delete prompt">
+          <Trash className="h-4 w-4" />
+        </Button>
+      );
+    },
+  },
+];
+
+function PromptsLikeStory(args: DataTableStoryArgs) {
+  const { data, paginationProp } = useAsyncPagedData<PromptDemoRow>({
+    rows: PROMPT_ROWS,
+    pageSize: 20,
+    mode: "offset",
+  });
+  const [orderBy, setOrderBy] = useState<OrderByState>({
+    column: "createdAt",
+    order: "DESC",
+  });
+
+  return (
+    <DataTable<PromptDemoRow, unknown>
+      tableName="story-prompts-like"
+      columns={promptColumns}
+      data={data}
+      pagination={paginationProp}
+      orderBy={orderBy}
+      setOrderBy={setOrderBy}
+      rowHeight={args.rowHeight}
+      // Default to the real Prompts table's comfortable density; the knob can
+      // override it to compare against compact.
+      cellPadding={args.cellPadding}
+    />
+  );
+}
+
+export const PromptsLike = meta.story({
+  args: {
+    rowHeight: "s",
+    cellPadding: "comfortable",
+  },
+  argTypes: {
+    rowHeight: {
+      control: "inline-radio",
+      options: ["s", "m", "l"],
+      description: "Row height: s=h-7, m=h-24, l=h-64 (Prompts uses s)",
+    },
+    cellPadding: {
+      control: "inline-radio",
+      options: ["compact", "comfortable", "none"],
+      description:
+        "Cell padding. The real Prompts table sets 'comfortable' (prompts-table.tsx:482); flip to 'compact' to compare against the dense default.",
+    },
+  },
+  render: (args) => (
+    <PromptsLikeStory
+      rowHeight={args.rowHeight}
+      cellPadding={args.cellPadding}
+    />
   ),
 });
