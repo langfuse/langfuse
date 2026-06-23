@@ -1120,5 +1120,16 @@ describe("Number precision (issue #6628)", () => {
       const result = parse({ output: flatJson }) as any;
       expect(result.output.as_number).toBe("107505301260286111");
     });
+
+    it("preserves a big integer inside a Python-dict-formatted string", () => {
+      // LangChain/LangGraph tool calls are logged as Python dicts, which often
+      // carry big integer run/correlation IDs. These reach the Python-dict
+      // fallback parser, not the JSON parser.
+      const result = parse(
+        "{'request_id': 107505301260286111, 'ok': True}",
+      ) as any;
+      expect(result.request_id).toBe("107505301260286111");
+      expect(result.ok).toBe(true);
+    });
   });
 });

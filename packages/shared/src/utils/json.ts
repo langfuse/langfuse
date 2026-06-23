@@ -34,7 +34,9 @@ function tryParsePythonDict(str: string): unknown {
       // therefore, the failure case is the default already.
       .replace(/'/g, '"');
 
-    return JSON.parse(jsonStr);
+    // parsePreservingPrecision (not JSON.parse) so big integers in Python-dict
+    // payloads (e.g. LangChain/LangGraph run IDs) keep their precision too.
+    return parsePreservingPrecision(jsonStr);
   } catch {
     return str;
   }
