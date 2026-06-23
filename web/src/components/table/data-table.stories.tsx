@@ -47,7 +47,7 @@ import {
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { InfoIcon, MoreVertical, Trash } from "lucide-react";
+import { Copy, InfoIcon, MoreVertical, Trash } from "lucide-react";
 
 // =============================================================================
 // FIDELITY GOAL
@@ -912,16 +912,22 @@ export const NoPagination = meta.story({
 //   - Dense:       rowHeight "s" + compact, the real Traces default.
 //   - Comfortable: rowHeight "m" + comfortable, expanded IO cells.
 
+// One full page of rows. `manualPagination` is on (server-driven), so TanStack
+// does not slice; the footer reflects these props verbatim. Keep data length,
+// pageSize, and totalCount equal so the footer reads a truthful "1 - 10 of 10".
+const TRACES_PAGE_SIZE = 10;
 const tracesPagination = {
-  totalCount: TRACE_ROWS.length,
+  totalCount: TRACES_PAGE_SIZE,
   onChange: fn(),
-  state: { pageIndex: 0, pageSize: 10 },
+  state: { pageIndex: 0, pageSize: TRACES_PAGE_SIZE },
 };
 
 function TracesTable({
+  tableName,
   rowHeight,
   cellPadding,
 }: {
+  tableName: string;
   rowHeight: RowHeight;
   cellPadding?: "compact" | "comfortable" | "none";
 }) {
@@ -941,9 +947,9 @@ function TracesTable({
 
   return (
     <DataTable<TraceRow, unknown>
-      tableName="traces"
+      tableName={tableName}
       columns={columns}
-      data={loadedTraceData()}
+      data={loadedTraceData(TRACES_PAGE_SIZE)}
       pagination={tracesPagination}
       orderBy={orderBy}
       setOrderBy={setOrderBy}
@@ -958,11 +964,19 @@ function TracesTable({
 }
 
 export const Dense = meta.story({
-  render: () => <TracesTable rowHeight="s" cellPadding="compact" />,
+  render: () => (
+    <TracesTable tableName="story-dense" rowHeight="s" cellPadding="compact" />
+  ),
 });
 
 export const Comfortable = meta.story({
-  render: () => <TracesTable rowHeight="m" cellPadding="comfortable" />,
+  render: () => (
+    <TracesTable
+      tableName="story-comfortable"
+      rowHeight="m"
+      cellPadding="comfortable"
+    />
+  ),
 });
 
 // -----------------------------------------------------------------------------
@@ -1301,7 +1315,7 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
               size="icon-xs"
               aria-label="Duplicate folder"
             >
-              <Trash className="h-4 w-4" />
+              <Copy className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="icon-xs" aria-label="Delete folder">
               <Trash className="h-4 w-4" />
@@ -1331,7 +1345,7 @@ function FolderRowsStory() {
 
   return (
     <DataTable<PromptRow, unknown>
-      tableName="prompts"
+      tableName="story-folder-rows"
       columns={promptColumns}
       data={data}
       pagination={paginationProp}
