@@ -270,7 +270,7 @@ export const MonitorForm = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      staleTime: Infinity,
+      staleTime: 60 * 1000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
     },

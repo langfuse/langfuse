@@ -2,16 +2,31 @@ import { api } from "@/src/utils/api";
 import {
   type ExperimentEvalOptions,
   type ObservationEvalOptions,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useMemo } from "react";
+
+const EVAL_FILTER_OPTIONS_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+const getLowerBoundTimeFilter = (
+  column: "timestamp" | "startTime",
+  value: Date,
+): TimeFilter[] => [{ column, type: "datetime", operator: ">=", value }];
 
 export function useEvalConfigFilterOptions({
   projectId,
 }: {
   projectId: string;
 }) {
+  const filterOptionsFrom = useMemo(
+    () => new Date(Date.now() - EVAL_FILTER_OPTIONS_LOOKBACK_MS),
+    [],
+  );
+
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId },
+    {
+      projectId,
+      timestampFilter: getLowerBoundTimeFilter("timestamp", filterOptionsFrom),
+    },
     {
       trpc: { context: { skipBatch: true } },
       refetchOnMount: false,
@@ -25,6 +40,7 @@ export function useEvalConfigFilterOptions({
     api.projects.environmentFilterOptions.useQuery(
       {
         projectId,
+        fromTimestamp: filterOptionsFrom,
       },
       {
         trpc: { context: { skipBatch: true } },
@@ -39,6 +55,7 @@ export function useEvalConfigFilterOptions({
     api.generations.filterOptions.useQuery({
       projectId,
       observationType: "ALL",
+      startTimeFilter: getLowerBoundTimeFilter("startTime", filterOptionsFrom),
     });
 
   const traceFilterOptions = useMemo(() => {
