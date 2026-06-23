@@ -14,8 +14,10 @@ import {
  *
  * Two endpoints, four logical events:
  *   - `/manage-user` — upsertUser (lead/contact)
- *   - org endpoint  — upsertOrg (type:"updateOrg") on org create
- *                   — setUserRole (type:"setUserRole") on member add or role change
+ *   - org endpoint  — upsertOrg (type:"updateOrg") on org create (Account only;
+ *                     does not link the owner — see setUserRole)
+ *                   — setUserRole (type:"setUserRole") on org create (owner link),
+ *                     member add, or role change
  *                     (a NONE role is synced as removeUser instead)
  *                   — removeUser  (type:"removeUser")  on member removal
  *
@@ -182,8 +184,10 @@ export class SfdcService {
   }
 
   /**
-   * Org upsert on organization create. POSTs to org endpoint; Mulesoft links
-   * the creator's lead to the org as an org-member server-side.
+   * Org upsert on organization create. POSTs to the org endpoint to create or
+   * update the SFDC Account only — it does NOT link the creator as an
+   * org-member, so callers must follow with setUserRole to establish the
+   * member bridge. (userId/email/role remain required by the payload.)
    */
   async upsertOrg(input: UpsertOrgInput): Promise<void> {
     return this.run("upsertOrg", { orgId: input.orgId }, async () => {
@@ -223,11 +227,11 @@ export class SfdcService {
   }
 
   /**
-   * Set or update a user's role within an org. Fires on membership creation
-   * (invite accept, admin add, SCIM provision) and on role changes. A NONE
-   * role (project-only membership) means SFDC must hold no org-member bridge
-   * for the user, so it is synced as a removal — that covers downgrades of
-   * existing members.
+   * Set or update a user's role within an org. Fires on org create (to link
+   * the owner, since upsertOrg does not), membership creation (invite accept,
+   * admin add, SCIM provision), and role changes. A NONE role (project-only
+   * membership) means SFDC must hold no org-member bridge for the user, so it
+   * is synced as a removal — that covers downgrades of existing members.
    */
   async setUserRole(input: SetUserRoleInput): Promise<void> {
     if (input.role === "NONE") {
