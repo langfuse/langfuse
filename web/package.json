@@ -26,7 +26,8 @@
     "test:e2e:server": "vitest run --project e2e-server",
     "build-trace": "dotenv -e ../.env -- next internal trace .next/trace-turbopack",
     "storybook": "dotenv -e ../.env -- storybook dev -p 6006",
-    "build-storybook": "dotenv -e ../.env -- storybook build"
+    "build-storybook": "dotenv -e ../.env -- storybook build",
+    "sfdc:backfill": "dotenv -e ../.env -- tsx src/ee/features/sfdc-sync/scripts/backfillSfdcLeads.ts"
   },
   "dependencies": {
     "@ag-ui/client": "^0.0.52",
@@ -215,6 +216,7 @@
     "prettier-plugin-tailwindcss": "^0.7.2",
     "storybook": "10.3.6",
     "tailwindcss": "^4.2.2",
+    "tsx": "^4.20.5",
     "typescript": "^5.7.2",
     "vite": "^7.3.5",
     "vite-tsconfig-paths": "^6.1.1",
