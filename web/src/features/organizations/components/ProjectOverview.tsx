@@ -239,7 +239,7 @@ const SingleOrganizationProjectOverviewTile = ({
 
   // While searching, auto-expand orgs that have a match and collapse the rest
   // so collapsed orgs don't hide search hits; otherwise follow the stored state.
-  const isSearching = Boolean(search?.trim());
+  const isSearching = Boolean(search);
   const hasMatchingProject = org.projects.some(
     (p) => !search || p.name.toLowerCase().includes(search.toLowerCase()),
   );
@@ -304,7 +304,10 @@ export const OrganizationProjectOverview = () => {
   const session = useSession();
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
-  const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
+  const [{ search: rawSearch }, setQueryParams] = useQueryParams({
+    search: StringParam,
+  });
+  const search = rawSearch?.trim() ? rawSearch.trim() : undefined;
 
   if (organizations === undefined) {
     return "loading...";
