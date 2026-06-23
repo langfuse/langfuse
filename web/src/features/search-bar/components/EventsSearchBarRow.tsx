@@ -28,6 +28,7 @@ export function EventsSearchBarRow({
   commit,
   observed,
   onApplyFilters,
+  aiDataContext,
 }: {
   projectId: string;
   store: SearchBarStore;
@@ -39,6 +40,9 @@ export function EventsSearchBarRow({
    * comes from `useEventsSearchBar.applyFilters`, not a raw `setFilterState`.
    */
   onApplyFilters: (filters: FilterState) => void;
+  /** Project data context (observed values + metadata keys + result count) for
+   *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
+  aiDataContext?: string;
 }) {
   // `context` is the bar query text captured when AI mode opens, so the model
   // can refine existing filters (empty when the bar is empty).
@@ -65,6 +69,7 @@ export function EventsSearchBarRow({
         <SearchBarAiPrompt
           projectId={projectId}
           currentQuery={ai.context}
+          dataContext={aiDataContext}
           onApply={onApplyFilters}
           onExit={() => setAi({ open: false, context: "" })}
         />

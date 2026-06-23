@@ -36,6 +36,9 @@ const GenerateFilterInput = z.object({
   prompt: z.string().min(1).max(2048),
   /** Existing bar query text, so the model refines the current filters. */
   currentQuery: z.string().max(4096).optional(),
+  /** Project data context (observed values, metadata keys, result count) built
+   *  on the client from already-loaded filterOptions + visible rows. */
+  dataContext: z.string().max(16000).optional(),
 });
 
 export const searchBarRouter = createTRPCRouter({
@@ -95,6 +98,7 @@ export const searchBarRouter = createTRPCRouter({
         const systemPrompt = buildFilterSystemPrompt(
           currentDatetime,
           input.currentQuery,
+          input.dataContext,
         );
 
         const aiTelemetryEnabled = project.organization.aiTelemetryEnabled;

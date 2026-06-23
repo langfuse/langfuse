@@ -17,7 +17,10 @@ evals.
   ValidationException (Opus 4.8 rejects `temperature`/`top_p`; fixed by dropping
   them) — and nobody noticed, so the bar is "clearly works," not "perfectly
   tuned." Local experiments show the prompt is **good on the prod model** (see
-  "Local prompt experiments"). Ship it.
+  "Local prompt experiments"), and **trace-awareness** (observed values +
+  metadata keys + result count injected into the prompt) is now in the MVP, so
+  the model maps onto the project's real columns/values instead of guessing.
+  Ship it.
 - **Piece 2 (the real tuning, dogfooded on Langfuse).** Prompt management +
   versions, enriched tracing, dataset + evals — the disciplined loop, and a
   Langfuse workshop in its own right. Everything from "Why dogfood Langfuse"
@@ -89,10 +92,44 @@ tuning needed to ship.
 | edge | gibberish | (none) | ✅ empty |
 | **gap** | routing queue is membership-support | metadata.routing.queue | ❌ guesses traceName/sessionId |
 
-The one failure is the **data-awareness gap**: the model doesn't know the
-project's metadata keys, so it guesses a column. Fixed by injecting observed
-context (`{{observedContext}}`) — **Piece 2**. The scenario set above is the seed
-for the Piece-2 eval dataset.
+The one failure was the **data-awareness gap**: the model didn't know the
+project's metadata keys (or actual `type`/name values), so it guessed a column.
+
+**RESOLVED (now in the MVP).** A "project data context" block is injected into
+the prompt — observed values per column + metadata keys (flattened dot-paths
+sampled from the visible rows) + the current result count — built on the client
+from already-loaded `filterOptions` + visible rows (`lib/ai-context.ts`), capped
+for cost. Re-validated on Opus 4.8 with that context:
+
+| Prompt | Before | After (with context) |
+| --- | --- | --- |
+| only support chat sessions | `type:chat` → 0 rows | `traceName:SupportChatSession` ✅ |
+| routing queue is membership-support | `traceName:…` / `sessionId:…` | `metadata.routing.queue:membership-support` ✅ |
+| errors in the last hour (control) | ✅ | still ✅ |
+
+The scenario set above is the seed for the Piece-2 eval dataset. Remaining
+Piece-2 work: a sample of visible-row *content* (input/output) for even richer
+grounding, and the full managed-prompt + dataset/eval loop.
+
+### Full-surface capability coverage (also in the MVP)
+
+The prompt was expanded to teach the **whole** v4 grammar — not just simple
+column matches — and to be **brave with metadata**. Validated on Opus 4.8 with
+*variations* (not the verbatim examples), 7/7:
+
+| Request | Generated |
+| --- | --- |
+| filter to the acme tenant | `metadata.tenant:acme` |
+| mention 'password reset' in the response | `output:"password reset"` |
+| where the sentiment is positive | `scores.sentiment:positive` |
+| traces missing a user id | `-has:userId` |
+| exclude debug and warning levels | `-level:(DEBUG OR WARNING)` |
+| tagged with both experiment and baseline | `traceTags:(experiment AND baseline)` |
+| expensive claude calls in staging that aren't errors | `providedModelName:claude totalCost:>0.5 environment:staging -level:ERROR` |
+
+So the generator now reaches into metadata, content (input/output) search,
+numeric + categorical scores, null/has checks, tag any/all/none groups, and
+negation — the full surface, generalized from diverse examples.
 
 Harness: throwaway tsx that shells `aws bedrock-runtime converse --profile
 playground` per scenario (needs Bedrock creds). **Caveat:** quality is

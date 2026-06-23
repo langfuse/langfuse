@@ -21,12 +21,16 @@ import { cn } from "@/src/utils/tailwind";
 export function SearchBarAiPrompt({
   projectId,
   currentQuery,
+  dataContext,
   onApply,
   onExit,
 }: {
   projectId: string;
   /** Current bar query text, sent as refine context when filters already exist. */
   currentQuery?: string;
+  /** Observed values + metadata keys + result count, so the model maps to the
+   *  project's real columns/values instead of guessing. */
+  dataContext?: string;
   /** Apply generated filters via the bar's setFilterState (apply-immediately). */
   onApply: (filters: FilterState) => void;
   /** Leave AI mode and restore the grammar composer. */
@@ -63,6 +67,7 @@ export function SearchBarAiPrompt({
         projectId,
         prompt,
         currentQuery: refining ? refineContext : undefined,
+        dataContext,
       });
       if (result.filters.length === 0) {
         setError("Couldn't build filters from that — try rephrasing.");

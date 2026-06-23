@@ -104,6 +104,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { useSearchBarEnabled } from "@/src/features/search-bar/hooks/useSearchBarEnabled";
 import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 export type EventsTableRow = {
@@ -550,6 +551,27 @@ export default function ObservationsEventsTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observations.status, observations.rows]);
+
+  // Project data context for the AI filter prompt: observed values (from
+  // filterOptions) + metadata keys sampled from the visible rows + the current
+  // result count, so the model maps NL onto real columns/values rather than
+  // guessing (e.g. `type:chat`). Reuses already-loaded data; only when the bar
+  // is active.
+  const aiDataContext = useMemo(() => {
+    if (!searchBarMode) return undefined;
+    // totalCount is only computed on "select all"; use the loaded/visible row
+    // count for the empty-vs-nonempty signal instead.
+    return buildAiContext({
+      observed: observedOptions,
+      sampleMetadata: (observations.rows ?? [])
+        .slice(0, 30)
+        .map((o) => o.metadata),
+      resultCount:
+        observations.status === "success"
+          ? (observations.rows?.length ?? 0)
+          : null,
+    });
+  }, [searchBarMode, observedOptions, observations.rows, observations.status]);
 
   const { scoreColumns, isLoading: isColumnLoading } =
     useScoreColumns<EventsTableRow>({
@@ -1499,6 +1521,7 @@ export default function ObservationsEventsTable({
                 commit={searchBarCommit}
                 observed={observedOptions}
                 onApplyFilters={searchBarApplyFilters}
+                aiDataContext={aiDataContext}
               />
             )}
             {/* Toolbar spanning full width */}

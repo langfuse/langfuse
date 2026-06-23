@@ -88,10 +88,16 @@ function fieldCatalogLine(field: FieldDef): string {
 export function buildFilterSystemPrompt(
   currentDatetime: string,
   currentQuery?: string,
+  dataContext?: string,
 ): string {
   const catalog = FIELDS.map(fieldCatalogLine).join("\n");
   const nullableIds = FIELDS.filter((f) => f.nullable).map((f) => f.id);
   const refine = (currentQuery ?? "").trim();
+  const data = (dataContext ?? "").trim();
+  const dataSection =
+    data.length > 0
+      ? `\n## Observed project data\n\nMap the request to the columns, values, and metadata keys that ACTUALLY appear below — prefer an observed value/metadata key over guessing a column. If a phrase matches a metadata key, use \`metadata.<key>\`. Do not invent values that aren't here unless the user gave a literal one.\n\n${data}\n`
+      : "";
   const refineSection =
     refine.length > 0
       ? `\n## Current filters (refine these)\n\nThe user already has these filters applied (same syntax as your output):\n\`${refine}\`\nTreat the request as a change to this set — add, modify, or remove filters as implied — and return the COMPLETE updated filter array (all the filters that should remain, not just the delta).\n`
@@ -100,9 +106,23 @@ export function buildFilterSystemPrompt(
   return `## Role
 
 You are the Langfuse filter generator for the observability (v4 events) table.
-Parse a natural-language request about LLM traces/observations into a flat
-Langfuse filter array in JSON. Map the request to the exact column ids,
-operators, and value shapes below. Only use columns from the catalog.
+Turn a natural-language request about LLM traces/observations into a flat
+Langfuse filter array in JSON, using the FULL filter surface — not just simple
+column matches. You can filter on:
+- catalog columns (below) with their operators,
+- custom **metadata** by key — BE WILLING to reach into metadata; many
+  domain-specific attributes (queue, tenant, customer tier, feature flag, region,
+  step, …) live in metadata, not in a top-level column,
+- evaluation **scores** by name (numeric comparisons or categorical values),
+- **content search**: substring match on the input / output payload,
+- **null checks** (has / missing), tag groups (any / all / none of), and
+  **negation / exclusion**.
+
+Prefer values, metadata keys, and score names that appear in the observed
+project data below (when provided) over inventing your own. Use real catalog
+columns for standard fields; for anything custom or domain-specific, use
+\`metadata.<key>\`. Don't fall back to a vague column guess when metadata or
+content search expresses the intent better.
 
 ## Output format
 
@@ -129,10 +149,17 @@ ${catalog}
 The "level" column values are one of: DEBUG, DEFAULT, WARNING, ERROR. "errors"
 or "failed" → level any of ["ERROR"]. "warnings" → ["WARNING"].
 
-## Metadata
+## Metadata (use it boldly)
 
 Custom trace/observation metadata is addressed by key:
 {"type": "stringObject", "column": "metadata", "key": "<the metadata key>", "operator": "=" | "contains" | "does not contain" | "starts with" | "ends with", "value": "<string>"}
+
+If the request names a domain-specific attribute that is NOT a catalog column
+(e.g. "routing queue", "tenant", "customer tier", "feature flag", "experiment
+step"), filter on metadata: \`{"type":"stringObject","column":"metadata","key":"<key>",...}\`.
+When the observed project data lists a metadata key that matches the user's
+phrase (e.g. "routing queue" → metadata.routing.queue), use that exact key. Use
+"contains" when the user gives a fuzzy/partial value, "=" for an exact value.
 
 ## Scores (evaluation results)
 
@@ -150,6 +177,22 @@ For nullable columns, "has no X" / "is missing X" → {"type": "null", "column":
 To search inside the request/response payload text, use a "string" "contains"
 filter on the "input" or "output" column (e.g. find traces whose output mentions
 "refund" → {"type": "string", "column": "output", "operator": "contains", "value": "refund"}).
+"mentions / talks about / says / contains X" in a trace → input and/or output
+contains X.
+
+## Negation & exclusion
+
+- "not X" / "exclude X" / "except X" on an enum column (level, environment, type,
+  traceTags, …) → operator "none of": {"type":"stringOptions"|"arrayOptions","column":...,"operator":"none of","value":[...]}.
+- "does not contain Y" on text / metadata / input / output → "does not contain".
+- "without X" / "missing X" / "no X" on a nullable column → null "is null"; "has X"
+  / "with an X" → null "is not null".
+- Negated numbers use the inverse comparison ("not slower than 2s" → latency <= 2).
+
+## Tag groups
+
+traceTags is an array. "tagged a or b" → any of [a, b]; "tagged BOTH a and b" →
+"all of" [a, b]; "not tagged a" → "none of" [a].
 
 ## Intent hints
 
@@ -163,8 +206,12 @@ filter on the "input" or "output" column (e.g. find traces whose output mentions
 
 The current datetime is: ${currentDatetime}
 Use it to resolve relative time expressions against the startTime column.
-${refineSection}
+${refineSection}${dataSection}
 ## Examples
+
+These span the full surface — comparisons, scores, metadata, content search,
+null checks, tag groups, and negation. Match the user's intent to the closest
+capability; don't reduce everything to a name/type guess.
 
 Input: "slow production traces from the last 24 hours"
 Output: [{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]},{"type":"number","column":"latency","operator":">","value":5},{"type":"datetime","column":"startTime","operator":">","value":"<24h before current datetime, ISO 8601>"}]
@@ -172,6 +219,21 @@ Output: [{"type":"stringOptions","column":"environment","operator":"any of","val
 Input: "errors with accuracy score below 0.8 tagged billing"
 Output: [{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"numberObject","column":"${SCORE_COLUMNS.observation.numeric}","key":"accuracy","operator":"<","value":0.8},{"type":"arrayOptions","column":"traceTags","operator":"any of","value":["billing"]}]
 
-Input: "traces where metadata region is eu and output mentions timeout"
-Output: [{"type":"stringObject","column":"metadata","key":"region","operator":"=","value":"eu"},{"type":"string","column":"output","operator":"contains","value":"timeout"}]`;
+Input: "requests for the membership-support routing queue"
+Output: [{"type":"stringObject","column":"metadata","key":"routing.queue","operator":"=","value":"membership-support"}]
+
+Input: "where the output talks about a refund and the input mentions cancel"
+Output: [{"type":"string","column":"output","operator":"contains","value":"refund"},{"type":"string","column":"input","operator":"contains","value":"cancel"}]
+
+Input: "traces with negative sentiment"
+Output: [{"type":"categoryOptions","column":"${SCORE_COLUMNS.observation.categorical}","key":"sentiment","operator":"any of","value":["negative"]}]
+
+Input: "unfinished spans that have no end time"
+Output: [{"type":"null","column":"endTime","operator":"is null","value":""}]
+
+Input: "tagged both urgent and billing, not in dev"
+Output: [{"type":"arrayOptions","column":"traceTags","operator":"all of","value":["urgent","billing"]},{"type":"stringOptions","column":"environment","operator":"none of","value":["dev"]}]
+
+Input: "gpt-4 generations costing more than $0.50 that aren't errors"
+Output: [{"type":"stringOptions","column":"providedModelName","operator":"any of","value":["gpt-4"]},{"type":"stringOptions","column":"type","operator":"any of","value":["GENERATION"]},{"type":"number","column":"totalCost","operator":">","value":0.5},{"type":"stringOptions","column":"level","operator":"none of","value":["ERROR"]}]`;
 }
