@@ -7646,15 +7646,12 @@ components:
           nullable: true
           description: >-
             Raw error message from the storage provider (S3/Azure/GCS) if the
-            last export failed. Cleared when a new export run starts and on
-            successful export.
+            last export failed. Cleared on successful export.
         lastErrorAt:
           type: string
           format: date-time
           nullable: true
-          description: >-
-            When the last error occurred. Cleared when a new export run starts
-            and on successful export.
+          description: When the last error occurred. Cleared on successful export.
       required:
         - id
         - projectId

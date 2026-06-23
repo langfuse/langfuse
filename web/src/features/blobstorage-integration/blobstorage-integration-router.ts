@@ -281,8 +281,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           where: { projectId: input.projectId },
           data: {
             nextSyncAt: new Date(),
-            lastError: null,
-            lastErrorAt: null,
           },
         });
 
@@ -315,8 +313,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
               where: { projectId: input.projectId },
               data: {
                 nextSyncAt: integration.nextSyncAt,
-                lastError: integration.lastError,
-                lastErrorAt: integration.lastErrorAt,
               },
             })
             .catch((rollbackError) =>

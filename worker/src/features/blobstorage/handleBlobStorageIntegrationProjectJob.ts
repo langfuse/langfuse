@@ -791,8 +791,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         where: { projectId },
         data: {
           runStartedAt: null,
-          lastError: null,
-          lastErrorAt: null,
           nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
         },
       });
@@ -837,8 +835,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
         where: { projectId },
         data: {
           runStartedAt: null,
-          lastError: null,
-          lastErrorAt: null,
           ...(shouldAdvanceLastSyncAt && {
             lastSyncAt: new Date(
               Math.min(
@@ -858,7 +854,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
     await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: { runStartedAt: new Date(), lastError: null, lastErrorAt: null },
+      data: { runStartedAt: new Date() },
     });
 
     // Fail loudly rather than export from unpopulated tables when an enriched

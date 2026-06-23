@@ -212,10 +212,10 @@ types:
         docs: When the next export is scheduled. Null if no sync has occurred yet.
       lastError:
         type: nullable<string>
-        docs: Raw error message from the storage provider (S3/Azure/GCS) if the last export failed. Cleared when a new export run starts and on successful export.
+        docs: Raw error message from the storage provider (S3/Azure/GCS) if the last export failed. Cleared on successful export.
       lastErrorAt:
         type: nullable<datetime>
-        docs: When the last error occurred. Cleared when a new export run starts and on successful export.
+        docs: When the last error occurred. Cleared on successful export.
 
   BlobStorageIntegrationDeletionResponse:
     properties:
