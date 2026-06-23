@@ -50,9 +50,7 @@ import {
   DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-// LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED lives in the shared env (read by
-// StorageService); used here to gate part-level upload stats, which only the
-// S3 buffered path produces.
+// Shared env for the buffered-upload flag (gates part-level upload stats).
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
@@ -70,9 +68,7 @@ export async function* enrichObservationStream(
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
-  // Only the per-row model-price lookup is skipped when skipEnrichment is true;
-  // latency conversion and metadata-map cleanup below always run, so output is
-  // byte-for-byte unchanged when the flag is off.
+  // skipEnrichment drops only the model-price lookup; latency + metadata cleanup still run.
   const includeModelId =
     !skipEnrichment && (!fieldGroups || fieldGroups.includes("model"));
 
@@ -285,9 +281,7 @@ const processBlobStorageExport = async (config: {
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
   rawPassthrough: boolean;
-  // LFE-10394 upload tuning (resolved + clamped). partSizeBytes always concrete
-  // (100 MB default); concurrency/attempts are undefined unless the operator set
-  // them, so each StorageService backend keeps its native default.
+  // undefined concurrency/attempts => backend keeps its native default.
   partSizeBytes: number;
   maxConcurrentParts: number | undefined;
   maxPartAttempts: number | undefined;
@@ -341,10 +335,9 @@ const processBlobStorageExport = async (config: {
       span.setAttribute("job.attemptsMade", config.bullmqAttemptsMade);
       span.setAttribute("host.name", WORKER_HOST_ID);
 
-      // Resolved per-project tuning (after clamp/fallback) for correlation.
+      // Resolved per-project tuning. Concurrency/attempts omitted when unset
+      // (no single value — the backend default applies).
       span.setAttribute("blob.config.partSizeBytes", config.partSizeBytes);
-      // Only set when the operator tuned them; otherwise the backend default
-      // applies and there is no single value to report.
       if (config.maxConcurrentParts !== undefined) {
         span.setAttribute(
           "blob.config.maxConcurrentParts",
@@ -598,11 +591,9 @@ const processBlobStorageExport = async (config: {
         // For CSV exports, use larger part size to handle big files
         // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
         // This prevents hitting AWS's 10,000 part limit on large exports
-        // uploadStats is a mutable sink the uploader fills live, so the counts
-        // land on the span even when the upload throws. Only the S3 buffered
-        // path populates it; on every other path it stays {0,0,0}, so gate the
-        // telemetry on whether stats are actually produced to avoid reporting
-        // real exports as zero-part uploads.
+        // Mutable sink the uploader fills live (readable even if upload throws).
+        // Only the S3 buffered path populates it; producesUploadStats gates the
+        // telemetry so other paths don't report zero-part uploads.
         const uploadStats = {
           partsUploaded: 0,
           partRetries: 0,
@@ -680,10 +671,8 @@ const processBlobStorageExport = async (config: {
               `rows=${sourceStats.rows} chReadMs=${chReadMs} enrichMs=${enrichMs} ` +
               `gzipCpuMs=${gzipCpuMs} uploadWaitMs=${uploadWaitMs} ` +
               `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${uploadDurationMs} ` +
-              // "configured*" = the resolved tuning, not necessarily what each
-              // backend applied (e.g. the non-buffered S3 path ignores partSize
-              // and uses lib-storage's 5 MiB default). Mirrors the blob.config.*
-              // span attributes; blob.upload.* below are the actual effects.
+              // "configured*" = resolved tuning, not necessarily what the backend
+              // applied; uploadParts/Retries/Failures below are the actual effects.
               `configuredPartSizeBytes=${config.partSizeBytes} configuredMaxConcurrentParts=${config.maxConcurrentParts ?? "default"} ` +
               `configuredMaxPartAttempts=${config.maxPartAttempts ?? "default"} skipEnrichment=${config.skipEnrichment}` +
               (producesUploadStats
@@ -751,8 +740,6 @@ const processBlobStorageExport = async (config: {
               );
             }
           }
-          // Only the S3 buffered path produces these; recording them on other
-          // paths would report real exports as zero-part uploads.
           if (producesUploadStats) {
             span.setAttribute("blob.upload.parts", uploadStats.partsUploaded);
             span.setAttribute("blob.upload.retries", uploadStats.partRetries);

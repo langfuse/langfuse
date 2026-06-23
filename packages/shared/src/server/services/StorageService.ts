@@ -793,14 +793,9 @@ class S3StorageService implements StorageService {
     stats,
   }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
     if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
-      // All speed-tuning knobs (part size, concurrency, attempts) and part-level
-      // stats apply only on the buffered path. The non-buffered fallback
-      // intentionally forwards NO overrides so a null/default exportTuning
-      // reproduces pre-tuning behaviour byte-for-byte — lib-storage keeps its
-      // own 5 MiB partSize / default queueSize. Forwarding the resolved 100 MiB
-      // default here would silently ~20x the per-upload memory of every existing
-      // S3 deployment (buffered is off by default). Tuning requires
-      // LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED=true.
+      // Tuning applies only on the buffered path. Forward no overrides so the
+      // fallback keeps lib-storage's defaults — forwarding the resolved 100 MiB
+      // partSize would ~20x per-upload memory (buffered is off by default).
       await this.uploadFile({ fileName, fileType, data });
       return undefined;
     }
@@ -1515,13 +1510,9 @@ class OCIObjectStorageService implements StorageService {
     data,
     partSizeBytes,
     maxConcurrentParts,
-    // maxPartAttempts is intentionally not destructured/forwarded: OCI's
-    // UploadManager owns its retry policy and exposes no per-part attempt knob
-    // (mirrors the Azure path, which warns; OCI is not reached by the blob-export
-    // integration today, so a comment suffices over a runtime warning).
+    // maxPartAttempts omitted: OCI's UploadManager owns retries, no per-part knob.
   }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
-    // OCI's uploadFile maps queueSize → UploadManager.maxConcurrentUploads, so
-    // forward the concurrency knob (undefined keeps OCI's default of 5).
+    // queueSize maps to UploadManager.maxConcurrentUploads (undefined => OCI's 5).
     await this.uploadFile({
       fileName,
       fileType,

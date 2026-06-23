@@ -102,11 +102,9 @@ export type ResolvedBlobExportTuning = {
   // undefined => use the zlib default (6); a concrete 0-9 otherwise.
   gzipLevel: number | undefined;
   partSizeBytes: number;
-  // undefined => the operator did not set the knob; each StorageService backend
-  // applies its own native default (S3 buffered → env var, Azure → 5, OCI → 5).
-  // Resolving these to a concrete env value here would silently override those
-  // per-backend defaults — e.g. dropping Azure concurrency 5→3 — and break the
-  // "null column reproduces today's behaviour" contract (LFE-10394 review).
+  // undefined => not set by the operator; each backend keeps its native default
+  // (S3 buffered → env var, Azure → 5, OCI → 5). A concrete default here would
+  // override those per-backend defaults.
   maxConcurrentParts: number | undefined;
   maxPartAttempts: number | undefined;
   skipEnrichment: boolean;
@@ -133,10 +131,7 @@ function resolveNumber(
     );
     return fallback;
   }
-  // Separate the two corrections so the warning text is accurate: a non-integer
-  // within bounds was rounded (not out of range), while a value outside the
-  // bounds was clamped. Reporting both as "out of range" would mislead an
-  // operator reading the log into thinking an in-range float was rejected.
+  // Rounding and clamping warn separately so the message reflects what happened.
   const rounded = Math.round(value);
   const clamped = Math.min(bound.max, Math.max(bound.min, rounded));
   if (rounded !== value) {
@@ -152,10 +147,8 @@ function resolveNumber(
   return clamped;
 }
 
-// Like resolveNumber, but returns `undefined` when the field is absent so the
-// caller can tell "operator did not set this" from "operator set the default".
-// Wrong-typed values also resolve to undefined (with a warning) so a malformed
-// knob falls back to the backend default rather than throwing.
+// resolveNumber variant returning undefined when absent or wrong-typed, so the
+// caller can distinguish "unset" (use backend default) from a set value.
 function resolveOptionalNumber(
   field: string,
   value: unknown,
@@ -206,9 +199,8 @@ function resolveGzipLevel(
   warnings: string[],
 ): number | undefined {
   if (value === undefined) return undefined;
-  // Distinct failure modes get accurate messages (mirrors resolveNumber): a
-  // wrong type, a non-integer, and a true out-of-range value are different
-  // problems and "out of range" would mislead for the first two.
+  // Wrong type / non-integer / out-of-range warn distinctly; all fall back to
+  // the zlib default.
   if (typeof value !== "number" || !Number.isFinite(value)) {
     warnings.push(
       `gzipLevel: expected a finite number, got ${JSON.stringify(value)}; using zlib default`,
@@ -231,7 +223,7 @@ function resolveGzipLevel(
 /**
  * Read-side resolver for the `exportTuning` JSON column. Never throws.
  *
- * Semantics (LFE-10394 grilling + LFE-10402 rawPassthrough/gzipLevel):
+ * Semantics:
  *   - null / undefined / non-object   → all defaults (non-object is warned).
  *   - upload knob numeric out of range → CLAMPED to the bound (warned).
  *   - gzipLevel out of range           → dropped → zlib default (warned).
