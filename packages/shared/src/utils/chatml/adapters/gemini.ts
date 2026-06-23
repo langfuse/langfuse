@@ -54,6 +54,20 @@ const GeminiRequestSchema = z.looseObject({
   ),
 });
 
+// Covers multiple gen_ai.system values used by different Gemini/VertexAI integrations:
+//   "gcp.vertex.agent"  — Google ADK (Agent Developer Kit)
+//   "google_genai"      — opentelemetry-java-instrumentation v2.27+ (Gemini via Java OTel agent)
+//   "vertexai"          — some Python and Java VertexAI OTel integrations
+//   "google_vertex_ai"  — TraceLoop / OpenLLMetry VertexAI instrumentation
+//   "vertex_ai"         — alternative casing used by some SDKs
+const GEMINI_GEN_AI_SYSTEM_VALUES = new Set([
+  "gcp.vertex.agent",
+  "google_genai",
+  "vertexai",
+  "google_vertex_ai",
+  "vertex_ai",
+]);
+
 /**
  * Case-insensitive field accessor
  * Handles both snake_case and camelCase (e.g., function_call OR functionCall)
@@ -527,19 +541,6 @@ export const geminiAdapter: ProviderAdapter = {
     if (meta?.ls_provider === "google_vertexai") return true;
 
     // Metadata attributes check
-    // Covers multiple gen_ai.system values used by different Gemini/VertexAI integrations:
-    //   "gcp.vertex.agent"  — Google ADK (Agent Developer Kit)
-    //   "google_genai"      — opentelemetry-java-instrumentation v2.27+ (Gemini via Java OTel agent)
-    //   "vertexai"          — some Python and Java VertexAI OTel integrations
-    //   "google_vertex_ai"  — TraceLoop / OpenLLMetry VertexAI instrumentation
-    //   "vertex_ai"         — alternative casing used by some SDKs
-    const GEMINI_GEN_AI_SYSTEM_VALUES = new Set([
-      "gcp.vertex.agent",
-      "google_genai",
-      "vertexai",
-      "google_vertex_ai",
-      "vertex_ai",
-    ]);
     if (meta && typeof meta === "object" && "attributes" in meta) {
       const attributes = (meta as Record<string, unknown>).attributes;
       if (
