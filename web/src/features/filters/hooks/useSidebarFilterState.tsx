@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useMemo, useEffect, useRef, useState } from "react";
+import { useCallback, useMemo, useEffect, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   type FilterState,
@@ -439,6 +439,12 @@ export function useSidebarFilterState(
   const setPeekTableState = peekContext?.setTableState;
 
   const FILTER_EXPANDED_STORAGE_KEY = `${config.tableName}-filters-expanded`;
+  // Tracks which active-filter columns we have already auto-expanded once, so a
+  // section the user later collapsed is never re-expanded — even across remounts
+  // (route navigation away-and-back, tab reload). It shares the session lifecycle
+  // of the expanded state itself, so the "already reconciled" knowledge survives
+  // exactly as long as the manual collapse it must respect. See LFE-10164 below.
+  const FILTER_SEEDED_STORAGE_KEY = `${config.tableName}-filters-seeded`;
   const DEFAULT_EXPANDED_FILTERS = config.defaultExpanded ?? [];
 
   const [expandedString, setExpandedString] = useSessionStorage<string>(
@@ -453,6 +459,11 @@ export function useSidebarFilterState(
       setExpandedString(value.join(","));
     },
     [setExpandedString],
+  );
+
+  const [seededString, setSeededString] = useSessionStorage<string>(
+    FILTER_SEEDED_STORAGE_KEY,
+    "",
   );
 
   const normalizedSessionFilterContextId =
@@ -552,33 +563,50 @@ export function useSidebarFilterState(
   // LFE-10164: When arriving via a URL/deep link that already carries applied
   // filters, expand the sidebar sections that have an active filter. Sidebar
   // sections are collapsed by default; without this, a bookmarked/shared link
-  // would render its active facets collapsed. This runs once on initial load
-  // (guarded by a ref) so it only seeds the default state and never overrides
-  // subsequent manual expand/collapse. Sections without an active filter keep
-  // their default state.
+  // would render its active facets collapsed. Sections without an active filter
+  // keep their default state.
+  //
+  // We derive this during render (the "adjust state while rendering when a
+  // derived input changes" pattern, https://react.dev/learn/you-might-not-need-an-effect)
+  // rather than in a mount effect. The mount-effect approach had two defects:
+  //   1. Late-arriving URL params: in the Pages Router `useQueryParam` reads
+  //      `router.query`, which is empty on the first render of a direct
+  //      navigation and only populated on a later render. A one-shot mount
+  //      effect seeded against the empty first render and never re-ran, so
+  //      deep-linked sections stayed collapsed. Reconciling during render means
+  //      the moment the filters actually appear (a later render) we seed them.
+  //   2. Remount re-seed: a per-mount guard re-expanded a section the user had
+  //      deliberately collapsed whenever the page remounted. We instead persist
+  //      which columns have already been auto-expanded (`seededString`, same
+  //      session lifecycle as the expanded state) and only expand columns that
+  //      are newly active and not yet reconciled, so a collapsed section is
+  //      never re-expanded.
   //
   // We key off `explicitFilterState` (the URL/memory/peek-authored filters),
   // which already excludes the implicit hidden-environment default — so the
   // managed-environment section is only auto-expanded when the user actually
   // authored an environment filter.
-  const hasSeededExpansionFromActiveFilters = useRef(false);
-  useEffect(() => {
-    if (hasSeededExpansionFromActiveFilters.current) return;
-    hasSeededExpansionFromActiveFilters.current = true;
-
-    if (explicitFilterState.length === 0) return;
-
-    const facetColumns = new Set(config.facets.map((facet) => facet.column));
-    const activeFacetColumns = explicitFilterState
-      .map((filter) => filter.column)
-      .filter((column) => facetColumns.has(column));
-    if (activeFacetColumns.length === 0) return;
-
+  const seededSet = useMemo(
+    () => new Set(seededString.split(",").filter(Boolean)),
+    [seededString],
+  );
+  const facetColumnSet = useMemo(
+    () => new Set(config.facets.map((facet) => facet.column)),
+    [config.facets],
+  );
+  const newlyActiveFacetColumns = explicitFilterState
+    .map((filter) => filter.column)
+    .filter((column) => facetColumnSet.has(column) && !seededSet.has(column));
+  if (newlyActiveFacetColumns.length > 0) {
+    // setState-during-render (not an effect): React discards this render and
+    // re-renders synchronously with the updated state before painting. The
+    // updates are idempotent — once a column is in `seededSet` it is no longer
+    // "newly active", so this branch does not re-run for it on the next render.
     setExpandedString((current) => {
       const expanded = current.split(",").filter(Boolean);
       const expandedSet = new Set(expanded);
       const next = [...expanded];
-      for (const column of activeFacetColumns) {
+      for (const column of newlyActiveFacetColumns) {
         if (!expandedSet.has(column)) {
           expandedSet.add(column);
           next.push(column);
@@ -586,10 +614,19 @@ export function useSidebarFilterState(
       }
       return next.length === expanded.length ? current : next.join(",");
     });
-    // Intentionally runs only on initial mount; the ref guard prevents re-seeding
-    // after later filter changes so manual collapse is respected.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    setSeededString((current) => {
+      const seeded = current.split(",").filter(Boolean);
+      const seededColumnSet = new Set(seeded);
+      const next = [...seeded];
+      for (const column of newlyActiveFacetColumns) {
+        if (!seededColumnSet.has(column)) {
+          seededColumnSet.add(column);
+          next.push(column);
+        }
+      }
+      return next.length === seeded.length ? current : next.join(",");
+    });
+  }
 
   const managedEnvironmentPolicyConfig = useMemo(
     () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
