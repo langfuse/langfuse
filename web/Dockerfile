@@ -1,11 +1,10 @@
-# The node alpine image is available here: https://github.com/nodejs/docker-node
-FROM --platform=${TARGETPLATFORM:-linux/amd64} node:24-alpine AS alpine
+# WizOS secured images are hosted in a private registry and require Wiz registry credentials.
+ARG NODE_BASE_IMAGE=registry.os.wiz.io/node:24-alpine
+ARG GO_BASE_IMAGE=registry.os.wiz.io/golang:1.26
 
-# It's important to update the index before installing packages to ensure you're getting the latest versions.
-# Check https://github.com/nodejs/docker-node/tree/b4117f9333da4138b03a546ec926ef50a31506c3#nodealpine to understand why libc6-compat might be needed.
-RUN apk update && apk upgrade --no-cache libcrypto3 libssl3 libc6-compat busybox ssl_client zlib
+FROM --platform=${TARGETPLATFORM:-linux/amd64} ${NODE_BASE_IMAGE} AS node-base
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS build-base
+FROM --platform=${TARGETPLATFORM:-linux/amd64} node-base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 RUN npm install turbo@2.9.18 --global
 ENV PNPM_HOME="/pnpm"
@@ -13,14 +12,14 @@ ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 RUN corepack prepare pnpm@11.4.0 --activate
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} alpine AS runtime-base
+FROM --platform=${TARGETPLATFORM:-linux/amd64} node-base AS runtime-base
 # Remove build-only package managers. npm stays here because the runner stage
 # uses it to install prisma and optional dd-trace before removing it.
 RUN rm -rf /usr/local/lib/node_modules/corepack \
             /root/.cache/node/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
-FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
+FROM --platform=${BUILDPLATFORM} ${GO_BASE_IMAGE} AS migrate-builder
 ARG TARGETOS
 ARG TARGETARCH
 ENV CGO_ENABLED=0 \
