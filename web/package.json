@@ -208,6 +208,7 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "16.2.9",
     "eslint-plugin-storybook": "10.3.6",
+    "eslint-plugin-tailwindcss": "4.0.2",
     "jsdom": "^26.1.0",
     "node-mocks-http": "^1.17.2",
     "prettier": "^3.8.3",
