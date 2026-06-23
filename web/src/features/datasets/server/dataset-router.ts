@@ -27,6 +27,7 @@ import {
   LangfuseNotFoundError,
   InvalidRequestError,
   datasetItemMediaFields,
+  DatasetNameSchema,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -1275,6 +1276,66 @@ export const datasetRouter = createTRPCRouter({
         }
         throw error;
       }
+    }),
+  deleteDatasetFolder: protectedProjectProcedure
+    .input(z.object({ projectId: z.string(), folderPath: DatasetNameSchema }))
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      const deletedDatasets = await ctx.prisma.$transaction(async (tx) => {
+        const datasetsToDelete = await tx.dataset.findMany({
+          where: {
+            projectId: input.projectId,
+            OR: [
+              { name: input.folderPath },
+              { name: { startsWith: `${input.folderPath}/` } },
+            ],
+          },
+        });
+
+        if (datasetsToDelete.length === 0) return [];
+
+        await tx.dataset.deleteMany({
+          where: {
+            projectId: input.projectId,
+            id: { in: datasetsToDelete.map((dataset) => dataset.id) },
+          },
+        });
+
+        return datasetsToDelete;
+      });
+
+      // The Postgres dataset delete happens above. This queues the existing
+      // async cleanup for non-cascading media links and ClickHouse run items.
+      await Promise.all(
+        deletedDatasets.map((dataset) =>
+          addToDeleteDatasetQueue({
+            deletionType: "dataset",
+            projectId: input.projectId,
+            datasetId: dataset.id,
+          }),
+        ),
+      );
+
+      await Promise.all(
+        deletedDatasets.map((dataset) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "dataset",
+            resourceId: dataset.id,
+            action: "delete",
+            before: dataset,
+          }),
+        ),
+      );
+
+      return {
+        deletedCount: deletedDatasets.length,
+      };
     }),
 
   deleteDatasetItem: protectedProjectProcedure
