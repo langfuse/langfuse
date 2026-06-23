@@ -1273,7 +1273,13 @@ describe("SCIM API", () => {
 
       beforeEach(async () => {
         const org = await prisma.organization.create({
-          data: { name: `scim-last-owner-${randomUUID().substring(0, 8)}` },
+          data: {
+            name: `scim-last-owner-${randomUUID().substring(0, 8)}`,
+            // Team plan carries the `admin-api` entitlement that gates SCIM, so
+            // these requests reach the last-OWNER guard rather than the plan
+            // check.
+            cloudConfig: { plan: "Team" },
+          },
         });
         scopedOrgId = org.id;
 
@@ -1473,6 +1479,161 @@ describe("SCIM API", () => {
         } finally {
           await prisma.user.deleteMany({ where: { id: secondOwner.id } });
         }
+      });
+    });
+  });
+
+  // SCIM provisioning is gated behind the `admin-api` entitlement, matching the
+  // sibling organization admin REST endpoints (memberships, projects, apiKeys).
+  // Plans without that entitlement (e.g. Hobby) must be rejected before any
+  // user account is created or any membership is mutated.
+  describe("Entitlement gating (admin-api)", () => {
+    const PLAN_DETAIL = "This feature is not available on your current plan.";
+
+    let hobbyOrgId: string;
+    let hobbyPublicKey: string;
+    let hobbySecretKey: string;
+
+    let teamOrgId: string;
+    let teamPublicKey: string;
+    let teamSecretKey: string;
+
+    beforeAll(async () => {
+      // Hobby has no `admin-api` entitlement → SCIM must be blocked.
+      const hobbyOrg = await prisma.organization.create({
+        data: {
+          name: `scim-gate-hobby-${randomUUID().substring(0, 8)}`,
+          cloudConfig: { plan: "Hobby" },
+        },
+      });
+      hobbyOrgId = hobbyOrg.id;
+      hobbyPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
+      hobbySecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
+      await createAndAddApiKeysToDb({
+        prisma,
+        entityId: hobbyOrgId,
+        scope: "ORGANIZATION",
+        predefinedKeys: {
+          publicKey: hobbyPublicKey,
+          secretKey: hobbySecretKey,
+        },
+      });
+
+      // Team carries `admin-api` → positive control that the gate does not
+      // over-block entitled plans.
+      const teamOrg = await prisma.organization.create({
+        data: {
+          name: `scim-gate-team-${randomUUID().substring(0, 8)}`,
+          cloudConfig: { plan: "Team" },
+        },
+      });
+      teamOrgId = teamOrg.id;
+      teamPublicKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
+      teamSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
+      await createAndAddApiKeysToDb({
+        prisma,
+        entityId: teamOrgId,
+        scope: "ORGANIZATION",
+        predefinedKeys: {
+          publicKey: teamPublicKey,
+          secretKey: teamSecretKey,
+        },
+      });
+    });
+
+    afterAll(async () => {
+      await prisma.organization.deleteMany({
+        where: { id: { in: [hobbyOrgId, teamOrgId] } },
+      });
+    });
+
+    it("POST /Users is rejected on a plan without admin-api and creates no account", async () => {
+      const uniqueEmail = `scim.gate.${randomUUID().substring(0, 8)}@example.com`;
+      const result = await makeAPICall(
+        "POST",
+        "/api/public/scim/Users",
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          userName: uniqueEmail,
+          name: { formatted: "Backdoor" },
+          password: "Backdoor2026!",
+          roles: ["OWNER"],
+          active: true,
+        },
+        createBasicAuthHeader(hobbyPublicKey, hobbySecretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.detail).toBe(PLAN_DETAIL);
+
+      // The blocked request must not have created the user account.
+      const user = await prisma.user.findUnique({
+        where: { email: uniqueEmail.toLowerCase() },
+      });
+      expect(user).toBeNull();
+    });
+
+    it("GET /Users is rejected on a plan without admin-api", async () => {
+      const result = await makeAPICall(
+        "GET",
+        "/api/public/scim/Users",
+        undefined,
+        createBasicAuthHeader(hobbyPublicKey, hobbySecretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.detail).toBe(PLAN_DETAIL);
+    });
+
+    it("PUT /Users/{id} is rejected on a plan without admin-api (before user lookup)", async () => {
+      const result = await makeAPICall(
+        "PUT",
+        `/api/public/scim/Users/${randomUUID()}`,
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          userName: "someone@example.com",
+          active: true,
+          roles: ["OWNER"],
+        },
+        createBasicAuthHeader(hobbyPublicKey, hobbySecretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.detail).toBe(PLAN_DETAIL);
+    });
+
+    it("DELETE /Users/{id} is rejected on a plan without admin-api", async () => {
+      const result = await makeAPICall(
+        "DELETE",
+        `/api/public/scim/Users/${randomUUID()}`,
+        undefined,
+        createBasicAuthHeader(hobbyPublicKey, hobbySecretKey),
+      );
+
+      expect(result.status).toBe(403);
+      expect(result.body.detail).toBe(PLAN_DETAIL);
+    });
+
+    it("POST /Users still succeeds on a plan with admin-api", async () => {
+      const uniqueEmail = `scim.gate.ok.${randomUUID().substring(0, 8)}@example.com`;
+      const result = await makeAPICall(
+        "POST",
+        "/api/public/scim/Users",
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          userName: uniqueEmail,
+          name: { formatted: "Allowed User" },
+          active: true,
+        },
+        createBasicAuthHeader(teamPublicKey, teamSecretKey),
+      );
+
+      expect(result.status).toBe(201);
+      expect(result.body.userName).toBe(uniqueEmail);
+
+      // Cleanup the account created by the positive-control request.
+      await prisma.user.deleteMany({
+        where: { email: uniqueEmail.toLowerCase() },
       });
     });
   });

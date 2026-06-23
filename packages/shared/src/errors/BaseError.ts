@@ -25,3 +25,16 @@ export class BaseError extends Error {
     return this.httpCode >= 400 && this.httpCode < 500;
   }
 }
+
+export const isBaseError = (error: unknown): error is BaseError => {
+  if (error instanceof BaseError) return true;
+  if (!(error instanceof Error)) return false;
+
+  const candidate = error as Partial<BaseError>;
+
+  return (
+    typeof candidate.httpCode === "number" &&
+    typeof candidate.isOperational === "boolean" &&
+    typeof candidate.isUserError === "function"
+  );
+};

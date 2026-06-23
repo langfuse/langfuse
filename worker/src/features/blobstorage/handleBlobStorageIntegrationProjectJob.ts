@@ -585,6 +585,7 @@ const processBlobStorageExport = async (config: {
             table: config.table,
             projectId: config.projectId,
             path: passthroughEligible ? "passthrough" : "standard",
+            compressed: compressedCounter ? "true" : "false",
           };
           recordIncrement(
             "langfuse.blob_export.serialized_bytes",

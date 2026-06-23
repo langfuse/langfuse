@@ -19,6 +19,7 @@ import {
   escapeSqlLikePattern,
   redis,
   extractPlaceholderNames,
+  type PromptResult,
 } from "@langfuse/shared/src/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
 
@@ -517,33 +518,105 @@ export const duplicateFolder = async ({
     }
   }
 
-  await prisma.$transaction(async (tx) => {
+  if (rewritePromptReferences && isSingleVersion) {
+    for (const prompt of sourcePrompts) {
+      if (oldToNewIdMap[prompt.id] === undefined) continue;
+
+      for (const dep of prompt.PromptDependency) {
+        const duplicatedDependencyName = duplicatedPromptNames.get(
+          dep.childName,
+        );
+        if (!duplicatedDependencyName) continue;
+
+        const dependencyVersions = promptsByName.get(dep.childName);
+        const copiedSourceVersion =
+          dependencyVersions?.find((version) =>
+            version.labels.includes(LATEST_PROMPT_LABEL),
+          ) ??
+          dependencyVersions?.reduce((a, b) => (a.version > b.version ? a : b));
+
+        const originalReference =
+          dep.childVersion !== null
+            ? `${dep.childName}|version=${dep.childVersion}`
+            : `${dep.childName}|label=${dep.childLabel}`;
+
+        const throwInvalidRewrite = (): never => {
+          throw new InvalidRequestError(
+            `Cannot duplicate folder with latest-only copies and rewritten prompt references. Reference "${originalReference}" would not point to an equivalent dependency in the copied folder. Copy all versions or disable reference rewriting.`,
+          );
+        };
+
+        if (!copiedSourceVersion) {
+          throwInvalidRewrite();
+        }
+
+        const copiedVersion = copiedSourceVersion!;
+
+        if (dep.childVersion !== null) {
+          if (dep.childVersion !== copiedVersion.version) {
+            throwInvalidRewrite();
+          }
+        } else if (dep.childLabel !== null) {
+          if (!copiedVersion.labels.includes(dep.childLabel)) {
+            throwInvalidRewrite();
+          }
+        } else {
+          throwInvalidRewrite();
+        }
+      }
+    }
+  }
+
+  const promptDependenciesToCreate = sourcePrompts
+    .filter((prompt) => oldToNewIdMap[prompt.id] !== undefined)
+    .flatMap((prompt) =>
+      prompt.PromptDependency.map((dep) => {
+        const duplicatedDependencyName = rewritePromptReferences
+          ? duplicatedPromptNames.get(dep.childName)
+          : undefined;
+
+        return {
+          projectId,
+          parentId: oldToNewIdMap[prompt.id],
+          childName: duplicatedDependencyName ?? dep.childName,
+          childVersion:
+            duplicatedDependencyName &&
+            dep.childVersion !== null &&
+            isSingleVersion
+              ? 1
+              : dep.childVersion,
+          childLabel: dep.childLabel,
+        };
+      }),
+    );
+
+  const resolvedPromptsToCreate = await prisma.$transaction(async (tx) => {
     await tx.prompt.createMany({
       data: allPromptsToCreate,
     });
 
-    await tx.promptDependency.createMany({
-      data: sourcePrompts
-        .filter((prompt) => oldToNewIdMap[prompt.id] !== undefined)
-        .flatMap((prompt) =>
-          prompt.PromptDependency.map((dep) => {
-            const duplicatedDependencyName = rewritePromptReferences
-              ? duplicatedPromptNames.get(dep.childName)
-              : undefined;
+    if (promptDependenciesToCreate.length > 0) {
+      await tx.promptDependency.createMany({
+        data: promptDependenciesToCreate,
+      });
+    }
 
-            return {
-              projectId,
-              parentId: oldToNewIdMap[prompt.id],
-              childName: duplicatedDependencyName ?? dep.childName,
-              childVersion:
-                duplicatedDependencyName && dep.childVersion && isSingleVersion
-                  ? 1
-                  : dep.childVersion,
-              childLabel: dep.childLabel,
-            };
-          }),
-        ),
-    });
+    const promptService = new PromptService(tx, redis);
+
+    return Promise.all(
+      allPromptsToCreate.map(async (prompt): Promise<PromptResult> => {
+        const promptGraph = await promptService.buildAndResolvePromptGraph({
+          projectId,
+          parentPrompt: prompt,
+        });
+
+        return {
+          ...prompt,
+          prompt: promptGraph.resolvedPrompt,
+          resolutionGraph: promptGraph.graph,
+        } as PromptResult;
+      }),
+    );
   });
 
   const promptService = new PromptService(prisma, redis);
@@ -551,12 +624,8 @@ export const duplicateFolder = async ({
   await promptService.invalidateCache({ projectId });
 
   await Promise.all(
-    allPromptsToCreate.map(async (prompt) =>
-      promptChangeEventSourcing(
-        await promptService.resolvePrompt(prompt),
-        "created",
-        user,
-      ),
+    resolvedPromptsToCreate.map((prompt) =>
+      promptChangeEventSourcing(prompt, "created", user),
     ),
   );
 

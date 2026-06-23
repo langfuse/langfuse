@@ -1,6 +1,6 @@
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Role } from "@langfuse/shared/src/db";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
@@ -8,7 +8,10 @@ import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 const orgIds: string[] = [];
 
-async function prepare() {
+async function prepare({
+  projectRole = "ADMIN",
+  admin = true,
+}: { projectRole?: Role; admin?: boolean } = {}) {
   const { project, org } = await createOrgProjectAndApiKey();
 
   const session: Session = {
@@ -28,7 +31,7 @@ async function prepare() {
           projects: [
             {
               id: project.id,
-              role: "ADMIN",
+              role: projectRole,
               retentionDays: 30,
               deletedAt: null,
               name: project.name,
@@ -43,7 +46,7 @@ async function prepare() {
         excludeClickhouseRead: false,
         templateFlag: true,
       },
-      admin: true,
+      admin,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -69,6 +72,58 @@ describe("datasets trpc", () => {
       where: {
         id: { in: orgIds },
       },
+    });
+  });
+
+  describe("datasets RBAC", () => {
+    it("allows viewers to read dataset metadata", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "VIEWER",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.allDatasetMeta({ projectId: project.id }),
+      ).resolves.toEqual([]);
+    });
+
+    it("allows viewers to read dataset item media", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "VIEWER",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.itemMediaByItemId({
+          projectId: project.id,
+          datasetItemId: v4(),
+        }),
+      ).resolves.toEqual([]);
+    });
+
+    it("rejects dataset reads when the project role lacks datasets:read", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "NONE",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.allDatasetMeta({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects dataset item media reads when the project role lacks datasets:read", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "NONE",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.itemMediaByItemId({
+          projectId: project.id,
+          datasetItemId: v4(),
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });
 

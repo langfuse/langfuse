@@ -31,6 +31,7 @@ export const projectScopes = [
 
   "integrations:CRUD",
 
+  "datasets:read",
   "datasets:CUD",
 
   "prompts:CUD",
@@ -102,6 +103,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
+    "datasets:read",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -157,6 +159,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
+    "datasets:read",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -207,6 +210,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "scores:CUD",
     "scoreConfigs:CUD",
     "scoreConfigs:read",
+    "datasets:read",
     "datasets:CUD",
     "prompts:CUD",
     "prompts:read",
@@ -247,6 +251,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "evalJob:read",
     "evalJobExecution:read",
     "evalDefaultModel:read",
+    "datasets:read",
     "llmApiKeys:read",
     "llmSchemas:read",
     "llmTools:read",

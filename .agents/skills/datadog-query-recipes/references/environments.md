@@ -4,11 +4,11 @@ Langfuse production deploys cover these environments and services. The deploy
 matrix is defined in `.github/workflows/deploy.yml`.
 
 | Environment | Primary Datadog site | Common services |
-| --- | --- | --- |
-| `prod-us` | US, `datadoghq.com` | `web`, `web-ingestion`, `web-iso`, `worker`, `worker-cpu` |
-| `prod-eu` | EU, `datadoghq.eu` | `web`, `web-ingestion`, `web-iso`, `worker`, `worker-cpu` |
-| `prod-hipaa` | US, `datadoghq.com` | `web`, `web-ingestion`, `web-iso`, `worker`, `worker-cpu` |
-| `prod-jp` | US, `datadoghq.com` | `web`, `web-ingestion`, `web-iso`, `worker`, `worker-cpu` |
+| --- |----------------------| --- |
+| `prod-us` | US, `datadoghq.com`  | `web`, `web-ingestion`, `web-iso`, `worker`, `worker-cpu` |
+| `prod-eu` | EU, `datadoghq.eu`   | `web`, `web-ingestion`, `web-iso`, `worker`, `worker-cpu` |
+| `prod-hipaa` | US, `datadoghq.com`  | `web`, `web-ingestion`, `web-iso`, `worker`, `worker-cpu` |
+| `prod-jp` | EU, `datadoghq.eu`   | `web`, `web-ingestion`, `web-iso`, `worker`, `worker-cpu` |
 
 The site mapping is a starting point, not proof. For cross-region research, run
 a small count or facet query on both Datadog sites before saying an environment
