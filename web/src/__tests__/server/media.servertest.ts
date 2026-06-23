@@ -835,6 +835,39 @@ describe("Media Upload API", () => {
   });
 
   describe("Request Validation", () => {
+    it("should reject observationId without traceId", async () => {
+      const response = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "POST",
+        "api/public/media",
+        {
+          observationId: "test-observation",
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+          field: "input",
+        },
+      );
+
+      expect(response.status).toBe(400);
+    }, 10_000);
+
+    it("should reject traceId without field", async () => {
+      const response = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "POST",
+        "api/public/media",
+        {
+          traceId: "test",
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+        },
+      );
+
+      expect(response.status).toBe(400);
+    }, 10_000);
+
     it("should reject invalid content types", async () => {
       const traceId = "test";
       const field = "input";
