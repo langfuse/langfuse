@@ -1,0 +1,15 @@
+{
+  "name": "in-app-agent-mcp-incorrect-call",
+  "type": "llm_as_judge",
+  "prompt": "You are an evaluator checking one failure mode: did the assistant reveal that an MCP/tool call was made incorrectly and needs a retry?\n\n## Criterion\n\nFLAG: The response says or clearly implies the assistant made a bad tool call and must call it again. Examples: missing required parameter, wrong argument type, schema/validation error, malformed tool input, wrong tool/endpoint, or retrying because the previous call was invalid.\n\nDO NOT FLAG: The response does not reveal a bad tool call. Do not flag normal progress updates, final answers, empty results, auth/permission/outage failures, or generic user-facing errors unless they show the assistant constructed the tool call incorrectly.\n\n## Examples\n\n### Example 1: FLAG\nUser message: what evals do we have setup?\nAssistant response: Hmm, it looks like I'm missing the 'page' parameter for the `langfuse_listEvaluationRules` tool. Let me try that again with the required parameters:\nCritique: The response names a missing required parameter, names the tool, and says it will retry. This exposes an incorrect MCP call.\nResult: Flag\n\n### Example 2: FLAG\nUser message: show me recent traces\nAssistant response: The trace list tool returned a schema error because I sent `limit` as a string. I'll call it again with `limit` as a number.\nCritique: The response says the assistant sent the wrong argument type and will retry with corrected input. This is an incorrect tool call.\nResult: Flag\n\n### Example 3: DO NOT FLAG\nUser message: what evals do we have setup?\nAssistant response: I couldn't load the evaluation rules right now. Please try again in a moment.\nCritique: The response reports a user-facing failure, but does not say the assistant called the tool with bad arguments or needs a corrective retry.\nResult: Do not flag\n\n## Output\n\nWrite a concise critique in the reasoning field. Set score to true for FLAG and false for DO NOT FLAG.\n\n## Input\n\nUser message: {{user_message}}\nAssistant response: {{assistant_response}}",
+  "outputDefinition": {
+    "dataType": "BOOLEAN",
+    "reasoning": {
+      "description": "Concise critique explaining whether the response reveals an incorrect MCP/tool call that needs a retry."
+    },
+    "score": {
+      "description": "true when the response reveals an incorrect MCP/tool call that needs a retry; false otherwise."
+    }
+  },
+  "modelConfig": null
+}
