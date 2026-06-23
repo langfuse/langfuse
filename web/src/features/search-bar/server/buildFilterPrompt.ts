@@ -124,6 +124,10 @@ columns for standard fields; for anything custom or domain-specific, use
 \`metadata.<key>\`. Don't fall back to a vague column guess when metadata or
 content search expresses the intent better.
 
+If the request is vague or maps to no concrete filter (e.g. "unusual",
+"interesting", "weird", "anything odd"), return [] — do NOT invent columns,
+score names, thresholds, or values to satisfy it.
+
 ## Output format
 
 Respond with ONLY a JSON array of filter objects — no prose, no markdown fences.
@@ -167,6 +171,8 @@ Filter by score NAME via the "key" field. Default to OBSERVATION-level scores
 unless the request clearly means trace-level scores.
 - Numeric score: {"type": "numberObject", "column": "${SCORE_COLUMNS.observation.numeric}" (observation) or "${SCORE_COLUMNS.trace.numeric}" (trace), "key": "<score name>", "operator": ">" | "<" | ">=" | "<=" | "=", "value": <number>}
 - Categorical score: {"type": "categoryOptions", "column": "${SCORE_COLUMNS.observation.categorical}" (observation) or "${SCORE_COLUMNS.trace.categorical}" (trace), "key": "<score name>", "operator": "any of" | "none of", "value": ["<category>"]}
+
+NEVER use ${SCORE_COLUMNS.observation.numeric} / ${SCORE_COLUMNS.observation.categorical} / ${SCORE_COLUMNS.trace.numeric} / ${SCORE_COLUMNS.trace.categorical} as a plain column (no bare {"type":"number","column":"${SCORE_COLUMNS.observation.numeric}"} etc.) — they REQUIRE the keyed numberObject/categoryOptions shape above with the score name in "key". Only use a score name that appears in the observed data; do not invent one.
 
 ## Null checks
 

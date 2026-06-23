@@ -95,6 +95,25 @@ describe("parseGeneratedFilters", () => {
     expect(droppedCount).toBe(0);
   });
 
+  it("drops a filter whose type is incompatible with the column's contract", () => {
+    // The model emitted a plain `number` filter on the score column (it needs
+    // `numberObject` with a key) — events.all 500s on this. Drop it; keep the
+    // valid sibling.
+    const completion = JSON.stringify([
+      { type: "number", column: "scores_avg", operator: ">", value: 90 },
+      {
+        type: "stringOptions",
+        column: "level",
+        operator: "any of",
+        value: ["ERROR"],
+      },
+    ]);
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]?.column).toBe("level");
+    expect(droppedCount).toBe(1);
+  });
+
   it("returns no filters for non-JSON / refusal output", () => {
     const { filters, queryText, droppedCount } = parseGeneratedFilters(
       "I'm sorry, I can't help with that.",
