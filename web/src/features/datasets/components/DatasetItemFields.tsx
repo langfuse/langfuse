@@ -1,9 +1,15 @@
 import { useMemo } from "react";
 import { DatasetItemField } from "./DatasetItemField";
+import {
+  DatasetItemFormMediaAttachments,
+  DatasetItemSavedMediaAttachments,
+} from "./DatasetItemMediaAttachments";
+import { type PendingMediaUpload } from "../hooks/useDatasetItemMediaUpload";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import type { DatasetSchema } from "../utils/datasetItemUtils";
-import type { Control, FieldPath } from "react-hook-form";
+import { type Control, type FieldPath, useWatch } from "react-hook-form";
 import { FormField } from "@/src/components/ui/form";
+import { type DatasetItemMediaField } from "@langfuse/shared";
 
 export type DatasetItemFormValues = {
   input: string;
@@ -12,16 +18,33 @@ export type DatasetItemFormValues = {
 };
 
 type DatasetItemFieldsProps = {
-  inputValue: string;
-  expectedOutputValue: string;
-  metadataValue: string;
+  // View-mode values for read-only display and validation. They always come
+  // from a single item, so they're one object rather than three independent
+  // props. Omitted in form mode, where the editors read from `control` instead
+  // — keeping them out of the props tree avoids re-rendering every editor on
+  // each keystroke (which would defeat the per-field `Controller` isolation).
+  values?: DatasetItemFormValues;
   dataset: DatasetSchema | null;
   editable: boolean;
+  projectId: string;
+  // Present in view mode; selects the saved (table-backed) attachment section.
+  datasetItemId?: string;
+  // The viewed version (view mode). Passed for a historical version so its
+  // attachments resolve to that version; omitted for the latest item.
+  datasetItemValidFrom?: Date;
   // For form integration (edit mode)
   control?: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
   onInputChange?: (value: string) => void;
   onExpectedOutputChange?: (value: string) => void;
   onMetadataChange?: (value: string) => void;
+  // Enables the per-field media attach button (edit mode); uploads the file for
+  // the given field and returns the reference string to insert at the cursor.
+  onUploadMedia?: (
+    file: File,
+    field: DatasetItemMediaField,
+  ) => Promise<string | null>;
+  // In-flight uploads (edit mode), shown as placeholders in the attachments.
+  pendingUploads?: PendingMediaUpload[];
 };
 
 /**
@@ -33,16 +56,23 @@ type DatasetItemFieldsProps = {
  * - Edit mode: editable fields within a form (validation errors hidden during editing)
  */
 export const DatasetItemFields = ({
-  inputValue,
-  expectedOutputValue,
-  metadataValue,
+  values,
   dataset,
   editable,
+  projectId,
+  datasetItemId,
+  datasetItemValidFrom,
   control,
   onInputChange,
   onExpectedOutputChange,
   onMetadataChange,
+  onUploadMedia,
+  pendingUploads,
 }: DatasetItemFieldsProps) => {
+  const inputValue = values?.input ?? "";
+  const expectedOutputValue = values?.expectedOutput ?? "";
+  const metadataValue = values?.metadata ?? "";
+
   // Create dataset array for validation hook
   const datasets = useMemo(() => {
     if (!dataset) return [];
@@ -89,6 +119,11 @@ export const DatasetItemFields = ({
                 showErrors={showErrors}
                 hasSchemas={validation.hasSchemas}
                 isFormField
+                onUploadMedia={
+                  onUploadMedia
+                    ? (file) => onUploadMedia(file, "input")
+                    : undefined
+                }
               />
             )}
           />
@@ -124,6 +159,11 @@ export const DatasetItemFields = ({
                 showErrors={showErrors}
                 hasSchemas={validation.hasSchemas}
                 isFormField
+                onUploadMedia={
+                  onUploadMedia
+                    ? (file) => onUploadMedia(file, "expectedOutput")
+                    : undefined
+                }
               />
             )}
           />
@@ -155,6 +195,11 @@ export const DatasetItemFields = ({
                 field.onChange(v);
               }}
               isFormField
+              onUploadMedia={
+                onUploadMedia
+                  ? (file) => onUploadMedia(file, "metadata")
+                  : undefined
+              }
             />
           )}
         />
@@ -165,6 +210,45 @@ export const DatasetItemFields = ({
           editable={false}
         />
       )}
+
+      {isFormMode && control ? (
+        <FormModeMediaAttachments
+          control={control}
+          pendingUploads={pendingUploads}
+        />
+      ) : datasetItemId ? (
+        <DatasetItemSavedMediaAttachments
+          projectId={projectId}
+          datasetItemId={datasetItemId}
+          datasetItemValidFrom={datasetItemValidFrom}
+        />
+      ) : null}
     </div>
+  );
+};
+
+/**
+ * Subscribes to the live field values via `useWatch` so only this attachment
+ * section re-renders as the user types — not the editors above it. Keeping the
+ * subscription here (rather than in the form parent) is what lets the parent
+ * avoid threading watched values through the whole field tree.
+ */
+const FormModeMediaAttachments = ({
+  control,
+  pendingUploads,
+}: {
+  control: Control<DatasetItemFormValues, unknown, DatasetItemFormValues>;
+  pendingUploads?: PendingMediaUpload[];
+}) => {
+  const [input, expectedOutput, metadata] = useWatch({
+    control,
+    name: ["input", "expectedOutput", "metadata"],
+  });
+
+  return (
+    <DatasetItemFormMediaAttachments
+      jsonStrings={[input, expectedOutput, metadata]}
+      pendingUploads={pendingUploads}
+    />
   );
 };

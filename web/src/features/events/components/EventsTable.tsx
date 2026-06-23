@@ -510,6 +510,9 @@ export default function ObservationsEventsTable({
   const {
     observations,
     totalCount,
+    isTotalCountLoading,
+    isTotalCountError,
+    hasMore,
     handleAddToAnnotationQueue,
     dataUpdatedAt,
     ioLoading,
@@ -620,6 +623,12 @@ export default function ObservationsEventsTable({
     setSelectedRows({});
   };
 
+  const isSelectAllCountUnavailable = isTotalCountLoading || isTotalCountError;
+  const selectAllCountUnavailableReason = isTotalCountLoading
+    ? "Counting selected observations."
+    : isTotalCountError
+      ? "Could not count selected observations. Clear selection and try again."
+      : undefined;
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -658,6 +667,8 @@ export default function ObservationsEventsTable({
       label: "Add to Dataset",
       description: "Add selected observations to a dataset",
       customDialog: true,
+      disabled: isSelectAllCountUnavailable,
+      disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
         scope: "datasets:CUD",
       },
@@ -669,6 +680,8 @@ export default function ObservationsEventsTable({
       description: "Run evaluations on selected observations.",
       customDialog: true,
       icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
+      disabled: isSelectAllCountUnavailable,
+      disabledReason: selectAllCountUnavailableReason,
       accessCheck: {
         scope: "evalJob:CUD",
       },
@@ -1447,10 +1460,9 @@ export default function ObservationsEventsTable({
     return Object.keys(selectedRows).filter((id) => rowIds.has(id));
   }, [observations.rows, selectedRows]);
 
-  const selectedObservationCount =
-    selectAll && totalCount !== null
-      ? totalCount
-      : selectedObservationIds.length;
+  const selectedObservationCount = selectAll
+    ? totalCount
+    : selectedObservationIds.length;
 
   const exampleObservation = useMemo(() => {
     const firstId = selectedObservationIds[0];
@@ -1656,6 +1668,9 @@ export default function ObservationsEventsTable({
                   ? undefined
                   : {
                       totalCount,
+                      hasNextPage: hasMore,
+                      hideTotalCount: true,
+                      canJumpPages: false,
                       onChange: (updater) => {
                         const newState =
                           typeof updater === "function"
