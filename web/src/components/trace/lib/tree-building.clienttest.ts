@@ -266,6 +266,40 @@ describe("buildTraceUiData", () => {
     });
   });
 
+  describe("completionStartTime propagation (TTFT diamond marker)", () => {
+    it("carries completionStartTime from the observation onto the tree node", () => {
+      const trace = createMockTrace({ id: "trace-ttft" });
+      const completionStartTime = new Date("2024-01-01T00:00:00.300Z");
+      const observations: ObservationReturnType[] = [
+        createMockObservation({
+          id: "gen-streaming",
+          type: "GENERATION",
+          startTime: new Date("2024-01-01T00:00:00.000Z"),
+          endTime: new Date("2024-01-01T00:00:01.000Z"),
+          completionStartTime,
+        }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const node = result.roots[0].children[0];
+
+      expect(node.id).toBe("gen-streaming");
+      expect(node.completionStartTime).toEqual(completionStartTime);
+    });
+
+    it("leaves completionStartTime null for non-streaming observations", () => {
+      const trace = createMockTrace({ id: "trace-no-ttft" });
+      const observations: ObservationReturnType[] = [
+        createMockObservation({ id: "span-1", completionStartTime: null }),
+      ];
+
+      const result = buildTraceUiData(trace, observations);
+      const node = result.roots[0].children[0];
+
+      expect(node.completionStartTime).toBeNull();
+    });
+  });
+
   describe("Events-based traces (multiple roots)", () => {
     it("returns single observation as root when rootObservationType is set", () => {
       const trace = createMockTrace({

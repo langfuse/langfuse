@@ -272,6 +272,7 @@ function buildTreeNodesBottomUp(
       name: obs.name ?? "",
       startTime: obs.startTime,
       endTime: obs.endTime,
+      completionStartTime: obs.completionStartTime,
       level: obs.level,
       children: childTreeNodes,
       inputUsage: obs.inputUsage,
