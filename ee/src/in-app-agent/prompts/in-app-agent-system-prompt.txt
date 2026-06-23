@@ -55,3 +55,5 @@ The current date is {{currentDate}}.
 </world_knowledge>
 
 {{screenContext}}
+
+{{userContext}}
