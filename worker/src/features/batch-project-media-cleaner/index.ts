@@ -1,4 +1,5 @@
 import {
+  deleteMediaLinkRowsByProjectId,
   deleteMediaFiles,
   findAllMediaByProjectId,
   getDeletedProjectWithMedia,
@@ -89,6 +90,8 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
   private async deleteMediaChunk(projectId: string): Promise<number> {
     const batchSize = env.LANGFUSE_BATCH_PROJECT_MEDIA_CLEANER_BATCH_SIZE;
 
+    await deleteMediaLinkRowsByProjectId({ projectId });
+
     const mediaFiles = await findAllMediaByProjectId({
       projectId,
       limit: batchSize,
@@ -103,7 +106,7 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
       return env.LANGFUSE_BATCH_PROJECT_CLEANER_CHECK_INTERVAL_MS;
     }
 
-    await deleteMediaFiles({
+    const deletedCount = await deleteMediaFiles({
       projectId,
       mediaFiles,
       storageClient: getS3MediaStorageClient(
@@ -111,13 +114,13 @@ export class BatchProjectMediaCleaner extends PeriodicExclusiveRunner {
       ),
     });
 
-    recordIncrement(`${METRIC_PREFIX}.media_files_deleted`, mediaFiles.length, {
+    recordIncrement(`${METRIC_PREFIX}.media_files_deleted`, deletedCount, {
       projectId,
     });
 
     logger.info(`${this.instanceName}: Deleted media chunk`, {
       projectId,
-      count: mediaFiles.length,
+      count: deletedCount,
       hasMore: mediaFiles.length >= batchSize,
     });
 

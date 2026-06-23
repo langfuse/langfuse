@@ -8,6 +8,7 @@ import CodeMirror, {
 } from "@uiw/react-codemirror";
 import {
   EditorState,
+  type Extension,
   RangeSetBuilder,
   StateEffect,
   StateField,
@@ -17,7 +18,7 @@ import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { linter, type Diagnostic } from "@codemirror/lint";
 import { useTheme } from "next-themes";
 import { cn } from "@/src/utils/tailwind";
-import { useState, useCallback, type RefObject } from "react";
+import { useState, useCallback, useMemo, type RefObject } from "react";
 import { LanguageSupport, StreamLanguage } from "@codemirror/language";
 import type { StringStream } from "@codemirror/language";
 import {
@@ -310,6 +311,34 @@ const searchHighlightingSupport = StateField.define<DecorationSet>({
   provide: (f) => EditorView.decorations.from(f),
 });
 
+// Static theme extensions hoisted to module scope so they keep a stable
+// identity across renders. react-codemirror reconfigures the editor whenever
+// the `extensions` array (by reference) changes, so churning these per render
+// would force a full reconfigure on every keystroke.
+const focusOutlineTheme = EditorView.theme({
+  "&.cm-focused": {
+    outline: "none",
+  },
+});
+
+const searchMatchTheme = EditorView.theme({
+  ".cm-searchMatch.cm-searchMatch": {
+    backgroundColor: "hsl(var(--find-match-background))",
+  },
+  ".cm-searchMatch.cm-searchMatch-selected": {
+    backgroundColor: "hsl(var(--find-match-selected-background))",
+    color: "hsl(var(--find-match-selected-foreground))",
+  },
+});
+
+const gutterHiddenTheme = EditorView.theme({
+  ".cm-gutters": { display: "none" },
+});
+
+const gutterBorderTheme = EditorView.theme({
+  ".cm-gutters": { borderRight: "1px solid" },
+});
+
 export function applyCodeMirrorSearchQuery(
   editorRef: RefObject<ReactCodeMirrorRef | null> | undefined,
   searchValue: string,
@@ -386,6 +415,7 @@ export function CodeMirrorEditor({
   editorRef,
   enableSearchKeymap = true,
   onEditorMount,
+  extensions: additionalExtensions,
 }: {
   value: string;
   onChange?: (value: string) => void;
@@ -401,6 +431,9 @@ export function CodeMirrorEditor({
   editorRef?: RefObject<ReactCodeMirrorRef | null>;
   enableSearchKeymap?: boolean;
   onEditorMount?: () => void;
+  // Caller-provided CodeMirror extensions appended after the built-ins, e.g. a
+  // media drop/paste handler. Memoize at the call site to avoid reconfiguring.
+  extensions?: Extension[];
 }) {
   const { resolvedTheme } = useTheme();
   const codeMirrorTheme = resolvedTheme === "dark" ? darkTheme : lightTheme;
@@ -422,96 +455,100 @@ export function CodeMirrorEditor({
     [editorRef, onEditorMount],
   );
 
+  // Memoize so the array keeps a stable identity across renders that don't
+  // change the inputs below. react-codemirror reconfigures the whole editor
+  // whenever `extensions` changes by reference, so an inline array would force
+  // a full reconfigure on every parent re-render (e.g. every keystroke).
+  const extensions = useMemo(
+    () => [
+      // Block document changes (including paste) when not editable; the
+      // `editable` DOM facet alone does not always prevent paste (see CM6
+      // EditorState.readOnly vs EditorView.editable).
+      ...(!editable ? [EditorState.readOnly.of(true)] : []),
+      searchHighlightingSupport,
+      search(),
+      // RTL/bidi support - must be early for proper line decoration
+      ...bidiSupport,
+      // Remove outline if field is focussed
+      focusOutlineTheme,
+      // Update search match highlight styles
+      searchMatchTheme,
+      // Hide gutter when lineNumbers is false
+      // Fix missing gutter border
+      ...(!lineNumbers ? [gutterHiddenTheme] : [gutterBorderTheme]),
+      // Extend gutter to full height when minHeight > content height
+      // This also enlarges the text area to minHeight
+      ...(!!minHeight
+        ? [
+            EditorView.theme({
+              ".cm-gutter,.cm-content": {
+                minHeight:
+                  typeof minHeight === "number" ? `${minHeight}px` : minHeight,
+              },
+              ".cm-scroller": { overflow: "auto" },
+            }),
+          ]
+        : []),
+      // Add max height support for very long bodies of text
+      ...(!!maxHeight
+        ? [
+            EditorView.theme({
+              ".cm-scroller": {
+                maxHeight:
+                  typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight,
+              },
+            }),
+          ]
+        : []),
+      ...(mode === "json" ? [json()] : []),
+      ...(mode === "json" && linterEnabled ? [linter(jsonParseLinter())] : []),
+      ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
+      ...(lineWrapping ? [EditorView.lineWrapping] : []),
+      ...(additionalExtensions ?? []),
+    ],
+    [
+      editable,
+      lineNumbers,
+      minHeight,
+      maxHeight,
+      mode,
+      linterEnabled,
+      lineWrapping,
+      additionalExtensions,
+    ],
+  );
+
+  // `basicSetup` is also a reconfigure trigger; keep its identity stable.
+  const basicSetup = useMemo(
+    () => ({
+      foldGutter: lineNumbers,
+      highlightActiveLine: false,
+      lineNumbers: lineNumbers,
+      searchKeymap: enableSearchKeymap,
+    }),
+    [lineNumbers, enableSearchKeymap],
+  );
+
+  // Stable identity so the reconfigure effect (which lists `onChange` in its
+  // deps) doesn't fire on every render.
+  const handleChange = useCallback(
+    (c: string) => {
+      if (onChange) onChange(c);
+      setLinterEnabled(c !== "");
+    },
+    [onChange],
+  );
+
   return (
     <CodeMirror
       value={value}
       theme={codeMirrorTheme}
       ref={editorRef || onEditorMount ? handleEditorRef : undefined}
-      basicSetup={{
-        foldGutter: lineNumbers,
-        highlightActiveLine: false,
-        lineNumbers: lineNumbers,
-        searchKeymap: enableSearchKeymap,
-      }}
+      basicSetup={basicSetup}
       lang={mode === "json" ? "json" : undefined}
-      extensions={[
-        // Block document changes (including paste) when not editable; the
-        // `editable` DOM facet alone does not always prevent paste (see CM6
-        // EditorState.readOnly vs EditorView.editable).
-        ...(!editable ? [EditorState.readOnly.of(true)] : []),
-        searchHighlightingSupport,
-        search(),
-        // RTL/bidi support - must be early for proper line decoration
-        ...bidiSupport,
-        // Remove outline if field is focussed
-        EditorView.theme({
-          "&.cm-focused": {
-            outline: "none",
-          },
-        }),
-        // Update search match highlight styles
-        EditorView.theme({
-          ".cm-searchMatch.cm-searchMatch": {
-            backgroundColor: "hsl(var(--find-match-background))",
-          },
-          ".cm-searchMatch.cm-searchMatch-selected": {
-            backgroundColor: "hsl(var(--find-match-selected-background))",
-            color: "hsl(var(--find-match-selected-foreground))",
-          },
-        }),
-        // Hide gutter when lineNumbers is false
-        // Fix missing gutter border
-        ...(!lineNumbers
-          ? [
-              EditorView.theme({
-                ".cm-gutters": { display: "none" },
-              }),
-            ]
-          : [
-              EditorView.theme({
-                ".cm-gutters": { borderRight: "1px solid" },
-              }),
-            ]),
-        // Extend gutter to full height when minHeight > content height
-        // This also enlarges the text area to minHeight
-        ...(!!minHeight
-          ? [
-              EditorView.theme({
-                ".cm-gutter,.cm-content": {
-                  minHeight:
-                    typeof minHeight === "number"
-                      ? `${minHeight}px`
-                      : minHeight,
-                },
-                ".cm-scroller": { overflow: "auto" },
-              }),
-            ]
-          : []),
-        // Add max height support for very long bodies of text
-        ...(!!maxHeight
-          ? [
-              EditorView.theme({
-                ".cm-scroller": {
-                  maxHeight:
-                    typeof maxHeight === "number"
-                      ? `${maxHeight}px`
-                      : maxHeight,
-                },
-              }),
-            ]
-          : []),
-        ...(mode === "json" ? [json()] : []),
-        ...(mode === "json" && linterEnabled
-          ? [linter(jsonParseLinter())]
-          : []),
-        ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
-        ...(lineWrapping ? [EditorView.lineWrapping] : []),
-      ]}
+      extensions={extensions}
       defaultValue={value}
-      onChange={(c) => {
-        if (onChange) onChange(c);
-        setLinterEnabled(c !== "");
-      }}
+      onChange={handleChange}
       onBlur={onBlur}
       className={cn(
         "overflow-hidden overflow-y-auto rounded-md border text-xs",

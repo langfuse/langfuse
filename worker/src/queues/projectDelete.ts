@@ -39,6 +39,8 @@ export const projectDeleteProcessor: Processor = async (
 
   logger.info(`Deleting ${projectId} in org ${orgId}`);
 
+  await deleteMediaLinkRowsByProjectId({ projectId });
+
   // Delete media data from S3 and PG for project
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {
     logger.info(`Deleting media for ${projectId} in org ${orgId}`);
@@ -51,8 +53,6 @@ export const projectDeleteProcessor: Processor = async (
       ),
     });
   }
-
-  await deleteMediaLinkRowsByProjectId({ projectId });
 
   logger.info(
     `Deleting ClickHouse and S3 data for ${projectId} in org ${orgId}`,

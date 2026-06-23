@@ -10,6 +10,19 @@ import { env } from "./src/env.mjs";
  * CSP headers
  * img-src https to allow loading images from SSO providers
  */
+// Dataset attachments PUT media directly to presigned storage URLs, so
+// connect-src must allow AWS S3 and the configured S3-compatible endpoint.
+const mediaUploadConnectSrc = (() => {
+  const endpoint = env.LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT;
+  if (!endpoint) return "";
+  try {
+    const url = new URL(endpoint);
+    const port = url.port ? `:${url.port}` : "";
+    return `${url.origin} ${url.protocol}//*.${url.hostname}${port} `;
+  } catch {
+    return "";
+  }
+})();
 const cspHeader = `
   default-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.posthog.com https://*.sentry.io;
   script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.langfuse.com https://*.langfuse.dev https://challenges.cloudflare.com https://*.sentry.io  https://static.cloudflareinsights.com https://*.stripe.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
@@ -22,7 +35,7 @@ const cspHeader = `
   base-uri 'self';
   form-action 'self' https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com;
   frame-ancestors 'none';
-  connect-src 'self' https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.s3.amazonaws.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
+  connect-src 'self' ${mediaUploadConnectSrc}https://*.langfuse.com https://*.langfuse.dev https://*.ingest.us.sentry.io https://*.sentry.io https://chat.uk.plain.com https://*.amazonaws.com https://prod-uk-services-attachm-attachmentsuploadbucket2-1l2e4906o2asm.s3.eu-west-2.amazonaws.com https://login.microsoftonline.com https://login.microsoft.com https://*.microsoftonline.com https://graph.microsoft.com;
   media-src 'self' https: http://localhost:*;
   ${env.LANGFUSE_CSP_ENFORCE_HTTPS === "true" ? "upgrade-insecure-requests; block-all-mixed-content;" : ""}
   ${env.SENTRY_CSP_REPORT_URI ? `report-uri ${env.SENTRY_CSP_REPORT_URI}; report-to csp-endpoint;` : ""}

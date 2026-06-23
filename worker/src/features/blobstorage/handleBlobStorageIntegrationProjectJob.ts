@@ -401,12 +401,19 @@ const processBlobStorageExport = async (config: {
         const compressedCounter = config.compressed ? new ByteCounter() : null;
         // Paired with compressedCounter: both exist iff compression is on.
         const gzipStats: GzipStats | null = compressedCounter
-          ? { level: config.gzipLevel ?? ZLIB_DEFAULT_LEVEL, activeMs: 0 }
+          ? {
+              level: config.gzipLevel ?? ZLIB_DEFAULT_LEVEL,
+              activeMs: 0,
+              backpressureMs: 0,
+            }
           : null;
 
         // Both paths tally rows in JS via countedStream (the passthrough yields
         // raw row text rather than parsed objects, but still iterates).
         const sourceStats = { rows: 0, sourceWaitMs: 0 };
+        // When enrichment is active, chStats isolates ClickHouse read wait from
+        // enrichment CPU. enrichMs = sourceStats.sourceWaitMs - chStats.sourceWaitMs.
+        let chStats: { rows: number; sourceWaitMs: number } | null = null;
 
         const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
         const heartbeatTags = {
@@ -482,12 +489,16 @@ const processBlobStorageExport = async (config: {
               );
               break;
             case "observations":
+              chStats = { rows: 0, sourceWaitMs: 0 };
               rawStream = enrichObservationStream(
-                getObservationsForBlobStorageExport(
-                  config.projectId,
-                  config.minTimestamp,
-                  config.maxTimestamp,
-                  exportFieldGroups,
+                countedStream(
+                  getObservationsForBlobStorageExport(
+                    config.projectId,
+                    config.minTimestamp,
+                    config.maxTimestamp,
+                    exportFieldGroups,
+                  ),
+                  chStats,
                 ),
                 config.projectId,
                 "model_id",
@@ -503,12 +514,16 @@ const processBlobStorageExport = async (config: {
               );
               break;
             case "observations_v2": // observations_v2 is the events table
+              chStats = { rows: 0, sourceWaitMs: 0 };
               rawStream = enrichObservationStream(
-                getEventsForBlobStorageExport(
-                  config.projectId,
-                  config.minTimestamp,
-                  config.maxTimestamp,
-                  exportFieldGroups,
+                countedStream(
+                  getEventsForBlobStorageExport(
+                    config.projectId,
+                    config.minTimestamp,
+                    config.maxTimestamp,
+                    exportFieldGroups,
+                  ),
+                  chStats,
                 ),
                 config.projectId,
                 "model_id",
@@ -546,6 +561,7 @@ const processBlobStorageExport = async (config: {
         // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
         // This prevents hitting AWS's 10,000 part limit on large exports
         let uploadStartMs: number | undefined;
+        let uploadDurationMsFinal: number | undefined;
         try {
           uploadStartMs = performance.now();
 
@@ -558,6 +574,7 @@ const processBlobStorageExport = async (config: {
           // Record at the upload boundary so a throw in the `finally` below
           // can't miscount a real success as a failure.
           uploadSucceeded = true;
+          uploadDurationMsFinal = Math.round(performance.now() - uploadStartMs);
           recordIncrement(BLOB_TABLE_EXPORT_METRIC, 1, {
             outcome: "success" satisfies BlobTableExportOutcome,
             table: config.table,
@@ -582,46 +599,111 @@ const processBlobStorageExport = async (config: {
             );
           }
 
+          const uploadDurationMs = uploadDurationMsFinal;
+          const chReadMs = Math.round(
+            chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
+          );
+          const enrichMs = chStats
+            ? Math.max(
+                0,
+                Math.round(sourceStats.sourceWaitMs - chStats.sourceWaitMs),
+              )
+            : 0;
+          const gzipCpuMs = gzipStats
+            ? Math.max(
+                0,
+                Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
+              )
+            : 0;
+          const uploadWaitMs = gzipStats
+            ? Math.round(gzipStats.backpressureMs)
+            : Math.max(0, uploadDurationMs - chReadMs - enrichMs);
+
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
               `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
               `path=${passthroughEligible ? "passthrough" : "standard"} ` +
-              `rows=${sourceStats.rows} sourceWaitMs=${Math.round(sourceStats.sourceWaitMs)} ` +
-              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${Math.round(performance.now() - uploadStartMs)}` +
+              `rows=${sourceStats.rows} chReadMs=${chReadMs} enrichMs=${enrichMs} ` +
+              `gzipCpuMs=${gzipCpuMs} uploadWaitMs=${uploadWaitMs} ` +
+              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${uploadDurationMs}` +
               (gzipStats && compressedCounter
-                ? ` gzipLevel=${gzipStats.level} gzipActiveMs=${Math.round(gzipStats.activeMs)} ` +
-                  `compressedBytes=${compressedCounter.bytes}`
+                ? ` gzipLevel=${gzipStats.level} compressedBytes=${compressedCounter.bytes}`
                 : ""),
           );
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
-          span.setAttribute(
-            "blob.sourceWaitMs",
-            Math.round(sourceStats.sourceWaitMs),
+          const finalChReadMs = Math.round(
+            chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
           );
+          const finalEnrichMs = chStats
+            ? Math.max(
+                0,
+                Math.round(sourceStats.sourceWaitMs - chStats.sourceWaitMs),
+              )
+            : 0;
+          span.setAttribute("blob.chReadMs", finalChReadMs);
+          span.setAttribute("blob.enrichMs", finalEnrichMs);
           span.setAttribute("blob.serializedBytes", serializedCounter.bytes);
           if (uploadStartMs !== undefined) {
-            span.setAttribute(
-              "blob.uploadDurationMs",
-              Math.round(performance.now() - uploadStartMs),
-            );
+            const totalUploadMs =
+              uploadDurationMsFinal ??
+              Math.round(performance.now() - uploadStartMs);
+            span.setAttribute("blob.uploadDurationMs", totalUploadMs);
+            if (uploadSucceeded) {
+              const finalGzipCpuMs = gzipStats
+                ? Math.max(
+                    0,
+                    Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
+                  )
+                : 0;
+              const finalUploadWaitMs = gzipStats
+                ? Math.round(gzipStats.backpressureMs)
+                : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
+              span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
+              span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
+              const stageTags = {
+                table: config.table,
+                path: passthroughEligible ? "passthrough" : "standard",
+                compressed: config.compressed ? "true" : "false",
+              };
+              recordHistogram(
+                "langfuse.blob_export.ch_read_ms",
+                finalChReadMs,
+                stageTags,
+              );
+              recordHistogram(
+                "langfuse.blob_export.enrich_ms",
+                finalEnrichMs,
+                stageTags,
+              );
+              recordHistogram(
+                "langfuse.blob_export.gzip_cpu_ms",
+                finalGzipCpuMs,
+                stageTags,
+              );
+              recordHistogram(
+                "langfuse.blob_export.upload_wait_ms",
+                finalUploadWaitMs,
+                stageTags,
+              );
+            }
           }
           if (compressedCounter) {
             span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
           }
           if (gzipStats && compressedCounter) {
-            // Gauge the cost of the gzip step so a level change (or moving
-            // compression off the worker) can be evaluated against real data.
             const activeMs = Math.round(gzipStats.activeMs);
-            // Input/output ratio (>1 = shrank); guard div-by-zero on empty exports.
             const ratio =
               compressedCounter.bytes > 0
                 ? serializedCounter.bytes / compressedCounter.bytes
                 : 0;
-            // Compression throughput over uncompressed input bytes.
+            const pureGzipMs = Math.max(
+              0,
+              gzipStats.activeMs - gzipStats.backpressureMs,
+            );
             const throughputMbPerSec =
-              gzipStats.activeMs > 0
-                ? serializedCounter.bytes / (gzipStats.activeMs * 1000)
+              pureGzipMs > 0
+                ? serializedCounter.bytes / (pureGzipMs * 1000)
                 : 0;
 
             span.setAttribute("blob.gzip.level", gzipStats.level);
