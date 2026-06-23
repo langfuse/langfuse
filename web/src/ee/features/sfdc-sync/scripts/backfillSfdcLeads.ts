@@ -1,6 +1,6 @@
 /**
  * One-off backfill of pre-existing orgs, users, and memberships into SFDC via
- * the live Mulesoft sync service (Langfuse Cloud only).
+ * the live Mulesoft sync service.
  *
  * WHY THIS EXISTS
  * ---------------
@@ -14,12 +14,14 @@
  * can be linked to accounts, exactly as the live sync enforces):
  *
  *   Pass 1  upsertUser   — one Lead per user that has an email.
- *   Pass 2  upsertOrg    — one Account per org, linking a representative owner
- *                          (OWNER > ADMIN > earliest non-NONE member w/ email).
- *                          This also persists organizations.sfdc_org_id.
+ *   Pass 2  upsertOrg    — one Account per org. upsertOrg does NOT link any
+ *                          member, so the representative owner
+ *                          (OWNER > ADMIN > earliest non-NONE member w/ email)
+ *                          is only there to satisfy the payload. Also persists
+ *                          organizations.sfdc_org_id.
  *   Pass 3  setUserRole  — one org-member bridge per non-NONE membership,
- *                          EXCLUDING the (org, owner) pair already linked in
- *                          pass 2 (avoids a redundant duplicate link call).
+ *                          INCLUDING the owner (upsertOrg created no link, so
+ *                          every member — owner included — needs setUserRole).
  *
  * IDEMPOTENCY / SAFETY
  * --------------------
@@ -135,8 +137,6 @@ const ROLE_PRIORITY: Record<string, number> = {
   [Role.VIEWER]: 3,
 };
 
-const ownerKey = (orgId: string, userId: string) => `${orgId}:${userId}`;
-
 async function main() {
   const cli = parseCli();
   const sfdc = getSfdcService();
@@ -164,7 +164,6 @@ async function main() {
     orgsSkippedNoOwner: 0,
     orgsSkippedExcluded: 0,
     bridges: 0,
-    bridgesSkippedOwner: 0,
   };
   let sampled = 0;
   const sample = (label: string, payload: Record<string, unknown>) => {
@@ -213,9 +212,10 @@ async function main() {
     }
   }
 
-  // ---- Pass 2: Accounts + owner link (upsertOrg) ----
-  // Records which (org, owner) pairs got linked so pass 3 can skip them.
-  const linkedOwners = new Set<string>();
+  // ---- Pass 2: Accounts (upsertOrg) ----
+  // upsertOrg creates the SFDC Account only; it does not link members, so the
+  // representative owner is just to satisfy the payload. Member bridges (for
+  // every member, owner included) are established in pass 3.
   {
     let cursorId: string | undefined;
     let processed = 0;
@@ -282,14 +282,13 @@ async function main() {
             email: owner.user.email,
             role: owner.role,
           });
-        linkedOwners.add(ownerKey(org.id, owner.userId));
         counts.orgs++;
       });
       logger.info(`[SFDC backfill] pass 2 (orgs): ${counts.orgs} processed`);
     }
   }
 
-  // ---- Pass 3: Member bridges (setUserRole), excluding pass-2 owners ----
+  // ---- Pass 3: Member bridges (setUserRole) for every non-NONE member ----
   {
     const recentCutoff =
       cli.skipRecentMinutes > 0
@@ -328,10 +327,6 @@ async function main() {
       processed += memberships.length;
 
       await mapWithConcurrency(memberships, cli.concurrency, async (m) => {
-        if (linkedOwners.has(ownerKey(m.orgId, m.userId))) {
-          counts.bridgesSkippedOwner++;
-          return;
-        }
         if (!m.user.email) return;
         sample("setUserRole", {
           orgId: m.orgId,
