@@ -715,15 +715,7 @@ const processBlobStorageExport = async (config: {
 export const handleBlobStorageIntegrationProjectJob = async (
   job: Job<TQueueJobTypes[QueueName.BlobStorageIntegrationProcessingQueue]>,
 ) => {
-  const {
-    projectId,
-    isManualRun,
-    originalNextSyncAt: rawOriginalNextSyncAt,
-  } = job.data.payload;
-  // BullMQ JSON-serializes Date → string; coerce back so comparisons work.
-  const originalNextSyncAt = rawOriginalNextSyncAt
-    ? new Date(rawOriginalNextSyncAt as unknown as string)
-    : null;
+  const { projectId } = job.data.payload;
 
   const span = getCurrentSpan();
   if (span) {
@@ -759,8 +751,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Blob storage integration is disabled for project ${projectId}`,
     );
-    await prisma.blobStorageIntegration.updateMany({
-      where: { projectId, runStartedAt: { not: null } },
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
       data: { runStartedAt: null },
     });
     return;
@@ -1015,26 +1007,16 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // Use updateMany with a CAS guard on exportMode so a mid-run mode change
     // (which resets lastSyncAt) is not silently overwritten by stale values.
     // We guard on exportMode rather than updatedAt because the handler itself
-    // writes runStartedAt mid-run, which bumps updatedAt.
-    const { count: successUpdateCount } =
-      await prisma.blobStorageIntegration.updateMany({
-        where: {
-          projectId,
-          exportMode: blobStorageIntegration.exportMode,
-        },
-        data: {
-          lastSyncAt: maxTimestamp,
-          nextSyncAt,
-          lastError: null,
-          lastErrorAt: null,
-          runStartedAt: null,
-        },
-      });
-    if (successUpdateCount === 0) {
-      logger.info(
-        `[BLOB INTEGRATION] Row modified during run for project ${projectId} — skipping override of lastSyncAt`,
-      );
-    }
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: {
+        lastSyncAt: maxTimestamp,
+        nextSyncAt,
+        lastError: null,
+        lastErrorAt: null,
+        runStartedAt: null,
+      },
+    });
 
     // If still catching up, immediately queue the next chunk job.
     // Wrapped in its own try/catch: the chunk already committed successfully
@@ -1075,16 +1057,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
 
-    const FALLBACK_FREQUENCY_MS = 24 * 60 * 60 * 1000;
-    let failFrequencyMs: number;
-    try {
-      failFrequencyMs = getFrequencyIntervalMs(
-        blobStorageIntegration.exportFrequency,
-      );
-    } catch {
-      failFrequencyMs = FALLBACK_FREQUENCY_MS;
-    }
-
     try {
       await prisma.blobStorageIntegration.update({
         where: { projectId },
@@ -1092,12 +1064,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
           lastError: errorMessage,
           lastErrorAt: new Date(),
           runStartedAt: null,
-          ...((isManualRun || !blobStorageIntegration.lastSyncAt) && {
-            nextSyncAt:
-              originalNextSyncAt && originalNextSyncAt > new Date()
-                ? originalNextSyncAt
-                : new Date(Date.now() + failFrequencyMs),
-          }),
         },
       });
     } catch (persistError) {

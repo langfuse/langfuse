@@ -37,7 +37,6 @@ const TWO_HOURS_AGO = new Date(NOW - 2 * 60 * 60 * 1000);
 const THIRTY_MIN_AGO = new Date(NOW - 30 * 60 * 1000);
 const TEN_MIN_AGO = new Date(NOW - 10 * 60 * 1000);
 const THREE_HOURS_AGO = new Date(NOW - 3 * 60 * 60 * 1000);
-const TWENTY_FIVE_HOURS_AGO = new Date(NOW - 25 * 60 * 60 * 1000);
 const TOMORROW = new Date(NOW + 24 * 60 * 60 * 1000);
 
 describe("Blob Storage Integration Status API - GET /api/public/integrations/blob-storage/{id}", () => {
@@ -188,7 +187,6 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     lastError: string | null;
     lastErrorAt: Date | null;
     runStartedAt?: Date | null;
-    exportFrequency?: string;
     expectedStatus: string;
     expectedFields?: Record<string, unknown>;
   }>([
@@ -292,25 +290,13 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       expectedFields: { lastError: "Access Denied" },
     },
     {
-      name: "stale runStartedAt for 20-min frequency (>1h TTL, falls through)",
+      name: "stale runStartedAt (>2h fixed TTL, falls through to up_to_date)",
       enabled: true,
       lastSyncAt: HOUR_AGO,
       nextSyncAt: TOMORROW,
       lastError: null,
       lastErrorAt: null,
       runStartedAt: THREE_HOURS_AGO,
-      exportFrequency: "every_20_minutes",
-      expectedStatus: "up_to_date",
-    },
-    {
-      name: "stale runStartedAt for daily frequency (>24h TTL, falls through)",
-      enabled: true,
-      lastSyncAt: TWENTY_FIVE_HOURS_AGO,
-      nextSyncAt: TOMORROW,
-      lastError: null,
-      lastErrorAt: null,
-      runStartedAt: TWENTY_FIVE_HOURS_AGO,
-      exportFrequency: "daily",
       expectedStatus: "up_to_date",
     },
     {
@@ -343,7 +329,6 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       lastError,
       lastErrorAt,
       runStartedAt,
-      exportFrequency,
       expectedStatus,
       expectedFields,
     }) => {
@@ -356,7 +341,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
           accessKeyId: "test-key",
           secretAccessKey: "test-secret",
           prefix: "",
-          exportFrequency: exportFrequency ?? "daily",
+          exportFrequency: "daily",
           enabled,
           forcePathStyle: false,
           fileType: "JSONL",
