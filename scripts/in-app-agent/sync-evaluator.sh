@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
+shopt -s nullglob
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-EVALUATOR_FILE="${REPO_ROOT}/web/src/features/in-app-agent/evaluators/usable-answer-evaluator.json"
-EVALUATION_RULE_FILE="${REPO_ROOT}/web/src/features/in-app-agent/evaluators/usable-answer-evaluation-rule.json"
+EVALUATOR_DIR="${REPO_ROOT}/web/src/features/in-app-agent/evaluators"
+EVALUATOR_FILES=("${EVALUATOR_DIR}"/*-evaluator.json)
 REGIONS=(LOCAL STAGING EU US JP HIPAA)
 BASE_URLS=(
   "${LANGFUSE_AI_FEATURES_LOCAL_BASE_URL:-http://localhost:3000}"
@@ -26,73 +27,119 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -f "${EVALUATOR_FILE}" ]]; then
-  echo "Evaluator file not found: ${EVALUATOR_FILE}" >&2
+if [[ ${#EVALUATOR_FILES[@]} -eq 0 ]]; then
+  echo "No evaluator files found in ${EVALUATOR_DIR}." >&2
   exit 1
 fi
 
-if [[ ! -f "${EVALUATION_RULE_FILE}" ]]; then
-  echo "Evaluation rule file not found: ${EVALUATION_RULE_FILE}" >&2
-  exit 1
-fi
+join_by_comma() {
+  local joined=""
 
-EVALUATOR_REQUEST_BODY="$(
-  jq -c '
-    if (.name | type) != "string" or (.name | length) == 0 then
-      error("Evaluator must include a non-empty string name")
-    elif .type != "llm_as_judge" then
-      error("Only llm_as_judge evaluator sync is supported by this script")
-    elif (.prompt | type) != "string" or (.prompt | length) == 0 then
-      error("Evaluator must include a non-empty prompt")
-    elif (.outputDefinition | type) != "object" then
-      error("Evaluator must include an outputDefinition object")
+  for value in "$@"; do
+    if [[ -z "${joined}" ]]; then
+      joined="${value}"
     else
-      .
-    end
-  ' "${EVALUATOR_FILE}"
-)"
-EVALUATOR_NAME="$(jq -r '.name' <<<"${EVALUATOR_REQUEST_BODY}")"
+      joined="${joined}, ${value}"
+    fi
+  done
 
-EVALUATION_RULE_REQUEST_BODY="$(
-  jq -c --arg evaluator_name "${EVALUATOR_NAME}" '
-    if (.name | type) != "string" or (.name | length) == 0 then
-      error("Evaluation rule must include a non-empty string name")
-    elif (.evaluator | type) != "object" then
-      error("Evaluation rule must include an evaluator object")
-    elif .evaluator.name != $evaluator_name then
-      error("Evaluation rule evaluator.name must match evaluator name")
-    elif .evaluator.scope != "project" then
-      error("Evaluation rule evaluator.scope must be project")
-    elif .evaluator.type != "llm_as_judge" then
-      error("Evaluation rule evaluator.type must be llm_as_judge")
-    elif .target != "observation" then
-      error("Only observation evaluation rules are supported by this script")
-    elif (.filter | type) != "array" then
-      error("Evaluation rule must include a filter array")
-    elif (.mapping | type) != "array" then
-      error("Evaluation rule must include a mapping array")
-    else
-      .
-    end
-  ' "${EVALUATION_RULE_FILE}"
-)"
-EVALUATION_RULE_PATCH_BODY="$(
-  jq -c '.evaluator |= { name, scope }' <<<"${EVALUATION_RULE_REQUEST_BODY}"
-)"
-EVALUATION_RULE_NAME="$(jq -r '.name' <<<"${EVALUATION_RULE_REQUEST_BODY}")"
+  printf '%s' "${joined}"
+}
 
+print_response_body() {
+  local response_body="$1"
+
+  if [[ -s "${response_body}" ]]; then
+    jq . "${response_body}" >&2 2>/dev/null || cat "${response_body}" >&2
+    echo >&2
+  fi
+}
+
+find_region_index() {
+  local region="$1"
+
+  for candidate_index in "${!REGIONS[@]}"; do
+    if [[ "${REGIONS[${candidate_index}]}" == "${region}" ]]; then
+      printf '%s' "${candidate_index}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+EVALUATOR_NAMES=()
+EVALUATOR_REQUEST_BODIES=()
+EVALUATION_RULE_NAMES=()
+EVALUATION_RULE_REQUEST_BODIES=()
+EVALUATION_RULE_PATCH_BODIES=()
+
+for EVALUATOR_FILE in "${EVALUATOR_FILES[@]}"; do
+  EVALUATION_RULE_FILE="${EVALUATOR_FILE%-evaluator.json}-evaluation-rule.json"
+
+  if [[ ! -f "${EVALUATION_RULE_FILE}" ]]; then
+    echo "Evaluation rule file not found for ${EVALUATOR_FILE}: ${EVALUATION_RULE_FILE}" >&2
+    exit 1
+  fi
+
+  EVALUATOR_REQUEST_BODY="$(
+    jq -c '
+      if (.name | type) != "string" or (.name | length) == 0 then
+        error("Evaluator must include a non-empty string name")
+      elif .type != "llm_as_judge" then
+        error("Only llm_as_judge evaluator sync is supported by this script")
+      elif (.prompt | type) != "string" or (.prompt | length) == 0 then
+        error("Evaluator must include a non-empty prompt")
+      elif (.outputDefinition | type) != "object" then
+        error("Evaluator must include an outputDefinition object")
+      else
+        .
+      end
+    ' "${EVALUATOR_FILE}"
+  )"
+  EVALUATOR_NAME="$(jq -r '.name' <<<"${EVALUATOR_REQUEST_BODY}")"
+
+  EVALUATION_RULE_REQUEST_BODY="$(
+    jq -c --arg evaluator_name "${EVALUATOR_NAME}" '
+      if (.name | type) != "string" or (.name | length) == 0 then
+        error("Evaluation rule must include a non-empty string name")
+      elif (.evaluator | type) != "object" then
+        error("Evaluation rule must include an evaluator object")
+      elif .evaluator.name != $evaluator_name then
+        error("Evaluation rule evaluator.name must match evaluator name")
+      elif .evaluator.scope != "project" then
+        error("Evaluation rule evaluator.scope must be project")
+      elif .evaluator.type != "llm_as_judge" then
+        error("Evaluation rule evaluator.type must be llm_as_judge")
+      elif .target != "observation" then
+        error("Only observation evaluation rules are supported by this script")
+      elif (.filter | type) != "array" then
+        error("Evaluation rule must include a filter array")
+      elif (.mapping | type) != "array" then
+        error("Evaluation rule must include a mapping array")
+      else
+        .
+      end
+    ' "${EVALUATION_RULE_FILE}"
+  )"
+  EVALUATION_RULE_PATCH_BODY="$(
+    jq -c '.evaluator |= { name, scope }' <<<"${EVALUATION_RULE_REQUEST_BODY}"
+  )"
+  EVALUATION_RULE_NAME="$(jq -r '.name' <<<"${EVALUATION_RULE_REQUEST_BODY}")"
+
+  EVALUATOR_NAMES+=("${EVALUATOR_NAME}")
+  EVALUATOR_REQUEST_BODIES+=("${EVALUATOR_REQUEST_BODY}")
+  EVALUATION_RULE_NAMES+=("${EVALUATION_RULE_NAME}")
+  EVALUATION_RULE_REQUEST_BODIES+=("${EVALUATION_RULE_REQUEST_BODY}")
+  EVALUATION_RULE_PATCH_BODIES+=("${EVALUATION_RULE_PATCH_BODY}")
+done
+
+EVALUATOR_LIST="$(join_by_comma "${EVALUATOR_NAMES[@]}")"
 SYNCED_REGIONS=()
 PREFLIGHT_ERRORS=()
 
 for REGION in "${SELECTED_REGIONS[@]}"; do
-  REGION_INDEX="-1"
-  for CANDIDATE_INDEX in "${!REGIONS[@]}"; do
-    if [[ "${REGIONS[${CANDIDATE_INDEX}]}" == "${REGION}" ]]; then
-      REGION_INDEX="${CANDIDATE_INDEX}"
-      break
-    fi
-  done
-  if [[ "${REGION_INDEX}" == "-1" ]]; then
+  if ! REGION_INDEX="$(find_region_index "${REGION}")"; then
     PREFLIGHT_ERRORS+=("${REGION}: unknown target. Expected one of: ${REGIONS[*]}.")
     continue
   fi
@@ -139,94 +186,27 @@ if [[ ${#PREFLIGHT_ERRORS[@]} -gt 0 ]]; then
 fi
 
 for REGION in "${SELECTED_REGIONS[@]}"; do
-  REGION_INDEX="-1"
-  for CANDIDATE_INDEX in "${!REGIONS[@]}"; do
-    if [[ "${REGIONS[${CANDIDATE_INDEX}]}" == "${REGION}" ]]; then
-      REGION_INDEX="${CANDIDATE_INDEX}"
-      break
-    fi
-  done
-
+  REGION_INDEX="$(find_region_index "${REGION}")"
   PUBLIC_KEY_VAR="LANGFUSE_AI_FEATURES_${REGION}_PUBLIC_KEY"
   SECRET_KEY_VAR="LANGFUSE_AI_FEATURES_${REGION}_SECRET_KEY"
   BASE_URL="${BASE_URLS[${REGION_INDEX}]}"
 
-  read -r -p "Sync ${EVALUATOR_NAME} and processing rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL})? [y/N] " CONFIRM
+  read -r -p "Sync evaluators (${EVALUATOR_LIST}) and processing rules in ${REGION} (${BASE_URL})? [y/N] " CONFIRM
   if [[ ! "${CONFIRM}" =~ ^[Yy]([Ee][Ss])?$ ]]; then
     echo "Skipped ${REGION}."
     continue
   fi
 
-  echo "Creating ${EVALUATOR_NAME} or adding a new version in ${REGION} (${BASE_URL})..."
+  for EVALUATOR_INDEX in "${!EVALUATOR_NAMES[@]}"; do
+    EVALUATOR_NAME="${EVALUATOR_NAMES[${EVALUATOR_INDEX}]}"
+    EVALUATOR_REQUEST_BODY="${EVALUATOR_REQUEST_BODIES[${EVALUATOR_INDEX}]}"
+    EVALUATION_RULE_NAME="${EVALUATION_RULE_NAMES[${EVALUATOR_INDEX}]}"
+    EVALUATION_RULE_REQUEST_BODY="${EVALUATION_RULE_REQUEST_BODIES[${EVALUATOR_INDEX}]}"
+    EVALUATION_RULE_PATCH_BODY="${EVALUATION_RULE_PATCH_BODIES[${EVALUATOR_INDEX}]}"
 
-  RESPONSE_BODY="$(mktemp)"
-  STATUS_CODE="$(
-    curl --silent --show-error \
-      --output "${RESPONSE_BODY}" \
-      --write-out "%{http_code}" \
-      --user "${!PUBLIC_KEY_VAR}:${!SECRET_KEY_VAR}" \
-      --header "Content-Type: application/json" \
-      --request POST \
-      --data "${EVALUATOR_REQUEST_BODY}" \
-      "${BASE_URL}/api/public/unstable/evaluators" || true
-  )"
+    echo "Creating ${EVALUATOR_NAME} or adding a new version in ${REGION} (${BASE_URL})..."
 
-  if [[ "${STATUS_CODE}" -lt 200 || "${STATUS_CODE}" -ge 300 ]]; then
-    echo "Failed to sync ${EVALUATOR_NAME} in ${REGION} (${BASE_URL}); status ${STATUS_CODE}." >&2
-    if [[ -s "${RESPONSE_BODY}" ]]; then
-      jq . "${RESPONSE_BODY}" >&2 2>/dev/null || cat "${RESPONSE_BODY}" >&2
-      echo >&2
-    fi
-    rm -f "${RESPONSE_BODY}"
-    exit 1
-  fi
-
-  rm -f "${RESPONSE_BODY}"
-
-  echo "Created ${EVALUATOR_NAME} or added a new version in ${REGION} (${BASE_URL})."
-
-  echo "Creating or updating evaluation rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL})..."
-
-  RULE_LIST_BODY="$(mktemp)"
-  STATUS_CODE="$(
-    curl --silent --show-error \
-      --output "${RULE_LIST_BODY}" \
-      --write-out "%{http_code}" \
-      --user "${!PUBLIC_KEY_VAR}:${!SECRET_KEY_VAR}" \
-      "${BASE_URL}/api/public/unstable/evaluation-rules?page=1&limit=100" || true
-  )"
-
-  if [[ "${STATUS_CODE}" -lt 200 || "${STATUS_CODE}" -ge 300 ]]; then
-    echo "Failed to list evaluation rules in ${REGION} (${BASE_URL}); status ${STATUS_CODE}." >&2
-    if [[ -s "${RULE_LIST_BODY}" ]]; then
-      jq . "${RULE_LIST_BODY}" >&2 2>/dev/null || cat "${RULE_LIST_BODY}" >&2
-      echo >&2
-    fi
-    rm -f "${RULE_LIST_BODY}"
-    exit 1
-  fi
-
-  EVALUATION_RULE_ID="$(
-    jq -r --arg name "${EVALUATION_RULE_NAME}" '
-      [.data[] | select(.name == $name) | .id][0] // empty
-    ' "${RULE_LIST_BODY}"
-  )"
-  rm -f "${RULE_LIST_BODY}"
-
-  RESPONSE_BODY="$(mktemp)"
-  if [[ -n "${EVALUATION_RULE_ID}" ]]; then
-    STATUS_CODE="$(
-      curl --silent --show-error \
-        --output "${RESPONSE_BODY}" \
-        --write-out "%{http_code}" \
-        --user "${!PUBLIC_KEY_VAR}:${!SECRET_KEY_VAR}" \
-        --header "Content-Type: application/json" \
-        --request PATCH \
-        --data "${EVALUATION_RULE_PATCH_BODY}" \
-        "${BASE_URL}/api/public/unstable/evaluation-rules/${EVALUATION_RULE_ID}" || true
-    )"
-    RULE_ACTION="update"
-  else
+    RESPONSE_BODY="$(mktemp)"
     STATUS_CODE="$(
       curl --silent --show-error \
         --output "${RESPONSE_BODY}" \
@@ -234,29 +214,87 @@ for REGION in "${SELECTED_REGIONS[@]}"; do
         --user "${!PUBLIC_KEY_VAR}:${!SECRET_KEY_VAR}" \
         --header "Content-Type: application/json" \
         --request POST \
-        --data "${EVALUATION_RULE_REQUEST_BODY}" \
-        "${BASE_URL}/api/public/unstable/evaluation-rules" || true
+        --data "${EVALUATOR_REQUEST_BODY}" \
+        "${BASE_URL}/api/public/unstable/evaluators" || true
     )"
-    RULE_ACTION="create"
-  fi
 
-  if [[ "${STATUS_CODE}" -lt 200 || "${STATUS_CODE}" -ge 300 ]]; then
-    echo "Failed to ${RULE_ACTION} evaluation rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL}); status ${STATUS_CODE}." >&2
-    if [[ -s "${RESPONSE_BODY}" ]]; then
-      jq . "${RESPONSE_BODY}" >&2 2>/dev/null || cat "${RESPONSE_BODY}" >&2
-      echo >&2
+    if [[ "${STATUS_CODE}" -lt 200 || "${STATUS_CODE}" -ge 300 ]]; then
+      echo "Failed to sync ${EVALUATOR_NAME} in ${REGION} (${BASE_URL}); status ${STATUS_CODE}." >&2
+      print_response_body "${RESPONSE_BODY}"
+      rm -f "${RESPONSE_BODY}"
+      exit 1
     fi
+
     rm -f "${RESPONSE_BODY}"
-    exit 1
-  fi
 
-  rm -f "${RESPONSE_BODY}"
+    echo "Created ${EVALUATOR_NAME} or added a new version in ${REGION} (${BASE_URL})."
+    echo "Creating or updating evaluation rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL})..."
 
-  if [[ -n "${EVALUATION_RULE_ID}" ]]; then
-    echo "Updated evaluation rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL})."
-  else
-    echo "Created evaluation rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL})."
-  fi
+    RULE_LIST_BODY="$(mktemp)"
+    STATUS_CODE="$(
+      curl --silent --show-error \
+        --output "${RULE_LIST_BODY}" \
+        --write-out "%{http_code}" \
+        --user "${!PUBLIC_KEY_VAR}:${!SECRET_KEY_VAR}" \
+        "${BASE_URL}/api/public/unstable/evaluation-rules?page=1&limit=100" || true
+    )"
+
+    if [[ "${STATUS_CODE}" -lt 200 || "${STATUS_CODE}" -ge 300 ]]; then
+      echo "Failed to list evaluation rules in ${REGION} (${BASE_URL}); status ${STATUS_CODE}." >&2
+      print_response_body "${RULE_LIST_BODY}"
+      rm -f "${RULE_LIST_BODY}"
+      exit 1
+    fi
+
+    EVALUATION_RULE_ID="$(
+      jq -r --arg name "${EVALUATION_RULE_NAME}" '
+        [.data[] | select(.name == $name) | .id][0] // empty
+      ' "${RULE_LIST_BODY}"
+    )"
+    rm -f "${RULE_LIST_BODY}"
+
+    RESPONSE_BODY="$(mktemp)"
+    if [[ -n "${EVALUATION_RULE_ID}" ]]; then
+      STATUS_CODE="$(
+        curl --silent --show-error \
+          --output "${RESPONSE_BODY}" \
+          --write-out "%{http_code}" \
+          --user "${!PUBLIC_KEY_VAR}:${!SECRET_KEY_VAR}" \
+          --header "Content-Type: application/json" \
+          --request PATCH \
+          --data "${EVALUATION_RULE_PATCH_BODY}" \
+          "${BASE_URL}/api/public/unstable/evaluation-rules/${EVALUATION_RULE_ID}" || true
+      )"
+      RULE_ACTION="update"
+    else
+      STATUS_CODE="$(
+        curl --silent --show-error \
+          --output "${RESPONSE_BODY}" \
+          --write-out "%{http_code}" \
+          --user "${!PUBLIC_KEY_VAR}:${!SECRET_KEY_VAR}" \
+          --header "Content-Type: application/json" \
+          --request POST \
+          --data "${EVALUATION_RULE_REQUEST_BODY}" \
+          "${BASE_URL}/api/public/unstable/evaluation-rules" || true
+      )"
+      RULE_ACTION="create"
+    fi
+
+    if [[ "${STATUS_CODE}" -lt 200 || "${STATUS_CODE}" -ge 300 ]]; then
+      echo "Failed to ${RULE_ACTION} evaluation rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL}); status ${STATUS_CODE}." >&2
+      print_response_body "${RESPONSE_BODY}"
+      rm -f "${RESPONSE_BODY}"
+      exit 1
+    fi
+
+    rm -f "${RESPONSE_BODY}"
+
+    if [[ -n "${EVALUATION_RULE_ID}" ]]; then
+      echo "Updated evaluation rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL})."
+    else
+      echo "Created evaluation rule ${EVALUATION_RULE_NAME} in ${REGION} (${BASE_URL})."
+    fi
+  done
 
   SYNCED_REGIONS+=("${REGION}")
 done
@@ -264,5 +302,5 @@ done
 if [[ ${#SYNCED_REGIONS[@]} -eq 0 ]]; then
   echo "No regions synced."
 else
-  echo "Synced ${EVALUATOR_NAME} and processing rule ${EVALUATION_RULE_NAME} to regions: ${SYNCED_REGIONS[*]}."
+  echo "Synced evaluators (${EVALUATOR_LIST}) and processing rules to regions: ${SYNCED_REGIONS[*]}."
 fi
