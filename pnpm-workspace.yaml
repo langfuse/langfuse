@@ -9,6 +9,7 @@ minimumReleaseAge: 7200
 # the exclusions are temporary so that we can set the 5 day limit without downgrading packages.
 # this list is version-specific
 minimumReleaseAgeExclude:
+  - undici@7.28.0
   - "form-data@2.5.6||4.0.6"
   - esbuild@0.28.1
   - "@esbuild/aix-ppc64@0.28.1"
@@ -57,6 +58,7 @@ allowBuilds:
   "@scarf/scarf": false
 overrides:
   esbuild: "0.28.1"
+  "undici@7": 7.28.0
   zod: 4.3.6
   nanoid: ^3.3.8
   katex: ^0.16.21
@@ -72,6 +74,10 @@ overrides:
   "@ai-sdk/provider-utils@<=4.0.26": 4.0.27
   "@ai-sdk/provider-utils-v5": "npm:@ai-sdk/provider-utils@4.0.27"
   "@copilotkit/runtime@0.0.0-mme-ag-ui-0-0-46-20260227141603>@ag-ui/langgraph": 0.0.29
+  # Keep Anthropic's Vertex client on an SDK version that emits Vertex rawPredict URLs.
+  # Remove once @langchain/anthropic allows the same SDK range.
+  # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
+  "@anthropic-ai/vertex-sdk>@anthropic-ai/sdk": 0.104.1
 patchedDependencies:
   next-auth@4.24.13: patches/next-auth@4.24.13.patch
 publicHoistPattern:

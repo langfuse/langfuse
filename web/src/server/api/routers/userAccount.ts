@@ -100,7 +100,11 @@ export const userAccountRouter = createTRPCRouter({
       z.object({
         // Allowlist of user-toggleable Feature Preview flags (the Feature
         // Preview modal). Keep in sync with the modal's preview registry.
-        flag: z.enum(["inAppAgent", "searchBar"]),
+        // TODO(remove ~2026-06-19): "searchBar" is retired — the bar is now GA
+        // on the v4 events tables (see useSearchBarEnabled) and no longer has a
+        // dialog tile. Kept in the allowlist as dead plumbing for a safe
+        // rollback; drop once the GA rollout is confirmed stable.
+        flag: z.enum(["searchBar"]),
         enabled: z.boolean(),
       }),
     )
@@ -265,18 +269,21 @@ export const userAccountRouter = createTRPCRouter({
         });
       }
 
-      const userCanToggleV4 = canToggleV4({
-        userCreatedAt: userRolloutState.createdAt,
-        organizations: userRolloutState.organizationMemberships.map(
-          (membership) => ({
-            id: membership.organization.id,
-            createdAt: membership.organization.createdAt,
-          }),
-        ),
-        excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-          ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-          : [],
-      });
+      const userCanToggleV4 = canToggleV4(
+        {
+          userCreatedAt: userRolloutState.createdAt,
+          organizations: userRolloutState.organizationMemberships.map(
+            (membership) => ({
+              id: membership.organization.id,
+              createdAt: membership.organization.createdAt,
+            }),
+          ),
+          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+            : [],
+        },
+        { isLangfuseCloudAdmin: ctx.session.user.admin === true },
+      );
 
       if (!userCanToggleV4) {
         return {

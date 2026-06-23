@@ -4,9 +4,10 @@ import { Agent } from "@mastra/core/agent";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
-import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
 import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
+import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
+import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import type { MastraAgent } from "@ag-ui/mastra";
 
 const adapterEvents = vi.hoisted(() => ({
@@ -30,6 +31,11 @@ const instrumentationMocks = vi.hoisted(() => {
     ),
   };
 });
+
+const promptMocks = vi.hoisted(() => ({
+  compile: vi.fn(() => "Prompt-managed assistant instructions"),
+  getPrompt: vi.fn(),
+}));
 
 vi.mock("@ag-ui/mastra", () => ({
   MastraAgent: vi.fn().mockImplementation(function () {
@@ -328,6 +334,11 @@ describe("patchMastraToolCallInputStreaming", () => {
 describe("createAgUiStream", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    promptMocks.getPrompt.mockResolvedValue({
+      name: "in-app-agent-system-prompt",
+      version: 2,
+      compile: promptMocks.compile,
+    });
   });
 
   it("serializes valid events including adapter message snapshots", async () => {
@@ -354,6 +365,9 @@ describe("createAgUiStream", () => {
     };
     const persistedEvents: AgUiEvent[] = [];
     const eventOrder: string[] = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
     adapterEvents.inputs = [];
 
     adapterEvents.items = [
@@ -393,7 +407,7 @@ describe("createAgUiStream", () => {
       },
     ];
 
-    const stream = createAgUiStream({
+    const stream = await createAgUiStream({
       input,
       signal: new AbortController().signal,
       options: {
@@ -412,6 +426,8 @@ describe("createAgUiStream", () => {
           projectId: "project-1",
           isV4Enabled: false,
         },
+        langfuseClient,
+        useLocalPrompt: false,
         langfuseTracing: {
           environment: "langfuse-in-app-agent",
           metadata: { langfuse_project_id: "project-1" },
@@ -427,6 +443,7 @@ describe("createAgUiStream", () => {
 
     expect(streamedText).toContain(EventType.MESSAGES_SNAPSHOT);
     expect(adapterEvents.inputs).toEqual([input]);
+    const { Agent } = await import("@mastra/core/agent");
     expect(Agent).toHaveBeenCalledWith(
       expect.objectContaining({
         tools: {
@@ -468,6 +485,27 @@ describe("createAgUiStream", () => {
       label: "Open trace",
       href: "/project/project-1/traces/trace-1",
     });
+
+    expect(promptMocks.getPrompt).toHaveBeenCalledWith(
+      "in-app-agent-system-prompt",
+      undefined,
+      { type: "text" },
+    );
+    expect(promptMocks.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        currentDate: expect.any(String),
+        redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
+        screenContext: "",
+        sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
+          (environment) => `"${environment}"`,
+        ).join(", "),
+      }),
+    );
+    expect(Agent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        instructions: "Prompt-managed assistant instructions",
+      }),
+    );
     expect(persistedEvents.map((event) => event.type)).toEqual([
       EventType.RUN_STARTED,
       EventType.MESSAGES_SNAPSHOT,
@@ -501,6 +539,10 @@ describe("createAgUiStream", () => {
       tracing: expect.objectContaining({
         environment: "langfuse-in-app-agent",
         targetProjectId: "project-1",
+        prompt: {
+          name: "in-app-agent-system-prompt",
+          version: 2,
+        },
       }),
     });
     expect(
@@ -538,8 +580,11 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     adapterEvents.items = [];
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
 
-    const stream = createAgUiStream({
+    const stream = await createAgUiStream({
       input,
       signal: new AbortController().signal,
       options: {
@@ -553,6 +598,8 @@ describe("createAgUiStream", () => {
           projectId: "project-1",
           isV4Enabled: true,
         },
+        langfuseClient,
+        useLocalPrompt: false,
       },
     });
     await readStream(stream);
@@ -615,6 +662,9 @@ describe("createAgUiStream", () => {
       forwardedProps: {},
     };
     const runErrorMessage = "AWS credential provider failed: Token is expired.";
+    const langfuseClient = {
+      getPrompt: promptMocks.getPrompt,
+    };
 
     adapterEvents.items = [
       {
@@ -630,7 +680,7 @@ describe("createAgUiStream", () => {
       },
     ];
 
-    const serverStream = createAgUiStream({
+    const serverStream = await createAgUiStream({
       input,
       signal: new AbortController().signal,
       options: {
@@ -644,6 +694,8 @@ describe("createAgUiStream", () => {
           projectId: "project-1",
           isV4Enabled: false,
         },
+        langfuseClient,
+        useLocalPrompt: false,
       },
     });
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
