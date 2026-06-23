@@ -61,6 +61,17 @@ export default [
     },
   },
 
+  {
+    name: "langfuse/web/no-unneccessary-cn",
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-unneccessary-cn": [
+        "warn",
+        { importPath: "@/src/utils/tailwind" },
+      ],
+    },
+  },
+
   // Design-system component APIs must use explicit variants instead of styling escape hatches.
   {
     name: "langfuse/web/design-system-no-style-props",
