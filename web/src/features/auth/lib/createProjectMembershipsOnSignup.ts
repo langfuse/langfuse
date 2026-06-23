@@ -186,11 +186,7 @@ export async function createProjectMembershipsOnSignup(
         userId: user.id,
         userName: user.name,
       });
-      // SFDC: the live sync only fires on the explicit org-create flow, so the
-      // auto-provisioned starter org would otherwise never reach SFDC. Mirror
-      // the create flow: upsertOrg creates the Account, setUserRole links the
-      // OWNER (upsertOrg does NOT create the member link). The lead already
-      // exists — upsertUser ran above before this block.
+
       if (starterOrg) {
         await getSfdcService()?.upsertOrg({
           orgId: starterOrg.organization.id,

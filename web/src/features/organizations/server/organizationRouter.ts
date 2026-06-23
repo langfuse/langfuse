@@ -122,8 +122,6 @@ export const organizationsRouter = createTRPCRouter({
         email: ctx.session.user.email,
         role: "OWNER",
       });
-      // upsertOrg creates the SFDC Account but does NOT link the creator as an
-      // org-member, so link the OWNER explicitly.
       await getSfdcService()?.setUserRole({
         orgId: organization.id,
         userId: ctx.session.user.id,
