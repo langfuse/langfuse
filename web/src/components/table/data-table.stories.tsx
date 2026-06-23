@@ -80,6 +80,10 @@ import { InfoIcon, MoreVertical, Trash } from "lucide-react";
 // Everything else (TableLink, Badge, IOTableCell, LocalIsoDate, TableIdOrName,
 // TokenUsageBadge, LevelCountsDisplay, FolderBreadcrumbLink, Skeleton, the
 // loading cells) is the actual production component.
+//
+// The IOTableCell relies on MarkdownContext; that is provided globally in
+// .storybook/preview.tsx (mirroring how the app wraps every page), not per
+// story, so no story needs a setup play function to make cells render.
 
 // -----------------------------------------------------------------------------
 // Deterministic mock data
@@ -201,9 +205,19 @@ function makeTraceRow(index: number): TraceRow {
   };
 }
 
-const TRACE_ROWS: TraceRow[] = Array.from({ length: 123 }, (_, i) =>
+// Enough rows to exercise multi-page pagination; cheap to build, all in-memory.
+const TRACE_ROWS: TraceRow[] = Array.from({ length: 60 }, (_, i) =>
   makeTraceRow(i),
 );
+
+// Small loaded slice reused by the data-state and selection stories.
+function loadedTraceData(count = 20): AsyncTableData<TraceRow[]> {
+  return {
+    isLoading: false,
+    isError: false,
+    data: TRACE_ROWS.slice(0, count),
+  };
+}
 
 // -----------------------------------------------------------------------------
 // Traces columns — faithful copy of the real Traces column structure
@@ -549,7 +563,6 @@ const plainColumns: LangfuseColumnDef<TraceRow>[] = [
     accessorKey: "id",
     id: "id",
     header: "ID",
-    isPinnedLeft: true,
     size: 220,
     cell: ({ row }) => <TableIdOrName value={row.original.id} />,
   },
@@ -597,9 +610,18 @@ const plainColumns: LangfuseColumnDef<TraceRow>[] = [
   },
 ];
 
+// Same plain columns, but the ID column is pinned-left. Pinned cells force an
+// opaque background, so the selected-row tint stops at the pin seam.
+const pinnedColumns: LangfuseColumnDef<TraceRow>[] = plainColumns.map((col) =>
+  col.id === "id" ? { ...col, isPinnedLeft: true } : col,
+);
+
 // -----------------------------------------------------------------------------
 // Stateful async wrapper (emulates server pagination without a backend)
 // -----------------------------------------------------------------------------
+// This is the one place a custom render function is genuinely warranted: the
+// pagination stories need live page state + a simulated request latency, which
+// args cannot express. Kept minimal and typed.
 
 type PaginationMode = "offset" | "cursor" | "none";
 
@@ -670,22 +692,12 @@ function useAsyncPagedData<TRow>({
 }
 
 // -----------------------------------------------------------------------------
-// Shared knob args
-// -----------------------------------------------------------------------------
-
-type DataTableStoryArgs = {
-  rowHeight?: RowHeight;
-  cellPadding?: "compact" | "comfortable" | "none";
-  topAlignCells?: boolean;
-  shouldRenderGroupHeaders?: boolean;
-};
-
-// -----------------------------------------------------------------------------
 // Meta
 // -----------------------------------------------------------------------------
 // DataTable is generic; pin the generic via a thin wrapper so args infer at
 // TraceRow (the default `TData = object` generic makes typed columns/data
-// unassignable through preview.meta).
+// unassignable through preview.meta). Typed `preview.meta` / `meta.story`
+// metadata is what type-checks every story's args, decorators, and play.
 type DataTableDemoProps = Parameters<typeof DataTable<TraceRow, unknown>>[0];
 
 function DataTableDemo(props: DataTableDemoProps) {
@@ -701,7 +713,12 @@ const meta = preview.meta({
   args: {
     tableName: "story-data-table",
     columns: plainColumns,
-    data: { isLoading: false, isError: false, data: TRACE_ROWS.slice(0, 20) },
+    data: loadedTraceData(),
+    pagination: {
+      totalCount: TRACE_ROWS.length,
+      onChange: fn(),
+      state: { pageIndex: 0, pageSize: 20 },
+    },
   },
   decorators: [
     (Story) => (
@@ -717,51 +734,31 @@ export default meta;
 // -----------------------------------------------------------------------------
 // 1. Data states
 // -----------------------------------------------------------------------------
+// Driven purely by args off the meta defaults — no custom render needed.
+
+export const Default = meta.story({});
 
 export const Loading = meta.story({
-  render: () => (
-    <DataTable
-      tableName="story-loading"
-      columns={plainColumns}
-      data={{ isLoading: true, isError: false }}
-      pagination={{
-        totalCount: null,
-        onChange: fn(),
-        state: { pageIndex: 0, pageSize: 10 },
-      }}
-    />
-  ),
-});
-
-export const Loaded = meta.story({
-  render: () => (
-    <DataTable
-      tableName="story-loaded"
-      columns={plainColumns}
-      data={{ isLoading: false, isError: false, data: TRACE_ROWS.slice(0, 20) }}
-      pagination={{
-        totalCount: TRACE_ROWS.length,
-        onChange: fn(),
-        state: { pageIndex: 0, pageSize: 20 },
-      }}
-    />
-  ),
+  args: {
+    data: { isLoading: true, isError: false },
+    pagination: {
+      totalCount: null,
+      onChange: fn(),
+      state: { pageIndex: 0, pageSize: 10 },
+    },
+  },
 });
 
 export const Empty = meta.story({
-  render: () => (
-    <DataTable
-      tableName="story-empty"
-      columns={plainColumns}
-      data={{ isLoading: false, isError: false, data: [] }}
-      noResultsMessage="No traces match the current filters."
-      pagination={{
-        totalCount: 0,
-        onChange: fn(),
-        state: { pageIndex: 0, pageSize: 20 },
-      }}
-    />
-  ),
+  args: {
+    data: { isLoading: false, isError: false, data: [] },
+    noResultsMessage: "No traces match the current filters.",
+    pagination: {
+      totalCount: 0,
+      onChange: fn(),
+      state: { pageIndex: 0, pageSize: 20 },
+    },
+  },
 });
 
 // KNOWN GAP (research inventory G1): data.isError is never rendered by DataTable.
@@ -770,48 +767,159 @@ export const Empty = meta.story({
 // discarded and the user sees an infinite loading state. This story exposes that
 // bug; the fix is to add a real error UI branch to TableBodyComponent.
 export const Error = meta.story({
-  render: () => (
-    <DataTable
-      tableName="story-error"
-      columns={plainColumns}
-      data={{
-        isLoading: false,
-        isError: true,
-        error: "Failed to load traces: upstream query timed out (504).",
-      }}
-      pagination={{
-        totalCount: null,
-        onChange: fn(),
-        state: { pageIndex: 0, pageSize: 10 },
-      }}
-    />
-  ),
+  args: {
+    data: {
+      isLoading: false,
+      isError: true,
+      error: "Failed to load traces: upstream query timed out (504).",
+    },
+    pagination: {
+      totalCount: null,
+      onChange: fn(),
+      state: { pageIndex: 0, pageSize: 10 },
+    },
+  },
 });
 
 // -----------------------------------------------------------------------------
-// 2. TracesLike — faithful reproduction of the real Traces table
+// 2. Pinned column
 // -----------------------------------------------------------------------------
-// Same columns, same cell components, same density (compact default), same
-// `singleLine = rowHeight === "s"` IO rule as components/table/use-cases/traces.tsx.
-// Put this side-by-side with the real Traces table at :3001 to confirm cell-level
-// fidelity (esp. IO cell padding, Tags chip spacing, badge typography, the
-// timestamp/latency text, and the trailing action menu).
+// The ID column is pinned-left; the sticky cell keeps an opaque background while
+// the rest of the row scrolls horizontally underneath it.
 
-function TracesLikeStory(args: DataTableStoryArgs) {
+export const WithPinnedColumn = meta.story({
+  args: {
+    tableName: "story-pinned-column",
+    columns: pinnedColumns,
+  },
+});
+
+// -----------------------------------------------------------------------------
+// 3. Row selection (authored checkbox column + stateful selection)
+// -----------------------------------------------------------------------------
+// The selection checkbox column is NOT part of DataTable — each table authors
+// its own. This needs live selection state, so it uses a small typed wrapper.
+
+const selectionColumns: LangfuseColumnDef<TraceRow>[] = [
+  {
+    accessorKey: "select",
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={
+          table.getIsAllPageRowsSelected()
+            ? true
+            : table.getIsSomePageRowsSelected()
+              ? "indeterminate"
+              : false
+        }
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all rows on this page"
+      />
+    ),
+    size: 40,
+    enableSorting: false,
+    isFixedPosition: true,
+    cell: ({ row }) => (
+      <Checkbox
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
+      />
+    ),
+  },
+  ...plainColumns,
+];
+
+function RowSelectionStory() {
+  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
+  const selectedCount = Object.values(rowSelection).filter(Boolean).length;
+
+  return (
+    <div className="flex h-full flex-col">
+      <div className="text-muted-foreground mb-2 text-sm">
+        {selectedCount} row{selectedCount === 1 ? "" : "s"} selected
+      </div>
+      <DataTable<TraceRow, unknown>
+        tableName="story-row-selection"
+        columns={selectionColumns}
+        data={loadedTraceData()}
+        rowSelection={rowSelection}
+        setRowSelection={setRowSelection}
+        pagination={{
+          totalCount: 20,
+          onChange: fn(),
+          state: { pageIndex: 0, pageSize: 20 },
+        }}
+      />
+    </div>
+  );
+}
+
+export const WithRowSelection = meta.story({
+  render: () => <RowSelectionStory />,
+});
+
+// -----------------------------------------------------------------------------
+// 4. Pagination variants
+// -----------------------------------------------------------------------------
+
+function PaginationStory({ mode }: { mode: PaginationMode }) {
   const { data, paginationProp } = useAsyncPagedData<TraceRow>({
     rows: TRACE_ROWS,
     pageSize: 10,
-    mode: "offset",
+    mode,
   });
+  return (
+    <DataTable
+      tableName={`story-pagination-${mode}`}
+      columns={plainColumns}
+      data={data}
+      pagination={paginationProp}
+    />
+  );
+}
+
+export const OffsetPagination = meta.story({
+  render: () => <PaginationStory mode="offset" />,
+});
+
+export const CursorPagination = meta.story({
+  render: () => <PaginationStory mode="cursor" />,
+});
+
+export const NoPagination = meta.story({
+  render: () => <PaginationStory mode="none" />,
+});
+
+// -----------------------------------------------------------------------------
+// 5. Density variants (faithful Traces columns)
+// -----------------------------------------------------------------------------
+// Discrete state stories per density. These use fixed variant props (rowHeight /
+// cellPadding) and expose NO args to customize them — they show one defined
+// state each, matching the production tables:
+//   - Dense:       rowHeight "s" + compact, the real Traces default.
+//   - Comfortable: rowHeight "m" + comfortable, expanded IO cells.
+
+const tracesPagination = {
+  totalCount: TRACE_ROWS.length,
+  onChange: fn(),
+  state: { pageIndex: 0, pageSize: 10 },
+};
+
+function TracesTable({
+  rowHeight,
+  cellPadding,
+}: {
+  rowHeight: RowHeight;
+  cellPadding?: "compact" | "comfortable" | "none";
+}) {
+  const columns = useMemo(() => buildTraceColumns(rowHeight), [rowHeight]);
   const [orderBy, setOrderBy] = useState<OrderByState>({
     column: "timestamp",
     order: "DESC",
   });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  const rowHeight = args.rowHeight ?? "s";
-  const columns = useMemo(() => buildTraceColumns(rowHeight), [rowHeight]);
-
   const [columnVisibility, setColumnVisibility] = useState(() => {
     const initial: Record<string, boolean> = {};
     for (const col of columns) {
@@ -824,8 +932,8 @@ function TracesLikeStory(args: DataTableStoryArgs) {
     <DataTable<TraceRow, unknown>
       tableName="traces"
       columns={columns}
-      data={data}
-      pagination={paginationProp}
+      data={loadedTraceData()}
+      pagination={tracesPagination}
       orderBy={orderBy}
       setOrderBy={setOrderBy}
       rowSelection={rowSelection}
@@ -833,59 +941,84 @@ function TracesLikeStory(args: DataTableStoryArgs) {
       columnVisibility={columnVisibility}
       onColumnVisibilityChange={setColumnVisibility}
       rowHeight={rowHeight}
-      cellPadding={args.cellPadding}
-      topAlignCells={args.topAlignCells}
+      cellPadding={cellPadding}
     />
   );
 }
 
-export const TracesLike = meta.story({
-  args: {
-    rowHeight: "s",
-    cellPadding: "compact",
-    topAlignCells: false,
-  },
-  argTypes: {
-    rowHeight: {
-      control: "inline-radio",
-      options: ["s", "m", "l"],
-      description:
-        "Row height: s=h-7, m=h-24, l=h-64. Traces defaults to 's'. On 's' the IO cells render single-line; on m/l they expand (matches the real table's `singleLine = rowHeight === 's'` rule).",
-    },
-    cellPadding: {
-      control: "inline-radio",
-      options: ["compact", "comfortable", "none"],
-      description: "Traces uses the compact default.",
-    },
-    topAlignCells: {
-      control: "boolean",
-      description:
-        "Top-align cell content (used by experiment compare/grid only).",
-    },
-  },
-  render: (args) => (
-    <TracesLikeStory
-      rowHeight={args.rowHeight}
-      cellPadding={args.cellPadding}
-      topAlignCells={args.topAlignCells}
-    />
+export const Dense = meta.story({
+  render: () => <TracesTable rowHeight="s" cellPadding="compact" />,
+});
+
+export const Comfortable = meta.story({
+  render: () => <TracesTable rowHeight="m" cellPadding="comfortable" />,
+});
+
+// -----------------------------------------------------------------------------
+// 6. Density matrix (design showcase)
+// -----------------------------------------------------------------------------
+// Renders the same faithful Traces columns at all three row heights side by side
+// so density/alignment differences are visible at a glance. Per the storybook
+// skill, a variant-showcase story renders the component multiple times with
+// predefined props and exposes no args + no play function.
+
+const densityData: AsyncTableData<TraceRow[]> = {
+  isLoading: false,
+  isError: false,
+  data: TRACE_ROWS.slice(0, 6),
+};
+
+function DensityPanel({ rowHeight }: { rowHeight: RowHeight }) {
+  const label = { s: "Small (h-7)", m: "Medium (h-24)", l: "Large (h-64)" }[
+    rowHeight
+  ];
+  const columns = useMemo(() => buildTraceColumns(rowHeight), [rowHeight]);
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="text-muted-foreground mb-1 text-xs font-medium">
+        rowHeight = {rowHeight} — {label}
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col border">
+        <DataTable<TraceRow, unknown>
+          tableName={`story-density-${rowHeight}`}
+          columns={columns}
+          data={densityData}
+          rowHeight={rowHeight}
+        />
+      </div>
+    </div>
+  );
+}
+
+export const DensityMatrix = meta.story({
+  parameters: { layout: "fullscreen" },
+  decorators: [
+    (Story) => (
+      <div className="bg-background flex h-screen flex-col gap-4 p-4">
+        <Story />
+      </div>
+    ),
+  ],
+  render: () => (
+    <>
+      <DensityPanel rowHeight="s" />
+      <DensityPanel rowHeight="m" />
+      <DensityPanel rowHeight="l" />
+    </>
   ),
 });
 
 // -----------------------------------------------------------------------------
-// 3. KitchenSink — knob-driven Traces-shaped table (all four knobs live)
+// 7. Grouped headers (two-row header path)
 // -----------------------------------------------------------------------------
-// Same faithful Traces columns as TracesLike, but with all four DataTable knobs
-// exposed (rowHeight / cellPadding / topAlignCells / shouldRenderGroupHeaders)
-// plus a grouped "Scores"/"Cost & usage" two-row header so the otherwise-dead
-// shouldRenderGroupHeaders path (no production caller passes it) can be toggled.
+// Exercises the otherwise-dead `shouldRenderGroupHeaders` path (no production
+// caller passes it) with a grouped "Scores" / "Cost & usage" two-row header on
+// top of the faithful Traces columns. Fixed predefined props, no args.
 
-function buildKitchenSinkColumns(
+function buildGroupedColumns(
   rowHeight: RowHeight,
 ): LangfuseColumnDef<TraceRow>[] {
   const base = buildTraceColumns(rowHeight);
-  // Insert two grouped headers before the trailing action column to exercise
-  // the two-row header path. The children reuse the same usage/cost accessors.
   const groupedScores: LangfuseColumnDef<TraceRow> = {
     accessorKey: "scoresGroup",
     id: "scoresGroup",
@@ -934,24 +1067,14 @@ function buildKitchenSinkColumns(
   return [...base.slice(0, -1), groupedScores, groupedUsage, base.at(-1)!];
 }
 
-function KitchenSinkStory(args: DataTableStoryArgs) {
-  const { data, paginationProp } = useAsyncPagedData<TraceRow>({
-    rows: TRACE_ROWS,
-    pageSize: 10,
-    mode: "offset",
-  });
+function GroupedHeadersStory() {
+  const rowHeight: RowHeight = "m";
+  const columns = useMemo(() => buildGroupedColumns(rowHeight), [rowHeight]);
   const [orderBy, setOrderBy] = useState<OrderByState>({
     column: "timestamp",
     order: "DESC",
   });
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-
-  const rowHeight = args.rowHeight ?? "m";
-  const columns = useMemo(
-    () => buildKitchenSinkColumns(rowHeight),
-    [rowHeight],
-  );
-
   const [columnVisibility, setColumnVisibility] = useState(() => {
     const initial: Record<string, boolean> = {};
     for (const col of columns) {
@@ -962,10 +1085,10 @@ function KitchenSinkStory(args: DataTableStoryArgs) {
 
   return (
     <DataTable<TraceRow, unknown>
-      tableName="story-kitchen-sink"
+      tableName="story-grouped-headers"
       columns={columns}
-      data={data}
-      pagination={paginationProp}
+      data={loadedTraceData(10)}
+      pagination={tracesPagination}
       orderBy={orderBy}
       setOrderBy={setOrderBy}
       rowSelection={rowSelection}
@@ -973,226 +1096,30 @@ function KitchenSinkStory(args: DataTableStoryArgs) {
       columnVisibility={columnVisibility}
       onColumnVisibilityChange={setColumnVisibility}
       rowHeight={rowHeight}
-      cellPadding={args.cellPadding}
-      topAlignCells={args.topAlignCells}
-      shouldRenderGroupHeaders={args.shouldRenderGroupHeaders}
+      cellPadding="compact"
+      shouldRenderGroupHeaders
     />
   );
 }
 
-export const KitchenSink = meta.story({
-  args: {
-    rowHeight: "m",
-    cellPadding: "compact",
-    topAlignCells: false,
-    shouldRenderGroupHeaders: true,
-  },
-  argTypes: {
-    rowHeight: {
-      control: "inline-radio",
-      options: ["s", "m", "l"],
-      description: "Row height: s=h-7, m=h-24, l=h-64",
-    },
-    cellPadding: {
-      control: "inline-radio",
-      options: ["compact", "comfortable", "none"],
-    },
-    topAlignCells: {
-      control: "boolean",
-      description:
-        "Top-align cell content (used by experiment compare/grid only)",
-    },
-    shouldRenderGroupHeaders: {
-      control: "boolean",
-      description:
-        "Render the two-row grouped header (Scores / Cost & usage). Dead path in production — no caller passes it.",
-    },
-  },
-  render: (args) => (
-    <KitchenSinkStory
-      rowHeight={args.rowHeight}
-      cellPadding={args.cellPadding}
-      topAlignCells={args.topAlignCells}
-      shouldRenderGroupHeaders={args.shouldRenderGroupHeaders}
-    />
-  ),
+export const WithGroupedHeaders = meta.story({
+  render: () => <GroupedHeadersStory />,
 });
 
 // -----------------------------------------------------------------------------
-// 4. Pagination variants
-// -----------------------------------------------------------------------------
-
-function PaginationStory({ mode }: { mode: PaginationMode }) {
-  const { data, paginationProp } = useAsyncPagedData<TraceRow>({
-    rows: TRACE_ROWS,
-    pageSize: 10,
-    mode,
-  });
-  return (
-    <DataTable
-      tableName={`story-pagination-${mode}`}
-      columns={plainColumns}
-      data={data}
-      pagination={paginationProp}
-    />
-  );
-}
-
-export const OffsetPagination = meta.story({
-  render: () => <PaginationStory mode="offset" />,
-});
-
-export const CursorPagination = meta.story({
-  render: () => <PaginationStory mode="cursor" />,
-});
-
-export const NoPagination = meta.story({
-  render: () => <PaginationStory mode="none" />,
-});
-
-// -----------------------------------------------------------------------------
-// 5. Row selection (authored checkbox column)
-// -----------------------------------------------------------------------------
-// The selection checkbox column is NOT part of DataTable — each table authors
-// its own. The ID column is pinned-left; pinned cells force an opaque
-// background, so the selected-row tint (bg-muted/40) stops at the pin seam.
-
-function buildSelectionColumns(): LangfuseColumnDef<TraceRow>[] {
-  return [
-    {
-      accessorKey: "select",
-      id: "select",
-      header: ({ table }) => (
-        <Checkbox
-          checked={
-            table.getIsAllPageRowsSelected()
-              ? true
-              : table.getIsSomePageRowsSelected()
-                ? "indeterminate"
-                : false
-          }
-          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
-          aria-label="Select all rows on this page"
-        />
-      ),
-      size: 40,
-      enableSorting: false,
-      isFixedPosition: true,
-      cell: ({ row }) => (
-        <Checkbox
-          checked={row.getIsSelected()}
-          onCheckedChange={(value) => row.toggleSelected(!!value)}
-          aria-label="Select row"
-        />
-      ),
-    },
-    ...plainColumns,
-  ];
-}
-
-const selectionColumns = buildSelectionColumns();
-
-function RowSelectionStory() {
-  const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const data: AsyncTableData<TraceRow[]> = {
-    isLoading: false,
-    isError: false,
-    data: TRACE_ROWS.slice(0, 20),
-  };
-  const selectedCount = Object.values(rowSelection).filter(Boolean).length;
-
-  return (
-    <div className="flex h-full flex-col">
-      <div className="text-muted-foreground mb-2 text-sm">
-        {selectedCount} row{selectedCount === 1 ? "" : "s"} selected
-      </div>
-      <DataTable
-        tableName="story-row-selection"
-        columns={selectionColumns}
-        data={data}
-        rowSelection={rowSelection}
-        setRowSelection={setRowSelection}
-        pagination={{
-          totalCount: 20,
-          onChange: fn(),
-          state: { pageIndex: 0, pageSize: 20 },
-        }}
-      />
-    </div>
-  );
-}
-
-export const RowSelection = meta.story({
-  render: () => <RowSelectionStory />,
-});
-
-// -----------------------------------------------------------------------------
-// 6. Density showcase
-// -----------------------------------------------------------------------------
-// Same faithful Traces columns at three row heights, so alignment/density
-// differences are visible. The IO cells switch from single-line ("s") to
-// expanded (m/l) exactly as in production.
-
-const densityData: AsyncTableData<TraceRow[]> = {
-  isLoading: false,
-  isError: false,
-  data: TRACE_ROWS.slice(0, 6),
-};
-
-function DensityPanel({ rowHeight }: { rowHeight: RowHeight }) {
-  const label = { s: "Small (h-7)", m: "Medium (h-24)", l: "Large (h-64)" }[
-    rowHeight
-  ];
-  const columns = useMemo(() => buildTraceColumns(rowHeight), [rowHeight]);
-  return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="text-muted-foreground mb-1 text-xs font-medium">
-        rowHeight = {rowHeight} — {label}
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col border">
-        <DataTable<TraceRow, unknown>
-          tableName={`story-density-${rowHeight}`}
-          columns={columns}
-          data={densityData}
-          rowHeight={rowHeight}
-        />
-      </div>
-    </div>
-  );
-}
-
-export const DensityShowcase = meta.story({
-  parameters: { layout: "fullscreen" },
-  decorators: [
-    (Story) => (
-      <div className="bg-background flex h-screen flex-col gap-4 p-4">
-        <Story />
-      </div>
-    ),
-  ],
-  render: () => (
-    <>
-      <DensityPanel rowHeight="s" />
-      <DensityPanel rowHeight="m" />
-      <DensityPanel rowHeight="l" />
-    </>
-  ),
-});
-
-// -----------------------------------------------------------------------------
-// 7. PromptsLike — faithful reproduction of the real Prompts table
+// 8. Folder rows (faithful Prompts table — design showcase)
 // -----------------------------------------------------------------------------
 // Reproduces features/prompts/components/prompts-table.tsx cell-for-cell:
 //   - cellPadding="comfortable" (the Prompts one-off override at prompts-table.tsx:482)
 //   - Name column: folder rows use the real FolderBreadcrumbLink (TableLink +
-//     Folder icon, capped at max-h-4); prompt rows use TableLink to the prompt.
+//     Folder icon); prompt rows use TableLink to the prompt.
 //   - Versions/Type: folder rows render null -> empty cells (column rhythm
 //     visibly breaks between folder and prompt rows, as in production).
 //   - "Latest Version Created At": LocalIsoDate, null on folder rows.
 //   - "Number of Observations (7d)": TableLink wrapping the count (0 still links),
 //     with the real Skeleton fallback shape (h-3 w-1/2).
-//   - Tags: real TagList in the `flex gap-x-1 gap-y-1` wrapper that
-//     TagManager/TagPromptPopover renders; folder rows render the `h-6` spacer.
+//   - Tags: real TagList in the `flex gap-x-1 gap-y-1` wrapper; folder rows
+//     render the `h-6` spacer.
 //   - Actions: ghost icon button(s) — folder rows duplicate+delete, prompt rows
 //     delete — matching the real Actions column slot.
 
@@ -1380,7 +1307,7 @@ const promptColumns: LangfuseColumnDef<PromptRow>[] = [
   },
 ];
 
-function PromptsLikeStory(args: DataTableStoryArgs) {
+function FolderRowsStory() {
   const { data, paginationProp } = useAsyncPagedData<PromptRow>({
     rows: PROMPT_ROWS,
     pageSize: 20,
@@ -1399,35 +1326,13 @@ function PromptsLikeStory(args: DataTableStoryArgs) {
       pagination={paginationProp}
       orderBy={orderBy}
       setOrderBy={setOrderBy}
-      rowHeight={args.rowHeight}
+      rowHeight="s"
       // The real Prompts table sets comfortable density (prompts-table.tsx:482).
-      cellPadding={args.cellPadding}
+      cellPadding="comfortable"
     />
   );
 }
 
-export const PromptsLike = meta.story({
-  args: {
-    rowHeight: "s",
-    cellPadding: "comfortable",
-  },
-  argTypes: {
-    rowHeight: {
-      control: "inline-radio",
-      options: ["s", "m", "l"],
-      description: "Row height: s=h-7, m=h-24, l=h-64 (Prompts uses s)",
-    },
-    cellPadding: {
-      control: "inline-radio",
-      options: ["compact", "comfortable", "none"],
-      description:
-        "Cell padding. The real Prompts table sets 'comfortable' (prompts-table.tsx:482); flip to 'compact' to compare against the dense default.",
-    },
-  },
-  render: (args) => (
-    <PromptsLikeStory
-      rowHeight={args.rowHeight}
-      cellPadding={args.cellPadding}
-    />
-  ),
+export const WithFolderRows = meta.story({
+  render: () => <FolderRowsStory />,
 });
