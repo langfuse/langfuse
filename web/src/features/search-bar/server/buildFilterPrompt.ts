@@ -1,5 +1,10 @@
 // Registry-derived system prompt for the v4 search-bar AI filter generator.
 //
+// v4 ONLY. This prompt is consumed solely by `searchBar.generateFilter`. The v3
+// natural-language filter (`naturalLanguageFilters.createCompletion`) uses a
+// SEPARATE, remotely-managed prompt (`get-filter-conditions-from-query`) and is
+// unaffected by changes here — keep the two prompts separate.
+//
 // The prompt is generated from the SAME field registry the grammar, validator,
 // and reverse adapter use (`../lib/fields`), so the model's entire vocabulary IS
 // the bar grammar — it can only be told to emit columns/operators the bar can

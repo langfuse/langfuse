@@ -10,6 +10,22 @@ evals.
 > prompt `get-filter-conditions-from-query`) is a separate code path and is **not**
 > changed by anything here. See `README.md` → "AI filter mode".
 
+## Status — two pieces
+
+- **Piece 1 (MVP, mergeable now).** Make the v4 AI filter genuinely usable and
+  ship it. Prod was fully broken — every call 500'd on a `temperature`
+  ValidationException (Opus 4.8 rejects `temperature`/`top_p`; fixed by dropping
+  them) — and nobody noticed, so the bar is "clearly works," not "perfectly
+  tuned." Local experiments show the prompt is **good on the prod model** (see
+  "Local prompt experiments"). Ship it.
+- **Piece 2 (the real tuning, dogfooded on Langfuse).** Prompt management +
+  versions, enriched tracing, dataset + evals — the disciplined loop, and a
+  Langfuse workshop in its own right. Everything from "Why dogfood Langfuse"
+  onward is Piece 2.
+
+Note: the UX findings below were first measured on **local `claude-3-haiku`**;
+Piece 1 re-measured on the **prod model (Opus 4.8)** and most resolve there.
+
 ## 1. What it is
 
 The bar's "Ask AI" mode turns a natural-language request into a `FilterState`
@@ -44,6 +60,44 @@ prompt's few-shot example.
 "user alice slower than 10s", multi-filter); results are transparent editable
 pills; keyboard path (Tab→button→Enter, Esc, back); empty-result error is clean;
 apply is lossless (skipped filters preserved); v3/v4 isolation holds.
+
+## 2b. Local prompt experiments (Opus 4.8) — Piece 1 (2026-06-23)
+
+Ran the v4 prompt against the **prod model** (`eu.anthropic.claude-opus-4-8`, via
+the playground SSO profile) over a scenario set, parsed with the production
+`parseGeneratedFilters`, scored against expected filter-column sets. **12/13,
+stable across runs.**
+
+**Key finding:** the refine-leakage in §2 was a `claude-3-haiku` weakness —
+**Opus 4.8 (what prod uses) handles refine correctly** (add / remove / change,
+preserving context). Since prod runs Opus 4.8, the MVP prompt is good as-is; no
+tuning needed to ship.
+
+| Scenario | Prompt (+ refine ctx) | Expected cols | Opus 4.8 |
+| --- | --- | --- | --- |
+| build | errors in the last hour | level, startTime | ✅ |
+| build | slow traces in production | latency, environment | ✅ |
+| build | failed traces from user alice | level, userId | ✅ |
+| build | traces tagged billing | traceTags | ✅ |
+| build | accuracy score below 0.8 | scores_avg | ✅ |
+| build | output mentions refund | output | ✅ |
+| build | root observations only | isRootObservation | ✅ |
+| build | expensive gpt-4 calls over $0.5 | totalCost, providedModelName | ✅ |
+| refine (add) | `level:ERROR startTime:>…` + "also only in production" | level, startTime, environment | ✅ preserved + added |
+| refine (remove) | `latency:>2` + "drop latency, show only errors" | level | ✅ removed + added |
+| refine (change) | `environment:production` + "make it staging instead" | environment | ✅ value changed |
+| edge | gibberish | (none) | ✅ empty |
+| **gap** | routing queue is membership-support | metadata.routing.queue | ❌ guesses traceName/sessionId |
+
+The one failure is the **data-awareness gap**: the model doesn't know the
+project's metadata keys, so it guesses a column. Fixed by injecting observed
+context (`{{observedContext}}`) — **Piece 2**. The scenario set above is the seed
+for the Piece-2 eval dataset.
+
+Harness: throwaway tsx that shells `aws bedrock-runtime converse --profile
+playground` per scenario (needs Bedrock creds). **Caveat:** quality is
+model-dependent — local `claude-3-haiku` fails the refine cases, so self-hosters
+on a weak model see worse output; the Piece-2 eval will quantify model choice.
 
 ## 3. Why dogfood Langfuse for this
 

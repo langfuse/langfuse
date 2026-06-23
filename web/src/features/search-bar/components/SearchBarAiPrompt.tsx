@@ -45,9 +45,14 @@ export function SearchBarAiPrompt({
   const generateFilter = api.searchBar.generateFilter.useMutation();
   const pending = generateFilter.isPending;
 
+  // Refocus after every request settles. `disabled={pending}` blurs the input
+  // to <body> during the call; on a failed/empty generation (AI mode stays
+  // open) Esc and typing would otherwise be dead until you re-click. Runs on
+  // mount too (pending starts false). On success the component unmounts, so the
+  // focus is a harmless no-op.
   React.useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (!pending) inputRef.current?.focus();
+  }, [pending]);
 
   const submit = async () => {
     const prompt = value.trim();
