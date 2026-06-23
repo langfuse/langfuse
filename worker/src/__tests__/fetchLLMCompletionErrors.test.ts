@@ -153,7 +153,7 @@ describe("fetchLLMCompletion provider error classification", () => {
           secretKey: encrypt("anthropic-api-key"),
         },
       });
-      throw new Error("Expected fetchLLMCompletion to throw");
+      expect.fail("Expected fetchLLMCompletion to throw");
     } catch (e) {
       expect(e).toMatchObject({
         name: "LLMCompletionError",
