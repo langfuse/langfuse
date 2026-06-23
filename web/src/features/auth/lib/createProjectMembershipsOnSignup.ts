@@ -5,6 +5,7 @@ import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
@@ -13,7 +14,7 @@ export async function createProjectMembershipsOnSignup(
   user: {
     id: string;
     email: string | null;
-    name?: string | null;
+    name: string | null;
   },
   options?: { userWasJustCreated?: boolean },
 ) {
@@ -155,6 +156,18 @@ export async function createProjectMembershipsOnSignup(
           });
         }
       }
+    }
+
+    // SFDC lead upsert (never throws; no-op when SfdcService is not
+    // configured).
+    // Must run BEFORE processMembershipInvitations below so the lead exists
+    // when setUserRole events fire for accepted invitations.
+    if (options?.userWasJustCreated || isNewUser) {
+      await getSfdcService()?.upsertUser({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+      });
     }
 
     // Invites do not work for users without emails (some future SSO users)
@@ -312,6 +325,18 @@ async function processMembershipInvitations(email: string, userId: string) {
       },
     }),
   ]);
+
+  // SFDC: link the freshly-created lead to each org as an org-member.
+  await Promise.all(
+    invitationsForUser.map((invitation) =>
+      getSfdcService()?.setUserRole({
+        orgId: invitation.orgId,
+        userId,
+        email,
+        role: invitation.orgRole,
+      }),
+    ),
+  );
 
   return joinedReadableRealProjectViaInvitation;
 }
