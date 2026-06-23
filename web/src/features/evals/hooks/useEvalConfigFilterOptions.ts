@@ -7,6 +7,20 @@ import {
 import { useMemo } from "react";
 
 const EVAL_FILTER_OPTIONS_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+const evalFilterOptionsQueryOptions = {
+  trpc: { context: { skipBatch: true } },
+  refetchOnMount: false,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  staleTime: Infinity,
+} as const;
+
+const getBucketedEvalFilterOptionsFrom = () => {
+  const date = new Date(Date.now() - EVAL_FILTER_OPTIONS_LOOKBACK_MS);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
 const getLowerBoundTimeFilter = (
   column: "timestamp" | "startTime",
   value: Date,
@@ -18,7 +32,7 @@ export function useEvalConfigFilterOptions({
   projectId: string;
 }) {
   const filterOptionsFrom = useMemo(
-    () => new Date(Date.now() - EVAL_FILTER_OPTIONS_LOOKBACK_MS),
+    () => getBucketedEvalFilterOptionsFrom(),
     [],
   );
 
@@ -27,13 +41,7 @@ export function useEvalConfigFilterOptions({
       projectId,
       timestampFilter: getLowerBoundTimeFilter("timestamp", filterOptionsFrom),
     },
-    {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
-    },
+    evalFilterOptionsQueryOptions,
   );
 
   const environmentFilterOptionsResponse =
@@ -42,21 +50,21 @@ export function useEvalConfigFilterOptions({
         projectId,
         fromTimestamp: filterOptionsFrom,
       },
-      {
-        trpc: { context: { skipBatch: true } },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
+      evalFilterOptionsQueryOptions,
     );
 
   const observationsFilterOptionsResponse =
-    api.generations.filterOptions.useQuery({
-      projectId,
-      observationType: "ALL",
-      startTimeFilter: getLowerBoundTimeFilter("startTime", filterOptionsFrom),
-    });
+    api.generations.filterOptions.useQuery(
+      {
+        projectId,
+        observationType: "ALL",
+        startTimeFilter: getLowerBoundTimeFilter(
+          "startTime",
+          filterOptionsFrom,
+        ),
+      },
+      evalFilterOptionsQueryOptions,
+    );
 
   const traceFilterOptions = useMemo(() => {
     // Normalize API response to match TraceOptions type (count should be number, not string)
