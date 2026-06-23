@@ -580,9 +580,7 @@ function FeedbackButton({
       aria-pressed={isSelected}
       disabled={disabled}
       onClick={onClick}
-      className={cn(
-        "text-muted-foreground/50 hover:text-muted-foreground rounded-md p-1 disabled:cursor-not-allowed",
-      )}
+      className="text-muted-foreground/50 hover:text-muted-foreground rounded-md p-1 disabled:cursor-not-allowed"
     >
       {children}
     </button>

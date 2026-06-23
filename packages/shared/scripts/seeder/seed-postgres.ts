@@ -47,7 +47,7 @@ const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
 const IN_APP_AGENT_SYSTEM_PROMPT_PATH = resolve(
   __dirname,
   "../../../..",
-  "web/src/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
+  "web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt",
 );
 
 const inAppAgentSystemPrompt = readFileSync(

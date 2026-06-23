@@ -47,8 +47,11 @@ import {
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
   resolveBlobExportTuning,
+  DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
+// Shared env for the buffered-upload flag (gates part-level upload stats).
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
@@ -61,10 +64,13 @@ export async function* enrichObservationStream(
   modelIdField: string,
   convertLatencyToSeconds: boolean,
   fieldGroups?: ObservationFieldGroupFull[],
+  skipEnrichment: boolean = false,
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 
-  const includeModelId = !fieldGroups || fieldGroups.includes("model");
+  // skipEnrichment drops only the model-price lookup; latency + metadata cleanup still run.
+  const includeModelId =
+    !skipEnrichment && (!fieldGroups || fieldGroups.includes("model"));
 
   for await (const row of stream) {
     const enriched: Record<string, unknown> = { ...row };
@@ -275,6 +281,11 @@ const processBlobStorageExport = async (config: {
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
   rawPassthrough: boolean;
+  // undefined concurrency/attempts => backend keeps its native default.
+  partSizeBytes: number;
+  maxConcurrentParts: number | undefined;
+  maxPartAttempts: number | undefined;
+  skipEnrichment: boolean;
   bullmqJobId: string | undefined;
   bullmqAttemptsMade: number;
 }) => {
@@ -323,6 +334,24 @@ const processBlobStorageExport = async (config: {
       }
       span.setAttribute("job.attemptsMade", config.bullmqAttemptsMade);
       span.setAttribute("host.name", WORKER_HOST_ID);
+
+      // Resolved per-project tuning. Concurrency/attempts omitted when unset
+      // (no single value — the backend default applies).
+      span.setAttribute("blob.config.partSizeBytes", config.partSizeBytes);
+      if (config.maxConcurrentParts !== undefined) {
+        span.setAttribute(
+          "blob.config.maxConcurrentParts",
+          config.maxConcurrentParts,
+        );
+      }
+      if (config.maxPartAttempts !== undefined) {
+        span.setAttribute(
+          "blob.config.maxPartAttempts",
+          config.maxPartAttempts,
+        );
+      }
+      span.setAttribute("blob.config.skipEnrichment", config.skipEnrichment);
+      span.setAttribute("blob.config.rawPassthrough", config.rawPassthrough);
 
       // Event-loop delay during the stream: if it spikes, lock renewal can't
       // fire and the job re-enqueues as stalled (LFE-10063). Torn down below.
@@ -504,6 +533,7 @@ const processBlobStorageExport = async (config: {
                 "model_id",
                 false, // v3 query already returns latency in seconds
                 exportFieldGroups,
+                config.skipEnrichment,
               );
               break;
             case "scores":
@@ -529,6 +559,7 @@ const processBlobStorageExport = async (config: {
                 "model_id",
                 config.convertV4LatencyToSeconds,
                 exportFieldGroups,
+                config.skipEnrichment,
               );
               break;
             default:
@@ -560,6 +591,17 @@ const processBlobStorageExport = async (config: {
         // For CSV exports, use larger part size to handle big files
         // 100 MB parts support files up to ~1 TB (100 MB × 10,000 AWS limit)
         // This prevents hitting AWS's 10,000 part limit on large exports
+        // Mutable sink the uploader fills live (readable even if upload throws).
+        // Only the S3 buffered path populates it; producesUploadStats gates the
+        // telemetry so other paths don't report zero-part uploads.
+        const uploadStats = {
+          partsUploaded: 0,
+          partRetries: 0,
+          partFailures: 0,
+        };
+        const producesUploadStats =
+          config.type !== BlobStorageIntegrationType.AZURE_BLOB_STORAGE &&
+          sharedEnv.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED === "true";
         let uploadStartMs: number | undefined;
         let uploadDurationMsFinal: number | undefined;
         try {
@@ -569,7 +611,10 @@ const processBlobStorageExport = async (config: {
             fileName: filePath,
             fileType: uploadContentType,
             data: fileStream,
-            partSizeBytes: 100 * 1024 * 1024, // 100 MB part size
+            partSizeBytes: config.partSizeBytes,
+            maxConcurrentParts: config.maxConcurrentParts,
+            maxPartAttempts: config.maxPartAttempts,
+            stats: uploadStats,
           });
           // Record at the upload boundary so a throw in the `finally` below
           // can't miscount a real success as a failure.
@@ -626,7 +671,14 @@ const processBlobStorageExport = async (config: {
               `path=${passthroughEligible ? "passthrough" : "standard"} ` +
               `rows=${sourceStats.rows} chReadMs=${chReadMs} enrichMs=${enrichMs} ` +
               `gzipCpuMs=${gzipCpuMs} uploadWaitMs=${uploadWaitMs} ` +
-              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${uploadDurationMs}` +
+              `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${uploadDurationMs} ` +
+              // "configured*" = resolved tuning, not necessarily what the backend
+              // applied; uploadParts/Retries/Failures below are the actual effects.
+              `configuredPartSizeBytes=${config.partSizeBytes} configuredMaxConcurrentParts=${config.maxConcurrentParts ?? "default"} ` +
+              `configuredMaxPartAttempts=${config.maxPartAttempts ?? "default"} skipEnrichment=${config.skipEnrichment}` +
+              (producesUploadStats
+                ? ` uploadParts=${uploadStats.partsUploaded} uploadRetries=${uploadStats.partRetries} uploadFailures=${uploadStats.partFailures}`
+                : "") +
               (gzipStats && compressedCounter
                 ? ` gzipLevel=${gzipStats.level} compressedBytes=${compressedCounter.bytes}`
                 : ""),
@@ -688,6 +740,11 @@ const processBlobStorageExport = async (config: {
                 stageTags,
               );
             }
+          }
+          if (producesUploadStats) {
+            span.setAttribute("blob.upload.parts", uploadStats.partsUploaded);
+            span.setAttribute("blob.upload.retries", uploadStats.partRetries);
+            span.setAttribute("blob.upload.failures", uploadStats.partFailures);
           }
           if (compressedCounter) {
             span.setAttribute("blob.compressedBytes", compressedCounter.bytes);
@@ -901,7 +958,9 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // Per-project export tuning (set via DB directly; no UI/tRPC write path).
     // Malformed/absent column resolves to defaults — never throws.
     const { resolved: exportTuning, warnings: exportTuningWarnings } =
-      resolveBlobExportTuning(blobStorageIntegration.exportTuning);
+      resolveBlobExportTuning(blobStorageIntegration.exportTuning, {
+        partSizeBytes: DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES,
+      });
     for (const warning of exportTuningWarnings) {
       logger.warn(
         `[BLOB INTEGRATION] exportTuning for project ${projectId}: ${warning}`,
@@ -929,6 +988,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
       rawPassthrough: exportTuning.rawPassthrough,
+      partSizeBytes: exportTuning.partSizeBytes,
+      maxConcurrentParts: exportTuning.maxConcurrentParts,
+      maxPartAttempts: exportTuning.maxPartAttempts,
+      skipEnrichment: exportTuning.skipEnrichment,
       bullmqJobId: job.id,
       bullmqAttemptsMade: job.attemptsMade,
     };
@@ -1179,12 +1242,23 @@ function extractStorageErrorMessage(error: unknown): string {
   // handleStorageError wraps SDK errors via { cause: sdkError }
   // Unwrap to get the raw SDK message (S3/Azure/GCS)
   const cause = error.cause;
-  if (cause instanceof Error) {
-    return cause.message.slice(0, 1000);
-  }
+  const message = cause instanceof Error ? cause.message : error.message;
 
-  // Fallback: ClickHouse errors or other non-wrapped errors
-  return error.message.slice(0, 1000);
+  // GCS returns a <Details> XML element with the real rejection reason
+  // (e.g. "Multipart upload is not supported in Rapid storage class.").
+  // handleStorageError preserves it as an enumerable property.
+  const errorDetails = (error as unknown as { Details?: unknown }).Details;
+  const causeDetails = (cause as unknown as { Details?: unknown } | undefined)
+    ?.Details;
+  const details =
+    typeof errorDetails === "string"
+      ? errorDetails
+      : typeof causeDetails === "string"
+        ? causeDetails
+        : undefined;
+
+  const full = details ? `${message} Details: ${details}` : message;
+  return full.slice(0, 1000);
 }
 
 function formatErrorChain(error: unknown): string {

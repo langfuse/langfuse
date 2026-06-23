@@ -2,44 +2,69 @@ import { api } from "@/src/utils/api";
 import {
   type ExperimentEvalOptions,
   type ObservationEvalOptions,
+  type TimeFilter,
 } from "@langfuse/shared";
 import { useMemo } from "react";
+
+const EVAL_FILTER_OPTIONS_LOOKBACK_MS = 30 * 24 * 60 * 60 * 1000;
+const evalFilterOptionsQueryOptions = {
+  trpc: { context: { skipBatch: true } },
+  refetchOnMount: false,
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  staleTime: Infinity,
+} as const;
+
+const getBucketedEvalFilterOptionsFrom = () => {
+  const date = new Date(Date.now() - EVAL_FILTER_OPTIONS_LOOKBACK_MS);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+};
+
+const getLowerBoundTimeFilter = (
+  column: "timestamp" | "startTime",
+  value: Date,
+): TimeFilter[] => [{ column, type: "datetime", operator: ">=", value }];
 
 export function useEvalConfigFilterOptions({
   projectId,
 }: {
   projectId: string;
 }) {
+  const filterOptionsFrom = useMemo(
+    () => getBucketedEvalFilterOptionsFrom(),
+    [],
+  );
+
   const traceFilterOptionsResponse = api.traces.filterOptions.useQuery(
-    { projectId },
     {
-      trpc: { context: { skipBatch: true } },
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      staleTime: Infinity,
+      projectId,
+      timestampFilter: getLowerBoundTimeFilter("timestamp", filterOptionsFrom),
     },
+    evalFilterOptionsQueryOptions,
   );
 
   const environmentFilterOptionsResponse =
     api.projects.environmentFilterOptions.useQuery(
       {
         projectId,
+        fromTimestamp: filterOptionsFrom,
       },
-      {
-        trpc: { context: { skipBatch: true } },
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
-        refetchOnReconnect: false,
-        staleTime: Infinity,
-      },
+      evalFilterOptionsQueryOptions,
     );
 
   const observationsFilterOptionsResponse =
-    api.generations.filterOptions.useQuery({
-      projectId,
-      observationType: "ALL",
-    });
+    api.generations.filterOptions.useQuery(
+      {
+        projectId,
+        observationType: "ALL",
+        startTimeFilter: getLowerBoundTimeFilter(
+          "startTime",
+          filterOptionsFrom,
+        ),
+      },
+      evalFilterOptionsQueryOptions,
+    );
 
   const traceFilterOptions = useMemo(() => {
     // Normalize API response to match TraceOptions type (count should be number, not string)

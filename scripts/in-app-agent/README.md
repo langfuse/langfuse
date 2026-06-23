@@ -2,7 +2,7 @@
 
 The canonical system prompt for the in-app agent lives at:
 
-`web/src/features/in-app-agent/prompts/in-app-agent-system-prompt.txt`
+`web/src/ee/features/in-app-agent/prompts/in-app-agent-system-prompt.txt`
 
 The local Postgres seeder reads this file and creates the text prompt named
 `in-app-agent-system-prompt` in the seed project
