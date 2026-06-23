@@ -1405,6 +1405,34 @@ model ObservationMedia {
   @@map("observation_media")
 }
 
+model DatasetItemMedia {
+  id                   String   @id @default(cuid())
+  projectId            String   @map("project_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+  mediaId              String   @map("media_id")
+  // dataset items cascade on dataset deletion, but these rows have no FK;
+  // datasetId lets the dataset-delete worker clean them up directly
+  datasetId            String   @map("dataset_id")
+  datasetItemId        String   @map("dataset_item_id")
+  // null while pending: the row is declared at media upload and stamped with
+  // the item version's validFrom when the item is written.
+  datasetItemValidFrom DateTime? @map("dataset_item_valid_from")
+  // dataset item field containing the reference: input | expectedOutput | metadata
+  field                String   @map("field")
+  // null while pending; the dataset service fills it from the item JSON on claim.
+  // JSONPath of the string holding the media reference within the field, e.g. $['images'][0]
+  jsonPath             String?  @map("json_path")
+  // null while pending; the original @@@langfuseMedia:...@@@ string, filled on
+  // claim so reads need no JSON parsing
+  referenceString      String?  @map("reference_string")
+
+  @@unique([projectId, datasetItemId, datasetItemValidFrom, field, jsonPath], map: "dataset_item_media_item_version_field_path_key")
+  @@index([projectId, mediaId])
+  @@index([projectId, datasetId])
+  @@map("dataset_item_media")
+}
+
 model BillingMeterBackup {
   // unique
   stripeCustomerId String   @map("stripe_customer_id")

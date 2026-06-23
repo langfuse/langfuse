@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "3.194.1",
+  "version": "3.195.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -40,6 +40,7 @@
     "@opentelemetry/instrumentation-express": "^0.67.0",
     "@opentelemetry/instrumentation-http": "^0.219.0",
     "@opentelemetry/instrumentation-ioredis": "^0.67.0",
+    "@opentelemetry/instrumentation-undici": "^0.29.0",
     "@opentelemetry/instrumentation-winston": "^0.63.0",
     "@opentelemetry/resource-detector-aws": "^2.19.0",
     "@opentelemetry/resource-detector-container": "^0.8.10",

@@ -638,6 +638,49 @@ types:
       datasetName: string
       createdAt: datetime
       updatedAt: datetime
+      mediaReferences:
+        type: list<DatasetItemMediaReference>
+        docs: Resolved Langfuse media references found in input, expectedOutput, and metadata.
+  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetItemMediaReference
+  DatasetItemMediaReference:
+    properties:
+      field:
+        type: DatasetItemMediaReferenceField
+        docs: The dataset item field containing the reference
+      referenceString:
+        type: string
+        docs: The Langfuse media reference string, e.g. `@@@langfuseMedia:type=image/png|id=...|source=bytes@@@`
+      jsonPath:
+        type: string
+        docs: JSONPath of the string holding the reference within the field, e.g. `$['image']`
+      media:
+        type: DatasetItemMediaReferenceMedia
+        docs: The resolved media record.
+  DatasetItemMediaReferenceField:
+    enum:
+      - value: input
+        name: INPUT
+      - value: expectedOutput
+        name: EXPECTED_OUTPUT
+      - value: metadata
+        name: METADATA
+  DatasetItemMediaReferenceMedia:
+    properties:
+      mediaId:
+        type: string
+        docs: The unique langfuse identifier of the media record
+      contentType:
+        type: string
+        docs: The MIME type of the media record
+      contentLength:
+        type: integer
+        docs: The size of the media record in bytes
+      url:
+        type: string
+        docs: The signed download URL of the media record
+      urlExpiry:
+        type: string
+        docs: The expiry date and time of the download URL
   # Source: web/src/features/public-api/types/datasets.ts - APIDatasetRunItem
   DatasetRunItem:
     properties:
