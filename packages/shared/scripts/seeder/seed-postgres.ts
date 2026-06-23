@@ -10,6 +10,7 @@ import {
   EvalTemplateType,
   type JobConfiguration,
   JobExecutionStatus,
+  LLMAdapter,
   PrismaClient,
   type Project,
   ScoreConfigCategoryDomain,
@@ -54,6 +55,9 @@ const inAppAgentSystemPrompt = readFileSync(
   IN_APP_AGENT_SYSTEM_PROMPT_PATH,
   "utf-8",
 );
+const DEFAULT_EVAL_MODEL_PROVIDER = "openai";
+const DEFAULT_EVAL_MODEL_ADAPTER = LLMAdapter.OpenAI;
+const DEFAULT_EVAL_MODEL_NAME = "gpt-5.4-mini";
 
 async function main() {
   const environment = parseArgs({
@@ -230,6 +234,8 @@ async function main() {
     });
   }
 
+  await upsertOpenAiDefaultEvalModel(project1.id);
+
   // Do not run the following for local docker compose setup
   if (environment === "examples" || environment === "load") {
     const seedOrgIdOrg2 = "demo-org-id";
@@ -302,25 +308,6 @@ async function main() {
     await generatePromptsForProject([project1, project2]);
     await createDatasets(project1, project2);
     await createTraceSessions(project1, project2);
-
-    // If openai key is in environment, add it to the projects LLM API keys
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // eslint-disable-line turbo/no-undeclared-env-vars
-
-    if (OPENAI_API_KEY) {
-      await prisma.llmApiKeys.create({
-        data: {
-          projectId: project1.id,
-          secretKey: encrypt(OPENAI_API_KEY),
-          displaySecretKey: getDisplaySecretKey(OPENAI_API_KEY),
-          provider: "openai",
-          adapter: "openai",
-        },
-      });
-    } else {
-      logger.warn(
-        "No OPENAI_API_KEY found in environment. Skipping seeding LLM API key.",
-      );
-    }
 
     // add eval objects
     for (const evalTemplate of SEED_EVALUATOR_TEMPLATES) {
@@ -824,6 +811,71 @@ async function upsertInAppAgentSystemPrompt(projectId: string) {
       labels: ["production", "latest"],
     },
   });
+}
+
+async function upsertOpenAiDefaultEvalModel(projectId: string) {
+  const openAiApiKey = process.env.OPENAI_API_KEY; // eslint-disable-line turbo/no-undeclared-env-vars
+
+  if (!openAiApiKey) {
+    logger.warn(
+      "No OPENAI_API_KEY found. Skipping seeded default evaluation model.",
+    );
+    return;
+  }
+
+  const llmApiKey = await prisma.llmApiKeys.upsert({
+    where: {
+      projectId_provider: {
+        projectId,
+        provider: DEFAULT_EVAL_MODEL_PROVIDER,
+      },
+    },
+    create: {
+      projectId,
+      provider: DEFAULT_EVAL_MODEL_PROVIDER,
+      adapter: DEFAULT_EVAL_MODEL_ADAPTER,
+      secretKey: encrypt(openAiApiKey),
+      displaySecretKey: getDisplaySecretKey(openAiApiKey),
+      baseURL: "https://api.openai.com/v1",
+      customModels: [],
+      withDefaultModels: true,
+      extraHeaders: null,
+      extraHeaderKeys: [],
+    },
+    update: {
+      adapter: DEFAULT_EVAL_MODEL_ADAPTER,
+      secretKey: encrypt(openAiApiKey),
+      displaySecretKey: getDisplaySecretKey(openAiApiKey),
+      baseURL: "https://api.openai.com/v1",
+      customModels: [],
+      withDefaultModels: true,
+      extraHeaders: null,
+      extraHeaderKeys: [],
+    },
+  });
+
+  await prisma.defaultLlmModel.upsert({
+    where: {
+      projectId,
+    },
+    create: {
+      projectId,
+      llmApiKeyId: llmApiKey.id,
+      provider: DEFAULT_EVAL_MODEL_PROVIDER,
+      adapter: DEFAULT_EVAL_MODEL_ADAPTER,
+      model: DEFAULT_EVAL_MODEL_NAME,
+    },
+    update: {
+      llmApiKeyId: llmApiKey.id,
+      provider: DEFAULT_EVAL_MODEL_PROVIDER,
+      adapter: DEFAULT_EVAL_MODEL_ADAPTER,
+      model: DEFAULT_EVAL_MODEL_NAME,
+    },
+  });
+
+  logger.info(
+    `Seeded default evaluation model ${DEFAULT_EVAL_MODEL_NAME} for project ${projectId}`,
+  );
 }
 
 export const PROMPT_IDS: string[] = [];
