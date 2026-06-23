@@ -104,7 +104,23 @@ describe("summarizeS3Error", () => {
       requestId: "req-123",
       extendedRequestId: "ext-456",
       message: "The request signature we calculated",
+      details: undefined,
     });
+  });
+
+  it("extracts GCS-specific Details from the XML error body", () => {
+    const err = Object.assign(new Error("Invalid argument."), {
+      name: "InvalidArgument",
+      Code: "InvalidArgument",
+      Details: "Multipart upload is not supported in Rapid storage class.",
+      $fault: "client",
+      $metadata: { httpStatusCode: 400 },
+    });
+
+    const summary = summarizeS3Error(err);
+    expect(summary.details).toBe(
+      "Multipart upload is not supported in Rapid storage class.",
+    );
   });
 
   it("never throws on non-object errors", () => {

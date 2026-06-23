@@ -164,6 +164,7 @@ export interface S3ErrorSummary {
   requestId?: string;
   extendedRequestId?: string;
   message?: string;
+  details?: string;
 }
 
 /**
@@ -179,6 +180,7 @@ export function summarizeS3Error(err: unknown): S3ErrorSummary {
     name?: string;
     message?: string;
     Code?: string;
+    Details?: string;
     $fault?: string;
     $metadata?: {
       httpStatusCode?: number;
@@ -194,6 +196,7 @@ export function summarizeS3Error(err: unknown): S3ErrorSummary {
     requestId: e.$metadata?.requestId,
     extendedRequestId: e.$metadata?.extendedRequestId,
     message: e.message,
+    details: e.Details,
   };
 }
 

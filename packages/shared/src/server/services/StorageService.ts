@@ -95,7 +95,20 @@ function handleStorageError(err: unknown, operation: string): never {
     );
   }
   // For other errors, throw with the original cause preserved
-  throw new Error(`Failed to ${operation}`, { cause: err });
+  const wrapped = new Error(`Failed to ${operation}`, { cause: err });
+  // Preserve provider-specific details (e.g. GCS <Details> XML element)
+  // so they surface when Winston spreads the error's enumerable properties.
+  if (
+    err &&
+    typeof err === "object" &&
+    "Details" in err &&
+    typeof (err as { Details?: unknown }).Details === "string"
+  ) {
+    (wrapped as unknown as { Details: string }).Details = (
+      err as { Details: string }
+    ).Details;
+  }
+  throw wrapped;
 }
 
 function createS3RequestHandler(
