@@ -3065,6 +3065,42 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract cost from llm.cost.total",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.cost.total",
+          otelAttributeValue: {
+            doubleValue: 0.000151,
+          },
+          entityAttributeKey: "costDetails.total",
+          entityAttributeValue: 0.000151,
+        },
+      ],
+      [
+        "should extract zero cost from gen_ai.usage.cost",
+        {
+          entity: "observation",
+          otelAttributeKey: "gen_ai.usage.cost",
+          otelAttributeValue: {
+            doubleValue: 0,
+          },
+          entityAttributeKey: "costDetails.total",
+          entityAttributeValue: 0,
+        },
+      ],
+      [
+        "should extract zero cost from llm.cost.total",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.cost.total",
+          otelAttributeValue: {
+            doubleValue: 0,
+          },
+          entityAttributeKey: "costDetails.total",
+          entityAttributeValue: 0,
+        },
+      ],
+      [
         "should not treat usage.cost as usage",
         {
           entity: "observation",
