@@ -905,7 +905,13 @@ export const datasetRouter = createTRPCRouter({
         datasetItemValidFrom: z.date().optional(),
       }),
     )
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:read",
+      });
+
       let validFrom = input.datasetItemValidFrom;
       if (!validFrom) {
         const item = await getDatasetItemById({

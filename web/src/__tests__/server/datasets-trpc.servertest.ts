@@ -87,6 +87,20 @@ describe("datasets trpc", () => {
       ).resolves.toEqual([]);
     });
 
+    it("allows viewers to read dataset item media", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "VIEWER",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.itemMediaByItemId({
+          projectId: project.id,
+          datasetItemId: v4(),
+        }),
+      ).resolves.toEqual([]);
+    });
+
     it("rejects dataset reads when the project role lacks datasets:read", async () => {
       const { project, caller } = await prepare({
         projectRole: "NONE",
@@ -95,6 +109,20 @@ describe("datasets trpc", () => {
 
       await expect(
         caller.datasets.allDatasetMeta({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects dataset item media reads when the project role lacks datasets:read", async () => {
+      const { project, caller } = await prepare({
+        projectRole: "NONE",
+        admin: false,
+      });
+
+      await expect(
+        caller.datasets.itemMediaByItemId({
+          projectId: project.id,
+          datasetItemId: v4(),
+        }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
   });
