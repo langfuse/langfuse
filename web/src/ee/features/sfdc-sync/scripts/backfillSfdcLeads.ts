@@ -8,7 +8,8 @@
  * user/org/membership lifecycle events. Everything created before the
  * integration shipped — plus self-serve starter orgs, which the live sync does
  * not cover — is absent from SFDC. This script reconstructs that state by
- * replaying the same four events the live sync uses.
+ * replaying the live sync's additive events (upsertUser, upsertOrg,
+ * setUserRole); it never issues removeUser, since a backfill only adds.
  *
  * WHAT IT DOES — three dependency-ordered passes (leads must exist before they
  * can be linked to accounts, exactly as the live sync enforces):
