@@ -5,6 +5,7 @@ import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 // Parse the first valid role from a SCIM `roles` array. Returns undefined when
 // the attribute is absent, empty, or unparsable, which the provisioning logic
@@ -356,6 +357,23 @@ export default async function handler(
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
       detail:
         "Invalid API key. Organization-scoped API key required for this operation.",
+      status: 403,
+    });
+  }
+
+  // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
+  // sibling organization admin endpoints (memberships, projects, apiKeys).
+  // Without this, any org-scoped key could mutate memberships and roles on
+  // plans that do not include the feature.
+  if (
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "admin-api",
+    })
+  ) {
+    return res.status(403).json({
+      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+      detail: "This feature is not available on your current plan.",
       status: 403,
     });
   }
