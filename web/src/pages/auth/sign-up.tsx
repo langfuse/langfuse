@@ -38,6 +38,13 @@ export { getServerSideProps } from "@/src/pages/auth/sign-in";
 
 type NextAuthProvider = NonNullable<Parameters<typeof signIn>[0]>;
 
+function hasStaticSsoProviders(authProviders: PageProps["authProviders"]) {
+  return Object.entries(authProviders).some(
+    ([name, enabled]) =>
+      Boolean(enabled) && name !== "credentials" && name !== "sso",
+  );
+}
+
 // Schema for the verified signup flow (email + name only, no password)
 const signupVerifyFormSchema = z.object({
   name: StringNoHTMLNonEmpty.refine((value) => noUrlCheck(value), {
@@ -54,6 +61,7 @@ export default function SignUp({
   authProviders,
   runningOnHuggingFaceSpaces,
   emailVerificationRequired,
+  signUpMode,
 }: PageProps) {
   useHuggingFaceRedirect(runningOnHuggingFaceSpaces);
 
@@ -62,6 +70,7 @@ export default function SignUp({
       <VerifiedSignupFlow
         authProviders={authProviders}
         emailVerificationRequired={emailVerificationRequired}
+        signUpMode={signUpMode}
       />
     );
   }
@@ -70,13 +79,18 @@ export default function SignUp({
     <StandardSignupFlow
       authProviders={authProviders}
       emailVerificationRequired={emailVerificationRequired}
+      signUpMode={signUpMode}
     />
   );
 }
 
 function StandardSignupFlow({
   authProviders,
-}: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
+  signUpMode,
+}: Pick<
+  PageProps,
+  "authProviders" | "emailVerificationRequired" | "signUpMode"
+>) {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -90,12 +104,15 @@ function StandardSignupFlow({
     ? getSafeRedirectPath(queryTargetPath)
     : undefined;
 
+  const hasStaticSsoProvider = hasStaticSsoProviders(authProviders);
+  const isInviteOnlySignup = signUpMode === "invite-only";
+
   const [formError, setFormError] = useState<string | null>(null);
 
   // Two-step login flow: ask for email first, detect SSO, then either redirect to SSO or reveal password field.
   // Skip this flow when no SSO is configured - show password field immediately
   const [showPasswordStep, setShowPasswordStep] = useState<boolean>(
-    !authProviders.sso,
+    !authProviders.sso && authProviders.credentials,
   );
   const [continueLoading, setContinueLoading] = useState<boolean>(false);
   const [lastUsedAuthMethod, setLastUsedAuthMethod] =
@@ -166,7 +183,16 @@ function StandardSignupFlow({
         return; // stop further execution – page redirect expected
       }
 
-      // No SSO – fall back to password step
+      if (!authProviders.credentials) {
+        setFormError(
+          authProviders.sso || hasStaticSsoProvider
+            ? "No sign-in method available for this email. Please use one of the available SSO options."
+            : "Password-based sign-up is disabled. Please contact your administrator.",
+        );
+        return;
+      }
+
+      // No SSO - fall back to password step
       setShowPasswordStep(true);
 
       // Auto-focus password input when password step becomes visible
@@ -219,6 +245,18 @@ function StandardSignupFlow({
     } catch {
       setFormError("An error occurred. Please try again.");
     }
+  }
+
+  if (isInviteOnlySignup && !emailParam) {
+    return (
+      <SignupPageShell>
+        <div className="text-muted-foreground text-center text-sm">
+          Sign up requires an invitation. Please use the invitation link sent by
+          your administrator.
+        </div>
+        <SignupFooter />
+      </SignupPageShell>
+    );
   }
 
   return (
@@ -314,10 +352,17 @@ function StandardSignupFlow({
 
 function VerifiedSignupFlow({
   authProviders,
-}: Pick<PageProps, "authProviders" | "emailVerificationRequired">) {
+  signUpMode,
+}: Pick<
+  PageProps,
+  "authProviders" | "emailVerificationRequired" | "signUpMode"
+>) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
   const emailParam = router.query.email as string | undefined;
+  const isInviteOnlySignup = signUpMode === "invite-only";
+  const hasAnySsoProvider =
+    authProviders.sso || hasStaticSsoProviders(authProviders);
 
   const [formError, setFormError] = useState<string | null>(null);
   const [phase, setPhase] = useState<SignupPhase>("form");
@@ -338,6 +383,46 @@ function VerifiedSignupFlow({
       email: emailParam ?? "",
     },
   });
+
+  if (isInviteOnlySignup && !emailParam) {
+    return (
+      <SignupPageShell>
+        <div className="text-muted-foreground text-center text-sm">
+          Sign up requires an invitation. Please use the invitation link sent by
+          your administrator.
+        </div>
+        <SignupFooter />
+      </SignupPageShell>
+    );
+  }
+
+  if (!authProviders.credentials) {
+    return (
+      <SignupPageShell>
+        {emailParam ? (
+          <div className="text-muted-foreground text-center text-sm">
+            You have been invited as{" "}
+            <span className="text-primary font-semibold">{emailParam}</span>.
+            {hasAnySsoProvider
+              ? " Please sign up with an SSO provider to accept the invitation."
+              : " Sign-up is disabled because no authentication methods are enabled. Please contact your administrator."}
+          </div>
+        ) : !hasAnySsoProvider ? (
+          <div className="text-muted-foreground text-center text-sm">
+            Sign-up is disabled because no authentication methods are enabled.
+            Please contact your administrator.
+          </div>
+        ) : null}
+        <SSOButtons
+          authProviders={authProviders}
+          action="sign up"
+          lastUsedMethod={lastUsedAuthMethod}
+          onProviderSelect={setLastUsedAuthMethod}
+        />
+        <SignupFooter />
+      </SignupPageShell>
+    );
+  }
 
   async function onVerifiedSubmit(
     values: z.infer<typeof signupVerifyFormSchema>,

@@ -6,6 +6,7 @@ import { ENTERPRISE_SSO_REQUIRED_MESSAGE } from "@/src/features/auth/constants";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import { validateSignupModeEligibility } from "@/src/features/auth/lib/signupPolicy";
 
 export function getSSOBlockedDomains() {
   return (
@@ -24,13 +25,9 @@ export async function validateSignupEligibility({
 }: {
   email: string;
 }): Promise<string | null> {
-  // Block if disabled by env
-  if (
-    env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
-    env.AUTH_DISABLE_SIGNUP === "true"
-  ) {
-    return "Sign up is disabled.";
-  }
+  const signupModeError = await validateSignupModeEligibility({ email });
+  if (signupModeError) return signupModeError;
+
   if (env.AUTH_DISABLE_USERNAME_PASSWORD === "true") {
     return "Sign up with email and password is disabled for this instance. Please use SSO.";
   }
