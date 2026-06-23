@@ -23,7 +23,10 @@ import { logger } from "../logger";
 import { env } from "../../env";
 import { backOff } from "exponential-backoff";
 import { ServiceUnavailableError } from "../../errors";
-import { BufferedStreamUploader } from "./BufferedStreamUploader";
+import {
+  BufferedStreamUploader,
+  type UploadPartStats,
+} from "./BufferedStreamUploader";
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
 import {
   buildS3RequestDiagnostics,
@@ -71,6 +74,13 @@ type UploadFileBuffered = {
   fileType: string;
   data: Readable;
   partSizeBytes: number;
+  // Optional per-call overrides. Default to env vars when absent (S3 only; Azure
+  // maps maxConcurrentParts to its upload concurrency and ignores maxPartAttempts).
+  maxConcurrentParts?: number;
+  maxPartAttempts?: number;
+  // Optional mutable sink populated with upload counters; readable by the caller
+  // even when the upload throws. Only the S3 buffered path populates it.
+  stats?: UploadPartStats;
 };
 
 type UploadWithSignedUrl = UploadFile & {
@@ -222,7 +232,11 @@ function createSecureAzureBlobRequestPolicyFactory(
 export interface StorageService {
   uploadFile(params: UploadFile): Promise<void>;
 
-  uploadFileBuffered(params: UploadFileBuffered): Promise<void>;
+  // Returns upload counters when the implementation produces them (S3 buffered
+  // path); undefined otherwise. Backward-compatible — existing callers ignore it.
+  uploadFileBuffered(
+    params: UploadFileBuffered,
+  ): Promise<UploadPartStats | undefined>;
 
   uploadWithSignedUrl(
     params: UploadWithSignedUrl,
@@ -387,7 +401,7 @@ class AzureBlobStorageService implements StorageService {
   }
 
   public async uploadFile(params: UploadFile): Promise<void> {
-    const { fileName, fileType, data, partSize } = params;
+    const { fileName, fileType, data, partSize, queueSize } = params;
     try {
       await this.createContainerIfNotExists();
 
@@ -400,7 +414,7 @@ class AzureBlobStorageService implements StorageService {
       } else if (data instanceof Readable) {
         // bufferSize controls the block size (default 8MB supports ~800GB files)
         const bufferSize = partSize ?? 8 * 1024 * 1024; // Default 8MB per block
-        const maxConcurrency = 5; // Default value
+        const maxConcurrency = queueSize ?? 5; // Default value
 
         await blockBlobClient.uploadStream(data, bufferSize, maxConcurrency, {
           blobHTTPHeaders: { blobContentType: fileType },
@@ -419,13 +433,36 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
-  public async uploadFileBuffered(params: UploadFileBuffered): Promise<void> {
+  public async uploadFileBuffered(
+    params: UploadFileBuffered,
+  ): Promise<UploadPartStats | undefined> {
+    // Azure has no per-part retry knob — its SDK pipeline owns retries — so
+    // maxPartAttempts has no effect here. Warn so an operator isn't surprised.
+    if (params.maxPartAttempts !== undefined) {
+      logger.warn(
+        `Azure blob upload for ${params.fileName}: maxPartAttempts is set but has no effect on the Azure path (SDK manages retries)`,
+      );
+    }
+    // partSizeBytes -> block size, maxConcurrentParts -> upload concurrency.
+    // Azure rejects a stageBlock larger than BLOCK_BLOB_MAX_STAGE_BLOCK_BYTES
+    // (4000 MiB). The shared tuning bound allows up to 5 GiB (S3's per-part max),
+    // so clamp here to keep the Azure path within its own limit and warn.
+    const AZURE_MAX_BLOCK_BYTES = 4000 * 1024 * 1024;
+    let partSize = params.partSizeBytes;
+    if (partSize > AZURE_MAX_BLOCK_BYTES) {
+      logger.warn(
+        `Azure blob upload for ${params.fileName}: partSizeBytes ${partSize} exceeds Azure's per-block max ${AZURE_MAX_BLOCK_BYTES}; clamping to the max`,
+      );
+      partSize = AZURE_MAX_BLOCK_BYTES;
+    }
     await this.uploadFile({
       fileName: params.fileName,
       fileType: params.fileType,
       data: params.data,
-      partSize: params.partSizeBytes,
+      partSize,
+      queueSize: params.maxConcurrentParts,
     });
+    return undefined; // Azure does not produce part-level stats.
   }
 
   public async uploadWithSignedUrl(
@@ -751,9 +788,21 @@ class S3StorageService implements StorageService {
     fileType,
     data,
     partSizeBytes,
-  }: UploadFileBuffered): Promise<void> {
+    maxConcurrentParts,
+    maxPartAttempts,
+    stats,
+  }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
     if (env.LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED !== "true") {
-      return this.uploadFile({ fileName, fileType, data });
+      // All speed-tuning knobs (part size, concurrency, attempts) and part-level
+      // stats apply only on the buffered path. The non-buffered fallback
+      // intentionally forwards NO overrides so a null/default exportTuning
+      // reproduces pre-tuning behaviour byte-for-byte — lib-storage keeps its
+      // own 5 MiB partSize / default queueSize. Forwarding the resolved 100 MiB
+      // default here would silently ~20x the per-upload memory of every existing
+      // S3 deployment (buffered is off by default). Tuning requires
+      // LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED=true.
+      await this.uploadFile({ fileName, fileType, data });
+      return undefined;
     }
 
     const strategy = new S3ChunkedUploadStrategy({
@@ -770,13 +819,16 @@ class S3StorageService implements StorageService {
     const uploader = new BufferedStreamUploader({
       strategy,
       partSizeBytes,
-      maxPartAttempts: env.LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS,
-      maxConcurrentParts: env.LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS,
+      maxPartAttempts:
+        maxPartAttempts ?? env.LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS,
+      maxConcurrentParts:
+        maxConcurrentParts ?? env.LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS,
       key: fileName,
+      stats,
     });
 
     try {
-      await uploader.upload(data);
+      return await uploader.upload(data);
     } catch (err) {
       logger.error(`Failed to upload file (buffered) to ${fileName}`, err);
       handleStorageError(err, "upload file to S3 (buffered)");
@@ -1030,12 +1082,15 @@ class GoogleCloudStorageService implements StorageService {
     }
   }
 
-  public async uploadFileBuffered(params: UploadFileBuffered): Promise<void> {
+  public async uploadFileBuffered(
+    params: UploadFileBuffered,
+  ): Promise<UploadPartStats | undefined> {
     await this.uploadFile({
       fileName: params.fileName,
       fileType: params.fileType,
       data: params.data,
     });
+    return undefined; // GCS does not produce part-level stats.
   }
 
   public async uploadWithSignedUrl({
@@ -1459,13 +1514,22 @@ class OCIObjectStorageService implements StorageService {
     fileType,
     data,
     partSizeBytes,
-  }: UploadFileBuffered): Promise<void> {
+    maxConcurrentParts,
+    // maxPartAttempts is intentionally not destructured/forwarded: OCI's
+    // UploadManager owns its retry policy and exposes no per-part attempt knob
+    // (mirrors the Azure path, which warns; OCI is not reached by the blob-export
+    // integration today, so a comment suffices over a runtime warning).
+  }: UploadFileBuffered): Promise<UploadPartStats | undefined> {
+    // OCI's uploadFile maps queueSize → UploadManager.maxConcurrentUploads, so
+    // forward the concurrency knob (undefined keeps OCI's default of 5).
     await this.uploadFile({
       fileName,
       fileType,
       data,
       partSize: partSizeBytes,
+      queueSize: maxConcurrentParts,
     });
+    return undefined; // OCI does not produce part-level stats.
   }
 
   public async uploadWithSignedUrl({

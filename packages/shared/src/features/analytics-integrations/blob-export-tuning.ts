@@ -2,14 +2,20 @@
 // (`BlobStorageIntegration.exportTuning`) and set via the DB directly for now
 // (no UI/tRPC write path yet). Validated and resolved at job time.
 //
-// This module is client-safe (no logger / server imports) so a future settings
-// UI can reuse the schema for write-validation. The worker logs the warnings
-// returned by the resolver.
+// This is a client-safe file (no logger / server imports) so a future settings
+// UI can reuse the schema for write-validation. The read-side resolver does NOT
+// log — it returns a `warnings` array so the (server-side) caller can log
+// without pulling a server logger into this module.
 //
-// Shared with LFE-10394 (upload tuning knobs: partSizeBytes / maxConcurrentParts
-// / maxPartAttempts / skipEnrichment). Extend this schema rather than forking
-// it. Unknown keys are stripped (zod default) so a key written by a newer
-// writer is harmless to an older worker.
+// Several overlapping feature sets share this module — extend, don't fork:
+//   - LFE-10402: `rawPassthrough` (stream ClickHouse JSONEachRow bytes straight
+//     to gzip → upload) and `gzipLevel` (zlib deflate level for compressed
+//     exports).
+//   - LFE-10394: upload tuning (`partSizeBytes` / `maxConcurrentParts` /
+//     `maxPartAttempts`) + `skipEnrichment`.
+// Unknown keys are stripped (zod default) so a key written by a newer writer is
+// harmless to an older worker.
+
 import { z } from "zod";
 
 // Minimum ClickHouse version for safe raw passthrough. The passthrough relies on
@@ -22,6 +28,28 @@ import { z } from "zod";
 // Langfuse Cloud runs a newer ClickHouse, so this only affects self-hosters.
 export const RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION = "25.11";
 
+// Bounds applied by the resolver (clamp) and the write schema (reject).
+//
+// NOTE on the original ranges — keep visible for orientation and future revert:
+//   - maxConcurrentParts: env `LANGFUSE_S3_UPLOAD_MAX_CONCURRENT_PARTS` is 1–10
+//     (default 3). Deliberately WIDENED to 1–32 here for per-project
+//     experimentation. Restore `max: 10` to return to env parity.
+//   - maxPartAttempts: env `LANGFUSE_S3_UPLOAD_MAX_PART_ATTEMPTS` is 1–10
+//     (default 3). UNCHANGED.
+//   - partSizeBytes: previously hardcoded to 100 MiB. S3 multipart limits are a
+//     5 MiB minimum and 5 GiB maximum per part; we allow that full range. Azure
+//     caps a stage-block at 4000 MiB (< 5 GiB), so the Azure upload path clamps
+//     partSize to its own limit rather than constraining this shared S3 range.
+export const BLOB_EXPORT_TUNING_BOUNDS = {
+  partSizeBytes: { min: 5 * 1024 * 1024, max: 5 * 1024 * 1024 * 1024 },
+  maxConcurrentParts: { min: 1, max: 32 },
+  maxPartAttempts: { min: 1, max: 10 },
+} as const;
+
+// Default part size when the column does not specify one. Matches the value
+// that was previously hardcoded in handleBlobStorageIntegrationProjectJob.ts.
+export const DEFAULT_BLOB_EXPORT_PART_SIZE_BYTES = 100 * 1024 * 1024; // 100 MiB
+
 export const BlobExportTuningSchema = z.object({
   // LFE-10402 raw-passthrough export path: stream ClickHouse JSONEachRow row text
   // straight to gzip → upload, skipping the per-row JS parse/enrich/serialize
@@ -33,71 +61,245 @@ export const BlobExportTuningSchema = z.object({
   // detection. Do not enable on older self-hosted ClickHouse.
   rawPassthrough: z.boolean().optional(),
   // LFE-10402 gzip tuning: zlib deflate level for compressed exports. Lower
-  // levels trade output size for markedly less worker CPU (the gzip step is the
-  // dominant remaining cost on large passthrough exports). Only honored when the
-  // integration has compression enabled. zlib accepts 0 (store, no compression)
-  // through 9 (max); absent / out-of-range falls back to the zlib default (6).
-  gzipLevel: z.number().optional(),
+  // levels trade output size for markedly less worker CPU. Only honored when the
+  // integration has compression enabled. zlib accepts 0 (store) through 9 (max);
+  // absent / out-of-range falls back to the zlib default (6).
+  gzipLevel: z.number().int().min(0).max(9).optional(),
+  // LFE-10394 upload tuning. Out-of-range values are REJECTED here (write path)
+  // but CLAMPED by the read-side resolver.
+  partSizeBytes: z
+    .number()
+    .int()
+    .min(BLOB_EXPORT_TUNING_BOUNDS.partSizeBytes.min)
+    .max(BLOB_EXPORT_TUNING_BOUNDS.partSizeBytes.max)
+    .optional(),
+  maxConcurrentParts: z
+    .number()
+    .int()
+    .min(BLOB_EXPORT_TUNING_BOUNDS.maxConcurrentParts.min)
+    .max(BLOB_EXPORT_TUNING_BOUNDS.maxConcurrentParts.max)
+    .optional(),
+  maxPartAttempts: z
+    .number()
+    .int()
+    .min(BLOB_EXPORT_TUNING_BOUNDS.maxPartAttempts.min)
+    .max(BLOB_EXPORT_TUNING_BOUNDS.maxPartAttempts.max)
+    .optional(),
+  skipEnrichment: z.boolean().optional(),
 });
 
 export type BlobExportTuning = z.infer<typeof BlobExportTuningSchema>;
+
+// Default the resolver falls back to for partSizeBytes when the column is absent
+// or invalid. Concurrency/attempts intentionally have NO default here — see
+// ResolvedBlobExportTuning for why they resolve to `undefined`.
+export interface BlobExportTuningDefaults {
+  partSizeBytes: number;
+}
 
 export type ResolvedBlobExportTuning = {
   rawPassthrough: boolean;
   // undefined => use the zlib default (6); a concrete 0-9 otherwise.
   gzipLevel: number | undefined;
+  partSizeBytes: number;
+  // undefined => the operator did not set the knob; each StorageService backend
+  // applies its own native default (S3 buffered → env var, Azure → 5, OCI → 5).
+  // Resolving these to a concrete env value here would silently override those
+  // per-backend defaults — e.g. dropping Azure concurrency 5→3 — and break the
+  // "null column reproduces today's behaviour" contract (LFE-10394 review).
+  maxConcurrentParts: number | undefined;
+  maxPartAttempts: number | undefined;
+  skipEnrichment: boolean;
 };
 
-/**
- * Resolve the persisted `exportTuning` JSON into concrete export settings.
- * Pure and total: never throws. A null / non-object / malformed column resolves
- * to the safe defaults (today's behaviour) and records a warning the caller can
- * log. Unknown keys are ignored.
- */
-export function resolveBlobExportTuning(raw: unknown): {
+export interface ResolveBlobExportTuningResult {
   resolved: ResolvedBlobExportTuning;
   warnings: string[];
-} {
-  const defaults: ResolvedBlobExportTuning = {
+}
+
+type Bound = { min: number; max: number };
+
+function resolveNumber(
+  field: string,
+  value: unknown,
+  bound: Bound,
+  fallback: number,
+  warnings: string[],
+): number {
+  if (value === undefined) return fallback; // absent → default, silent
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    warnings.push(
+      `${field}: expected a finite number, got ${JSON.stringify(value)}; using default ${fallback}`,
+    );
+    return fallback;
+  }
+  // Separate the two corrections so the warning text is accurate: a non-integer
+  // within bounds was rounded (not out of range), while a value outside the
+  // bounds was clamped. Reporting both as "out of range" would mislead an
+  // operator reading the log into thinking an in-range float was rejected.
+  const rounded = Math.round(value);
+  const clamped = Math.min(bound.max, Math.max(bound.min, rounded));
+  if (rounded !== value) {
+    warnings.push(
+      `${field}: ${value} is not an integer; rounded to ${rounded}`,
+    );
+  }
+  if (clamped !== rounded) {
+    warnings.push(
+      `${field}: ${rounded} out of range [${bound.min}, ${bound.max}]; clamped to ${clamped}`,
+    );
+  }
+  return clamped;
+}
+
+// Like resolveNumber, but returns `undefined` when the field is absent so the
+// caller can tell "operator did not set this" from "operator set the default".
+// Wrong-typed values also resolve to undefined (with a warning) so a malformed
+// knob falls back to the backend default rather than throwing.
+function resolveOptionalNumber(
+  field: string,
+  value: unknown,
+  bound: Bound,
+  warnings: string[],
+): number | undefined {
+  if (value === undefined) return undefined; // absent → backend default, silent
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    warnings.push(
+      `${field}: expected a finite number, got ${JSON.stringify(value)}; using backend default`,
+    );
+    return undefined;
+  }
+  const rounded = Math.round(value);
+  const clamped = Math.min(bound.max, Math.max(bound.min, rounded));
+  if (rounded !== value) {
+    warnings.push(
+      `${field}: ${value} is not an integer; rounded to ${rounded}`,
+    );
+  }
+  if (clamped !== rounded) {
+    warnings.push(
+      `${field}: ${rounded} out of range [${bound.min}, ${bound.max}]; clamped to ${clamped}`,
+    );
+  }
+  return clamped;
+}
+
+function resolveBoolean(
+  field: string,
+  value: unknown,
+  warnings: string[],
+): boolean {
+  if (value === undefined) return false; // absent → false, silent
+  if (typeof value !== "boolean") {
+    warnings.push(
+      `${field}: expected a boolean, got ${JSON.stringify(value)}; using default false`,
+    );
+    return false;
+  }
+  return value;
+}
+
+// gzipLevel uses clamp-to-DEFAULT (not clamp-to-bound): an out-of-range level is
+// dropped so the zlib default (6) applies, rather than silently snapping to 0/9.
+function resolveGzipLevel(
+  value: unknown,
+  warnings: string[],
+): number | undefined {
+  if (value === undefined) return undefined;
+  // Distinct failure modes get accurate messages (mirrors resolveNumber): a
+  // wrong type, a non-integer, and a true out-of-range value are different
+  // problems and "out of range" would mislead for the first two.
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    warnings.push(
+      `gzipLevel: expected a finite number, got ${JSON.stringify(value)}; using zlib default`,
+    );
+    return undefined;
+  }
+  if (!Number.isInteger(value)) {
+    warnings.push(`gzipLevel: ${value} is not an integer; using zlib default`);
+    return undefined;
+  }
+  if (value < 0 || value > 9) {
+    warnings.push(
+      `gzipLevel: ${value} out of range [0, 9]; using zlib default`,
+    );
+    return undefined;
+  }
+  return value;
+}
+
+/**
+ * Read-side resolver for the `exportTuning` JSON column. Never throws.
+ *
+ * Semantics (LFE-10394 grilling + LFE-10402 rawPassthrough/gzipLevel):
+ *   - null / undefined / non-object   → all defaults (non-object is warned).
+ *   - upload knob numeric out of range → CLAMPED to the bound (warned).
+ *   - gzipLevel out of range           → dropped → zlib default (warned).
+ *   - field of the wrong type / NaN    → default (warned).
+ *   - absent field                     → default (silent).
+ *
+ * The caller is expected to log each returned warning.
+ */
+export function resolveBlobExportTuning(
+  raw: unknown,
+  defaults: BlobExportTuningDefaults,
+): ResolveBlobExportTuningResult {
+  const warnings: string[] = [];
+
+  const fallback: ResolvedBlobExportTuning = {
     rawPassthrough: false,
     gzipLevel: undefined,
+    partSizeBytes: defaults.partSizeBytes,
+    maxConcurrentParts: undefined,
+    maxPartAttempts: undefined,
+    skipEnrichment: false,
   };
 
   if (raw === null || raw === undefined) {
-    return { resolved: defaults, warnings: [] };
+    return { resolved: fallback, warnings };
   }
 
-  const parsed = BlobExportTuningSchema.safeParse(raw);
-  if (!parsed.success) {
-    return {
-      resolved: defaults,
-      warnings: [
-        `Malformed exportTuning column, falling back to defaults: ${parsed.error.message}`,
-      ],
-    };
+  if (typeof raw !== "object" || Array.isArray(raw)) {
+    warnings.push(
+      `exportTuning: expected an object, got ${JSON.stringify(raw)}; using defaults`,
+    );
+    return { resolved: fallback, warnings };
   }
 
-  const warnings: string[] = [];
-
-  // Clamp-to-default rather than fail: a bad gzipLevel must not also disable a
-  // valid rawPassthrough. An out-of-range / non-integer level is dropped (zlib
-  // default applies) with a warning the caller logs.
-  let gzipLevel: number | undefined;
-  const rawLevel = parsed.data.gzipLevel;
-  if (rawLevel !== undefined) {
-    if (Number.isInteger(rawLevel) && rawLevel >= 0 && rawLevel <= 9) {
-      gzipLevel = rawLevel;
-    } else {
-      warnings.push(
-        `Ignoring out-of-range gzipLevel ${rawLevel} (expected integer 0-9), using zlib default`,
-      );
-    }
-  }
+  const obj = raw as Record<string, unknown>;
 
   return {
     resolved: {
-      rawPassthrough: parsed.data.rawPassthrough ?? false,
-      gzipLevel,
+      rawPassthrough: resolveBoolean(
+        "rawPassthrough",
+        obj.rawPassthrough,
+        warnings,
+      ),
+      gzipLevel: resolveGzipLevel(obj.gzipLevel, warnings),
+      partSizeBytes: resolveNumber(
+        "partSizeBytes",
+        obj.partSizeBytes,
+        BLOB_EXPORT_TUNING_BOUNDS.partSizeBytes,
+        defaults.partSizeBytes,
+        warnings,
+      ),
+      maxConcurrentParts: resolveOptionalNumber(
+        "maxConcurrentParts",
+        obj.maxConcurrentParts,
+        BLOB_EXPORT_TUNING_BOUNDS.maxConcurrentParts,
+        warnings,
+      ),
+      maxPartAttempts: resolveOptionalNumber(
+        "maxPartAttempts",
+        obj.maxPartAttempts,
+        BLOB_EXPORT_TUNING_BOUNDS.maxPartAttempts,
+        warnings,
+      ),
+      skipEnrichment: resolveBoolean(
+        "skipEnrichment",
+        obj.skipEnrichment,
+        warnings,
+      ),
     },
     warnings,
   };
