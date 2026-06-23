@@ -150,7 +150,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    DD_TRACE_VERSION="$(node -p "require('./package.json').dependencies['dd-trace']")"; \
+    DD_TRACE_VERSION="$(node -p 'require("./package.json").dependencies["dd-trace"]')"; \
     npm install --no-package-lock --no-save "dd-trace@${DD_TRACE_VERSION}"; \
     fi
 
