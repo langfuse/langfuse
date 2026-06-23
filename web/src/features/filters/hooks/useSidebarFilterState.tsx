@@ -1,5 +1,5 @@
 import type React from "react";
-import { useCallback, useMemo, useEffect, useState } from "react";
+import { useCallback, useMemo, useEffect, useRef, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
   type FilterState,
@@ -548,6 +548,48 @@ export function useSidebarFilterState(
       : stateLocationType === "memory"
         ? memoryFilterState
         : urlFilterState;
+
+  // LFE-10164: When arriving via a URL/deep link that already carries applied
+  // filters, expand the sidebar sections that have an active filter. Sidebar
+  // sections are collapsed by default; without this, a bookmarked/shared link
+  // would render its active facets collapsed. This runs once on initial load
+  // (guarded by a ref) so it only seeds the default state and never overrides
+  // subsequent manual expand/collapse. Sections without an active filter keep
+  // their default state.
+  //
+  // We key off `explicitFilterState` (the URL/memory/peek-authored filters),
+  // which already excludes the implicit hidden-environment default — so the
+  // managed-environment section is only auto-expanded when the user actually
+  // authored an environment filter.
+  const hasSeededExpansionFromActiveFilters = useRef(false);
+  useEffect(() => {
+    if (hasSeededExpansionFromActiveFilters.current) return;
+    hasSeededExpansionFromActiveFilters.current = true;
+
+    if (explicitFilterState.length === 0) return;
+
+    const facetColumns = new Set(config.facets.map((facet) => facet.column));
+    const activeFacetColumns = explicitFilterState
+      .map((filter) => filter.column)
+      .filter((column) => facetColumns.has(column));
+    if (activeFacetColumns.length === 0) return;
+
+    setExpandedString((current) => {
+      const expanded = current.split(",").filter(Boolean);
+      const expandedSet = new Set(expanded);
+      const next = [...expanded];
+      for (const column of activeFacetColumns) {
+        if (!expandedSet.has(column)) {
+          expandedSet.add(column);
+          next.push(column);
+        }
+      }
+      return next.length === expanded.length ? current : next.join(",");
+    });
+    // Intentionally runs only on initial mount; the ref guard prevents re-seeding
+    // after later filter changes so manual collapse is respected.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const managedEnvironmentPolicyConfig = useMemo(
     () => buildManagedEnvironmentPolicyConfig(implicitDefaultConfig),
