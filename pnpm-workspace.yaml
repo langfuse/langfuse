@@ -80,7 +80,7 @@ overrides:
   # Check: https://www.npmjs.com/package/@langchain/anthropic?activeTab=dependencies
   "@anthropic-ai/vertex-sdk>@anthropic-ai/sdk": 0.104.1
 patchedDependencies:
-  next-auth@4.24.13: patches/next-auth@4.24.13.patch
+  next-auth@4.24.14: patches/next-auth@4.24.14.patch
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
