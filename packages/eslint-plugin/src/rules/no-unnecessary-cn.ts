@@ -5,7 +5,7 @@ type Options = [{ importPath: string }];
 type MessageIds = "unnecessaryCn";
 
 const rule = createRule<Options, MessageIds>({
-  name: "no-unneccessary-cn",
+  name: "no-unnecessary-cn",
   meta: {
     type: "suggestion",
     docs: {
@@ -87,15 +87,15 @@ const rule = createRule<Options, MessageIds>({
           messageId: "unnecessaryCn",
           fix(fixer) {
             if (
-              argument.type === AST_NODE_TYPES.Literal &&
-              typeof argument.value === "string" &&
               node.parent.type === AST_NODE_TYPES.JSXExpressionContainer &&
               node.parent.parent.type === AST_NODE_TYPES.JSXAttribute
             ) {
-              return fixer.replaceText(
-                node.parent,
-                sourceCode.getText(argument),
-              );
+              const replacement =
+                argument.type === AST_NODE_TYPES.TemplateLiteral
+                  ? JSON.stringify(argument.quasis[0].value.cooked)
+                  : sourceCode.getText(argument);
+
+              return fixer.replaceText(node.parent, replacement);
             }
 
             return fixer.replaceText(node, sourceCode.getText(argument));

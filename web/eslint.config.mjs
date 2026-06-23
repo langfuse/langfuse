@@ -62,10 +62,10 @@ export default [
   },
 
   {
-    name: "langfuse/web/no-unneccessary-cn",
+    name: "langfuse/web/no-unnecessary-cn",
     files: ["src/**/*.{ts,tsx}"],
     rules: {
-      "@repo/no-unneccessary-cn": [
+      "@repo/no-unnecessary-cn": [
         "warn",
         { importPath: "@/src/utils/tailwind" },
       ],

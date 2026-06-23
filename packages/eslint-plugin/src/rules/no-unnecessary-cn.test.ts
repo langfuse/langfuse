@@ -1,6 +1,6 @@
 import { RuleTester } from "@typescript-eslint/rule-tester";
 import * as typescriptEslintParser from "@typescript-eslint/parser";
-import rule from "./no-unneccessary-cn.js";
+import rule from "./no-unnecessary-cn.js";
 
 const ruleTester = new RuleTester({
   languageOptions: {
@@ -15,7 +15,7 @@ const ruleTester = new RuleTester({
 
 const options = [{ importPath: "@/src/utils/tailwind" }] as const;
 
-ruleTester.run("no-unneccessary-cn", rule, {
+ruleTester.run("no-unnecessary-cn", rule, {
   valid: [
     {
       code: `import { cn } from "@/src/utils/tailwind";
@@ -93,6 +93,13 @@ ruleTester.run("no-unneccessary-cn", rule, {
              const element = <div className={cn("flex")} />;`,
       output: `import { cn } from "@/src/utils/tailwind";
              const element = <div className="flex" />;`,
+      options,
+      errors: [{ messageId: "unnecessaryCn" }],
+    },
+    {
+      code: 'import { cn } from "@/src/utils/tailwind";\nconst element = <div className={cn(`flex`)} />;',
+      output:
+        'import { cn } from "@/src/utils/tailwind";\nconst element = <div className="flex" />;',
       options,
       errors: [{ messageId: "unnecessaryCn" }],
     },
