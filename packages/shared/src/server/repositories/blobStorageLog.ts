@@ -27,7 +27,7 @@ export const getBlobStorageByProjectAndEntityId = async (
       entityId,
     },
     tags: {
-      feature: "eventLog",
+      feature: "ingestion",
       kind: "byID",
       projectId,
     },
@@ -49,7 +49,7 @@ export const getBlobStorageByProjectId = (
       projectId,
     },
     tags: {
-      feature: "eventLog",
+      feature: "ingestion",
       kind: "list",
       projectId,
     },
@@ -74,7 +74,7 @@ export const getBlobStorageByProjectIdBeforeDate = (
       beforeDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
-      feature: "eventLog",
+      feature: "ingestion",
       kind: "list",
       projectId,
     },
@@ -105,7 +105,7 @@ export const getBlobStorageByProjectIdAndEntityIds = (
       request_timeout: 120_000, // 2 minutes
     },
     tags: {
-      feature: "eventLog",
+      feature: "ingestion",
       kind: "list",
       projectId,
     },
@@ -171,7 +171,7 @@ export const getBlobStorageByProjectIdAndTraceIds = (
       request_timeout: 120_000, // 2 minutes
     },
     tags: {
-      feature: "eventLog",
+      feature: "ingestion",
       kind: "list",
       projectId,
     },
@@ -210,7 +210,7 @@ export const insertIntoS3RefsTableFromEventLog = async (
       offset,
     },
     tags: {
-      feature: "backgroundMigration",
+      feature: "ingestion",
       kind: "list",
     },
   });
@@ -228,7 +228,13 @@ export const getLastEventLogPrimaryKey = async () => {
     entity_type: string;
     entity_id: string;
     bucket_path: string;
-  }>({ query });
+  }>({
+    query,
+    tags: {
+      feature: "ingestion",
+      kind: "backgroundMigration",
+    },
+  });
   return result.shift();
 };
 
@@ -249,5 +255,10 @@ export const findS3RefsByPrimaryKey = async (primaryKey: {
   return queryClickhouse<BlobStorageFileRefRecordReadType>({
     query,
     params: primaryKey,
+    tags: {
+      feature: "ingestion",
+      kind: "byPrimaryKey",
+      projectId: primaryKey.project_id,
+    },
   });
 };

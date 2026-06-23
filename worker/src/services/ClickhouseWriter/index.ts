@@ -13,7 +13,7 @@ import {
   TraceNullRecordInsertType,
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
-  tagsWithTraceId,
+  buildClickHouseLogComment,
 } from "@langfuse/shared/src/server";
 
 import { Decimal } from "decimal.js";
@@ -578,16 +578,11 @@ export class ClickhouseWriter {
         format: "JSONEachRow",
         values: params.records,
         clickhouse_settings: {
-          log_comment: JSON.stringify(
-            tagsWithTraceId({
-              feature: "ingestion",
-              type: params.table,
-              operation_name: "writeToClickhouse",
-              ...(params.records.length > 0 && params.records[0].project_id
-                ? { projectId: params.records[0].project_id }
-                : {}),
-            }),
-          ),
+          log_comment: buildClickHouseLogComment({
+            surface: "worker",
+            route: "ClickhouseWriter",
+            feature: "ingestion",
+          }),
         },
       })
       .catch((err) => {

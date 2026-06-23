@@ -276,7 +276,7 @@ export const getScoresForSessions = async <
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
-      feature: "sessions",
+      feature: "tracing",
       type: "score",
       kind: "list",
       projectId,
@@ -330,7 +330,7 @@ export const getScoresForExperiments = async <
       offset,
     },
     tags: {
-      feature: "sessions",
+      feature: "tracing",
       type: "score",
       kind: "list",
       projectId,
@@ -403,7 +403,7 @@ export const getTraceScoresForDatasetRuns = async (
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: {
-      feature: "dataset-run-items",
+      feature: "datasets",
       type: "trace-scores",
       kind: "list",
       projectId,
@@ -490,7 +490,7 @@ export const getScoresForExperimentItems = async (
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: {
-      feature: "experiments",
+      feature: "datasets",
       type: "trace-scores",
       kind: "list",
       projectId,
@@ -2077,7 +2077,7 @@ export const getScoresForBlobStorageExport = function (
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
-      feature: "blobstorage",
+      feature: "batch-export",
       type: "score",
       kind: "analytic",
       projectId,
@@ -2162,7 +2162,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
-      feature: "posthog",
+      feature: "batch-export",
       type: "score",
       kind: "analytic",
       projectId,
@@ -2508,7 +2508,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           : {}),
       },
       tags: {
-        feature: "scoring",
+        feature: "scores",
         type: "score",
         projectId,
         scoreScope,
@@ -2610,7 +2610,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         projectId,
       },
       tags: {
-        feature: "scoring",
+        feature: "scores",
         type: "score",
         projectId,
         scoreScope,
@@ -3005,7 +3005,7 @@ export async function listScoresV3ForPublicApi(
         ...filterParams,
       },
       tags: {
-        feature: "scoring",
+        feature: "scores",
         type: "score",
         projectId: params.projectId,
         operation_name: "listScoresV3ForPublicApi",

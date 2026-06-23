@@ -104,6 +104,10 @@ export default async function handler(
       headers: req.headers,
       projectId,
       apiKeyId: authCheck.scope.apiKeyId,
+      clickhouse: {
+        surface: "publicapi",
+        route: `${req.method ?? "POST"} ${req.url ?? "/api/public/ingestion"}`,
+      },
     });
     // Execute the rest of the handler within the context
     return opentelemetry.context.with(ctx, async () => {

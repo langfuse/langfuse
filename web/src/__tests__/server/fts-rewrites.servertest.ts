@@ -90,7 +90,7 @@ const matchingIds = async (filter: FilterResult) => {
     params: filter.params,
     preferredClickhouseService: "EventsReadOnly",
     tags: {
-      feature: "fts-rewrites-test",
+      feature: "health",
       type: "events",
       kind: "test",
     },

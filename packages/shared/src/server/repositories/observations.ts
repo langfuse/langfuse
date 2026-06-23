@@ -451,6 +451,11 @@ export const getObservationsById = async (
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { ids, projectId },
+    tags: {
+      feature: "tracing",
+      kind: "listByIds",
+      projectId,
+    },
   });
   return records.map((record) => convertObservation(record));
 };
@@ -1875,7 +1880,7 @@ const buildObservationsForBlobStorageExportQuery = (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
-      feature: "blobstorage",
+      feature: "batch-export",
       type: "observation",
       kind: "analytic",
       projectId,
@@ -1991,7 +1996,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
-      feature: "posthog",
+      feature: "batch-export",
       type: "observation",
       kind: "analytic",
       projectId,
@@ -2143,7 +2148,7 @@ export const getCostByEvaluatorIds = async (
       evaluatorIds,
     },
     tags: {
-      feature: "evals",
+      feature: "scores",
       type: "observation",
       kind: "analytic",
       projectId,

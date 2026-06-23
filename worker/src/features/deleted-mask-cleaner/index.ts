@@ -132,7 +132,7 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         tables: Array.from(DELETED_MASK_CLEANER_TABLES),
       },
       tags: {
-        feature: "deleted-mask-cleaner",
+        feature: "deletion",
         operation: "get-candidates",
       },
     });
@@ -157,7 +157,7 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         tables,
       },
       tags: {
-        feature: "deleted-mask-cleaner",
+        feature: "deletion",
         operation: "get-mutation-counts",
       },
     });
@@ -200,7 +200,7 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         },
         abortSignal: abortController.signal,
         tags: {
-          feature: "deleted-mask-cleaner",
+          feature: "deletion",
           table: candidate.table,
           partition: candidate.partition_to_clean,
           operation: "apply-deleted-mask",

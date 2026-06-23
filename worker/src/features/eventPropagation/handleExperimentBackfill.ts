@@ -156,7 +156,7 @@ export async function getDatasetRunItemsSinceLastRun(
       request_timeout: 120000, // 2 minutes timeout
     },
     tags: {
-      feature: "experiment-backfill",
+      feature: "event-propagation",
       operation_name: "getDatasetRunItemsSinceLastRun",
     },
   });
@@ -248,7 +248,7 @@ export async function getRelevantObservations(
       request_timeout: 60_000,
     },
     tags: {
-      feature: "experiment-backfill",
+      feature: "event-propagation",
       operation_name: "getRelevantObservations",
     },
   });
@@ -329,7 +329,7 @@ export async function getRelevantTraces(
       request_timeout: 60_000,
     },
     tags: {
-      feature: "experiment-backfill",
+      feature: "event-propagation",
       operation_name: "getRelevantTraces",
     },
   });

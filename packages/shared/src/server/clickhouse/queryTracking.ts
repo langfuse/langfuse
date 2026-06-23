@@ -42,7 +42,7 @@ export async function pollQueryStatus(
   tags?: Record<string, string>,
 ): Promise<QueryStatus> {
   const tagsWithDefaults = {
-    feature: "query-tracking",
+    feature: "health",
     operation: "pollQueryStatus",
     ...tags,
   };
@@ -134,7 +134,7 @@ export async function getQueryError(
       skip_unavailable_shards: 1,
     },
     tags: {
-      feature: "query-tracking",
+      feature: "health",
       operation: "getQueryError",
     },
   });

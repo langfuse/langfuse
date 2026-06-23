@@ -135,8 +135,13 @@ const getMinTimestampForExport = async (
                 WHERE project_id = {projectId: String}
               )
               WHERE ts > 0 -- Ignore 0 results (usually empty tables)
-            `,
+          `,
           params: { projectId },
+          tags: {
+            feature: "batch-export",
+            kind: "minTimestamp",
+            projectId,
+          },
         });
 
         // Extract the minimum timestamp

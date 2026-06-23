@@ -68,7 +68,7 @@ export const runHealthCheck = async ({
                 `,
                 params,
                 tags: {
-                  feature: "health-check",
+                  feature: "health",
                   type: "event",
                 },
               }),
@@ -99,7 +99,7 @@ export const runHealthCheck = async ({
                 `,
                 params,
                 tags: {
-                  feature: "health-check",
+                  feature: "health",
                   type: "trace",
                 },
               }),
@@ -117,7 +117,7 @@ export const runHealthCheck = async ({
               now: clickhouseNow,
             },
             tags: {
-              feature: "health-check",
+              feature: "health",
               type: "observation",
             },
           });

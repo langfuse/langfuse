@@ -62,7 +62,7 @@ const matchingIds = async (opts: {
     params: search.params,
     preferredClickhouseService: "EventsReadOnly",
     tags: {
-      feature: "clickhouse-search-condition-test",
+      feature: "health",
       type: "events",
       kind: "test",
     },
@@ -192,7 +192,7 @@ describe("clickhouseSearchCondition", () => {
           },
           preferredClickhouseService: "EventsReadOnly",
           tags: {
-            feature: "clickhouse-search-condition-test",
+            feature: "health",
             type: "events",
             kind: "test",
           },
@@ -285,7 +285,7 @@ describe("clickhouseSearchCondition", () => {
         },
         preferredClickhouseService: "EventsReadOnly",
         tags: {
-          feature: "clickhouse-search-condition-test",
+          feature: "health",
           type: "events",
           kind: "test",
         },

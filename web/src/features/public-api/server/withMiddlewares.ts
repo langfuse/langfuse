@@ -13,6 +13,7 @@ import {
   traceException,
   contextWithLangfuseProps,
   ClickHouseResourceError,
+  type ClickHouseQuerySurface,
 } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import {
@@ -62,6 +63,14 @@ type MiddlewareOptions = {
   clickHouseResourceErrorMessage?: string;
 };
 
+const clickHouseRouteForRequest = (req: NextApiRequest) =>
+  `${req.method ?? "UNKNOWN"} ${req.url ?? ""}`;
+
+const clickHouseSurfaceForRequest = (
+  req: NextApiRequest,
+): ClickHouseQuerySurface =>
+  req.url?.split("?")[0]?.startsWith("/api/public/") ? "publicapi" : "trpc";
+
 const logBaseError = (error: BaseError) => {
   if (
     error instanceof LangfuseNotFoundError ||
@@ -86,6 +95,10 @@ export function withMiddlewares(
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
+      clickhouse: {
+        surface: clickHouseSurfaceForRequest(req),
+        route: clickHouseRouteForRequest(req),
+      },
     });
 
     return opentelemetry.context.with(ctx, async () => {

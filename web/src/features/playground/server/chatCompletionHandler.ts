@@ -36,6 +36,10 @@ export default async function chatCompletionHandler(req: NextRequest) {
     const baggageCtx = contextWithLangfuseProps({
       userId: userId,
       projectId: body.projectId,
+      clickhouse: {
+        surface: "trpc",
+        route: `${req.method} ${req.nextUrl.pathname}`,
+      },
     });
 
     return await opentelemetry.context.with(baggageCtx, async () => {

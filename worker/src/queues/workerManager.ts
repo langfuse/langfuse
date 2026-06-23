@@ -1,6 +1,8 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
+import { context as otelContext } from "@opentelemetry/api";
 import {
   convertQueueNameToMetricName,
+  contextWithLangfuseProps,
   createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
@@ -19,6 +21,28 @@ import {
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
+
+  private static extractProjectId(job: Job): string | undefined {
+    const data = job.data as {
+      projectId?: unknown;
+      payload?: {
+        projectId?: unknown;
+        authCheck?: { scope?: { projectId?: unknown } };
+      };
+      authCheck?: { scope?: { projectId?: unknown } };
+    };
+
+    const candidates = [
+      data.projectId,
+      data.payload?.projectId,
+      data.payload?.authCheck?.scope?.projectId,
+      data.authCheck?.scope?.projectId,
+    ];
+
+    return candidates.find((candidate): candidate is string => {
+      return typeof candidate === "string" && candidate.length > 0;
+    });
+  }
 
   private static resolveMetricInfo(queueName: QueueName): {
     baseMetric: string;
@@ -64,7 +88,16 @@ export class WorkerManager {
         ...shardTag,
       });
 
-      const result = await processor(job);
+      const clickHouseCtx = contextWithLangfuseProps({
+        projectId: WorkerManager.extractProjectId(job),
+        clickhouse: {
+          surface: "worker",
+          route: queueName,
+        },
+      });
+      const result = await otelContext.with(clickHouseCtx, () =>
+        processor(job),
+      );
 
       const queue = resolveQueueInstance(queueName);
       // Sample queue depth gauges for sharded queues to reduce metric volume.

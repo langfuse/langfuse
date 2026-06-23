@@ -109,6 +109,11 @@ export async function buildEstimateQuery(params: {
       fromTimestamp,
       toTimestamp,
     },
+    tags: {
+      feature: "scores",
+      kind: "estimate",
+      projectId,
+    },
   });
 
   const row = result[0];

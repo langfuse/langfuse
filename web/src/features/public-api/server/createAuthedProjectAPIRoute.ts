@@ -9,6 +9,7 @@ import {
   type ApiAccessLevel,
   traceException,
   logger,
+  type ClickHouseQuerySurface,
 } from "@langfuse/shared/src/server";
 import { PayloadTooLargeError, type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -33,6 +34,14 @@ type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
 // exceeds the engine limit. Keep this check scoped to the response write.
 const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
+
+const clickHouseRouteForRequest = (req: NextApiRequest) =>
+  `${req.method ?? "UNKNOWN"} ${req.url ?? ""}`;
+
+const clickHouseSurfaceForRequest = (
+  req: NextApiRequest,
+): ClickHouseQuerySurface =>
+  req.url?.split("?")[0]?.startsWith("/api/public/") ? "publicapi" : "trpc";
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
@@ -433,6 +442,10 @@ export const createAuthedProjectAPIRoute = <
       headers: req.headers,
       projectId: auth.scope.projectId,
       apiKeyId: auth.scope.apiKeyId,
+      clickhouse: {
+        surface: clickHouseSurfaceForRequest(req),
+        route: clickHouseRouteForRequest(req),
+      },
     });
     return opentelemetry.context.with(ctx, async () => {
       const response = await routeConfig.fn({

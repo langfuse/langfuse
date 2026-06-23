@@ -866,7 +866,7 @@ export const getEventsStreamForEval = async (props: {
       },
     },
     tags: {
-      feature: "batch-eval",
+      feature: "scores",
       type: "event",
       kind: "eval",
       projectId,
@@ -1864,7 +1864,7 @@ export const updateEvents = async (
       ? `UPDATE ${table} SET ${setClauses.join(", ")} ${whereClause}`
       : `ALTER TABLE ${table} UPDATE ${setClauses.join(", ")} ${whereClause}`,
     params,
-    tags: { type: table, kind: "update", projectId },
+    tags: { feature: "tracing", type: table, kind: "update", projectId },
   });
 
   await Promise.all([
@@ -3298,7 +3298,7 @@ export const getUsersFromEventsTable = async (
     query,
     params,
     tags: {
-      feature: "users",
+      feature: "tracing",
       type: "events",
       kind: "analytic",
       projectId,
@@ -3343,7 +3343,7 @@ export const getUsersCountFromEventsTable = async (
       ...(searchQuery ? { searchQuery: `%${searchQuery}%` } : {}),
     },
     tags: {
-      feature: "users",
+      feature: "tracing",
       type: "events",
       kind: "analytic",
       projectId,
@@ -3426,7 +3426,7 @@ export const getUserMetricsFromEventsTable = async (
     query,
     params: statsParams,
     tags: {
-      feature: "users",
+      feature: "tracing",
       type: "events",
       kind: "analytic",
       projectId,
@@ -3470,7 +3470,7 @@ export const hasAnyUserFromEventsTable = async (
     query,
     params: { projectId },
     tags: {
-      feature: "users",
+      feature: "tracing",
       type: "events",
       kind: "hasAny",
       projectId,
@@ -3540,7 +3540,7 @@ const buildEventsForBlobStorageExportQuery = (
     query,
     params,
     tags: {
-      feature: "blobstorage",
+      feature: "batch-export",
       type: "event",
       kind: "analytic",
       projectId,
@@ -3633,7 +3633,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
     query,
     params,
     tags: {
-      feature: "analytics-integration",
+      feature: "batch-export",
       type: "event",
       kind: "analytic",
       projectId,
@@ -3706,7 +3706,7 @@ export const hasAnySessionFromEventsTable = async (
         query,
         params: input.params,
         tags: {
-          feature: "sessions",
+          feature: "tracing",
           type: "events",
           kind: "hasAny",
           projectId,
@@ -3799,7 +3799,7 @@ export const getAvgCostByEvaluatorIds = async (
     query,
     params,
     tags: {
-      feature: "evals",
+      feature: "scores",
       type: "events",
       kind: "analytic",
       projectId,
@@ -3957,7 +3957,7 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     query,
     params: queryParams,
     tags: {
-      feature: "sdk-metadata-detection",
+      feature: "tracing",
       kind: "sdkMetadata",
       projectId,
     },

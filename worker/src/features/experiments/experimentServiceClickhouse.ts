@@ -60,7 +60,7 @@ async function getExistingRunItemDatasetItemIds(
       datasetId,
     },
     tags: {
-      feature: "dataset-run-item",
+      feature: "datasets",
       type: "read",
       kind: "list",
       projectId,

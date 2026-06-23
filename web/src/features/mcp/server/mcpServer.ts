@@ -19,7 +19,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { ServerContext } from "../types";
 import { toolRegistry } from "./registry";
-import { logger } from "@langfuse/shared/src/server";
+import { contextWithLangfuseProps, logger } from "@langfuse/shared/src/server";
+import { context as otelContext } from "@opentelemetry/api";
 
 const MCP_SERVER_NAME = "langfuse";
 
@@ -92,7 +93,17 @@ export function createMcpServer(context: ServerContext): Server {
 
     // Execute handler with context
     // Handler performs validation and error handling via defineTool wrapper
-    const result = await registeredTool.handler(args, context);
+    const clickHouseCtx = contextWithLangfuseProps({
+      projectId: context.projectId,
+      apiKeyId: context.apiKeyId,
+      clickhouse: {
+        surface: "mcp",
+        route: name,
+      },
+    });
+    const result = await otelContext.with(clickHouseCtx, () =>
+      registeredTool.handler(args, context),
+    );
 
     return {
       content: [

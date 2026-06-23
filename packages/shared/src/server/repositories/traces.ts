@@ -1433,7 +1433,7 @@ export const getTracesForBlobStorageExport = function (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
-      feature: "blobstorage",
+      feature: "batch-export",
       type: "trace",
       kind: "analytic",
       projectId,
@@ -1498,7 +1498,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
-      feature: "posthog",
+      feature: "batch-export",
       type: "trace",
       kind: "analytic",
       projectId,
@@ -1623,6 +1623,11 @@ export async function getAgentGraphData(params: {
       projectId,
       chMinStartTime,
       chMaxStartTime,
+    },
+    tags: {
+      feature: "tracing",
+      kind: "langgraphObservations",
+      projectId,
     },
   });
 }

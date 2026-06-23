@@ -190,7 +190,7 @@ export const getExperimentMetricsFromEvents = async (props: {
     input: {
       params,
       tags: {
-        feature: "experiments",
+        feature: "datasets",
         type: "experiments-table",
         projectId: props.projectId,
         operation_name: "getExperimentMetricsFromEvents",
@@ -354,7 +354,7 @@ const getExperimentsFromEventsGeneric = async <T>(
       params: finalParams,
       tags: {
         ...(props.tags ?? {}),
-        feature: "experiments",
+        feature: "datasets",
         type: "experiments-table",
         projectId,
         operation_name: `getExperimentsFromEventsGeneric-${select}`,
@@ -468,7 +468,7 @@ export const getExperimentItemsCountFromEvents = async (
     query,
     params,
     tags: {
-      feature: "experiments",
+      feature: "datasets",
       type: "experiment-items-count",
       projectId,
     },
@@ -679,7 +679,7 @@ const getExperimentItemScoreOptionsByLevel = async ({
       query: traceQuery.query,
       params: traceQuery.params,
       tags: {
-        feature: "experiments",
+        feature: "datasets",
         type: "filter-options",
         kind: "trace-scores",
         projectId,
@@ -690,7 +690,7 @@ const getExperimentItemScoreOptionsByLevel = async ({
       query: obsQuery.query,
       params: obsQuery.params,
       tags: {
-        feature: "experiments",
+        feature: "datasets",
         type: "filter-options",
         kind: "observation-scores",
         projectId,
@@ -757,7 +757,7 @@ const getExperimentScoreOptionsByLevel = async ({
       query: obsQuery.query,
       params: obsQuery.params,
       tags: {
-        feature: "experiments",
+        feature: "datasets",
         type: "filter-options",
         kind: "observation-scores",
         projectId,
@@ -768,7 +768,7 @@ const getExperimentScoreOptionsByLevel = async ({
       query: runQuery.query,
       params: runQuery.params,
       tags: {
-        feature: "experiments",
+        feature: "datasets",
         type: "filter-options",
         kind: "run-scores",
         projectId,
@@ -1059,7 +1059,7 @@ export const getExperimentItemsFromEvents = async (
     query: itemIdsQuery,
     params: itemIdsParams,
     tags: {
-      feature: "experiments",
+      feature: "datasets",
       type: "experiment-items-filter",
       projectId,
     },
@@ -1104,7 +1104,7 @@ export const getExperimentItemsFromEvents = async (
     query: dataQuery,
     params: dataParams,
     tags: {
-      feature: "experiments",
+      feature: "datasets",
       type: "experiment-items-data",
       projectId,
     },
@@ -1212,7 +1212,7 @@ export const getExperimentItemsBatchIO = async (props: {
       truncateLength: IO_TRUNCATE_LENGTH,
     },
     tags: {
-      feature: "experiments",
+      feature: "datasets",
       type: "experiment-items-batch-io",
       projectId,
     },

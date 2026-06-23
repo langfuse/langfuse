@@ -214,7 +214,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       query,
       params: { projectIds },
       tags: {
-        feature: "batch-project-cleaner",
+        feature: "deletion",
         table: this.tableName,
         operation: "count",
       },
@@ -245,7 +245,7 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
         request_timeout: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
       },
       tags: {
-        feature: "batch-project-cleaner",
+        feature: "deletion",
         table: this.tableName,
         operation: "delete",
       },
