@@ -431,7 +431,7 @@ describe("createAgUiStream", () => {
         langfuseTracing: {
           environment: "langfuse-in-app-agent",
           metadata: { langfuse_project_id: "project-1" },
-          userId: "user-1",
+          user: { id: "user-1" },
           traceId: "0123456789abcdef0123456789abcdef",
           targetProjectId: "project-1",
         },
