@@ -9,7 +9,6 @@ import {
 } from "@/src/features/table/types";
 import { TableActionDialog } from "@/src/features/table/components/TableActionDialog";
 import { type BatchExportTableName } from "@langfuse/shared";
-import { cn } from "@/src/utils/tailwind";
 import { numberFormatter } from "@/src/utils/numbers";
 import {
   Tooltip,
@@ -87,7 +86,7 @@ export function TableActionMenu({
                   key={action.id}
                   variant="outline"
                   size="sm"
-                  className={cn("h-8")}
+                  className="h-8"
                   title={action.label}
                   disabled={action.disabled}
                   onClick={() => handleActionSelect(action)}
