@@ -30,6 +30,7 @@ import { useHasEntitlement } from "@/src/features/entitlements/hooks";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { createInAppAgentScreenContext } from "@/src/ee/features/in-app-agent/context";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 const SELECTED_CONVERSATION_STORAGE_KEY_PREFIX =
   "langfuse:in-app-ai-agent-selected-conversation";
@@ -172,6 +173,7 @@ function InAppAiAgentProviderInner({
   setOpen,
 }: InAppAiAgentProviderInnerProps) {
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const [selectedConversationId, setSelectedConversationId] = useSessionStorage<
     string | null
   >(`${SELECTED_CONVERSATION_STORAGE_KEY_PREFIX}:${projectId}`, null);
@@ -528,6 +530,10 @@ function InAppAiAgentProviderInner({
 
         agent.addMessage(userMessage);
         setMessages(agent.messages.filter(isAgentConversationMessage));
+        if (isNewConversation) {
+          capture("in_app_agent:new_chat_started");
+        }
+        capture("in_app_agent:new_chat_turn");
         startedRun = true;
         runAgent(agent, conversationId);
         return true;
@@ -544,6 +550,7 @@ function InAppAiAgentProviderInner({
     },
     [
       conversationQuery.data,
+      capture,
       ensureSubscription,
       getOrCreateAgent,
       isSelectedConversationHydrating,

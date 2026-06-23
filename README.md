@@ -378,4 +378,4 @@ The telemetry does not include raw traces, prompts, observations, scores, or dat
 For Langfuse OSS, you can opt out by setting `TELEMETRY_ENABLED=false`.
 
 <!-- Scarf pixel — cookie-free, privacy-friendly analytics for README views (no cookies, no IP/PII stored). https://docs.scarf.sh/web-traffic/ -->
-<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=51a1912d-b16d-43a0-80b7-c3d6ab43e1a7&page=README.md" />
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=5f9b700f-ee94-4940-b005-e72def008ffa&page=README.md" />

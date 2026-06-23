@@ -12,7 +12,7 @@ export const DatasetNameSchema = withFolderPathValidation(StringNoHTMLNonEmpty);
  */
 export type BulkDatasetItemValidationError = {
   itemIndex: number;
-  field: "input" | "expectedOutput";
+  field: "input" | "expectedOutput" | "metadata";
   errors: Array<{
     path: string;
     message: string;

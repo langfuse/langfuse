@@ -34,7 +34,7 @@ export function SpendAlertsSection({ orgId }: SpendAlertsSectionProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-between pt-4">
           <div>
-            <h3 className="text-large font-medium">Spend Alerts</h3>
+            <h3 className="font-medium">Spend Alerts</h3>
             <p className="text-muted-foreground max-w-prose text-sm">
               Get notified when your organization&apos;s spending exceeds
               configured thresholds. Alerts may be delayed by up to 90 minutes.

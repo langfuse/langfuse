@@ -1,4 +1,5 @@
 import {
+  MEDIA_REFERENCE_PATTERN,
   MediaReferenceStringSchema,
   isOpenAIImageContentPart,
   type OpenAIContentSchema,
@@ -7,8 +8,6 @@ import {
 } from "@langfuse/shared";
 import { type MediaReturnType } from "@/src/features/media/validation";
 import { type z } from "zod";
-
-const MEDIA_REFERENCE_PATTERN = /@@@langfuseMedia:[\s\S]*?@@@/g;
 
 const getMediaReferenceId = (
   value: string | ParsedMediaReferenceType | null | undefined,

@@ -69,7 +69,7 @@ export function DeactivateEvalConfig({
         </div>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           {evalConfig?.status === "ACTIVE"
             ? "This action will deactivate the evaluator. No more traces will be evaluated based on this evaluator."
