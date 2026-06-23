@@ -50,6 +50,10 @@ export function useDatasetItemMediaUpload({
     [],
   );
 
+  // Lets callers drop stale placeholders when reusing the hook across items
+  // (e.g. the edit dialog, whose hook outlives the per-item dialog content).
+  const resetPendingUploads = useCallback(() => setPendingUploads([]), []);
+
   const getUploadUrl = api.datasets.getItemMediaUploadUrl.useMutation();
   const markUploadComplete =
     api.datasets.markItemMediaUploadComplete.useMutation();
@@ -135,5 +139,5 @@ export function useDatasetItemMediaUpload({
     [projectId, datasetId, datasetItemId, getUploadUrl, markUploadComplete],
   );
 
-  return { uploadFile, pendingUploads };
+  return { uploadFile, pendingUploads, resetPendingUploads };
 }

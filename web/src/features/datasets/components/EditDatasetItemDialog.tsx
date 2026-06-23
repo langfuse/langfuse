@@ -91,6 +91,13 @@ export const EditDatasetItemDialog = ({
     },
   });
 
+  const { uploadFile, pendingUploads, resetPendingUploads } =
+    useDatasetItemMediaUpload({
+      projectId,
+      datasetId: datasetItem?.datasetId ?? "",
+      datasetItemId: datasetItem?.id ?? "",
+    });
+
   useEffect(() => {
     if (datasetItem && open) {
       form.reset({
@@ -99,15 +106,12 @@ export const EditDatasetItemDialog = ({
         metadata: stringifyDatasetItemData(datasetItem.metadata),
       });
       setFormError(null);
+      // The hook lives above DialogContent (which unmounts on close), so its
+      // pending uploads would otherwise leak onto the next item's edit dialog.
+      resetPendingUploads();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [datasetItem?.id, open]);
-
-  const { uploadFile, pendingUploads } = useDatasetItemMediaUpload({
-    projectId,
-    datasetId: datasetItem?.datasetId ?? "",
-    datasetItemId: datasetItem?.id ?? "",
-  });
 
   const updateDatasetItemMutation = api.datasets.updateDatasetItem.useMutation({
     onSuccess: () => {
