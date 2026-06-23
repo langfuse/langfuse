@@ -635,9 +635,12 @@ const processBlobStorageExport = async (config: {
           const finalChReadMs = Math.round(
             chStats ? chStats.sourceWaitMs : sourceStats.sourceWaitMs,
           );
-          const finalEnrichMs = Math.round(
-            chStats ? sourceStats.sourceWaitMs - chStats.sourceWaitMs : 0,
-          );
+          const finalEnrichMs = chStats
+            ? Math.max(
+                0,
+                Math.round(sourceStats.sourceWaitMs - chStats.sourceWaitMs),
+              )
+            : 0;
           span.setAttribute("blob.chReadMs", finalChReadMs);
           span.setAttribute("blob.enrichMs", finalEnrichMs);
           span.setAttribute("blob.serializedBytes", serializedCounter.bytes);
