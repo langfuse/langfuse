@@ -341,6 +341,81 @@ describe("BufferedStreamUploader", () => {
       expect(parts.map((p) => p.partNumber)).toEqual([1, 2, 3]);
     });
 
+    it("should report counters that the caller's stats sink can read", async () => {
+      const mock = createMockStrategy();
+      const stats = { partsUploaded: 0, partRetries: 0, partFailures: 0 };
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        partSizeBytes: 5,
+        maxConcurrentParts: 2,
+        stats,
+      });
+
+      const returned = await uploader.upload(
+        streamFrom(["aaaaa", "bbbbb", "ccccc"]),
+      );
+
+      // 3 parts uploaded, no retries, no failures.
+      expect(stats).toEqual({
+        partsUploaded: 3,
+        partRetries: 0,
+        partFailures: 0,
+      });
+      // The return value mirrors the caller's sink.
+      expect(returned).toEqual(stats);
+    });
+
+    it("should count retries on transient failures", async () => {
+      let attempts = 0;
+      const mock = createMockStrategy({
+        uploadPartImpl: async (data, partNumber) => {
+          attempts++;
+          if (attempts <= 2) {
+            throw new Error("socket hang up");
+          }
+          return { partIdentifier: `etag-${partNumber}`, partNumber };
+        },
+      });
+      const stats = { partsUploaded: 0, partRetries: 0, partFailures: 0 };
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        maxPartAttempts: 5,
+        stats,
+      });
+
+      await uploader.upload(streamFrom(["hello"]));
+
+      expect(stats.partsUploaded).toBe(1);
+      expect(stats.partRetries).toBe(2); // two transient retries before success
+      expect(stats.partFailures).toBe(0);
+    });
+
+    it("should count a part failure and keep stats readable after throw", async () => {
+      const mock = createMockStrategy({
+        uploadPartImpl: async () => {
+          throw new Error("socket hang up");
+        },
+      });
+      const stats = { partsUploaded: 0, partRetries: 0, partFailures: 0 };
+      const uploader = new BufferedStreamUploader({
+        ...defaultParams(mock.strategy),
+        maxPartAttempts: 2,
+        stats,
+      });
+
+      await expect(uploader.upload(streamFrom(["hello"]))).rejects.toThrow(
+        "socket hang up",
+      );
+
+      // The caller's sink survives the throw with accurate counts. With
+      // maxPartAttempts=2 the part fails attempt 1 (one real retry follows) then
+      // fails attempt 2 (no retry) — so exactly 1 retry, not 2 (the final
+      // failing attempt must not be counted as a retry).
+      expect(stats.partsUploaded).toBe(0);
+      expect(stats.partFailures).toBe(1);
+      expect(stats.partRetries).toBe(1);
+    });
+
     it("should stop scheduling new parts when a concurrent part fails", async () => {
       let partsStarted = 0;
 

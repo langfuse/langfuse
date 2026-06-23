@@ -1,4 +1,3 @@
-import { cn } from "@/src/utils/tailwind";
 import {
   type IntervalConfig,
   type TimeRange,
@@ -114,14 +113,14 @@ export function ScoreChartTooltip({
   return (
     <div className="border-border bg-background rounded-md border opacity-100 shadow-lg">
       {/* Header with timestamp/label */}
-      <div className={cn("border-border border-b px-3 py-1.5")}>
-        <p className={cn("text-muted-foreground text-sm font-medium")}>
+      <div className="border-border border-b px-3 py-1.5">
+        <p className="text-muted-foreground text-sm font-medium">
           {formattedLabel}
         </p>
       </div>
 
       {/* Data series with values */}
-      <div className={cn("space-y-1 px-3 py-1.5")}>
+      <div className="space-y-1 px-3 py-1.5">
         {sortedPayload.map((entry, index) => {
           // Get series label from config using the Bar's dataKey
           const seriesKey = String(entry.name ?? entry.dataKey ?? "");

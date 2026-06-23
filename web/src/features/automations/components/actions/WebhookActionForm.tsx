@@ -407,7 +407,7 @@ export const RegenerateWebhookSecretButton = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent>
-          <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+          <h2 className="mb-3 font-semibold">Please confirm</h2>
           <p className="mb-3 max-w-sm text-sm">
             This action will invalidate the current webhook secret and generate
             a new one. Any existing integrations using the old secret will stop

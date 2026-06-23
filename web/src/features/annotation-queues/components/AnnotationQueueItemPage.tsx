@@ -281,7 +281,7 @@ export const AnnotationQueueItemPage: React.FC<{
                 Mark Completed
               </Button>
             ) : (
-              <div className="text-dark-gree border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-medium">
+              <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-medium">
                 Completed
               </div>
             ))}

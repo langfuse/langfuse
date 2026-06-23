@@ -53,6 +53,10 @@ Use this skill for interactive dependency bumps in Langfuse.
   locally installed exact peer dependencies.
 - Finish with `pnpm why -r <package>` to confirm that only the intended version
   remains in the workspace.
+- In the final response, include a copy-pasteable human commit command using
+  the resolved package name and target version. Use a branch-safe package slug
+  for scoped packages, but keep the exact package name in the commit message:
+  `git switch -C deps/bump-<package-slug>-to-<version> && git commit -m "chore(deps): bump <package> to <version>" --no-verify`
 
 ## Quick Commands
 
@@ -72,3 +76,5 @@ Use this skill for interactive dependency bumps in Langfuse.
   `pnpm -r up <package>@<version>`
 - Verify temporary override removal:
   remove the override, then run `pnpm install` and `pnpm dedupe`
+- Human commit helper:
+  `git switch -C deps/bump-<package-slug>-to-<version> && git commit -m "chore(deps): bump <package> to <version>" --no-verify`

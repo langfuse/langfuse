@@ -877,7 +877,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent>
-                                <h2 className="text-md mb-3 font-semibold">
+                                <h2 className="mb-3 font-semibold">
                                   Your score is archived
                                 </h2>
                                 <p className="mb-3 text-sm">

@@ -72,7 +72,7 @@ export const DeleteAutomationButton: React.FC<DeleteAutomationButtonProps> = ({
         )}
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action permanently deletes this automation and execution history.
           This cannot be undone.

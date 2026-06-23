@@ -254,6 +254,7 @@ export const MonitorForm = ({
 
   /** watched is the live snapshot of form values used to derive preview state, dropdown contents, and placeholders. */
   const watched = useWatch({ control: form.control });
+  const monitorWindow = (watched.window ?? "5m") as MonitorWindow;
 
   // Push the live name up to the host (e.g. the edit page header) so the page
   // title can mirror it as the user types instead of waiting for save.
@@ -263,10 +264,13 @@ export const MonitorForm = ({
 
   /** eventsFilterOptions loads the events v2 filter dictionary (environments, tags, models, …) for the picked view. */
   const eventsFilterOptions = api.events.filterOptions.useQuery(
-    { projectId },
+    {
+      projectId,
+      monitorWindow,
+    },
     {
       trpc: { context: { skipBatch: true } },
-      staleTime: Infinity,
+      staleTime: 60 * 1000,
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
     },
@@ -857,7 +861,7 @@ export const MonitorForm = ({
               </Section>
             </CardContent>
             <CardFooter className="mt-auto">
-              <div className="flex-inherit w-full items-center pt-4">
+              <div className="w-full items-center pt-4">
                 <Button
                   type="submit"
                   size="lg"

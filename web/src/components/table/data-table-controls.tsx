@@ -850,7 +850,7 @@ export function CategoricalFacet({
                           variant="ghost"
                           size="sm"
                           onClick={() => setShowAll(true)}
-                          className="text-normal mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                          className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
                         >
                           Show more values
                         </Button>

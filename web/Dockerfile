@@ -145,13 +145,10 @@ RUN adduser --system --uid ${UID} nextjs
 
 RUN npm install -g --no-package-lock --no-save prisma@6.19.3
 
-COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
-
 # Install dd-trace only if NEXT_PUBLIC_LANGFUSE_CLOUD_REGION is configured
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    DD_TRACE_VERSION="$(node -p 'require("./package.json").dependencies["dd-trace"]')"; \
-    npm install --no-package-lock --no-save "dd-trace@${DD_TRACE_VERSION}"; \
+    npm install --no-package-lock --no-save dd-trace@5.109.0; \
     fi
 
 # npm is only used for the installs above; remove it from the final runtime image.
@@ -161,6 +158,7 @@ RUN rm -rf /usr/local/lib/node_modules/npm && \
 COPY --from=migrate-builder /out/migrate /usr/bin/migrate
 
 COPY --from=builder --chown=nextjs:nodejs /app/web/next.config.mjs .
+COPY --from=builder --chown=nextjs:nodejs /app/web/package.json .
 
 # Automatically leverage output traces to reduce image size
 # https://nextjs.org/docs/advanced-features/output-file-tracing

@@ -946,7 +946,7 @@ export const InnerEvalTemplateForm = (props: {
         </Button>
       )}
       {formError ? (
-        <p className="text-red w-full text-center">
+        <p className="w-full text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}

@@ -350,7 +350,10 @@ export default async function handler(request: Request) {
                   ? {
                       targetProjectId,
                       environment: "langfuse-in-app-agent",
-                      userId: auth.userId,
+                      user: {
+                        id: auth.userId,
+                        email: auth.user.email,
+                      },
                       traceId: conversation.id,
                       metadata: {
                         langfuse_ai_feature: "in-app-agent",

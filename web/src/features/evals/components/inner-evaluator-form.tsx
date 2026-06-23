@@ -1027,7 +1027,7 @@ export const InnerEvaluatorForm = (props: {
                       <FormLabel>Evaluate</FormLabel>
                       <FormControl>
                         <div className="flex flex-col gap-2">
-                          <div className="items-top flex space-x-2">
+                          <div className="flex space-x-2">
                             <Checkbox
                               id="newObjects"
                               checked={field.value.includes("NEW")}
@@ -1048,7 +1048,7 @@ export const InnerEvaluatorForm = (props: {
                               </label>
                             </div>
                           </div>
-                          <div className="items-top flex space-x-2">
+                          <div className="flex space-x-2">
                             <Checkbox
                               id="existingObjects"
                               checked={field.value.includes("EXISTING")}
@@ -1254,7 +1254,7 @@ export const InnerEvaluatorForm = (props: {
                           </div>
                         </FormControl>
                         {!props.disabled && !hasFilters && (
-                          <div className="align-center flex max-w-[500px] gap-1">
+                          <div className="flex max-w-[500px] gap-1">
                             <AlertTriangle className="text-dark-yellow h-4 w-4" />
                             <AlertDescription className="text-dark-yellow">
                               No filters set. This evaluator will run on all{" "}
@@ -1397,7 +1397,7 @@ export const InnerEvaluatorForm = (props: {
         </Button>
       ) : null}
       {formError ? (
-        <p className="text-red w-full text-center">
+        <p className="w-full text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       ) : null}

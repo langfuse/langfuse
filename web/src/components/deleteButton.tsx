@@ -176,7 +176,7 @@ export function DeleteButton({
       <PopoverContent onClick={(e) => e.stopPropagation()}>
         {deleteBlocker ?? (
           <>
-            <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+            <h2 className="mb-3 font-semibold">Please confirm</h2>
             <p className="mb-3 max-w-72 text-sm">
               {customDeletePrompt ??
                 `This action cannot be undone. It removes all the data associated with

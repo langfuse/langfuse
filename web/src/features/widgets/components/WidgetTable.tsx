@@ -80,7 +80,7 @@ export function DeleteWidget({
         </Button>
       </PopoverTrigger>
       <PopoverContent>
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           This action permanently deletes this widget. If the widget is
           currently used in any dashboard, you will need to remove it from those

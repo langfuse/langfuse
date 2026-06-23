@@ -573,7 +573,7 @@ export const NewDatasetItemForm = (props: {
               pendingUploads={pendingUploads}
             />
             {formError ? (
-              <p className="text-red mt-2 text-center">
+              <p className="mt-2 text-center">
                 <span className="font-bold">Error:</span> {formError}
               </p>
             ) : null}

@@ -67,7 +67,7 @@ export const DeleteDatasetRunButton = ({
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
           <DialogTitle className="mb-4">Please confirm</DialogTitle>
-          <DialogDescription className="text-md p-0">
+          <DialogDescription className="p-0">
             This action cannot be undone. Traces linked to this run must be
             deleted manually.
           </DialogDescription>

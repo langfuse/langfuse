@@ -78,7 +78,7 @@ export function CloudRegionSwitch({
                     className={
                       // The HIPAA symbol glyph sits lower than flag emojis in the same font.
                       region.name === "HIPAA"
-                        ? "-translate-y-[3px] text-xl leading-none"
+                        ? "translate-y-[-3px] text-xl leading-none"
                         : "-translate-y-px text-xl leading-none"
                     }
                   >

@@ -62,6 +62,7 @@ import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   type FilterState,
+  type TimeFilter,
   ObservationLevelDomain,
   ObservationTypeDomain,
 } from "@langfuse/shared";
@@ -118,6 +119,17 @@ type ChartType = {
 };
 
 type ChartConfig = WidgetChartConfig;
+
+const getDateRangeFilter = (
+  column: "timestamp" | "startTime",
+  dateRange?: { from: Date; to: Date },
+): TimeFilter[] | undefined =>
+  dateRange
+    ? [
+        { column, type: "datetime", operator: ">=", value: dateRange.from },
+        { column, type: "datetime", operator: "<=", value: dateRange.to },
+      ]
+    : undefined;
 
 const chartTypes: ChartType[] = [
   {
@@ -646,6 +658,7 @@ export function WidgetForm({
   const traceFilterOptions = api.traces.filterOptions.useQuery(
     {
       projectId,
+      timestampFilter: getDateRangeFilter("timestamp", dateRange),
     },
     {
       trpc: {
@@ -664,6 +677,7 @@ export function WidgetForm({
   const generationsFilterOptions = api.generations.filterOptions.useQuery(
     {
       projectId,
+      startTimeFilter: getDateRangeFilter("startTime", dateRange),
     },
     {
       trpc: {
@@ -682,6 +696,7 @@ export function WidgetForm({
   const eventsFilterOptions = api.events.filterOptions.useQuery(
     {
       projectId,
+      startTimeFilter: getDateRangeFilter("startTime", dateRange),
     },
     {
       trpc: {

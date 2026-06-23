@@ -10,7 +10,10 @@ import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/
 export type InAppAgentTracingConfig = {
   environment: string;
   metadata: Record<string, unknown>;
-  userId: string;
+  user: {
+    id: string;
+    email?: string | null;
+  };
   traceId: string;
   targetProjectId: string;
   prompt?: InAppAgentPromptMetadata;
@@ -61,7 +64,8 @@ export function createInAppAgentInstrumentation({
     return new InAppAgentInstrumentation({
       input,
       metadata: tracing.metadata,
-      userId: tracing.userId,
+      userId: tracing.user.id,
+      userEmail: tracing.user.email,
       traceId: tracing.traceId,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
@@ -99,6 +103,7 @@ export class InAppAgentInstrumentation {
     input: AgUiRunAgentInput;
     metadata: Record<string, unknown>;
     userId: string;
+    userEmail?: string | null;
     traceId: string;
     targetProjectId: string;
     environment: string;
@@ -106,6 +111,7 @@ export class InAppAgentInstrumentation {
   }) {
     this.metadata = {
       ...params.metadata,
+      ...(params.userEmail ? { langfuse_user_email: params.userEmail } : {}),
       ...(params.prompt
         ? {
             prompt_name: params.prompt.name,

@@ -193,7 +193,7 @@ export const DatasetActionButton = forwardRef<
                 : "Update dataset"}
           </DialogTitle>
           {props.mode === "delete" && (
-            <DialogDescription className="text-md p-0">
+            <DialogDescription className="p-0">
               This action cannot be undone and removes all the data associated
               with this dataset.
             </DialogDescription>

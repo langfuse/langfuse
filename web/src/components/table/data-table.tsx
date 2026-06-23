@@ -352,7 +352,7 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          className={cn("relative min-h-full w-full overflow-auto border-t")}
+          className="relative min-h-full w-full overflow-auto border-t"
           style={{ ...columnSizeVars }}
         >
           <Table>
@@ -507,11 +507,7 @@ export function DataTable<TData extends object, TValue>({
         </div>
       </div>
       {!hidePagination && pagination !== undefined ? (
-        <div
-          className={cn(
-            "bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-medium",
-          )}
-        >
+        <div className="bg-background sticky bottom-0 z-10 flex w-full justify-end border-t py-2 pr-2 font-medium">
           <DataTablePagination
             table={table}
             isLoading={data.isLoading}
