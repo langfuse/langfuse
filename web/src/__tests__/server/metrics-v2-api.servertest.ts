@@ -665,9 +665,10 @@ describe("/api/public/v2/metrics API Endpoint", () => {
       expect(response.body).toMatchObject({
         error: "InvalidRequestError",
         message: expect.stringContaining(
-          "Array fields require type 'arrayOptions', not 'string'",
+          "Filter type 'string' is not supported for dimension type 'string[]'",
         ),
       });
+      expect(response.body.message).toContain("Expected 'arrayOptions'.");
     });
 
     it("should return 400 error for invalid metadata filters", async () => {
