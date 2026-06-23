@@ -6,6 +6,12 @@ import {
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
+import {
+  datasetItemMediaReferenceKey,
+  resolveDatasetItemMediaReferences,
+} from "@/src/features/media/server/datasetItemMediaReferences";
+import { MediaContentType } from "@/src/features/media/validation";
 import {
   paginationZod,
   singleFilter,
@@ -19,7 +25,10 @@ import {
   optionalPaginationZod,
   LangfuseConflictError,
   LangfuseNotFoundError,
+  InvalidRequestError,
+  datasetItemMediaFields,
 } from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
 import {
   datasetRunsTableSchema,
@@ -49,6 +58,9 @@ import {
   upsertDatasetItem,
   deleteDatasetItem,
   createManyDatasetItems,
+  linkDatasetItemMedia,
+  validateDatasetItemMediaReferences,
+  markDatasetMediaUploadComplete,
   validateAllDatasetItems,
   DatasetJSONSchema,
   type DatasetMutationResult,
@@ -717,6 +729,117 @@ export const datasetRouter = createTRPCRouter({
       // Return null if item doesn't exist at this version (not created yet or deleted)
       return item;
     }),
+  // Issue a presigned upload URL for media attached to a dataset item, declaring
+  // a pending association that is claimed when the item is written.
+  getItemMediaUploadUrl: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        // Declares a pending association for this (item, field, media); the
+        // item need not exist yet. The dataset is verified to belong to the
+        // project in createMediaUploadUrl.
+        datasetId: z.string(),
+        datasetItemId: z.string(),
+        field: z.enum(datasetItemMediaFields),
+        contentType: z.enum(MediaContentType),
+        contentLength: z.number().positive().int(),
+        sha256Hash: z
+          .string()
+          .regex(
+            /^[A-Za-z0-9+/=]{44}$/,
+            "Must be a 44 character base64 encoded SHA-256 hash",
+          ),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      // Mirror the public media route: this is the only server-side size gate
+      // before a direct-to-storage upload URL is signed, so enforce the media
+      // size limit here too.
+      if (input.contentLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH)
+        throw new InvalidRequestError(
+          `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
+        );
+
+      return createMediaUploadUrl({
+        projectId: input.projectId,
+        body: {
+          contentType: input.contentType,
+          contentLength: input.contentLength,
+          sha256Hash: input.sha256Hash,
+          datasetId: input.datasetId,
+          datasetItemId: input.datasetItemId,
+          field: input.field,
+        },
+      });
+    }),
+  markItemMediaUploadComplete: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        mediaId: z.string(),
+        uploadedAt: z.coerce.date(),
+        uploadHttpStatus: z.number().positive().int(),
+        uploadHttpError: z.string().nullish(),
+        uploadTimeMs: z.number().nullish(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      await markDatasetMediaUploadComplete({
+        projectId: input.projectId,
+        mediaId: input.mediaId,
+        uploadedAt: input.uploadedAt,
+        uploadHttpStatus: input.uploadHttpStatus,
+        uploadHttpError: input.uploadHttpError,
+        uploadTimeMs: input.uploadTimeMs,
+      });
+
+      return { success: true as const };
+    }),
+  // Resolve a saved dataset item version's media from dataset_item_media.
+  // The create/edit forms instead derive media from the live JSON.
+  itemMediaByItemId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetItemId: z.string(),
+        // The exact version to resolve media for. Media is linked per item
+        // version (keyed by validFrom), so the historical-version view passes
+        // the viewed version's validFrom to see that version's attachments.
+        // Omitted for the latest view, where the current version is resolved.
+        datasetItemValidFrom: z.date().optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      let validFrom = input.datasetItemValidFrom;
+      if (!validFrom) {
+        const item = await getDatasetItemById({
+          projectId: input.projectId,
+          datasetItemId: input.datasetItemId,
+        });
+        if (!item) return [];
+        validFrom = item.validFrom;
+      }
+
+      const item = { id: input.datasetItemId, validFrom };
+      const referencesByItem = await resolveDatasetItemMediaReferences({
+        projectId: input.projectId,
+        items: [item],
+      });
+
+      return referencesByItem.get(datasetItemMediaReferenceKey(item)) ?? [];
+    }),
   countItemsByDatasetId: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), datasetId: z.string() }))
     .query(async ({ input }) => {
@@ -1161,16 +1284,44 @@ export const datasetRouter = createTRPCRouter({
           validFrom: validFrom,
         }));
 
+        const mediaItems = preparedItems.map((item) => ({
+          datasetId: item.datasetId,
+          datasetItemId: item.id,
+          datasetItemValidFrom: validFrom,
+          input: item.input,
+          expectedOutput: item.expectedOutput,
+          metadata: item.metadata,
+        }));
+
+        await validateDatasetItemMediaReferences({
+          projectId: input.projectId,
+          items: mediaItems,
+        });
+
         await executeWithDatasetServiceStrategy(OperationType.WRITE, {
           [Implementation.STATEFUL]: async () => {
-            await ctx.prisma.datasetItem.createMany({
-              data: preparedItems,
+            await ctx.prisma.$transaction(async (tx) => {
+              await tx.datasetItem.createMany({
+                data: preparedItems,
+              });
+              await linkDatasetItemMedia(tx, {
+                projectId: input.projectId,
+                items: mediaItems,
+                replaceExisting: false,
+              });
             });
           },
           [Implementation.VERSIONED]: async () => {
             // always creates new dataset; hence no need to invalidate old rows
-            await ctx.prisma.datasetItem.createMany({
-              data: preparedItems,
+            await ctx.prisma.$transaction(async (tx) => {
+              await tx.datasetItem.createMany({
+                data: preparedItems,
+              });
+              await linkDatasetItemMedia(tx, {
+                projectId: input.projectId,
+                items: mediaItems,
+                replaceExisting: false,
+              });
             });
           },
         });
@@ -1248,6 +1399,9 @@ export const datasetRouter = createTRPCRouter({
         projectId: z.string(),
         items: z.array(
           z.object({
+            // Optional client-generated id so the UI can declare media uploads
+            // against the item before it exists; claimed on write.
+            id: z.string().optional(),
             datasetId: z.string(),
             input: z.string().nullish(),
             expectedOutput: z.string().nullish(),
