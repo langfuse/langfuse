@@ -43,8 +43,9 @@ class MockLLMCompletionError extends Error {
     message: string;
     responseStatusCode?: number;
     isRetryable?: boolean;
+    cause?: unknown;
   }) {
-    super(params.message);
+    super(params.message, { cause: params.cause });
     this.name = "LLMCompletionError";
     this.responseStatusCode = params.responseStatusCode ?? 500;
     this.isRetryable = params.isRetryable ?? false;
@@ -131,8 +132,8 @@ describe("fetchLLMCompletion provider error classification", () => {
 
     anthropicInvokeMock.mockRejectedValue(wrappedError);
 
-    await expect(
-      fetchLLMCompletion({
+    try {
+      await fetchLLMCompletion({
         streaming: false,
         messages: [
           {
@@ -151,12 +152,16 @@ describe("fetchLLMCompletion provider error classification", () => {
         llmConnection: {
           secretKey: encrypt("anthropic-api-key"),
         },
-      }),
-    ).rejects.toMatchObject({
-      name: "LLMCompletionError",
-      responseStatusCode: 401,
-      isRetryable: false,
-    });
+      });
+      expect.fail("Expected fetchLLMCompletion to throw");
+    } catch (e) {
+      expect(e).toMatchObject({
+        name: "LLMCompletionError",
+        responseStatusCode: 401,
+        isRetryable: false,
+      });
+      expect((e as Error).cause).toBe(wrappedError);
+    }
   });
 
   it("forwards Anthropic options and normalizes sampling params for Claude on Vertex", async () => {
