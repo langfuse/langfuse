@@ -113,9 +113,13 @@ export const SessionAnnotationProcessor: React.FC<
             <div className="mt-1.5">
               <ItemBadge type="SESSION" isSmall />
             </div>
-            <span className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all md:break-normal md:wrap-break-word">
+            <Link
+              href={`/project/${projectId}/sessions/${encodeURIComponent(item.objectId)}`}
+              target="_blank"
+              className="mb-0 ml-1 line-clamp-2 min-w-0 font-medium break-all hover:underline md:break-normal md:wrap-break-word"
+            >
               {item.objectId}
-            </span>
+            </Link>
             <CopyIdsPopover
               idItems={[{ id: item.objectId, name: "Session ID" }]}
             />
