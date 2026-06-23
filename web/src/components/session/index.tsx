@@ -76,12 +76,14 @@ import { createSessionDetailStore } from "@/src/components/session/sessionDetail
 import {
   areDetailPageListsEqual,
   asCommentCounts,
+  type EventSession,
   getStringFilterOptions,
   isMultiValueOptionRecord,
   type EventFilterOptions,
   type EventSessionTrace,
   type LegacySessionTrace,
 } from "@/src/components/session/sessionDetailPageTypes";
+import { getSessionFilterOptionsStartTimeFilters } from "@/src/components/session/sessionFilterOptions";
 
 // some projects have thousands of users in a session, paginate to avoid rendering all at once
 const INITIAL_USERS_DISPLAY_COUNT = 10;
@@ -504,17 +506,6 @@ export const SessionEventsPage: React.FC<{
   sessionId: string;
   projectId: string;
 }> = ({ sessionId, projectId }) => {
-  const router = useRouter();
-  const { setDetailPageList, detailPagelists } = useDetailPageLists();
-  const userSession = useSession();
-  const parentRef = useRef<HTMLDivElement>(null);
-  const defaultPresetAppliedRef = useRef(false);
-
-  // Reset default preset flag when session changes (e.g., navigating between sessions)
-  useEffect(() => {
-    defaultPresetAppliedRef.current = false;
-  }, [sessionId]);
-
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     {
       sessionId,
@@ -531,6 +522,86 @@ export const SessionEventsPage: React.FC<{
       },
     },
   );
+
+  const tracesQuery = api.sessions.tracesFromEvents.useQuery(
+    { projectId, sessionId },
+    {
+      enabled: !!projectId && !!sessionId,
+      retry(failureCount, error) {
+        if (
+          error.data?.code === "UNAUTHORIZED" ||
+          error.data?.code === "NOT_FOUND"
+        )
+          return false;
+        return failureCount < 3;
+      },
+    },
+  );
+
+  if (session.error?.data?.code === "UNAUTHORIZED")
+    return <ErrorPage message="You do not have access to this session." />;
+
+  if (session.error?.data?.code === "NOT_FOUND")
+    return (
+      <ErrorPage
+        title="Session not found"
+        message="The session is either still being processed or has been deleted."
+        additionalButton={{
+          label: "Retry",
+          onClick: () => window.location.reload(),
+        }}
+      />
+    );
+
+  if (!session.data) {
+    return (
+      <Page
+        headerProps={{
+          title: sessionId,
+          itemType: "SESSION",
+          breadcrumb: [
+            {
+              name: "Sessions",
+              href: `/project/${projectId}/sessions`,
+            },
+          ],
+        }}
+      >
+        <div className="h-full p-4">
+          <JsonSkeleton className="h-full w-full" numRows={8} />
+        </div>
+      </Page>
+    );
+  }
+
+  return (
+    <LoadedSessionEventsPage
+      sessionId={sessionId}
+      projectId={projectId}
+      session={session.data}
+      traces={tracesQuery.data}
+      isTracesSuccess={tracesQuery.isSuccess}
+    />
+  );
+};
+
+const LoadedSessionEventsPage: React.FC<{
+  sessionId: string;
+  projectId: string;
+  session: EventSession;
+  traces: EventSessionTrace[] | undefined;
+  isTracesSuccess: boolean;
+}> = ({ sessionId, projectId, session, traces, isTracesSuccess }) => {
+  const router = useRouter();
+  const { setDetailPageList, detailPagelists } = useDetailPageLists();
+  const userSession = useSession();
+  const parentRef = useRef<HTMLDivElement>(null);
+  const defaultPresetAppliedRef = useRef(false);
+
+  // Reset default preset flag when session changes (e.g., navigating between sessions)
+  useEffect(() => {
+    defaultPresetAppliedRef.current = false;
+  }, [sessionId]);
 
   const [showCorrections, setShowCorrections] = useLocalStorage(
     "showCorrections",
@@ -567,7 +638,7 @@ export const SessionEventsPage: React.FC<{
       objectId: sessionId,
       objectType: "SESSION",
     },
-    { enabled: session.isSuccess && userSession.status === "authenticated" },
+    { enabled: userSession.status === "authenticated" },
   );
 
   const traceCommentCounts =
@@ -576,23 +647,8 @@ export const SessionEventsPage: React.FC<{
         projectId,
         sessionId,
       },
-      { enabled: session.isSuccess && userSession.status === "authenticated" },
+      { enabled: userSession.status === "authenticated" },
     );
-
-  const tracesQuery = api.sessions.tracesFromEvents.useQuery(
-    { projectId, sessionId },
-    {
-      enabled: !!projectId && !!sessionId,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
-    },
-  );
 
   const peekNavigationConfig = React.useMemo(
     () => ({
@@ -610,19 +666,14 @@ export const SessionEventsPage: React.FC<{
     usePeekNavigation(peekNavigationConfig);
 
   useEffect(() => {
-    if (!tracesQuery.isSuccess) return;
-    const nextList = tracesQuery.data.map((t: EventSessionTrace) => ({
+    if (!isTracesSuccess || !traces) return;
+    const nextList = traces.map((t: EventSessionTrace) => ({
       id: t.id,
       params: { timestamp: t.timestamp.toISOString() },
     }));
     if (areDetailPageListsEqual(detailPagelists.traces, nextList)) return;
     setDetailPageList("traces", nextList);
-  }, [
-    tracesQuery.isSuccess,
-    tracesQuery.data,
-    setDetailPageList,
-    detailPagelists.traces,
-  ]);
+  }, [isTracesSuccess, traces, setDetailPageList, detailPagelists.traces]);
 
   const sessionEventsTableName = "session-events";
   const sessionFilterStorageKey = buildSidebarFilterQueryStorageKey({
@@ -663,18 +714,14 @@ export const SessionEventsPage: React.FC<{
     [urlFiltersQuery, sessionFilterStorageKey, projectId],
   );
 
-  // Decode time filters from URL/session filter state for scoping filter options
-  const timeFiltersForOptions = React.useMemo(() => {
-    const allFilters = decodeAndNormalizeFilters(
+  const timeFiltersForOptions = getSessionFilterOptionsStartTimeFilters({
+    filterState: decodeAndNormalizeFilters(
       filtersQuery,
       sessionEventsFilterConfig.columnDefinitions,
-    );
-    return allFilters.filter(
-      (f) =>
-        (f.column === "Start Time" || f.column === "startTime") &&
-        f.type === "datetime",
-    );
-  }, [filtersQuery, sessionEventsFilterConfig.columnDefinitions]);
+    ),
+    minTimestamp: session.minTimestamp,
+    maxTimestamp: session.maxTimestamp,
+  });
 
   const { filterOptions, isFilterOptionsPending } = useEventsFilterOptions({
     projectId,
@@ -885,28 +932,13 @@ export const SessionEventsPage: React.FC<{
   ]);
 
   const virtualizer = useVirtualizer({
-    count: tracesQuery.data?.length ?? 0,
+    count: traces?.length ?? 0,
     getScrollElement: () => parentRef.current,
     estimateSize: () => 320,
     overscan: SESSION_VIRTUALIZER_OVERSCAN,
-    getItemKey: (index) => tracesQuery.data?.[index]?.id ?? index,
+    getItemKey: (index) => traces?.[index]?.id ?? index,
   });
   const virtualItems = virtualizer.getVirtualItems();
-
-  if (session.error?.data?.code === "UNAUTHORIZED")
-    return <ErrorPage message="You do not have access to this session." />;
-
-  if (session.error?.data?.code === "NOT_FOUND")
-    return (
-      <ErrorPage
-        title="Session not found"
-        message="The session is either still being processed or has been deleted."
-        additionalButton={{
-          label: "Retry",
-          onClick: () => window.location.reload(),
-        }}
-      />
-    );
 
   return (
     <SessionDetailStoreProvider store={sessionDetailStore}>
@@ -926,13 +958,13 @@ export const SessionEventsPage: React.FC<{
                 key="star"
                 projectId={projectId}
                 sessionId={sessionId}
-                value={session.data?.bookmarked ?? false}
+                value={session.bookmarked}
                 size="icon-xs"
               />
               <PublishSessionSwitch
                 projectId={projectId}
                 sessionId={sessionId}
-                isPublic={session.data?.public ?? false}
+                isPublic={session.public}
                 key="publish"
                 size="icon-xs"
               />
@@ -971,10 +1003,10 @@ export const SessionEventsPage: React.FC<{
                     type: "session",
                     sessionId,
                   }}
-                  scores={session.data?.scores ?? []}
+                  scores={session.scores}
                   scoreMetadata={{
                     projectId: projectId,
-                    environment: session.data?.environment,
+                    environment: session.environment,
                   }}
                   buttonVariant="outline"
                 />
@@ -1030,22 +1062,18 @@ export const SessionEventsPage: React.FC<{
             <Separator orientation="vertical" className="h-6" />
 
             {/* Stats */}
+            <Badge variant="outline">Total traces: {session.countTraces}</Badge>
             <Badge variant="outline">
-              Total traces: {session.data?.countTraces ?? 0}
+              Total cost: {usdFormatter(session.totalCost ?? 0, 2)}
             </Badge>
-            {session.data && (
-              <Badge variant="outline">
-                Total cost: {usdFormatter(session.data.totalCost ?? 0, 2)}
-              </Badge>
-            )}
 
             {/* Users */}
-            {session.data?.users?.length ? (
-              <SessionUsers projectId={projectId} users={session.data.users} />
+            {session.users?.length ? (
+              <SessionUsers projectId={projectId} users={session.users} />
             ) : null}
 
             {/* Scores */}
-            <SessionScores scores={session.data?.scores ?? []} />
+            <SessionScores scores={session.scores} />
           </div>
           <div ref={parentRef} className="flex-1 overflow-auto p-4">
             <div
@@ -1056,7 +1084,7 @@ export const SessionEventsPage: React.FC<{
               }}
             >
               {virtualItems.map((virtualItem) => {
-                const trace = tracesQuery.data?.[virtualItem.index];
+                const trace = traces?.[virtualItem.index];
                 if (!trace) return null;
 
                 return (

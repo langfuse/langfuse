@@ -10,7 +10,6 @@ import {
 } from "@/src/components/ui/sidebar";
 import Link from "next/link";
 import { type ReactNode } from "react";
-import { cn } from "@/src/utils/tailwind";
 import { type RouteGroup } from "@/src/components/layouts/routes";
 
 export type NavMainItem = {
@@ -36,11 +35,7 @@ function NavItemContent({ item }: { item: NavMainItem }) {
       <span>{item.title}</span>
       {item.label &&
         (typeof item.label === "string" ? (
-          <span
-            className={cn(
-              "-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap",
-            )}
-          >
+          <span className="-my-0.5 self-center rounded-sm border px-1 py-0.5 text-xs leading-none break-keep whitespace-nowrap">
             {item.label}
           </span>
         ) : (

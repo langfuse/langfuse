@@ -1,4 +1,4 @@
-import { expect, describe, it, beforeAll } from "vitest";
+import { expect, describe, it, beforeAll, afterEach, vi } from "vitest";
 import {
   clickhouseClient,
   createObservation,
@@ -42,6 +42,10 @@ describe("trace deletion", () => {
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("should delete all traces, observations, and scores from Clickhouse", async () => {
@@ -249,6 +253,127 @@ describe("trace deletion", () => {
       },
     });
     expect(traceMedia).toHaveLength(1);
+  });
+
+  it("should NOT delete S3 media files for deleted traces if referenced by a dataset item", async () => {
+    // Setup
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    await createTracesCh([createTrace({ id: traceId, project_id: projectId })]);
+
+    const fileType = "text/plain";
+    await mediaStorageService.uploadFile({
+      fileName: `${projectId}/trace-${traceId}.txt`,
+      fileType,
+      data: "Hello, world!",
+    });
+
+    const mediaId = randomUUID();
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath: `${projectId}/trace-${traceId}.txt`,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: fileType,
+        contentLength: 0,
+      },
+    });
+    await prisma.traceMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        traceId,
+        mediaId,
+        field: "test",
+      },
+    });
+    await prisma.datasetItemMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        datasetId: randomUUID(),
+        datasetItemId: randomUUID(),
+        datasetItemValidFrom: new Date(),
+        mediaId,
+        field: "input",
+        jsonPath: "$['image']",
+        referenceString: `@@@langfuseMedia:type=text/plain|id=${mediaId}|source=bytes@@@`,
+      },
+    });
+
+    // When
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    // Then: trace link removed, but media and S3 file survive
+    await expect(
+      prisma.traceMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      prisma.media.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(1);
+    const files = await mediaStorageService.listFiles(projectId);
+    expect(files).toHaveLength(1);
+  });
+
+  it("deletes trace media and sweeps a pending dataset association on trace deletion", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    await createTracesCh([createTrace({ id: traceId, project_id: projectId })]);
+
+    const fileType = "text/plain";
+    await mediaStorageService.uploadFile({
+      fileName: `${projectId}/trace-${traceId}.txt`,
+      fileType,
+      data: "Hello, world!",
+    });
+
+    const mediaId = randomUUID();
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath: `${projectId}/trace-${traceId}.txt`,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: fileType,
+        contentLength: 0,
+      },
+    });
+    await prisma.traceMedia.create({
+      data: { id: randomUUID(), projectId, traceId, mediaId, field: "test" },
+    });
+    // Pending association (null validFrom): an abandoned upload, not a claimed
+    // item reference, so it must not protect the trace media from cleanup.
+    await prisma.datasetItemMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        datasetId: randomUUID(),
+        datasetItemId: randomUUID(),
+        datasetItemValidFrom: null,
+        mediaId,
+        field: "input",
+        jsonPath: null,
+        referenceString: null,
+      },
+    });
+
+    // When
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    // Then: media, S3 file, and the pending row are all reclaimed
+    await expect(
+      prisma.media.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      prisma.datasetItemMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    const files = await mediaStorageService.listFiles(projectId);
+    expect(files).toHaveLength(0);
   });
 
   it("should delete S3 event files for deleted traces", async () => {

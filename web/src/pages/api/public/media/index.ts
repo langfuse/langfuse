@@ -27,7 +27,15 @@ export default withMiddlewares({
       if (auth.scope.accessLevel !== "project") throw new ForbiddenError();
 
       const { projectId } = auth.scope;
-      const { contentLength, sha256Hash, traceId, observationId, field } = body;
+      const {
+        contentLength,
+        sha256Hash,
+        traceId,
+        observationId,
+        datasetId,
+        datasetItemId,
+        field,
+      } = body;
 
       if (contentLength > env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH)
         throw new InvalidRequestError(
@@ -38,9 +46,11 @@ export default withMiddlewares({
         { name: "media-create-upload-url" },
         async (span) => {
           span.setAttribute("projectId", projectId);
-          span.setAttribute("traceId", traceId);
+          span.setAttribute("traceId", traceId ?? "");
           span.setAttribute("observationId", observationId ?? "");
-          span.setAttribute("field", field);
+          span.setAttribute("datasetId", datasetId ?? "");
+          span.setAttribute("datasetItemId", datasetItemId ?? "");
+          span.setAttribute("field", field ?? "");
           span.setAttribute("sha256Hash", sha256Hash);
 
           const result = await createMediaUploadUrl({ projectId, body });

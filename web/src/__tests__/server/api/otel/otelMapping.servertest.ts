@@ -3065,6 +3065,18 @@ describe("OTel Resource Span Mapping", () => {
         },
       ],
       [
+        "should extract cost from OpenInference llm.cost.total",
+        {
+          entity: "observation",
+          otelAttributeKey: "llm.cost.total",
+          otelAttributeValue: {
+            doubleValue: 0.000151,
+          },
+          entityAttributeKey: "costDetails.total",
+          entityAttributeValue: 0.000151,
+        },
+      ],
+      [
         "should not treat usage.cost as usage",
         {
           entity: "observation",

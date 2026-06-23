@@ -34,12 +34,29 @@ export interface ChunkedUploadStrategy {
   uploadSingleObject(data: Buffer): Promise<void>;
 }
 
+// Upload counters surfaced for telemetry. `partRetries` is the total number of
+// retry attempts across all parts (not distinct parts retried); `partFailures`
+// is the number of parts that exhausted their attempts; `partsUploaded` is the
+// number of completed parts.
+export interface UploadPartStats {
+  partsUploaded: number;
+  partRetries: number;
+  partFailures: number;
+}
+
+export function emptyUploadPartStats(): UploadPartStats {
+  return { partsUploaded: 0, partRetries: 0, partFailures: 0 };
+}
+
 export interface BufferedStreamUploaderParams {
   strategy: ChunkedUploadStrategy;
   partSizeBytes: number;
   maxPartAttempts: number;
   maxConcurrentParts: number;
   key: string; // for logging
+  // Optional mutable sink the caller owns. Incremented live so counts are
+  // readable even when upload() throws. A fresh one is used when omitted.
+  stats?: UploadPartStats;
 }
 
 // Collects errors from concurrent part uploads. Append-only by design so
@@ -74,12 +91,14 @@ export class BufferedStreamUploader {
   private isCompleted = false;
   private inFlightUploads: Map<symbol, Promise<void>> = new Map();
   private readonly errors = new ErrorSink();
+  private readonly stats: UploadPartStats;
 
   constructor(params: BufferedStreamUploaderParams) {
     this.params = params;
+    this.stats = params.stats ?? emptyUploadPartStats();
   }
 
-  async upload(stream: Readable): Promise<void> {
+  async upload(stream: Readable): Promise<UploadPartStats> {
     try {
       await this.params.strategy.initialize();
 
@@ -131,7 +150,7 @@ export class BufferedStreamUploader {
         );
         await this.params.strategy.uploadSingleObject(Buffer.alloc(0));
         this.isCompleted = true;
-        return;
+        return this.stats;
       }
 
       const sortedParts = [...this.completedParts].sort(
@@ -145,6 +164,8 @@ export class BufferedStreamUploader {
         await this.params.strategy.abort("upload failed or incomplete");
       }
     }
+
+    return this.stats;
   }
 
   private async flushBuffer(): Promise<void> {
@@ -171,11 +192,13 @@ export class BufferedStreamUploader {
     const promise = this.uploadPartWithRetry(data, partNumber)
       .then((result) => {
         this.completedParts.push(result);
+        this.stats.partsUploaded++;
         logger.debug(
           `Uploaded part ${partNumber} (${(data.byteLength / 1024 / 1024).toFixed(1)} MiB) for key ${this.params.key}`,
         );
       })
       .catch((err) => {
+        this.stats.partFailures++;
         this.errors.capture(err);
       })
       .finally(() => {
@@ -198,6 +221,12 @@ export class BufferedStreamUploader {
         if (!isTransientError(error)) {
           return false;
         }
+        // backoff also invokes this on the final failing attempt; skip counting
+        // it so partRetries reflects actual retries, not total failures.
+        if (attemptNumber >= this.params.maxPartAttempts) {
+          return true;
+        }
+        this.stats.partRetries++;
         logger.warn(
           `Part ${partNumber} upload failed (attempt ${attemptNumber}/${this.params.maxPartAttempts}): ${error.message}. Retrying...`,
         );

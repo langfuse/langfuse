@@ -667,7 +667,7 @@ export function CreateLLMApiKeyForm({
   return (
     <Form {...form}>
       <form
-        className={cn("flex flex-col gap-4 overflow-auto")}
+        className="flex flex-col gap-4 overflow-auto"
         onSubmit={(e) => {
           e.stopPropagation(); // Prevent event bubbling to parent forms
           form.handleSubmit(onSubmit)(e);
@@ -1034,7 +1034,7 @@ export function CreateLLMApiKeyForm({
                   {/* Vertex AI ADC option for self-hosted only, create mode only */}
                   {!isLangfuseCloud && mode === "create" && (
                     <FormItem>
-                      <span className="row flex">
+                      <span className="flex">
                         <span className="flex-1">
                           <FormLabel>
                             Use Application Default Credentials (ADC)
@@ -1311,7 +1311,7 @@ export function CreateLLMApiKeyForm({
                       name="openAIUseResponsesApi"
                       render={({ field }) => (
                         <FormItem>
-                          <span className="row flex">
+                          <span className="flex">
                             <span className="flex-1">
                               <FormLabel>Use Responses API</FormLabel>
                               <FormDescription>
@@ -1345,7 +1345,7 @@ export function CreateLLMApiKeyForm({
                     name="withDefaultModels"
                     render={({ field }) => (
                       <FormItem>
-                        <span className="row flex">
+                        <span className="flex">
                           <span className="flex-1">
                             <FormLabel>Enable default models</FormLabel>
                             <FormDescription>

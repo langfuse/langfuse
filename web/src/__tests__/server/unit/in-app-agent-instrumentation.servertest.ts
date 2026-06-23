@@ -110,7 +110,10 @@ describe("InAppAgentInstrumentation", () => {
     expect(mocks.getInternalTracingHandler).toHaveBeenCalledWith(
       expect.objectContaining({
         environment: "prod",
-        metadata: { langfuse_project_id: "project-1" },
+        metadata: {
+          langfuse_project_id: "project-1",
+          langfuse_user_email: "user@example.com",
+        },
         targetProjectId: "project-1",
         traceId,
         traceName: "in-app-agent",
@@ -210,6 +213,7 @@ describe("InAppAgentInstrumentation", () => {
         },
         metadata: {
           langfuse_project_id: "project-1",
+          langfuse_user_email: "user@example.com",
           prompt_name: "in-app-agent-system-prompt",
           prompt_version: 3,
         },
@@ -219,6 +223,7 @@ describe("InAppAgentInstrumentation", () => {
       expect.objectContaining({
         metadata: {
           langfuse_project_id: "project-1",
+          langfuse_user_email: "user@example.com",
           prompt_name: "in-app-agent-system-prompt",
           prompt_version: 3,
         },
@@ -230,6 +235,7 @@ describe("InAppAgentInstrumentation", () => {
       input: "hello",
       metadata: {
         langfuse_project_id: "project-1",
+        langfuse_user_email: "user@example.com",
         prompt_name: "in-app-agent-system-prompt",
         prompt_version: 3,
       },
@@ -395,6 +401,7 @@ function createInstrumentation(
     input: { ...input, ...overrides },
     metadata: { langfuse_project_id: "project-1" },
     userId: "user-1",
+    userEmail: "user@example.com",
     traceId,
     targetProjectId: "project-1",
     environment: "prod",
