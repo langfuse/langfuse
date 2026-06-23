@@ -275,7 +275,9 @@ export function deepParseJsonIterative(
           }
         }
       } else {
-        // Not JSON or parsed to number, use as-is
+        // Not valid JSON (and the Python-dict fallback also failed), keep as-is.
+        // Bare numeric literals never reach here — isJsonNumberLiteral above
+        // already short-circuits them to preserve big-int precision (#6628).
         entry.output = input;
         processed.add(entry);
         continue;
