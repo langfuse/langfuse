@@ -73,8 +73,19 @@ export function CloudRegionSwitch({
           <SelectContent>
             {regions.map((region) => (
               <SelectItem key={region.name} value={region.name}>
-                <span className="mr-2 text-xl leading-none">{region.flag}</span>
-                {region.name}
+                <span className="flex items-center gap-2">
+                  <span
+                    className={
+                      // The HIPAA symbol glyph sits lower than flag emojis in the same font.
+                      region.name === "HIPAA"
+                        ? "-translate-y-[3px] text-xl leading-none"
+                        : "-translate-y-px text-xl leading-none"
+                    }
+                  >
+                    {region.flag}
+                  </span>
+                  <span>{region.name}</span>
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
