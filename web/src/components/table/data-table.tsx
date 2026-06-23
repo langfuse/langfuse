@@ -58,7 +58,8 @@ interface DataTableProps<TData, TValue> {
   columns: LangfuseColumnDef<TData, TValue>[];
   data: AsyncTableData<TData[]>;
   pagination?: {
-    totalCount: number | null; // null if loading
+    totalCount: number | null; // null if loading or intentionally unknown
+    hasNextPage?: boolean;
     onChange: OnChangeFn<PaginationState>;
     state: PaginationState;
     options?: number[];
@@ -230,6 +231,34 @@ export function DataTable<TData extends object, TValue>({
     [columns],
   );
 
+  // Some high-volume tables intentionally skip an exact count query and only
+  // return whether the current page has a next page. TanStack still needs a
+  // synthetic pageCount to enable/disable navigation and to reuse its generic
+  // out-of-range page reset behavior.
+  const paginationPageCount = (() => {
+    if (!pagination || pagination.state.pageSize === undefined) {
+      return -1;
+    }
+    if (pagination.totalCount !== null) {
+      return Math.ceil(
+        Number(pagination.totalCount) / pagination.state.pageSize,
+      );
+    }
+    if (typeof pagination.hasNextPage !== "boolean") {
+      return -1;
+    }
+    if (
+      !data.isLoading &&
+      !data.isError &&
+      (data.data?.length ?? 0) === 0 &&
+      pagination.state.pageIndex > 0 &&
+      !pagination.hasNextPage
+    ) {
+      return pagination.state.pageIndex;
+    }
+    return pagination.state.pageIndex + (pagination.hasNextPage ? 2 : 1);
+  })();
+
   const table = useReactTable({
     data: data.data ?? [],
     columns,
@@ -238,13 +267,7 @@ export function DataTable<TData extends object, TValue>({
     getFilteredRowModel: getFilteredRowModel(),
     getCoreRowModel: getCoreRowModel(),
     manualPagination: pagination !== undefined,
-    pageCount:
-      pagination?.totalCount === null ||
-      pagination?.state.pageSize === undefined
-        ? -1
-        : Math.ceil(
-            Number(pagination?.totalCount) / pagination?.state.pageSize,
-          ),
+    pageCount: paginationPageCount,
     onPaginationChange: pagination?.onChange,
     onRowSelectionChange: setRowSelection,
     onColumnVisibilityChange: onColumnVisibilityChange,
