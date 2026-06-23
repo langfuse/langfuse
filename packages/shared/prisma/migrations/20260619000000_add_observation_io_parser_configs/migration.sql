@@ -20,6 +20,7 @@ CREATE TABLE "observation_io_parser_preferences" (
     "project_id" TEXT NOT NULL,
     "user_id" TEXT,
     "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "selection_mode" TEXT NOT NULL DEFAULT 'inherit',
     "selected_config_id" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

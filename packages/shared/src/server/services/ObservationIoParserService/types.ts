@@ -1,5 +1,8 @@
 import z from "zod";
-import { ObservationIoParserInstructionsSchema } from "../../../domain/observation-io-parser-configs";
+import {
+  ObservationIoParserInstructionsSchema,
+  ObservationIoParserPreferenceSelectionModeSchema,
+} from "../../../domain/observation-io-parser-configs";
 import { singleFilter } from "../../../interfaces/filters";
 import { getObservationIoParserFilterValidationErrors } from "../../../features/observation-io-parsers/validateParserFilters";
 import { validateObservationIoParserJsonPath } from "../../../features/observation-io-parsers/jsonPath";
@@ -50,17 +53,28 @@ export const DeleteObservationIoParserConfigInput = z.object({
   id: z.string(),
 });
 
-export const SetObservationIoParserProjectPreferenceInput = z.object({
-  projectId: z.string(),
-  enabled: z.boolean(),
-  selectedConfigId: z.string().nullable().optional(),
-});
+const SetObservationIoParserPreferenceInput = z
+  .object({
+    projectId: z.string(),
+    enabled: z.boolean(),
+    selectionMode: ObservationIoParserPreferenceSelectionModeSchema.optional(),
+    selectedConfigId: z.string().nullable().optional(),
+  })
+  .superRefine((preference, ctx) => {
+    if (preference.selectionMode === "config" && !preference.selectedConfigId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "selectedConfigId is required for config preferences",
+        path: ["selectedConfigId"],
+      });
+    }
+  });
 
-export const SetObservationIoParserUserPreferenceInput = z.object({
-  projectId: z.string(),
-  enabled: z.boolean(),
-  selectedConfigId: z.string().nullable().optional(),
-});
+export const SetObservationIoParserProjectPreferenceInput =
+  SetObservationIoParserPreferenceInput;
+
+export const SetObservationIoParserUserPreferenceInput =
+  SetObservationIoParserPreferenceInput;
 
 export const ParsedObservationIoInput = z.object({
   projectId: z.string(),

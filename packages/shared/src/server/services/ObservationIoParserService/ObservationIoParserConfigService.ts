@@ -5,6 +5,7 @@ import {
   ObservationIoParserConfigDomainSchema,
   type ObservationIoParserConfigListItem,
   ObservationIoParserConfigListItemSchema,
+  type ObservationIoParserPreferenceSelectionMode,
   type ObservationIoParserProjectPreferenceDomain,
   ObservationIoParserProjectPreferenceSchema,
   type ObservationIoParserResolvedPreference,
@@ -50,6 +51,7 @@ const getDefaultProjectPreference = (
   projectId,
   userId: null,
   enabled: false,
+  selectionMode: "inherit",
   selectedConfigId: null,
   createdAt: null,
   updatedAt: null,
@@ -63,6 +65,7 @@ const getDefaultUserPreference = (
   projectId,
   userId,
   enabled: true,
+  selectionMode: "inherit",
   selectedConfigId: null,
   createdAt: null,
   updatedAt: null,
@@ -191,41 +194,14 @@ export class ObservationIoParserConfigService {
     });
   }
 
-  private static async assertSelectedConfigExists(
-    projectId: string,
-    selectedConfigId: string | null | undefined,
-  ): Promise<void> {
-    if (!selectedConfigId) {
-      return;
-    }
-
-    const selectedConfig = await prisma.observationIoParserConfig.findFirst({
-      where: {
-        id: selectedConfigId,
-        projectId,
-      },
-      select: { id: true },
-    });
-
-    if (!selectedConfig) {
-      throw new LangfuseNotFoundError(
-        `Observation IO parser not found in project ${projectId}`,
-      );
-    }
-  }
-
   private static async setScopedPreference(input: {
     projectId: string;
     userId: string | null;
     enabled: boolean;
+    selectionMode?: ObservationIoParserPreferenceSelectionMode;
     selectedConfigId?: string | null;
     updatedBy?: string;
   }) {
-    await ObservationIoParserConfigService.assertSelectedConfigExists(
-      input.projectId,
-      input.selectedConfigId,
-    );
-
     return prisma.$transaction(
       async (tx) => {
         const existing = await tx.observationIoParserPreference.findFirst({
@@ -235,11 +211,42 @@ export class ObservationIoParserConfigService {
           },
         });
 
+        const selectionMode =
+          input.selectionMode ??
+          (input.selectedConfigId !== undefined
+            ? input.selectedConfigId
+              ? "config"
+              : input.userId
+                ? "auto"
+                : "inherit"
+            : (existing?.selectionMode ?? "inherit"));
+        const selectedConfigId =
+          selectionMode === "config"
+            ? input.selectedConfigId !== undefined
+              ? input.selectedConfigId
+              : (existing?.selectedConfigId ?? null)
+            : null;
+
+        if (selectedConfigId) {
+          const selectedConfig = await tx.observationIoParserConfig.findFirst({
+            where: {
+              id: selectedConfigId,
+              projectId: input.projectId,
+            },
+            select: { id: true },
+          });
+
+          if (!selectedConfig) {
+            throw new LangfuseNotFoundError(
+              `Observation IO parser not found in project ${input.projectId}`,
+            );
+          }
+        }
+
         const updateData = {
           enabled: input.enabled,
-          ...(input.selectedConfigId !== undefined
-            ? { selectedConfigId: input.selectedConfigId }
-            : {}),
+          selectionMode,
+          selectedConfigId,
           updatedBy: input.updatedBy,
         };
 
@@ -255,7 +262,8 @@ export class ObservationIoParserConfigService {
             projectId: input.projectId,
             userId: input.userId,
             enabled: input.enabled,
-            selectedConfigId: input.selectedConfigId ?? null,
+            selectionMode,
+            selectedConfigId,
             updatedBy: input.updatedBy,
           },
         });
@@ -340,12 +348,31 @@ export class ObservationIoParserConfigService {
       };
     }
 
+    const projectSelectedConfigId =
+      projectPreference.enabled && projectPreference.selectionMode === "config"
+        ? projectPreference.selectedConfigId
+        : null;
+
+    if (userPreference?.selectionMode === "config") {
+      return {
+        enabled: true,
+        disabledScope: null,
+        selectedConfigId: userPreference.selectedConfigId,
+      };
+    }
+
+    if (userPreference?.selectionMode === "auto") {
+      return {
+        enabled: true,
+        disabledScope: null,
+        selectedConfigId: null,
+      };
+    }
+
     return {
       enabled: true,
       disabledScope: null,
-      selectedConfigId:
-        userPreference?.selectedConfigId ??
-        (projectPreference.enabled ? projectPreference.selectedConfigId : null),
+      selectedConfigId: projectSelectedConfigId,
     };
   }
 }

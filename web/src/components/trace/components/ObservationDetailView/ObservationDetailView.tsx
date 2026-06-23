@@ -314,6 +314,7 @@ export function ObservationDetailView({
     projectId: projectId,
     startTime: observation.startTime,
     baseObservation: observation,
+    forceFetchRaw: true,
   });
 
   // Type narrowing: when baseObservation is provided, result has full observation fields

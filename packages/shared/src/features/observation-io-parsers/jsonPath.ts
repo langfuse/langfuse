@@ -138,39 +138,12 @@ const getLastJsonPathKey = (jsonPath: string): string | null => {
   return lastMatch ?? null;
 };
 
-const normalizeFieldKey = (value: string): string => {
-  const key = value
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
-    .replace(/[^A-Za-z0-9_]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .replace(/_{2,}/g, "_")
-    .toLowerCase();
-
-  if (!key) return "value";
-  return /^\d/.test(key) ? `field_${key}` : key;
-};
-
-const formatFieldLabel = (value: string): string => {
-  const label = value
-    .trim()
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!label) return "Value";
-
-  return label.replace(/\b\w/g, (character) => character.toUpperCase());
-};
-
 const inferFieldIdentity = (
   field: ObservationIoParserInstructions["fields"][number],
   usedKeys: Set<string>,
 ): { key: string; label: string } => {
   const pathKey = getLastJsonPathKey(field.jsonPath);
-  const baseValue = pathKey ?? field.source;
-  const baseKey = normalizeFieldKey(baseValue);
+  const baseKey = pathKey?.trim() || field.source;
   let key = baseKey;
   let suffix = 2;
 
@@ -183,10 +156,7 @@ const inferFieldIdentity = (
 
   return {
     key,
-    label:
-      key === baseKey
-        ? formatFieldLabel(baseValue)
-        : `${formatFieldLabel(baseValue)} ${suffix - 1}`,
+    label: key,
   };
 };
 

@@ -1618,6 +1618,8 @@ model ObservationIoParserPreference {
 
   enabled Boolean @default(true)
 
+  selectionMode String @default("inherit") @map("selection_mode")
+
   selectedConfigId String?                    @map("selected_config_id")
   selectedConfig   ObservationIoParserConfig? @relation("ObservationIoParserSelectedConfig", fields: [selectedConfigId], references: [id], onDelete: SetNull)
 

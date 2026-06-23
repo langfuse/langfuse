@@ -61,16 +61,21 @@ export function ObservationIoParserSelector({
       ?.filter((config) => config.enabled)
       .sort((a, b) => a.priority - b.priority) ?? [];
 
+  const userSelectionMode = userPreference.data?.selectionMode ?? "inherit";
+  const projectSelectedConfigId =
+    projectPreference.data?.enabled &&
+    projectPreference.data.selectionMode === "config"
+      ? projectPreference.data.selectedConfigId
+      : null;
   const selectedConfigId =
-    activeConfigs.find(
-      (config) => config.id === userPreference.data?.selectedConfigId,
-    )?.id ??
-    activeConfigs.find(
-      (config) =>
-        projectPreference.data?.enabled &&
-        config.id === projectPreference.data.selectedConfigId,
-    )?.id ??
-    null;
+    userSelectionMode === "config"
+      ? (activeConfigs.find(
+          (config) => config.id === userPreference.data?.selectedConfigId,
+        )?.id ?? null)
+      : userSelectionMode === "auto"
+        ? null
+        : (activeConfigs.find((config) => config.id === projectSelectedConfigId)
+            ?.id ?? null);
   const selectedConfig = activeConfigs.find(
     (config) => config.id === selectedConfigId,
   );
@@ -82,24 +87,28 @@ export function ObservationIoParserSelector({
     configs.isLoading ||
     userPreference.isLoading ||
     projectPreference.isLoading;
-  const selectedLabel =
-    selectedConfig?.name ??
-    (hasActiveConfigs
-      ? "Auto match"
-      : configCount > 0
-        ? "No active parsers"
-        : "No parsers");
+  const selectedLabel = !isEnabled
+    ? "Disabled"
+    : (selectedConfig?.name ??
+      (hasActiveConfigs
+        ? "Auto match"
+        : configCount > 0
+          ? "No active parsers"
+          : "No parsers"));
 
   const setPreference = ({
     enabled,
+    selectionMode,
     selectedConfigId,
   }: {
     enabled: boolean;
+    selectionMode?: "inherit" | "auto" | "config";
     selectedConfigId?: string | null;
   }) => {
     updatePreference.mutate({
       projectId,
       enabled,
+      ...(selectionMode !== undefined ? { selectionMode } : {}),
       ...(selectedConfigId !== undefined ? { selectedConfigId } : {}),
     });
   };
@@ -134,6 +143,7 @@ export function ObservationIoParserSelector({
                 onSelect={() =>
                   setPreference({
                     enabled: true,
+                    selectionMode: "auto",
                     selectedConfigId: null,
                   })
                 }
@@ -159,6 +169,7 @@ export function ObservationIoParserSelector({
                       onSelect={() =>
                         setPreference({
                           enabled: true,
+                          selectionMode: "config",
                           selectedConfigId: config.id,
                         })
                       }

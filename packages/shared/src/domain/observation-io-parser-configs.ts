@@ -13,6 +13,12 @@ export const ObservationIoParserDisplaySchema = z.enum([
   "markdown",
 ]);
 
+export const ObservationIoParserPreferenceSelectionModeSchema = z.enum([
+  "inherit",
+  "auto",
+  "config",
+]);
+
 export const ObservationIoParserFieldInstructionSchema = z.object({
   source: ObservationIoParserSourceSchema,
   jsonPath: z.string().trim().min(1).max(500),
@@ -59,6 +65,7 @@ export const ObservationIoParserProjectPreferenceSchema = z.object({
   projectId: z.string(),
   userId: z.null(),
   enabled: z.boolean(),
+  selectionMode: ObservationIoParserPreferenceSelectionModeSchema,
   selectedConfigId: z.string().nullable(),
   createdAt: z.date().nullable(),
   updatedAt: z.date().nullable(),
@@ -69,6 +76,7 @@ export const ObservationIoParserUserPreferenceSchema = z.object({
   projectId: z.string(),
   userId: z.string(),
   enabled: z.boolean(),
+  selectionMode: ObservationIoParserPreferenceSelectionModeSchema,
   selectedConfigId: z.string().nullable(),
   createdAt: z.date().nullable(),
   updatedAt: z.date().nullable(),
@@ -129,6 +137,9 @@ export type ObservationIoParserSource = z.infer<
 >;
 export type ObservationIoParserDisplay = z.infer<
   typeof ObservationIoParserDisplaySchema
+>;
+export type ObservationIoParserPreferenceSelectionMode = z.infer<
+  typeof ObservationIoParserPreferenceSelectionModeSchema
 >;
 export type ObservationIoParserInstructions = z.infer<
   typeof ObservationIoParserInstructionsSchema

@@ -36,6 +36,16 @@ type ParsedObservationResult =
   | EventBatchIOOutput
   | undefined;
 
+const toObservationWithStringifiedIO = (
+  observation: ObservationReturnType | ObservationReturnTypeWithMetadata,
+): ObservationWithStringifiedIO => ({
+  ...observation,
+  input: null,
+  output: null,
+  metadata:
+    "metadata" in observation ? stringifyMetadata(observation.metadata) : null,
+});
+
 /**
  * Threshold for using Web Worker vs sync parsing (in characters).
  * Below this: sync parse (faster, no message-passing overhead)
@@ -239,6 +249,7 @@ export function useParsedObservation({
   const shouldFetchRawEvents =
     isBetaEnabled &&
     (forceFetchRaw ||
+      Boolean(baseObservation) ||
       parsedObservationIoQuery.isError ||
       parsedObservationIoQuery.data?.mode === "raw_fallback");
 
@@ -269,6 +280,9 @@ export function useParsedObservation({
           // Stringify metadata to match ObservationReturnTypeWithMetadata format
           metadata: stringifyMetadata(eventsQuery.data.metadata),
         } satisfies ObservationWithStringifiedIO;
+      }
+      if (baseObservation) {
+        return toObservationWithStringifiedIO(baseObservation);
       }
       // No base observation provided: return partial events data with safe stringified I/O.
       return eventsQuery.data;

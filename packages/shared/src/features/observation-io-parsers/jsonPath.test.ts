@@ -54,10 +54,10 @@ describe("executeObservationIoParserInstructions", () => {
     });
 
     expect(result.fields).toMatchObject([
-      { key: "content", label: "Content", value: "What is up?", status: "ok" },
+      { key: "content", label: "content", value: "What is up?", status: "ok" },
       {
         key: "content_2",
-        label: "Content 2",
+        label: "content_2",
         value: "Nothing much.",
         status: "ok",
       },
@@ -85,8 +85,8 @@ describe("executeObservationIoParserInstructions", () => {
 
     expect(result.fields).toEqual([
       {
-        key: "does_not_exist",
-        label: "Does Not Exist",
+        key: "doesNotExist",
+        label: "doesNotExist",
         source: "output",
         display: "auto",
         value: null,
@@ -121,13 +121,13 @@ describe("executeObservationIoParserInstructions", () => {
     expect(result.fields).toMatchObject([
       {
         key: "quality",
-        label: "Quality",
+        label: "quality",
         value: "good",
         status: "ok",
       },
       {
         key: "metadata",
-        label: "Metadata",
+        label: "metadata",
         value: { environment: "development" },
         status: "ok",
       },

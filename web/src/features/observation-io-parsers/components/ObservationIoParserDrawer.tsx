@@ -401,9 +401,11 @@ export function ObservationIoParserDrawer({
                 configsByPriority.map((config) => {
                   const isUserDefault =
                     userPreference.data?.enabled !== false &&
+                    userPreference.data?.selectionMode === "config" &&
                     userPreference.data?.selectedConfigId === config.id;
                   const isProjectDefault =
                     projectPreference.data?.enabled === true &&
+                    projectPreference.data?.selectionMode === "config" &&
                     projectPreference.data?.selectedConfigId === config.id;
                   const canSetDefault = config.enabled || isUserDefault;
                   const canSetProjectDefault =
@@ -478,6 +480,9 @@ export function ObservationIoParserDrawer({
                                 userPreferenceMutation.mutate({
                                   projectId,
                                   enabled: true,
+                                  selectionMode: isUserDefault
+                                    ? "inherit"
+                                    : "config",
                                   selectedConfigId: isUserDefault
                                     ? null
                                     : config.id,
@@ -496,6 +501,9 @@ export function ObservationIoParserDrawer({
                                 projectPreferenceMutation.mutate({
                                   projectId,
                                   enabled: !isProjectDefault,
+                                  selectionMode: isProjectDefault
+                                    ? "inherit"
+                                    : "config",
                                   selectedConfigId: isProjectDefault
                                     ? null
                                     : config.id,
