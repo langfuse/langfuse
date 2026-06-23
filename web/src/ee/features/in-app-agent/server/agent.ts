@@ -27,8 +27,7 @@ const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
 const LOCAL_IN_APP_AGENT_SYSTEM_PROMPT_DIR = path.join(
   process.cwd(),
-  "..",
-  "ee/src/in-app-agent/prompts/",
+  "src/ee/features/in-app-agent/prompts/",
 );
 const MAX_AGENT_STEPS = 10;
 const LANGFUSE_DOCS_MCP_URL = "https://langfuse.com/api/mcp";
