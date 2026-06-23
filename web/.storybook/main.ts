@@ -33,14 +33,34 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
+    const sharedSrc = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "../../packages/shared/src",
+    );
     viteConfig.resolve = viteConfig.resolve ?? {};
-    viteConfig.resolve.alias = {
-      ...(viteConfig.resolve.alias ?? {}),
-      "@langfuse/shared": resolve(
-        dirname(fileURLToPath(import.meta.url)),
-        "../../packages/shared/src",
-      ),
-    };
+    // Use the array form with regex `find`s for *exact* matching. The object
+    // form is treated by Vite/Rollup as a literal prefix replacement, so an
+    // import like `@langfuse/shared/src/db` would become `.../src/src/db`
+    // (double `src`) and fail to resolve. The bare specifier and the
+    // `@langfuse/shared/src/...` subpaths (which the package's `exports` map
+    // under `src/`) are handled by two distinct, anchored rules — matching how
+    // the app aliases the package (next.config.mjs: transpilePackages +
+    // turbopack.resolveAlias "@langfuse/shared" -> "./packages/shared/src").
+    const existingAlias = viteConfig.resolve.alias ?? {};
+    const aliasArray = Array.isArray(existingAlias)
+      ? existingAlias
+      : Object.entries(existingAlias).map(([find, replacement]) => ({
+          find,
+          replacement: replacement as string,
+        }));
+    viteConfig.resolve.alias = [
+      {
+        find: /^@langfuse\/shared\/src\/(.*)$/,
+        replacement: `${sharedSrc}/$1`,
+      },
+      { find: /^@langfuse\/shared$/, replacement: sharedSrc },
+      ...aliasArray,
+    ];
     return viteConfig;
   },
 };
