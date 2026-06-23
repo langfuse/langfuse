@@ -1,5 +1,5 @@
 import preview from "../../../.storybook/preview";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { fn } from "storybook/test";
 import {
   type OnChangeFn,
@@ -647,17 +647,28 @@ function useAsyncPagedData<TRow>({
     return rows.slice(start, start + pagination.pageSize);
   }, [rows, pagination.pageIndex, pagination.pageSize]);
 
-  const onChange = useCallback<OnChangeFn<PaginationState>>(
-    (updater) => {
-      setIsLoading(true);
-      setPagination((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        window.setTimeout(() => setIsLoading(false), latencyMs);
-        return next;
-      });
-    },
-    [latencyMs],
-  );
+  // The state updater must stay pure (React may call it twice, e.g. in
+  // StrictMode), so it only computes the next state. The emulated "server"
+  // latency — flip to loading, then deliver the next page — is scheduled in an
+  // effect keyed on `pagination` instead. The ref-guarded timer is cleared on
+  // re-run/unmount so a rapid page change never leaks a duplicate timeout.
+  const onChange = useCallback<OnChangeFn<PaginationState>>((updater) => {
+    setPagination((prev) =>
+      typeof updater === "function" ? updater(prev) : updater,
+    );
+  }, []);
+
+  const didMount = useRef(false);
+  useEffect(() => {
+    // Skip the initial render: only a real page change emulates a request.
+    if (!didMount.current) {
+      didMount.current = true;
+      return;
+    }
+    setIsLoading(true);
+    const timer = window.setTimeout(() => setIsLoading(false), latencyMs);
+    return () => window.clearTimeout(timer);
+  }, [pagination, latencyMs]);
 
   const data: AsyncTableData<TRow[]> = {
     isLoading,
