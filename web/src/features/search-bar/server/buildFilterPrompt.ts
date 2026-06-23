@@ -201,6 +201,7 @@ traceTags is an array. "tagged a or b" → any of [a, b]; "tagged BOTH a and b" 
 - "tagged X" / "has tag X" → traceTags any of ["X"]. Multiple required tags → "all of".
 - "prod"/"production" → environment any of ["production"]; "dev"/"staging" → the matching environment value.
 - "root spans" / "top-level" → isRootObservation = true.
+- "named X" / "called X" → the name or traceName column (NOT environment).
 
 ## Current datetime
 

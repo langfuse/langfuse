@@ -31,6 +31,14 @@ const MAX_VALUES_PER_COL = 25;
 const MAX_METADATA_KEYS = 30;
 const MAX_VALUE_LEN = 40;
 
+function safeJsonParse(s: string): unknown {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return undefined;
+  }
+}
+
 /** Flatten nested metadata into dot-path keys with one example leaf value. */
 function collectMetadataKeys(
   md: unknown,
@@ -86,7 +94,9 @@ export function buildAiContext(args: {
 
   const mdKeys = new Map<string, string>();
   for (const md of sampleMetadata) {
-    collectMetadataKeys(md, "", mdKeys, 0);
+    // Langfuse returns row metadata as a JSON-encoded string; parse it first.
+    const parsed = typeof md === "string" ? safeJsonParse(md) : md;
+    collectMetadataKeys(parsed, "", mdKeys, 0);
     if (mdKeys.size >= MAX_METADATA_KEYS) break;
   }
   if (mdKeys.size > 0) {

@@ -59,12 +59,26 @@ describe("buildAiContext", () => {
     expect(count).toBeLessThanOrEqual(30);
   });
 
-  it("ignores non-object metadata (strings/null/arrays)", () => {
+  it("ignores non-JSON metadata (plain strings/null/arrays)", () => {
     const ctx = buildAiContext({
       observed: undefined,
       sampleMetadata: ["a string", null, [1, 2, 3]],
       resultCount: null,
     });
     expect(ctx).toBeUndefined();
+  });
+
+  it("parses JSON-string metadata (Langfuse's row shape) with dotted keys", () => {
+    const ctx =
+      buildAiContext({
+        observed: undefined,
+        sampleMetadata: [
+          '{"routing.queue":"membership-support","customer.plan":"free","flags.beta":true}',
+        ],
+        resultCount: null,
+      }) ?? "";
+    expect(ctx).toContain("metadata.routing.queue");
+    expect(ctx).toContain("membership-support");
+    expect(ctx).toContain("metadata.customer.plan");
   });
 });
