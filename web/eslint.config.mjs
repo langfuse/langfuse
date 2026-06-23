@@ -82,6 +82,29 @@ export default [
     },
   },
 
+  // Overlay wrappers must stack via the app layer system (route the portal into
+  // a layer container, see components/ui/layer.tsx), never by escalating
+  // z-index to escape to the top. Ban high/arbitrary z-index utilities on these
+  // wrappers. z-index stays a local, within-layer tool elsewhere — hence the
+  // tight file scope.
+  {
+    name: "langfuse/web/overlays-no-zindex-escape",
+    files: [
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/alert-dialog.tsx",
+      "src/components/ui/sheet.tsx",
+      "src/components/ui/drawer.tsx",
+      "src/components/ui/popover.tsx",
+      "src/components/ui/dropdown-menu.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/hover-card.tsx",
+      "src/components/ui/tooltip.tsx",
+    ],
+    rules: {
+      "@repo/no-overlay-zindex": "error",
+    },
+  },
+
   // Tests legitimately exercise backwards-compatible (deprecated) read paths
   // such as getTraceById/getObservationById, so allow them in test code.
   {
