@@ -1,0 +1,35 @@
+{
+  "name": "in-app-agent-usable-answer",
+  "evaluator": {
+    "name": "in-app-agent-usable-answer",
+    "scope": "project",
+    "type": "llm_as_judge"
+  },
+  "target": "observation",
+  "enabled": true,
+  "sampling": 1,
+  "filter": [
+    {
+      "type": "stringOptions",
+      "column": "type",
+      "operator": "any of",
+      "value": ["GENERATION"]
+    },
+    {
+      "type": "stringOptions",
+      "column": "name",
+      "operator": "any of",
+      "value": ["agent-run"]
+    }
+  ],
+  "mapping": [
+    {
+      "variable": "user_message",
+      "source": "input"
+    },
+    {
+      "variable": "assistant_response",
+      "source": "output"
+    }
+  ]
+}
