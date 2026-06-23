@@ -142,9 +142,12 @@ export const searchBarRouter = createTRPCRouter({
             provider: "bedrock",
             adapter: LLMAdapter.Bedrock,
             model: env.LANGFUSE_AWS_BEDROCK_MODEL,
-            temperature: 0.1,
+            // Intentionally NO temperature/top_p: newer Bedrock models (e.g.
+            // Claude Opus 4.8, the prod AI-features model) reject them with
+            // `ValidationException: '<param>' is deprecated for this model`,
+            // which 500s the whole request. Filter generation is fine at model
+            // defaults, and omitting them is robust across model changes.
             max_tokens: 2048,
-            top_p: 0.9,
           },
           llmConnection: {
             secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
