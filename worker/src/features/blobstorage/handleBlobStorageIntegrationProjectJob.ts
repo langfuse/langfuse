@@ -1242,12 +1242,23 @@ function extractStorageErrorMessage(error: unknown): string {
   // handleStorageError wraps SDK errors via { cause: sdkError }
   // Unwrap to get the raw SDK message (S3/Azure/GCS)
   const cause = error.cause;
-  if (cause instanceof Error) {
-    return cause.message.slice(0, 1000);
-  }
+  const message = cause instanceof Error ? cause.message : error.message;
 
-  // Fallback: ClickHouse errors or other non-wrapped errors
-  return error.message.slice(0, 1000);
+  // GCS returns a <Details> XML element with the real rejection reason
+  // (e.g. "Multipart upload is not supported in Rapid storage class.").
+  // handleStorageError preserves it as an enumerable property.
+  const errorDetails = (error as unknown as { Details?: unknown }).Details;
+  const causeDetails = (cause as unknown as { Details?: unknown } | undefined)
+    ?.Details;
+  const details =
+    typeof errorDetails === "string"
+      ? errorDetails
+      : typeof causeDetails === "string"
+        ? causeDetails
+        : undefined;
+
+  const full = details ? `${message} Details: ${details}` : message;
+  return full.slice(0, 1000);
 }
 
 function formatErrorChain(error: unknown): string {

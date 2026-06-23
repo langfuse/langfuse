@@ -4,6 +4,8 @@ import { type SingleValueOption } from "@langfuse/shared";
 
 export type LegacySessionTrace =
   RouterOutputs["sessions"]["byIdWithScores"]["traces"][number];
+export type EventSession =
+  RouterOutputs["sessions"]["byIdWithScoresFromEvents"];
 export type EventSessionTrace =
   RouterOutputs["sessions"]["tracesFromEvents"][number];
 export type CommentCounts = Map<string, number>;

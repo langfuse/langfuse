@@ -18,6 +18,8 @@ import { Card } from "@/src/components/ui/card";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { api } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
+import { CommentDrawerButton } from "@/src/features/comments/CommentDrawerButton";
+import { getNumberFromMap } from "@/src/utils/map-utils";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -69,6 +71,12 @@ export const SessionAnnotationProcessor: React.FC<
       { enabled: isBetaEnabled },
     );
 
+  const sessionCommentCounts = api.comments.getCountByObjectId.useQuery({
+    projectId,
+    objectId: item.objectId,
+    objectType: "SESSION",
+  });
+
   // Unify traces from both paths:
   // - v4 beta OFF: traces come from data.traces (byIdWithScores endpoint)
   // - v4 beta ON: traces come from separate tracesFromEvents query
@@ -112,6 +120,13 @@ export const SessionAnnotationProcessor: React.FC<
               idItems={[{ id: item.objectId, name: "Session ID" }]}
             />
           </div>
+          <CommentDrawerButton
+            projectId={projectId}
+            variant="outline"
+            objectId={item.objectId}
+            objectType="SESSION"
+            count={getNumberFromMap(sessionCommentCounts.data, item.objectId)}
+          />
         </div>
         <div className="mt-2 mb-4 grid w-full min-w-0 items-center justify-between px-4">
           <div className="flex max-w-full min-w-0 shrink flex-col">

@@ -203,11 +203,7 @@ export function PopoverFilterBuilder({
             >
               <FilterIcon className="h-4 w-4" />
               {filterState.length > 0 && (
-                <span
-                  className={cn(
-                    "bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs",
-                  )}
-                >
+                <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
                 </span>
               )}

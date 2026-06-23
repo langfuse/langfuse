@@ -264,7 +264,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             {form.formState.errors.modelConfig && (
               <p
                 id="modelConfig"
-                className={cn("text-destructive text-sm font-medium")}
+                className="text-destructive text-sm font-medium"
               >
                 {[
                   form.formState.errors.modelConfig?.model?.message,
