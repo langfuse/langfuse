@@ -1,5 +1,5 @@
 # WizOS secured images are hosted in a private registry and require Wiz registry credentials.
-ARG NODE_BASE_IMAGE=registry.os.wiz.io/node:24-alpine
+ARG NODE_BASE_IMAGE=registry.os.wiz.io/node:24-hardened
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${NODE_BASE_IMAGE} AS node-base
 

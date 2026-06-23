@@ -1,6 +1,5 @@
 # WizOS secured images are hosted in a private registry and require Wiz registry credentials.
-ARG NODE_BASE_IMAGE=registry.os.wiz.io/node:24-alpine
-ARG GO_BASE_IMAGE=registry.os.wiz.io/golang:1.26
+ARG NODE_BASE_IMAGE=registry.os.wiz.io/node:24-hardened
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${NODE_BASE_IMAGE} AS node-base
 
@@ -19,7 +18,7 @@ RUN rm -rf /usr/local/lib/node_modules/corepack \
             /root/.cache/node/corepack && \
     rm -f /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
 
-FROM --platform=${BUILDPLATFORM} ${GO_BASE_IMAGE} AS migrate-builder
+FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
 ARG TARGETARCH
 ENV CGO_ENABLED=0 \
