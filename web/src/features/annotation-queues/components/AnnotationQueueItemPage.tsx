@@ -9,8 +9,19 @@ import {
 } from "@langfuse/shared";
 import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
+import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { cn } from "@/src/utils/tailwind";
+import {
+  hasModifier,
+  isTypingTarget,
+} from "@/src/features/scores/lib/keyboardShortcuts";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
@@ -145,6 +156,103 @@ export const AnnotationQueueItemPage: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relevantItem]);
 
+  const isNextItemAvailable = totalItems > progressIndex + 1;
+  const isPending = relevantItem?.status === AnnotationQueueStatus.PENDING;
+
+  // LFE-7628 — keyboard-first navigation/completion.
+  const handleNavigateBack = useCallback(() => {
+    setProgressIndex((prev) => prev - 1);
+  }, []);
+
+  const handleNavigateNext = useCallback(async () => {
+    if (progressIndex >= seenItemIds.length - 1) {
+      const nextItem = await fetchAndLockNextMutation.mutateAsync({
+        queueId: annotationQueueId,
+        projectId,
+        seenItemIds,
+      });
+      setNextItemData(nextItem);
+    }
+    setProgressIndex(Math.max(progressIndex + 1, 0));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progressIndex, seenItemIds, annotationQueueId, projectId]);
+
+  const handleComplete = useCallback(async () => {
+    if (!relevantItem) return;
+    await completeMutation.mutateAsync({
+      itemId: relevantItem.id,
+      projectId,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relevantItem?.id, projectId]);
+
+  // Brief highlight on the button when its shortcut fires.
+  const [shortcutPulse, setShortcutPulse] = useState<
+    "back" | "next" | "complete" | null
+  >(null);
+  const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pulse = useCallback((which: "back" | "next" | "complete") => {
+    if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+    setShortcutPulse(which);
+    pulseTimeoutRef.current = setTimeout(() => setShortcutPulse(null), 160);
+  }, []);
+  useEffect(
+    () => () => {
+      if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (isSingleItem) return; // single-item view has no queue navigation
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target) || hasModifier(event)) return;
+      if (!hasAccess) return;
+
+      // Complete + advance to next item.
+      if (event.key === "Enter") {
+        if (isPending && !completeMutation.isPending && !objectData.isError) {
+          event.preventDefault();
+          pulse("complete");
+          handleComplete().catch(() => {});
+        }
+        return;
+      }
+      // Skip / go to next item without completing.
+      if (event.key === "ArrowRight" || event.key === "n") {
+        if (isNextItemAvailable) {
+          event.preventDefault();
+          pulse("next");
+          handleNavigateNext().catch(() => {});
+        }
+        return;
+      }
+      // Back to previous item.
+      if (event.key === "ArrowLeft" || event.key === "p") {
+        if (progressIndex > 0) {
+          event.preventDefault();
+          pulse("back");
+          handleNavigateBack();
+        }
+        return;
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    isSingleItem,
+    hasAccess,
+    isPending,
+    isNextItemAvailable,
+    progressIndex,
+    completeMutation.isPending,
+    objectData.isError,
+    handleComplete,
+    handleNavigateNext,
+    handleNavigateBack,
+    pulse,
+  ]);
+
   if (
     (seenItemData.isPending && itemId) ||
     (fetchAndLockNextMutation.isPending && !itemId) ||
@@ -158,32 +266,6 @@ export const AnnotationQueueItemPage: React.FC<{
   if (!relevantItem && !(itemId && seenItemIds.includes(itemId))) {
     return <div>No more items left to annotate!</div>;
   }
-
-  const isNextItemAvailable = totalItems > progressIndex + 1;
-
-  const handleNavigateBack = () => {
-    setProgressIndex(progressIndex - 1);
-  };
-
-  const handleNavigateNext = async () => {
-    if (progressIndex >= seenItemIds.length - 1) {
-      const nextItem = await fetchAndLockNextMutation.mutateAsync({
-        queueId: annotationQueueId,
-        projectId,
-        seenItemIds,
-      });
-      setNextItemData(nextItem);
-    }
-    setProgressIndex(Math.max(progressIndex + 1, 0));
-  };
-
-  const handleComplete = async () => {
-    if (!relevantItem) return;
-    await completeMutation.mutateAsync({
-      itemId: relevantItem.id,
-      projectId,
-    });
-  };
 
   const renderContent = () => {
     // Handle deleted object (trace/observation/session not found)
@@ -241,45 +323,111 @@ export const AnnotationQueueItemPage: React.FC<{
       </div>
       <div className="grid w-full shrink-0 grid-cols-1 justify-end gap-2 py-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
-          <div className="flex max-h-10 flex-row gap-2">
+          <div className="flex max-h-10 flex-row items-center gap-2">
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
             </span>
-            <Button
-              onClick={handleNavigateBack}
-              variant="outline"
-              disabled={progressIndex === 0 || !hasAccess}
-              size="lg"
-              className="px-4"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleNavigateBack}
+                  variant="outline"
+                  disabled={progressIndex === 0 || !hasAccess}
+                  size="lg"
+                  className={cn(
+                    "gap-1.5 px-4 transition-colors duration-150",
+                    shortcutPulse === "back" &&
+                      "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+                  )}
+                  aria-label="Previous item"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <KeyboardShortcut>←</KeyboardShortcut>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>Previous item</span>
+                <KeyboardShortcut className="ml-2">←</KeyboardShortcut>
+                <KeyboardShortcut className="ml-1">P</KeyboardShortcut>
+              </TooltipContent>
+            </Tooltip>
+            {/* Shortcut legend so annotators can discover keyboard-first flow */}
+            <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
+              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                ↵
+              </KeyboardShortcut>
+              complete + next ·
+              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                →
+              </KeyboardShortcut>
+              skip
+            </span>
           </div>
         )}
-        <div className="flex w-full min-w-[265px] justify-end gap-2">
+        <div className="flex w-full min-w-[265px] items-center justify-end gap-2">
           {!isSingleItem && (
-            <Button
-              onClick={handleNavigateNext}
-              disabled={!isNextItemAvailable || !hasAccess}
-              size="lg"
-              className={`px-4 ${!relevantItem ? "w-full" : ""}`}
-              variant="outline"
-            >
-              <ArrowRight className="h-4 w-4" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={handleNavigateNext}
+                  disabled={!isNextItemAvailable || !hasAccess}
+                  size="lg"
+                  className={cn(
+                    "gap-1.5 px-4 transition-colors duration-150",
+                    !relevantItem ? "w-full" : "",
+                    shortcutPulse === "next" &&
+                      "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+                  )}
+                  variant="outline"
+                  aria-label="Skip to next item"
+                >
+                  <ArrowRight className="h-4 w-4" />
+                  <KeyboardShortcut>→</KeyboardShortcut>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <span>Skip to next item</span>
+                <KeyboardShortcut className="ml-2">→</KeyboardShortcut>
+                <KeyboardShortcut className="ml-1">N</KeyboardShortcut>
+              </TooltipContent>
+            </Tooltip>
           )}
           {!!relevantItem &&
             (relevantItem.status === AnnotationQueueStatus.PENDING ? (
-              <Button
-                onClick={handleComplete}
-                size="lg"
-                className="mr-2 w-full"
-                disabled={
-                  completeMutation.isPending || !hasAccess || objectData.isError
-                }
-              >
-                Mark Completed
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={handleComplete}
+                    size="lg"
+                    className={cn(
+                      "mr-2 w-full gap-1.5 transition-colors duration-150",
+                      shortcutPulse === "complete" && "ring-primary/40 ring-2",
+                    )}
+                    disabled={
+                      completeMutation.isPending ||
+                      !hasAccess ||
+                      objectData.isError
+                    }
+                  >
+                    <span>Mark Completed</span>
+                    {!isSingleItem && (
+                      <KeyboardShortcut className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30">
+                        ↵
+                      </KeyboardShortcut>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <span>
+                    {isSingleItem
+                      ? "Mark completed"
+                      : "Mark completed + go to next item"}
+                  </span>
+                  {!isSingleItem && (
+                    <KeyboardShortcut className="ml-2">↵</KeyboardShortcut>
+                  )}
+                </TooltipContent>
+              </Tooltip>
             ) : (
               <div className="border-dark-green bg-light-green inline-flex h-9 w-full items-center justify-center rounded-md border px-8 text-sm font-medium">
                 Completed
