@@ -94,33 +94,3 @@ export function Layer({
   const container = useLayerContainer(name);
   return container ? createPortal(children, container) : null;
 }
-
-/**
- * The single sanctioned way to portal a Radix/Vaul primitive into a layer:
- * pass `as` (e.g. `DialogPrimitive.Portal`, Vaul's `Drawer.Portal`) and the
- * layer `name`; this resolves the layer container and forwards it as the
- * portal's `container`, along with any other props (e.g. `children`). SSR-safe
- * — `container` is `null` until mounted, so the primitive falls back to
- * `<body>` on first paint, exactly as before.
- *
- * Equivalent to wiring {@link useLayerContainer} into a primitive's Portal by
- * hand; use it when a wrapper has a single straightforward portal, and inline
- * `useLayerContainer` when the wrapper already destructures portal props (as
- * the ui/* overlay wrappers do).
- */
-type LayerPortalComponentProps = {
-  container?: HTMLElement | null;
-  children?: React.ReactNode;
-};
-
-export function LayerPortal({
-  as: PortalComponent,
-  name,
-  ...props
-}: {
-  as: React.ComponentType<LayerPortalComponentProps>;
-  name: LayerName;
-} & Omit<LayerPortalComponentProps, "container">) {
-  const container = useLayerContainer(name);
-  return <PortalComponent container={container} {...props} />;
-}

@@ -389,7 +389,7 @@ unused planners).
   layers (declared in `_document.tsx`), each its own isolated stacking context,
   stacked by DOM ORDER (later = on top), carrying NO z-index of their own. ALL
   overlays route through it: Radix/Vaul primitives via their `*.Portal`'s
-  `container` (use `useLayerContainer` / `LayerPortal`), and bespoke
+  `container` (use `useLayerContainer`), and bespoke
   imperatively-positioned content (like this bar's error tooltip) via `<Layer>`.
   No overlay carries a magic z-index to "escape to the top" anymore; the
   `@repo/no-overlay-zindex` lint rule enforces this — it bans high z-index on

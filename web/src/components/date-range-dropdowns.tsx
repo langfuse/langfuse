@@ -24,8 +24,8 @@ import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
+  HoverCardPortal,
 } from "@/src/components/ui/hover-card";
-import { HoverCardPortal } from "@radix-ui/react-hover-card";
 
 type BaseDateRangeDropdownProps<T> = {
   selectedOption: T;
