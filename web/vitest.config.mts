@@ -1,5 +1,7 @@
 import { globSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
+import { playwright } from "@vitest/browser-playwright";
 import { config } from "dotenv";
 import { expand } from "dotenv-expand";
 import { defineConfig } from "vitest/config";
@@ -122,6 +124,24 @@ export default defineConfig({
           exclude: sharedExclude,
           environment: "node",
           setupFiles: ["./src/__tests__/after-teardown.ts"],
+        },
+      },
+      {
+        extends: true,
+        plugins: [
+          storybookTest({
+            configDir: join(import.meta.dirname, ".storybook"),
+            storybookScript: "pnpm run storybook -- --ci --no-open",
+          }),
+        ],
+        test: {
+          name: "storybook",
+          browser: {
+            enabled: true,
+            provider: playwright(),
+            headless: true,
+            instances: [{ browser: "chromium" }],
+          },
         },
       },
       {

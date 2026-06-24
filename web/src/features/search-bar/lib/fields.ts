@@ -17,6 +17,7 @@
 // is a substring search) yet keep their observed-value picker.
 
 import type { CompareOp } from "./ast";
+import { quoteIfNeeded, unquote } from "./quoting";
 
 export type FieldKind = "text" | "number" | "datetime" | "boolean";
 export type SyncMode = "exactOption" | "arrayOption" | "textSearch";
@@ -126,19 +127,22 @@ export type FieldRef =
  */
 export function resolveField(name: string): FieldRef | null {
   const lower = name.toLowerCase();
+  // The segment after a dot-path prefix may be quoted to carry spaces/grammar
+  // chars (`scores."Rouge Score"`, `metadata."my key"`); unquote it to the real
+  // key. refName re-quotes it on the way back out.
   if (lower.startsWith(METADATA_PREFIX)) {
-    const key = name.slice(METADATA_PREFIX.length);
+    const key = unquote(name.slice(METADATA_PREFIX.length)).value;
     return key.length > 0 ? { type: "metadata", key } : null;
   }
   for (const prefix of TRACE_SCORE_PREFIXES) {
     if (lower.startsWith(prefix)) {
-      const key = name.slice(prefix.length);
+      const key = unquote(name.slice(prefix.length)).value;
       return key.length > 0 ? { type: "scores", key, level: "trace" } : null;
     }
   }
   for (const prefix of SCORE_PREFIXES) {
     if (lower.startsWith(prefix)) {
-      const key = name.slice(prefix.length);
+      const key = unquote(name.slice(prefix.length)).value;
       return key.length > 0
         ? { type: "scores", key, level: "observation" }
         : null;
@@ -228,7 +232,7 @@ export function operatorIssue(
       return null;
     case "scores":
       if (STRING_OPS.has(op) && op !== "exact") {
-        return `score filters compare numbers (scores.${ref.key}:>0.8) or match categories (scores.${ref.key}:positive) — ${label(op)} is not supported`;
+        return `score filters compare numbers (${refName(ref)}:>0.8) or match categories (${refName(ref)}:positive) — ${label(op)} is not supported`;
       }
       return null;
     case "field": {
@@ -289,7 +293,7 @@ export function negationIssue(
     if (ref.type === "metadata") {
       // stringObject has no "does not equal" — only does-not-contain.
       return op === "exact"
-        ? `negated exact match on metadata is not representable — use -metadata.${ref.key}:*value* (does not contain)`
+        ? `negated exact match on metadata is not representable — use -${refName(ref)}:*value* (does not contain)`
         : null; // '=' on metadata negates via categoryOptions? No — handled below.
     }
     if (ref.type === "scores") {
@@ -302,9 +306,10 @@ export function negationIssue(
         return `negated equality on "${f.id}" is not representable — use comparisons (${f.id}:<n or ${f.id}:>n)`;
       }
       if (f.kind === "boolean") return null; // inverts the value
-      if (f.kind === "text" && f.syncMode === "textSearch" && op === "exact") {
-        return `negated exact match on "${f.id}" is not representable — use -${f.id}:*value* (does not contain)`;
-      }
+      // Negated exact on a textSearch field (`-name:=abc`) IS representable: it
+      // is exact-inequality, which lowers to a stringOptions `none of` (there is
+      // no `string !=`, but the option-set form covers it — and it is the shape
+      // the facet emits when one value is unchecked). So no negation gap here.
       return null;
     }
   }
@@ -316,11 +321,11 @@ export function refName(ref: FieldRef): string {
     case "field":
       return ref.field.id;
     case "metadata":
-      return `metadata.${ref.key}`;
+      return `metadata.${quoteIfNeeded(ref.key)}`;
     case "scores":
       return ref.level === "trace"
-        ? `traceScores.${ref.key}`
-        : `scores.${ref.key}`;
+        ? `traceScores.${quoteIfNeeded(ref.key)}`
+        : `scores.${quoteIfNeeded(ref.key)}`;
     case "pseudo":
       return ref.id;
   }

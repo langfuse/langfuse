@@ -9,8 +9,9 @@ import {
 type SearchBarContextValue = {
   store: SearchBarStore;
   /** Apply the current draft to the table's filter state (single source of
-   * truth). Returns false and reveals diagnostics when the draft is invalid. */
-  commit: () => boolean;
+   * truth). Returns the canonical committed text on success, or null (and
+   * reveals diagnostics) when the draft is invalid. */
+  commit: () => string | null;
 };
 
 const SearchBarContext = createContext<SearchBarContextValue | null>(null);
@@ -22,7 +23,7 @@ export function SearchBarStoreProvider({
 }: {
   children: ReactNode;
   store: SearchBarStore;
-  commit: () => boolean;
+  commit: () => string | null;
 }) {
   const value = useMemo(() => ({ store, commit }), [store, commit]);
   return (
@@ -50,6 +51,6 @@ export function useSearchBarStore<TValue>(
   return useStore(useSearchBarContext().store, selector);
 }
 
-export function useSearchBarCommit(): () => boolean {
+export function useSearchBarCommit(): () => string | null {
   return useSearchBarContext().commit;
 }

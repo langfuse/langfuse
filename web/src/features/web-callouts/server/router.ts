@@ -14,27 +14,11 @@ import {
   upsertWebCalloutEndpoint,
 } from "@/src/features/web-callouts/server/service";
 import {
-  isWebCalloutsEnabled,
-  throwIfWebCalloutsDisabled,
-} from "@/src/features/web-callouts/server/featureFlag";
-import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 
 export const webCalloutsRouter = createTRPCRouter({
-  availability: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
-    .query(({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: input.projectId,
-        scope: "project:read",
-      });
-
-      return { enabled: isWebCalloutsEnabled() };
-    }),
-
   all: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
@@ -43,7 +27,6 @@ export const webCalloutsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      throwIfWebCalloutsDisabled();
 
       const endpoints = await ctx.prisma.webCalloutEndpoint.findMany({
         where: { projectId: input.projectId },
@@ -62,10 +45,6 @@ export const webCalloutsRouter = createTRPCRouter({
         scope: "project:read",
       });
 
-      if (!isWebCalloutsEnabled()) {
-        return toEnabledWebCallout(null);
-      }
-
       const endpoint = await ctx.prisma.webCalloutEndpoint.findFirst({
         where: { projectId: input.projectId, enabled: true },
         orderBy: { createdAt: "asc" },
@@ -82,7 +61,6 @@ export const webCalloutsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      throwIfWebCalloutsDisabled();
 
       const before = input.id
         ? await ctx.prisma.webCalloutEndpoint
@@ -123,7 +101,6 @@ export const webCalloutsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "integrations:CRUD",
       });
-      throwIfWebCalloutsDisabled();
 
       const endpoint = await ctx.prisma.webCalloutEndpoint.findFirst({
         where: {
@@ -165,7 +142,6 @@ export const webCalloutsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "project:read",
       });
-      throwIfWebCalloutsDisabled();
 
       return invokeWebCalloutEndpoint({
         prisma: ctx.prisma,

@@ -345,6 +345,48 @@ describe("RateLimitService", () => {
     expect(result?.isRateLimited()).toBe(false);
   });
 
+  it("should apply public-api-legacy rate limits by cloud plan", async () => {
+    const cases = [
+      { plan: "cloud:hobby" as const, points: 15 },
+      { plan: "cloud:core" as const, points: 30 },
+      { plan: "cloud:pro" as const, points: 100 },
+      { plan: "cloud:team" as const, points: 100 },
+      { plan: "cloud:enterprise" as const, points: 100 },
+    ];
+
+    const rateLimitService = RateLimitService.getInstance(redis);
+
+    for (const testCase of cases) {
+      await redis.del(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`,
+      );
+
+      const scope = {
+        orgId: orgId,
+        plan: testCase.plan,
+        projectId,
+        accessLevel: "project" as const,
+        rateLimitOverrides: [],
+      };
+
+      const result = await rateLimitService.rateLimitRequest(
+        scope,
+        "public-api-legacy",
+      );
+
+      expect(result?.res).toEqual({
+        scope: scope,
+        resource: "public-api-legacy",
+        points: testCase.points,
+        remainingPoints: testCase.points - 1,
+        msBeforeNext: expect.any(Number),
+        consumedPoints: 1,
+        isFirstInDuration: true,
+      });
+      expect(result?.isRateLimited()).toBe(false);
+    }
+  });
+
   it("should apply media-upload rate limits separately from ingestion", async () => {
     const scope = {
       orgId: orgId,

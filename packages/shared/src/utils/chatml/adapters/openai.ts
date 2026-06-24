@@ -384,7 +384,11 @@ export const openAIAdapter: ProviderAdapter = {
       }
 
       // Semantic Kernel (scope.name starts with Microsoft.SemanticKernel)
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (
           typeof scope.name === "string" &&
@@ -410,7 +414,11 @@ export const openAIAdapter: ProviderAdapter = {
       if (providerName === "microsoft.agent_framework") return false;
 
       // Pydantic ai
-      if ("scope" in meta && typeof meta.scope === "object") {
+      if (
+        "scope" in meta &&
+        meta.scope !== null &&
+        typeof meta.scope === "object"
+      ) {
         const scope = meta.scope as Record<string, unknown>;
         if (scope.name === "pydantic-ai") {
           return false;

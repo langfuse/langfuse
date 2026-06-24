@@ -4,8 +4,9 @@
  * Used for all main application pages when user is authenticated
  */
 
-import { useState, type PropsWithChildren } from "react";
+import { useEffect, useState, type PropsWithChildren } from "react";
 import Head from "next/head";
+import { useRouter, type NextRouter } from "next/router";
 import { SidebarProvider, SidebarInset } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/app-sidebar";
 import { Toaster } from "@/src/components/ui/sonner";
@@ -104,6 +105,8 @@ export function AuthenticatedLayout({
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
+  const router = useRouter();
+  useProjectCookie(router);
 
   // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
   // in AppLayout, which guarantees session.user exists at this point
@@ -128,7 +131,8 @@ export function AuthenticatedLayout({
     }),
   );
 
-  const hasFeaturePreviews = isLangfuseCloud;
+  // Currently there are no feature previews available
+  const hasFeaturePreviews = false;
 
   // User navigation items for sidebar dropdown
   const userNavProps = {
@@ -204,7 +208,6 @@ export function AuthenticatedLayout({
             </div>
             {hasFeaturePreviews ? (
               <ControlledFeaturePreviewModal
-                session={session}
                 open={featurePreviewOpen}
                 onOpenChange={setFeaturePreviewOpen}
               />
@@ -214,4 +217,15 @@ export function AuthenticatedLayout({
       </TopBannerProvider>
     </>
   );
+}
+
+/** useProjectCookie pings the visit beacon so the project sentinel can route the user back here. */
+function useProjectCookie(router: NextRouter) {
+  const projectId = router.query.projectId;
+  useEffect(() => {
+    if (typeof projectId !== "string") return;
+    fetch(`/api/project/${encodeURIComponent(projectId)}/visit`, {
+      method: "POST",
+    }).catch(() => {});
+  }, [projectId]);
 }

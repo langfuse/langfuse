@@ -116,17 +116,26 @@ export class WebCalloutRateLimitService {
     const redis = WebCalloutRateLimitService.redis;
 
     if (!redis) {
-      this.failClosed(context, "Redis is not configured for web callouts");
+      this.allowBecauseRateLimitUnavailable(
+        context,
+        "Redis is not configured for web callouts",
+      );
+      return;
     }
 
     if (Date.now() < this.redisUnavailableUntilMs) {
-      this.failClosed(context, "Redis is temporarily unavailable");
+      this.allowBecauseRateLimitUnavailable(
+        context,
+        "Redis is temporarily unavailable",
+      );
+      return;
     }
 
     try {
       await this.ensureRedisReady(redis);
     } catch (error) {
       this.markRedisUnavailable(context, error);
+      return;
     }
 
     const keys = limitKey(context);
@@ -145,7 +154,15 @@ export class WebCalloutRateLimitService {
       rejectIfRedisNotReady: true,
     });
 
-    await this.consumeLimiter(userLimiter, keys.user, context);
+    const userLimitAvailable = await this.consumeLimiter(
+      userLimiter,
+      keys.user,
+      context,
+    );
+    if (!userLimitAvailable) {
+      return;
+    }
+
     await this.consumeLimiter(endpointLimiter, keys.endpoint, context);
   }
 
@@ -165,9 +182,10 @@ export class WebCalloutRateLimitService {
     limiter: RateLimiterRedis,
     key: string,
     context: WebCalloutLimitContext,
-  ) {
+  ): Promise<boolean> {
     try {
       await limiter.consume(key);
+      return true;
     } catch (error) {
       if (error instanceof RateLimiterRes) {
         recordWebCalloutInvokeMetric("rate_limited", context);
@@ -178,13 +196,14 @@ export class WebCalloutRateLimitService {
       }
 
       this.markRedisUnavailable(context, error);
+      return false;
     }
   }
 
   private markRedisUnavailable(
     context: WebCalloutLimitContext,
     error: unknown,
-  ): never {
+  ) {
     this.redisUnavailableUntilMs = Date.now() + REDIS_RETRY_COOLDOWN_MS;
     logger.warn("Web callout rate limiter unavailable", {
       orgId: context.orgId,
@@ -192,18 +211,23 @@ export class WebCalloutRateLimitService {
       endpointId: context.endpointId,
       error: error instanceof Error ? error.message : "Unknown error",
     });
-    this.failClosed(context, "Redis is temporarily unavailable");
+    this.allowBecauseRateLimitUnavailable(
+      context,
+      "Redis is temporarily unavailable",
+    );
   }
 
-  private failClosed(context: WebCalloutLimitContext, reason: string): never {
+  private allowBecauseRateLimitUnavailable(
+    context: WebCalloutLimitContext,
+    reason: string,
+  ) {
     recordWebCalloutInvokeMetric("rate_limit_unavailable", context);
-    logger.warn("Web callout invocation blocked because rate limiting failed", {
+    logger.warn("Web callout invocation allowed because rate limiting failed", {
       orgId: context.orgId,
       projectId: context.projectId,
       endpointId: context.endpointId,
       reason,
     });
-    throw tooManyRequests("Web callout invocation is temporarily unavailable.");
   }
 }
 

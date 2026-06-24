@@ -59,11 +59,6 @@ describe("web callout rate limiting", () => {
     }) as any;
 
   const pending = () => new Promise<never>(() => undefined);
-  const expectUnavailable = (promise: Promise<unknown>) =>
-    expect(promise).rejects.toMatchObject({
-      code: "TOO_MANY_REQUESTS",
-      message: "Web callout invocation is temporarily unavailable.",
-    });
 
   beforeEach(() => {
     (env as any).LANGFUSE_RATE_LIMITS_ENABLED = "true";
@@ -80,7 +75,7 @@ describe("web callout rate limiting", () => {
     resetWebCalloutInFlightLimitsForTests();
   });
 
-  it("uses scoped 10/60 Redis buckets, shares cold connects, and fails closed", async () => {
+  it("uses scoped 10/60 Redis buckets, shares cold connects, and fails open when Redis is unavailable", async () => {
     const client = redis();
     await WebCalloutRateLimitService.getInstance(client).consume(context);
 
@@ -139,17 +134,33 @@ describe("web callout rate limiting", () => {
     (env as any).LANGFUSE_RATE_LIMITS_ENABLED = "true";
 
     WebCalloutRateLimitService.shutdown();
-    await expectUnavailable(
+    await expect(
       WebCalloutRateLimitService.getInstance(null).consume(context),
-    );
+    ).resolves.toBeUndefined();
 
     WebCalloutRateLimitService.shutdown();
+    mocks.consume.mockClear();
     mocks.consume.mockRejectedValueOnce(new Error("redis down"));
-    await expectUnavailable(
+    await expect(
       WebCalloutRateLimitService.getInstance(redis()).consume(context),
-    );
+    ).resolves.toBeUndefined();
+    expect(mocks.consume).toHaveBeenCalledTimes(1);
 
     WebCalloutRateLimitService.shutdown();
+    mocks.consume.mockReset();
+    mocks.consume
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error("redis down"));
+    await expect(
+      WebCalloutRateLimitService.getInstance(redis()).consume(context),
+    ).resolves.toBeUndefined();
+    expect(mocks.consume.mock.calls).toEqual([
+      ["org-1:project-1:endpoint-1:user-1"],
+      ["org-1:project-1:endpoint-1"],
+    ]);
+
+    WebCalloutRateLimitService.shutdown();
+    mocks.consume.mockReset();
     mocks.consume.mockRejectedValueOnce(new (RateLimiterRes as any)(2300));
     await expect(
       WebCalloutRateLimitService.getInstance(redis()).consume(context),

@@ -132,10 +132,7 @@ export const CreateBlobStorageIntegrationRequest = z
     }
     if (data.exportFieldGroups != null && data.exportSource != null) {
       validateExportFieldGroups(
-        {
-          exportSource: toInternalExportSource(data.exportSource),
-          exportFieldGroups: data.exportFieldGroups,
-        },
+        { exportFieldGroups: data.exportFieldGroups },
         ctx,
       );
     }

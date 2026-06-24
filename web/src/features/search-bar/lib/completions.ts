@@ -14,7 +14,6 @@
 import {
   indexOfOutsideQuotes,
   lexTokens,
-  NEEDS_QUOTES,
   parseGlob,
   serializeValue,
   splitOutsideQuotes,
@@ -27,6 +26,7 @@ import {
   type FieldDef,
   type FieldRef,
 } from "./fields";
+import { quoteIfNeeded } from "./quoting";
 import type { ObservedOptions } from "./observed-options";
 
 export type CompletionStage =
@@ -356,6 +356,13 @@ function datetimeOperatorOptions(fieldId: string): CompletionOption[] {
 function matchOperatorOptions(
   typed: string,
   negated = false,
+  // textSearch fields only: under negation, `-name:=v` is representable and
+  // DISTINCT from the bare `-name:v`. The bare form lowers to `does not contain`
+  // (substring); the exact form lowers to a `stringOptions none of` (exact
+  // inequality — the facet "uncheck one value" shape). For option/metadata
+  // fields the bare negated value already IS exact none-of, so exact is
+  // redundant there and stays suppressed.
+  allowNegatedExact = false,
 ): CompletionOption[] {
   // Quote the value through the serializer so a value with whitespace/grammar
   // chars (`My Test`) becomes `*"My Test"*` — one lexer token — instead of a
@@ -368,10 +375,18 @@ function matchOperatorOptions(
     detail: "contains (same as the bare value)",
     insert: `*${v}*`,
   };
-  // Under negation only "contains" is representable (-> "does not contain").
-  // Negated starts/ends/exact have no inverse operator, so the validator would
-  // reject them on the next derive — don't offer drafts that can't commit.
-  if (negated) return [contains];
+  const exact: CompletionOption = {
+    id: "vop:exact",
+    kind: "pattern",
+    label: `=${v}`,
+    detail: negated ? "exact (does not equal)" : "exact match",
+    insert: `=${v}`,
+  };
+  // Under negation, starts/ends-with have no inverse operator (the validator
+  // would reject them on the next derive), so only "contains" — and, on a
+  // textSearch field, the distinct "exact" (-> does-not-equal / none-of) — are
+  // offered; never drafts that can't commit.
+  if (negated) return allowNegatedExact ? [contains, exact] : [contains];
   return [
     contains,
     {
@@ -388,13 +403,7 @@ function matchOperatorOptions(
       detail: "ends with",
       insert: `*${v}`,
     },
-    {
-      id: "vop:exact",
-      kind: "pattern",
-      label: `=${v}`,
-      detail: "exact match",
-      insert: `=${v}`,
-    },
+    exact,
   ];
 }
 
@@ -440,25 +449,27 @@ function keyPathOptions(
   typedKey: string,
   observed: ObservedOptions | undefined,
 ): { title: string; options: CompletionOption[] } {
-  // Observed names with grammar chars (a colon, space, …) can't be suggested:
-  // picking `scores.foo:bar` would reparse with the key split at the FIRST
-  // colon and silently commit a filter on a different/non-existent key. The
-  // reverse adapter already drops these (filter-state-to-query NEEDS_QUOTES
-  // guards); mirror that here so they're never offered.
-  const suggestable = (name: string) => !NEEDS_QUOTES.test(name);
+  // Observed names with grammar chars (a colon, space, …) are offered with the
+  // segment QUOTED so they re-lex as one token (`scores."Rouge Score"`):
+  // `fieldId` is the inserted text (quoted), while `label` stays the bare,
+  // readable form so it matches the user's typed prefix during ranking.
+  const keyText = (name: string) => `${kind.canonical}${quoteIfNeeded(name)}`;
+  // The user types the documented quoting syntax (`scores."Rou`), but labels are
+  // bare — strip the surrounding quote chars from the typed segment so ranking
+  // still matches (otherwise the first `"` drops every option and the popover
+  // silently closes).
+  const rankKey = typedKey.replace(/^"/, "").replace(/"$/, "");
   if (kind.canonical === "metadata.") {
-    const options = observedValues(observed, "metadata")
-      .filter((o) => suggestable(o.value))
-      .map((o) => ({
-        id: `key:metadata.${o.value}`,
-        kind: "field" as const,
-        label: `metadata.${o.value}`,
-        detail: o.count !== undefined ? String(o.count) : undefined,
-        fieldId: `metadata.${o.value}`,
-      }));
+    const options = observedValues(observed, "metadata").map((o) => ({
+      id: `key:metadata.${o.value}`,
+      kind: "field" as const,
+      label: `metadata.${o.value}`,
+      detail: o.count !== undefined ? String(o.count) : undefined,
+      fieldId: keyText(o.value),
+    }));
     return {
       title: SECTION_KEYS,
-      options: rankFilter(options, `metadata.${typedKey}`),
+      options: rankFilter(options, `metadata.${rankKey}`),
     };
   }
   const numericColumn =
@@ -467,9 +478,8 @@ function keyPathOptions(
     kind.level === "trace" ? "trace_score_categories" : "score_categories";
   const seen = new Map<string, string>();
   for (const o of observedValues(observed, numericColumn))
-    if (suggestable(o.value)) seen.set(o.value, "numeric score");
+    seen.set(o.value, "numeric score");
   for (const o of observedValues(observed, categoricalColumn)) {
-    if (!suggestable(o.value)) continue;
     seen.set(
       o.value,
       seen.has(o.value) ? "numeric + categorical score" : "categorical score",
@@ -480,11 +490,11 @@ function keyPathOptions(
     kind: "field" as const,
     label: `${kind.canonical}${name}`,
     detail,
-    fieldId: `${kind.canonical}${name}`,
+    fieldId: keyText(name),
   }));
   return {
     title: SECTION_SCORE_NAMES,
-    options: rankFilter(options, `${kind.canonical}${typedKey}`),
+    options: rankFilter(options, `${kind.canonical}${rankKey}`),
   };
 }
 
@@ -555,8 +565,13 @@ function valueStageSections(
         ref.level === "trace" ? "trace_scores_avg" : "scores_avg";
       const categoricalColumn =
         ref.level === "trace" ? "trace_score_categories" : "score_categories";
+      // Quoted for the example shown in the compare-op tooltip — a spaced score
+      // name must read as `scores."Rouge Score":>0.8`, not the unparsable bare
+      // form. (The data lookups above use the unquoted column names.)
       const path =
-        ref.level === "trace" ? `traceScores.${ref.key}` : `scores.${ref.key}`;
+        ref.level === "trace"
+          ? `traceScores.${quoteIfNeeded(ref.key)}`
+          : `scores.${quoteIfNeeded(ref.key)}`;
       const isNumeric = observedValues(observed, numericColumn).some(
         (o) => o.value === ref.key,
       );
@@ -644,7 +659,12 @@ function valueStageSections(
             : [];
         return {
           sections: [
-            ...section(SECTION_MATCH_OPS, matchOperatorOptions(typed, negated)),
+            ...section(
+              SECTION_MATCH_OPS,
+              // Pure textSearch (input/output): negated exact is representable
+              // and distinct from the bare contains, so offer it.
+              matchOperatorOptions(typed, negated, true),
+            ),
             ...section(SECTION_SEARCH_IN, scopeSwitches),
           ],
           loading: false,
@@ -665,11 +685,13 @@ function valueStageSections(
       // Array fields reject match operators — operatorIssue routes them to
       // value/any-of/all-of groups — so don't suggest them. For other option
       // fields, once a value is typed offer glob/exact refinements that wrap it.
-      // Pass `negated` so a negated value only offers contains (the lone
-      // refinement with an inverse op), mirroring the metadata/textSearch sites.
+      // Under negation only contains is offered for option fields (bare negated
+      // value already IS exact none-of), but textSearch fields with observed
+      // values (id/name) also offer exact (`-name:=v` -> none-of, distinct from
+      // the substring `-name:v`).
       const ops =
         typed.length > 0 && f.syncMode !== "arrayOption"
-          ? matchOperatorOptions(typed, negated)
+          ? matchOperatorOptions(typed, negated, f.syncMode === "textSearch")
           : [];
       if (values.length + ops.length === 0) return null;
       return {

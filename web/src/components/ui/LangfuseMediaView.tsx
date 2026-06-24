@@ -8,7 +8,10 @@ import {
   MediaReferenceStringSchema,
   type ParsedMediaReferenceType,
 } from "@langfuse/shared";
-import { ResizableImage } from "@/src/components/ui/resizable-image";
+import {
+  COMPACT_IMAGE_MAX_HEIGHT_REM,
+  ResizableImage,
+} from "@/src/components/ui/resizable-image";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
@@ -22,14 +25,25 @@ import {
   Volume2,
 } from "lucide-react";
 
+// Above this, "preview" media falls back to the click-to-open icon instead of
+// rendering inline, so a large file isn't fetched/decoded just by opening a view.
+const PREVIEW_AUTO_EXPAND_MAX_BYTES = 50 * 1024 * 1024; // 50 MB
+
 export const LangfuseMediaView = ({
   mediaReferenceString,
   mediaAPIReturnValue,
-  asFileIcon = false,
+  variant = "inline",
 }: {
   mediaReferenceString?: string | ParsedMediaReferenceType;
-  mediaAPIReturnValue?: MediaReturnType;
-  asFileIcon?: boolean;
+  mediaAPIReturnValue?: Omit<MediaReturnType, "field"> &
+    Partial<Pick<MediaReturnType, "field">>;
+  // How to render media:
+  // - "inline": render previewable media (image/audio/video) in place and a
+  //   file icon for the rest — for media embedded in content (markdown/JSON).
+  // - "icon": a compact file tile that expands on click — for attachment lists.
+  // - "preview": like "icon", but previewable media starts already expanded.
+  // Non-previewable types (e.g. PDF) are always a click-to-open icon.
+  variant?: "inline" | "icon" | "preview";
 }) => {
   let mediaData: { id: string; type: MediaContentType } | null = null;
 
@@ -83,19 +97,26 @@ export const LangfuseMediaView = ({
 
   if (!mediaUrl) return null;
 
-  if (asFileIcon) {
-    return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
+  if (variant === "icon" || variant === "preview") {
+    const autoExpand =
+      variant === "preview" &&
+      (data?.contentLength ?? 0) <= PREVIEW_AUTO_EXPAND_MAX_BYTES;
+    return (
+      <FileViewer
+        src={mediaUrl}
+        contentType={mediaData.type}
+        defaultExpanded={autoExpand}
+      />
+    );
   }
 
   if (mediaData.type.startsWith("image")) {
     return (
-      <div>
-        <ResizableImage
-          src={mediaUrl}
-          isDefaultVisible={true}
-          shouldValidateImageSource={false}
-        />
-      </div>
+      <ResizableImage
+        src={mediaUrl}
+        isDefaultVisible={true}
+        shouldValidateImageSource={false}
+      />
     );
   } else if (mediaData.type.startsWith("audio")) {
     return <AudioPlayer src={mediaUrl} />;
@@ -109,26 +130,51 @@ export const LangfuseMediaView = ({
 function FileViewer({
   src,
   contentType,
+  defaultExpanded = false,
 }: {
   src?: string;
   contentType: MediaContentType;
+  defaultExpanded?: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  if (!src) return null;
-
   const mimeType = String(contentType);
-
-  const fileName = src.split("/").pop()?.split("?")[0] || "";
   const fileType = mimeType.split("/")[0];
-  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
   const isImage = fileType === "image";
   const isAudio = fileType === "audio";
   const isVideo = fileType === "video";
   const isPreviewable = isImage || isAudio || isVideo;
 
+  const [isExpanded, setIsExpanded] = useState(
+    defaultExpanded && isPreviewable,
+  );
+  const [compactImageWidth, setCompactImageWidth] = useState<string>();
+
+  if (!src) return null;
+
+  const fileName = src.split("/").pop()?.split("?")[0] || "";
+  const fileExtension = mimeType.split("/")[1]?.toUpperCase() || "FILE";
+
   const openInNewTab = () => {
     window.open(src, "_blank", "noopener,noreferrer");
+  };
+
+  const expandPreview = () => {
+    if (!isImage || compactImageWidth) {
+      setIsExpanded(true);
+      return;
+    }
+
+    const image = new window.Image();
+    image.onload = () => {
+      const { naturalWidth, naturalHeight } = image;
+      if (naturalWidth && naturalHeight) {
+        setCompactImageWidth(
+          `${COMPACT_IMAGE_MAX_HEIGHT_REM * (naturalWidth / naturalHeight)}rem`,
+        );
+      }
+      setIsExpanded(true);
+    };
+    image.onerror = () => setIsExpanded(true);
+    image.src = src;
   };
 
   const iconTile = (
@@ -158,6 +204,8 @@ function FileViewer({
       alt={fileName}
       isDefaultVisible={true}
       shouldValidateImageSource={false}
+      fitContent
+      compactWidth={compactImageWidth}
     />
   ) : isAudio ? (
     <AudioPlayer src={src} />
@@ -174,7 +222,7 @@ function FileViewer({
     >
       {isPreviewable && isExpanded ? (
         <div className="flex max-w-3xl items-start gap-2">
-          <div className="min-w-0 flex-1">
+          <div className={cn(isImage ? "contents" : "min-w-0 flex-1")}>
             {isAudio ? (
               <div className="max-w-xl min-w-72">{previewContent}</div>
             ) : (
@@ -184,7 +232,7 @@ function FileViewer({
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
+            size="icon"
             onClick={openInNewTab}
             aria-label={`Open ${fileName} in new tab`}
             title={`Open ${fileName} in new tab`}
@@ -195,7 +243,8 @@ function FileViewer({
         </div>
       ) : (
         <button
-          onClick={() => (isPreviewable ? setIsExpanded(true) : openInNewTab())}
+          type="button"
+          onClick={() => (isPreviewable ? expandPreview() : openInNewTab())}
           aria-label={
             isPreviewable
               ? `Show ${fileName} inline`

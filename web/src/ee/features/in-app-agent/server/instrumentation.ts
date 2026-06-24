@@ -10,9 +10,13 @@ import { compactTextMessageChunks } from "@/src/ee/features/in-app-agent/server/
 export type InAppAgentTracingConfig = {
   environment: string;
   metadata: Record<string, unknown>;
-  userId: string;
+  user: {
+    id: string;
+    email?: string | null;
+  };
   traceId: string;
   targetProjectId: string;
+  prompt?: InAppAgentPromptMetadata;
 };
 
 export type InAppAgentInstrumentationParams = {
@@ -20,13 +24,18 @@ export type InAppAgentInstrumentationParams = {
   tracing?: InAppAgentTracingConfig;
 };
 
+export type InAppAgentPromptMetadata = {
+  name: string;
+  version: number;
+};
+
 const IN_APP_AGENT_TRACE_NAME = "in-app-agent";
-const IN_APP_AGENT_SPAN_NAME = "agent-run";
+const IN_APP_AGENT_RUN_NAME = "agent-run";
 type InternalTracingHandler = ReturnType<typeof getInternalTracingHandler>;
 type InAppAgentTrace = ReturnType<
   InternalTracingHandler["handler"]["langfuse"]["trace"]
 >;
-type InAppAgentSpan = ReturnType<InAppAgentTrace["span"]>;
+type InAppAgentGeneration = ReturnType<InAppAgentTrace["generation"]>;
 type InAppAgentLangfuse = InternalTracingHandler["handler"]["langfuse"];
 type ToolObservationBody = {
   id: string;
@@ -55,10 +64,12 @@ export function createInAppAgentInstrumentation({
     return new InAppAgentInstrumentation({
       input,
       metadata: tracing.metadata,
-      userId: tracing.userId,
+      userId: tracing.user.id,
+      userEmail: tracing.user.email,
       traceId: tracing.traceId,
       targetProjectId: tracing.targetProjectId,
       environment: tracing.environment,
+      prompt: tracing.prompt,
     });
   } catch (error) {
     logger.warn("Failed to initialize in-app agent Langfuse tracing", error);
@@ -70,7 +81,9 @@ export class InAppAgentInstrumentation {
   private readonly processTracedEvents: () => Promise<void>;
   private readonly langfuse: InAppAgentLangfuse;
   private readonly trace: InAppAgentTrace;
-  private readonly span: InAppAgentSpan;
+  private readonly agentRun: InAppAgentGeneration;
+  private readonly agentRunInput: unknown;
+  private readonly prompt?: InAppAgentPromptMetadata;
   private readonly toolSpans = new Map<
     string,
     {
@@ -90,20 +103,36 @@ export class InAppAgentInstrumentation {
     input: AgUiRunAgentInput;
     metadata: Record<string, unknown>;
     userId: string;
+    userEmail?: string | null;
     traceId: string;
     targetProjectId: string;
     environment: string;
+    prompt?: InAppAgentPromptMetadata;
   }) {
-    this.metadata = params.metadata;
+    this.metadata = {
+      ...params.metadata,
+      ...(params.userEmail ? { langfuse_user_email: params.userEmail } : {}),
+      ...(params.prompt
+        ? {
+            prompt_name: params.prompt.name,
+            prompt_version: params.prompt.version,
+          }
+        : {}),
+    };
+    this.agentRunInput = getAgentRunInput(params.input);
+    this.prompt = params.prompt;
 
-    const { handler, processTracedEvents } = getInternalTracingHandler({
+    const traceSinkParams = {
       targetProjectId: params.targetProjectId,
       traceId: params.traceId,
       traceName: IN_APP_AGENT_TRACE_NAME,
       environment: params.environment,
       userId: params.userId,
-      metadata: params.metadata,
-    });
+      metadata: this.metadata,
+      prompt: params.prompt,
+    };
+    const { handler, processTracedEvents } =
+      getInternalTracingHandler(traceSinkParams);
     this.processTracedEvents = processTracedEvents;
     this.langfuse = handler.langfuse;
 
@@ -112,14 +141,20 @@ export class InAppAgentInstrumentation {
       name: IN_APP_AGENT_TRACE_NAME,
       userId: params.userId,
       sessionId: params.input.threadId,
-      metadata: params.metadata,
+      metadata: this.metadata,
       tags: ["in-app-agent"],
     });
-    this.span = this.trace.span({
+    this.agentRun = this.trace.generation({
       id: params.input.runId,
-      name: IN_APP_AGENT_SPAN_NAME,
-      input: getAgentSpanInput(params.input),
-      metadata: params.metadata,
+      name: IN_APP_AGENT_RUN_NAME,
+      input: this.agentRunInput,
+      metadata: this.metadata,
+      ...(params.prompt
+        ? {
+            promptName: params.prompt.name,
+            promptVersion: params.prompt.version,
+          }
+        : {}),
     });
   }
 
@@ -142,7 +177,9 @@ export class InAppAgentInstrumentation {
 
     const message = error instanceof Error ? error.message : String(error);
     this.endOpenToolSpans({ error: message }, message);
-    this.span.update({
+    this.agentRun.update({
+      name: IN_APP_AGENT_RUN_NAME,
+      input: this.agentRunInput,
       output: this.output || undefined,
       level: "ERROR",
       statusMessage: message,
@@ -151,11 +188,17 @@ export class InAppAgentInstrumentation {
         ...(this.reasoning ? { reasoning: this.reasoning } : {}),
         error: message,
       },
+      ...(this.prompt
+        ? {
+            promptName: this.prompt.name,
+            promptVersion: this.prompt.version,
+          }
+        : {}),
     });
     this.trace.update({
       metadata: { ...this.metadata, error: message },
     });
-    this.span.end();
+    this.agentRun.end();
     this.ended = true;
   }
 
@@ -171,12 +214,20 @@ export class InAppAgentInstrumentation {
       ...(params?.aborted ? { aborted: true } : {}),
       ...(params?.result ? { result: params.result } : {}),
     };
-    this.span.update({
+    this.agentRun.update({
+      name: IN_APP_AGENT_RUN_NAME,
+      input: this.agentRunInput,
       output: this.output || undefined,
       metadata,
+      ...(this.prompt
+        ? {
+            promptName: this.prompt.name,
+            promptVersion: this.prompt.version,
+          }
+        : {}),
     });
     this.trace.update({ metadata });
-    this.span.end();
+    this.agentRun.end();
     this.ended = true;
   }
 
@@ -333,8 +384,8 @@ export class InAppAgentInstrumentation {
   ) {
     const body: ToolObservationBody = {
       id: toolCallId,
-      traceId: this.span.traceId,
-      parentObservationId: this.span.observationId,
+      traceId: this.agentRun.traceId,
+      parentObservationId: this.agentRun.observationId,
       name: tool.name,
       startTime: tool.startTime,
       endTime: new Date(),
@@ -371,7 +422,7 @@ export class InAppAgentInstrumentation {
   }
 }
 
-function getAgentSpanInput(input: AgUiRunAgentInput): unknown {
+function getAgentRunInput(input: AgUiRunAgentInput): unknown {
   const message = getLastUserMessageText(input);
 
   if (input.context.length === 0) {

@@ -120,7 +120,7 @@ export const AssistantMarkdown = meta.story({
         "##### Heading 5",
         "###### Heading 6",
         "",
-        "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, `metadata` and `scores` across releases.",
+        "You can use **[Langfuse](https://langfuse.com)** to inspect _production traces_ and compare `input`, `output`, `metadata` and `scores` across releases.",
         "",
         "- Inspect traces with nested observations",
         "- Evaluate outputs with scores",
@@ -313,7 +313,7 @@ export const FeedbackPopoverInteraction = meta.story({
     const commentInput = await body.findByPlaceholderText(
       "Optional feedback comment",
     );
-    await expect(commentInput).toBeVisible();
+    await waitFor(() => expect(commentInput).toBeVisible());
 
     const saveButton = await body.findByRole("button", {
       name: "Save comment",

@@ -80,6 +80,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseStreamRawText,
 } from "./clickhouse";
 import {
   EventsObservationRecordReadType,
@@ -97,12 +98,10 @@ import {
   CTEQueryBuilder,
   EventsAggQueryBuilder,
   buildEventsFullTableSplitQuery,
-  buildEventsFullTableSubqueryQuery,
   type QueryWithParams,
   type SessionEventsMetricsRow,
   OrderByEntry,
 } from "../queries/clickhouse-sql/event-query-builder";
-import { shouldUseObservationsSubqueryRewrite } from "../queries/clickhouse-sql/query-options";
 import { type EventsObservationPublic } from "../queries/createGenerationsQuery";
 import {
   eventsTableCols,
@@ -1510,17 +1509,12 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
-  // Pick the query shape. The rewrite only replaces the CTE+JOIN split query
-  // (needsIOCTE); the simple path is untouched. External CTEs keep the
-  // CTE+JOIN path: their resolution inside the IN subquery is unverified, and
-  // no v2 filter currently produces one.
-  const queryPath: "simple" | "cte-join" | "subquery-rewrite" = !needsIOCTE
-    ? "simple"
-    : externalCTEs.length === 0 && shouldUseObservationsSubqueryRewrite()
-      ? "subquery-rewrite"
-      : "cte-join";
+  // Pick the query shape. When IO/expanded metadata is requested, use the
+  // CTE+JOIN split query that fetches those columns from events_full for the
+  // matched rows only; otherwise everything comes from events_core directly.
+  const queryPath: "simple" | "cte-join" = needsIOCTE ? "cte-join" : "simple";
 
-  // Field groups projected on the base builder by the non-rewrite paths.
+  // Field groups projected on the base builder.
   // `io` (and `metadata` when it must come untruncated from events_full) is
   // fetched by the io CTE instead; selecting it on events_core would return
   // truncated values.
@@ -1554,23 +1548,12 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
         externalCTEs,
       }).orderByColumns(orderByForObservationsQuery("b", "id"));
       break;
-    case "subquery-rewrite":
-      // No projection on the base builder: it becomes the inner IN-subquery,
-      // which projects only the identity tuple (added by the build function).
-      builder = buildEventsFullTableSubqueryQuery({
-        projectId,
-        innerBuilder: baseBuilder,
-        fieldSetNames: ["core", ...requestedFields],
-      });
-      break;
   }
 
   const records =
     await getObservationsRowsFromBuilder<ObservationsTableQueryResultWitouhtTraceFields>(
       projectId,
       builder,
-      undefined,
-      { queryPath },
     );
 
   return await enrichObservationsWithModelData(
@@ -3501,12 +3484,26 @@ export const hasAnyUserFromEventsTable = async (
  * Streams events from ClickHouse for blob storage export.
  * Uses EventsQueryBuilder for consistent query construction.
  */
-export const getEventsForBlobStorageExport = function (
+// metrics field set emits latency / time_to_first_token in MILLISECONDS. The
+// raw-passthrough path (LFE-10402) cannot convert ms→s in JS, so when requested
+// it selects the seconds-converted expressions directly in SQL instead. The
+// standard path keeps ms here and converts conditionally in JS, so it stays
+// byte-for-byte unchanged.
+const EVENTS_EXPORT_METRICS_SECONDS_SQL = [
+  "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time) / 1000) as latency",
+  "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time) / 1000) as \"time_to_first_token\"",
+];
+
+// Shared SQL+params builder for the events blob-export. `convertLatencyToSecondsInSql`
+// is only set by the raw-passthrough path; the standard path leaves it false so
+// its output is identical to today.
+const buildEventsForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-) {
+  fieldGroups: ObservationFieldGroupFull[],
+  convertLatencyToSecondsInSql: boolean,
+) => {
   const queryBuilder = new EventsQueryBuilder({ projectId });
 
   // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
@@ -3519,6 +3516,8 @@ export const getEventsForBlobStorageExport = function (
       queryBuilder.selectIO(false); // Full I/O, no truncation
     } else if (group === "model") {
       queryBuilder.selectFieldSet("model_export"); // "model_export" is the SQL field set name for the "model" group
+    } else if (group === "metrics" && convertLatencyToSecondsInSql) {
+      queryBuilder.selectRaw(...EVENTS_EXPORT_METRICS_SECONDS_SQL);
     } else {
       queryBuilder.selectFieldSet(group);
     }
@@ -3537,7 +3536,7 @@ export const getEventsForBlobStorageExport = function (
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  return queryClickhouseStream<Record<string, unknown>>({
+  return {
     query,
     params,
     tags: {
@@ -3549,8 +3548,48 @@ export const getEventsForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
-    preferredClickhouseService: "EventsReadOnly",
-  });
+    preferredClickhouseService: "EventsReadOnly" as const,
+  };
+};
+
+export const getEventsForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+) {
+  return queryClickhouseStream<Record<string, unknown>>(
+    buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      false, // standard path converts latency ms→s in JS
+    ),
+  );
+};
+
+// Raw-passthrough variant (LFE-10402): yields each row's unparsed JSONEachRow
+// text, skipping the per-row parse/enrich/serialize cycle. When
+// `convertLatencyToSeconds` is set, latency/ttft are divided by 1000 in SQL
+// (matching what the JS path would have done); otherwise they stay in ms (legacy
+// integrations). Price columns are NOT added.
+export const getEventsForBlobStorageExportRaw = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  convertLatencyToSeconds: boolean = false,
+) {
+  return queryClickhouseStreamRawText(
+    buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      convertLatencyToSeconds,
+    ),
+  );
 };
 
 /**

@@ -639,7 +639,7 @@ export function TableViewPresetsDrawer({
                                       <PopoverContent
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <h2 className="text-md mb-3 font-semibold">
+                                        <h2 className="mb-3 font-semibold">
                                           Edit
                                         </h2>
                                         <Form {...form}>

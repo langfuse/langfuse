@@ -25,6 +25,12 @@ export const IngestionEvent = z.object({
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
+    // Absolute S3 key prefix the producer used (ends with "/"). Set so the
+    // consumer never reconstructs the path and therefore can't drift from
+    // the producer when env values differ across containers. Optional for
+    // backward compatibility with in-flight jobs enqueued before this field
+    // existed — the consumer falls back to local reconstruction when absent.
+    bucketPrefix: z.string().optional(),
   }),
   authCheck: z.object({
     validKey: z.literal(true),

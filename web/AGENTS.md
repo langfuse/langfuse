@@ -114,6 +114,17 @@ changes.
   `top-banner-offset`, `pt-banner-offset`, `h-screen-with-banner`, or
   `min-h-screen-with-banner` instead of raw `top-0` so banners do not overlap
   the UI.
+- **Z-index / layers — key idea: we are migrating from z-indexes to a layer
+  system** (start of a developing design system; extend it, don't work around
+  it). **To put something on top of something else, use a layer, not a
+  z-index.** The app renders inside `#__next`, isolated into one stacking
+  context (`globals.css`), so its z-indexes can't escape; overlays go in layers
+  that sit outside it and always win. Today there's one layer, `tooltip`:
+  containers declared in `_document.tsx`, ordered by `LAYER_ORDER` (later = on
+  top), no z-index; render via `<Layer name="…">` (`src/components/ui/layer.tsx`).
+  Add a layer only when an overlay must escape the app (else use a Radix
+  `*.Portal`) by adding a name to `LAYER_ORDER`. z-index stays local to a layer
+  or component (1–2 max), never to escape the app.
 - Public API routes should use
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
