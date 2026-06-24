@@ -56,6 +56,13 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
 
+export const BlobExportFormat = {
+  JSON_GZIP: "json-gzip",
+  JSON_RAW: "json-raw",
+} as const;
+export type BlobExportFormat =
+  (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
+
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
 export async function* enrichObservationStream(
@@ -626,11 +633,14 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
           });
 
+          const exportFormat: BlobExportFormat = config.compressed
+            ? BlobExportFormat.JSON_GZIP
+            : BlobExportFormat.JSON_RAW;
           const byteTags = {
             table: config.table,
             projectId: config.projectId,
             path: passthroughEligible ? "passthrough" : "standard",
-            compressed: compressedCounter ? "true" : "false",
+            source: exportFormat,
           };
           recordIncrement(
             "langfuse.blob_export.serialized_bytes",
@@ -714,10 +724,13 @@ const processBlobStorageExport = async (config: {
                 : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
               span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
               span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
+              const finalExportFormat: BlobExportFormat = config.compressed
+                ? BlobExportFormat.JSON_GZIP
+                : BlobExportFormat.JSON_RAW;
               const stageTags = {
                 table: config.table,
                 path: passthroughEligible ? "passthrough" : "standard",
-                compressed: config.compressed ? "true" : "false",
+                source: finalExportFormat,
               };
               recordHistogram(
                 "langfuse.blob_export.ch_read_ms",
