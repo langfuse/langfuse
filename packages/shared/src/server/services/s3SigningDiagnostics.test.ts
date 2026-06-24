@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildS3RequestDiagnostics,
+  isS3DiagnosableError,
   summarizeS3Error,
 } from "./s3SigningDiagnostics";
 
@@ -28,7 +29,23 @@ describe("summarizeS3Error", () => {
       requestId: "req-123",
       extendedRequestId: "ext-456",
       message: "The request signature we calculated",
+      details: undefined,
     });
+  });
+
+  it("extracts GCS-specific Details from the XML error body", () => {
+    const err = Object.assign(new Error("Invalid argument."), {
+      name: "InvalidArgument",
+      Code: "InvalidArgument",
+      Details: "Multipart upload is not supported in Rapid storage class.",
+      $fault: "client",
+      $metadata: { httpStatusCode: 400 },
+    });
+
+    const summary = summarizeS3Error(err);
+    expect(summary.details).toBe(
+      "Multipart upload is not supported in Rapid storage class.",
+    );
   });
 
   it("never throws on non-object errors", () => {
@@ -78,5 +95,45 @@ describe("buildS3RequestDiagnostics", () => {
     const diagnostics = buildS3RequestDiagnostics(undefined, "boom", context);
     expect(diagnostics.request.method).toBeUndefined();
     expect(diagnostics.error.message).toBe("boom");
+  });
+});
+
+describe("isS3DiagnosableError", () => {
+  const summarize = (code: string, httpStatusCode?: number) =>
+    summarizeS3Error(
+      Object.assign(new Error(code), {
+        name: code,
+        Code: code,
+        $metadata: { httpStatusCode },
+      }),
+    );
+
+  it("logs signing/authorization failures", () => {
+    for (const code of [
+      "SignatureDoesNotMatch",
+      "InvalidSignatureException",
+      "AuthorizationHeaderMalformed",
+      "RequestTimeTooSkewed",
+      "InvalidAccessKeyId",
+    ]) {
+      expect(isS3DiagnosableError(summarize(code, 403))).toBe(true);
+    }
+  });
+
+  it("logs backend-configuration errors (e.g. GCS storage-class mismatch)", () => {
+    expect(isS3DiagnosableError(summarize("InvalidArgument", 400))).toBe(true);
+    expect(isS3DiagnosableError(summarize("NotImplemented", 501))).toBe(true);
+  });
+
+  it("skips transient throttling and expected app-level errors", () => {
+    for (const code of [
+      "SlowDown",
+      "ServiceUnavailable",
+      "RequestTimeout",
+      "NoSuchKey",
+      "AccessDenied",
+    ]) {
+      expect(isS3DiagnosableError(summarize(code))).toBe(false);
+    }
   });
 });

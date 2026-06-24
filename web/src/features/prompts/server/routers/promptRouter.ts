@@ -1617,12 +1617,12 @@ const generatePromptQuery = (
     FROM combined p
     ${orderAndLimit};
     `;
-  } else {
-    const baseColumns = Prisma.sql`id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by`;
+  }
+  const baseColumns = Prisma.sql`id, name, version, project_id, prompt, type, updated_at, created_at, labels, tags, config, created_by`;
 
-    // When we're at the root level, show all individual prompts that don't have folders
-    // and one representative per folder for prompts that do have folders
-    return Prisma.sql`
+  // When we're at the root level, show all individual prompts that don't have folders
+  // and one representative per folder for prompts that do have folders
+  return Prisma.sql`
     WITH ${latestCTE},
     individual_prompts AS (
       /* Individual prompts without folders */
@@ -1662,5 +1662,4 @@ const generatePromptQuery = (
     FROM combined p
     ${orderAndLimit};
     `;
-  }
 };

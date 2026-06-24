@@ -181,11 +181,27 @@ export async function createProjectMembershipsOnSignup(
       canCreateOrganizations(user.email) &&
       (options?.userWasJustCreated || isNewUser)
     ) {
-      await provisionStarterOrganizationForNewUser({
+      const starterOrg = await provisionStarterOrganizationForNewUser({
         prisma,
         userId: user.id,
         userName: user.name,
       });
+
+      if (starterOrg) {
+        await getSfdcService()?.upsertOrg({
+          orgId: starterOrg.organization.id,
+          orgName: starterOrg.organization.name,
+          userId: user.id,
+          email: user.email,
+          role: "OWNER",
+        });
+        await getSfdcService()?.setUserRole({
+          orgId: starterOrg.organization.id,
+          userId: user.id,
+          email: user.email,
+          role: "OWNER",
+        });
+      }
     }
 
     if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {

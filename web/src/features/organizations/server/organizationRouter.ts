@@ -122,6 +122,12 @@ export const organizationsRouter = createTRPCRouter({
         email: ctx.session.user.email,
         role: "OWNER",
       });
+      await getSfdcService()?.setUserRole({
+        orgId: organization.id,
+        userId: ctx.session.user.id,
+        email: ctx.session.user.email,
+        role: "OWNER",
+      });
 
       return {
         id: organization.id,

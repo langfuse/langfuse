@@ -34,9 +34,15 @@ import {
   getObservationsBatchIOFromEventsTable,
   getScoresForObservations,
   getScoresForTraces,
+  logger,
   traceException,
 } from "@langfuse/shared/src/server";
 import { type timeFilter, type FilterState } from "@langfuse/shared";
+import {
+  monitorEvaluationOffsetMs,
+  type MonitorWindow,
+  windowToMs,
+} from "@langfuse/shared/monitors";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { assertUnreachable } from "@/src/utils/types";
 
@@ -78,6 +84,7 @@ interface GetObservationsCountParams {
 interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
+  monitorWindow?: MonitorWindow;
   isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
@@ -93,6 +100,112 @@ type GroupedEventsFilterOptions = {
   limit?: number;
   offset?: number;
   orderBy?: string;
+};
+
+const OBSERVATIONS_TO_TRACE_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
+const SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS = 60 * 60 * 1000;
+const EVENT_FILTER_OPTIONS_SCORE_LOOKBACK_BUFFER_MS =
+  OBSERVATIONS_TO_TRACE_INTERVAL_MS + SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS;
+const EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_DAYS = 30;
+const EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_MS =
+  EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
+const isEventFilterOptionsLowerBoundStartTimeFilter = (filter: TimeFilter) =>
+  (filter.column === "startTime" || filter.column === "Start Time") &&
+  (filter.operator === ">=" || filter.operator === ">");
+
+const hasEventFilterOptionsLowerBoundStartTimeFilter = (
+  filters?: TimeFilter[],
+) => filters?.some(isEventFilterOptionsLowerBoundStartTimeFilter) ?? false;
+
+const getDefaultEventFilterOptionsStartTimeFilter = (): TimeFilter[] => [
+  {
+    column: "startTime",
+    type: "datetime",
+    operator: ">=",
+    value: new Date(Date.now() - EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_MS),
+  },
+];
+
+const getMonitorWindowStartTimeFilter = (
+  monitorWindow: MonitorWindow,
+): TimeFilter[] => {
+  const windowMs = Number(windowToMs(monitorWindow));
+  const to = new Date(Date.now() - monitorEvaluationOffsetMs);
+  const from = new Date(to.getTime() - windowMs);
+
+  return [
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: ">=",
+      value: from,
+    },
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: "<=",
+      value: to,
+    },
+  ];
+};
+
+const ensureStartTimeFilterForEventFilterOptions = <
+  TParams extends GetObservationsFilterOptionsParams,
+>(
+  params: TParams,
+): TParams => {
+  if (hasEventFilterOptionsLowerBoundStartTimeFilter(params.startTimeFilter)) {
+    return params;
+  }
+
+  if (params.monitorWindow) {
+    return {
+      ...params,
+      startTimeFilter: [
+        ...getMonitorWindowStartTimeFilter(params.monitorWindow),
+        ...(params.startTimeFilter ?? []),
+      ],
+    };
+  }
+
+  logger.warn(
+    "events.filterOptions called without lower startTimeFilter; applying default lookback",
+    {
+      projectId: params.projectId,
+      defaultLookbackDays: EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_DAYS,
+    },
+  );
+
+  return {
+    ...params,
+    startTimeFilter: [
+      ...getDefaultEventFilterOptionsStartTimeFilter(),
+      // Preserve upper-only bounds while adding the missing lower bound.
+      ...(params.startTimeFilter ?? []),
+    ],
+  } as TParams;
+};
+
+const toScoreTimestampFilters = (
+  startTimeFilter: TimeFilter[] | undefined,
+  column: "Timestamp" | "timestamp",
+): FilterCondition[] => {
+  return (startTimeFilter ?? []).flatMap((filter) => {
+    if (!isEventFilterOptionsLowerBoundStartTimeFilter(filter)) return [];
+
+    return [
+      {
+        column,
+        operator: filter.operator,
+        value: new Date(
+          filter.value.getTime() -
+            EVENT_FILTER_OPTIONS_SCORE_LOOKBACK_BUFFER_MS,
+        ),
+        type: "datetime",
+      },
+    ];
+  });
 };
 
 /**
@@ -297,25 +410,17 @@ const getEventFilterOptionsScope = (
       : []),
   ];
 
-  // Map startTimeFilter to Timestamp column for trace queries
-  const traceTimestampFilters =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "Timestamp" as const,
-          operator: f.operator,
-          value: f.value,
-          type: "datetime" as const,
-        }))
-      : [];
-  const traceScoreTimestampFilters: FilterCondition[] =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "timestamp",
-          operator: f.operator,
-          value: f.value,
-          type: "datetime",
-        }))
-      : [];
+  // Derive score-table timestamp filters from observation startTime filters.
+  // This is not a 1:1 remap: score loading allows trace/score timestamp skew,
+  // and upper observation bounds would hide backfilled scores data queries use.
+  const traceTimestampFilters = toScoreTimestampFilters(
+    startTimeFilter,
+    "Timestamp",
+  );
+  const traceScoreTimestampFilters = toScoreTimestampFilters(
+    startTimeFilter,
+    "timestamp",
+  );
 
   return {
     eventsFilter,
@@ -344,8 +449,9 @@ export async function getEventFilterValuePage(
     offset: number;
   },
 ) {
-  const { projectId, column, limit, offset } = params;
-  const { eventsFilter } = getEventFilterOptionsScope(params);
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId, column, limit, offset } = scopedParams;
+  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
   const queryLimit = limit + 1;
 
   const createResultFromGroupedQuery = async <T>(
@@ -478,8 +584,9 @@ export async function getEventFilterNumericRange(
     >;
   },
 ) {
-  const { projectId, column } = params;
-  const { eventsFilter } = getEventFilterOptionsScope(params);
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId, column } = scopedParams;
+  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
 
   return getEventsNumericStatsByFilterColumn(projectId, eventsFilter, column);
 }
@@ -490,9 +597,10 @@ export async function getEventFilterNumericRange(
 export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
-  const { projectId } = params;
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId } = scopedParams;
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
-    getEventFilterOptionsScope(params);
+    getEventFilterOptionsScope(scopedParams);
 
   const [
     numericScoreNames,

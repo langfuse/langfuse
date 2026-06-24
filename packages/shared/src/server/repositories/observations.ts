@@ -4,6 +4,8 @@ import {
   queryClickhouse,
   queryClickhouseStream,
   queryClickhouseStreamRawText,
+  queryClickhouseExecRaw,
+  BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
   upsertClickhouse,
 } from "./clickhouse";
 import { logger } from "../logger";
@@ -406,7 +408,7 @@ export const getObservationByIdFromObservationsTable = async ({
 export const getObservationsById = async (
   ids: string[],
   projectId: string,
-  fetchWithInputOutput: boolean = false,
+  fetchWithInputOutput = false,
 ) => {
   const query = `
   SELECT
@@ -1920,6 +1922,27 @@ export const getObservationsForBlobStorageExportRaw = function (
       fieldGroups,
     ),
   );
+};
+
+// LFE-10463: FORMAT Parquet export — reuses the field-group-aware builder and
+// streams raw binary bytes to upload. Like raw passthrough, no JS enrichment, so
+// price columns are NOT added.
+export const getObservationsForBlobStorageExportParquet = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+) {
+  return queryClickhouseExecRaw({
+    ...buildObservationsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
+    format: "Parquet",
+    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+  });
 };
 
 export const getGenerationsForAnalyticsIntegrations = async function* (
