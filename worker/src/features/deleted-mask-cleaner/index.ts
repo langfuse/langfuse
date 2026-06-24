@@ -133,7 +133,6 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
       },
       tags: {
         surface: "worker",
-        route: this.instanceName,
         feature: "deletion",
         operation: "get-candidates",
       },
@@ -160,7 +159,6 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
       },
       tags: {
         surface: "worker",
-        route: this.instanceName,
         feature: "deletion",
         operation: "get-mutation-counts",
       },
@@ -205,7 +203,6 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         abortSignal: abortController.signal,
         tags: {
           surface: "worker",
-          route: this.instanceName,
           feature: "deletion",
           table: candidate.table,
           partition: candidate.partition_to_clean,

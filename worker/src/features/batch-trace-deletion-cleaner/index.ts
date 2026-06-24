@@ -156,7 +156,6 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
       processPostgresTraceDelete(projectId, traceIdsToDelete),
       processClickhouseTraceDelete(projectId, traceIdsToDelete, {
         surface: "worker",
-        route: this.instanceName,
       }),
     ]);
 

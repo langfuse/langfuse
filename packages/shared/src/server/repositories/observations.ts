@@ -8,7 +8,6 @@ import {
   BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
   upsertClickhouse,
 } from "./clickhouse";
-import { QueueName } from "../queues";
 import { logger } from "../logger";
 import {
   InternalServerError,
@@ -1911,7 +1910,6 @@ const buildObservationsForBlobStorageExportQuery = (
     },
     tags: {
       surface: "worker" as const,
-      route: QueueName.BlobStorageIntegrationProcessingQueue,
       feature: "batch-export",
       type: "observation",
       kind: "analytic",

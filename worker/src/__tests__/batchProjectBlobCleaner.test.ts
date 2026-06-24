@@ -97,7 +97,7 @@ describe("BatchProjectBlobCleaner", () => {
     expect(mockRemoveIngestionEvents).toHaveBeenCalledWith(
       projectId,
       undefined,
-      { surface: "worker", route: "BatchProjectBlobCleaner" },
+      { surface: "worker" },
     );
   });
 

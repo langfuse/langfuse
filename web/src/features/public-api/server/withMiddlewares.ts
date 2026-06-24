@@ -22,10 +22,7 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
-import {
-  clickHouseRouteForRequest,
-  clickHouseSurfaceForRequest,
-} from "@/src/features/public-api/server/clickHouseRequestTags";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
 // Exported to silence @typescript-eslint/no-unused-vars v8 warning
 // (used for type extraction via typeof, which is a legitimate pattern)
@@ -92,7 +89,7 @@ export function withMiddlewares(
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
       clickhouse: {
-        surface: clickHouseSurfaceForRequest(req),
+        surface: "publicapi",
         route: clickHouseRouteForRequest(req),
       },
     });

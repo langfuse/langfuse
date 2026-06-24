@@ -25,10 +25,7 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
-import {
-  clickHouseRouteForRequest,
-  clickHouseSurfaceForRequest,
-} from "@/src/features/public-api/server/clickHouseRequestTags";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -438,7 +435,7 @@ export const createAuthedProjectAPIRoute = <
       projectId: auth.scope.projectId,
       apiKeyId: auth.scope.apiKeyId,
       clickhouse: {
-        surface: clickHouseSurfaceForRequest(req),
+        surface: "publicapi",
         route: clickHouseRouteForRequest(req),
       },
     });

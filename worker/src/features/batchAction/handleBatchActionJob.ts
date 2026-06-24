@@ -91,7 +91,6 @@ async function processActionChunk(
       case "score-delete":
         await processClickhouseScoreDelete(projectId, chunkIds, {
           surface: "worker",
-          route: QueueName.BatchActionQueue,
         });
         break;
 

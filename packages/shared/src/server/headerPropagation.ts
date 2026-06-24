@@ -13,7 +13,7 @@ export type LangfuseContextProps = {
   apiKeyId?: string;
   clickhouse?: {
     surface: ClickHouseQuerySurface;
-    route: string;
+    route?: string;
   };
 };
 
@@ -72,9 +72,11 @@ export const contextWithLangfuseProps = (
     baggage = baggage.setEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface, {
       value: props.clickhouse.surface,
     });
-    baggage = baggage.setEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route, {
-      value: props.clickhouse.route,
-    });
+    if (props.clickhouse.route?.trim()) {
+      baggage = baggage.setEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route, {
+        value: props.clickhouse.route,
+      });
+    }
   }
 
   return opentelemetry.propagation.setBaggage(ctx, baggage);

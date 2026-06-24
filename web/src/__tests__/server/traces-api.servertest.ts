@@ -32,7 +32,6 @@ import waitForExpect from "wait-for-expect";
 
 const directPublicApiClickHouseQueryTags = {
   surface: "publicapi" as const,
-  route: "traces-api.servertest",
 };
 
 // Helper type for creating observation/event data

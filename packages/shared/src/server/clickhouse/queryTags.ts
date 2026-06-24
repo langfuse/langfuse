@@ -1,6 +1,7 @@
 import { context, propagation } from "@opentelemetry/api";
 
 export const CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION = "1" as const;
+const UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE = "unknown" as const;
 
 export const clickHouseQuerySurfaces = [
   "trpc",
@@ -31,9 +32,9 @@ export const clickHouseQueryFeatures = [
 export type ClickHouseQueryFeature = (typeof clickHouseQueryFeatures)[number];
 
 export type ClickHouseQueryTags = {
-  surface?: ClickHouseQuerySurface;
+  surface?: ClickHouseQuerySurface | (string & {});
   route?: string;
-  feature: ClickHouseQueryFeature | (string & {});
+  feature?: ClickHouseQueryFeature | (string & {});
   projectId?: string;
   [key: string]: unknown;
 };
@@ -45,20 +46,11 @@ export type ClickHouseQueryContextTags = Pick<
 
 export type NormalizedClickHouseQueryTags = {
   tag_schema_version: typeof CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION;
-  surface: ClickHouseQuerySurface;
-  route: string;
-  feature: ClickHouseQueryFeature;
+  surface: ClickHouseQuerySurface | typeof UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE;
+  route?: string;
+  feature: ClickHouseQueryFeature | typeof UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE;
   projectId?: string;
 };
-
-const TEST_FALLBACK_CLICKHOUSE_QUERY_TAGS = {
-  surface: "worker",
-  route: "vitest",
-  feature: "custom-query",
-} as const satisfies Pick<
-  NormalizedClickHouseQueryTags,
-  "surface" | "route" | "feature"
->;
 
 export const CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS = {
   surface: "langfuse.clickhouse.surface",
@@ -69,71 +61,46 @@ export const CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS = {
 const surfaceSet = new Set<string>(clickHouseQuerySurfaces);
 const featureSet = new Set<string>(clickHouseQueryFeatures);
 
-let clickHouseQueryTagTestFallbackEnabled = true;
+const isClickHouseQuerySurface = (
+  value: unknown,
+): value is ClickHouseQuerySurface =>
+  typeof value === "string" && surfaceSet.has(value);
 
-export function setClickHouseQueryTagTestFallbackForTests(
-  enabled: boolean,
-): void {
-  clickHouseQueryTagTestFallbackEnabled = enabled;
-}
-
-function getTestFallbackClickHouseQueryTags():
-  | typeof TEST_FALLBACK_CLICKHOUSE_QUERY_TAGS
-  | undefined {
-  /* eslint-disable turbo/no-undeclared-env-vars -- This fallback is intentionally limited to test runners without loading env validation. */
-  const isTestRuntime =
-    process.env.NODE_ENV === "test" ||
-    process.env.VITEST === "true" ||
-    process.env.VITEST_WORKER_ID !== undefined;
-  /* eslint-enable turbo/no-undeclared-env-vars */
-
-  if (isTestRuntime && clickHouseQueryTagTestFallbackEnabled) {
-    return TEST_FALLBACK_CLICKHOUSE_QUERY_TAGS;
-  }
-}
+const isClickHouseQueryFeature = (
+  value: unknown,
+): value is ClickHouseQueryFeature =>
+  typeof value === "string" && featureSet.has(value);
 
 export function normalizeClickHouseQueryTags(
-  tags: ClickHouseQueryTags,
+  tags?: ClickHouseQueryTags,
 ): NormalizedClickHouseQueryTags {
   const baggage = propagation.getBaggage(context.active());
-  const fallbackTags = getTestFallbackClickHouseQueryTags();
   const providedTags = tags as ClickHouseQueryTags | undefined;
   const surface =
     providedTags?.surface ??
-    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface)?.value ??
-    fallbackTags?.surface;
+    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface)?.value;
   const route =
     providedTags?.route ??
-    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route)?.value ??
-    fallbackTags?.route;
-  const feature = providedTags?.feature ?? fallbackTags?.feature;
+    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route)?.value;
+  const feature = providedTags?.feature;
   const projectId =
     providedTags?.projectId ??
     baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId)?.value;
-
-  if (!surface || !surfaceSet.has(surface)) {
-    throw new Error(
-      `Missing or invalid ClickHouse query tag surface: ${surface ?? "<missing>"}`,
-    );
-  }
-  if (!route || !route.trim()) {
-    throw new Error("Missing ClickHouse query tag route");
-  }
-  if (!feature || !featureSet.has(feature)) {
-    throw new Error(
-      `Missing or invalid ClickHouse query tag feature: ${feature ?? "<missing>"}`,
-    );
-  }
+  const normalizedRoute = typeof route === "string" ? route.trim() : "";
 
   return {
     tag_schema_version: CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION,
-    surface: surface as ClickHouseQuerySurface,
-    route: route.trim(),
-    feature: feature as ClickHouseQueryFeature,
+    surface: isClickHouseQuerySurface(surface)
+      ? surface
+      : UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE,
+    ...(normalizedRoute ? { route: normalizedRoute } : {}),
+    feature: isClickHouseQueryFeature(feature)
+      ? feature
+      : UNKNOWN_CLICKHOUSE_QUERY_TAG_VALUE,
     ...(projectId ? { projectId } : {}),
   };
 }
 
-export function buildClickHouseLogComment(tags: ClickHouseQueryTags): string {
+export function buildClickHouseLogComment(tags?: ClickHouseQueryTags): string {
   return JSON.stringify(normalizeClickHouseQueryTags(tags));
 }

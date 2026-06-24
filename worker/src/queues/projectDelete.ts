@@ -59,7 +59,6 @@ export const projectDeleteProcessor: Processor = async (
   );
   const clickHouseQueryTags = {
     surface: "worker" as const,
-    route: QueueName.ProjectDelete,
   };
 
   // Delete project data from ClickHouse first

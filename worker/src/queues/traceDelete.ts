@@ -100,7 +100,6 @@ export const traceDeleteProcessor: Processor = async (
       processPostgresTraceDelete(projectId, traceIdsToDelete),
       processClickhouseTraceDelete(projectId, traceIdsToDelete, {
         surface: "worker",
-        route: QueueName.TraceDelete,
       }),
     ]);
 

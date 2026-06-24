@@ -58,7 +58,6 @@ async function isEventsTableEnabled(): Promise<boolean> {
       },
       tags: {
         surface: "worker",
-        route: "DeletedMaskCleaner.test",
         feature: "deletion",
       },
     });
@@ -137,7 +136,6 @@ async function hasCleanerCandidate(partitionToClean: string): Promise<boolean> {
     },
     tags: {
       surface: "worker",
-      route: "DeletedMaskCleaner.test",
       feature: "deletion",
     },
   });
@@ -187,7 +185,6 @@ async function getActiveMutationCount(
     },
     tags: {
       surface: "worker",
-      route: "DeletedMaskCleaner.test",
       feature: "deletion",
     },
   });
@@ -272,7 +269,6 @@ async function createEventPatchParts(
     },
     tags: {
       surface: "worker",
-      route: "DeletedMaskCleaner.test",
       feature: "deletion",
     },
   });

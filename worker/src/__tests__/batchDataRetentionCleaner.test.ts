@@ -22,7 +22,6 @@ async function getClickhouseCount(
     params: { projectId },
     tags: {
       surface: "worker",
-      route: "BatchDataRetentionCleaner.test",
       feature: "retention",
     },
   });

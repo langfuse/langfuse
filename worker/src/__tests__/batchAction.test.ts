@@ -44,7 +44,6 @@ const maybeDescribe =
 
 const directWorkerClickHouseQueryTags = {
   surface: "worker" as const,
-  route: "batchAction.test",
 };
 
 const withIsolatedCreateEvalQueue = async <T>(

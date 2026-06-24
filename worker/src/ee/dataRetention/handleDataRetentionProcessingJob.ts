@@ -7,7 +7,6 @@ import {
   findExpiredMediaByProjectId,
   getS3MediaStorageClient,
   logger,
-  QueueName,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
@@ -87,7 +86,6 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   );
   const clickHouseQueryTags = {
     surface: "worker" as const,
-    route: QueueName.DataRetentionProcessingQueue,
   };
 
   await Promise.all([

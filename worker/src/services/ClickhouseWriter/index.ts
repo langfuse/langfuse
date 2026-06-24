@@ -580,7 +580,6 @@ export class ClickhouseWriter {
         clickhouse_settings: {
           log_comment: buildClickHouseLogComment({
             surface: "worker",
-            route: "ClickhouseWriter",
             feature: "ingestion",
           }),
         },

@@ -92,7 +92,6 @@ export class WorkerManager {
         projectId: WorkerManager.extractProjectId(job),
         clickhouse: {
           surface: "worker",
-          route: queueName,
         },
       });
       const result = await otelContext.with(clickHouseCtx, () =>

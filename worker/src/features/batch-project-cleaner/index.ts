@@ -215,7 +215,6 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       params: { projectIds },
       tags: {
         surface: "worker",
-        route: this.instanceName,
         feature: "deletion",
         table: this.tableName,
         operation: "count",
@@ -248,7 +247,6 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       },
       tags: {
         surface: "worker",
-        route: this.instanceName,
         feature: "deletion",
         table: this.tableName,
         operation: "delete",

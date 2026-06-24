@@ -4,7 +4,6 @@ import {
   deleteScoresByTraceIds,
   deleteTraces,
   getS3MediaStorageClient,
-  QueueName,
   logger,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
   traceException,
@@ -170,7 +169,6 @@ export const processClickhouseTraceDelete = async (
   traceIds: string[],
   clickHouseQueryTags: ClickHouseQueryContextTags = {
     surface: "worker",
-    route: QueueName.TraceDelete,
   },
 ) => {
   logger.info(

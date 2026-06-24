@@ -1,7 +1,6 @@
 import {
   deleteScores,
   logger,
-  QueueName,
   traceException,
   deleteIngestionEventsFromS3AndClickhouseForScores,
   type ClickHouseQueryContextTags,
@@ -13,7 +12,6 @@ export const processClickhouseScoreDelete = async (
   scoreIds: string[],
   clickHouseQueryTags: ClickHouseQueryContextTags = {
     surface: "worker",
-    route: QueueName.ScoreDelete,
   },
 ) => {
   logger.info(

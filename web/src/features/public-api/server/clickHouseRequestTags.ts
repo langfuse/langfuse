@@ -1,5 +1,4 @@
 import { type NextApiRequest } from "next";
-import { type ClickHouseQuerySurface } from "@langfuse/shared/src/server";
 
 export const clickHouseRouteForRequest = (req: NextApiRequest) => {
   const method = req.method ?? "UNKNOWN";
@@ -14,8 +13,3 @@ export const clickHouseRouteForRequest = (req: NextApiRequest) => {
     return `${method} ${rawUrl}`;
   }
 };
-
-export const clickHouseSurfaceForRequest = (
-  req: NextApiRequest,
-): ClickHouseQuerySurface =>
-  req.url?.split("?")[0]?.startsWith("/api/public/") ? "publicapi" : "trpc";

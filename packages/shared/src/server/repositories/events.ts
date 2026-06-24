@@ -23,7 +23,6 @@ import type {
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import { QueueName } from "../queues";
 import {
   convertClickhouseToDomain,
   convertClickhouseTracesListToDomain,
@@ -3587,7 +3586,6 @@ const buildEventsForBlobStorageExportQuery = (
     params,
     tags: {
       surface: "worker" as const,
-      route: QueueName.BlobStorageIntegrationProcessingQueue,
       feature: "batch-export",
       type: "event",
       kind: "analytic",

@@ -18,6 +18,5 @@ export const scoreDeleteProcessor: Processor = async (
 
   await processClickhouseScoreDelete(projectId, scoreIds, {
     surface: "worker",
-    route: QueueName.ScoreDelete,
   });
 };

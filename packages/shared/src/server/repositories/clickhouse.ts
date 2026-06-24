@@ -141,7 +141,7 @@ export async function upsertClickhouse<
   table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
-  tags: ClickHouseQueryTags;
+  tags?: ClickHouseQueryTags;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-upsert", spanKind: SpanKind.CLIENT },
@@ -543,7 +543,7 @@ export type ClickhouseQueryOpts = {
   query: string;
   params?: Record<string, unknown>;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags: ClickHouseQueryTags;
+  tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   allowLegacyEventsRead?: boolean;
@@ -581,7 +581,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags: ClickHouseQueryTags;
+  tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   format: F;
@@ -756,7 +756,7 @@ export async function commandClickhouse(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags: ClickHouseQueryTags;
+  tags?: ClickHouseQueryTags;
   queryId?: string;
   clickhouseSettings?: ClickHouseSettings;
   abortSignal?: AbortSignal;

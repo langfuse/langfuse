@@ -1,8 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  buildClickHouseLogComment,
-  setClickHouseQueryTagTestFallbackForTests,
-} from "./queryTags";
+import { describe, expect, it } from "vitest";
+import { buildClickHouseLogComment } from "./queryTags";
 
 describe("ClickHouse query tags", () => {
   it("builds v1 log comments from request context and feature tags", () => {
@@ -26,54 +23,38 @@ describe("ClickHouse query tags", () => {
     });
   });
 
-  it("throws when required tags are unavailable", () => {
-    setClickHouseQueryTagTestFallbackForTests(false);
-
-    try {
-      expect(() => buildClickHouseLogComment({ feature: "tracing" })).toThrow(
-        "Missing or invalid ClickHouse query tag surface",
-      );
-    } finally {
-      setClickHouseQueryTagTestFallbackForTests(true);
-    }
-  });
-
-  it("uses fallback tags for direct ClickHouse calls in tests", () => {
-    const logComment = buildClickHouseLogComment(undefined as never);
+  it("uses unknown surface and omits route when request context is missing", () => {
+    const logComment = buildClickHouseLogComment({ feature: "tracing" });
 
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
-      surface: "worker",
-      route: "vitest",
-      feature: "custom-query",
+      surface: "unknown",
+      feature: "tracing",
     });
   });
 
-  it("uses fallback tags under Vitest even when NODE_ENV is not test", () => {
-    vi.stubEnv("NODE_ENV", "development");
-    vi.stubEnv("VITEST", "true");
+  it("uses unknown values when tags are unavailable", () => {
+    const logComment = buildClickHouseLogComment();
 
-    try {
-      const logComment = buildClickHouseLogComment(undefined as never);
-
-      expect(JSON.parse(logComment)).toEqual({
-        tag_schema_version: "1",
-        surface: "worker",
-        route: "vitest",
-        feature: "custom-query",
-      });
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    expect(JSON.parse(logComment)).toEqual({
+      tag_schema_version: "1",
+      surface: "unknown",
+      feature: "unknown",
+    });
   });
 
-  it("throws when feature is outside the allowlist", () => {
-    expect(() =>
-      buildClickHouseLogComment({
-        surface: "worker",
-        route: "queue-name",
-        feature: "legacy-feature",
-      }),
-    ).toThrow("Missing or invalid ClickHouse query tag feature");
+  it("uses unknown feature when feature is outside the allowlist", () => {
+    const logComment = buildClickHouseLogComment({
+      surface: "publicapi",
+      route: "GET /api/public/traces",
+      feature: "legacy-feature",
+    });
+
+    expect(JSON.parse(logComment)).toEqual({
+      tag_schema_version: "1",
+      surface: "publicapi",
+      route: "GET /api/public/traces",
+      feature: "unknown",
+    });
   });
 });

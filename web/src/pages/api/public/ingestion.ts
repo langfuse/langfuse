@@ -11,6 +11,7 @@ import {
   markProjectIngestFailure,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
+import { clickHouseRouteForRequest } from "@/src/features/public-api/server/clickHouseRequestTags";
 import { jsonSchema } from "@langfuse/shared";
 import { isPrismaException } from "@/src/utils/exceptions";
 import {
@@ -106,7 +107,7 @@ export default async function handler(
       apiKeyId: authCheck.scope.apiKeyId,
       clickhouse: {
         surface: "publicapi",
-        route: `${req.method ?? "POST"} ${req.url ?? "/api/public/ingestion"}`,
+        route: clickHouseRouteForRequest(req),
       },
     });
     // Execute the rest of the handler within the context

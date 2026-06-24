@@ -45,7 +45,6 @@ describe("Ingestion end-to-end tests", () => {
       clickhouseClient(),
       {
         surface: "worker",
-        route: "IngestionService.test",
       },
     );
 

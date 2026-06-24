@@ -7,7 +7,6 @@ import {
   BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
   upsertClickhouse,
 } from "./clickhouse";
-import { QueueName } from "../queues";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
@@ -1467,7 +1466,6 @@ const buildTracesForBlobStorageExportQuery = (
     },
     tags: {
       surface: "worker" as const,
-      route: QueueName.BlobStorageIntegrationProcessingQueue,
       feature: "batch-export",
       type: "trace",
       kind: "analytic",

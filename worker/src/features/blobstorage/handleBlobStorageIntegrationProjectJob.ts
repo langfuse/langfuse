@@ -189,7 +189,6 @@ const getMinTimestampForExport = async (
           params: { projectId },
           tags: {
             surface: "worker",
-            route: QueueName.BlobStorageIntegrationProcessingQueue,
             feature: "batch-export",
             kind: "minTimestamp",
             projectId,
