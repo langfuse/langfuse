@@ -39,6 +39,16 @@ export function SearchBarAiPrompt({
   const [value, setValue] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  // Set on unmount (e.g. Back clicked mid-generation). `mutateAsync` keeps
+  // running after unmount, so we check this before applying — otherwise a
+  // generation the user cancelled would silently replace their filters when it
+  // resolves a few seconds later.
+  const cancelledRef = React.useRef(false);
+  React.useEffect(() => {
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, []);
 
   const refineContext = (currentQuery ?? "").trim();
   const refining = refineContext.length > 0;
@@ -69,6 +79,8 @@ export function SearchBarAiPrompt({
         currentQuery: refining ? refineContext : undefined,
         dataContext,
       });
+      // Cancelled mid-flight (Back clicked while generating): don't apply.
+      if (cancelledRef.current) return;
       if (result.filters.length === 0) {
         setError("Couldn't build filters from that — try rephrasing.");
         return;
@@ -76,6 +88,7 @@ export function SearchBarAiPrompt({
       onApply(result.filters as FilterState);
       onExit();
     } catch {
+      if (cancelledRef.current) return;
       // Never surface raw server messages: a TRPCClientError is an Error, so its
       // message could leak internal state, and the tRPC formatter masks 500s to
       // an unhelpful "we have been notified" string anyway. The auth/precondition

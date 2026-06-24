@@ -81,4 +81,22 @@ describe("buildAiContext", () => {
     expect(ctx).toContain("membership-support");
     expect(ctx).toContain("metadata.customer.plan");
   });
+
+  it("caps observed value length and total context size", () => {
+    const ctx =
+      buildAiContext({
+        observed: {
+          traceName: [{ value: "x".repeat(200) }],
+          environment: Array.from({ length: 60 }, (_, i) => ({
+            value: `env-${i}-${"y".repeat(120)}`,
+          })),
+        },
+        sampleMetadata: [],
+        resultCount: null,
+      }) ?? "";
+    // individual values truncated to MAX_VALUE_LEN (40)
+    expect(ctx).not.toContain("x".repeat(41));
+    // total stays under the endpoint's 16k input cap
+    expect(ctx.length).toBeLessThanOrEqual(12000);
+  });
 });

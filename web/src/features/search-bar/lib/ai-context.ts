@@ -30,6 +30,8 @@ const VALUE_COLUMNS: Array<{ col: string; label: string }> = [
 const MAX_VALUES_PER_COL = 25;
 const MAX_METADATA_KEYS = 30;
 const MAX_VALUE_LEN = 40;
+// Stay well under the endpoint's `dataContext: z.string().max(16000)` cap.
+const MAX_CONTEXT_CHARS = 12000;
 
 function safeJsonParse(s: string): unknown {
   try {
@@ -79,7 +81,8 @@ export function buildAiContext(args: {
       const vals = (observed[col] ?? [])
         .map((o) => o.value)
         .filter((v) => v.length > 0)
-        .slice(0, MAX_VALUES_PER_COL);
+        .slice(0, MAX_VALUES_PER_COL)
+        .map((v) => v.slice(0, MAX_VALUE_LEN));
       if (vals.length > 0) valueLines.push(`- ${label}: ${vals.join(", ")}`);
     }
     if (valueLines.length > 0) {
@@ -119,5 +122,10 @@ export function buildAiContext(args: {
     );
   }
 
-  return sections.length > 0 ? sections.join("\n\n") : undefined;
+  if (sections.length === 0) return undefined;
+  // Hard cap so the context can never exceed the endpoint's input limit
+  // (router `dataContext: z.string().max(16000)`) and trigger a Zod 400, even
+  // with many columns/keys. Per-value/per-key caps above keep us well under this.
+  const out = sections.join("\n\n");
+  return out.length > MAX_CONTEXT_CHARS ? out.slice(0, MAX_CONTEXT_CHARS) : out;
 }
