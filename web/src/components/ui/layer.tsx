@@ -15,8 +15,8 @@ import { createPortal } from "react-dom";
  * a LOCAL tool for ordering content WITHIN one layer (or within the app), never
  * a global escalation. To add a layer, append its name here — `_document.tsx`
  * maps this list to the containers — and render `<Layer name="…">` (for bespoke
- * content) or route a Radix/Vaul portal into it via {@link useLayerContainer} /
- * {@link LayerPortal} (for primitives).
+ * content) or route a Radix/Vaul portal into it via {@link useLayerContainer}
+ * (for primitives).
  *
  * THE RULE (enforce, don't regress): every overlay portals ONLY through a
  * layer `container`; never re-introduce a high/arbitrary z-index (`z-50`,
@@ -79,7 +79,7 @@ export function useLayerContainer(name: LayerName): HTMLElement | null {
  * until mounted, so it is SSR-safe. Children position themselves (`fixed` /
  * `absolute`) and opt back into pointer events as needed.
  *
- * Prefer the Radix primitives' built-in `*.Portal` (with {@link LayerPortal} /
+ * Prefer the Radix primitives' built-in `*.Portal` (with
  * {@link useLayerContainer} for the `container`) for Radix overlays; reach for
  * `<Layer>` when portaling bespoke, imperatively-positioned content (e.g. a
  * contenteditable's anchored tooltip) that isn't a Radix component.

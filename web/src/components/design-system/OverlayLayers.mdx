@@ -1,0 +1,68 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Design System/Overlay Layers" />
+
+# Overlay layers
+
+How every overlay in the app stacks — **by structure (DOM order), not by z-index.**
+
+## The problem this solves
+
+Overlays — dialogs, dropdowns, tooltips, toasts, the in-app assistant — each used to
+portal to `<body>` and compete for "who's on top" with hand-picked z-index numbers.
+Those numbers kept escalating — `z-50` → `z-51` → `z-60` → `z-[9999]` — and whoever
+picked the bigger one won, until the next overlay reset the race. Real bugs followed:
+toasts hidden behind the trace peek, the search-bar error tooltip clipped, the nav
+dropdown colliding with the assistant window.
+
+## The model
+
+The whole app renders inside `#__next`, which is its **own isolated stacking context**
+(`isolation: isolate`). That caps every z-index used inside the app — nothing in-app
+can paint over an overlay. The overlay **layer containers** are declared once in
+`_document.tsx` as `<body>` siblings _after_ `#__next`, so they paint on top purely by
+**DOM order** (later = on top), and each is itself an isolated stacking context.
+
+**Ordering is the layer's job. Overlays carry no z-index.**
+
+## The layers (low → high)
+
+| Layer     | Holds                                                       | Why it sits here                                                                                |
+| --------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `agent`   | the in-app assistant window                                 | persistent / draggable; floats above the page but **below** every transient overlay             |
+| `modal`   | Dialog, AlertDialog, Sheet (incl. the table peek), Drawer   | blocking surfaces, above the page and the assistant                                             |
+| `popover` | Popover, DropdownMenu, Select, HoverCard                    | **above `modal`**, so a Select/Popover opened _inside_ a Dialog still renders on top            |
+| `tooltip` | Tooltip + bespoke anchored tooltips                         | hints stay above their trigger, even inside a modal                                             |
+| `toast`   | Sonner toasts                                               | last, so they always sit above everything — by order alone, no z-index                          |
+
+`LAYER_ORDER` in `components/ui/layer.tsx` is the source of truth; `_document.tsx` maps
+it to the containers.
+
+## Pointer events
+
+The layer containers are `pointer-events: none`, so the empty space around a non-modal
+overlay (like the table peek) stays click-through to the app behind it. Each portaled
+overlay opts itself back in with a single global rule —
+`[data-overlay-root] > [data-layer] > * { pointer-events: auto }` — so every overlay is
+interactive by construction, modal or not.
+
+## How to use it
+
+- **Radix / Vaul primitive:** route its `*.Portal` into a layer with
+  `useLayerContainer(name)`. The `ui/*` wrappers (Dialog, DropdownMenu, Select, …)
+  already do this, so most code gets it for free.
+- **Bespoke positioned content:** render it through `<Layer name="…">`.
+- **Never** give an overlay a z-index to "escape", and **never** let a `*.Portal` fall
+  back to `<body>`.
+
+## The guardrail
+
+The `@repo/no-overlay-zindex` ESLint rule fails the build if a new overlay reaches for a
+z-index escape — so the category of bug can't return. Legit in-app chrome (sticky page
+headers, fixed top banners, the bulk-action bar) keeps its z-index: it lives inside
+`#__next` and never competes with overlays.
+
+---
+
+_Part of the design system. Storybook is, step by step, becoming the home for these
+design-system decisions — see also the **DataTable** stories._
