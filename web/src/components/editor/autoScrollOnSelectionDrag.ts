@@ -67,12 +67,17 @@ class AutoScrollOnSelectionDrag {
     // we still auto-scroll but leave selection extension to CodeMirror's own
     // `pointerSelection` (the scroll moves content under the pointer; CM's next
     // mousemove extends with the right granularity).
-    const driveSelection =
-      view.state.selection.ranges.length === 1 &&
-      event.detail === 1 &&
-      !event.altKey &&
-      !event.metaKey &&
-      !event.ctrlKey;
+    //
+    // Captured at mousedown: the modifier/detail flags correctly identify "not a
+    // multi-range *gesture*" — they describe this click and won't change during
+    // the drag. The `ranges.length === 1` half is deliberately NOT captured
+    // here: this handler runs before CM's `pointerSelection` commits, so the
+    // selection still reflects the pre-click state (e.g. a stale 2-range
+    // multi-cursor that a plain click is about to collapse to one range). We
+    // therefore re-read `ranges.length` live inside `step()`, immediately before
+    // the dispatch, instead of trusting this pre-click snapshot.
+    const isSingleRangeGesture =
+      event.detail === 1 && !event.altKey && !event.metaKey && !event.ctrlKey;
 
     const scroller = view.scrollDOM;
     let lastClientX = event.clientX;
@@ -113,7 +118,14 @@ class AutoScrollOnSelectionDrag {
       // highlighted range keeps growing with the scroll. Clamp Y into the
       // scroller so posAtCoords resolves to the first/last visible line. Only
       // for the plain single-range drag; advanced gestures are left to CM.
-      if (scrolled && driveSelection) {
+      // `ranges.length` is read live here (not captured at mousedown) so a
+      // pre-click multi-cursor that a plain click has since collapsed to one
+      // range is handled correctly — by dispatch time the selection is current.
+      if (
+        scrolled &&
+        isSingleRangeGesture &&
+        view.state.selection.ranges.length === 1
+      ) {
         const rectAfter = scroller.getBoundingClientRect();
         const clampedY = Math.max(
           rectAfter.top + 1,
