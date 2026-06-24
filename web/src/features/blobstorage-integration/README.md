@@ -44,7 +44,7 @@ up_to_date  ← fallthrough
     ┌──────────┐   nextSyncAt = null, lastSyncAt = null
     │   idle   │◄──── freshly created, never synced
     └──────────┘
-         │ save sets nextSyncAt = now (on first save/mode change)
+         │ save sets nextSyncAt = now (on mode change or save while errored)
          ▼
     ┌──────────┐   nextSyncAt <= now
     │  queued  │◄──── scheduler finds row (lastSyncAt=null OR nextSyncAt<=now)
@@ -80,7 +80,7 @@ up_to_date  ← fallthrough
 | **running** | Worker: export succeeds, not caught up | `lastSyncAt=max`, `nextSyncAt=now`, `lastError=null`, `runStartedAt=null` + re-enqueues job | **queued** (immediately) |
 | **running** | Worker: export fails | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null` | **error** |
 | **error** | User saves (enabled, same mode) | `runStartedAt=null`, `nextSyncAt=now` | stays **error** (`lastError` preserved; scheduler re-enqueues via `nextSyncAt`) |
-| **error** | User clicks Run Now | Enqueues manual job (no DB write) | stays **error** until worker starts |
+| **error** | User clicks Run Now | Enqueues manual job (no DB write) | stays **error** until worker clears `lastError` (success or empty-window) |
 | **running** | Stale `runStartedAt` > 2h | (no write — derived only) | falls through to **queued**, **idle**, or **up_to_date** |
 | **up_to_date** | Clock passes `nextSyncAt` | (no write — derived only) | **queued** |
 

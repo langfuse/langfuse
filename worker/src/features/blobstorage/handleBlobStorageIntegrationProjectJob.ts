@@ -805,10 +805,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       where: { projectId },
       data: {
         runStartedAt: null,
-        nextSyncAt: new Date(
-          new Date().getTime() +
-            getFrequencyIntervalMs(blobStorageIntegration.exportFrequency),
-        ),
+        nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
         lastError: null,
         lastErrorAt: null,
       },
