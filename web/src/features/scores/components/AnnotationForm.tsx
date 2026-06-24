@@ -731,6 +731,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       // `1`-`9` pick an option on the focused row (option rows only).
       if (/^[1-9]$/.test(event.key)) {
         if (currentPos < 0 || !currentRow) return;
+        // Only from the row container itself or its value control — never the
+        // in-row Comment / Delete buttons (else a stray digit writes a phantom
+        // score). Mirrors the Enter branch's `active === currentRow` gate.
+        if (
+          active !== currentRow &&
+          !(
+            active instanceof HTMLElement &&
+            active.closest("[data-score-control]")
+          )
+        )
+          return;
         const rowIndex = Number(currentRow.getAttribute("data-score-row"));
         const field = controlledFields[rowIndex];
         if (!isKeyboardSelectable(field)) return;
@@ -921,174 +932,180 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                             </PopoverContent>
                           </Popover>
                         </div>
-                        <div
-                          data-score-control
-                          className="grid grid-cols-[11fr_1fr] items-center py-1"
-                        >
-                          {isTextDataType(score.dataType) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Textarea
-                                      {...field}
-                                      value={field.value ?? ""}
-                                      maxLength={TEXT_SCORE_MAX_LENGTH}
-                                      className="text-xs"
-                                      disabled={isInputDisabled(config)}
-                                      placeholder="Enter free form text..."
-                                      onBlur={() => handleTextUpsert(index)}
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : isNumericDataType(score.dataType) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.value`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      {...field}
-                                      value={field.value ?? ""}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        if (value === "") {
-                                          return;
+                        <div className="grid grid-cols-[11fr_1fr] items-center py-1">
+                          {/* data-score-control wraps only the value control so
+                              keyboard 1-9 scoring targets it, not the in-row
+                              Comment / Delete buttons. */}
+                          <div data-score-control>
+                            {isTextDataType(score.dataType) ? (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.stringValue`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Textarea
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        maxLength={TEXT_SCORE_MAX_LENGTH}
+                                        className="text-xs"
+                                        disabled={isInputDisabled(config)}
+                                        placeholder="Enter free form text..."
+                                        onBlur={() => handleTextUpsert(index)}
+                                      />
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : isNumericDataType(score.dataType) ? (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.value`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Input
+                                        {...field}
+                                        value={field.value ?? ""}
+                                        onChange={(e) => {
+                                          const value = e.target.value;
+                                          if (value === "") {
+                                            return;
+                                          }
+                                          field.onChange(Number(value));
+                                        }}
+                                        type="number"
+                                        // Mirror the config range as native
+                                        // constraints so out-of-range values are
+                                        // catchable via the ⌘/Ctrl+Enter complete
+                                        // gate's rangeOverflow/Underflow check, on
+                                        // top of the existing onBlur JS validation.
+                                        // `step="any"` keeps decimals valid (config
+                                        // validation is range-only, not integer).
+                                        min={config.minValue ?? undefined}
+                                        max={config.maxValue ?? undefined}
+                                        step="any"
+                                        className="text-xs"
+                                        disabled={isInputDisabled(config)}
+                                        onBlur={() =>
+                                          handleNumericUpsert(index)
                                         }
-                                        field.onChange(Number(value));
-                                      }}
-                                      type="number"
-                                      // Mirror the config range as native
-                                      // constraints so out-of-range values are
-                                      // catchable via the ⌘/Ctrl+Enter complete
-                                      // gate's rangeOverflow/Underflow check, on
-                                      // top of the existing onBlur JS validation.
-                                      // `step="any"` keeps decimals valid (config
-                                      // validation is range-only, not integer).
-                                      min={config.minValue ?? undefined}
-                                      max={config.maxValue ?? undefined}
-                                      step="any"
-                                      className="text-xs"
-                                      disabled={isInputDisabled(config)}
-                                      onBlur={() => handleNumericUpsert(index)}
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : config.categories && renderSelect(categories) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Combobox
-                                      name={field.name}
-                                      value={field.value ?? ""}
-                                      disabled={isInputDisabled(config)}
-                                      onValueChange={(value) => {
-                                        field.onChange(value);
-                                        handleCategoricalUpsert(index, value);
-                                      }}
-                                      options={categories.map((category) => ({
-                                        value: category.label,
-                                        disabled: category.isOutdated,
-                                      }))}
-                                      placeholder="Select category"
-                                      searchPlaceholder="Search categories..."
-                                      emptyText="No category found."
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <ToggleGroup
-                                      type="single"
-                                      // Horizontal roving so Radix only uses
-                                      // ←/→ between True/False, leaving ↑/↓ for
-                                      // our field navigation (no double-handling).
-                                      orientation="horizontal"
-                                      value={field.value ?? ""}
-                                      disabled={isInputDisabled(config)}
-                                      className={`grid grid-cols-${categories.length}`}
-                                      onValueChange={(value) => {
-                                        field.onChange(value);
-                                        handleCategoricalUpsert(index, value);
-                                      }}
-                                    >
-                                      {categories.map((category) =>
-                                        category.isOutdated ? (
-                                          <ToggleGroupItem
-                                            key={category.value}
-                                            value={category.label}
-                                            disabled
-                                            variant="outline"
-                                            className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
-                                          >
-                                            <span
-                                              className="truncate"
-                                              title={category.label}
+                                      />
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : config.categories &&
+                              renderSelect(categories) ? (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.stringValue`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <Combobox
+                                        name={field.name}
+                                        value={field.value ?? ""}
+                                        disabled={isInputDisabled(config)}
+                                        onValueChange={(value) => {
+                                          field.onChange(value);
+                                          handleCategoricalUpsert(index, value);
+                                        }}
+                                        options={categories.map((category) => ({
+                                          value: category.label,
+                                          disabled: category.isOutdated,
+                                        }))}
+                                        placeholder="Select category"
+                                        searchPlaceholder="Search categories..."
+                                        emptyText="No category found."
+                                      />
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            ) : (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.stringValue`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <ToggleGroup
+                                        type="single"
+                                        // Horizontal roving so Radix only uses
+                                        // ←/→ between True/False, leaving ↑/↓ for
+                                        // our field navigation (no double-handling).
+                                        orientation="horizontal"
+                                        value={field.value ?? ""}
+                                        disabled={isInputDisabled(config)}
+                                        className={`grid grid-cols-${categories.length}`}
+                                        onValueChange={(value) => {
+                                          field.onChange(value);
+                                          handleCategoricalUpsert(index, value);
+                                        }}
+                                      >
+                                        {categories.map((category) =>
+                                          category.isOutdated ? (
+                                            <ToggleGroupItem
+                                              key={category.value}
+                                              value={category.label}
+                                              disabled
+                                              variant="outline"
+                                              className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
                                             >
-                                              {category.label}
-                                            </span>
-                                            <span>{`(${category.value})`}</span>
-                                          </ToggleGroupItem>
-                                        ) : (
-                                          <ToggleGroupItem
-                                            key={category.value}
-                                            value={category.label}
-                                            variant="outline"
-                                            className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
-                                          >
-                                            <span
-                                              className="truncate"
-                                              title={category.label}
+                                              <span
+                                                className="truncate"
+                                                title={category.label}
+                                              >
+                                                {category.label}
+                                              </span>
+                                              <span>{`(${category.value})`}</span>
+                                            </ToggleGroupItem>
+                                          ) : (
+                                            <ToggleGroupItem
+                                              key={category.value}
+                                              value={category.label}
+                                              variant="outline"
+                                              className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
                                             >
-                                              {category.label}
-                                            </span>
-                                            {(() => {
-                                              // LFE-7628: number-key hint for this
-                                              // option, shown only while the row is
-                                              // focused (CSS `group-focus-within`,
-                                              // so it tracks real focus directly).
-                                              const digit =
-                                                (config.categories?.findIndex(
-                                                  (c) =>
-                                                    c.label === category.label,
-                                                ) ?? -1) + 1;
-                                              return digit >= 1 &&
-                                                digit <= 9 ? (
-                                                <KeyboardShortcut className="ml-0.5 hidden h-3.5 min-w-3.5 px-1 text-[9px] group-focus-within:inline-flex">
-                                                  {digit}
-                                                </KeyboardShortcut>
-                                              ) : null;
-                                            })()}
-                                          </ToggleGroupItem>
-                                        ),
-                                      )}
-                                    </ToggleGroup>
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          )}
+                                              <span
+                                                className="truncate"
+                                                title={category.label}
+                                              >
+                                                {category.label}
+                                              </span>
+                                              {(() => {
+                                                // LFE-7628: number-key hint for this
+                                                // option, shown only while the row is
+                                                // focused (CSS `group-focus-within`,
+                                                // so it tracks real focus directly).
+                                                const digit =
+                                                  (config.categories?.findIndex(
+                                                    (c) =>
+                                                      c.label ===
+                                                      category.label,
+                                                  ) ?? -1) + 1;
+                                                return digit >= 1 &&
+                                                  digit <= 9 ? (
+                                                  <KeyboardShortcut className="ml-0.5 hidden h-3.5 min-w-3.5 px-1 text-[9px] group-focus-within:inline-flex">
+                                                    {digit}
+                                                  </KeyboardShortcut>
+                                                ) : null;
+                                              })()}
+                                            </ToggleGroupItem>
+                                          ),
+                                        )}
+                                      </ToggleGroup>
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            )}
+                          </div>
                           {config.isArchived ? (
                             <Popover>
                               <PopoverTrigger asChild>

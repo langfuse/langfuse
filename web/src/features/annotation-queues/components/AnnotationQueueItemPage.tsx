@@ -255,23 +255,23 @@ export const AnnotationQueueItemPage: React.FC<{
         if (isOpenDialogPresent()) return;
         if (isPending && !completeMutation.isPending && !objectData.isError) {
           event.preventDefault();
-          const active = document.activeElement;
           // An out-of-range numeric score is vetoed on blur (no mutation fires),
-          // so completing now would silently drop it. Surface the constraint and
-          // abort completion, leaving focus on the field to fix. Check only the
-          // range (mirrors validateNumericScore) — decimals are valid, so we must
-          // not block on stepMismatch.
-          if (
-            active instanceof HTMLInputElement &&
-            active.type === "number" &&
-            (active.validity.rangeOverflow || active.validity.rangeUnderflow)
-          ) {
-            active.reportValidity();
+          // so completing now would silently drop it. Scan *all* numeric score
+          // inputs — not just the focused one — because the invalid value stays
+          // in the DOM after Tabbing away (`:invalid` = native min/max overflow;
+          // step="any" keeps decimals valid, mirroring validateNumericScore).
+          const invalidNumber = document.querySelector<HTMLInputElement>(
+            '[data-annotation-form] input[type="number"]:invalid',
+          );
+          if (invalidNumber) {
+            invalidNumber.focus();
+            invalidNumber.reportValidity();
             return;
           }
           // Text/numeric score fields persist on blur. Flush a focused one first
           // so feedback typed right before ⌘/Ctrl+Enter isn't lost when we
           // navigate away (its onBlur fires the save mutation synchronously).
+          const active = document.activeElement;
           if (
             active instanceof HTMLTextAreaElement ||
             active instanceof HTMLInputElement
