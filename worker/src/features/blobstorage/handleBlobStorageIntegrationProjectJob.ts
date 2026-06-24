@@ -101,7 +101,7 @@ export async function* enrichObservationStream(
   modelIdField: string,
   convertLatencyToSeconds: boolean,
   fieldGroups?: ObservationFieldGroupFull[],
-  skipEnrichment: boolean = false,
+  skipEnrichment = false,
 ): AsyncGenerator<Record<string, unknown>> {
   const { getModel } = createModelCache(projectId);
 

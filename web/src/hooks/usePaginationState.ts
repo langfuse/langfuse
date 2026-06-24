@@ -20,8 +20,8 @@ export function usePaginationState(
 
 // Implementation
 export function usePaginationState(
-  defaultPageOrIndex: number = 1,
-  defaultLimitOrSize: number = 50,
+  defaultPageOrIndex = 1,
+  defaultLimitOrSize = 50,
   paramNames?: { page: "page" | "pageIndex"; limit: "limit" | "pageSize" },
 ): readonly [
   { page: number; limit: number } | PaginationState,

@@ -480,9 +480,9 @@ function getIntervalDuration(interval: IntervalConfig): number {
 export function getOptimalInterval(
   fromDate: Date,
   toDate: Date,
-  targetPoints: number = 13,
-  minPoints: number = 10,
-  maxPoints: number = 16,
+  targetPoints = 13,
+  minPoints = 10,
+  maxPoints = 16,
 ): IntervalConfig {
   const durationMs = toDate.getTime() - fromDate.getTime();
 

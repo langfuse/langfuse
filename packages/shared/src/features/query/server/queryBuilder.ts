@@ -531,7 +531,7 @@ export class QueryBuilder {
 
       // Normal dimension or special-case filter: build column mapping
       let clickhouseSelect: string;
-      let queryPrefix: string = "";
+      let queryPrefix = "";
       let clickhouseTableName: string = actualTableName;
       let type: string;
       let emptyEqualsNull: boolean | undefined;
@@ -1514,7 +1514,7 @@ export class QueryBuilder {
   public async build(
     query: QueryType,
     projectId: string,
-    enableSingleLevelOptimization: boolean = false,
+    enableSingleLevelOptimization = false,
   ): Promise<{ query: string; parameters: Record<string, unknown> }> {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);

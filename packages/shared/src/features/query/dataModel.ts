@@ -792,7 +792,7 @@ const scoresV2BaseDimensions: DimensionsDeclarationType = {
 // Factory for shared score-specific dimensions (both numeric and categorical)
 const createScoreSpecificDimensions = (
   tableAlias: string,
-  isV2: boolean = false,
+  isV2 = false,
 ): DimensionsDeclarationType => ({
   id: {
     sql: `${tableAlias}.id`,

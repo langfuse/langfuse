@@ -406,7 +406,7 @@ export const getObservationByIdFromObservationsTable = async ({
 export const getObservationsById = async (
   ids: string[],
   projectId: string,
-  fetchWithInputOutput: boolean = false,
+  fetchWithInputOutput = false,
 ) => {
   const query = `
   SELECT

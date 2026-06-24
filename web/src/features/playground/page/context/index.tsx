@@ -728,7 +728,7 @@ async function getChatCompletionWithTools(
   messages: ChatMessageWithIdNoPlaceholders[],
   modelParams: UIModelParams,
   tools: unknown[],
-  streaming: boolean = false,
+  streaming = false,
 ): Promise<ToolCallResponse & { reasoning?: string }> {
   if (!projectId) throw Error("Project ID is not set");
 
@@ -773,7 +773,7 @@ async function getChatCompletionWithStructuredOutput(
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
   structuredOutputSchema: PlaygroundSchema | null,
-  streaming: boolean = false,
+  streaming = false,
 ): Promise<string> {
   if (!projectId) throw Error("Project ID is not set");
 
