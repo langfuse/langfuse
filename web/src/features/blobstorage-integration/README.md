@@ -44,11 +44,11 @@ up_to_date  ← fallthrough
     ┌──────────┐   nextSyncAt = null, lastSyncAt = null
     │   idle   │◄──── freshly created, never synced
     └──────────┘
-         │ scheduler sets nextSyncAt = now (on first save/mode change)
+         │ save sets nextSyncAt = now (on first save/mode change)
          ▼
     ┌──────────┐   nextSyncAt <= now
     │  queued  │◄──── scheduler finds row (lastSyncAt=null OR nextSyncAt<=now)
-    └──────────┘      and enqueues a BullMQ job
+    └──────────┘      and enqueues a BullMQ job (no DB write)
          │
          │ worker picks up job, sets runStartedAt = new Date()
          ▼
@@ -71,7 +71,8 @@ up_to_date  ← fallthrough
 | **any** | User saves with `enabled=false` | `runStartedAt=null` | **disabled** |
 | **any** | User saves with `enabled=true` | `runStartedAt=null`; `nextSyncAt=now` if errored or mode changed | **idle**, **queued**, or stays **error** (`lastError` is not cleared by save) |
 | **disabled** | User saves `enabled=true` | (as above) | **idle**, **queued**, or stays **error** |
-| **idle/queued** | Scheduler finds `nextSyncAt<=now` or `lastSyncAt=null` | Enqueues BullMQ job (no DB write) | stays **queued** |
+| **idle** | Scheduler finds `lastSyncAt=null` | Enqueues BullMQ job (no DB write) | stays **idle** |
+| **queued** | Scheduler finds `nextSyncAt<=now` | Enqueues BullMQ job (no DB write) | stays **queued** |
 | **queued** | Worker starts job | `runStartedAt=now` | **running** |
 | **running** | Worker: integration disabled | `runStartedAt=null` | **disabled** |
 | **running** | Worker: empty time window | `runStartedAt=null`, `nextSyncAt=now+frequency`, `lastError=null` | **up_to_date** (or **idle** if never synced) |
