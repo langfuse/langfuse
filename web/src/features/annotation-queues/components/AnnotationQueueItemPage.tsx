@@ -241,6 +241,11 @@ export const AnnotationQueueItemPage: React.FC<{
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented) return;
       if (!hasAccess) return;
+      // Mirror the Skeleton gate below: this listener stays attached while the
+      // current/next item is still loading, so a held or repeated key during the
+      // post-complete fetch must not complete or skip an item the annotator has
+      // not actually seen yet.
+      if (objectData.isLoading || fetchAndLockNextMutation.isPending) return;
 
       // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
       // *before* the typing guard so it works even while the annotator is in the
@@ -319,6 +324,8 @@ export const AnnotationQueueItemPage: React.FC<{
     progressIndex,
     completeMutation.isPending,
     objectData.isError,
+    objectData.isLoading,
+    fetchAndLockNextMutation.isPending,
     handleComplete,
     handleNavigateNext,
     handleNavigateBack,
