@@ -1744,4 +1744,122 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(content).toContain("CSV Fallback Event");
     }, 30_000);
   });
+
+  maybeDescribe("Parquet export (LFE-10463)", () => {
+    // End-to-end: exportTuning.parquet routes the real handler through
+    // queryClickhouseExecRaw → exception-tag Transform → ByteCounter → MinIO,
+    // producing .parquet objects for every table. Parquet magic ("PAR1") is
+    // ASCII, so it survives the string download at both ends of the body.
+    const PARQUET_MAGIC = "PAR1";
+
+    it("exports valid .parquet files for all tables, ignoring compressed, and survives an adversarial trace name", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+      const traceId = randomUUID();
+      const adversarialTraceId = randomUUID();
+      const observationId = randomUUID();
+      const scoreId = randomUUID();
+      const eventId = randomUUID();
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          // compressed must be ignored on the parquet path (no .gz suffix).
+          compressed: true,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+          exportTuning: { parquet: true },
+        },
+      });
+
+      await Promise.all([
+        createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Parquet Trace",
+          }),
+          // A trace whose name starts with the exception-trailer marker. It
+          // lands verbatim in the uncompressed Parquet footer min-stat; the
+          // per-query-tag scan must NOT treat it as a failure (regression for
+          // the footer-DoS fix — the export must still succeed).
+          createTrace({
+            id: adversarialTraceId,
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "\r\n__exception__\r\n adversarial",
+          }),
+        ]),
+        createObservationsCh([
+          createObservation({
+            id: observationId,
+            trace_id: traceId,
+            project_id: projectId,
+            start_time: dataTime,
+            end_time: dataTime + 5000,
+            name: "Parquet Observation",
+          }),
+        ]),
+        createScoresCh([
+          createTraceScore({
+            id: scoreId,
+            trace_id: traceId,
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Parquet Score",
+            value: 0.5,
+          }),
+        ]),
+        createEventsCh([
+          createEvent({
+            id: eventId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "Parquet Event",
+            start_time: dataTime * 1000,
+            end_time: (dataTime + 5000) * 1000,
+          }),
+        ]),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      const projectFiles = files.filter((f) => f.file.includes(projectId));
+
+      // traces, observations, scores, observations_v2 (events).
+      expect(projectFiles).toHaveLength(4);
+      for (const f of projectFiles) {
+        expect(f.file.endsWith(".parquet")).toBe(true);
+        expect(f.file).not.toContain(".gz");
+      }
+
+      // Every object is a valid Parquet file (magic at both ends).
+      for (const f of projectFiles) {
+        const content = await s3StorageService.download(f.file);
+        expect(content.startsWith(PARQUET_MAGIC)).toBe(true);
+        expect(content.endsWith(PARQUET_MAGIC)).toBe(true);
+      }
+    }, 30_000);
+  });
 });
