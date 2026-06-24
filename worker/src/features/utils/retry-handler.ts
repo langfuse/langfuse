@@ -7,7 +7,37 @@ import {
 import { randomUUID } from "crypto";
 import { prisma } from "@langfuse/shared/src/db";
 
-const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+const LLM_QUEUE_RETRY_MAX_ATTEMPTS = 4;
+const LLM_QUEUE_RETRY_MAX_AGE_SECONDS = 120 * 60;
+const LLM_QUEUE_RETRY_JITTER_FACTOR = 0.2;
+const LLM_QUEUE_RETRY_OFFSETS_SECONDS = [5, 20, 55, 120].map(
+  (minutes) => minutes * 60,
+);
+
+const getLLMQueueRetryDelaySeconds = ({
+  attempt,
+  elapsedSeconds,
+}: {
+  attempt: number;
+  elapsedSeconds: number;
+}) => {
+  const targetOffsetSeconds = LLM_QUEUE_RETRY_OFFSETS_SECONDS[attempt - 1];
+
+  if (targetOffsetSeconds === undefined) return 0;
+
+  const delaySeconds = Math.max(0, targetOffsetSeconds - elapsedSeconds);
+  const jitterMultiplier =
+    1 -
+    LLM_QUEUE_RETRY_JITTER_FACTOR +
+    Math.random() * LLM_QUEUE_RETRY_JITTER_FACTOR * 2;
+  const jitteredDelaySeconds = Math.round(delaySeconds * jitterMultiplier);
+  const remainingAgeSeconds = Math.max(
+    0,
+    LLM_QUEUE_RETRY_MAX_AGE_SECONDS - elapsedSeconds,
+  );
+
+  return Math.min(jitteredDelaySeconds, remainingAgeSeconds);
+};
 
 /**
  * Configuration for retry handling with rate limiting and age checks
@@ -23,28 +53,26 @@ interface RetryConfig {
   queueName: string;
   /** Job name for the retry job */
   jobName: string;
-  /** Function to generate retry delay in milliseconds */
-
-  delayFn: (attempt: number) => number;
 }
 
 export type RetryScheduleResult =
   | {
       outcome: "scheduled";
-      delay: number;
+      delaySeconds: number;
       retryBaggage: RetryBaggage;
     }
   | {
       outcome: "skipped";
-      reason: "too_old";
+      reason: "too_old" | "max_attempts";
     }
   | {
       outcome: "queue_unavailable";
     };
 
 /**
- * Handles rate limiting and retry logic for queue jobs
- * Automatically retries jobs that fail with 429/5xx errors unless they're older than 24h
+ * Handles rate limiting and retry logic for queue jobs.
+ * Automatically retries jobs that fail with 429/5xx errors unless they exceed
+ * the configured retry budget or age limit.
  */
 export async function retryLLMRateLimitError(
   job: {
@@ -59,7 +87,6 @@ export async function retryLLMRateLimitError(
   try {
     const jobId = job.data.payload[config.idField];
 
-    // Check if the job is older than 24h
     const record =
       config.table === "dataset_runs"
         ? await prisma.datasetRuns.findFirstOrThrow({
@@ -71,10 +98,13 @@ export async function retryLLMRateLimitError(
             where: { id: jobId, projectId: job.data.payload.projectId },
           });
 
-    if (record.createdAt < new Date(Date.now() - ONE_DAY_IN_MS)) {
-      logger.info(
-        `Job ${jobId} is rate limited for more than 24h. Stop retrying.`,
-      );
+    const elapsedSeconds = Math.max(
+      0,
+      (Date.now() - record.createdAt.getTime()) / 1000,
+    );
+
+    if (elapsedSeconds >= LLM_QUEUE_RETRY_MAX_AGE_SECONDS) {
+      logger.info(`Job ${jobId} exceeded retry age limit. Stop retrying.`);
 
       return {
         outcome: "skipped",
@@ -82,19 +112,34 @@ export async function retryLLMRateLimitError(
       };
     }
 
-    // Retry the job with delay
-    const delay = config.delayFn((job.data.retryBaggage?.attempt ?? 0) + 1);
+    const currentAttempt = (job.data.retryBaggage?.attempt ?? 0) + 1;
+
+    if (currentAttempt > LLM_QUEUE_RETRY_MAX_ATTEMPTS) {
+      logger.info(`Job ${jobId} exceeded retry attempt limit. Stop retrying.`);
+
+      return {
+        outcome: "skipped",
+        reason: "max_attempts",
+      };
+    }
+
+    const delaySeconds = getLLMQueueRetryDelaySeconds({
+      attempt: currentAttempt,
+      elapsedSeconds,
+    });
+    const delayMs = Math.round(delaySeconds * 1000);
 
     const retryBaggage: RetryBaggage = job.data.retryBaggage
       ? {
           originalJobTimestamp: new Date(
             job.data.retryBaggage.originalJobTimestamp,
           ),
-          attempt: job.data.retryBaggage.attempt + 1,
+          attempt: currentAttempt,
         }
       : {
-          originalJobTimestamp: new Date(job.data.timestamp),
-          attempt: 1,
+          originalJobTimestamp:
+            record.createdAt ?? new Date(job.data.timestamp),
+          attempt: currentAttempt,
         };
 
     if (!config.queue) {
@@ -128,7 +173,7 @@ export async function retryLLMRateLimitError(
     );
 
     logger.info(
-      `Job ${jobId} is rate limited. Retrying in ${delay}ms. Attempt: ${retryBaggage?.attempt}. Total delay: ${retryBaggage ? new Date().getTime() - new Date(retryBaggage?.originalJobTimestamp).getTime() : "unavailable"}ms.`,
+      `Job ${jobId} is rate limited. Retrying in ${delaySeconds}s. Attempt: ${retryBaggage?.attempt}. Total delay: ${retryBaggage ? new Date().getTime() - new Date(retryBaggage?.originalJobTimestamp).getTime() : "unavailable"}ms.`,
     );
 
     try {
@@ -141,7 +186,7 @@ export async function retryLLMRateLimitError(
           payload: job.data.payload,
           retryBaggage: retryBaggage,
         },
-        { delay },
+        { delay: delayMs },
       );
     } catch (addErr) {
       logger.warn(
@@ -156,7 +201,7 @@ export async function retryLLMRateLimitError(
 
     return {
       outcome: "scheduled",
-      delay,
+      delaySeconds,
       retryBaggage,
     };
   } catch (innerErr) {
