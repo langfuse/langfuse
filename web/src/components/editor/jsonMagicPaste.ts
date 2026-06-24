@@ -5,6 +5,7 @@ import {
   StateField,
   type Extension,
 } from "@codemirror/state";
+import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 
 /**
  * "Magic paste" for JSON editors.
@@ -139,12 +140,6 @@ export function planMagicPaste(
   return null;
 }
 
-function transferHasFiles(data: DataTransfer | null | undefined): boolean {
-  if (!data) return false;
-  if (data.files.length > 0) return true;
-  return Array.from(data.items).some((item) => item.kind === "file");
-}
-
 // --- the "Paste raw" affordance -------------------------------------------
 
 type ActiveTip = {
@@ -265,8 +260,10 @@ export function createJsonMagicPasteExtension(): Extension {
       paste(event, view) {
         const clipboard = event.clipboardData;
         if (!clipboard) return false;
-        // Files belong to the media drop/paste handler.
-        if (transferHasFiles(clipboard)) return false;
+        // Files belong to the media drop/paste handler. Use the same extractor it
+        // does so we never both defer and leave the default handler to insert
+        // unescaped text.
+        if (extractTransferFiles(clipboard).length > 0) return false;
         const text = clipboard.getData("text/plain");
         if (!text) return false;
 
