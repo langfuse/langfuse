@@ -308,6 +308,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   const rowCount = controlledFields.filter((field) =>
     configs.some((c) => c.id === field.configId),
   ).length;
+  const hasEditableRow = controlledFields.some(
+    (field) =>
+      configs.some((c) => c.id === field.configId) &&
+      (isTextDataType(field.dataType) || isNumericDataType(field.dataType)),
+  );
 
   useEffect(() => {
     const isPending =
@@ -618,23 +623,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     );
   };
 
-  // LFE-7628 — keyboard-first scoring, driven entirely by real DOM focus.
-  //  - `↑` / `↓` move focus to the previous / next field's score control.
-  //  - `1`-`9`  pick the Nth option of the *focused* row (option rows only).
-  //  - `Esc`    leaves a focused text/number field (`Tab` also works).
-  // Inside a text field `↑`/`↓` stay native (caret / number step) — `Tab` is the
-  // universal mover. An open popover/drawer suspends these shortcuts.
+  // LFE-7628 — keyboard-first scoring, driven by real DOM focus with a
+  // spreadsheet-style navigate-vs-edit split (single source of truth, one
+  // outline, never trapped):
+  //  - `↑` / `↓` move focus between *rows* (the row container, never into a text
+  //    field) so navigation keeps working even when the active row is text.
+  //  - `Enter`  drills into the focused row's control (a text/number field to
+  //    type, the combobox to open, a toggle to use ←/→).
+  //  - `Esc`    pops back out of an editing text field to its row.
+  //  - `1`-`9`  pick the Nth option of the focused row (option rows only).
+  // A focused text field owns its keys; an open popover/drawer suspends these.
   useEffect(() => {
-    // Focus the score control (input / textarea / first option button) of the
-    // row at `rowIndex` — `[data-score-control]` scopes past the comment + delete
-    // buttons so they aren't treated as the field.
-    const focusRowControl = (root: HTMLElement, rowIndex: number) => {
-      const control = root.querySelector<HTMLElement>(
-        `[data-score-row="${rowIndex}"] [data-score-control] :is(textarea, input, button)`,
-      );
-      control?.focus();
-    };
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (hasModifier(event)) return;
       if (isOpenDialogPresent()) return;
@@ -642,30 +641,28 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       const root = formRootRef.current;
       if (!root) return;
       const target = event.target;
+      const editing =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
 
-      // `Esc` blurs a focused score field, back to navigation (handled before the
-      // typing guard so it fires from inside the field).
+      // `Esc` pops out of an editing text field back to its row, so `↑`/`↓`
+      // resume from there (handled before the editing guard so it fires from
+      // inside the field).
       if (event.key === "Escape") {
-        if (
-          (target instanceof HTMLInputElement ||
-            target instanceof HTMLTextAreaElement) &&
-          root.contains(target)
-        ) {
-          target.blur();
+        if (editing && root.contains(target)) {
+          const row = (target as HTMLElement).closest<HTMLElement>(
+            "[data-score-row]",
+          );
+          if (row) row.focus();
+          else (target as HTMLElement).blur();
         }
         return;
       }
 
-      // A focused *text* field owns its keys (typing, caret, number step) —
-      // never hijack them; `Tab`/`Esc` move out. A focused combobox *trigger*
-      // (a button) stays navigable: when its dropdown is open the
-      // isOpenDialogPresent() guard above already bails.
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable)
-      )
-        return;
+      // While editing a text field, leave its keys (typing, caret, number step)
+      // alone — `Esc` / `Tab` move out.
+      if (editing) return;
       if (rowCount === 0) return;
 
       // Scope to a single form (DualAnnotationContent mounts two): the form that
@@ -691,7 +688,8 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
           : null;
       const currentPos = currentRow ? rowEls.indexOf(currentRow) : -1;
 
-      // `↑` / `↓` move real focus between fields.
+      // `↑` / `↓` move focus between rows (to the row container itself, never
+      // into a text field — so navigation is never trapped).
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         if (rowEls.length < 2) return;
         event.preventDefault();
@@ -702,8 +700,23 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
               ? 0
               : rowEls.length - 1
             : (currentPos + delta + rowEls.length) % rowEls.length;
-        const rowIndex = Number(rowEls[nextPos].getAttribute("data-score-row"));
-        focusRowControl(root, rowIndex);
+        rowEls[nextPos].focus();
+        return;
+      }
+
+      // `Enter` drills into the focused row's control (only from the row
+      // container — once a control is focused, `Enter` is left to it, e.g. to
+      // open the combobox or insert a newline).
+      if (event.key === "Enter") {
+        if (currentRow && active === currentRow) {
+          const control = currentRow.querySelector<HTMLElement>(
+            "[data-score-control] :is(textarea, input, button)",
+          );
+          if (control) {
+            event.preventDefault();
+            control.focus();
+          }
+        }
         return;
       }
 
@@ -802,13 +815,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                       <div
                         key={fields[index]?.id}
                         data-score-row={index}
-                        // The focused field highlights itself via `:focus-within`
-                        // (single source of truth = real focus). `ring-inset`
-                        // keeps the ring inside the row box so the scroll
-                        // container's overflow can't clip its edges. `group` lets
-                        // the option-number badges show only on the focused row.
+                        // `tabIndex={-1}` makes the row programmatically focusable
+                        // so ↑/↓ can land on the row itself (navigate) without
+                        // entering its text field. The focused row highlights via
+                        // `:focus-within` (single source of truth = real focus;
+                        // `ring-inset` so the scroll container's overflow can't
+                        // clip it), and `group` shows the option badges only on it.
+                        tabIndex={-1}
+                        role="group"
+                        aria-label={score.name}
                         className={cn(
-                          "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-sm px-1 text-left transition-colors",
+                          "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-sm px-1 text-left transition-colors outline-none",
                           "focus-within:ring-primary/30 focus-within:bg-accent/40 focus-within:ring-1 focus-within:ring-inset",
                         )}
                       >
@@ -1124,10 +1141,6 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
                     ↓
                   </KeyboardShortcut>
-                  <span className="text-muted-foreground">/</span>
-                  <KeyboardShortcut className="h-4 px-1 text-[9px]">
-                    Tab
-                  </KeyboardShortcut>
                   move between fields
                 </span>
               )}
@@ -1141,6 +1154,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                     9
                   </KeyboardShortcut>
                   select option
+                </span>
+              )}
+              {hasEditableRow && (
+                <span className="flex items-center gap-1">
+                  <KeyboardShortcut className="h-4 px-1 text-[9px]">
+                    ↵
+                  </KeyboardShortcut>
+                  edit field
                 </span>
               )}
             </div>
