@@ -25,6 +25,11 @@ import { createPortal } from "react-dom";
  * `@repo/no-overlay-zindex` lint rule guards the z-index half of this.
  *
  * The bands, low → high:
+ * - `agent`   — the in-app assistant window: a persistent, draggable/resizable
+ *   panel that floats above page content but BELOW every transient overlay, so
+ *   dropdowns, dialogs, popovers, tooltips and toasts (incl. ones opened from
+ *   inside the window itself, e.g. its conversation-history menu) all paint
+ *   above it. First (lowest) overlay rung — above `#__next`, below the rest.
  * - `modal`   — Dialog, AlertDialog, Sheet (incl. the table peek), Drawer.
  * - `popover` — Popover, DropdownMenu, Select, HoverCard. ABOVE `modal` so a
  *   Select/Popover/Dropdown opened *inside* a Dialog renders above it (matches
@@ -33,7 +38,13 @@ import { createPortal } from "react-dom";
  * - `toast`   — Sonner toasts. Last, so they always sit above every overlay
  *   (incl. a non-modal peek) by DOM order alone — no z-index needed.
  */
-export const LAYER_ORDER = ["modal", "popover", "tooltip", "toast"] as const;
+export const LAYER_ORDER = [
+  "agent",
+  "modal",
+  "popover",
+  "tooltip",
+  "toast",
+] as const;
 export type LayerName = (typeof LAYER_ORDER)[number];
 
 /**

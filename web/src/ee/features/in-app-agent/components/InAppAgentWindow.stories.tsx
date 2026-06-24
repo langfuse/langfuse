@@ -30,7 +30,6 @@ function InAppAgentWindowStoryShell({
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
       panelRef={panelRef}
-      zIndex={1}
     >
       {children}
     </InAppAgentWindowShell>
