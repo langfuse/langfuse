@@ -5,6 +5,7 @@ import {
   queryClickhouseStream,
   upsertClickhouse,
 } from "./clickhouse";
+import { QueueName } from "../queues";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
@@ -1433,6 +1434,8 @@ export const getTracesForBlobStorageExport = function (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
+      surface: "worker" as const,
+      route: QueueName.BlobStorageIntegrationProcessingQueue,
       feature: "batch-export",
       type: "trace",
       kind: "analytic",

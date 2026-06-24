@@ -16,6 +16,11 @@ async function eventsCoreAvailable(): Promise<boolean> {
   const rows = await queryClickhouse<Record<string, unknown>>({
     query: "EXISTS TABLE events_core",
     params: {},
+    tags: {
+      surface: "worker",
+      route: "monitorProcessorScalarQuery.test",
+      feature: "custom-query",
+    },
   });
   return Number(Object.values(rows[0] ?? {})[0]) === 1;
 }

@@ -336,6 +336,8 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       query,
       params,
       tags: {
+        surface: "worker",
+        route: this.instanceName,
         feature: "retention",
         table: this.tableName,
         operation: "count-chunk",
@@ -391,6 +393,8 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
           env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS,
       },
       tags: {
+        surface: "worker",
+        route: this.instanceName,
         feature: "retention",
         table: this.tableName,
         operation: "delete",

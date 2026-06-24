@@ -6,6 +6,7 @@ import {
   queryClickhouseStreamRawText,
   upsertClickhouse,
 } from "./clickhouse";
+import { QueueName } from "../queues";
 import { logger } from "../logger";
 import {
   InternalServerError,
@@ -1880,6 +1881,8 @@ const buildObservationsForBlobStorageExportQuery = (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
+      surface: "worker" as const,
+      route: QueueName.BlobStorageIntegrationProcessingQueue,
       feature: "batch-export",
       type: "observation",
       kind: "analytic",

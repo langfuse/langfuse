@@ -157,6 +157,8 @@ export class BatchProjectBlobCleaner extends PeriodicExclusiveRunner {
       `,
       params: { projectIds },
       tags: {
+        surface: "worker",
+        route: this.instanceName,
         feature: "deletion",
         operation: "count",
       },

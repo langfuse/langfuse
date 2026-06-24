@@ -43,6 +43,10 @@ describe("Ingestion end-to-end tests", () => {
       prisma,
       clickhouseWriter,
       clickhouseClient(),
+      {
+        surface: "worker",
+        route: "IngestionService.test",
+      },
     );
 
     IngestionEventBatchSchema = z.array(createIngestionEventSchema());

@@ -20,6 +20,11 @@ async function getClickhouseCount(
   const result = await queryClickhouse<{ count: number }>({
     query: `SELECT count() as count FROM ${table} FINAL WHERE project_id = {projectId: String}`,
     params: { projectId },
+    tags: {
+      surface: "worker",
+      route: "BatchDataRetentionCleaner.test",
+      feature: "retention",
+    },
   });
   return Number(result[0]?.count ?? 0);
 }

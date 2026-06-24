@@ -39,6 +39,10 @@ const mockIngestionService = new IngestionService(
   prisma,
   clickhouseWriteExports.ClickhouseWriter.getInstance() as any,
   mockClickhouseClient as any,
+  {
+    surface: "worker",
+    route: "IngestionService.test",
+  },
 );
 
 describe("Token Cost Calculation", () => {

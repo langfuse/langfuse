@@ -14,6 +14,7 @@ import { InvalidRequestError, InternalServerError } from "../../errors";
 import type { APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas";
 import type { ScoreFieldGroupV3 } from "../../features/scores/interfaces/api/v3/endpoints";
 import { filterAndValidateV3GetScoreList } from "../../features/scores/interfaces/api/v3/validation";
+import { QueueName } from "../queues";
 import {
   commandClickhouse,
   queryClickhouse,
@@ -2077,6 +2078,8 @@ export const getScoresForBlobStorageExport = function (
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
+      surface: "worker" as const,
+      route: QueueName.BlobStorageIntegrationProcessingQueue,
       feature: "batch-export",
       type: "score",
       kind: "analytic",
