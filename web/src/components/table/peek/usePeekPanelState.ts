@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -79,6 +80,9 @@ export function usePeekPanelState(): PeekPanelState {
   committedFractionRef.current = committedFraction;
 
   const dragStateRef = useRef<DragState | null>(null);
+  // Tears down an in-flight drag (listeners + body styles); also run on unmount
+  // so a drag interrupted by the peek closing can't leak listeners/cursor.
+  const endDragRef = useRef<(() => void) | null>(null);
 
   const startResize = useCallback(
     (event: ReactPointerEvent) => {
@@ -103,13 +107,17 @@ export function usePeekPanelState(): PeekPanelState {
         }
       };
 
-      const onPointerUp = () => {
+      const teardown = () => {
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", onPointerUp);
         window.removeEventListener("pointercancel", onPointerUp);
         document.body.style.removeProperty("user-select");
         document.body.style.removeProperty("cursor");
+        endDragRef.current = null;
+      };
 
+      const onPointerUp = () => {
+        teardown();
         const final = dragStateRef.current;
         if (final && !final.fullscreen) {
           setStoredFraction(final.fraction);
@@ -119,6 +127,7 @@ export function usePeekPanelState(): PeekPanelState {
         setIsResizing(false);
       };
 
+      endDragRef.current = teardown;
       window.addEventListener("pointermove", onPointerMove);
       window.addEventListener("pointerup", onPointerUp);
       window.addEventListener("pointercancel", onPointerUp);
@@ -128,6 +137,10 @@ export function usePeekPanelState(): PeekPanelState {
     },
     [setStoredFraction],
   );
+
+  // Safety net: if the component unmounts mid-drag, drop the window listeners
+  // and restore the body cursor/selection styles.
+  useEffect(() => () => endDragRef.current?.(), []);
 
   const onKeyDown = useCallback(
     (event: ReactKeyboardEvent) => {
