@@ -1261,7 +1261,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
 
 function notifyBlobStorageExportFailedInBackground(
   projectId: string,
-  paused: boolean = false,
+  paused = false,
 ): void {
   (async () => {
     try {
