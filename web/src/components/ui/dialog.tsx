@@ -6,13 +6,22 @@ import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
+import { useLayerContainer } from "@/src/components/ui/layer";
 import motionStyles from "./dialog-motion.module.css";
 
 const Dialog = DialogPrimitive.Root;
 
 const DialogTrigger = DialogPrimitive.Trigger;
 
-const DialogPortal = DialogPrimitive.Portal;
+// Route the portal into the `modal` overlay layer (null until mounted →
+// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+const DialogPortal = ({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Portal>) => {
+  const container = useLayerContainer("modal");
+  return <DialogPrimitive.Portal container={container} {...props} />;
+};
+DialogPortal.displayName = "DialogPortal";
 
 const DialogClose = DialogPrimitive.Close;
 
@@ -34,7 +43,7 @@ const DialogOverlay = React.forwardRef<
     ref={ref}
     className={cn(
       motionStyles.overlay,
-      "fixed inset-0 z-50",
+      "fixed inset-0",
       dialogOverlayClasses[overlayMode],
       className,
     )}
@@ -44,7 +53,7 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] overflow-hidden z-50 flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-background shadow-lg sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-background shadow-lg sm:rounded-lg",
   {
     variants: {
       size: {
