@@ -650,26 +650,45 @@ export function CategoricalFacet({
       })
     : visibleOptionValues;
 
-  // Pin selected options to the top of the list so an applied filter is
+  // Order a genuine selection to the top of the list so an applied filter is
   // immediately visible — without scrolling or expanding "Show more" — even
-  // when the selected value sits far down a long list (LFE-10494). Selected
-  // options are always shown; the visible-count cap applies only to the
-  // unselected remainder. We only reorder long lists (more options than the
-  // cap), where burial can actually happen; short, fully-visible lists keep
-  // their natural order to avoid gratuitous reshuffling.
+  // when the selected value sits far down a long list (LFE-10494).
+  //
+  // Two guards keep this honest:
+  //   1. Only reorder long lists (more options than the cap) that carry a real,
+  //      strict-subset selection. `value` mirrors the hook's
+  //      `computeSelectedValues`, which reports EVERY option as "selected" when
+  //      no filter is applied (and the inverted set for `none of`). Requiring a
+  //      strict subset skips that all-selected default — otherwise the whole
+  //      list would be treated as pinned — and leaves short lists untouched.
+  //   2. The visible-count cap is applied to the COMBINED ordered list, so even
+  //      a large selection (many values, or a `none of` include-set) can never
+  //      render the entire list; "Show more" still gates the overflow.
   const selectedSet = new Set(value);
-  const pinSelected = hasMoreOptions;
-  const selectedOptions = pinSelected
-    ? filteredOptions.filter((option) => selectedSet.has(option))
-    : [];
-  const remainingOptions = pinSelected
-    ? filteredOptions.filter((option) => !selectedSet.has(option))
+  const pinSelected =
+    hasMoreOptions &&
+    value.length > 0 &&
+    value.length < visibleOptionValues.length;
+  const orderedOptions = pinSelected
+    ? [
+        ...filteredOptions.filter((option) => selectedSet.has(option)),
+        ...filteredOptions.filter((option) => !selectedSet.has(option)),
+      ]
     : filteredOptions;
 
-  const hasMoreFilteredOptions = remainingOptions.length > MAX_VISIBLE_OPTIONS;
-  const visibleRemainingOptions = showAll
-    ? remainingOptions
-    : remainingOptions.slice(0, MAX_VISIBLE_OPTIONS);
+  const hasMoreFilteredOptions = orderedOptions.length > MAX_VISIBLE_OPTIONS;
+  const visibleOptions = showAll
+    ? orderedOptions
+    : orderedOptions.slice(0, MAX_VISIBLE_OPTIONS);
+
+  // Split the visible slice so a separator can mark where the pinned selection
+  // ends. When not pinning, everything renders in natural order (no divider).
+  const visibleSelectedOptions = pinSelected
+    ? visibleOptions.filter((option) => selectedSet.has(option))
+    : [];
+  const visibleRemainingOptions = pinSelected
+    ? visibleOptions.filter((option) => !selectedSet.has(option))
+    : visibleOptions;
 
   const renderOption = (option: string) => {
     const displayLabel = displayByValue?.get(option) ?? option;
@@ -857,10 +876,10 @@ export function CategoricalFacet({
                 ) : (
                   <>
                     {/* Selected options, pinned to the top (long lists only) */}
-                    {selectedOptions.map(renderOption)}
+                    {visibleSelectedOptions.map(renderOption)}
 
                     {/* Separator between the pinned selection and the rest */}
-                    {selectedOptions.length > 0 &&
+                    {visibleSelectedOptions.length > 0 &&
                       visibleRemainingOptions.length > 0 && (
                         <div
                           className="border-border/60 mx-3 my-1 border-t"

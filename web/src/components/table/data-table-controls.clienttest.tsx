@@ -86,6 +86,66 @@ describe("CategoricalFacet", () => {
     ).toBeTruthy();
   });
 
+  it("keeps the 'Show more' cap when every option is reported selected (no-filter default)", () => {
+    // useSidebarFilterState returns value === options when no filter is applied
+    // (computeSelectedValues). That all-selected default must NOT be treated as
+    // a pinned selection — doing so would render the entire list with no cap.
+    const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
+    render(
+      <Accordion type="multiple" value={["c"]}>
+        <CategoricalFacet
+          label="C"
+          filterKey="c"
+          expanded
+          loading={false}
+          options={options}
+          counts={new Map()}
+          value={options}
+          onChange={() => {}}
+          isActive={false}
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+    );
+
+    // The cap is preserved: "Show more" still renders and a deep value stays hidden.
+    expect(
+      screen.getByRole("button", { name: "Show more values" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("opt-19")).not.toBeInTheDocument();
+  });
+
+  it("never bypasses the cap, even for a large selection", () => {
+    // A large selection (e.g. a "none of" include-set) must still respect the
+    // visible-count cap rather than dumping every value into the DOM.
+    const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
+    const selected = options.slice(0, 18); // 18 of 20 selected
+    render(
+      <Accordion type="multiple" value={["c"]}>
+        <CategoricalFacet
+          label="C"
+          filterKey="c"
+          expanded
+          loading={false}
+          options={options}
+          counts={new Map()}
+          value={selected}
+          onChange={() => {}}
+          isActive
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Show more values" }),
+    ).toBeInTheDocument();
+    // Only the capped number of rows render, not all 18 selected.
+    expect(screen.getAllByRole("checkbox").length).toBeLessThanOrEqual(12);
+  });
+
   it("does not reorder short, fully-visible lists", () => {
     render(
       <Accordion type="multiple" value={["c"]}>
