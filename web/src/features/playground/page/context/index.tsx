@@ -54,10 +54,14 @@ import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys"
 type PlaygroundContextType = {
   windowId: string;
   promptVariables: PromptVariable[];
+  setPromptVariables: React.Dispatch<React.SetStateAction<PromptVariable[]>>;
   updatePromptVariableValue: (variable: string, value: string) => void;
   deletePromptVariable: (variable: string) => void;
 
   messagePlaceholders: PlaceholderMessageFillIn[];
+  setMessagePlaceholders: React.Dispatch<
+    React.SetStateAction<PlaceholderMessageFillIn[]>
+  >;
   updateMessagePlaceholderValue: (name: string, value: ChatMessage[]) => void;
   deleteMessagePlaceholder: (name: string) => void;
 
@@ -74,6 +78,7 @@ type PlaygroundContextType = {
 
   handleSubmit: (streaming?: boolean) => Promise<void>;
   isStreaming: boolean;
+  setModelParams: React.Dispatch<React.SetStateAction<UIModelParams>>;
 } & ModelParamsContext &
   MessagesContext;
 
@@ -682,9 +687,11 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
       value={{
         windowId: effectiveWindowId,
         promptVariables,
+        setPromptVariables,
         updatePromptVariableValue,
         deletePromptVariable,
         messagePlaceholders,
+        setMessagePlaceholders,
         updateMessagePlaceholderValue,
         deleteMessagePlaceholder,
 
@@ -703,6 +710,7 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         toolCallIds,
 
         modelParams,
+        setModelParams,
         updateModelParamValue,
         setModelParamEnabled,
         providerModelCombinations,

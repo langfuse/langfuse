@@ -1,6 +1,8 @@
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
 import { PlaygroundProvider } from "../context";
 import { SaveToPromptButton } from "./SaveToPromptButton";
+import { ExportDraftButton } from "./ExportDraftButton";
+import { ImportDraftButton } from "./ImportDraftButton";
 import { Button } from "@/src/components/ui/button";
 import { Plus, X } from "lucide-react";
 import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
@@ -190,6 +192,8 @@ function PlaygroundWindowContent({
 
           <div className="absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-2">
             <TooltipProvider delayDuration={300}>
+              <ImportDraftButton />
+              <ExportDraftButton />
               <SaveToPromptButton />
 
               {/* Hide copy button on mobile */}

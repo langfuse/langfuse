@@ -39,6 +39,24 @@ export type PlaygroundCache = {
   structuredOutputSchema?: PlaygroundSchema | null;
 } | null;
 
+export interface PlaygroundDraftSnapshot {
+  schemaVersion: "langfuse-playground-draft/v1";
+  model?: string; // Format: "provider:model-name"
+  messages?: Array<{
+    role?: string;
+    content?: string;
+    type?: string;
+    name?: string;
+    toolCallId?: string;
+    toolCalls?: any[];
+  }>;
+  variables?: Record<string, string>;
+  tools?: any[];
+  schema?: any; // Structured output schema
+  structuredOutputSchema?: any; // Support for alternate key name
+  modelParameters?: Record<string, any>;
+}
+
 // Multi-window types and interfaces
 
 /**
