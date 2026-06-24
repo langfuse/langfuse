@@ -369,11 +369,22 @@ export function TableViewPresetsDrawer({
       typeof window !== "undefined" &&
       window.location?.href
     ) {
-      copyTextToClipboard(window.location.href);
-      showSuccessToast({
-        title: "Permalink copied to clipboard",
-        description: "You can now share the permalink with others",
-      });
+      // Toast on the clipboard write's resolution: a permission failure must
+      // surface an error instead of falsely reporting success.
+      copyTextToClipboard(window.location.href)
+        .then(() =>
+          showSuccessToast({
+            title: "Permalink copied to clipboard",
+            description: "You can now share the permalink with others",
+          }),
+        )
+        .catch(() =>
+          showErrorToast(
+            "Failed to copy permalink",
+            "Could not write to the clipboard. Please copy the page URL manually.",
+            "WARNING",
+          ),
+        );
       return;
     }
 

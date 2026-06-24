@@ -373,8 +373,10 @@ describe("Saved view restore with implicit environment defaults", () => {
       query: { viewId: "view-1", filter: encodedFilters },
     });
 
-    // The view also carries a column layout, which is per-user localStorage and
-    // not encoded in the URL.
+    // The view also carries a column layout. It must NOT be applied here:
+    // column order/visibility are the visitor's own per-table localStorage, and
+    // opening a shared link is not a deliberate action — applying the view's
+    // columns would silently overwrite the visitor's saved layout.
     const setColumnOrder = vi.fn();
     const setColumnVisibility = vi.fn();
     mockGetByIdUseQuery.mockReturnValue({
@@ -418,10 +420,10 @@ describe("Saved view restore with implicit environment defaults", () => {
     // The viewId stays in the URL as a provenance reference so the drawer can
     // still show the view the link came from.
     expect(queryParamStore.get("viewId")).toBe("view-1");
-    // The view's column layout is NOT carried by the URL, so it must still be
-    // applied from the view — otherwise the recipient keeps their own columns.
-    expect(setColumnOrder).toHaveBeenCalledWith(["name", "latency"]);
-    expect(setColumnVisibility).toHaveBeenCalledWith({ input: false });
+    // The view is not applied over explicit URL state, so the visitor's own
+    // column layout is left untouched (no localStorage mutation on link open).
+    expect(setColumnOrder).not.toHaveBeenCalled();
+    expect(setColumnVisibility).not.toHaveBeenCalled();
   });
 
   it("does not apply a default saved view over explicit URL filters", async () => {

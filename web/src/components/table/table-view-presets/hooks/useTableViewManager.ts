@@ -187,26 +187,19 @@ export function useTableViewManager({
       !!selectedViewId &&
       (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets);
 
-    // Explicit table state in the URL (`filter`/`search`/`orderBy`) is
-    // authoritative for filters/sort/search, even when a `viewId` is present.
-    // The viewId is a provenance reference — which saved view a link came from
-    // — but the URL's filters are what is actually applied (the URL is the
-    // source of truth). Without this, opening `?viewId=X&filter=...` (a shared
-    // "view + in-view edits" link, or any deep link onto a saved view) would
-    // overwrite the URL's filters with the view's stored state. Preserves
-    // deep-link precedence (#13865) and makes shared links carry in-view edits
-    // (LFE-10486).
+    // Explicit table state in the URL (`filter`/`search`/`searchType`/
+    // `orderBy`) is authoritative, even when a `viewId` is present. The viewId
+    // is a provenance reference — which saved view a link came from — but the
+    // URL's filters/sort/search are what is actually applied (the URL is the
+    // source of truth). We do NOT fetch or apply the saved view here: applying
+    // it would overwrite the URL's filters, and writing its column layout would
+    // silently mutate the visitor's own per-table localStorage on a
+    // non-deliberate link open. The viewId stays in the URL so the drawer still
+    // shows the originating view. Preserves deep-link precedence (#13865) and
+    // makes shared links carry in-view edits (LFE-10486).
     if (hasExplicitTableStateInUrl(router.query)) {
-      // Unlock right away so the URL's filters apply without waiting on a fetch.
+      setIsInitialized(true);
       setIsLoading(false);
-      // If a real saved view is referenced, still let getById resolve so its
-      // column layout (per-user localStorage, not encoded in the URL) can be
-      // applied by the success handler — which applies columns only and leaves
-      // the URL's filters authoritative. Otherwise there is nothing left to
-      // resolve, so mark initialization complete.
-      if (!hasResolvableView) {
-        setIsInitialized(true);
-      }
       return;
     }
 
@@ -379,6 +372,10 @@ export function useTableViewManager({
         isRouterReady &&
         !!selectedViewId &&
         !isInitialized &&
+        // Explicit URL state is authoritative and we deliberately do not apply
+        // the view over it (no filter overwrite, no localStorage column
+        // mutation on a link open) — so there is nothing to fetch.
+        !hasExplicitTableStateInUrl(router.query) &&
         (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
     },
   );
@@ -389,6 +386,15 @@ export function useTableViewManager({
     const requestedViewId = selectedViewId;
     if (!requestedViewId) return;
     if (isInitializedRef.current) return;
+    // Explicit URL state is authoritative and the view is deliberately not
+    // applied over it — guard here too (not just via the query `enabled`) so
+    // cached view data can never apply the view on the first render regardless
+    // of effect timing (LFE-10486).
+    if (hasExplicitTableStateInUrl(router.query)) {
+      setIsInitialized(true);
+      setIsLoading(false);
+      return;
+    }
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
     if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
@@ -403,25 +409,12 @@ export function useTableViewManager({
       name: selectedViewData.name,
     });
 
-    if (hasExplicitTableStateInUrl(router.query)) {
-      // The URL is authoritative for filters/sort/search, so do NOT apply the
-      // view's stored filters over them. The column layout, however, is
-      // per-user localStorage that the URL does not carry — apply it from the
-      // view so a shared "view + in-view edits" link still renders the view's
-      // columns instead of the recipient's own (LFE-10486).
-      if (selectedViewData.columnOrder)
-        setColumnOrder(selectedViewData.columnOrder);
-      if (selectedViewData.columnVisibility)
-        setColumnVisibility(selectedViewData.columnVisibility);
-    } else {
-      applyViewState(selectedViewData);
-    }
+    applyViewState(selectedViewData);
     if (storedViewId !== requestedViewId) {
       setStoredViewId(requestedViewId);
     }
     isInitializedRef.current = true;
     setIsInitialized(true);
-    setIsLoading(false);
   }, [
     disabled,
     isSelectedViewSuccess,
@@ -432,8 +425,6 @@ export function useTableViewManager({
     capture,
     tableName,
     applyViewState,
-    setColumnOrder,
-    setColumnVisibility,
     storedViewId,
     setStoredViewId,
   ]);
