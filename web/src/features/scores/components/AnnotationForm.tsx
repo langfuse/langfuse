@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
   MessageCircleMore,
@@ -277,6 +277,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   });
 
   const [showSaving, setShowSaving] = useState(false);
+
+  // LFE-7628 — root of this form, used to scope the global keydown listener so
+  // it doesn't double-fire across multiple mounted forms (DualAnnotationContent
+  // mounts an observation form and a trace form side-by-side).
+  const formRootRef = useRef<HTMLDivElement | null>(null);
 
   // LFE-7628 — keyboard-first scoring.
   // Index of the score row that number keys (1-9) currently target. Only
@@ -637,6 +642,25 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target) || hasModifier(event)) return;
       if (selectableIndexes.length === 0) return;
+      // Scope to a single form so a keypress never writes a score to two forms
+      // at once (DualAnnotationContent mounts two AnnotationForm instances).
+      // - If focus is inside an annotation form, only the focused form acts.
+      // - Otherwise (focus on the body) the first annotation form in DOM order
+      //   handles it — which is the only/whole form for the single-form pages
+      //   (queue item, dataset panel, single-target drawer).
+      const root = formRootRef.current;
+      if (!root) return;
+      const active = document.activeElement;
+      const focusedForm =
+        active instanceof HTMLElement
+          ? active.closest("[data-annotation-form]")
+          : null;
+      if (focusedForm) {
+        if (focusedForm !== root) return;
+      } else {
+        const firstForm = document.querySelector("[data-annotation-form]");
+        if (firstForm !== root) return;
+      }
 
       // Cycle which score row the number keys target.
       if (event.key === "[" || event.key === "]") {
@@ -678,7 +702,11 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   }, [selectableIndexesKey, activeConfigIndex, controlledFields, configs]);
 
   return (
-    <div className="mx-auto w-full space-y-2 overflow-y-auto md:max-h-full">
+    <div
+      ref={formRootRef}
+      data-annotation-form
+      className="mx-auto w-full space-y-2 overflow-y-auto md:max-h-full"
+    >
       <div className="bg-background sticky top-0 z-10 rounded-sm">
         <AnnotateHeader
           showSaving={showSaving}

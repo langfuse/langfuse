@@ -20,6 +20,8 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import {
   hasModifier,
+  isInteractiveTarget,
+  isOpenDialogPresent,
   isTypingTarget,
 } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
@@ -203,10 +205,29 @@ export const AnnotationQueueItemPage: React.FC<{
     [],
   );
 
+  // The Mark-Completed button is allowed through the interactive-control guard:
+  // pressing Enter while it is focused fires its own click anyway.
+  const completeButtonRef = useRef<HTMLButtonElement | null>(null);
+
   useEffect(() => {
     if (isSingleItem) return; // single-item view has no queue navigation
     const handleKeyDown = (event: KeyboardEvent) => {
+      // Bail if another listener (e.g. Radix roving focus) already handled it,
+      // if we're typing, or if a platform modifier is held.
+      if (event.defaultPrevented) return;
       if (isTypingTarget(event.target) || hasModifier(event)) return;
+      // Don't hijack Enter/arrows from focused buttons, radios, or roving-focus
+      // widgets, and don't fire while a modal/drawer is open (e.g. the comment
+      // drawer's Save Changes). The Mark-Completed button is exempt.
+      if (
+        isInteractiveTarget(event.target, completeButtonRef.current) ||
+        isInteractiveTarget(
+          document.activeElement,
+          completeButtonRef.current,
+        ) ||
+        isOpenDialogPresent()
+      )
+        return;
       if (!hasAccess) return;
 
       // Complete + advance to next item.
@@ -397,6 +418,7 @@ export const AnnotationQueueItemPage: React.FC<{
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
+                    ref={completeButtonRef}
                     onClick={handleComplete}
                     size="lg"
                     className={cn(
