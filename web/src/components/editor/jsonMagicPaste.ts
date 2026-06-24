@@ -179,7 +179,9 @@ const magicPasteTipField = StateField.define<ActiveTip | null>({
 function buildTooltip(tip: ActiveTip): Tooltip {
   return {
     pos: tip.from,
-    above: true,
+    // Render below the paste so the editor's own top edge / overflow can't clip
+    // it; `strictSide: false` still lets it flip up near the bottom of the view.
+    above: false,
     strictSide: false,
     arrow: false,
     create(view) {
