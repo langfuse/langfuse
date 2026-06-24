@@ -9,6 +9,7 @@ import {
 import type { Session } from "next-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
+import { randomUUID } from "crypto";
 import { beforeEach, vi } from "vitest";
 import { z } from "zod";
 
@@ -158,7 +159,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true },
       });
-      const session = createInAppAgentSession({
+      const session = await createPersistedInAppAgentSession({
         orgId: org.id,
         projectId: project.id,
       });
@@ -246,7 +247,7 @@ describe("in-app agent public API route auth", () => {
         where: { id: org.id },
         data: { aiFeaturesEnabled: true, cloudConfig: { plan: "Team" } },
       });
-      const session = createInAppAgentSession({
+      const session = await createPersistedInAppAgentSession({
         orgId: org.id,
         projectId: project.id,
         admin: true,
@@ -334,7 +335,7 @@ describe("in-app agent public API route auth", () => {
         data: { aiFeaturesEnabled: true },
       });
       authMocks.getServerSession.mockResolvedValue(
-        createInAppAgentSession({
+        await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
         }),
@@ -431,7 +432,7 @@ describe("in-app agent public API route auth", () => {
         data: { aiFeaturesEnabled: true },
       });
       authMocks.getServerSession.mockResolvedValue(
-        createInAppAgentSession({
+        await createPersistedInAppAgentSession({
           orgId: org.id,
           projectId: project.id,
         }),
@@ -484,9 +485,29 @@ describe("in-app agent public API route auth", () => {
   });
 });
 
+async function createPersistedInAppAgentSession(params: {
+  orgId: string;
+  projectId: string;
+  admin?: boolean;
+  includeProjectMembership?: boolean;
+}): Promise<Session> {
+  const userId = `user-${randomUUID()}`;
+
+  await prisma.user.create({
+    data: {
+      id: userId,
+      name: "Test User",
+      email: `${userId}@example.com`,
+    },
+  });
+
+  return createInAppAgentSession({ ...params, userId });
+}
+
 function createInAppAgentSession(params: {
   orgId: string;
   projectId: string;
+  userId: string;
   admin?: boolean;
   includeProjectMembership?: boolean;
 }): Session {
@@ -496,7 +517,7 @@ function createInAppAgentSession(params: {
     expires: new Date(Date.now() + 60_000).toISOString(),
     environment: { enableExperimentalFeatures: false },
     user: {
-      id: "user-1",
+      id: params.userId,
       name: "Test User",
       email: "test@example.com",
       image: null,
