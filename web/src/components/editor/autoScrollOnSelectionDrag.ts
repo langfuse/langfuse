@@ -34,16 +34,20 @@ export function autoScrollOnSelectionDrag(): Extension {
       if (event.button !== 0) return false;
 
       // Only drive selection ourselves for a plain single-range character drag.
-      // For advanced gestures — alt+drag rectangular selection (multi-range) and
-      // double/triple-click word/line selection (`detail > 1`, boundary-snapped) —
-      // a single-range `{anchor, head}` dispatch would collapse the rectangle and
-      // drop the snapping. In those modes we still auto-scroll but leave selection
-      // extension to CodeMirror's own `pointerSelection` (the scroll moves content
-      // under the pointer; CM's next mousemove extends with the right granularity).
+      // For advanced gestures — alt+drag rectangular selection (multi-range),
+      // double/triple-click word/line selection (`detail > 1`, boundary-snapped),
+      // and mod+click multi-cursor (Cmd on macOS / Ctrl elsewhere, which adds a
+      // new selection range) — a single-range `{anchor, head}` dispatch would
+      // collapse the rectangle/multi-cursor and drop the snapping. In those modes
+      // we still auto-scroll but leave selection extension to CodeMirror's own
+      // `pointerSelection` (the scroll moves content under the pointer; CM's next
+      // mousemove extends with the right granularity).
       const driveSelection =
         view.state.selection.ranges.length === 1 &&
         event.detail === 1 &&
-        !event.altKey;
+        !event.altKey &&
+        !event.metaKey &&
+        !event.ctrlKey;
 
       const scroller = view.scrollDOM;
       let lastClientX = event.clientX;
