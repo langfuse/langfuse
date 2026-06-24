@@ -250,6 +250,16 @@ export const AnnotationQueueItemPage: React.FC<{
         if (isOpenDialogPresent()) return;
         if (isPending && !completeMutation.isPending && !objectData.isError) {
           event.preventDefault();
+          // Text/numeric score fields persist on blur. Flush a focused one first
+          // so feedback typed right before ⌘/Ctrl+Enter isn't lost when we
+          // navigate away (its onBlur fires the save mutation synchronously).
+          const active = document.activeElement;
+          if (
+            active instanceof HTMLTextAreaElement ||
+            active instanceof HTMLInputElement
+          ) {
+            active.blur();
+          }
           pulse("complete");
           handleComplete().catch(() => {});
         }
