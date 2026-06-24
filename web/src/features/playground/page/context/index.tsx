@@ -277,12 +277,11 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         } as ChatMessageWithId;
         setMessages((prev) => [...prev, placeholderMessage]);
         return placeholderMessage;
-      } else {
-        const newMessage = createEmptyMessage(message);
-        setMessages((prev) => [...prev, newMessage]);
-
-        return newMessage;
       }
+      const newMessage = createEmptyMessage(message);
+      setMessages((prev) => [...prev, newMessage]);
+
+      return newMessage;
     },
     [],
   );

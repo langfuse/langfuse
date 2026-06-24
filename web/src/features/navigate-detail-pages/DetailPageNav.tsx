@@ -171,5 +171,5 @@ export const DetailPageNav = (props: {
         </Tooltip>
       </div>
     );
-  else return null;
+  return null;
 };

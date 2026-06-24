@@ -95,10 +95,9 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
         setShouldPulseToggle(false);
       }, 12000); // Stop pulse after 12 seconds
       return () => clearTimeout(timeout);
-    } else {
-      // Reset pulse when leaving timeline view
-      setShouldPulseToggle(false);
     }
+    // Reset pulse when leaving timeline view
+    setShouldPulseToggle(false);
   }, [isTimelineView]);
 
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({

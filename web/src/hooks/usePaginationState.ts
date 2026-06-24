@@ -56,20 +56,19 @@ export function usePaginationState(
         });
       };
       return [contextState, setState] as const;
-    } else {
-      // Return page/limit format
-      const contextState = { page: pageIndex + 1, limit: pageSize };
-      const setState = (newPagination: { page: number; limit: number }) => {
-        peekContext.setTableState({
-          ...peekContext.tableState,
-          pagination: {
-            pageIndex: newPagination.page - 1,
-            pageSize: newPagination.limit,
-          },
-        });
-      };
-      return [contextState, setState] as const;
     }
+    // Return page/limit format
+    const contextState = { page: pageIndex + 1, limit: pageSize };
+    const setState = (newPagination: { page: number; limit: number }) => {
+      peekContext.setTableState({
+        ...peekContext.tableState,
+        pagination: {
+          pageIndex: newPagination.page - 1,
+          pageSize: newPagination.limit,
+        },
+      });
+    };
+    return [contextState, setState] as const;
   }
 
   // Not in peek context
@@ -90,11 +89,10 @@ export function usePaginationState(
       });
     };
     return [urlState, setUrlState] as const;
-  } else {
-    // Return page/limit format as-is
-    return [
-      paginationState as { page: number; limit: number },
-      setPaginationState as (value: { page: number; limit: number }) => void,
-    ] as const;
   }
+  // Return page/limit format as-is
+  return [
+    paginationState as { page: number; limit: number },
+    setPaginationState as (value: { page: number; limit: number }) => void,
+  ] as const;
 }

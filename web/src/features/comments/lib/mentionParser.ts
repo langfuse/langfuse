@@ -115,10 +115,9 @@ export function sanitizeMentions(
         }
 
         return `@[${canonicalName}](${MENTION_USER_PREFIX}${userId})`;
-      } else {
-        // Invalid user: Strip mention markdown, keep display name as plain text
-        return displayName;
       }
+      // Invalid user: Strip mention markdown, keep display name as plain text
+      return displayName;
     },
   );
 

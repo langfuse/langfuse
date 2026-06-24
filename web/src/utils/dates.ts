@@ -71,11 +71,10 @@ export const getRelativeTimestampFromNow = (timestamp: Date): string => {
     return `${Math.floor(diffInHours)} hours ago`;
   } else if (diffInDays < 7) {
     return `${Math.floor(diffInDays)} days ago`;
-  } else {
-    return timestamp.toLocaleDateString("en-US", {
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-    });
   }
+  return timestamp.toLocaleDateString("en-US", {
+    year: "2-digit",
+    month: "numeric",
+    day: "numeric",
+  });
 };

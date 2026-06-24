@@ -78,26 +78,25 @@ const createObservationOrEvent = (
             ? data.end_time * timeMultiplier
             : null,
     });
-  } else {
-    // For observations table: milliseconds
-    return createObservation({
-      id,
-      trace_id: data.trace_id,
-      project_id: data.project_id,
-      name: data.name,
-      type: data.type ?? "SPAN",
-      level: data.level ?? "DEFAULT",
-      start_time: data.start_time,
-      end_time: data.end_time === null ? null : data.end_time,
-      input: data.input,
-      output: data.output,
-      metadata: data.metadata,
-      provided_model_name: data.provided_model_name,
-      provided_usage_details: data.provided_usage_details,
-      provided_cost_details: data.provided_cost_details,
-      total_cost: data.total_cost,
-    });
   }
+  // For observations table: milliseconds
+  return createObservation({
+    id,
+    trace_id: data.trace_id,
+    project_id: data.project_id,
+    name: data.name,
+    type: data.type ?? "SPAN",
+    level: data.level ?? "DEFAULT",
+    start_time: data.start_time,
+    end_time: data.end_time === null ? null : data.end_time,
+    input: data.input,
+    output: data.output,
+    metadata: data.metadata,
+    provided_model_name: data.provided_model_name,
+    provided_usage_details: data.provided_usage_details,
+    provided_cost_details: data.provided_cost_details,
+    total_cost: data.total_cost,
+  });
 };
 
 const waitForEventsTable = async (useEventsTable: boolean) => {

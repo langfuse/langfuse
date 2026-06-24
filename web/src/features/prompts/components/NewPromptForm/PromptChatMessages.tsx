@@ -78,13 +78,12 @@ export const PromptChatMessages: React.FC<PromptChatMessagesProps> = ({
             id,
             type: ChatMessageType.Placeholder,
           } as ChatMessageWithId;
-        } else {
-          return {
-            ...message,
-            id,
-            type: ChatMessageType.PublicAPICreated,
-          } as ChatMessageWithId;
         }
+        return {
+          ...message,
+          id,
+          type: ChatMessageType.PublicAPICreated,
+        } as ChatMessageWithId;
       }),
     );
 

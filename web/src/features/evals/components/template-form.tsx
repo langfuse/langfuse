@@ -423,10 +423,9 @@ export const InnerEvalTemplateForm = (props: {
         if ("message" in error && typeof error.message === "string") {
           setFormError(error.message as string);
           return;
-        } else {
-          setFormError(JSON.stringify(error));
-          console.error(error);
         }
+        setFormError(JSON.stringify(error));
+        console.error(error);
       });
   }
 

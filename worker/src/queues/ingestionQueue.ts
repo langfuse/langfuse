@@ -98,12 +98,12 @@ export const ingestionQueueProcessorBuilder = (
             `Skipping ingestion event ${job.data.payload.data.fileKey} for project ${job.data.payload.authCheck.scope.projectId}`,
           );
           return;
-        } else {
-          recordIncrement("langfuse.ingestion.recently_processed_cache", 1, {
-            type: job.data.payload.data.type,
-            skipped: "false",
-          });
         }
+
+        recordIncrement("langfuse.ingestion.recently_processed_cache", 1, {
+          type: job.data.payload.data.type,
+          skipped: "false",
+        });
       }
 
       // Check if project should be redirected to secondary queue

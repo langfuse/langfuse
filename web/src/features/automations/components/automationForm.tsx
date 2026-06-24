@@ -473,9 +473,8 @@ export const AutomationForm = ({
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
         },
       };
-    } else {
-      throw new Error("Invalid action type");
     }
+    throw new Error("Invalid action type");
   };
 
   // Initialize form with default values or values from existing automation

@@ -50,17 +50,15 @@ export const TraceGraphView: React.FC<TraceGraphViewProps> = ({
     if (!hasStepData) {
       // has no steps → add timing-based steps
       return buildStepData(agentGraphData);
-    } else {
-      const isLangGraph = agentGraphData.some(
-        (o) => o.node && o.node.trim().length > 0,
-      );
-      if (isLangGraph) {
-        // TODO: make detection more robust based on metadata
-        return transformLanggraphToGeneralized(agentGraphData);
-      } else {
-        return agentGraphData; // Already normalized
-      }
     }
+    const isLangGraph = agentGraphData.some(
+      (o) => o.node && o.node.trim().length > 0,
+    );
+    if (isLangGraph) {
+      // TODO: make detection more robust based on metadata
+      return transformLanggraphToGeneralized(agentGraphData);
+    }
+    return agentGraphData; // Already normalized
   }, [agentGraphData]);
 
   const { graph, nodeToObservationsMap } = useMemo(() => {

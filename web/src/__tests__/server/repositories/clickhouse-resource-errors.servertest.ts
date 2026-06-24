@@ -178,9 +178,8 @@ describe("ClickHouse Resource Error Handling", () => {
           const isResourceError = ((err: Error) => {
             if (err instanceof ClickHouseResourceError) {
               return true;
-            } else {
-              return false;
             }
+            return false;
           })(wrappedError);
 
           expect(isResourceError).toBe(shouldBeResourceError);

@@ -1013,14 +1013,13 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
             });
             if (user) {
               return true;
-            } else {
-              // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
-              await new Promise((resolve) =>
-                setTimeout(resolve, Math.random() * 2000 + 200),
-              );
-              // Prevents sign in with email link if user does not exist
-              return false;
             }
+            // Add random delay to prevent leaking if user exists as otherwise it would be instant compared to sending an email
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.random() * 2000 + 200),
+            );
+            // Prevents sign in with email link if user does not exist
+            return false;
           }
 
           // Optional configuration: validate authorised email domains for google provider

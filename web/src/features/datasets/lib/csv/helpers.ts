@@ -227,18 +227,17 @@ export function buildSchemaObject(
       if (csvColumns.length === 1) {
         // Single column: use the raw value
         return [schemaKey, parseValue(row[headerMap.get(csvColumns[0]!)!])];
-      } else {
-        // Multiple columns: create an object
-        return [
-          schemaKey,
-          Object.fromEntries(
-            csvColumns.map((csvColumn) => [
-              csvColumn,
-              parseValue(row[headerMap.get(csvColumn)!]),
-            ]),
-          ),
-        ];
       }
+      // Multiple columns: create an object
+      return [
+        schemaKey,
+        Object.fromEntries(
+          csvColumns.map((csvColumn) => [
+            csvColumn,
+            parseValue(row[headerMap.get(csvColumn)!]),
+          ]),
+        ),
+      ];
     }),
   );
 }

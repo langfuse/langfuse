@@ -171,12 +171,12 @@ export class RedisLock {
       if (result === 1) {
         logger.debug(`[${this.name}] Released lock`);
         return true;
-      } else {
-        logger.warn(
-          `[${this.name}] Lock was not released (not owned or already expired)`,
-        );
-        return false;
       }
+
+      logger.warn(
+        `[${this.name}] Lock was not released (not owned or already expired)`,
+      );
+      return false;
     } catch (error) {
       // Log but don't throw - lock will expire via TTL anyway
       logger.error(`[${this.name}] Failed to release lock`, error);
