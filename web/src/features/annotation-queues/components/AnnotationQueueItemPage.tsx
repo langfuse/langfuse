@@ -563,6 +563,12 @@ export const AnnotationQueueItemPage: React.FC<{
                 <span className="text-muted-foreground text-xs">–</span>
                 <KeyboardShortcut>9</KeyboardShortcut>
               </ShortcutRow>
+              <ShortcutRow label="Edit the active text / number field">
+                <KeyboardShortcut>↵</KeyboardShortcut>
+              </ShortcutRow>
+              <ShortcutRow label="Stop editing (back to navigation)">
+                <KeyboardShortcut>Esc</KeyboardShortcut>
+              </ShortcutRow>
             </div>
             <p className="text-muted-foreground border-t pt-3 text-xs">
               Bare{" "}

@@ -285,9 +285,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   const formRootRef = useRef<HTMLDivElement | null>(null);
 
   // LFE-7628 — keyboard-first scoring.
-  // Index of the score row that number keys (1-9) currently target. Only
-  // categorical/boolean configs (discrete options) participate; numeric/text
-  // configs are filled by typing directly. `↑` / `↓` move the active row.
+  // `↑` / `↓` move the active row across *all* score rows (categorical, boolean,
+  // numeric, and free-text). Number keys (1-9) only act on rows with discrete
+  // options (categorical/boolean); landing on a numeric/text row instead focuses
+  // its input so the annotator can type, and `Esc` returns to row navigation.
   const isKeyboardSelectable = (
     field: (typeof controlledFields)[number] | undefined,
   ) => {
@@ -300,31 +301,38 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     );
   };
 
+  // Rows that have discrete options → participate in `1`-`9` selection + badges.
   const selectableIndexes = controlledFields
     .map((field, index) => ({ field, index }))
     .filter(({ field }) => isKeyboardSelectable(field))
     .map(({ index }) => index);
-  // Stable key for effect dependency arrays (the array identity changes each render).
+  // Every rendered row (has a matching config) → reachable with `↑` / `↓`.
+  const navigableIndexes = controlledFields
+    .map((field, index) => ({ field, index }))
+    .filter(({ field }) => configs.some((c) => c.id === field.configId))
+    .map(({ index }) => index);
+  // Stable keys for effect dependency arrays (array identity changes each render).
   const selectableIndexesKey = selectableIndexes.join(",");
+  const navigableIndexesKey = navigableIndexes.join(",");
 
   const [activeConfigIndex, setActiveConfigIndex] = useState<number | null>(
     null,
   );
 
-  // Keep the active row valid as the form's score rows change.
+  // Keep the active row valid (and defined) as the form's score rows change.
   useEffect(() => {
-    if (selectableIndexes.length === 0) {
+    if (navigableIndexes.length === 0) {
       if (activeConfigIndex !== null) setActiveConfigIndex(null);
       return;
     }
     if (
       activeConfigIndex === null ||
-      !selectableIndexes.includes(activeConfigIndex)
+      !navigableIndexes.includes(activeConfigIndex)
     ) {
-      setActiveConfigIndex(selectableIndexes[0]);
+      setActiveConfigIndex(navigableIndexes[0]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectableIndexesKey, activeConfigIndex]);
+  }, [navigableIndexesKey, activeConfigIndex]);
 
   useEffect(() => {
     const isPending =
@@ -635,24 +643,44 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     );
   };
 
-  // LFE-7628 — global keydown for score selection.
-  //  - `↑` / `↓` move the active score row (only categorical/boolean rows)
-  //  - `1`-`9`  pick the Nth option of the active row
-  // Typing in inputs/textarea/comment fields is never hijacked, and an open
-  // popover/drawer (e.g. the score-comment editor) suspends these shortcuts.
+  // LFE-7628 — global keydown for keyboard-first scoring.
+  //  - `↑` / `↓` move the active row across *all* score rows; landing on a
+  //    numeric/text row focuses it so the annotator can type right away.
+  //  - `Esc` blurs a focused score field, returning to row navigation.
+  //  - `1`-`9` pick the Nth option of the active row (option rows only).
+  // Typing in inputs/textarea/comment fields is never hijacked (except `Esc`),
+  // and an open popover/drawer (e.g. the score-comment editor) suspends these.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target) || hasModifier(event)) return;
+      if (hasModifier(event)) return;
       if (isOpenDialogPresent()) return;
-      if (selectableIndexes.length === 0) return;
+
+      const root = formRootRef.current;
+      if (!root) return;
+
+      // `Esc` leaves an editing score field (handled before the typing guard so
+      // it fires from inside the field) and returns focus to row navigation.
+      if (event.key === "Escape") {
+        const target = event.target;
+        if (
+          (target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement) &&
+          root.contains(target)
+        ) {
+          target.blur();
+        }
+        return;
+      }
+
+      // Below here is row navigation / option selection — never hijack typing.
+      if (isTypingTarget(event.target)) return;
+      if (navigableIndexes.length === 0) return;
       // Scope to a single form so a keypress never writes a score to two forms
       // at once (DualAnnotationContent mounts two AnnotationForm instances).
       // - If focus is inside an annotation form, only the focused form acts.
       // - Otherwise (focus on the body) the first annotation form in DOM order
       //   handles it — which is the only/whole form for the single-form pages
       //   (queue item, dataset panel, single-target drawer).
-      const root = formRootRef.current;
-      if (!root) return;
       const active = document.activeElement;
       const focusedForm =
         active instanceof HTMLElement
@@ -665,31 +693,57 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         if (firstForm !== root) return;
       }
 
-      // Move which score row the number keys target. Only meaningful when there
-      // is more than one selectable row; otherwise leave ↑/↓ to scroll the page.
+      // Move the active row across all rows (highlight only — no focus change,
+      // so traversal stays smooth and never decrements a number / moves a
+      // caret). Only meaningful with more than one row; otherwise leave ↑/↓ to
+      // scroll the page.
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        if (selectableIndexes.length < 2) return;
+        if (navigableIndexes.length < 2) return;
         event.preventDefault();
         const current =
           activeConfigIndex !== null
-            ? selectableIndexes.indexOf(activeConfigIndex)
+            ? navigableIndexes.indexOf(activeConfigIndex)
             : 0;
         const safeCurrent = current < 0 ? 0 : current;
         const delta = event.key === "ArrowDown" ? 1 : -1;
-        const nextPos =
-          (safeCurrent + delta + selectableIndexes.length) %
-          selectableIndexes.length;
-        setActiveConfigIndex(selectableIndexes[nextPos]);
+        const nextIndex =
+          navigableIndexes[
+            (safeCurrent + delta + navigableIndexes.length) %
+              navigableIndexes.length
+          ];
+        setActiveConfigIndex(nextIndex);
         return;
       }
 
-      // Select an option on the active row.
+      // `Enter` edits the active numeric/text field: focus its input so the
+      // annotator can type (then `Esc` returns to row navigation). Focus moves
+      // only after this keydown, so it never inserts a newline. Option rows use
+      // `1`-`9` instead, so `Enter` is a no-op there.
+      if (event.key === "Enter" && activeConfigIndex !== null) {
+        const field = controlledFields[activeConfigIndex];
+        if (
+          field &&
+          (isTextDataType(field.dataType) || isNumericDataType(field.dataType))
+        ) {
+          const input = root.querySelector<HTMLElement>(
+            `[data-score-row="${activeConfigIndex}"] textarea, [data-score-row="${activeConfigIndex}"] input`,
+          );
+          if (input) {
+            event.preventDefault();
+            input.focus();
+          }
+        }
+        return;
+      }
+
+      // Select an option on the active row (only rows with discrete options).
       if (/^[1-9]$/.test(event.key)) {
-        const targetIndex =
-          activeConfigIndex !== null &&
-          selectableIndexes.includes(activeConfigIndex)
-            ? activeConfigIndex
-            : selectableIndexes[0];
+        if (
+          activeConfigIndex === null ||
+          !selectableIndexes.includes(activeConfigIndex)
+        )
+          return;
+        const targetIndex = activeConfigIndex;
         const field = controlledFields[targetIndex];
         const config = configs.find((c) => c.id === field?.configId);
         const categories = config?.categories ?? [];
@@ -697,14 +751,19 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         const category = categories[optionIndex];
         if (!category) return;
         event.preventDefault();
-        setActiveConfigIndex(targetIndex);
         handleCategoricalUpsert(targetIndex, category.label);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectableIndexesKey, activeConfigIndex, controlledFields, configs]);
+  }, [
+    selectableIndexesKey,
+    navigableIndexesKey,
+    activeConfigIndex,
+    controlledFields,
+    configs,
+  ]);
 
   return (
     <div
@@ -773,21 +832,23 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                       score.stringValue,
                     );
 
-                    const isActiveShortcutRow =
-                      selectableIndexes.includes(index) &&
-                      index === activeConfigIndex;
+                    const isActiveRow = index === activeConfigIndex;
+                    // Number badges only render on the active row when it has
+                    // discrete options to pick.
+                    const isActiveOptionRow =
+                      isActiveRow && selectableIndexes.includes(index);
 
                     return (
                       <div
                         key={fields[index]?.id}
-                        onMouseEnter={() => {
-                          if (selectableIndexes.includes(index))
-                            setActiveConfigIndex(index);
-                        }}
+                        data-score-row={index}
+                        onMouseEnter={() => setActiveConfigIndex(index)}
                         className={cn(
                           "grid w-full grid-cols-[1fr_2fr] items-center gap-8 rounded-sm text-left transition-colors",
-                          isActiveShortcutRow &&
-                            "ring-primary/30 bg-accent/40 ring-1",
+                          // `ring-inset` keeps the highlight inside the row box so
+                          // the scroll container's overflow can't clip its edges.
+                          isActiveRow &&
+                            "ring-primary/30 bg-accent/40 ring-1 ring-inset",
                         )}
                       >
                         <div className="grid h-full grid-cols-[1fr_auto] items-center">
@@ -1004,7 +1065,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                                   (c) =>
                                                     c.label === category.label,
                                                 ) ?? -1) + 1;
-                                              return isActiveShortcutRow &&
+                                              return isActiveOptionRow &&
                                                 digit >= 1 &&
                                                 digit <= 9 ? (
                                                 <KeyboardShortcut className="ml-0.5 h-3.5 min-w-3.5 px-1 text-[9px]">
@@ -1082,19 +1143,21 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
               )}
             />
           </div>
-          {selectableIndexes.length > 0 && (
+          {navigableIndexes.length > 0 && (
             <div className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 px-0.5 text-[11px]">
-              <span className="flex items-center gap-1">
-                <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                  1
-                </KeyboardShortcut>
-                <span className="text-muted-foreground">…</span>
-                <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                  9
-                </KeyboardShortcut>
-                select option
-              </span>
-              {selectableIndexes.length > 1 && (
+              {selectableIndexes.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                    1
+                  </KeyboardShortcut>
+                  <span className="text-muted-foreground">…</span>
+                  <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                    9
+                  </KeyboardShortcut>
+                  select option
+                </span>
+              )}
+              {navigableIndexes.length > 1 && (
                 <span className="flex items-center gap-1">
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
                     ↑
@@ -1102,7 +1165,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
                     ↓
                   </KeyboardShortcut>
-                  move between scores
+                  move between fields
                 </span>
               )}
             </div>
