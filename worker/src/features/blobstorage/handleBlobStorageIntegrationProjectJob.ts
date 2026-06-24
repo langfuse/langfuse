@@ -503,8 +503,9 @@ const processBlobStorageExport = async (config: {
             ? config.exportFieldGroups
             : [...OBSERVATION_FIELD_GROUPS_FULL];
 
+        // blob.path already encodes parquet (no per-table fallback), so no
+        // separate blob.config.parquet attribute is needed.
         span.setAttribute("blob.path", exportPath);
-        span.setAttribute("blob.config.parquet", config.parquet);
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
