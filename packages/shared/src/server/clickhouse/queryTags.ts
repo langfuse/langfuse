@@ -22,6 +22,7 @@ export const clickHouseQueryFeatures = [
   "retention",
   "deletion",
   "event-propagation",
+  "eval-execution",
   "health",
   "models",
   "mcp",
