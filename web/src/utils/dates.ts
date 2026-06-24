@@ -35,7 +35,7 @@ export const setEndOfDay = (date: Date) => {
 export const intervalInSeconds = (start: Date, end: Date | null) =>
   end ? (end.getTime() - start.getTime()) / 1000 : 0;
 
-export const formatIntervalSeconds = (seconds: number, scale: number = 2) => {
+export const formatIntervalSeconds = (seconds: number, scale = 2) => {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
   const secs = Math.floor(seconds % 60);
@@ -71,11 +71,10 @@ export const getRelativeTimestampFromNow = (timestamp: Date): string => {
     return `${Math.floor(diffInHours)} hours ago`;
   } else if (diffInDays < 7) {
     return `${Math.floor(diffInDays)} days ago`;
-  } else {
-    return timestamp.toLocaleDateString("en-US", {
-      year: "2-digit",
-      month: "numeric",
-      day: "numeric",
-    });
   }
+  return timestamp.toLocaleDateString("en-US", {
+    year: "2-digit",
+    month: "numeric",
+    day: "numeric",
+  });
 };

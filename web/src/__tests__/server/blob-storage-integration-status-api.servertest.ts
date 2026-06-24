@@ -14,7 +14,14 @@ const BlobStorageIntegrationStatusResponseSchema = z
   .object({
     id: z.string(),
     projectId: z.string(),
-    syncStatus: z.enum(["idle", "queued", "up_to_date", "disabled", "error"]),
+    syncStatus: z.enum([
+      "idle",
+      "running",
+      "queued",
+      "up_to_date",
+      "disabled",
+      "error",
+    ]),
     enabled: z.boolean(),
     lastSyncAt: z.coerce.date().nullable(),
     nextSyncAt: z.coerce.date().nullable(),
@@ -29,6 +36,7 @@ const HOUR_AGO = new Date(NOW - 60 * 60 * 1000);
 const TWO_HOURS_AGO = new Date(NOW - 2 * 60 * 60 * 1000);
 const THIRTY_MIN_AGO = new Date(NOW - 30 * 60 * 1000);
 const TEN_MIN_AGO = new Date(NOW - 10 * 60 * 1000);
+const THREE_HOURS_AGO = new Date(NOW - 3 * 60 * 60 * 1000);
 const TOMORROW = new Date(NOW + 24 * 60 * 60 * 1000);
 
 describe("Blob Storage Integration Status API - GET /api/public/integrations/blob-storage/{id}", () => {
@@ -178,6 +186,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     nextSyncAt: Date | null;
     lastError: string | null;
     lastErrorAt: Date | null;
+    runStartedAt?: Date | null;
     expectedStatus: string;
     expectedFields?: Record<string, unknown>;
   }>([
@@ -200,6 +209,35 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       lastErrorAt: null,
       expectedStatus: "idle",
       expectedFields: { enabled: true, lastSyncAt: null },
+    },
+    {
+      name: "queued (nextSyncAt past, lastSyncAt null — precedence: queued wins over idle)",
+      enabled: true,
+      lastSyncAt: null,
+      nextSyncAt: TEN_MIN_AGO,
+      lastError: null,
+      lastErrorAt: null,
+      expectedStatus: "queued",
+    },
+    {
+      name: "running (runStartedAt set, never synced)",
+      enabled: true,
+      lastSyncAt: null,
+      nextSyncAt: null,
+      lastError: null,
+      lastErrorAt: null,
+      runStartedAt: TEN_MIN_AGO,
+      expectedStatus: "running",
+    },
+    {
+      name: "running (runStartedAt set, previously synced)",
+      enabled: true,
+      lastSyncAt: HOUR_AGO,
+      nextSyncAt: TOMORROW,
+      lastError: null,
+      lastErrorAt: null,
+      runStartedAt: TEN_MIN_AGO,
+      expectedStatus: "running",
     },
     {
       name: "up_to_date (nextSyncAt in future)",
@@ -252,6 +290,27 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       expectedFields: { lastError: "Access Denied" },
     },
     {
+      name: "stale runStartedAt (>2h fixed TTL, falls through to up_to_date)",
+      enabled: true,
+      lastSyncAt: HOUR_AGO,
+      nextSyncAt: TOMORROW,
+      lastError: null,
+      lastErrorAt: null,
+      runStartedAt: THREE_HOURS_AGO,
+      expectedStatus: "up_to_date",
+    },
+    {
+      name: "error > running (precedence: lastError wins over runStartedAt)",
+      enabled: true,
+      lastSyncAt: HOUR_AGO,
+      nextSyncAt: TOMORROW,
+      lastError: "Access Denied",
+      lastErrorAt: THIRTY_MIN_AGO,
+      runStartedAt: TEN_MIN_AGO,
+      expectedStatus: "error",
+      expectedFields: { lastError: "Access Denied" },
+    },
+    {
       name: "error > up_to_date (precedence: lastError wins over future nextSyncAt)",
       enabled: true,
       lastSyncAt: HOUR_AGO,
@@ -269,6 +328,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       nextSyncAt,
       lastError,
       lastErrorAt,
+      runStartedAt,
       expectedStatus,
       expectedFields,
     }) => {
@@ -290,6 +350,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
           nextSyncAt,
           lastError,
           lastErrorAt,
+          runStartedAt: runStartedAt ?? null,
         },
       });
 

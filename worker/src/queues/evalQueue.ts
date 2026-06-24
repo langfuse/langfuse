@@ -70,19 +70,19 @@ export const evalJobDatasetCreatorQueueProcessor = async (
       if (shouldRetry) {
         // Retry was scheduled, complete this job successfully
         return true;
-      } else {
-        // Max attempts reached, log warning and complete successfully
-        logger.warn(
-          `Observation not found after max retries. Completing job without creating eval.`,
-          {
-            projectId: job.data.payload.projectId,
-            datasetItemId: job.data.payload.datasetItemId,
-            observationId: job.data.payload.observationId,
-            traceId: job.data.payload.traceId,
-          },
-        );
-        return true;
       }
+
+      // Max attempts reached, log warning and complete successfully
+      logger.warn(
+        `Observation not found after max retries. Completing job without creating eval.`,
+        {
+          projectId: job.data.payload.projectId,
+          datasetItemId: job.data.payload.datasetItemId,
+          observationId: job.data.payload.observationId,
+          traceId: job.data.payload.traceId,
+        },
+      );
+      return true;
     }
 
     // All other errors should be logged and propagated for BullMQ retry

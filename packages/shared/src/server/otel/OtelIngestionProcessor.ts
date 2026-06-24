@@ -1405,18 +1405,18 @@ export class OtelIngestionProcessor {
         }
       }
       return result;
-    } else {
-      const result: Record<string, unknown> = Object.create(null);
-      for (const key of keys) {
-        const pathParts = key.split(".");
-        if (pathParts.length === 1) {
-          result[key] = input[`${prefix}.${key}`];
-        } else {
-          setNestedValue(result, pathParts, input[`${prefix}.${key}`]);
-        }
-      }
-      return result;
     }
+
+    const result: Record<string, unknown> = Object.create(null);
+    for (const key of keys) {
+      const pathParts = key.split(".");
+      if (pathParts.length === 1) {
+        result[key] = input[`${prefix}.${key}`];
+      } else {
+        setNestedValue(result, pathParts, input[`${prefix}.${key}`]);
+      }
+    }
+    return result;
   }
 
   private extractInputAndOutput(params: {

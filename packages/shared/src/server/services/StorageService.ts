@@ -891,7 +891,7 @@ class S3StorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = true,
+    asAttachment = true,
   ): Promise<string> {
     try {
       return getSignedUrl(
@@ -1045,10 +1045,11 @@ class GoogleCloudStorageService implements StorageService {
             .on("finish", () => {
               resolve();
             });
+          return;
         });
-      } else {
-        throw new Error("Unsupported data type. Must be Readable or string.");
       }
+
+      throw new Error("Unsupported data type. Must be Readable or string.");
     } catch (err) {
       logger.error(
         `Failed to upload file to Google Cloud Storage ${fileName}`,
@@ -1149,7 +1150,7 @@ class GoogleCloudStorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = false,
+    asAttachment = false,
   ): Promise<string> {
     try {
       const file = this.bucket.file(fileName);
@@ -1231,7 +1232,7 @@ class OCIObjectStorageService implements StorageService {
   private clientInit: Promise<void>;
   private bucketName: string;
   private externalEndpoint?: string;
-  private namespaceName: string = "";
+  private namespaceName = "";
 
   constructor(params: {
     bucketName: string;
@@ -1612,7 +1613,7 @@ class OCIObjectStorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = true,
+    asAttachment = true,
   ): Promise<string> {
     try {
       const { client, namespaceName } = await this.getClientAndNamespace();
