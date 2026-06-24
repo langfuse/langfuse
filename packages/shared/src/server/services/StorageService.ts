@@ -500,12 +500,12 @@ class AzureBlobStorageService implements StorageService {
     readableStream: NodeJS.ReadableStream,
   ): Promise<string> {
     return new Promise((resolve, reject) => {
-      const chunks: string[] = [];
+      const chunks: Buffer[] = [];
       readableStream.on("data", (data) => {
-        chunks.push(data.toString());
+        chunks.push(Buffer.isBuffer(data) ? data : Buffer.from(data));
       });
       readableStream.on("end", () => {
-        resolve(chunks.join(""));
+        resolve(Buffer.concat(chunks).toString("utf-8"));
       });
       readableStream.on("error", reject);
     });
