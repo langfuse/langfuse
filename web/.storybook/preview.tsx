@@ -2,6 +2,7 @@ import { definePreview } from "@storybook/nextjs-vite";
 import addonA11y from "@storybook/addon-a11y";
 import { useEffect, type ReactNode } from "react";
 import { TooltipProvider } from "../src/components/ui/tooltip";
+import { MarkdownContextProvider } from "../src/features/theming/useMarkdownContext";
 import { LAYER_ORDER } from "../src/components/ui/layer";
 import "../src/styles/globals.css";
 // Mirror the global CSS that _app.tsx imports so vendored components
@@ -80,9 +81,15 @@ export default definePreview({
 
       return (
         <StorybookThemeProvider theme={theme}>
-          <TooltipProvider>
-            <Story />
-          </TooltipProvider>
+          {/* MarkdownContextProvider mirrors the app: pages render inside it so
+              the JSON/IO viewers (CodeJsonViewer's JSONView calls
+              useMarkdownContext) work identically to production. Without it,
+              multi-line IOTableCell renders (rowHeight m/l) throw. */}
+          <MarkdownContextProvider>
+            <TooltipProvider>
+              <Story />
+            </TooltipProvider>
+          </MarkdownContextProvider>
         </StorybookThemeProvider>
       );
     },
