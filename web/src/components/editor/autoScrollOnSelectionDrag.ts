@@ -33,6 +33,18 @@ export function autoScrollOnSelectionDrag(): Extension {
       // Only react to the primary (left) button selection drag.
       if (event.button !== 0) return false;
 
+      // Only drive selection ourselves for a plain single-range character drag.
+      // For advanced gestures — alt+drag rectangular selection (multi-range) and
+      // double/triple-click word/line selection (`detail > 1`, boundary-snapped) —
+      // a single-range `{anchor, head}` dispatch would collapse the rectangle and
+      // drop the snapping. In those modes we still auto-scroll but leave selection
+      // extension to CodeMirror's own `pointerSelection` (the scroll moves content
+      // under the pointer; CM's next mousemove extends with the right granularity).
+      const driveSelection =
+        view.state.selection.ranges.length === 1 &&
+        event.detail === 1 &&
+        !event.altKey;
+
       const scroller = view.scrollDOM;
       let lastClientX = event.clientX;
       let lastClientY = event.clientY;
@@ -66,26 +78,35 @@ export function autoScrollOnSelectionDrag(): Extension {
 
         const before = scroller.scrollTop;
         scroller.scrollTop = before + delta;
-        if (scroller.scrollTop === before) {
-          // Hit the top/bottom of the document; nothing more to scroll.
-          return;
-        }
+        const scrolled = scroller.scrollTop !== before;
 
         // Extend the selection to the position under the (clamped) pointer so
         // the highlighted range keeps growing with the scroll. Clamp Y into the
-        // scroller so posAtCoords resolves to the first/last visible line.
-        const rectAfter = scroller.getBoundingClientRect();
-        const clampedY = Math.max(
-          rectAfter.top + 1,
-          Math.min(rectAfter.bottom - 1, lastClientY),
-        );
-        const pos = view.posAtCoords({ x: lastClientX, y: clampedY });
-        if (pos !== null) {
-          view.dispatch({
-            selection: { anchor: view.state.selection.main.anchor, head: pos },
-          });
+        // scroller so posAtCoords resolves to the first/last visible line. Only
+        // for the plain single-range drag; advanced gestures are left to CM.
+        if (scrolled && driveSelection) {
+          const rectAfter = scroller.getBoundingClientRect();
+          const clampedY = Math.max(
+            rectAfter.top + 1,
+            Math.min(rectAfter.bottom - 1, lastClientY),
+          );
+          const pos = view.posAtCoords({ x: lastClientX, y: clampedY });
+          if (pos !== null) {
+            view.dispatch({
+              selection: {
+                anchor: view.state.selection.main.anchor,
+                head: pos,
+              },
+            });
+          }
         }
 
+        // Keep the loop alive while the pointer is past the edge (`delta !== 0`),
+        // even if the scroller is already at the top/bottom and didn't move.
+        // Otherwise, if the pointer is held still past the edge, no mousemove
+        // fires to restart the loop and scrolling never resumes when the user
+        // drags back — native textareas resume immediately. This only runs
+        // during an active drag and ends on mouseup (or when delta returns to 0).
         frame = requestAnimationFrame(step);
       };
 

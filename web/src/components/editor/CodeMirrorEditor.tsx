@@ -468,7 +468,10 @@ export function CodeMirrorEditor({
       ...(!editable ? [EditorState.readOnly.of(true)] : []),
       // Restore native-textarea-like auto-scroll when a selection drag reaches
       // the editor's top/bottom edge (CodeMirror doesn't do this on its own).
-      autoScrollOnSelectionDrag(),
+      // Editable-only: read-only editors (JSON viewers, version panels) already
+      // auto-scroll natively, and we don't want their window-level mousemove/
+      // mouseup capture listeners registering on every drag.
+      ...(editable ? [autoScrollOnSelectionDrag()] : []),
       searchHighlightingSupport,
       search(),
       // RTL/bidi support - must be early for proper line decoration
