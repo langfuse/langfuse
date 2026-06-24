@@ -47,7 +47,14 @@ import {
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { numberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
-import { Copy, InfoIcon, MoreVertical, Trash } from "lucide-react";
+import {
+  Copy,
+  InfoIcon,
+  ListTree,
+  MoreVertical,
+  PlusCircle,
+  Trash,
+} from "lucide-react";
 
 // =============================================================================
 // FIDELITY GOAL
@@ -1360,4 +1367,123 @@ function FolderRowsStory() {
 
 export const WithFolderRows = meta.story({
   render: () => <FolderRowsStory />,
+});
+
+// -----------------------------------------------------------------------------
+// 9. Inline icon cells (alignment regression harness)
+// -----------------------------------------------------------------------------
+// Trailing/leading icons next to cell text are a supported pattern (the
+// "Provided Model Name" create-affordance, ListTree source links, folder rows).
+// They must NOT shift the text baseline relative to plain rows. This story puts
+// every variant in one column so any vertical-alignment regression is obvious:
+//   - plain TableIdOrName (no icon)
+//   - TableIdOrName + trailing PlusCircle — mirrors features/models
+//     ProvidedModelNameCell: the name is wrapped in `inline-flex items-center`
+//     with the icon as a `shrink-0` adornment, so it lands on the same baseline
+//     as the no-icon rows.
+//   - TableLink with a leading icon (ListTree)
+//   - FolderBreadcrumbLink (Folder icon)
+// A second plain-text column shows the row stays aligned across the table.
+
+type IconCellRow = {
+  id: string;
+  name: string;
+  kind: "plain" | "createModel" | "link" | "folder";
+  detail: string;
+};
+
+const ICON_CELL_ROWS: IconCellRow[] = [
+  { id: "1", name: "gpt-4o-mini", kind: "plain", detail: "resolved" },
+  { id: "2", name: "gpt-3.5-turbo", kind: "createModel", detail: "unmatched" },
+  {
+    id: "3",
+    name: "claude-3-5-sonnet",
+    kind: "createModel",
+    detail: "unmatched",
+  },
+  {
+    id: "4",
+    name: "text-embedding-3-large",
+    kind: "plain",
+    detail: "resolved",
+  },
+  { id: "5", name: "obs-7c1f-typography", kind: "link", detail: "source" },
+  { id: "6", name: "shared-prompts", kind: "folder", detail: "folder" },
+  {
+    id: "7",
+    name: "gpt-4.1-judge-pipeline",
+    kind: "createModel",
+    detail: "unmatched",
+  },
+];
+
+const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
+  {
+    accessorKey: "name",
+    id: "name",
+    header: "Provided Model Name",
+    size: 260,
+    cell: ({ row }) => {
+      const { name, kind } = row.original;
+      switch (kind) {
+        case "createModel":
+          // Faithful to ProvidedModelNameCell: same TableIdOrName, trailing icon.
+          return (
+            <span className="inline-flex max-w-full cursor-pointer items-center gap-1">
+              <TableIdOrName value={name} className="min-w-0" />
+              <PlusCircle className="h-3.5 w-3.5 shrink-0" />
+            </span>
+          );
+        case "link":
+          return (
+            <TableLink
+              path="#"
+              value={name}
+              icon={
+                <span className="flex flex-row items-center gap-1">
+                  <ListTree className="h-3.5 w-3.5 shrink-0" />
+                  {name}
+                </span>
+              }
+            />
+          );
+        case "folder":
+          return <FolderBreadcrumbLink name={name} onClick={() => {}} />;
+        case "plain":
+        default:
+          return (
+            <span className="inline-flex max-w-full items-center">
+              <TableIdOrName value={name} className="min-w-0" />
+            </span>
+          );
+      }
+    },
+  },
+  {
+    accessorKey: "detail",
+    id: "detail",
+    header: "Status",
+    size: 120,
+    cell: ({ getValue }) => getValue<string>(),
+  },
+];
+
+function InlineIconCellsStory() {
+  const data: AsyncTableData<IconCellRow[]> = {
+    isLoading: false,
+    isError: false,
+    data: ICON_CELL_ROWS,
+  };
+  return (
+    <DataTable<IconCellRow, unknown>
+      tableName="story-inline-icon-cells"
+      columns={iconCellColumns}
+      data={data}
+      rowHeight="s"
+    />
+  );
+}
+
+export const WithInlineIconCells = meta.story({
+  render: () => <InlineIconCellsStory />,
 });
