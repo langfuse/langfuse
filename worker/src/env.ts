@@ -21,11 +21,6 @@ const EnvSchema = z.object({
     .enum(["US", "EU", "STAGING", "DEV", "HIPAA", "JP"])
     .optional(),
 
-  // Standard AWS region of the worker deployment, injected by the runtime
-  // (ECS/EKS) from deployment config. Used to classify blob-export S3 traffic
-  // as same-/cross-region for cost attribution; absent on non-AWS deployments.
-  AWS_REGION: z.string().optional(),
-
   STRIPE_SECRET_KEY: z.string().optional(),
 
   LANGFUSE_CACHE_AUTOMATIONS_ENABLED: z.enum(["true", "false"]).default("true"),

@@ -673,11 +673,7 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
             path: passthroughEligible ? "passthrough" : "standard",
             source: exportFormat,
-            traffic: classifyBlobExportTraffic(
-              config.endpoint,
-              config.region,
-              env.AWS_REGION,
-            ),
+            traffic: classifyBlobExportTraffic(config.endpoint),
           };
           recordIncrement(
             "langfuse.blob_export.serialized_bytes",
