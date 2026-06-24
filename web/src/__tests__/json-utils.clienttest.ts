@@ -1081,3 +1081,55 @@ describe("Performance Comparison", () => {
     expect(recursiveResult).toEqual(iterativeResult);
   });
 });
+
+describe("Number precision (issue #6628)", () => {
+  // Build the JSON by hand so the big integers stay literal digit text. A JS
+  // numeric literal like 107505301260286111 would be rounded to a double by
+  // this test file itself, before the parser ever sees it.
+  const flatJson =
+    '{"as_number": 107505301260286111, "as_string": "107505301260286111", "safe_number": 42}';
+  const nestedJson =
+    '{"nested": {"big": 9223372036854775807}, "arr": [100000000000000001, 7, "100000000000000003"]}';
+
+  describe.each([
+    ["deepParseJson", deepParseJson],
+    ["deepParseJsonIterative", deepParseJsonIterative],
+  ])("%s", (_name, parse) => {
+    it("preserves integers beyond Number.MAX_SAFE_INTEGER as strings", () => {
+      const result = parse(flatJson) as any;
+      // The unsafe integer is preserved verbatim instead of being rounded to
+      // 107505301260286110 by native JSON.parse.
+      expect(result.as_number).toBe("107505301260286111");
+      // A safe integer stays a real number.
+      expect(result.safe_number).toBe(42);
+      // A value already provided as a string is untouched.
+      expect(result.as_string).toBe("107505301260286111");
+    });
+
+    it("preserves big integers nested in objects and arrays", () => {
+      const result = parse(nestedJson) as any;
+      expect(result.nested.big).toBe("9223372036854775807");
+      expect(result.arr[0]).toBe("100000000000000001");
+      expect(result.arr[1]).toBe(7);
+      expect(result.arr[2]).toBe("100000000000000003");
+    });
+
+    it("preserves a big integer passed as an already-parsed nested string", () => {
+      // Mirrors the real path: the API ships input as a JSON string nested
+      // inside an object, and the client deep-parses it.
+      const result = parse({ output: flatJson }) as any;
+      expect(result.output.as_number).toBe("107505301260286111");
+    });
+
+    it("preserves a big integer inside a Python-dict-formatted string", () => {
+      // LangChain/LangGraph tool calls are logged as Python dicts, which often
+      // carry big integer run/correlation IDs. These reach the Python-dict
+      // fallback parser, not the JSON parser.
+      const result = parse(
+        "{'request_id': 107505301260286111, 'ok': True}",
+      ) as any;
+      expect(result.request_id).toBe("107505301260286111");
+      expect(result.ok).toBe(true);
+    });
+  });
+});
