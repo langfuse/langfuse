@@ -9,11 +9,8 @@ import {
   type FilterState,
   singleFilter,
 } from "@langfuse/shared";
-import { z } from "zod";
 
 import { filterStateToQueryText } from "../lib/filter-state-to-query";
-
-const FilterArraySchema = z.array(singleFilter);
 
 // Mirrors COMPATIBLE_FILTER_TYPES in
 // packages/shared/src/server/queries/clickhouse-sql/filterTypeCompatibility.ts —
@@ -53,9 +50,15 @@ function isEventsContractCompatible(f: FilterState[number]): boolean {
 /**
  * Extract a `FilterState` from the model's completion. Tries the whole string,
  * then the widest bracketed array (greedy, so it survives nested objects), and
- * tolerates a `{ "filters": [...] }` wrapper. Returns [] when nothing parses.
+ * tolerates a `{ "filters": [...] }` wrapper. Returns the structurally-valid
+ * filters plus `rawCount` (how many elements the model actually emitted), so
+ * the caller can count the malformed ones as dropped. `rawCount` is 0 when
+ * nothing parses.
  */
-function parseFilterArray(completion: string): FilterState {
+function parseFilterArray(completion: string): {
+  filters: FilterState;
+  rawCount: number;
+} {
   const arrayMatch = completion.match(/\[[\s\S]*\]/)?.[0];
   const candidates = [completion, arrayMatch].filter((c): c is string =>
     Boolean(c),
@@ -63,13 +66,26 @@ function parseFilterArray(completion: string): FilterState {
   for (const candidate of candidates) {
     try {
       const parsed = JSON.parse(candidate);
-      const filtersArray = Array.isArray(parsed) ? parsed : parsed.filters;
-      return FilterArraySchema.parse(filtersArray);
+      const raw = Array.isArray(parsed) ? parsed : parsed.filters;
+      if (!Array.isArray(raw)) continue;
+      // Parse PER ELEMENT, not the whole array: `z.array(singleFilter).parse`
+      // is all-or-nothing, so one off-spec element (wrong operator, missing
+      // key, value-as-string, unknown type — common on weaker models) would
+      // discard the valid siblings and surface a misleading "couldn't build
+      // filters". Keep the structurally-valid ones; the rejects show up in the
+      // dropped count below, mirroring the per-element keep/drop the two
+      // downstream guardrails already use.
+      const kept: FilterState = [];
+      for (const item of raw) {
+        const result = singleFilter.safeParse(item);
+        if (result.success) kept.push(result.data);
+      }
+      return { filters: kept, rawCount: raw.length };
     } catch {
       // try the next candidate
     }
   }
-  return [];
+  return { filters: [], rawCount: 0 };
 }
 
 export type GeneratedFilters = {
@@ -77,8 +93,8 @@ export type GeneratedFilters = {
   filters: FilterState;
   /** The derived bar query text (for display / telemetry). */
   queryText: string;
-  /** How many model filters were dropped as non-representable (hallucinated or
-   *  non-v4 columns). */
+  /** How many model filters were dropped — malformed shape, hallucinated, or
+   *  non-v4 columns (i.e. emitted by the model but not applied). */
   droppedCount: number;
 };
 
@@ -89,7 +105,9 @@ export type GeneratedFilters = {
  * editable pill.
  */
 export function parseGeneratedFilters(completion: string): GeneratedFilters {
-  const parsed = parseFilterArray(completion);
+  // `rawCount` is what the model emitted; `parsed` already excludes elements
+  // that failed `singleFilter`, so the drop count is measured against rawCount.
+  const { filters: parsed, rawCount } = parseFilterArray(completion);
   // Guardrail 1: drop filters whose type the events contract would reject.
   const compatible = parsed.filter(isEventsContractCompatible);
   // Guardrail 2: drop anything that doesn't round-trip to bar grammar (unknown /
@@ -100,6 +118,6 @@ export function parseGeneratedFilters(completion: string): GeneratedFilters {
   return {
     filters,
     queryText: text,
-    droppedCount: parsed.length - filters.length,
+    droppedCount: rawCount - filters.length,
   };
 }

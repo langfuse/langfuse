@@ -114,6 +114,31 @@ describe("parseGeneratedFilters", () => {
     expect(droppedCount).toBe(1);
   });
 
+  it("keeps a structurally-valid filter when a sibling element is malformed", () => {
+    // Weaker models drift on shape. Here element 2 has an operator that isn't in
+    // the stringOptions enum ("equals" is not "any of"/"none of"), so it fails
+    // `singleFilter`. The whole array must NOT be discarded — the valid
+    // level:ERROR filter survives, and the malformed one counts as dropped.
+    const completion = JSON.stringify([
+      {
+        type: "stringOptions",
+        column: "level",
+        operator: "any of",
+        value: ["ERROR"],
+      },
+      {
+        type: "stringOptions",
+        column: "environment",
+        operator: "equals",
+        value: "production",
+      },
+    ]);
+    const { filters, droppedCount } = parseGeneratedFilters(completion);
+    expect(filters).toHaveLength(1);
+    expect(filters[0]?.column).toBe("level");
+    expect(droppedCount).toBe(1);
+  });
+
   it("returns no filters for non-JSON / refusal output", () => {
     const { filters, queryText, droppedCount } = parseGeneratedFilters(
       "I'm sorry, I can't help with that.",
