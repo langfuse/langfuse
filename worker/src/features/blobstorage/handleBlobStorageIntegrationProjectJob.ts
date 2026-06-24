@@ -286,7 +286,12 @@ class ByteCounter extends Transform {
 // wait" conflates ClickHouse delivery with S3 backpressure — a coarse split.
 class TimedByteCounter extends ByteCounter {
   private readonly stats: { sourceWaitMs: number };
-  private lastChunkDoneAt: number | null = null;
+  // Clock starts at construction (not on the first chunk) so the first gap
+  // captures time-to-first-byte — the dominant ClickHouse wait, since Parquet
+  // composes a row group before emitting any bytes. countedStream starts its
+  // clock before its for-await loop for the same reason; guarding the first
+  // chunk would systematically drop TTFB from chReadMs (→ inflated uploadWaitMs).
+  private lastChunkDoneAt: number = performance.now();
   constructor(stats: { sourceWaitMs: number }) {
     super();
     this.stats = stats;
@@ -296,9 +301,7 @@ class TimedByteCounter extends ByteCounter {
     _encoding: string,
     callback: (error: Error | null, data?: Buffer) => void,
   ) {
-    if (this.lastChunkDoneAt !== null) {
-      this.stats.sourceWaitMs += performance.now() - this.lastChunkDoneAt;
-    }
+    this.stats.sourceWaitMs += performance.now() - this.lastChunkDoneAt;
     this.bytes += chunk.length;
     this.lastChunkDoneAt = performance.now();
     callback(null, chunk);
