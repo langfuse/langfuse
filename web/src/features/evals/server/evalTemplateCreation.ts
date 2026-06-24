@@ -110,7 +110,7 @@ async function validateLlmAsJudgeTemplateModel(
       provider: modelConfig.config.provider,
       model: modelConfig.config.model,
       apiKey: modelConfig.config.apiKey,
-      modelConfig: input.modelParams,
+      modelConfig: modelConfig.config.modelParams,
       structuredOutputSchema: compilePersistedEvalOutputDefinition(
         input.outputDefinition,
       ).outputResultSchema,
