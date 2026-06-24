@@ -63,7 +63,15 @@ export function ConfirmDialog({
   children?: React.ReactNode;
 } & VariantProps<typeof confirmDialogContentVariants>) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      // Ignore close requests (Esc / X / outside click / Cancel) while the
+      // action is in flight, so a confirm can't be dismissed mid-mutation.
+      onOpenChange={(next) => {
+        if (loading && !next) return;
+        onOpenChange(next);
+      }}
+    >
       {trigger ? <DialogTrigger asChild>{trigger}</DialogTrigger> : null}
       <DialogContent className={confirmDialogContentVariants({ size })}>
         <DialogHeader variant="action">

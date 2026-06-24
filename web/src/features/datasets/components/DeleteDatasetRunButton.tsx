@@ -49,11 +49,7 @@ export const DeleteDatasetRunButton = ({
   return hasAccess ? (
     <ConfirmDialog
       open={isDialogOpen}
-      onOpenChange={(isOpen) => {
-        if (!mutDelete.isPending) {
-          setIsDialogOpen(isOpen);
-        }
-      }}
+      onOpenChange={setIsDialogOpen}
       trigger={button}
       title="Please confirm"
       description="This action cannot be undone. Traces linked to this run must be deleted manually."

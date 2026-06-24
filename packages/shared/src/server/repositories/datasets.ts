@@ -24,9 +24,12 @@ function buildDatasetBatchDeleteWhere({
     createdAt: { lte: cutoffCreatedAt },
   };
 
-  if (query.searchQuery?.trim()) {
+  // Match the listing predicate (resolveSearchCondition) exactly: it ILIKEs the
+  // raw query, only trimming to test emptiness. Trimming here too would delete a
+  // broader set than the table shows for a whitespace-padded search.
+  if (query.searchQuery && query.searchQuery.trim() !== "") {
     where.name = {
-      contains: query.searchQuery.trim(),
+      contains: query.searchQuery,
       mode: "insensitive",
     };
   }

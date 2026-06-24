@@ -125,16 +125,15 @@ function DatasetsMultiSelectActionMenu({
     },
   });
 
-  // For select-all the true count is folder-expanded and unknown client-side,
-  // so omit the number rather than show the misleading folder-collapsed total.
-  const selectedCount = selectAll ? null : selectedRows.length;
+  const selectedCount = selectedRows.length;
 
   if (selectedRows.length === 0 && !selectAll) return null;
 
   const handleDeleteDatasets = async ({ projectId }: { projectId: string }) => {
     capture("datasets:delete_form_submit", {
       source: "table-multi-select",
-      count: selectedCount,
+      // Folder-expanded total is unknown client-side, so omit count for select-all.
+      count: selectAll ? undefined : selectedCount,
       datasets: selectedDatasetRows.length,
       folders: selectedFolderRows.length,
       selectAll,
@@ -175,6 +174,7 @@ function DatasetsMultiSelectActionMenu({
       actions={tableActions}
       tableName={BatchExportTableName.Datasets}
       selectedCount={selectedCount}
+      approximateCount={selectAll}
       onClearSelection={actions.clearSelection}
     />
   );
@@ -587,6 +587,14 @@ export function DatasetsTable(props: { projectId: string }) {
       totalCount: datasets.data?.totalDatasets ?? null,
     });
   }, [datasetsTableStore, pageRowIds, datasets.data?.totalDatasets]);
+
+  // Selection (incl. select-all) is scoped to the current folder + search query.
+  // Clear it whenever that scope changes so Delete never targets a folder or
+  // search the user never selected — the action menu otherwise stays live with
+  // no on-screen cue. Pagination is excluded: it keeps the same scope.
+  useEffect(() => {
+    datasetsTableStore.getState().actions.clearSelection();
+  }, [datasetsTableStore, currentFolderPath, searchQuery]);
 
   const rowsById = useMemo(
     () => new Map(processedRowData.rows.map((row) => [row.id, row])),
