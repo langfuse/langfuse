@@ -100,10 +100,10 @@ export function compileChatMessagesWithIds(
     if (isPlaceholder(message)) {
       const expandedMsgs = expandPlaceholder(message, placeholderValues);
       return expandedMsgs.map((msg) => ({ ...msg, id: uuidv4() }));
-    } else {
-      // Preserve message IDs for already non-placeholder messages
-      return [message as ChatMessageWithIdNoPlaceholders];
     }
+
+    // Preserve message IDs for already non-placeholder messages
+    return [message as ChatMessageWithIdNoPlaceholders];
   });
 
   // substitute text variables

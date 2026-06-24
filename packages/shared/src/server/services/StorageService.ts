@@ -30,6 +30,7 @@ import {
 import { S3ChunkedUploadStrategy } from "./S3ChunkedUploadStrategy";
 import {
   buildS3RequestDiagnostics,
+  isS3DiagnosableError,
   type S3DiagnosticsContext,
 } from "./s3SigningDiagnostics";
 import * as objectstorage from "oci-objectstorage";
@@ -143,11 +144,15 @@ function createS3RequestHandler(
 
 /**
  * Register a diagnostics middleware on an {@link S3Client} that logs the
- * structured error and request context when any S3 request fails.
+ * structured error and request context when a request fails with a
+ * signing/authorization or backend-configuration error (see
+ * {@link isS3DiagnosableError}).
  *
- * Runs at the `deserialize` step so the SDK has already turned an error
- * response into a typed exception with request IDs and status code.
- * Best-effort: never alters or masks the original failure.
+ * Runs at the `deserialize` step so the SDK has already turned the response
+ * into a typed exception with request IDs and status code. Logging is gated to
+ * actionable, non-retryable errors so unrelated or transient failures
+ * (`NoSuchKey`, throttling/`SlowDown`, timeouts) don't emit noise or one line
+ * per SDK retry. Best-effort: never alters or masks the original failure.
  */
 function addS3DiagnosticsMiddleware(
   client: S3Client,
@@ -167,7 +172,9 @@ function addS3DiagnosticsMiddleware(
             err,
             context,
           );
-          logger.warn("S3 request failed; emitting diagnostics", diagnostics);
+          if (isS3DiagnosableError(diagnostics.error)) {
+            logger.warn("S3 request failed; emitting diagnostics", diagnostics);
+          }
         } catch {
           // Never let diagnostics logging mask the original failure.
         }
@@ -891,7 +898,7 @@ class S3StorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = true,
+    asAttachment = true,
   ): Promise<string> {
     try {
       return getSignedUrl(
@@ -1045,10 +1052,11 @@ class GoogleCloudStorageService implements StorageService {
             .on("finish", () => {
               resolve();
             });
+          return;
         });
-      } else {
-        throw new Error("Unsupported data type. Must be Readable or string.");
       }
+
+      throw new Error("Unsupported data type. Must be Readable or string.");
     } catch (err) {
       logger.error(
         `Failed to upload file to Google Cloud Storage ${fileName}`,
@@ -1149,7 +1157,7 @@ class GoogleCloudStorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = false,
+    asAttachment = false,
   ): Promise<string> {
     try {
       const file = this.bucket.file(fileName);
@@ -1231,7 +1239,7 @@ class OCIObjectStorageService implements StorageService {
   private clientInit: Promise<void>;
   private bucketName: string;
   private externalEndpoint?: string;
-  private namespaceName: string = "";
+  private namespaceName = "";
 
   constructor(params: {
     bucketName: string;
@@ -1612,7 +1620,7 @@ class OCIObjectStorageService implements StorageService {
   public async getSignedUrl(
     fileName: string,
     ttlSeconds: number,
-    asAttachment: boolean = true,
+    asAttachment = true,
   ): Promise<string> {
     try {
       const { client, namespaceName } = await this.getClientAndNamespace();
