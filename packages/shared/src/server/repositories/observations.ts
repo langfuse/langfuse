@@ -4,6 +4,8 @@ import {
   queryClickhouse,
   queryClickhouseStream,
   queryClickhouseStreamRawText,
+  queryClickhouseExecRaw,
+  BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
   upsertClickhouse,
 } from "./clickhouse";
 import { logger } from "../logger";
@@ -1920,6 +1922,28 @@ export const getObservationsForBlobStorageExportRaw = function (
       fieldGroups,
     ),
   );
+};
+
+// LFE-10463: ClickHouse-native `FORMAT Parquet` export. Reuses the same field-
+// group-aware query builder and streams the raw binary body straight to upload.
+// Like the raw-passthrough variant, price columns are NOT added (no JS
+// enrichment on this path).
+export const getObservationsForBlobStorageExportParquet = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+) {
+  return queryClickhouseExecRaw({
+    ...buildObservationsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
+    format: "Parquet",
+    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+  });
 };
 
 export const getGenerationsForAnalyticsIntegrations = async function* (

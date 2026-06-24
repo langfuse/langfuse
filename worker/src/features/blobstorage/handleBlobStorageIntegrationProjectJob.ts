@@ -11,10 +11,14 @@ import {
   streamTransformations,
   getObservationsForBlobStorageExport,
   getObservationsForBlobStorageExportRaw,
+  getObservationsForBlobStorageExportParquet,
   getTracesForBlobStorageExport,
+  getTracesForBlobStorageExportParquet,
   getScoresForBlobStorageExport,
+  getScoresForBlobStorageExportParquet,
   getEventsForBlobStorageExport,
   getEventsForBlobStorageExportRaw,
+  getEventsForBlobStorageExportParquet,
   getCurrentSpan,
   instrumentAsync,
   recordGauge,
@@ -63,6 +67,9 @@ export const BlobExportFormat = {
   CSV_GZIP: "csv-gzip",
   JSONL_RAW: "jsonl-raw",
   JSONL_GZIP: "jsonl-gzip",
+  // LFE-10463: ClickHouse-native columnar export; compression is internal to
+  // Parquet, so there is no separate raw/gzip split.
+  PARQUET: "parquet",
 } as const;
 export type BlobExportFormat =
   (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
@@ -273,6 +280,33 @@ class ByteCounter extends Transform {
   }
 }
 
+// ByteCounter that also tallies the wall-clock gap between consecutive chunks
+// into `stats.sourceWaitMs`, used by the Parquet path (a piped binary stream
+// with no per-row generator) so it can reuse the same chReadMs/uploadWaitMs
+// derivation as the standard path. As with countedStream, this "source wait"
+// conflates upstream ClickHouse delivery with downstream S3 backpressure — it is
+// a coarse read-vs-upload split, not an exact one.
+class TimedByteCounter extends ByteCounter {
+  private readonly stats: { sourceWaitMs: number };
+  private lastChunkDoneAt: number | null = null;
+  constructor(stats: { sourceWaitMs: number }) {
+    super();
+    this.stats = stats;
+  }
+  _transform(
+    chunk: Buffer,
+    _encoding: string,
+    callback: (error: Error | null, data?: Buffer) => void,
+  ) {
+    if (this.lastChunkDoneAt !== null) {
+      this.stats.sourceWaitMs += performance.now() - this.lastChunkDoneAt;
+    }
+    this.bytes += chunk.length;
+    this.lastChunkDoneAt = performance.now();
+    callback(null, chunk);
+  }
+}
+
 async function* countedStream<T>(
   source: AsyncGenerator<T>,
   stats: { rows: number; sourceWaitMs: number },
@@ -318,6 +352,9 @@ const processBlobStorageExport = async (config: {
   convertV4LatencyToSeconds: boolean;
   exportFieldGroups?: ObservationFieldGroupFull[];
   rawPassthrough: boolean;
+  // LFE-10463: when true, export via ClickHouse-native `FORMAT Parquet`,
+  // overriding `fileType` and `compressed`. Takes precedence over rawPassthrough.
+  parquet: boolean;
   // undefined concurrency/attempts => backend keeps its native default.
   partSizeBytes: number;
   maxConcurrentParts: number | undefined;
@@ -419,22 +456,14 @@ const processBlobStorageExport = async (config: {
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        const timestamp = config.maxTimestamp
-          .toISOString()
-          .replace(/:/g, "-")
-          .substring(0, 19);
-        const extension = config.compressed
-          ? `${blobStorageProps.extension}.gz`
-          : blobStorageProps.extension;
-        const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-        const uploadContentType = config.compressed
-          ? "application/gzip"
-          : blobStorageProps.contentType;
-
-        const exportFieldGroups =
-          config.exportFieldGroups && config.exportFieldGroups.length > 0
-            ? config.exportFieldGroups
-            : [...OBSERVATION_FIELD_GROUPS_FULL];
+        // LFE-10463: Parquet is a per-project opt-in (exportTuning.parquet) that
+        // applies to ALL tables and file types. It overrides fileType and
+        // compressed — Parquet handles compression internally (ClickHouse default
+        // codec) — and takes precedence over rawPassthrough (already enforced in
+        // resolveBlobExportTuning). Parquet is NOT a BlobStorageIntegrationFileType
+        // member, so the extension/content-type are computed inline here rather
+        // than via getFileTypeProperties (which switches on the enum).
+        const parquetEligible = config.parquet;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
         // JSONL output of the enriched-observation tables — the only formats
@@ -444,15 +473,42 @@ const processBlobStorageExport = async (config: {
         // select the path per table (scores/traces always use the standard path,
         // so per-table fallback is expected and not worth a warning).
         const passthroughEligible =
+          !parquetEligible &&
           config.rawPassthrough &&
           config.fileType === BlobStorageIntegrationFileType.JSONL &&
           (config.table === "observations" ||
             config.table === "observations_v2");
 
-        span.setAttribute(
-          "blob.path",
-          passthroughEligible ? "passthrough" : "standard",
-        );
+        const exportPath = parquetEligible
+          ? "parquet"
+          : passthroughEligible
+            ? "passthrough"
+            : "standard";
+
+        const timestamp = config.maxTimestamp
+          .toISOString()
+          .replace(/:/g, "-")
+          .substring(0, 19);
+        // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
+        const extension = parquetEligible
+          ? "parquet"
+          : config.compressed
+            ? `${blobStorageProps.extension}.gz`
+            : blobStorageProps.extension;
+        const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
+        const uploadContentType = parquetEligible
+          ? "application/vnd.apache.parquet"
+          : config.compressed
+            ? "application/gzip"
+            : blobStorageProps.contentType;
+
+        const exportFieldGroups =
+          config.exportFieldGroups && config.exportFieldGroups.length > 0
+            ? config.exportFieldGroups
+            : [...OBSERVATION_FIELD_GROUPS_FULL];
+
+        span.setAttribute("blob.path", exportPath);
+        span.setAttribute("blob.config.parquet", config.parquet);
 
         const pipelineCallback = (err: NodeJS.ErrnoException | null) => {
           if (err) {
@@ -463,8 +519,23 @@ const processBlobStorageExport = async (config: {
           }
         };
 
-        const serializedCounter = new ByteCounter();
-        const compressedCounter = config.compressed ? new ByteCounter() : null;
+        // Tracks ClickHouse read wait. Declared before the counters so the
+        // parquet TimedByteCounter can write into it (the parquet path has no
+        // per-row generator, so countedStream does not run).
+        const sourceStats = { rows: 0, sourceWaitMs: 0 };
+        // When enrichment is active, chStats isolates ClickHouse read wait from
+        // enrichment CPU. enrichMs = sourceStats.sourceWaitMs - chStats.sourceWaitMs.
+        let chStats: { rows: number; sourceWaitMs: number } | null = null;
+
+        // Parquet feeds sourceStats.sourceWaitMs from the piped binary stream so
+        // the shared metrics derivation works without a per-row generator.
+        const serializedCounter = parquetEligible
+          ? new TimedByteCounter(sourceStats)
+          : new ByteCounter();
+        // No worker-side gzip on the parquet path (compression is internal to
+        // Parquet), so the parquet path never allocates a compressed counter.
+        const compressedCounter =
+          !parquetEligible && config.compressed ? new ByteCounter() : null;
         // Paired with compressedCounter: both exist iff compression is on.
         const gzipStats: GzipStats | null = compressedCounter
           ? {
@@ -473,13 +544,6 @@ const processBlobStorageExport = async (config: {
               backpressureMs: 0,
             }
           : null;
-
-        // Both paths tally rows in JS via countedStream (the passthrough yields
-        // raw row text rather than parsed objects, but still iterates).
-        const sourceStats = { rows: 0, sourceWaitMs: 0 };
-        // When enrichment is active, chStats isolates ClickHouse read wait from
-        // enrichment CPU. enrichMs = sourceStats.sourceWaitMs - chStats.sourceWaitMs.
-        let chStats: { rows: number; sourceWaitMs: number } | null = null;
 
         const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
         const heartbeatTags = {
@@ -501,7 +565,66 @@ const processBlobStorageExport = async (config: {
 
         let fileStream: Readable;
 
-        if (passthroughEligible) {
+        if (parquetEligible) {
+          // LFE-10463: ClickHouse-native FORMAT Parquet. Stream the raw binary
+          // body straight to upload — no JS parse/enrich/serialize, no worker
+          // gzip, and no row counting (a binary stream has no row boundaries, so
+          // sourceStats.rows stays 0). Field-group projection, latency ms→s, and
+          // the dropped price columns are all baked into the SQL. The
+          // exception-tag Transform inside queryClickhouseExecRaw errors the
+          // stream on a mid-stream ClickHouse failure (CH ≥ 25.11), aborting the
+          // upload before any S3 commit — same guarantee as raw passthrough.
+          let parquetSource: Readable;
+          switch (config.table) {
+            case "traces":
+              parquetSource = (
+                await getTracesForBlobStorageExportParquet(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                )
+              ).stream;
+              break;
+            case "scores":
+              parquetSource = (
+                await getScoresForBlobStorageExportParquet(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                )
+              ).stream;
+              break;
+            case "observations":
+              parquetSource = (
+                await getObservationsForBlobStorageExportParquet(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                )
+              ).stream;
+              break;
+            case "observations_v2": // observations_v2 is the events table
+              parquetSource = (
+                await getEventsForBlobStorageExportParquet(
+                  config.projectId,
+                  config.minTimestamp,
+                  config.maxTimestamp,
+                  exportFieldGroups,
+                  config.convertV4LatencyToSeconds,
+                )
+              ).stream;
+              break;
+            default:
+              throw new Error(`Unsupported table type: ${config.table}`);
+          }
+
+          fileStream = pipeline(
+            parquetSource,
+            serializedCounter,
+            pipelineCallback,
+          );
+        } else if (passthroughEligible) {
           // Stream ClickHouse JSONEachRow row text straight through: skip the
           // per-row JSON.parse, enrichment, and re-serialize. Shaping (latency→s,
           // dropped price columns, field-group selection) is baked into the SQL.
@@ -663,14 +786,13 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
           });
 
-          const exportFormat = resolveBlobExportFormat(
-            config.fileType,
-            config.compressed,
-          );
+          const exportFormat = parquetEligible
+            ? BlobExportFormat.PARQUET
+            : resolveBlobExportFormat(config.fileType, config.compressed);
           const byteTags = {
             table: config.table,
             projectId: config.projectId,
-            path: passthroughEligible ? "passthrough" : "standard",
+            path: exportPath,
             source: exportFormat,
           };
           recordIncrement(
@@ -709,7 +831,7 @@ const processBlobStorageExport = async (config: {
           logger.info(
             `[BLOB INTEGRATION] Successfully exported ${config.table} for project ${config.projectId}: ` +
               `jobId=${config.bullmqJobId} attemptsMade=${config.bullmqAttemptsMade} host=${WORKER_HOST_ID} ` +
-              `path=${passthroughEligible ? "passthrough" : "standard"} ` +
+              `path=${exportPath} ` +
               `rows=${sourceStats.rows} chReadMs=${chReadMs} enrichMs=${enrichMs} ` +
               `gzipCpuMs=${gzipCpuMs} uploadWaitMs=${uploadWaitMs} ` +
               `serializedBytes=${serializedCounter.bytes} uploadDurationMs=${uploadDurationMs} ` +
@@ -755,13 +877,12 @@ const processBlobStorageExport = async (config: {
                 : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
               span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
               span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
-              const finalExportFormat = resolveBlobExportFormat(
-                config.fileType,
-                config.compressed,
-              );
+              const finalExportFormat = parquetEligible
+                ? BlobExportFormat.PARQUET
+                : resolveBlobExportFormat(config.fileType, config.compressed);
               const stageTags = {
                 table: config.table,
-                path: passthroughEligible ? "passthrough" : "standard",
+                path: exportPath,
                 source: finalExportFormat,
               };
               recordHistogram(
@@ -819,7 +940,7 @@ const processBlobStorageExport = async (config: {
 
             const metricTags = {
               table: config.table,
-              path: passthroughEligible ? "passthrough" : "standard",
+              path: exportPath,
               gzipLevel: gzipStats.level,
             };
             recordHistogram(
@@ -1033,6 +1154,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       exportFieldGroups:
         blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
       rawPassthrough: exportTuning.rawPassthrough,
+      parquet: exportTuning.parquet,
       partSizeBytes: exportTuning.partSizeBytes,
       maxConcurrentParts: exportTuning.maxConcurrentParts,
       maxPartAttempts: exportTuning.maxPartAttempts,

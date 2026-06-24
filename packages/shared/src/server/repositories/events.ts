@@ -81,6 +81,8 @@ import {
   queryClickhouse,
   queryClickhouseStream,
   queryClickhouseStreamRawText,
+  queryClickhouseExecRaw,
+  BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
 } from "./clickhouse";
 import {
   EventsObservationRecordReadType,
@@ -3590,6 +3592,31 @@ export const getEventsForBlobStorageExportRaw = function (
       convertLatencyToSeconds,
     ),
   );
+};
+
+// LFE-10463: ClickHouse-native `FORMAT Parquet` export of events. Reuses the
+// same field-group-aware query builder and streams the raw binary body straight
+// to upload. Like the raw-passthrough variant there is no JS enrichment, so
+// latency ms→s conversion must happen in SQL (`convertLatencyToSeconds`) and
+// price columns are NOT added.
+export const getEventsForBlobStorageExportParquet = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  convertLatencyToSeconds: boolean = false,
+) {
+  return queryClickhouseExecRaw({
+    ...buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      convertLatencyToSeconds,
+    ),
+    format: "Parquet",
+    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+  });
 };
 
 /**

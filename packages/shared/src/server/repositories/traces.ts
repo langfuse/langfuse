@@ -3,6 +3,8 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseExecRaw,
+  BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
   upsertClickhouse,
 } from "./clickhouse";
 import {
@@ -1393,11 +1395,13 @@ export const getUserMetrics = async (
   });
 };
 
-export const getTracesForBlobStorageExport = function (
+// Shared query for both the standard (parsed) and Parquet (`exec` binary)
+// trace export paths, so the SELECT/WHERE stays in one place.
+const buildTracesForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-) {
+) => {
   const traceTable = "traces";
 
   const query = `
@@ -1425,7 +1429,7 @@ export const getTracesForBlobStorageExport = function (
     AND timestamp <= {maxTimestamp: DateTime64(3)}
   `;
 
-  return queryClickhouseStream<Record<string, unknown>>({
+  return {
     query,
     params: {
       projectId,
@@ -1441,6 +1445,35 @@ export const getTracesForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
+  };
+};
+
+export const getTracesForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  return queryClickhouseStream<Record<string, unknown>>(
+    buildTracesForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+  );
+};
+
+// LFE-10463: ClickHouse-native `FORMAT Parquet` export. Reuses the standard
+// query SQL and streams the raw binary body straight to upload (no JS parse,
+// enrich, or serialize). Returns the wrapped Readable from queryClickhouseExecRaw.
+export const getTracesForBlobStorageExportParquet = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  return queryClickhouseExecRaw({
+    ...buildTracesForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+    ),
+    format: "Parquet",
+    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
   });
 };
 
