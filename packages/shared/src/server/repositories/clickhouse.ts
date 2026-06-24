@@ -406,6 +406,7 @@ export async function queryClickhouseExecRaw(
   opts: ClickhouseQueryOpts & { format: string },
 ): Promise<ClickhouseExecRawResult> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const tracer = getTracer("clickhouse-query-exec-raw");
   const span = tracer.startSpan("clickhouse-query-exec-raw", {
     kind: SpanKind.CLIENT,
@@ -427,19 +428,22 @@ export async function queryClickhouseExecRaw(
           query_params: opts.params,
           clickhouse_settings: {
             ...opts.clickhouseSettings,
-            log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
+            log_comment: JSON.stringify(normalizedTags),
           },
         }),
       )
       .catch((error) => {
         throw ClickHouseResourceError.wrapIfResourceError(
           enrichWithQueryId(error as Error, queryId),
-          opts.tags,
+          normalizedTags,
         );
       });
 
     queryId = res.query_id;
     span.setAttribute("ch.queryId", queryId);
+    for (const [key, value] of Object.entries(normalizedTags)) {
+      span.setAttribute(`ch.tag.${key}`, value);
+    }
     recordSummaryOnSpan(span, res.response_headers);
 
     if (env.NODE_ENV === "development") {
@@ -456,7 +460,7 @@ export async function queryClickhouseExecRaw(
         wrapError: (error) =>
           ClickHouseResourceError.wrapIfResourceError(
             enrichWithQueryId(error, queryId),
-            opts.tags,
+            normalizedTags,
           ),
       }),
     );
@@ -484,7 +488,7 @@ export async function queryClickhouseExecRaw(
     if (error instanceof ClickHouseResourceError) throw error;
     throw ClickHouseResourceError.wrapIfResourceError(
       enrichWithQueryId(error as Error, queryId),
-      opts.tags,
+      normalizedTags,
     );
   }
 }
