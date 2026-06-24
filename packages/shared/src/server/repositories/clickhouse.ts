@@ -463,11 +463,19 @@ export async function queryClickhouseExecRaw(
     );
 
     // The span outlives this function — it spans the consumer's read of the
-    // stream. Close it once the body is fully drained or fails. Propagate a
-    // source-stream error to the wrapped stream so the consumer sees it.
+    // stream. Propagate a source-stream error forward so the consumer sees it.
     res.stream.on("error", (error) => wrapped.destroy(error));
-    wrapped.once("end", () => span.end());
-    wrapped.once("error", () => span.end());
+    // `.pipe()` only wires src→dest; it does NOT tear the source down when the
+    // consumer destroys `wrapped` (e.g. the worker's stream.pipeline aborting on
+    // an S3 upload failure). Without this, the live ClickHouse HTTP body keeps
+    // streaming into an unread socket, pinning a connection-pool slot and a
+    // server-side query thread until the request timeout fires. 'close' is
+    // guaranteed to fire on every termination path — end, error, and the no-arg
+    // destroy() that emits neither — and span.end() is idempotent.
+    wrapped.once("close", () => {
+      span.end();
+      if (!res.stream.destroyed) res.stream.destroy();
+    });
 
     return {
       queryId,

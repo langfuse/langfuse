@@ -108,12 +108,22 @@ export class ClickhouseExecExceptionTagTransform extends Transform {
 
   _flush(callback: (error?: Error | null, data?: Buffer) => void): void {
     if (this.errorBuf !== null) {
-      // exceptionTag is defined here (errorBuf is only set when it is).
-      const parsed = extractErrorAtTheEndOfChunk(
+      // exceptionTag is defined here (errorBuf is only set when it is). The
+      // marker was found, so this IS a ClickHouse failure — never complete the
+      // stream cleanly. extractErrorAtTheEndOfChunk can fail to parse a
+      // truncated/malformed trailer; fall back to a generic error rather than
+      // letting a null/undefined collapse `callback(error)` into a clean
+      // `callback()` (which would commit a corrupt Parquet artifact).
+      const parsed: Error | null | undefined = extractErrorAtTheEndOfChunk(
         this.errorBuf,
         this.exceptionTag as string,
       );
-      callback(this.wrapError(parsed));
+      const error =
+        parsed ??
+        new Error(
+          "ClickHouse mid-stream failure: exception trailer detected but could not be parsed",
+        );
+      callback(this.wrapError(error));
       return;
     }
     // No error: flush the withheld tail so clean data is complete.
