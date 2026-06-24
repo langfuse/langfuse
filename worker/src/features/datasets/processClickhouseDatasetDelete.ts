@@ -4,6 +4,7 @@ import {
   logger,
   traceException,
   DatasetQueueEventType,
+  QueueName,
 } from "@langfuse/shared/src/server";
 
 export const processClickhouseDatasetDelete = async (
@@ -18,9 +19,18 @@ export const processClickhouseDatasetDelete = async (
   );
 
   try {
+    const clickHouseQueryTags = {
+      surface: "worker" as const,
+      route: QueueName.DatasetDelete,
+    };
+
     switch (deletionType) {
       case "dataset":
-        await deleteDatasetRunItemsByDatasetId({ projectId, datasetId });
+        await deleteDatasetRunItemsByDatasetId({
+          projectId,
+          datasetId,
+          clickHouseQueryTags,
+        });
         break;
 
       case "dataset-runs":
@@ -28,6 +38,7 @@ export const processClickhouseDatasetDelete = async (
           projectId,
           datasetRunIds: jobPayload.datasetRunIds,
           datasetId,
+          clickHouseQueryTags,
         });
         break;
 

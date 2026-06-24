@@ -50,6 +50,15 @@ export type NormalizedClickHouseQueryTags = {
   projectId?: string;
 };
 
+const TEST_FALLBACK_CLICKHOUSE_QUERY_TAGS = {
+  surface: "worker",
+  route: "vitest",
+  feature: "custom-query",
+} as const satisfies Pick<
+  NormalizedClickHouseQueryTags,
+  "surface" | "route" | "feature"
+>;
+
 export const CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS = {
   surface: "langfuse.clickhouse.surface",
   route: "langfuse.clickhouse.route",
@@ -58,6 +67,26 @@ export const CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS = {
 
 const surfaceSet = new Set<string>(clickHouseQuerySurfaces);
 const featureSet = new Set<string>(clickHouseQueryFeatures);
+
+let clickHouseQueryTagTestFallbackEnabled = true;
+
+export function setClickHouseQueryTagTestFallbackForTests(
+  enabled: boolean,
+): void {
+  clickHouseQueryTagTestFallbackEnabled = enabled;
+}
+
+function getTestFallbackClickHouseQueryTags():
+  | typeof TEST_FALLBACK_CLICKHOUSE_QUERY_TAGS
+  | undefined {
+  if (
+    // eslint-disable-next-line turbo/no-undeclared-env-vars -- NODE_ENV gates a test-only fallback and should not load the full env schema here.
+    process.env.NODE_ENV === "test" &&
+    clickHouseQueryTagTestFallbackEnabled
+  ) {
+    return TEST_FALLBACK_CLICKHOUSE_QUERY_TAGS;
+  }
+}
 
 const uuidLikePattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -102,14 +131,19 @@ export function normalizeClickHouseQueryTags(
   tags: ClickHouseQueryTags,
 ): NormalizedClickHouseQueryTags {
   const baggage = propagation.getBaggage(context.active());
+  const fallbackTags = getTestFallbackClickHouseQueryTags();
+  const providedTags = tags as ClickHouseQueryTags | undefined;
   const surface =
-    tags.surface ??
-    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface)?.value;
+    providedTags?.surface ??
+    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface)?.value ??
+    fallbackTags?.surface;
   const route =
-    tags.route ??
-    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route)?.value;
+    providedTags?.route ??
+    baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route)?.value ??
+    fallbackTags?.route;
+  const feature = providedTags?.feature ?? fallbackTags?.feature;
   const projectId =
-    tags.projectId ??
+    providedTags?.projectId ??
     baggage?.getEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.projectId)?.value;
 
   if (!surface || !surfaceSet.has(surface)) {
@@ -120,9 +154,9 @@ export function normalizeClickHouseQueryTags(
   if (!route || !route.trim()) {
     throw new Error("Missing ClickHouse query tag route");
   }
-  if (!featureSet.has(tags.feature)) {
+  if (!feature || !featureSet.has(feature)) {
     throw new Error(
-      `Missing or invalid ClickHouse query tag feature: ${tags.feature ?? "<missing>"}`,
+      `Missing or invalid ClickHouse query tag feature: ${feature ?? "<missing>"}`,
     );
   }
 
@@ -130,7 +164,7 @@ export function normalizeClickHouseQueryTags(
     tag_schema_version: CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION,
     surface: surface as ClickHouseQuerySurface,
     route: sanitizeClickHouseRoute(route),
-    feature: tags.feature as ClickHouseQueryFeature,
+    feature: feature as ClickHouseQueryFeature,
     ...(projectId ? { projectId } : {}),
   };
 }

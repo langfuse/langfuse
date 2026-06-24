@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildClickHouseLogComment,
   sanitizeClickHouseRoute,
+  setClickHouseQueryTagTestFallbackForTests,
 } from "./queryTags";
 
 describe("ClickHouse query tags", () => {
@@ -36,9 +37,26 @@ describe("ClickHouse query tags", () => {
   });
 
   it("throws when required tags are unavailable", () => {
-    expect(() => buildClickHouseLogComment({ feature: "tracing" })).toThrow(
-      "Missing or invalid ClickHouse query tag surface",
-    );
+    setClickHouseQueryTagTestFallbackForTests(false);
+
+    try {
+      expect(() => buildClickHouseLogComment({ feature: "tracing" })).toThrow(
+        "Missing or invalid ClickHouse query tag surface",
+      );
+    } finally {
+      setClickHouseQueryTagTestFallbackForTests(true);
+    }
+  });
+
+  it("uses fallback tags for direct ClickHouse calls in tests", () => {
+    const logComment = buildClickHouseLogComment(undefined as never);
+
+    expect(JSON.parse(logComment)).toEqual({
+      tag_schema_version: "1",
+      surface: "worker",
+      route: "vitest",
+      feature: "custom-query",
+    });
   });
 
   it("throws when feature is outside the allowlist", () => {
