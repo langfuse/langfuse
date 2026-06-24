@@ -84,6 +84,30 @@ function isInsideJsonStringPrefix(prefix: string): boolean {
   return inString;
 }
 
+/**
+ * Whether a selection that starts inside a JSON string stays within that *same*
+ * string — i.e. the selected text contains no unescaped `"`. Without this, a
+ * selection spanning from one string, across structural JSON, into another
+ * string would pass both endpoint checks (each is just quote parity) and the
+ * escape branch would silently rewrite the structure between them.
+ */
+function selectionStaysInJsonString(
+  state: EditorState,
+  from: number,
+  to: number,
+): boolean {
+  const selected = state.doc.sliceString(from, to);
+  for (let i = 0; i < selected.length; i++) {
+    const ch = selected[i];
+    if (ch === "\\") {
+      i++; // skip the escaped character
+    } else if (ch === '"') {
+      return false; // an unescaped quote closes the string mid-selection
+    }
+  }
+  return true;
+}
+
 export type MagicPastePlan = {
   kind: "escape" | "wrap";
   from: number;
@@ -105,11 +129,12 @@ export function planMagicPaste(
   if (pastedText === "") return null;
   const sel = state.selection.main;
 
-  // 1) Inside a JSON string → escape the fragment. Require both ends of the
-  //    selection to sit inside the string so we never escape across a boundary.
+  // 1) Inside a JSON string → escape the fragment. The selection must start in a
+  //    string and stay within that same string, so we never escape across a
+  //    structural boundary (which would silently rewrite the JSON shape).
   if (
     isInsideJsonString(state, sel.from) &&
-    (sel.empty || isInsideJsonString(state, sel.to))
+    (sel.empty || selectionStaysInJsonString(state, sel.from, sel.to))
   ) {
     const insert = escapeForJsonStringBody(pastedText);
     // Nothing needed escaping: let CodeMirror paste normally (no surprise).

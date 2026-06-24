@@ -126,6 +126,23 @@ describe("planMagicPaste", () => {
     expect(planMagicPaste(jsonState(doc, pos), "garbage")).toBeNull();
   });
 
+  it("escapes a selection wholly inside one string value", () => {
+    const doc = '{"a": "hello"}';
+    const from = doc.indexOf("hello"); // start of the value text
+    const to = from + "hello".length; // end, still inside the same string
+    const plan = planMagicPaste(jsonState(doc, from, to), 'x"y');
+    expect(plan).toMatchObject({ kind: "escape", from, to, insert: 'x\\"y' });
+  });
+
+  it("does NOT escape a selection that spans two different strings", () => {
+    // Selecting from inside the first value, across `","b":"`, into the second
+    // would collapse the two keys if escaped. Must be left to normal paste.
+    const doc = '{"a":"1","b":"2"}';
+    const from = doc.indexOf("1"); // inside the first value
+    const to = doc.indexOf("2"); // inside the second value
+    expect(planMagicPaste(jsonState(doc, from, to), "x")).toBeNull();
+  });
+
   it("returns null for an empty paste", () => {
     expect(planMagicPaste(jsonState("", 0), "")).toBeNull();
   });
