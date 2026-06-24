@@ -4,8 +4,8 @@
 // toolbar row below (next to the filter toggle and views), not here. Left
 // padding matches the toolbar row below so the bar's left edge aligns with it.
 //
-// AI mode (Tab on an empty bar, or the "Ask AI" affordance) swaps the grammar
-// composer for a natural-language prompt. The generated filters are applied
+// AI mode (the "Ask AI" affordance) swaps the grammar composer for a
+// natural-language prompt. The generated filters are applied
 // through `setFilterState` — the SAME path the facet sidebar uses — so the
 // composer re-derives them as editable pills when we switch back. When opened
 // with filters present, the current query text is captured as refine context so

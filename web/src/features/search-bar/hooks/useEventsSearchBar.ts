@@ -17,7 +17,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
-import { planCommit } from "@/src/features/search-bar/lib/commit";
+import {
+  DEFAULT_SEARCH_TYPE,
+  planCommit,
+} from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
   type ObservedOptions,
@@ -148,11 +151,22 @@ export function useEventsSearchBar({
 
   // Apply an externally-produced filter set (the AI filter generator) the same
   // way a commit does — preserving skipped filters — instead of a raw replace
-  // that would silently drop them. AI returns only filters (no free text), so
-  // searchQuery/searchType are untouched.
+  // that would silently drop them. The model receives the bar's full committed
+  // text as refine context (free text rendered inline) and returns the COMPLETE
+  // updated FilterState, so applying it must write all three URL lanes like a
+  // grammar commit does: anything the model didn't re-emit is dropped, including
+  // the free text. Clearing searchQuery / resetting searchType to the default is
+  // what makes "drop the free text" actually stick — otherwise the stale
+  // searchQuery survives and resetTo re-derives it back into the bar.
   const applyFilters = useCallback(
     (filters: FilterState) => {
-      applyRef.current.setFilterState(mergeWithSkipped(filters));
+      const { setFilterState, setSearchQuery, setSearchType } =
+        applyRef.current;
+      setFilterState(mergeWithSkipped(filters));
+      setSearchQuery(null);
+      if (!sameScopes(DEFAULT_SEARCH_TYPE, searchTypeRef.current)) {
+        setSearchType(DEFAULT_SEARCH_TYPE);
+      }
     },
     [mergeWithSkipped],
   );

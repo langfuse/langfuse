@@ -247,20 +247,23 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.
 
-## AI filter mode (Tab on an empty bar)
+## AI filter mode (the "Ask AI" button)
 
 The bar is also the home of AI-assisted filtering on v4 (it replaces the legacy
 sidebar "✨ wand" — `EventsTable` now passes `filterWithAI={!searchBarMode}`, so
 the wand only survives on non-bar/embedded surfaces and the v3 traces table).
 
-- **Entry.** On an EMPTY bar, `Tab` (or the "Ask AI ⇥" affordance) opens AI mode
-  — an empty draft has no highlighted completion, so this never shadows the
-  autocomplete's Tab-to-pick. `EventsSearchBarRow` owns the `'grammar' | 'ai'`
-  mode and gates availability on `isLangfuseCloud && organization.aiFeaturesEnabled`
-  (the server enforces it too). `SearchComposer` only takes an `onActivateAi`
-  callback + renders the affordance; it stays grammar-only.
+- **Entry.** The **"Ask AI"** affordance opens AI mode — a plain button placed
+  AFTER the field in DOM order, always available (build from scratch OR refine
+  existing filters). Tab is deliberately NOT a shortcut: while typing it belongs
+  to autocomplete navigation, so forward-tab just moves focus from the field
+  onto the button. `EventsSearchBarRow` owns the `'grammar' | 'ai'` mode and
+  gates availability on `isLangfuseCloud && organization.aiFeaturesEnabled` (the
+  server enforces it too). `SearchComposer` only takes an `onActivateAi` callback
+  - renders the affordance; it stays grammar-only.
 - **The component.** `components/SearchBarAiPrompt.tsx` — a plain NL input (not
-  the contenteditable). Enter generates, Esc cancels, blur-when-empty exits.
+  the contenteditable). Enter generates; Esc or the back arrow exits (no
+  blur-to-exit — leaving is explicit so a stray click never loses your prompt).
 - **The endpoint.** `server/router.ts` (`searchBar.generateFilter`), NOT the
   legacy `naturalLanguageFilters.createCompletion`. Its prompt is built from
   THIS registry (`server/buildFilterPrompt.ts`, derived from `FIELDS` +
@@ -272,10 +275,17 @@ the wand only survives on non-bar/embedded surfaces and the v3 traces table).
   (`__tests__/server/unit/searchBarFilterPrompt.servertest.ts`) asserts every
   field's prompt-recommended `type` round-trips, so the prompt can't drift from
   the reverse adapter.
-- **Apply-immediately.** The result is applied via the bar's existing
-  `setFilterState` (the SAME path the facet sidebar uses), so on returning to
-  grammar mode `resetTo` re-derives the generated filters as editable pills.
-  There is no separate AI→bar sync path.
+- **Apply-immediately.** The result is applied via `useEventsSearchBar`'s
+  `applyFilters` (it preserves grammar-less `skippedFilters` like a commit, then
+  writes `setFilterState`), so on returning to grammar mode `resetTo` re-derives
+  the generated filters as editable pills. There is no separate AI→bar sync path.
+- **Refine clears the free-text lane.** When opened with filters present, the
+  bar's full committed text (free text rendered inline) is the refine context
+  sent to the model, which returns the COMPLETE updated `FilterState`. So
+  `applyFilters` also clears `searchQuery` and resets `searchType` to
+  `DEFAULT_SEARCH_TYPE` — anything the model didn't re-emit is dropped, including
+  free text the user asked to remove. Without this, a stale `searchQuery` would
+  survive and `resetTo` would re-derive the dropped text back into the bar.
 
 ## Extending to other views (the universality contract)
 

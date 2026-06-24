@@ -1,6 +1,6 @@
 // AI sub-mode for the search bar: a natural-language prompt that replaces the
-// grammar composer when active (entered via Tab on an empty bar, or the
-// "Ask AI" affordance). On submit it calls `searchBar.generateFilter`, applies
+// grammar composer when active (entered via the "Ask AI" affordance; Esc or the
+// back arrow exits). On submit it calls `searchBar.generateFilter`, applies
 // the returned filters through the bar's normal setFilterState path
 // (apply-immediately), and exits back to the grammar composer — which then
 // re-derives the generated filters as editable pills.
@@ -42,9 +42,13 @@ export function SearchBarAiPrompt({
   // Set on unmount (e.g. Back clicked mid-generation). `mutateAsync` keeps
   // running after unmount, so we check this before applying — otherwise a
   // generation the user cancelled would silently replace their filters when it
-  // resolves a few seconds later.
+  // resolves a few seconds later. Reset to false in setup (NOT just the initial
+  // useRef): React StrictMode runs setup → cleanup → setup on mount in dev and
+  // the ref persists across that cycle, so without the reset it would stay
+  // `true` after mount and silently swallow the first (and every) generation.
   const cancelledRef = React.useRef(false);
   React.useEffect(() => {
+    cancelledRef.current = false;
     return () => {
       cancelledRef.current = true;
     };
