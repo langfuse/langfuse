@@ -112,8 +112,10 @@ export function autoScrollOnSelectionDrag(): Extension {
 
       const onMove = (e: MouseEvent) => {
         // Drag ended elsewhere without us seeing mouseup (e.g. button released
-        // off-window); stop if no buttons are pressed.
-        if (e.buttons === 0) {
+        // off-window); stop once the primary button is released. Only the
+        // primary bit matters — a secondary/middle button held or released
+        // mid-drag must not end the gesture.
+        if ((e.buttons & 1) === 0) {
           stop();
           return;
         }
@@ -128,11 +130,19 @@ export function autoScrollOnSelectionDrag(): Extension {
           frame = null;
         }
         window.removeEventListener("mousemove", onMove, true);
-        window.removeEventListener("mouseup", stop, true);
+        window.removeEventListener("mouseup", onUp, true);
+      };
+
+      // Only the primary button's release ends the gesture; releasing a stray
+      // secondary/middle button mid-drag must not tear down auto-scroll while
+      // the primary is still held. `stop` itself stays callable without an
+      // event for the `onMove` (off-window release) path.
+      const onUp = (e: MouseEvent) => {
+        if (e.button === 0) stop();
       };
 
       window.addEventListener("mousemove", onMove, true);
-      window.addEventListener("mouseup", stop, true);
+      window.addEventListener("mouseup", onUp, true);
 
       // Don't consume the event; CodeMirror still drives normal selection.
       return false;
