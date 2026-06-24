@@ -22,7 +22,6 @@ import { metricsFeature } from "../features/metrics";
 import { modelsFeature } from "../features/models";
 import { mediaFeature } from "../features/media";
 import { evalsFeature } from "../features/evals";
-import { usersFeature } from "../features/users";
 // Import future features as they're added:
 // import { tracesFeature } from "../features/traces";
 
@@ -45,7 +44,6 @@ export function bootstrapMcpFeatures(): void {
   toolRegistry.register(modelsFeature);
   toolRegistry.register(mediaFeature);
   toolRegistry.register(evalsFeature);
-  toolRegistry.register(usersFeature);
 
   // Add future features here:
   // toolRegistry.register(tracesFeature);
