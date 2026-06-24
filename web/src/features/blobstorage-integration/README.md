@@ -70,7 +70,7 @@ up_to_date  ← fallthrough
 |---|---|---|---|
 | **any** | User saves with `enabled=false` | `runStartedAt=null` | **disabled** |
 | **any** | User saves with `enabled=true` | `runStartedAt=null`; `nextSyncAt=now` if errored or mode changed | **idle**, **queued**, **up_to_date**, or stays **error** (`lastError` is not cleared by save) |
-| **disabled** | User saves `enabled=true` | (as above) | **idle**, **queued**, or stays **error** |
+| **disabled** | User saves `enabled=true` | (as above) | **idle**, **queued**, **up_to_date**, or stays **error** |
 | **idle** | Scheduler finds `lastSyncAt=null` | Enqueues BullMQ job (no DB write) | stays **idle** |
 | **queued** | Scheduler finds `nextSyncAt<=now` | Enqueues BullMQ job (no DB write) | stays **queued** |
 | **idle/queued** | Worker starts job | `runStartedAt=now` | **running** |
