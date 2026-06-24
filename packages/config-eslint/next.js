@@ -104,6 +104,7 @@ export default [
         },
       ],
       "@typescript-eslint/no-deprecated": "warn",
+      "@typescript-eslint/no-inferrable-types": "warn",
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
       "react/no-unused-prop-types": "warn",
     },

@@ -88,6 +88,7 @@ export default tseslint.config(
         },
       ],
       "@typescript-eslint/no-deprecated": "warn",
+      "@typescript-eslint/no-inferrable-types": "warn",
     },
   },
 
