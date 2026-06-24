@@ -176,29 +176,36 @@ export function useTableViewManager({
       return;
     }
 
+    const hasResolvableView =
+      !!selectedViewId &&
+      (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets);
+
     // Explicit table state in the URL (`filter`/`search`/`orderBy`) is
-    // authoritative, even when a `viewId` is present. The viewId is a
-    // provenance reference — which saved view a link came from — but the URL's
-    // filters/sort/search are what is actually applied (the URL is the source
-    // of truth). Without checking this before resolving the view, opening
-    // `?viewId=X&filter=...` (a shared "view + in-view edits" link, or any deep
-    // link onto a saved view) would fetch the view and overwrite the URL's
-    // filters with the view's stored state. This preserves deep-link
-    // precedence (#13865) and makes shared links carry in-view edits
-    // (LFE-10486). The viewId stays in the URL so the drawer still shows the
-    // originating view.
+    // authoritative for filters/sort/search, even when a `viewId` is present.
+    // The viewId is a provenance reference — which saved view a link came from
+    // — but the URL's filters are what is actually applied (the URL is the
+    // source of truth). Without this, opening `?viewId=X&filter=...` (a shared
+    // "view + in-view edits" link, or any deep link onto a saved view) would
+    // overwrite the URL's filters with the view's stored state. Preserves
+    // deep-link precedence (#13865) and makes shared links carry in-view edits
+    // (LFE-10486).
     if (hasExplicitTableStateInUrl(router.query)) {
-      setIsInitialized(true);
+      // Unlock right away so the URL's filters apply without waiting on a fetch.
       setIsLoading(false);
+      // If a real saved view is referenced, still let getById resolve so its
+      // column layout (per-user localStorage, not encoded in the URL) can be
+      // applied by the success handler — which applies columns only and leaves
+      // the URL's filters authoritative. Otherwise there is nothing left to
+      // resolve, so mark initialization complete.
+      if (!hasResolvableView) {
+        setIsInitialized(true);
+      }
       return;
     }
 
     // A real saved view (or an allowed backend system preset) in the URL with
     // no explicit table state → let the getById query resolve and hydrate it.
-    if (
-      selectedViewId &&
-      (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets)
-    ) {
+    if (hasResolvableView) {
       return;
     }
 
@@ -355,11 +362,6 @@ export function useTableViewManager({
         isRouterReady &&
         !!selectedViewId &&
         !isInitialized &&
-        // Explicit URL state is authoritative, so there is nothing to hydrate
-        // from the view — don't fetch it. This also guarantees the success
-        // handler can never apply the view over the URL's filters regardless of
-        // effect timing (LFE-10486).
-        !hasExplicitTableStateInUrl(router.query) &&
         (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
     },
   );
@@ -370,15 +372,6 @@ export function useTableViewManager({
     const requestedViewId = selectedViewId;
     if (!requestedViewId) return;
     if (isInitializedRef.current) return;
-    // Explicit URL state wins over the saved view (the URL is the source of
-    // truth). Guard here too — not just in the query `enabled` — so cached view
-    // data can never be applied over the URL's filters on the first render
-    // regardless of effect timing (LFE-10486).
-    if (hasExplicitTableStateInUrl(router.query)) {
-      setIsInitialized(true);
-      setIsLoading(false);
-      return;
-    }
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
     if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
@@ -393,12 +386,25 @@ export function useTableViewManager({
       name: selectedViewData.name,
     });
 
-    applyViewState(selectedViewData);
+    if (hasExplicitTableStateInUrl(router.query)) {
+      // The URL is authoritative for filters/sort/search, so do NOT apply the
+      // view's stored filters over them. The column layout, however, is
+      // per-user localStorage that the URL does not carry — apply it from the
+      // view so a shared "view + in-view edits" link still renders the view's
+      // columns instead of the recipient's own (LFE-10486).
+      if (selectedViewData.columnOrder)
+        setColumnOrder(selectedViewData.columnOrder);
+      if (selectedViewData.columnVisibility)
+        setColumnVisibility(selectedViewData.columnVisibility);
+    } else {
+      applyViewState(selectedViewData);
+    }
     if (storedViewId !== requestedViewId) {
       setStoredViewId(requestedViewId);
     }
     isInitializedRef.current = true;
     setIsInitialized(true);
+    setIsLoading(false);
   }, [
     disabled,
     isSelectedViewSuccess,
@@ -409,6 +415,8 @@ export function useTableViewManager({
     capture,
     tableName,
     applyViewState,
+    setColumnOrder,
+    setColumnVisibility,
     storedViewId,
     setStoredViewId,
   ]);

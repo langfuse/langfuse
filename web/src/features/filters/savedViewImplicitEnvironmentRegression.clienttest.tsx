@@ -174,7 +174,13 @@ const TEST_OPTIONS = {
   name: ["checkout", "search"],
 };
 
-function SavedViewHarness() {
+function SavedViewHarness({
+  setColumnOrder = () => {},
+  setColumnVisibility = () => {},
+}: {
+  setColumnOrder?: (columnOrder: string[]) => void;
+  setColumnVisibility?: (columnVisibility: Record<string, boolean>) => void;
+} = {}) {
   const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
     stateLocation: "urlAndSessionStorage",
     sessionFilterContextId: null,
@@ -188,8 +194,8 @@ function SavedViewHarness() {
     projectId: "project-1",
     stateUpdaters: {
       setFilters: queryFilter.setFilterState,
-      setColumnOrder: () => {},
-      setColumnVisibility: () => {},
+      setColumnOrder,
+      setColumnVisibility,
     },
     validationContext: {
       columns: [],
@@ -367,7 +373,35 @@ describe("Saved view restore with implicit environment defaults", () => {
       query: { viewId: "view-1", filter: encodedFilters },
     });
 
-    render(<SavedViewHarness />);
+    // The view also carries a column layout, which is per-user localStorage and
+    // not encoded in the URL.
+    const setColumnOrder = vi.fn();
+    const setColumnVisibility = vi.fn();
+    mockGetByIdUseQuery.mockReturnValue({
+      data: {
+        id: "view-1",
+        name: "View with columns",
+        tableName: TableViewPresetTableName.Traces,
+        projectId: "project-1",
+        orderBy: null,
+        filters: OLD_SAVED_VIEW_FILTERS,
+        columnOrder: ["name", "latency"],
+        columnVisibility: { input: false },
+        searchQuery: "",
+        createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        createdBy: "user-1",
+        createdByUser: null,
+      },
+      error: null,
+    });
+
+    render(
+      <SavedViewHarness
+        setColumnOrder={setColumnOrder}
+        setColumnVisibility={setColumnVisibility}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("loading-state").textContent).toBe("ready");
@@ -384,6 +418,10 @@ describe("Saved view restore with implicit environment defaults", () => {
     // The viewId stays in the URL as a provenance reference so the drawer can
     // still show the view the link came from.
     expect(queryParamStore.get("viewId")).toBe("view-1");
+    // The view's column layout is NOT carried by the URL, so it must still be
+    // applied from the view — otherwise the recipient keeps their own columns.
+    expect(setColumnOrder).toHaveBeenCalledWith(["name", "latency"]);
+    expect(setColumnVisibility).toHaveBeenCalledWith({ input: false });
   });
 
   it("does not apply a default saved view over explicit URL filters", async () => {
