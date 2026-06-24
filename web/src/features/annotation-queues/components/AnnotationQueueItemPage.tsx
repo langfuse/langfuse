@@ -255,10 +255,21 @@ export const AnnotationQueueItemPage: React.FC<{
         if (isOpenDialogPresent()) return;
         if (isPending && !completeMutation.isPending && !objectData.isError) {
           event.preventDefault();
+          const active = document.activeElement;
+          // An out-of-range numeric score is vetoed on blur (no mutation fires),
+          // so completing now would silently drop it. Surface the constraint and
+          // abort completion, leaving focus on the field to fix.
+          if (
+            active instanceof HTMLInputElement &&
+            active.type === "number" &&
+            !active.checkValidity()
+          ) {
+            active.reportValidity();
+            return;
+          }
           // Text/numeric score fields persist on blur. Flush a focused one first
           // so feedback typed right before ⌘/Ctrl+Enter isn't lost when we
           // navigate away (its onBlur fires the save mutation synchronously).
-          const active = document.activeElement;
           if (
             active instanceof HTMLTextAreaElement ||
             active instanceof HTMLInputElement
@@ -427,7 +438,6 @@ export const AnnotationQueueItemPage: React.FC<{
               <TooltipContent>
                 <span>Previous item</span>
                 <KeyboardShortcut className="ml-2">←</KeyboardShortcut>
-                <KeyboardShortcut className="ml-1">P</KeyboardShortcut>
               </TooltipContent>
             </Tooltip>
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
@@ -479,7 +489,6 @@ export const AnnotationQueueItemPage: React.FC<{
               <TooltipContent>
                 <span>Skip to next item</span>
                 <KeyboardShortcut className="ml-2">→</KeyboardShortcut>
-                <KeyboardShortcut className="ml-1">N</KeyboardShortcut>
               </TooltipContent>
             </Tooltip>
           )}

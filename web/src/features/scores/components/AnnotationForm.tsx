@@ -69,8 +69,8 @@ import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
 import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreConfigSelection";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
+  hasBlockingOverlay,
   hasModifier,
-  isOpenDialogPresent,
 } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useRouter } from "next/router";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
@@ -636,10 +636,13 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (hasModifier(event)) return;
-      if (isOpenDialogPresent()) return;
 
       const root = formRootRef.current;
       if (!root) return;
+      // Suspend for an overlapping popover/drawer (e.g. the comment editor), but
+      // NOT for a drawer this form is mounted inside (the Annotate drawer) — that
+      // is an ancestor of the form, so the scheme stays alive there.
+      if (hasBlockingOverlay(root)) return;
       const target = event.target;
       const editing =
         target instanceof HTMLInputElement ||
@@ -956,6 +959,13 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                         field.onChange(Number(value));
                                       }}
                                       type="number"
+                                      // Mirror the config range as native
+                                      // constraints so out-of-range values are
+                                      // catchable via checkValidity() (e.g. the
+                                      // ⌘/Ctrl+Enter complete gate) on top of the
+                                      // existing onBlur JS validation.
+                                      min={config.minValue ?? undefined}
+                                      max={config.maxValue ?? undefined}
                                       className="text-xs"
                                       disabled={isInputDisabled(config)}
                                       onBlur={() => handleNumericUpsert(index)}

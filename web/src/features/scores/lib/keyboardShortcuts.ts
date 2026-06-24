@@ -82,6 +82,25 @@ export function isOpenDialogPresent(): boolean {
 }
 
 /**
+ * True when an open dialog/drawer that does NOT contain `root` is present.
+ *
+ * The score form suspends its shortcuts for an *overlapping* popover/drawer
+ * (e.g. the comment editor) but must keep working when it is merely mounted
+ * *inside* a drawer (the Annotate drawer on a trace/observation/session detail
+ * page) — that wrapping drawer is an ancestor of `root`, so it doesn't count.
+ */
+export function hasBlockingOverlay(root: HTMLElement | null): boolean {
+  if (typeof document === "undefined") return false;
+  const dialogs = document.querySelectorAll(
+    '[role="dialog"]:not([aria-hidden="true"])',
+  );
+  for (const dialog of dialogs) {
+    if (!root || !dialog.contains(root)) return true;
+  }
+  return false;
+}
+
+/**
  * True when the event is the "complete + next" submit chord: `Cmd+Enter`
  * (macOS) or `Ctrl+Enter` (Windows/Linux).
  *
