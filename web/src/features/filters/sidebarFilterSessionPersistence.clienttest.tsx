@@ -6,6 +6,11 @@ import { encodeFiltersGeneric } from "./lib/filter-query-encoding";
 import { buildSidebarFilterQueryStorageKey } from "./lib/persistedSidebarFilterQuery";
 
 const queryParamStore = new Map<string, unknown>();
+// Values placed here are NOT visible on the first render; they are applied on
+// mount via the query-param setter, reproducing the Next.js Pages Router race
+// where `router.query` is empty on the first render and only populated on a
+// later (hydration) render. See the deep-link expansion tests below.
+const deferredQueryParams = new Map<string, unknown>();
 
 vi.mock("use-query-params", async () => {
   const React = require("react");
@@ -50,6 +55,17 @@ vi.mock("use-query-params", async () => {
 
         queryParamStore.set(key, value);
       }, [key, value]);
+
+      // Apply a deferred value once, on mount: this lands the param on a later
+      // render than the first, simulating Pages Router query hydration.
+      React.useEffect(() => {
+        if (deferredQueryParams.has(key)) {
+          const deferred = deferredQueryParams.get(key);
+          deferredQueryParams.delete(key);
+          setQueryValue(deferred);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
 
       return [value, setQueryValue] as const;
     },
@@ -124,6 +140,119 @@ function SessionPersistenceHarness(props: { contextId?: string | null }) {
     </div>
   );
 }
+
+// Reports the expanded state of the single "name" facet and lets a test
+// collapse it. Used to assert the LFE-10164 deep-link expansion behavior.
+function ExpansionHarness() {
+  const queryFilter = useSidebarFilterState(TEST_FILTER_CONFIG, TEST_OPTIONS, {
+    stateLocation: "urlAndSessionStorage",
+  });
+
+  const nameFacet = queryFilter.filters.find((f) => f.column === "name");
+
+  return (
+    <div>
+      <pre data-testid="name-expanded">{String(nameFacet?.expanded)}</pre>
+      <pre data-testid="expanded-list">
+        {JSON.stringify(queryFilter.expanded)}
+      </pre>
+      <button
+        data-testid="collapse-name"
+        onClick={() =>
+          queryFilter.onExpandedChange(
+            queryFilter.expanded.filter((c) => c !== "name"),
+          )
+        }
+      >
+        Collapse name
+      </button>
+    </div>
+  );
+}
+
+describe("useSidebarFilterState deep-link expansion (LFE-10164)", () => {
+  const encodedFilterA = encodeFiltersGeneric(FILTER_A);
+  const EXPANDED_STORAGE_KEY = `${TEST_FILTER_CONFIG.tableName}-filters-expanded`;
+  const SEEDED_STORAGE_KEY = `${TEST_FILTER_CONFIG.tableName}-filters-seeded`;
+
+  beforeEach(() => {
+    sessionStorage.clear();
+    queryParamStore.clear();
+    deferredQueryParams.clear();
+  });
+
+  const getNameExpanded = () =>
+    screen.getByTestId("name-expanded").textContent === "true";
+
+  it("expands a facet section whose filter arrives on the first render", async () => {
+    queryParamStore.set("filter", encodedFilterA);
+
+    render(<ExpansionHarness />);
+
+    await waitFor(() => {
+      expect(getNameExpanded()).toBe(true);
+    });
+    expect(
+      JSON.parse(sessionStorage.getItem(SEEDED_STORAGE_KEY) ?? '""'),
+    ).toContain("name");
+  });
+
+  it("expands a facet section whose URL filter only arrives on a later render (Pages Router race)", async () => {
+    // Empty on first render; the filter param lands on a later render. The old
+    // one-shot mount effect seeded against the empty first render and never
+    // re-ran, leaving the section collapsed. The during-render reconciliation
+    // must expand it once the filter actually arrives.
+    deferredQueryParams.set("filter", encodedFilterA);
+
+    render(<ExpansionHarness />);
+
+    // Section starts collapsed (no filter on first render).
+    expect(getNameExpanded()).toBe(false);
+
+    // Once the deferred filter arrives, the section expands.
+    await waitFor(() => {
+      expect(getNameExpanded()).toBe(true);
+    });
+  });
+
+  it("does not re-expand a section the user collapsed, even though the URL filter is still active", async () => {
+    // Filter already active and already auto-expanded once in this session.
+    queryParamStore.set("filter", encodedFilterA);
+    sessionStorage.setItem(EXPANDED_STORAGE_KEY, JSON.stringify(""));
+    sessionStorage.setItem(SEEDED_STORAGE_KEY, JSON.stringify("name"));
+
+    render(<ExpansionHarness />);
+
+    // The seeded marker records that "name" was already reconciled, so the
+    // collapsed state is preserved instead of being re-expanded.
+    await waitFor(() => {
+      expect(screen.getByTestId("expanded-list").textContent).toBe("[]");
+    });
+    expect(getNameExpanded()).toBe(false);
+  });
+
+  it("keeps a manual collapse after it is reconciled within the same mount", async () => {
+    queryParamStore.set("filter", encodedFilterA);
+
+    render(<ExpansionHarness />);
+
+    // Auto-expanded on arrival.
+    await waitFor(() => {
+      expect(getNameExpanded()).toBe(true);
+    });
+
+    // User collapses it.
+    fireEvent.click(screen.getByTestId("collapse-name"));
+
+    // It stays collapsed; the still-active filter does not re-expand it.
+    await waitFor(() => {
+      expect(getNameExpanded()).toBe(false);
+    });
+    // Give any stray re-render a chance to (incorrectly) re-seed.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(getNameExpanded()).toBe(false);
+  });
+});
 
 describe("useSidebarFilterState session persistence", () => {
   const encodedFilterA = encodeFiltersGeneric(FILTER_A);

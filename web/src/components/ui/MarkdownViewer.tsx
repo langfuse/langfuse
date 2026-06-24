@@ -479,7 +479,7 @@ export function MarkdownView({
   );
 
   return (
-    <div className={cn("overflow-hidden")} key={theme}>
+    <div className="overflow-hidden" key={theme}>
       {title ? (
         <>
           <MarkdownJsonViewHeader

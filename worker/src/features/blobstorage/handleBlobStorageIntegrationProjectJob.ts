@@ -56,6 +56,43 @@ import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
 
+export const BlobExportFormat = {
+  JSON_RAW: "json-raw",
+  JSON_GZIP: "json-gzip",
+  CSV_RAW: "csv-raw",
+  CSV_GZIP: "csv-gzip",
+  JSONL_RAW: "jsonl-raw",
+  JSONL_GZIP: "jsonl-gzip",
+} as const;
+export type BlobExportFormat =
+  (typeof BlobExportFormat)[keyof typeof BlobExportFormat];
+
+const FORMAT_LOOKUP: Record<
+  BlobStorageIntegrationFileType,
+  { raw: BlobExportFormat; gzip: BlobExportFormat }
+> = {
+  [BlobStorageIntegrationFileType.JSON]: {
+    raw: BlobExportFormat.JSON_RAW,
+    gzip: BlobExportFormat.JSON_GZIP,
+  },
+  [BlobStorageIntegrationFileType.CSV]: {
+    raw: BlobExportFormat.CSV_RAW,
+    gzip: BlobExportFormat.CSV_GZIP,
+  },
+  [BlobStorageIntegrationFileType.JSONL]: {
+    raw: BlobExportFormat.JSONL_RAW,
+    gzip: BlobExportFormat.JSONL_GZIP,
+  },
+};
+
+function resolveBlobExportFormat(
+  fileType: BlobStorageIntegrationFileType,
+  compressed: boolean,
+): BlobExportFormat {
+  const entry = FORMAT_LOOKUP[fileType];
+  return compressed ? entry.gzip : entry.raw;
+}
+
 export const BLOB_STORAGE_LAG_BUFFER_MS = 20 * 60 * 1000; // 20-minute lag buffer
 
 export async function* enrichObservationStream(
@@ -626,11 +663,15 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
           });
 
+          const exportFormat = resolveBlobExportFormat(
+            config.fileType,
+            config.compressed,
+          );
           const byteTags = {
             table: config.table,
             projectId: config.projectId,
             path: passthroughEligible ? "passthrough" : "standard",
-            compressed: compressedCounter ? "true" : "false",
+            source: exportFormat,
           };
           recordIncrement(
             "langfuse.blob_export.serialized_bytes",
@@ -714,10 +755,14 @@ const processBlobStorageExport = async (config: {
                 : Math.max(0, totalUploadMs - finalChReadMs - finalEnrichMs);
               span.setAttribute("blob.gzipCpuMs", finalGzipCpuMs);
               span.setAttribute("blob.uploadWaitMs", finalUploadWaitMs);
+              const finalExportFormat = resolveBlobExportFormat(
+                config.fileType,
+                config.compressed,
+              );
               const stageTags = {
                 table: config.table,
                 path: passthroughEligible ? "passthrough" : "standard",
-                compressed: config.compressed ? "true" : "false",
+                source: finalExportFormat,
               };
               recordHistogram(
                 "langfuse.blob_export.ch_read_ms",
@@ -1242,12 +1287,23 @@ function extractStorageErrorMessage(error: unknown): string {
   // handleStorageError wraps SDK errors via { cause: sdkError }
   // Unwrap to get the raw SDK message (S3/Azure/GCS)
   const cause = error.cause;
-  if (cause instanceof Error) {
-    return cause.message.slice(0, 1000);
-  }
+  const message = cause instanceof Error ? cause.message : error.message;
 
-  // Fallback: ClickHouse errors or other non-wrapped errors
-  return error.message.slice(0, 1000);
+  // GCS returns a <Details> XML element with the real rejection reason
+  // (e.g. "Multipart upload is not supported in Rapid storage class.").
+  // handleStorageError preserves it as an enumerable property.
+  const errorDetails = (error as unknown as { Details?: unknown }).Details;
+  const causeDetails = (cause as unknown as { Details?: unknown } | undefined)
+    ?.Details;
+  const details =
+    typeof errorDetails === "string"
+      ? errorDetails
+      : typeof causeDetails === "string"
+        ? causeDetails
+        : undefined;
+
+  const full = details ? `${message} Details: ${details}` : message;
+  return full.slice(0, 1000);
 }
 
 function formatErrorChain(error: unknown): string {

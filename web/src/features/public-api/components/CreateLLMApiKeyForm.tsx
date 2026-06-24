@@ -667,7 +667,7 @@ export function CreateLLMApiKeyForm({
   return (
     <Form {...form}>
       <form
-        className={cn("flex flex-col gap-4 overflow-auto")}
+        className="flex flex-col gap-4 overflow-auto"
         onSubmit={(e) => {
           e.stopPropagation(); // Prevent event bubbling to parent forms
           form.handleSubmit(onSubmit)(e);
