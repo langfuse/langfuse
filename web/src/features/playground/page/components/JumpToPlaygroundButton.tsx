@@ -280,7 +280,7 @@ const parseGeneration = (
     output: string | null;
   },
   modelToProviderMap: Record<string, string>,
-  includeOutput: boolean = false,
+  includeOutput = false,
 ): PlaygroundCache => {
   if (!isGenerationLike(generation.type)) return null;
 

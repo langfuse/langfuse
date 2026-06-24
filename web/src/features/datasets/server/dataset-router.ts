@@ -1352,7 +1352,7 @@ export const datasetRouter = createTRPCRouter({
           },
         })
       ).map((d) => d.name);
-      let counter: number = 0;
+      let counter = 0;
       const duplicateDatasetName = (pCounter: number) =>
         pCounter === 0
           ? `${dataset.name} (copy)`

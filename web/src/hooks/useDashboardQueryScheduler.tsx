@@ -109,12 +109,7 @@ export const useDashboardQueryScheduler = ({
   }, [maxConcurrent]);
 
   const register = useCallback(
-    (
-      id: string,
-      priority: number,
-      isEligible: boolean = true,
-      runKey: string = id,
-    ) => {
+    (id: string, priority: number, isEligible = true, runKey: string = id) => {
       const existingItem = itemsRef.current.get(id);
 
       if (!existingItem) {

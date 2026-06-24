@@ -29,7 +29,7 @@ async function getMembers(
   query:
     | z.infer<typeof orgLevelMemberQuery>
     | (z.infer<typeof projectLevelMemberQuery> & { orgId: string }),
-  showAllOrgMembers: boolean = true,
+  showAllOrgMembers = true,
 ) {
   // Build common where clause to ensure consistency between findMany and count queries
   const whereClause = {

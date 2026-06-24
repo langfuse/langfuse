@@ -12,7 +12,7 @@ export function isValidDateString(dateString: string): boolean {
  */
 export function flattenJsonToPathArrays(
   obj: Record<string, unknown>,
-  prefix: string = "",
+  prefix = "",
 ): { names: string[]; values: Array<string | null | undefined> } {
   const names: string[] = [];
   const values: Array<string | null | undefined> = [];

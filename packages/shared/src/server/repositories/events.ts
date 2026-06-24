@@ -1309,8 +1309,8 @@ function buildObservationsQueryBase(
 }
 
 function orderByForObservationsQuery(
-  prefix: string = "e",
-  span_id: string = "span_id",
+  prefix = "e",
+  span_id = "span_id",
 ): OrderByEntry[] {
   // Order by to cursor ordering.
   // project_id and potentially other prefixes are injected in the query builder when necessary
@@ -1360,7 +1360,7 @@ function applyCursorPagination(
 async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
-  operationName: string = "getObservationsFromEventsTableForPublicApi_rows",
+  operationName = "getObservationsFromEventsTableForPublicApi_rows",
   extraTags: Record<string, string> = {},
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
@@ -3579,7 +3579,7 @@ export const getEventsForBlobStorageExportRaw = function (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-  convertLatencyToSeconds: boolean = false,
+  convertLatencyToSeconds = false,
 ) {
   return queryClickhouseStreamRawText(
     buildEventsForBlobStorageExportQuery(

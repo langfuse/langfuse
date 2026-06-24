@@ -2,7 +2,7 @@ import Decimal from "decimal.js";
 
 export const getMaxDecimals = (
   value: number | undefined,
-  scaleMultiplier: number = 1,
+  scaleMultiplier = 1,
 ) => {
   return (
     new Decimal(value ?? 0)

@@ -235,7 +235,7 @@ describe("json-expansion-utils", () => {
     // Helper to generate expansion state from observation keys
     const generateExpansionState = (
       observationKeys: string[],
-      nestedPathsPerKey: number = 0,
+      nestedPathsPerKey = 0,
     ): Record<string, boolean> => {
       const state: Record<string, boolean> = {};
       const nestedPaths = ["input", "output", "metadata", "messages", "config"];
@@ -257,7 +257,7 @@ describe("json-expansion-utils", () => {
     // Helper to generate normalized state for denormalization tests
     const generateNormalizedState = (
       count: number,
-      nestedPathsPerKey: number = 0,
+      nestedPathsPerKey = 0,
     ): Record<string, boolean> => {
       const state: Record<string, boolean> = {};
       const names = [

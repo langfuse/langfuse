@@ -525,7 +525,7 @@ describe("Comparison: Recursive vs Iterative", () => {
 
 describe("Performance Comparison", () => {
   // Helper to generate nested JSON strings
-  const generateNestedJson = (depth: number, breadth: number = 3): any => {
+  const generateNestedJson = (depth: number, breadth = 3): any => {
     if (depth === 0) {
       return { value: "leaf" };
     }
@@ -737,10 +737,7 @@ describe("Performance Comparison", () => {
 
   describe("Large Object Performance", () => {
     // Helper to create large objects with many keys
-    const createLargeObject = (
-      numKeys: number,
-      nestingDepth: number = 2,
-    ): any => {
+    const createLargeObject = (numKeys: number, nestingDepth = 2): any => {
       const obj: any = {};
 
       for (let i = 0; i < numKeys; i++) {
