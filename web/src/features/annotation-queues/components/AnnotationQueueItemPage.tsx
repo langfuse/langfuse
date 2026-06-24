@@ -557,16 +557,17 @@ export const AnnotationQueueItemPage: React.FC<{
               <ShortcutRow label="Move between score fields">
                 <KeyboardShortcut>↑</KeyboardShortcut>
                 <KeyboardShortcut>↓</KeyboardShortcut>
+                <span className="text-muted-foreground text-xs">/</span>
+                <KeyboardShortcut>Tab</KeyboardShortcut>
               </ShortcutRow>
-              <ShortcutRow label="Select an option on the active field">
+              <ShortcutRow label="Select an option on the focused field">
                 <KeyboardShortcut>1</KeyboardShortcut>
                 <span className="text-muted-foreground text-xs">–</span>
                 <KeyboardShortcut>9</KeyboardShortcut>
               </ShortcutRow>
-              <ShortcutRow label="Edit the active text / number field">
-                <KeyboardShortcut>↵</KeyboardShortcut>
-              </ShortcutRow>
-              <ShortcutRow label="Stop editing (back to navigation)">
+              <ShortcutRow label="Leave a text / number field">
+                <KeyboardShortcut>Tab</KeyboardShortcut>
+                <span className="text-muted-foreground text-xs">/</span>
                 <KeyboardShortcut>Esc</KeyboardShortcut>
               </ShortcutRow>
             </div>
