@@ -311,6 +311,19 @@ describe("ProjectDeletionProcessingJob", () => {
         field: "test",
       },
     });
+    await prisma.datasetItemMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        datasetId: randomUUID(),
+        datasetItemId: randomUUID(),
+        datasetItemValidFrom: new Date(),
+        mediaId,
+        field: "input",
+        jsonPath: "$['image']",
+        referenceString: `@@@langfuseMedia:type=text/plain|id=${mediaId}|source=bytes@@@`,
+      },
+    });
 
     // When
     await projectDeleteProcessor({
@@ -334,6 +347,10 @@ describe("ProjectDeletionProcessingJob", () => {
       where: { mediaId },
     });
     expect(observationMedia).toBeNull();
+    const datasetItemMedia = await prisma.datasetItemMedia.findFirst({
+      where: { mediaId },
+    });
+    expect(datasetItemMedia).toBeNull();
   });
 
   describe("delete functions with hasAny probe", () => {

@@ -10,9 +10,14 @@ import {
   type MediaContentType,
   type PatchMediaBody,
 } from "@/src/features/media/validation";
-import { InternalServerError, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  type DatasetItemMediaField,
+  InternalServerError,
+  LangfuseNotFoundError,
+} from "@langfuse/shared";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import {
+  declarePendingDatasetItemMedia,
   getCurrentSpan,
   logger,
   recordHistogram,
@@ -30,8 +35,32 @@ export async function createMediaUploadUrl(params: {
     sha256Hash,
     traceId,
     observationId,
+    datasetId,
+    datasetItemId,
     field,
   } = body;
+
+  const linkUploadedMedia = (mediaId: string) => {
+    if (datasetId && datasetItemId) {
+      return declarePendingDatasetItemMedia({
+        projectId,
+        datasetId,
+        datasetItemId,
+        mediaId,
+        field: field as DatasetItemMediaField,
+      });
+    }
+    // Validation guarantees a trace context here (traceId + field).
+    if (traceId && field) {
+      return linkMediaToTraceOrObservation({
+        projectId,
+        traceId,
+        observationId,
+        mediaId,
+        field,
+      });
+    }
+  };
 
   try {
     const existingMedia = await prisma.media.findUnique({
@@ -51,13 +80,7 @@ export async function createMediaUploadUrl(params: {
       existingMedia.uploadHttpStatus === 200 &&
       existingMedia.contentType === contentType
     ) {
-      await linkMediaToTraceOrObservation({
-        projectId,
-        traceId,
-        observationId,
-        mediaId,
-        field,
-      });
+      await linkUploadedMedia(mediaId);
 
       return GetMediaUploadUrlResponseSchema.parse({
         mediaId,
@@ -94,13 +117,7 @@ export async function createMediaUploadUrl(params: {
       contentLength,
     });
 
-    await linkMediaToTraceOrObservation({
-      projectId,
-      traceId,
-      observationId,
-      mediaId,
-      field,
-    });
+    await linkUploadedMedia(mediaId);
 
     return GetMediaUploadUrlResponseSchema.parse({ mediaId, uploadUrl });
   } catch (error) {

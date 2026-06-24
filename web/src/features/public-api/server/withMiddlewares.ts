@@ -3,7 +3,8 @@ import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { type ZodError } from "zod";
 import {
-  BaseError,
+  type BaseError,
+  isBaseError,
   LangfuseNotFoundError,
   MethodNotAllowedError,
   UnauthorizedError,
@@ -147,7 +148,7 @@ export function withMiddlewares(
         }
 
         if (options?.errorContract === unstablePublicEvalsErrorContract) {
-          if (error instanceof BaseError) {
+          if (isBaseError(error)) {
             logBaseError(error);
           } else if (isZodError(error)) {
             logger.warn(error);
@@ -155,7 +156,7 @@ export function withMiddlewares(
             logger.error(error);
           }
 
-          if (error instanceof BaseError) {
+          if (isBaseError(error)) {
             if (error.httpCode >= 500 && error.httpCode < 600) {
               traceException(error);
             }
@@ -169,7 +170,7 @@ export function withMiddlewares(
           );
         }
 
-        if (error instanceof BaseError) {
+        if (isBaseError(error)) {
           logBaseError(error);
           if (error.httpCode >= 500 && error.httpCode < 600) {
             traceException(error);

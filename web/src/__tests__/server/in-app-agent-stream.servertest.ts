@@ -355,7 +355,24 @@ describe("createAgUiStream", () => {
         },
       ],
       tools: [],
-      context: [],
+      context: [
+        {
+          description: "current_url",
+          value: "https://cloud.langfuse.com/project/project-1/traces",
+        },
+        {
+          description: "user_name",
+          value: "Ada Lovelace",
+        },
+        {
+          description: "current_timezone",
+          value: "Europe/London",
+        },
+        {
+          description: "browser_languages",
+          value: "en-GB, en",
+        },
+      ],
       state: {
         type: "existingConversation",
         projectId: "project-1",
@@ -431,7 +448,7 @@ describe("createAgUiStream", () => {
         langfuseTracing: {
           environment: "langfuse-in-app-agent",
           metadata: { langfuse_project_id: "project-1" },
-          userId: "user-1",
+          user: { id: "user-1" },
           traceId: "0123456789abcdef0123456789abcdef",
           targetProjectId: "project-1",
         },
@@ -495,10 +512,19 @@ describe("createAgUiStream", () => {
       expect.objectContaining({
         currentDate: expect.any(String),
         redirectToolName: IN_APP_AGENT_REDIRECT_TOOL_NAME,
-        screenContext: "",
+        screenContext: expect.stringContaining("<screen_context>"),
+        userContext: expect.stringContaining("<user_context>"),
         sidebarHiddenEnvironments: DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS.map(
           (environment) => `"${environment}"`,
         ).join(", "),
+      }),
+    );
+    expect(promptMocks.compile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        screenContext: expect.stringContaining(
+          "- current_url: https://cloud.langfuse.com/project/project-1/traces",
+        ),
+        userContext: expect.stringContaining("- user_name: Ada Lovelace"),
       }),
     );
     expect(Agent).toHaveBeenCalledWith(

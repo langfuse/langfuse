@@ -110,9 +110,7 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     return <VideoPlayer src={mediaUrl} />;
   } else {
     // Documents: use file icon view
-    return (
-      <LangfuseMediaView mediaAPIReturnValue={mediaItem} asFileIcon={true} />
-    );
+    return <LangfuseMediaView mediaAPIReturnValue={mediaItem} variant="icon" />;
   }
 }
 

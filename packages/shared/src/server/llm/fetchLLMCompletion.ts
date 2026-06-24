@@ -925,6 +925,7 @@ export async function fetchLLMCompletion(
       message,
       responseStatusCode,
       isRetryable,
+      cause: e,
     });
   } finally {
     await processTracedEvents();
