@@ -59,9 +59,6 @@ type PlaygroundContextType = {
   deletePromptVariable: (variable: string) => void;
 
   messagePlaceholders: PlaceholderMessageFillIn[];
-  setMessagePlaceholders: React.Dispatch<
-    React.SetStateAction<PlaceholderMessageFillIn[]>
-  >;
   updateMessagePlaceholderValue: (name: string, value: ChatMessage[]) => void;
   deleteMessagePlaceholder: (name: string) => void;
 
@@ -78,7 +75,6 @@ type PlaygroundContextType = {
 
   handleSubmit: (streaming?: boolean) => Promise<void>;
   isStreaming: boolean;
-  setModelParams: React.Dispatch<React.SetStateAction<UIModelParams>>;
 } & ModelParamsContext &
   MessagesContext;
 
@@ -691,7 +687,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         updatePromptVariableValue,
         deletePromptVariable,
         messagePlaceholders,
-        setMessagePlaceholders,
         updateMessagePlaceholderValue,
         deleteMessagePlaceholder,
 
@@ -710,7 +705,6 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         toolCallIds,
 
         modelParams,
-        setModelParams,
         updateModelParamValue,
         setModelParamEnabled,
         providerModelCombinations,

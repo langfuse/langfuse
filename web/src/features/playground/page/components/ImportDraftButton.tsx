@@ -10,8 +10,8 @@ import {
 } from "@/src/components/ui/tooltip";
 import { usePlaygroundContext } from "@/src/features/playground/page/context";
 import {
-  type PlaygroundDraftSnapshot,
   type PlaygroundSchema,
+  PlaygroundDraftSnapshotSchema,
 } from "@/src/features/playground/page/types";
 import { ChatMessageRole } from "@langfuse/shared";
 
@@ -69,13 +69,10 @@ export const ImportDraftButton: React.FC<ImportDraftButtonProps> = ({
           throw new Error("Could not read file as string");
         }
 
-        const parsed = JSON.parse(text) as PlaygroundDraftSnapshot;
+        // Validate the JSON structure with Zod; throws ZodError for malformed payloads
+        const parsed = PlaygroundDraftSnapshotSchema.parse(JSON.parse(text));
 
-        if (!parsed || typeof parsed !== "object") {
-          throw new Error("Invalid JSON structure");
-        }
-
-        // Schema Version validation
+        // Warn but continue if the schema version is unexpected
         if (parsed.schemaVersion !== "langfuse-playground-draft/v1") {
           toast.warning(
             "Schema version mismatch or missing, but trying to parse layout anyway.",
