@@ -1,24 +1,12 @@
-// Mid-stream exception detection for the `exec()` binary export path (LFE-10463
-// Parquet). `query().stream()` lets @clickhouse/client scan for the
-// `x-clickhouse-exception-tag` end-of-stream marker, so a query failing after a
-// 200 errors the stream instead of truncating silently. `exec()` returns the raw
-// body with no such scan, so we replicate it here.
-//
-// On ClickHouse >= 25.11 a failed query appends `\r\n__exception__\r\n<tag>` …
-// `<len> __exception__\r\n<tag>\r\n` to the body, where <tag> is the per-query
-// random value of the `x-clickhouse-exception-tag` header. We scan for the full
-// `\r\n__exception__\r\n<tag>` opening — the tag MUST be included: the literal
-// 17-byte prefix alone can appear in a *successful* Parquet body, because the
-// footer's Thrift-encoded column min/max statistics are uncompressed and carry
-// raw user strings (a value starting with `\r\n…` is the column lex-min). Without
-// the tag, an adversarial trace value could plant the prefix, false-positive the
-// scan, and deterministically fail every export of that window (a per-window
-// DoS). The server-generated tag is unguessable, so including it makes the marker
-// unforgeable. Once found, the trailer is handed to extractErrorAtTheEndOfChunk.
-//
-// CAVEAT (mirrors rawPassthrough): pre-25.11 the tag header is absent, detection
-// is off, and a mid-stream failure is not caught — the only caller is an
-// experimental per-project opt-in gated on that version.
+// Replicates @clickhouse/client's mid-stream exception detection for the
+// `exec()` binary export path (LFE-10463 Parquet): exec() returns the raw body
+// with no scan, so a query failing after a 200 would truncate silently. On CH
+// >= 25.11 a failure appends `\r\n__exception__\r\n<tag>` … to the body. We scan
+// for marker+tag (not the bare marker): the literal prefix can occur in a
+// successful Parquet footer's uncompressed min/max stats (raw user strings), so
+// scanning the prefix alone lets an adversarial trace value false-positive every
+// export of a window — a per-window DoS. The per-query tag is unguessable.
+// Caveat (like rawPassthrough): pre-25.11 the tag header is absent → detection off.
 
 import { Transform } from "stream";
 import { extractErrorAtTheEndOfChunk } from "@clickhouse/client-common";
@@ -35,13 +23,11 @@ export interface ClickhouseExecExceptionTagTransformOptions {
 }
 
 /**
- * Passes ClickHouse `exec()` bytes through until the end-of-stream exception
- * trailer appears, then errors the stream with the parsed ClickHouse error
- * (aborting any downstream upload before commit). Withholds the last
+ * Passes `exec()` bytes through until the exception trailer appears, then errors
+ * the stream (aborting any downstream upload before commit). Withholds the last
  * (scanMarker length - 1) bytes between chunks to catch a marker split across a
- * boundary, flushing them when no error is found so clean data is never dropped.
- * Memory stays bounded — only the small tail and (post-marker) the trailer are
- * buffered; the stream itself never is.
+ * boundary, flushing them on clean end. Memory is bounded — the stream is never
+ * fully buffered.
  */
 export class ClickhouseExecExceptionTagTransform extends Transform {
   private readonly exceptionTag: string | undefined;

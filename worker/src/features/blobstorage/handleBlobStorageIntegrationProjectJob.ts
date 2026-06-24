@@ -280,17 +280,15 @@ class ByteCounter extends Transform {
   }
 }
 
-// ByteCounter that also tallies the gap between chunks into `stats.sourceWaitMs`,
-// letting the Parquet path (a piped binary stream, no per-row generator) reuse
-// the standard chReadMs/uploadWaitMs derivation. Like countedStream, this "source
-// wait" conflates ClickHouse delivery with S3 backpressure — a coarse split.
+// ByteCounter that also tallies inter-chunk gaps into `stats.sourceWaitMs`, so
+// the Parquet path (piped binary stream, no per-row generator) reuses the
+// standard chReadMs/uploadWaitMs derivation. Coarse: source wait conflates CH
+// delivery with S3 backpressure (same as countedStream).
 class TimedByteCounter extends ByteCounter {
   private readonly stats: { sourceWaitMs: number };
-  // Clock starts at construction (not on the first chunk) so the first gap
-  // captures time-to-first-byte — the dominant ClickHouse wait, since Parquet
-  // composes a row group before emitting any bytes. countedStream starts its
-  // clock before its for-await loop for the same reason; guarding the first
-  // chunk would systematically drop TTFB from chReadMs (→ inflated uploadWaitMs).
+  // Clock starts at construction (like countedStream, before its loop) so the
+  // first gap captures time-to-first-byte — the dominant CH wait, since Parquet
+  // composes a row group before any bytes. Guarding it would drop TTFB from chReadMs.
   private lastChunkDoneAt: number = performance.now();
   constructor(stats: { sourceWaitMs: number }) {
     super();

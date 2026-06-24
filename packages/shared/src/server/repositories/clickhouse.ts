@@ -361,15 +361,10 @@ export async function* queryClickhouseStreamRawText(
   }
 }
 
-// Blob-export Parquet settings (LFE-10463). A row group is buffered in memory
-// before it flushes, so we bound it on BOTH axes: ClickHouse flushes whichever
-// limit hits first. The bytes cap (not the row count) is the real memory
-// governor and auto-adapts to row width — wide io rows (observations/events with
-// large input/output/metadata) flush after fewer rows, narrow rows pack more in.
-// We set it below ClickHouse's 512 MiB default because the export dispatcher runs
-// up to four tables concurrently per project (traces, observations, scores,
-// events), so peak ≈ 4 × this value. The row cap keeps narrow-table groups from
-// growing to an unbounded row count.
+// Blob-export Parquet settings (LFE-10463). CH buffers a row group in memory and
+// flushes at whichever cap hits first. The bytes cap is the real memory governor
+// (auto-adapts to row width); set below CH's 512 MiB default since the dispatcher
+// exports up to 4 tables concurrently (peak ≈ 4×). The row cap bounds narrow tables.
 export const BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS: ClickHouseSettings = {
   output_format_parquet_row_group_size: "1000000",
   output_format_parquet_row_group_size_bytes: String(128 * 1024 * 1024), // 128 MiB

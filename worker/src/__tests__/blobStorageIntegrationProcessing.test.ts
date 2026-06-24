@@ -1746,9 +1746,7 @@ describe("BlobStorageIntegrationProcessingJob", () => {
   });
 
   maybeDescribe("Parquet export (LFE-10463)", () => {
-    // End-to-end: exportTuning.parquet routes the real handler through
-    // queryClickhouseExecRaw → exception-tag Transform → ByteCounter → MinIO,
-    // producing .parquet objects for every table. Parquet magic ("PAR1") is
+    // E2e: exportTuning.parquet runs the real handler → MinIO. Parquet magic is
     // ASCII, so it survives the string download at both ends of the body.
     const PARQUET_MAGIC = "PAR1";
 
@@ -1796,10 +1794,9 @@ describe("BlobStorageIntegrationProcessingJob", () => {
             timestamp: dataTime,
             name: "Parquet Trace",
           }),
-          // A trace whose name starts with the exception-trailer marker. It
-          // lands verbatim in the uncompressed Parquet footer min-stat; the
-          // per-query-tag scan must NOT treat it as a failure (regression for
-          // the footer-DoS fix — the export must still succeed).
+          // Name starting with the exception marker lands in the uncompressed
+          // footer min-stat; the per-query-tag scan must not false-positive
+          // (footer-DoS regression — export must still succeed).
           createTrace({
             id: adversarialTraceId,
             project_id: projectId,
