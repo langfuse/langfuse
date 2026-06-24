@@ -60,6 +60,14 @@ export const BlobExportTuningSchema = z.object({
   // >= RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION (see above) for mid-stream failure
   // detection. Do not enable on older self-hosted ClickHouse.
   rawPassthrough: z.boolean().optional(),
+  // LFE-10463 Parquet export path: stream ClickHouse's native `FORMAT Parquet`
+  // bytes straight to upload, offloading columnar encoding + compression to
+  // ClickHouse query threads (no worker gzip). When set, produces `.parquet`
+  // files for all tables and overrides both `fileType` and `compressed`. Takes
+  // precedence over `rawPassthrough` (resolved below). Like rawPassthrough it
+  // relies on mid-stream exception tagging, so the same ClickHouse
+  // >= RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION caveat applies on self-hosted.
+  parquet: z.boolean().optional(),
   // LFE-10402 gzip tuning: zlib deflate level for compressed exports. Lower
   // levels trade output size for markedly less worker CPU. Only honored when the
   // integration has compression enabled. zlib accepts 0 (store) through 9 (max);
@@ -99,6 +107,9 @@ export interface BlobExportTuningDefaults {
 
 export type ResolvedBlobExportTuning = {
   rawPassthrough: boolean;
+  // LFE-10463. When true the export uses ClickHouse-native `FORMAT Parquet`;
+  // forces `rawPassthrough` to false (parquet wins) — see resolver below.
+  parquet: boolean;
   // undefined => use the zlib default (6); a concrete 0-9 otherwise.
   gzipLevel: number | undefined;
   partSizeBytes: number;
@@ -240,6 +251,7 @@ export function resolveBlobExportTuning(
 
   const fallback: ResolvedBlobExportTuning = {
     rawPassthrough: false,
+    parquet: false,
     gzipLevel: undefined,
     partSizeBytes: defaults.partSizeBytes,
     maxConcurrentParts: undefined,
@@ -260,13 +272,29 @@ export function resolveBlobExportTuning(
 
   const obj = raw as Record<string, unknown>;
 
+  const parquet = resolveBoolean("parquet", obj.parquet, warnings);
+  let rawPassthrough = resolveBoolean(
+    "rawPassthrough",
+    obj.rawPassthrough,
+    warnings,
+  );
+
+  // LFE-10463: Parquet is a distinct execution path (ClickHouse-native
+  // `FORMAT Parquet`) that supersedes the JSONEachRow raw-passthrough path.
+  // Enabling both is a misconfiguration; honor parquet and disable
+  // rawPassthrough with a warning rather than letting the handler pick one
+  // silently.
+  if (parquet && rawPassthrough) {
+    rawPassthrough = false;
+    warnings.push(
+      "parquet and rawPassthrough are both enabled; parquet takes precedence, ignoring rawPassthrough",
+    );
+  }
+
   return {
     resolved: {
-      rawPassthrough: resolveBoolean(
-        "rawPassthrough",
-        obj.rawPassthrough,
-        warnings,
-      ),
+      rawPassthrough,
+      parquet,
       gzipLevel: resolveGzipLevel(obj.gzipLevel, warnings),
       partSizeBytes: resolveNumber(
         "partSizeBytes",
