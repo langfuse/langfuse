@@ -30,6 +30,7 @@ import {
   type InAppAgentUserAccess,
   withInAppAgentToolApproval,
 } from "@/src/ee/features/in-app-agent/server/tools";
+import { LANGFUSE_IN_APP_AGENT_SKILLS } from "@/src/ee/features/in-app-agent/server/skills";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
 import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
@@ -767,6 +768,7 @@ async function createMastraAdapter(params: {
       model: bedrock(
         params.options.awsBedrock.modelId as Parameters<typeof bedrock>[0],
       ),
+      skills: LANGFUSE_IN_APP_AGENT_SKILLS,
       tools,
       defaultOptions: {
         abortSignal: params.signal,

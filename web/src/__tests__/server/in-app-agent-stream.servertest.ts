@@ -666,6 +666,10 @@ describe("createAgUiStream", () => {
             id: "langfuse_proposeRedirect",
           }),
         }),
+        skills: expect.arrayContaining([
+          expect.objectContaining({ name: "langfuse-error-analysis" }),
+          expect.objectContaining({ name: "langfuse-cli" }),
+        ]),
       }),
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];
