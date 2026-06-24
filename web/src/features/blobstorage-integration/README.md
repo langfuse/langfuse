@@ -69,16 +69,16 @@ up_to_date  ← fallthrough
 | From | Trigger | Writes | To |
 |---|---|---|---|
 | **any** | User saves with `enabled=false` | `runStartedAt=null` | **disabled** |
-| **any** | User saves with `enabled=true` | `runStartedAt=null`; `nextSyncAt=now` if errored or mode changed | **queued** or **idle** |
-| **disabled** | User saves `enabled=true` | (as above) | **idle** or **queued** |
+| **any** | User saves with `enabled=true` | `runStartedAt=null`; `nextSyncAt=now` if errored or mode changed | **idle**, **queued**, or stays **error** (`lastError` is not cleared by save) |
+| **disabled** | User saves `enabled=true` | (as above) | **idle**, **queued**, or stays **error** |
 | **idle/queued** | Scheduler finds `nextSyncAt<=now` or `lastSyncAt=null` | Enqueues BullMQ job (no DB write) | stays **queued** |
 | **queued** | Worker starts job | `runStartedAt=now` | **running** |
 | **running** | Worker: integration disabled | `runStartedAt=null` | **disabled** |
-| **running** | Worker: empty time window | `runStartedAt=null`, `nextSyncAt=now+frequency`, `lastError=null` | **up_to_date** |
+| **running** | Worker: empty time window | `runStartedAt=null`, `nextSyncAt=now+frequency`, `lastError=null` | **up_to_date** (or **idle** if never synced) |
 | **running** | Worker: export succeeds, caught up | `lastSyncAt=max`, `nextSyncAt=max+freq`, `lastError=null`, `runStartedAt=null` | **up_to_date** |
 | **running** | Worker: export succeeds, not caught up | `lastSyncAt=max`, `nextSyncAt=now`, `lastError=null`, `runStartedAt=null` + re-enqueues job | **queued** (immediately) |
 | **running** | Worker: export fails | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null` | **error** |
-| **error** | User saves (enabled, same mode) | `runStartedAt=null`, `nextSyncAt=now` | **queued** |
+| **error** | User saves (enabled, same mode) | `runStartedAt=null`, `nextSyncAt=now` | stays **error** (`lastError` preserved; scheduler re-enqueues via `nextSyncAt`) |
 | **error** | User clicks Run Now | Enqueues manual job (no DB write) | stays **error** until worker starts |
 | **running** | Stale `runStartedAt` > 2h | (no write — derived only) | falls through to **queued**, **idle**, or **up_to_date** |
 | **up_to_date** | Clock passes `nextSyncAt` | (no write — derived only) | **queued** |
