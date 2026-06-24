@@ -92,7 +92,6 @@ interface TableViewControllers {
   selectedViewId: string | null;
   appliedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
-  markViewApplied: (viewId: string) => void;
 }
 
 interface TableViewConfig {

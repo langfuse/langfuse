@@ -144,9 +144,6 @@ interface TableViewPresetsDrawerProps {
        * shared-link visit where the view is intentionally not applied). */
       appliedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
-      /** Mark a view as applied without re-running applyViewState (e.g. a view
-       * just created from the current state). */
-      markViewApplied: (viewId: string) => void;
       applyViewState: (viewData: TableViewPresetState) => void;
     };
   };
@@ -184,13 +181,8 @@ export function TableViewPresetsDrawer({
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
-  const {
-    handleSetViewId,
-    applyViewState,
-    selectedViewId,
-    appliedViewId,
-    markViewApplied,
-  } = controllers;
+  const { handleSetViewId, applyViewState, selectedViewId, appliedViewId } =
+    controllers;
   const { TableViewPresetsList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -291,25 +283,16 @@ export function TableViewPresetsDrawer({
       name: createdView.name,
     });
 
-    createMutation.mutate(
-      {
-        name: createdView.name,
-        tableName,
-        projectId,
-        orderBy: currentState.orderBy,
-        filters: currentState.filters,
-        columnOrder: currentState.columnOrder,
-        columnVisibility: currentState.columnVisibility,
-        searchQuery: currentState.searchQuery,
-      },
-      {
-        // The new view was saved from the current table state, so its columns
-        // equal the live ones — mark it applied so a subsequent "Update view"
-        // trusts the live columns rather than treating it like a shared-link
-        // visit (LFE-10486).
-        onSuccess: (data) => markViewApplied(data.view.id),
-      },
-    );
+    createMutation.mutate({
+      name: createdView.name,
+      tableName,
+      projectId,
+      orderBy: currentState.orderBy,
+      filters: currentState.filters,
+      columnOrder: currentState.columnOrder,
+      columnVisibility: currentState.columnVisibility,
+      searchQuery: currentState.searchQuery,
+    });
 
     setIsCreateDialogOpen(false);
   };

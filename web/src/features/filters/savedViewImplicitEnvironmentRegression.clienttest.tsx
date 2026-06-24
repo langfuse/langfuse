@@ -189,7 +189,7 @@ function SavedViewHarness({
     },
   });
 
-  const { isLoading } = useTableViewManager({
+  const { isLoading, appliedViewId } = useTableViewManager({
     tableName: TableViewPresetTableName.Traces,
     projectId: "project-1",
     stateUpdaters: {
@@ -209,6 +209,7 @@ function SavedViewHarness({
   return (
     <div>
       <div data-testid="loading-state">{isLoading ? "loading" : "ready"}</div>
+      <div data-testid="applied-view-id">{appliedViewId ?? "null"}</div>
       <pre data-testid="explicit-state">
         {JSON.stringify(queryFilter.explicitFilterState)}
       </pre>
@@ -424,6 +425,35 @@ describe("Saved view restore with implicit environment defaults", () => {
     // column layout is left untouched (no localStorage mutation on link open).
     expect(setColumnOrder).not.toHaveBeenCalled();
     expect(setColumnVisibility).not.toHaveBeenCalled();
+    // On a fresh shared-link visit the view is NOT recognised as applied, so
+    // "Update view" would preserve the view's stored columns (not the
+    // visitor's). Contrast with the reload-of-applied-view test below.
+    expect(screen.getByTestId("applied-view-id").textContent).toBe("null");
+  });
+
+  it("recognises a reload of an applied view as applied so Update keeps live columns (LFE-10486)", async () => {
+    // Reload after a view was applied: the URL carries the viewId AND the
+    // view's hydrated filters, and the session still remembers X as active.
+    // The explicit-URL-state short-circuit means the view is not re-applied,
+    // but it must still be recognised as the applied view — otherwise a
+    // column reorder + "Update view" would silently discard the reorder and
+    // save the stored snapshot instead.
+    const hydratedFilters = encodeFiltersGeneric(OLD_SAVED_VIEW_FILTERS);
+    queryParamStore.set("viewId", "view-1");
+    queryParamStore.set("filter", hydratedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "view-1", filter: hydratedFilters },
+    });
+    sessionStorage.setItem("traces-project-1-viewId", JSON.stringify("view-1"));
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    expect(screen.getByTestId("applied-view-id").textContent).toBe("view-1");
   });
 
   it("does not apply a default saved view over explicit URL filters", async () => {

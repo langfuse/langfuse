@@ -96,12 +96,6 @@ export function useTableViewManager({
   const isRouterReady = router.isReady;
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  // The view whose full state (incl. column layout) was actually applied to the
-  // live table this session — set whenever applyViewState runs. Used to tell a
-  // deliberate view application apart from a shared-link visit where the view
-  // is intentionally NOT applied, so "Update view" never saves the visitor's
-  // unrelated local columns over the view (LFE-10486).
-  const [appliedViewId, setAppliedViewId] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
@@ -257,14 +251,9 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetState & { id?: string }) => {
+    (viewData: TableViewPresetState) => {
       // lock table
       setIsLoading(true);
-
-      // Record that this view's full state is now reflected in the live table
-      // (filters in the URL, column layout in localStorage). Saved views and
-      // drawer selections carry an id; synthetic system presets do not.
-      if (viewData.id) setAppliedViewId(viewData.id);
 
       /**
        * Validate orderBy and filters
@@ -466,7 +455,6 @@ export function useTableViewManager({
       isLoading: false,
       applyViewState: () => {},
       handleSetViewId: () => {},
-      markViewApplied: () => {},
       selectedViewId: null,
       appliedViewId: null,
       defaultViewScope: null,
@@ -477,14 +465,18 @@ export function useTableViewManager({
     isLoading,
     applyViewState,
     handleSetViewId,
-    // Lets callers that put the live table state into a view *without* going
-    // through applyViewState — notably creating a view, whose columns equal the
-    // current state by construction — record it as applied, so a follow-up
-    // "Update view" trusts the live columns instead of treating it like a
-    // shared-link visit (LFE-10486).
-    markViewApplied: setAppliedViewId,
     selectedViewId,
-    appliedViewId,
+    // The view whose state is reflected in the live table — i.e. whose column
+    // layout is in localStorage. We reuse `storedViewId` (session-persisted,
+    // set on apply/create/select and cleared on deselect) rather than a
+    // session-scoped React flag, so the signal survives a reload: after a view
+    // is applied the URL becomes `?viewId=X&filter=...`, and on reload the
+    // explicit-URL-state short-circuit skips re-applying it — but storedViewId
+    // is still X, so "Update view" correctly trusts the live columns instead of
+    // reverting to the view's stored snapshot. On a fresh shared-link visit
+    // storedViewId is null (or another view), so the view's columns are
+    // preserved (LFE-10486).
+    appliedViewId: storedViewId,
     defaultViewScope: resolvedDefault?.scope ?? null,
   };
 }
