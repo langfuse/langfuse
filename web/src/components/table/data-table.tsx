@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useCallback,
   useRef,
+  useEffect,
   type CSSProperties,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -225,23 +226,35 @@ export function DataTable<TData extends object, TValue>({
   // header (the resize handle is a child of <TableHead>), which would otherwise
   // toggle the column sort. We stamp when a resize ends and ignore header
   // clicks that land within a short window after it. The stamp is set from a
-  // one-shot document listener registered on resize start, so it fires before
-  // the click regardless of where the pointer is released.
+  // document listener registered on resize start, so it fires before the click
+  // regardless of where the pointer is released.
   const lastColumnResizeEndRef = useRef(0);
+  // Removes the in-flight resize listener pair; cleared once it has run so we
+  // never leak listeners if the table unmounts mid-drag.
+  const activeResizeCleanupRef = useRef<(() => void) | null>(null);
   const beginColumnResize = useCallback(
     (handler: (event: unknown) => void) =>
       (event: React.MouseEvent | React.TouchEvent) => {
         handler(event);
+        // Drop any listener pair still attached from a prior resize.
+        activeResizeCleanupRef.current?.();
         const onResizeEnd = () => {
           lastColumnResizeEndRef.current = Date.now();
+          cleanup();
+        };
+        const cleanup = () => {
           document.removeEventListener("mouseup", onResizeEnd);
           document.removeEventListener("touchend", onResizeEnd);
+          activeResizeCleanupRef.current = null;
         };
+        activeResizeCleanupRef.current = cleanup;
         document.addEventListener("mouseup", onResizeEnd);
         document.addEventListener("touchend", onResizeEnd);
       },
     [],
   );
+  // Detach any in-flight resize listeners if the table unmounts mid-drag.
+  useEffect(() => () => activeResizeCleanupRef.current?.(), []);
 
   // Infer column pinning state from column properties
   const columnPinning = useMemo<ColumnPinningState>(
