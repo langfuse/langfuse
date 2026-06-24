@@ -127,29 +127,41 @@ describe("datasets trpc", () => {
     });
   });
 
-  describe("datasets.deleteDatasetFolder", () => {
-    it("deletes datasets at and below the selected folder path only", async () => {
+  describe("datasets.deleteMany", () => {
+    it("deletes explicitly selected datasets and folder subtrees", async () => {
       const { project, caller } = await prepare();
-      const datasetNames = [
-        "folder",
-        "folder/child",
-        "folder/nested/child",
-        "folder-sibling/child",
-        "other",
-      ];
+      const selectedDatasetId = v4();
 
       await prisma.dataset.createMany({
-        data: datasetNames.map((name) => ({
-          id: v4(),
-          name,
-          projectId: project.id,
-        })),
+        data: [
+          {
+            id: selectedDatasetId,
+            name: "selected",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder/child",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder/nested/child",
+            projectId: project.id,
+          },
+          {
+            id: v4(),
+            name: "folder-sibling/child",
+            projectId: project.id,
+          },
+        ],
       });
 
       await expect(
-        caller.datasets.deleteDatasetFolder({
+        caller.datasets.deleteMany({
           projectId: project.id,
-          folderPath: "folder",
+          datasetIds: [selectedDatasetId],
+          folderPaths: ["folder"],
         }),
       ).resolves.toEqual({ deletedCount: 3 });
 
@@ -159,7 +171,7 @@ describe("datasets trpc", () => {
           select: { name: true },
           orderBy: { name: "asc" },
         }),
-      ).resolves.toEqual([{ name: "folder-sibling/child" }, { name: "other" }]);
+      ).resolves.toEqual([{ name: "folder-sibling/child" }]);
     });
   });
 

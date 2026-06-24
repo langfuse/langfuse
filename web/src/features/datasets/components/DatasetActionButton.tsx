@@ -184,8 +184,8 @@ export const DatasetActionButton = forwardRef<
         <DialogTrigger asChild>{actionButton}</DialogTrigger>
       )}
       <DialogContent className="max-h-[90vh] sm:max-w-2xl md:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="mb-4">
+        <DialogHeader variant={props.mode === "delete" ? "action" : "default"}>
+          <DialogTitle>
             {props.mode === "create"
               ? "Create new dataset"
               : props.mode === "delete"
@@ -193,7 +193,7 @@ export const DatasetActionButton = forwardRef<
                 : "Update dataset"}
           </DialogTitle>
           {props.mode === "delete" && (
-            <DialogDescription className="p-0">
+            <DialogDescription>
               This action cannot be undone and removes all the data associated
               with this dataset.
             </DialogDescription>

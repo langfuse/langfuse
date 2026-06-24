@@ -244,6 +244,60 @@ describe("select all test suite", () => {
     expect(scores).toHaveLength(0);
   });
 
+  it("should delete only datasets matching path and search query", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    await prisma.dataset.createMany({
+      data: [
+        {
+          id: uuidv4(),
+          projectId,
+          name: "folder/match",
+          createdAt: new Date("2024-01-01"),
+        },
+        {
+          id: uuidv4(),
+          projectId,
+          name: "folder/other",
+          createdAt: new Date("2024-01-01"),
+        },
+        {
+          id: uuidv4(),
+          projectId,
+          name: "other/match",
+          createdAt: new Date("2024-01-01"),
+        },
+      ],
+    });
+
+    await handleBatchActionJob({
+      id: uuidv4(),
+      timestamp: new Date(),
+      name: QueueJobs.BatchActionProcessingJob as const,
+      payload: {
+        projectId,
+        actionId: "dataset-delete",
+        tableName: BatchExportTableName.Datasets,
+        cutoffCreatedAt: new Date("2024-01-02"),
+        query: {
+          filter: null,
+          orderBy: { column: "createdAt", order: "DESC" },
+          searchQuery: "match",
+          pathPrefix: "folder",
+        },
+        type: BatchActionType.Delete,
+      },
+    });
+
+    await expect(
+      prisma.dataset.findMany({
+        where: { projectId },
+        select: { name: true },
+        orderBy: { name: "asc" },
+      }),
+    ).resolves.toEqual([{ name: "folder/other" }, { name: "other/match" }]);
+  });
+
   it("should schedule only traces matching search query for deletion", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
 

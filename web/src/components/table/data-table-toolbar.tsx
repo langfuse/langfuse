@@ -217,6 +217,16 @@ export function DataTableToolbar<TData, TValue>({
   const showSearchTypeSelector = Boolean(
     searchConfig?.setSearchType && searchConfig.tableAllowsFullTextSearch,
   );
+  const allVisibleRowsSelected = Boolean(
+    multiSelect &&
+    multiSelect.totalCount !== null &&
+    multiSelect.totalCount > multiSelect.pageSize &&
+    multiSelect.pageIndex === 0 &&
+    multiSelect.selectedRowIds.length > 0 &&
+    multiSelect.selectedRowIds.length ===
+      Math.min(multiSelect.pageSize, multiSelect.totalCount),
+  );
+
   const submitSearch = (query: string) => {
     if (
       searchConfig?.setSearchType &&
@@ -454,11 +464,9 @@ export function DataTableToolbar<TData, TValue>({
           {actionButtons}
         </div>
       </div>
-      {multiSelect &&
-        multiSelect.pageIndex === 0 &&
-        multiSelect.selectedRowIds.length === multiSelect.pageSize && (
-          <DataTableSelectAllBanner {...multiSelect} />
-        )}
+      {multiSelect && allVisibleRowsSelected && (
+        <DataTableSelectAllBanner {...multiSelect} />
+      )}
     </div>
   );
 }

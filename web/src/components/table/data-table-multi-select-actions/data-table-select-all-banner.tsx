@@ -7,6 +7,7 @@ export function DataTableSelectAllBanner({
   setSelectAll,
   setRowSelection,
   pageSize,
+  selectedRowIds,
   totalCount,
 }: MultiSelect) {
   const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : null;
@@ -33,8 +34,11 @@ export function DataTableSelectAllBanner({
         </span>
       ) : (
         <span className="text-sm">
-          All <span className="font-semibold">{pageSize}</span> items on this
-          page are selected.{" "}
+          All{" "}
+          <span className="font-semibold">
+            {numberFormatter(selectedRowIds.length, 0)}
+          </span>{" "}
+          items on this page are selected.{" "}
           <Button
             variant="ghost"
             className="text-accent-dark-blue hover:text-accent-dark-blue/80 h-auto p-0 font-semibold"

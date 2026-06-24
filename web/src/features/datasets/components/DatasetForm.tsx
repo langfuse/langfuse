@@ -476,7 +476,9 @@ export const DatasetForm = forwardRef<DatasetFormRef, DatasetFormProps>(
             )}
           </DialogBody>
           {props.showFooter !== false && (
-            <DialogFooter>
+            <DialogFooter
+              variant={props.mode === "delete" ? "action" : "default"}
+            >
               <div className="flex w-full flex-col gap-4">
                 <Button
                   type="submit"

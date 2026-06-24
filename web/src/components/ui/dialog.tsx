@@ -142,15 +142,32 @@ const DialogContent = React.forwardRef<
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+const dialogHeaderVariants = cva(
+  "bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
+  {
+    variants: {
+      variant: {
+        default: "border-b",
+        action: "",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const DialogHeader = ({
   className,
   children,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogHeaderVariants>) => (
   <div
     className={cn(
-      "dialog-header bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg border-b p-4",
-      className,
+      "dialog-header",
+      dialogHeaderVariants({ variant, className }),
     )}
     {...props}
   >
@@ -180,14 +197,31 @@ const DialogBody = React.forwardRef<
 ));
 DialogBody.displayName = "DialogBody";
 
+const dialogFooterVariants = cva(
+  "bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+  {
+    variants: {
+      variant: {
+        default: "border-t",
+        action: "",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const DialogFooter = ({
   className,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogFooterVariants>) => (
   <div
     className={cn(
-      "dialog-footer bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg border-t p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
-      className,
+      "dialog-footer",
+      dialogFooterVariants({ variant, className }),
     )}
     {...props}
   />
