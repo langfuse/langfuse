@@ -1,7 +1,11 @@
 import { useCallback, useMemo, useRef } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { type Extension } from "@codemirror/state";
 
-import { CodeMirrorEditor } from "@/src/components/editor";
+import {
+  CodeMirrorEditor,
+  createJsonMagicPasteExtension,
+} from "@/src/components/editor";
 import { DatasetSchemaHoverCard } from "./DatasetSchemaHoverCard";
 import { DatasetItemFieldSchemaErrors } from "./DatasetItemFieldSchemaErrors";
 import {
@@ -83,21 +87,23 @@ export const DatasetItemField = ({
   onChangeRef.current = onChange;
   const handleChange = useCallback((v: string) => onChangeRef.current?.(v), []);
 
-  // Drop/paste of files mirrors the attach button: upload, then insert the
-  // reference string. Only wired in editable form mode so read-only/view
-  // editors keep native drop/paste behavior.
-  const mediaEditorExtensions = useMemo(
-    () =>
-      showMediaUpload
-        ? [
-            createMediaDropPasteExtension({
-              onUploadMedia: (file) =>
-                onUploadMediaRef.current?.(file) ?? Promise.resolve(null),
-            }),
-          ]
-        : undefined,
-    [showMediaUpload],
-  );
+  // Editable form editors get magic paste (auto-escape/wrap pasted text to keep
+  // the JSON valid) and, when media upload is wired, the file drop/paste handler
+  // (upload then insert the reference). Read-only/view editors keep native
+  // drop/paste behavior.
+  const editorExtensions = useMemo(() => {
+    if (!(isFormField && editable)) return undefined;
+    const extensions: Extension[] = [createJsonMagicPasteExtension()];
+    if (showMediaUpload) {
+      extensions.push(
+        createMediaDropPasteExtension({
+          onUploadMedia: (file) =>
+            onUploadMediaRef.current?.(file) ?? Promise.resolve(null),
+        }),
+      );
+    }
+    return extensions;
+  }, [isFormField, editable, showMediaUpload]);
 
   const content = (
     <>
@@ -128,7 +134,7 @@ export const DatasetItemField = ({
             editable={editable}
             editorRef={editorRef}
             minHeight={200}
-            extensions={mediaEditorExtensions}
+            extensions={editorExtensions}
           />
         </FormControl>
       ) : (

@@ -22,7 +22,10 @@ import {
 } from "react";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import {
+  CodeMirrorEditor,
+  createJsonMagicPasteExtension,
+} from "@/src/components/editor";
 import { type Prisma } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -200,8 +203,12 @@ export const NewDatasetItemForm = (props: {
   // extension once and avoid reconfiguring CodeMirror on every keystroke.
   const uploadFileRef = useRef(uploadMedia);
   uploadFileRef.current = uploadMedia;
-  const mediaDropPasteExtensions = useMemo(
+  // Shared editor extensions: magic paste (auto-escape/wrap pasted text so the
+  // JSON stays valid) plus the media drop/paste handler. Built once; neither
+  // depends on state that changes per keystroke.
+  const editorExtensions = useMemo(
     () => [
+      createJsonMagicPasteExtension(),
       createMediaDropPasteExtension({
         onUploadMedia: (file) => uploadFileRef.current(file),
       }),
@@ -468,7 +475,7 @@ export const NewDatasetItemForm = (props: {
                         onChange={field.onChange}
                         editorRef={inputEditorRef}
                         minHeight={200}
-                        extensions={mediaDropPasteExtensions}
+                        extensions={editorExtensions}
                         placeholder={`{
   "question": "What is the capital of England?"
 }`}
@@ -514,7 +521,7 @@ export const NewDatasetItemForm = (props: {
                         onChange={field.onChange}
                         editorRef={expectedOutputEditorRef}
                         minHeight={200}
-                        extensions={mediaDropPasteExtensions}
+                        extensions={editorExtensions}
                         placeholder={`{
   "answer": "London"
 }`}
@@ -553,7 +560,7 @@ export const NewDatasetItemForm = (props: {
                       onChange={field.onChange}
                       editorRef={metadataEditorRef}
                       minHeight={100}
-                      extensions={mediaDropPasteExtensions}
+                      extensions={editorExtensions}
                     />
                   </FormControl>
                   <FormMessage />
