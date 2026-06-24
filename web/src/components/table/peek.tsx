@@ -4,7 +4,7 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
@@ -84,21 +84,27 @@ type TablePeekViewProps = Pick<
 
 /**
  * Decide whether an outside interaction should keep the peek open instead of
- * closing it. The peek closes on a genuine click-outside, with two exceptions
- * that preserve power-user behavior:
+ * closing it. The peek closes on a genuine click-outside, with exceptions that
+ * preserve power-user behavior:
  * - clicking another table row (`[data-row-index]`) switches the peeked item in
- *   place rather than closing (handled by the row's own click handler), and
+ *   place rather than closing (handled by the row's own click handler),
+ * - row-level controls the table opts out via `ignoredSelectors` (checkboxes,
+ *   bookmark toggles) don't close it, and
  * - regions that opt out via `data-ignore-outside-interaction` (e.g. the in-app
- *   assistant) or the table's configured `ignoredSelectors` (row checkboxes,
- *   bookmark toggles) never trigger a close.
+ *   assistant) never trigger a close.
+ *
+ * All checks run against the pointer event's `target`, not
+ * `document.activeElement` — `onPointerDownOutside` fires on pointer-down,
+ * before focus has moved to the clicked element.
  */
 const shouldKeepPeekOpenOnOutsideInteraction = (
   target: EventTarget | null,
-  matchesIgnoredSelector: () => boolean,
+  ignoredSelectors: string[],
 ): boolean => {
-  if (matchesIgnoredSelector()) return true;
+  if (!(target instanceof Element)) return false;
   if (shouldIgnoreOutsideInteraction(target)) return true;
-  if (target instanceof Element && target.closest("[data-row-index]")) {
+  if (target.closest("[data-row-index]")) return true;
+  if (ignoredSelectors.some((selector) => target.closest(selector))) {
     return true;
   }
   return false;
@@ -109,13 +115,19 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const router = useRouter();
   const isMobile = useIsMobile();
   const panel = usePeekPanelState();
-  const eventHandler = createPeekEventHandler(props.peekEventOptions);
+  const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
   const itemId = router.query.peek as string | undefined;
+
+  // Gate the first render on mount so we never paint the desktop sheet before
+  // `useIsMobile` resolves (which would flash the wrong shell on a mobile
+  // deep-link). Click-to-open is already post-mount, so it has no delay.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Hooks run unconditionally above this early return so ordering stays stable
   // across open/close. Returning null on close unmounts PeekTableStateProvider,
   // which is what resets nested-table state when the peek closes (see README).
-  if (!itemId) return null;
+  if (!itemId || !mounted) return null;
 
   const handleOpenChange = (open: boolean) => {
     // Open is driven by row clicks / detail-page navigation; we only react to
@@ -189,14 +201,14 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           style={panel.panelStyle}
           onPointerDownOutside={(e) => {
             if (
-              shouldKeepPeekOpenOnOutsideInteraction(e.target, eventHandler)
+              shouldKeepPeekOpenOnOutsideInteraction(e.target, ignoredSelectors)
             ) {
               e.preventDefault();
             }
           }}
           onInteractOutside={(e) => {
             if (
-              shouldKeepPeekOpenOnOutsideInteraction(e.target, eventHandler)
+              shouldKeepPeekOpenOnOutsideInteraction(e.target, ignoredSelectors)
             ) {
               e.preventDefault();
             }
