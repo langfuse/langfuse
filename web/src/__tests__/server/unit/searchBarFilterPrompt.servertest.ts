@@ -74,7 +74,7 @@ describe("buildFilterSystemPrompt", () => {
   });
 
   it("omits the refine section without a current query", () => {
-    expect(prompt).not.toContain("Current filters (refine these)");
+    expect(prompt).not.toContain("Current filters");
   });
 
   it("includes the current query as refine context when provided", () => {
@@ -82,8 +82,12 @@ describe("buildFilterSystemPrompt", () => {
       "Monday, 2026-06-15T00:00:00.000Z",
       "environment:production level:ERROR",
     );
-    expect(refinePrompt).toContain("Current filters (refine these)");
+    expect(refinePrompt).toContain("Current filters — REFINE, do not replace");
     expect(refinePrompt).toContain("environment:production level:ERROR");
+    // The preservation instruction + worked example are what stop the model
+    // from replacing the whole set when the user says "only X".
+    expect(refinePrompt).toContain("ON TOP OF the current ones");
+    expect(refinePrompt).toContain("Worked example");
   });
 });
 

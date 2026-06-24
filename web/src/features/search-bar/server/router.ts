@@ -125,6 +125,16 @@ export const searchBarRouter = createTRPCRouter({
                 langfuse_ai_feature: "search-bar-filter",
                 langfuse_user_id: ctx.session.user.id,
                 langfuse_project_id: ctx.session.projectId,
+                // Debugging context for prompt iteration: a trace alone should
+                // explain WHY the model produced what it did. refine_mode marks
+                // refine vs. from-scratch; current_query is the filters being
+                // refined (the #1 thing to inspect when refine misbehaves);
+                // data_context_chars is how much observed-project context we
+                // injected. (Model + token usage are auto-captured on the
+                // generation.)
+                langfuse_refine_mode: Boolean(input.currentQuery?.trim()),
+                langfuse_current_query: input.currentQuery?.trim() || null,
+                langfuse_data_context_chars: input.dataContext?.length ?? 0,
               },
             }
           : undefined;

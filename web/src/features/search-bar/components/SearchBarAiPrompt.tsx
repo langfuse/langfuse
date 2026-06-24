@@ -5,29 +5,35 @@
 // (apply-immediately), and exits back to the grammar composer — which then
 // re-derives the generated filters as editable pills.
 //
-// When opened with filters already applied, `currentQuery` carries the current
-// bar query text. It is shown (so the user sees what's being refined) AND sent
-// to the model, which REFINES it (add / change / remove) and returns the
-// complete updated set.
+// When opened with filters already applied, the bar's live draft is the refine
+// context: it is shown (so the user sees what's being refined) AND sent to the
+// model, which REFINES it (add / change / remove) and returns the complete
+// updated set. We read it from the store (reactively for the chip, and fresh at
+// submit time) rather than a snapshot, because the sidebar and saved-view
+// selector stay mounted next to the prompt and can change the filters while AI
+// mode is open — a frozen snapshot would show stale text and drop the
+// just-added filter on apply.
 
 import * as React from "react";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
+import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 
 export function SearchBarAiPrompt({
   projectId,
-  currentQuery,
+  store,
   dataContext,
   onApply,
   onExit,
 }: {
   projectId: string;
-  /** Current bar query text, sent as refine context when filters already exist. */
-  currentQuery?: string;
+  /** The bar store; its `draft` is read as the live refine context. */
+  store: SearchBarStore;
   /** Observed values + metadata keys + result count, so the model maps to the
    *  project's real columns/values instead of guessing. */
   dataContext?: string;
@@ -54,7 +60,10 @@ export function SearchBarAiPrompt({
     };
   }, []);
 
-  const refineContext = (currentQuery ?? "").trim();
+  // Reactive: the chip re-renders if the draft changes via another surface
+  // (sidebar/saved view) while AI mode is open. (`s.draft` is a stable ref until
+  // it changes, so trimming outside the selector doesn't churn renders.)
+  const refineContext = useStore(store, (s) => s.draft).trim();
   const refining = refineContext.length > 0;
   const placeholder = refining
     ? "Refine your filters — e.g. only errors, or drop the env filter"
@@ -76,11 +85,16 @@ export function SearchBarAiPrompt({
     const prompt = value.trim();
     if (prompt.length === 0 || pending) return;
     setError(null);
+    // Re-read the live draft at submit time (mirrors how commit() always reads
+    // store.getState().draft): the filters can change via the sidebar/saved-view
+    // selector while AI mode is open, and sending a stale context would make the
+    // model return a complete set that silently drops the just-added filter.
+    const refine = store.getState().draft.trim();
     try {
       const result = await generateFilter.mutateAsync({
         projectId,
         prompt,
-        currentQuery: refining ? refineContext : undefined,
+        currentQuery: refine.length > 0 ? refine : undefined,
         dataContext,
       });
       // Cancelled mid-flight (Back clicked while generating): don't apply.

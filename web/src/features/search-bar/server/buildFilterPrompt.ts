@@ -100,7 +100,22 @@ export function buildFilterSystemPrompt(
       : "";
   const refineSection =
     refine.length > 0
-      ? `\n## Current filters (refine these)\n\nThe user already has these filters applied (same syntax as your output):\n\`${refine}\`\nTreat the request as a change to this set — add, modify, or remove filters as implied — and return the COMPLETE updated filter array (all the filters that should remain, not just the delta).\n`
+      ? `\n## Current filters — REFINE, do not replace
+
+The user ALREADY has these filters applied (same syntax as your output):
+\`${refine}\`
+
+The new request is an EDIT to this set, not a fresh start. Rules:
+- KEEP every existing filter unless the request explicitly removes it or directly contradicts it.
+- ADD a filter for whatever the request narrows down to.
+- Only modify or drop a filter the request actually targets.
+
+A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
+
+Worked example — current filters \`level:ERROR\`, request "only in production":
+you return BOTH filters, not just environment:
+[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]}]
+`
       : "";
 
   return `## Role
