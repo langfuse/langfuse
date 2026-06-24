@@ -1,0 +1,11 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      // Generated source files are committed. `build` only compiles local inputs;
+      // `check` validates generated files against the pinned external skill input.
+      "cache": true,
+      "outputLogs": "errors-only"
+    }
+  }
+}

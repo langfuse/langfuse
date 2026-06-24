@@ -4,7 +4,11 @@ import { Agent } from "@mastra/core/agent";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgUiEvent } from "@/src/ee/features/in-app-agent/schema";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import {
+  IN_APP_AGENT_READ_SKILL_TOOL_NAME,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_SEARCH_SKILLS_TOOL_NAME,
+} from "@/src/ee/features/in-app-agent/constants";
 import { patchMastraToolCallInputStreaming } from "@/src/ee/features/in-app-agent/server/agent";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { decodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
@@ -463,7 +467,7 @@ describe("createAgUiStream", () => {
     const { Agent } = await import("@mastra/core/agent");
     expect(Agent).toHaveBeenCalledWith(
       expect.objectContaining({
-        tools: {
+        tools: expect.objectContaining({
           langfuse_search: { server: "langfuse" },
           langfuseDocs_search: expect.objectContaining({
             server: "langfuseDocs",
@@ -472,7 +476,13 @@ describe("createAgUiStream", () => {
           langfuse_proposeRedirect: expect.objectContaining({
             id: "langfuse_proposeRedirect",
           }),
-        },
+          [IN_APP_AGENT_SEARCH_SKILLS_TOOL_NAME]: expect.objectContaining({
+            id: IN_APP_AGENT_SEARCH_SKILLS_TOOL_NAME,
+          }),
+          [IN_APP_AGENT_READ_SKILL_TOOL_NAME]: expect.objectContaining({
+            id: IN_APP_AGENT_READ_SKILL_TOOL_NAME,
+          }),
+        }),
       }),
     );
     const agentConfig = vi.mocked(Agent).mock.calls[0]?.[0];

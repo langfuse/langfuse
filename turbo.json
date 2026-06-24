@@ -38,7 +38,7 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["db:generate", "@langfuse/skill-index#build"]
     },
     "dev:worker": {
       "cache": false,
@@ -48,7 +48,7 @@
     "dev:web": {
       "cache": false,
       "persistent": true,
-      "dependsOn": ["db:generate"]
+      "dependsOn": ["db:generate", "@langfuse/skill-index#build"]
     },
     // Prisma generate writes client types into node_modules. Turbo cache hits
     // only replay logs and do not restore those side effects on fresh CI runners.

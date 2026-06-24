@@ -18,10 +18,18 @@ import type {
   InAppAgentTracingConfig,
 } from "@/src/ee/features/in-app-agent/server/instrumentation";
 import { createInAppAgentInstrumentation } from "@/src/ee/features/in-app-agent/server/instrumentation";
-import { createRedirectActionTool } from "@/src/ee/features/in-app-agent/server/tools";
+import {
+  createRedirectActionTool,
+  readLangfuseSkillTool,
+  searchLangfuseSkillsTool,
+} from "@/src/ee/features/in-app-agent/server/tools";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@/src/features/filters/constants/internal-environments";
 import { logger } from "@langfuse/shared/src/server";
-import { IN_APP_AGENT_REDIRECT_TOOL_NAME } from "@/src/ee/features/in-app-agent/constants";
+import {
+  IN_APP_AGENT_READ_SKILL_TOOL_NAME,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
+  IN_APP_AGENT_SEARCH_SKILLS_TOOL_NAME,
+} from "@/src/ee/features/in-app-agent/constants";
 
 const ASSISTANT_TITLE = "Langfuse Assistant";
 const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
@@ -593,6 +601,8 @@ async function createMastraAdapter(params: {
         projectId: params.options.redirectAction.projectId,
         isV4Enabled: params.options.redirectAction.isV4Enabled,
       }),
+      [IN_APP_AGENT_SEARCH_SKILLS_TOOL_NAME]: searchLangfuseSkillsTool,
+      [IN_APP_AGENT_READ_SKILL_TOOL_NAME]: readLangfuseSkillTool,
     };
 
     const agent = new Agent({

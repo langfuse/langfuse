@@ -55,6 +55,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@langchain/core": "^1.1.48",
     "@langfuse/ee": "workspace:*",
+    "@langfuse/skill-index": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@lezer/highlight": "^1.2.3",
     "@mastra/client-js": "1.21.1",
