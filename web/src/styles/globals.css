@@ -410,8 +410,21 @@
 
   /* Overlay layer roots (see _document.tsx + components/ui/layer.tsx). The
      stack is click-through; each layer is its own isolated stacking context and
-     they order by DOM order (later = on top). Overlay content opts back into
-     pointer events on itself. */
+     they order by DOM order (later = on top). The layer containers are
+     `pointer-events: none` so the EMPTY regions around an overlay pass clicks
+     through to the app behind (e.g. the non-modal table peek leaves the rest of
+     the page clickable). Each portaled overlay is appended as a DIRECT CHILD of
+     its layer container (Radix/Vaul `*.Portal` `container`, or `<Layer>`'s
+     `createPortal`), so we opt those overlay roots — and thus their subtrees —
+     back into pointer events here. This makes interactivity correct-by-
+     construction for EVERY overlay routed through a layer, including non-modal
+     ones (peek, Popover, HoverCard, Tooltip) where Radix does NOT manage
+     pointer-events itself (it only sets `auto` when it disables outside pointer
+     events, i.e. modal Dialog/Sheet/AlertDialog/Drawer and DropdownMenu/Select).
+     Without this, a non-modal overlay inherits the container's `none` and is
+     fully click-through — clicks fall to the app underneath. A specific child
+     can still opt back out with its own `pointer-events: none` (e.g. a
+     decorative arrow) — that wins by specificity/cascade. */
   [data-overlay-root] {
     position: fixed;
     inset: 0;
@@ -422,6 +435,9 @@
     inset: 0;
     isolation: isolate;
     pointer-events: none;
+  }
+  [data-overlay-root] > [data-layer] > * {
+    pointer-events: auto;
   }
 }
 
