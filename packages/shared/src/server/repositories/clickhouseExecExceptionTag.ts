@@ -5,10 +5,16 @@
 // body with no such scan, so we replicate it here.
 //
 // On ClickHouse >= 25.11 a failed query appends `\r\n__exception__\r\n<tag>` …
-// `<len> __exception__\r\n<tag>\r\n` to the body. We scan for the fixed 17-byte
-// opening marker (`\r\n__exception__\r\n`) — far more specific than the client's
-// any-`\r\n` heuristic, so effectively impossible to hit inside Parquet bytes by
-// chance — then hand the trailer to the client's own extractErrorAtTheEndOfChunk.
+// `<len> __exception__\r\n<tag>\r\n` to the body, where <tag> is the per-query
+// random value of the `x-clickhouse-exception-tag` header. We scan for the full
+// `\r\n__exception__\r\n<tag>` opening — the tag MUST be included: the literal
+// 17-byte prefix alone can appear in a *successful* Parquet body, because the
+// footer's Thrift-encoded column min/max statistics are uncompressed and carry
+// raw user strings (a value starting with `\r\n…` is the column lex-min). Without
+// the tag, an adversarial trace value could plant the prefix, false-positive the
+// scan, and deterministically fail every export of that window (a per-window
+// DoS). The server-generated tag is unguessable, so including it makes the marker
+// unforgeable. Once found, the trailer is handed to extractErrorAtTheEndOfChunk.
 //
 // CAVEAT (mirrors rawPassthrough): pre-25.11 the tag header is absent, detection
 // is off, and a mid-stream failure is not caught — the only caller is an
@@ -17,7 +23,7 @@
 import { Transform } from "stream";
 import { extractErrorAtTheEndOfChunk } from "@clickhouse/client-common";
 
-// Opening of the end-of-stream error trailer.
+// Literal prefix of the error trailer; the per-query tag is appended at runtime.
 export const EXCEPTION_TRAILER_MARKER = Buffer.from("\r\n__exception__\r\n");
 
 export interface ClickhouseExecExceptionTagTransformOptions {
@@ -32,18 +38,18 @@ export interface ClickhouseExecExceptionTagTransformOptions {
  * Passes ClickHouse `exec()` bytes through until the end-of-stream exception
  * trailer appears, then errors the stream with the parsed ClickHouse error
  * (aborting any downstream upload before commit). Withholds the last
- * (markerLength - 1) bytes between chunks to catch a marker split across a
+ * (scanMarker length - 1) bytes between chunks to catch a marker split across a
  * boundary, flushing them when no error is found so clean data is never dropped.
- * Memory stays bounded — only the ~16-byte tail and (post-marker) the small
- * trailer are buffered; the stream itself never is.
+ * Memory stays bounded — only the small tail and (post-marker) the trailer are
+ * buffered; the stream itself never is.
  */
 export class ClickhouseExecExceptionTagTransform extends Transform {
-  // Bytes that must precede the marker to detect it straddling a chunk boundary.
-  private static readonly markerStraddleBytes =
-    EXCEPTION_TRAILER_MARKER.length - 1;
-
   private readonly exceptionTag: string | undefined;
   private readonly wrapError: (error: Error) => Error;
+  // Full opening sequence we scan for: `\r\n__exception__\r\n` + the per-query tag.
+  private readonly scanMarker: Buffer;
+  // Bytes withheld between chunks so a scanMarker straddling a boundary is caught.
+  private readonly markerStraddleBytes: number;
   // Tail of the previous chunk withheld to catch a marker spanning the boundary.
   private pendingTail: Buffer = Buffer.alloc(0);
   // Non-null once past the marker: downstream output stops and the trailer
@@ -54,6 +60,14 @@ export class ClickhouseExecExceptionTagTransform extends Transform {
     super();
     this.exceptionTag = options.exceptionTag;
     this.wrapError = options.wrapError ?? ((error) => error);
+    this.scanMarker =
+      options.exceptionTag !== undefined
+        ? Buffer.concat([
+            EXCEPTION_TRAILER_MARKER,
+            Buffer.from(options.exceptionTag, "utf-8"),
+          ])
+        : EXCEPTION_TRAILER_MARKER;
+    this.markerStraddleBytes = this.scanMarker.length - 1;
   }
 
   _transform(
@@ -78,7 +92,7 @@ export class ClickhouseExecExceptionTagTransform extends Transform {
       this.pendingTail.length > 0
         ? Buffer.concat([this.pendingTail, chunk])
         : chunk;
-    const trailerStart = buf.indexOf(EXCEPTION_TRAILER_MARKER);
+    const trailerStart = buf.indexOf(this.scanMarker);
 
     if (trailerStart !== -1) {
       // Bytes before the marker are clean file data; the rest is the trailer.
@@ -89,8 +103,7 @@ export class ClickhouseExecExceptionTagTransform extends Transform {
     }
 
     // No marker: emit everything but the tail that could start a split marker.
-    const keepFrom =
-      buf.length - ClickhouseExecExceptionTagTransform.markerStraddleBytes;
+    const keepFrom = buf.length - this.markerStraddleBytes;
     if (keepFrom > 0) {
       this.push(buf.subarray(0, keepFrom));
       this.pendingTail = Buffer.from(buf.subarray(keepFrom));

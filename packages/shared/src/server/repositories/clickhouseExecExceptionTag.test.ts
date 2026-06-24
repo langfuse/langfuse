@@ -56,6 +56,21 @@ describe("ClickhouseExecExceptionTagTransform", () => {
     expect(result.equals(data)).toBe(true);
   });
 
+  it("passes through the bare marker when NOT followed by the tag (adversarial footer bytes)", async () => {
+    // A Parquet footer min/max stat is uncompressed and can carry a raw user
+    // string starting with the literal 17-byte marker. Scanning for marker+tag
+    // (not the bare marker) means such input must pass through, not false-
+    // positive into a per-window export DoS. The per-query tag is unguessable.
+    const data = Buffer.concat([
+      Buffer.from("PAR1...row-group..."),
+      EXCEPTION_TRAILER_MARKER,
+      Buffer.from("attacker-suffix-not-the-real-tag"),
+      Buffer.from("...footer...PAR1"),
+    ]);
+    const result = await collect([data], { exceptionTag: "server-random-tag" });
+    expect(result.equals(data)).toBe(true);
+  });
+
   it("errors the stream with the parsed message when the trailer is present", async () => {
     const message = "Code: 241. DB::Exception: Memory limit exceeded";
     const chunk = Buffer.concat([
