@@ -42,7 +42,7 @@ const IOTableCellContent = ({
   return singleLine ? (
     <div
       className={cn(
-        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto",
+        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
         paddingClassName,
         className,
       )}
@@ -59,7 +59,7 @@ const IOTableCellContent = ({
             `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
           true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
         )}
-        className={cn("h-full w-full self-stretch", className)}
+        className={cn("h-full w-full self-stretch rounded-sm", className)}
         codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless
@@ -73,7 +73,10 @@ const IOTableCellContent = ({
       json={
         stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
       }
-      className={cn("h-full w-full self-stretch", className)}
+      className={cn(
+        "h-full w-full self-stretch overflow-hidden rounded-sm",
+        className,
+      )}
       codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
       collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
       borderless
@@ -104,7 +107,7 @@ export const IOTableCell = ({
         borderless
         numRows={singleLine ? 1 : undefined}
         className={cn(
-          "h-full w-full overflow-hidden",
+          "h-full w-full overflow-hidden rounded-sm",
           paddingClassName,
           className,
         )}
