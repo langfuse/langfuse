@@ -80,11 +80,14 @@ export function setClickHouseQueryTagTestFallbackForTests(
 function getTestFallbackClickHouseQueryTags():
   | typeof TEST_FALLBACK_CLICKHOUSE_QUERY_TAGS
   | undefined {
-  if (
-    // eslint-disable-next-line turbo/no-undeclared-env-vars -- NODE_ENV gates a test-only fallback and should not load the full env schema here.
-    process.env.NODE_ENV === "test" &&
-    clickHouseQueryTagTestFallbackEnabled
-  ) {
+  /* eslint-disable turbo/no-undeclared-env-vars -- This fallback is intentionally limited to test runners without loading env validation. */
+  const isTestRuntime =
+    process.env.NODE_ENV === "test" ||
+    process.env.VITEST === "true" ||
+    process.env.VITEST_WORKER_ID !== undefined;
+  /* eslint-enable turbo/no-undeclared-env-vars */
+
+  if (isTestRuntime && clickHouseQueryTagTestFallbackEnabled) {
     return TEST_FALLBACK_CLICKHOUSE_QUERY_TAGS;
   }
 }

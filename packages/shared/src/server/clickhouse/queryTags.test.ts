@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   buildClickHouseLogComment,
   sanitizeClickHouseRoute,
@@ -57,6 +57,24 @@ describe("ClickHouse query tags", () => {
       route: "vitest",
       feature: "custom-query",
     });
+  });
+
+  it("uses fallback tags under Vitest even when NODE_ENV is not test", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("VITEST", "true");
+
+    try {
+      const logComment = buildClickHouseLogComment(undefined as never);
+
+      expect(JSON.parse(logComment)).toEqual({
+        tag_schema_version: "1",
+        surface: "worker",
+        route: "vitest",
+        feature: "custom-query",
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("throws when feature is outside the allowlist", () => {

@@ -1,14 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import * as z from "zod/v4";
 import {
+  contextWithLangfuseProps,
+  ClickHouseResourceError,
   isProgressRow,
   isRow,
   isException,
-  ClickHouseResourceError,
+  logger,
   queryClickhouseWithProgress,
 } from "@langfuse/shared/src/server";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
@@ -22,6 +23,7 @@ import {
   validateQuery,
   viewVersions,
 } from "@langfuse/shared/query";
+import * as opentelemetry from "@opentelemetry/api";
 export type SSEEvent =
   | { type: "progress"; progress: object }
   | { type: "row"; row: Record<string, unknown> }
@@ -118,75 +120,95 @@ export default async function handler(
     return;
   }
 
-  // SSE headers
-  res.writeHead(200, {
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache, no-transform",
-    Connection: "keep-alive",
-    "X-Accel-Buffering": "no",
-  });
-  res.flushHeaders();
-
-  let aborted = false;
-  req.on("close", () => {
-    aborted = true;
+  const clickHouseRoute = `${req.method ?? "POST"} ${req.url ?? "/api/dashboard/execute-query-stream"}`;
+  const ctx = contextWithLangfuseProps({
+    headers: req.headers,
+    userId: session.user.id,
+    projectId,
+    clickhouse: {
+      surface: "trpc",
+      route: clickHouseRoute,
+    },
   });
 
-  try {
-    const prepared = await prepareExecuteQuery({
-      projectId,
-      query,
-      version,
-      enableSingleLevelOptimization: version === "v2",
+  return opentelemetry.context.with(ctx, async () => {
+    // SSE headers
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     });
-    const chOpts = toClickhouseQueryOpts(prepared);
+    res.flushHeaders();
 
-    for await (const event of queryClickhouseWithProgress<
-      Record<string, unknown>
-    >(chOpts)) {
-      if (aborted) break;
+    let aborted = false;
+    req.on("close", () => {
+      aborted = true;
+    });
 
-      if (isProgressRow(event)) {
-        res.write(
-          formatSSEEvent({ type: "progress", progress: event.progress }),
-        );
-      } else if (isRow<Record<string, unknown>>(event)) {
-        res.write(formatSSEEvent({ type: "row", row: event.row }));
-      } else if (isException(event)) {
-        const isResource =
-          ClickHouseResourceError.wrapIfResourceError(
-            new Error(event.exception),
-          ) instanceof ClickHouseResourceError;
-        logger.error(
-          `[execute-query-stream] ClickHouse exception: ${event.exception}`,
-          { projectId },
-        );
-        const userMessage = isResource
-          ? RESOURCE_LIMIT_ERROR_MESSAGE
-          : event.exception;
-        res.write(formatSSEEvent({ type: "error", message: userMessage }));
-        return;
-      }
-    }
-
-    if (!aborted) {
-      res.write(formatSSEEvent({ type: "done" }));
-    }
-  } catch (error) {
-    if (!aborted) {
-      logger.error("[execute-query-stream] Query failed", {
-        error: error instanceof Error ? error.message : String(error),
+    try {
+      const prepared = await prepareExecuteQuery({
         projectId,
+        query,
+        version,
+        enableSingleLevelOptimization: version === "v2",
       });
-      const message =
-        error instanceof ClickHouseResourceError
-          ? RESOURCE_LIMIT_ERROR_MESSAGE
-          : error instanceof Error
-            ? error.message
-            : "Internal server error";
-      res.write(formatSSEEvent({ type: "error", message }));
+      const chOpts = toClickhouseQueryOpts(prepared);
+
+      for await (const event of queryClickhouseWithProgress<
+        Record<string, unknown>
+      >({
+        ...chOpts,
+        tags: {
+          ...chOpts.tags,
+          surface: "trpc",
+          route: clickHouseRoute,
+        },
+      })) {
+        if (aborted) break;
+
+        if (isProgressRow(event)) {
+          res.write(
+            formatSSEEvent({ type: "progress", progress: event.progress }),
+          );
+        } else if (isRow<Record<string, unknown>>(event)) {
+          res.write(formatSSEEvent({ type: "row", row: event.row }));
+        } else if (isException(event)) {
+          const isResource =
+            ClickHouseResourceError.wrapIfResourceError(
+              new Error(event.exception),
+            ) instanceof ClickHouseResourceError;
+          logger.error(
+            `[execute-query-stream] ClickHouse exception: ${event.exception}`,
+            { projectId },
+          );
+          const userMessage = isResource
+            ? RESOURCE_LIMIT_ERROR_MESSAGE
+            : event.exception;
+          res.write(formatSSEEvent({ type: "error", message: userMessage }));
+          return;
+        }
+      }
+
+      if (!aborted) {
+        res.write(formatSSEEvent({ type: "done" }));
+      }
+    } catch (error) {
+      if (!aborted) {
+        logger.error("[execute-query-stream] Query failed", {
+          error: error instanceof Error ? error.message : String(error),
+          projectId,
+        });
+        const message =
+          error instanceof ClickHouseResourceError
+            ? RESOURCE_LIMIT_ERROR_MESSAGE
+            : error instanceof Error
+              ? error.message
+              : "Internal server error";
+        res.write(formatSSEEvent({ type: "error", message }));
+      }
+    } finally {
+      res.end();
     }
-  } finally {
-    res.end();
-  }
+  });
 }
