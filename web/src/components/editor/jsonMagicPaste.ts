@@ -65,8 +65,9 @@ export function isInsideJsonString(state: EditorState, pos: number): boolean {
   return isInsideJsonStringPrefix(state.doc.sliceString(0, pos));
 }
 
-/** Core string-state scan over the text preceding the caret. */
-export function isInsideJsonStringPrefix(prefix: string): boolean {
+/** Core string-state scan over the text preceding the caret. Module-private; the
+ * `isInsideJsonString` wrapper above is the intended entry point. */
+function isInsideJsonStringPrefix(prefix: string): boolean {
   let inString = false;
   for (let i = 0; i < prefix.length; i++) {
     const ch = prefix[i];
