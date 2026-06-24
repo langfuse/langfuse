@@ -16,6 +16,7 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
+import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
@@ -689,6 +690,7 @@ export const getObservationByIdFromEventsTable = async ({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  clickHouseQueryTags,
   preferredClickhouseService,
 }: {
   id: string;
@@ -698,6 +700,7 @@ export const getObservationByIdFromEventsTable = async ({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const records = await getObservationByIdFromEventsTableInternal({
@@ -708,6 +711,7 @@ export const getObservationByIdFromEventsTable = async ({
     type,
     traceId,
     renderingProps,
+    clickHouseQueryTags,
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
   const mapped = records.map((record) => {
@@ -898,6 +902,7 @@ async function getObservationByIdFromEventsTableInternal({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
+  clickHouseQueryTags,
   preferredClickhouseService,
 }: {
   id: string;
@@ -907,6 +912,7 @@ async function getObservationByIdFromEventsTableInternal({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 }) {
   const queryBuilder = new EventsQueryBuilder({ projectId })
@@ -939,6 +945,7 @@ async function getObservationByIdFromEventsTableInternal({
     query,
     params,
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "events",
       kind: "byId",
@@ -962,6 +969,7 @@ export const getTraceByIdFromEventsTable = async ({
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
+  clickHouseQueryTags,
   preferredClickhouseService,
   excludeInputOutput = false,
   excludeMetadata = false,
@@ -972,6 +980,7 @@ export const getTraceByIdFromEventsTable = async ({
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
   /** When true, sets input/output columns to empty in the query to reduce database load */
   excludeInputOutput?: boolean;
@@ -1047,6 +1056,7 @@ export const getTraceByIdFromEventsTable = async ({
     input: {
       params,
       tags: {
+        ...clickHouseQueryTags,
         feature: clickhouseFeatureTag,
         type: "trace",
         kind: "byId",
@@ -2854,6 +2864,7 @@ export const getEventsGroupedByCalledToolName = async (
 export const deleteEventsByTraceIds = async (
   projectId: string,
   traceIds: string[],
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   // Preflight query uses events_core (faster)
   const preflight = await queryClickhouse<{
@@ -2874,6 +2885,7 @@ export const deleteEventsByTraceIds = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "events",
       kind: "delete-preflight",
@@ -2909,6 +2921,7 @@ export const deleteEventsByTraceIds = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: table,
       kind: "delete",
@@ -2923,7 +2936,10 @@ export const deleteEventsByTraceIds = async (
   ]);
 };
 
-export const hasAnyEvent = async (projectId: string) => {
+export const hasAnyEvent = async (
+  projectId: string,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
+) => {
   const query = `
     SELECT 1
     FROM events_core
@@ -2935,6 +2951,7 @@ export const hasAnyEvent = async (projectId: string) => {
     query,
     params: { projectId },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "events",
       kind: "hasAny",
@@ -2951,8 +2968,9 @@ export const hasAnyEvent = async (projectId: string) => {
  */
 export const deleteEventsByProjectId = async (
   projectId: string,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyEvent(projectId);
+  const hasData = await hasAnyEvent(projectId, clickHouseQueryTags);
   if (!hasData) {
     return false;
   }
@@ -2964,7 +2982,13 @@ export const deleteEventsByProjectId = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: { feature: "tracing", type: table, kind: "delete", projectId },
+    tags: {
+      ...clickHouseQueryTags,
+      feature: "tracing",
+      type: table,
+      kind: "delete",
+      projectId,
+    },
     clickhouseSettings: { send_logs_level: "trace" as const },
   });
 
@@ -3028,6 +3052,7 @@ export async function getAgentGraphDataFromEventsTable(params: {
 export const hasAnyEventOlderThan = async (
   projectId: string,
   beforeDate: Date,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     SELECT 1
@@ -3044,6 +3069,7 @@ export const hasAnyEventOlderThan = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "events",
       kind: "hasAnyOlderThan",
@@ -3061,8 +3087,13 @@ export const hasAnyEventOlderThan = async (
 export const deleteEventsOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyEventOlderThan(projectId, beforeDate);
+  const hasData = await hasAnyEventOlderThan(
+    projectId,
+    beforeDate,
+    clickHouseQueryTags,
+  );
   if (!hasData) {
     return false;
   }
@@ -3080,7 +3111,13 @@ export const deleteEventsOlderThanDays = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: { feature: "tracing", type: table, kind: "delete", projectId },
+    tags: {
+      ...clickHouseQueryTags,
+      feature: "tracing",
+      type: table,
+      kind: "delete",
+      projectId,
+    },
   });
 
   await Promise.all([

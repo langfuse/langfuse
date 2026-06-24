@@ -7,6 +7,7 @@ import {
   findExpiredMediaByProjectId,
   getS3MediaStorageClient,
   logger,
+  QueueName,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
@@ -84,18 +85,24 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   logger.info(
     `[Data Retention] Deleting ClickHouse and S3 data older than ${currentRetention} days for project ${projectId}`,
   );
+  const clickHouseQueryTags = {
+    surface: "worker" as const,
+    route: QueueName.DataRetentionProcessingQueue,
+  };
+
   await Promise.all([
     env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true"
       ? removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
           projectId,
           cutoffDate,
+          clickHouseQueryTags,
         )
       : Promise.resolve(),
-    deleteTracesOlderThanDays(projectId, cutoffDate),
-    deleteObservationsOlderThanDays(projectId, cutoffDate),
-    deleteScoresOlderThanDays(projectId, cutoffDate),
+    deleteTracesOlderThanDays(projectId, cutoffDate, clickHouseQueryTags),
+    deleteObservationsOlderThanDays(projectId, cutoffDate, clickHouseQueryTags),
+    deleteScoresOlderThanDays(projectId, cutoffDate, clickHouseQueryTags),
     v4WritesToEventsTable(env)
-      ? deleteEventsOlderThanDays(projectId, cutoffDate)
+      ? deleteEventsOlderThanDays(projectId, cutoffDate, clickHouseQueryTags)
       : Promise.resolve(),
   ]);
   logger.info(

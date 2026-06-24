@@ -43,6 +43,7 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
+import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
@@ -336,7 +337,10 @@ export const getTracesBySessionId = async (
   return traces;
 };
 
-export const hasAnyTrace = async (projectId: string) => {
+export const hasAnyTrace = async (
+  projectId: string,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
+) => {
   // Check PostgreSQL flag first — once set, it's never reverted
   try {
     const project = await prisma.project.findUnique({
@@ -360,6 +364,7 @@ export const hasAnyTrace = async (projectId: string) => {
     input: {
       projectId,
       tags: {
+        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "hasAny",
@@ -522,6 +527,7 @@ export const getTraceByIdFromTracesTable = async ({
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
+  clickHouseQueryTags,
   preferredClickhouseService,
   excludeInputOutput = false,
   excludeMetadata = false,
@@ -532,6 +538,7 @@ export const getTraceByIdFromTracesTable = async ({
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
   clickhouseFeatureTag?: string;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
   /** When true, sets input/output columns to empty in the query to reduce database load */
   excludeInputOutput?: boolean;
@@ -553,6 +560,7 @@ export const getTraceByIdFromTracesTable = async ({
           : {}),
       },
       tags: {
+        ...clickHouseQueryTags,
         feature: clickhouseFeatureTag,
         type: "trace",
         kind: "byId",
@@ -964,7 +972,11 @@ export const getTracesIdentifierForSessionFromTracesTable = async (
   }));
 };
 
-export const deleteTraces = async (projectId: string, traceIds: string[]) => {
+export const deleteTraces = async (
+  projectId: string,
+  traceIds: string[],
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
+) => {
   await measureAndReturn({
     operationName: "deleteTraces",
     projectId,
@@ -974,6 +986,7 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
         traceIds,
       },
       tags: {
+        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "delete",
@@ -1035,6 +1048,7 @@ export const deleteTraces = async (projectId: string, traceIds: string[]) => {
 export const hasAnyTraceOlderThan = async (
   projectId: string,
   beforeDate: Date,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     SELECT 1
@@ -1051,6 +1065,7 @@ export const hasAnyTraceOlderThan = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "trace",
       kind: "hasAnyOlderThan",
@@ -1064,8 +1079,13 @@ export const hasAnyTraceOlderThan = async (
 export const deleteTracesOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyTraceOlderThan(projectId, beforeDate);
+  const hasData = await hasAnyTraceOlderThan(
+    projectId,
+    beforeDate,
+    clickHouseQueryTags,
+  );
   if (!hasData) {
     return false;
   }
@@ -1079,6 +1099,7 @@ export const deleteTracesOlderThanDays = async (
         cutoffDate: convertDateToClickhouseDateTime(beforeDate),
       },
       tags: {
+        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "delete",
@@ -1107,8 +1128,9 @@ export const deleteTracesOlderThanDays = async (
 
 export const deleteTracesByProjectId = async (
   projectId: string,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyTrace(projectId);
+  const hasData = await hasAnyTrace(projectId, clickHouseQueryTags);
   if (!hasData) {
     return false;
   }
@@ -1121,6 +1143,7 @@ export const deleteTracesByProjectId = async (
         projectId,
       },
       tags: {
+        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "delete",

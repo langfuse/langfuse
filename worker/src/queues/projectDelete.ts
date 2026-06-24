@@ -57,6 +57,10 @@ export const projectDeleteProcessor: Processor = async (
   logger.info(
     `Deleting ClickHouse and S3 data for ${projectId} in org ${orgId}`,
   );
+  const clickHouseQueryTags = {
+    surface: "worker" as const,
+    route: QueueName.ProjectDelete,
+  };
 
   // Delete project data from ClickHouse first
   await Promise.all([
@@ -64,13 +68,14 @@ export const projectDeleteProcessor: Processor = async (
       ? removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
           projectId,
           undefined,
+          clickHouseQueryTags,
         )
       : Promise.resolve(),
-    deleteTracesByProjectId(projectId),
-    deleteObservationsByProjectId(projectId),
-    deleteScoresByProjectId(projectId),
+    deleteTracesByProjectId(projectId, clickHouseQueryTags),
+    deleteObservationsByProjectId(projectId, clickHouseQueryTags),
+    deleteScoresByProjectId(projectId, clickHouseQueryTags),
     v4WritesToEventsTable(env)
-      ? deleteEventsByProjectId(projectId)
+      ? deleteEventsByProjectId(projectId, clickHouseQueryTags)
       : Promise.resolve(),
   ]);
 

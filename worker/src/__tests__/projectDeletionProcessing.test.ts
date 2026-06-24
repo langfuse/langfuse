@@ -35,6 +35,10 @@ describe("ProjectDeletionProcessingJob", () => {
   const orgId = "seed-org-id";
 
   const maybeEventsIt = v4WritesToEventsTable(env) ? it : it.skip;
+  const directWorkerClickHouseQueryTags = {
+    surface: "worker" as const,
+    route: "ProjectDeletionProcessingJob.test",
+  };
 
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({
@@ -189,14 +193,20 @@ describe("ProjectDeletionProcessingJob", () => {
     const trace = await getTraceById({
       traceId: `${baseId}-trace`,
       projectId,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(trace).toBeUndefined();
     expect(() =>
-      getObservationById({ id: `${baseId}-observation`, projectId }),
+      getObservationById({
+        id: `${baseId}-observation`,
+        projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      }),
     ).rejects.toThrowError("not found");
     const score = await getScoreById({
       projectId,
       scoreId: `${baseId}-score`,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(score).toBeUndefined();
   });
@@ -328,19 +338,28 @@ describe("ProjectDeletionProcessingJob", () => {
   describe("delete functions with hasAny probe", () => {
     it("should return false when no traces exist for project", async () => {
       const emptyProjectId = randomUUID();
-      const result = await deleteTracesByProjectId(emptyProjectId);
+      const result = await deleteTracesByProjectId(
+        emptyProjectId,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(false);
     });
 
     it("should return false when no observations exist for project", async () => {
       const emptyProjectId = randomUUID();
-      const result = await deleteObservationsByProjectId(emptyProjectId);
+      const result = await deleteObservationsByProjectId(
+        emptyProjectId,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(false);
     });
 
     it("should return false when no scores exist for project", async () => {
       const emptyProjectId = randomUUID();
-      const result = await deleteScoresByProjectId(emptyProjectId);
+      const result = await deleteScoresByProjectId(
+        emptyProjectId,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(false);
     });
 
@@ -348,7 +367,10 @@ describe("ProjectDeletionProcessingJob", () => {
       "should return false when no events exist for project",
       async () => {
         const emptyProjectId = randomUUID();
-        const result = await deleteEventsByProjectId(emptyProjectId);
+        const result = await deleteEventsByProjectId(
+          emptyProjectId,
+          directWorkerClickHouseQueryTags,
+        );
         expect(result).toBe(false);
       },
     );
@@ -361,13 +383,24 @@ describe("ProjectDeletionProcessingJob", () => {
         createTrace({ id: traceId, project_id: projectId }),
       ]);
 
-      const traceBefore = await getTraceById({ traceId, projectId });
+      const traceBefore = await getTraceById({
+        traceId,
+        projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(traceBefore).toBeDefined();
 
-      const result = await deleteTracesByProjectId(projectId);
+      const result = await deleteTracesByProjectId(
+        projectId,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(true);
 
-      const traceAfter = await getTraceById({ traceId, projectId });
+      const traceAfter = await getTraceById({
+        traceId,
+        projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(traceAfter).toBeUndefined();
     });
 
@@ -385,14 +418,25 @@ describe("ProjectDeletionProcessingJob", () => {
       ]);
 
       await expect(
-        getObservationById({ id: observationId, projectId }),
+        getObservationById({
+          id: observationId,
+          projectId,
+          clickHouseQueryTags: directWorkerClickHouseQueryTags,
+        }),
       ).toBeDefined();
 
-      const result = await deleteObservationsByProjectId(projectId);
+      const result = await deleteObservationsByProjectId(
+        projectId,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(true);
 
       await expect(
-        getObservationById({ id: observationId, projectId }),
+        getObservationById({
+          id: observationId,
+          projectId,
+          clickHouseQueryTags: directWorkerClickHouseQueryTags,
+        }),
       ).rejects.toThrowError("not found");
     });
 
@@ -409,13 +453,24 @@ describe("ProjectDeletionProcessingJob", () => {
         }),
       ]);
 
-      const scoreBefore = await getScoreById({ projectId, scoreId });
+      const scoreBefore = await getScoreById({
+        projectId,
+        scoreId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(scoreBefore).toBeDefined();
 
-      const result = await deleteScoresByProjectId(projectId);
+      const result = await deleteScoresByProjectId(
+        projectId,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(true);
 
-      const scoreAfter = await getScoreById({ projectId, scoreId });
+      const scoreAfter = await getScoreById({
+        projectId,
+        scoreId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(scoreAfter).toBeUndefined();
     });
   });
@@ -437,11 +492,19 @@ describe("ProjectDeletionProcessingJob", () => {
       ]);
 
       // No traces older than cutoff exist, so should return false
-      const result = await deleteTracesOlderThanDays(projectId, cutoffDate);
+      const result = await deleteTracesOlderThanDays(
+        projectId,
+        cutoffDate,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(false);
 
       // Verify the newer trace is still there (retained)
-      const trace = await getTraceById({ traceId, projectId });
+      const trace = await getTraceById({
+        traceId,
+        projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(trace).toBeDefined();
     });
 
@@ -472,15 +535,27 @@ describe("ProjectDeletionProcessingJob", () => {
       ]);
 
       // Should return true since old data exists
-      const result = await deleteTracesOlderThanDays(projectId, cutoffDate);
+      const result = await deleteTracesOlderThanDays(
+        projectId,
+        cutoffDate,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(true);
 
       // Verify old trace is deleted
-      const oldTrace = await getTraceById({ traceId: oldTraceId, projectId });
+      const oldTrace = await getTraceById({
+        traceId: oldTraceId,
+        projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(oldTrace).toBeUndefined();
 
       // Verify new trace is retained
-      const newTrace = await getTraceById({ traceId: newTraceId, projectId });
+      const newTrace = await getTraceById({
+        traceId: newTraceId,
+        projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(newTrace).toBeDefined();
     });
 
@@ -505,6 +580,7 @@ describe("ProjectDeletionProcessingJob", () => {
       const result = await deleteObservationsOlderThanDays(
         projectId,
         cutoffDate,
+        directWorkerClickHouseQueryTags,
       );
       expect(result).toBe(false);
 
@@ -512,6 +588,7 @@ describe("ProjectDeletionProcessingJob", () => {
       const observation = await getObservationById({
         id: observationId,
         projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
       });
       expect(observation).toBeDefined();
     });
@@ -549,18 +626,24 @@ describe("ProjectDeletionProcessingJob", () => {
       const result = await deleteObservationsOlderThanDays(
         projectId,
         cutoffDate,
+        directWorkerClickHouseQueryTags,
       );
       expect(result).toBe(true);
 
       // Verify old observation is deleted
       await expect(
-        getObservationById({ id: oldObservationId, projectId }),
+        getObservationById({
+          id: oldObservationId,
+          projectId,
+          clickHouseQueryTags: directWorkerClickHouseQueryTags,
+        }),
       ).rejects.toThrowError("not found");
 
       // Verify new observation is retained
       const newObservation = await getObservationById({
         id: newObservationId,
         projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
       });
       expect(newObservation).toBeDefined();
     });
@@ -583,11 +666,19 @@ describe("ProjectDeletionProcessingJob", () => {
       ]);
 
       // No scores older than cutoff exist, so should return false
-      const result = await deleteScoresOlderThanDays(projectId, cutoffDate);
+      const result = await deleteScoresOlderThanDays(
+        projectId,
+        cutoffDate,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(false);
 
       // Verify the newer score is still there (retained)
-      const score = await getScoreById({ projectId, scoreId });
+      const score = await getScoreById({
+        projectId,
+        scoreId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(score).toBeDefined();
     });
 
@@ -621,15 +712,27 @@ describe("ProjectDeletionProcessingJob", () => {
       ]);
 
       // Should return true since old data exists
-      const result = await deleteScoresOlderThanDays(projectId, cutoffDate);
+      const result = await deleteScoresOlderThanDays(
+        projectId,
+        cutoffDate,
+        directWorkerClickHouseQueryTags,
+      );
       expect(result).toBe(true);
 
       // Verify old score is deleted
-      const oldScore = await getScoreById({ projectId, scoreId: oldScoreId });
+      const oldScore = await getScoreById({
+        projectId,
+        scoreId: oldScoreId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(oldScore).toBeUndefined();
 
       // Verify new score is retained
-      const newScore = await getScoreById({ projectId, scoreId: newScoreId });
+      const newScore = await getScoreById({
+        projectId,
+        scoreId: newScoreId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      });
       expect(newScore).toBeDefined();
     });
   });

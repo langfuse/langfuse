@@ -117,6 +117,7 @@ export class BatchProjectBlobCleaner extends PeriodicExclusiveRunner {
           await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
             projectId,
             undefined, // no cutoff — delete all
+            { surface: "worker", route: this.instanceName },
           );
 
           logger.info(`${this.instanceName}: Blob cleanup completed`, {

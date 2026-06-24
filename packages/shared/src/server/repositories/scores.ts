@@ -23,6 +23,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   clickhouseCompliantRandomCharacters,
 } from "./clickhouse";
+import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
 import {
   FilterList,
   orderByToClickhouseSql,
@@ -133,16 +134,19 @@ export const getScoreById = async ({
   projectId,
   scoreId,
   source,
+  clickHouseQueryTags,
 }: {
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }): Promise<ScoreDomain | undefined> => {
   return _handleGetScoreById({
     projectId,
     scoreId,
     source,
     scoreScope: "all",
+    clickHouseQueryTags,
   });
 };
 
@@ -1650,7 +1654,11 @@ export const getScoreStringValues = async (
   }));
 };
 
-export const deleteScores = async (projectId: string, scoreIds: string[]) => {
+export const deleteScores = async (
+  projectId: string,
+  scoreIds: string[],
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
+) => {
   const query = `
     DELETE FROM scores
     WHERE project_id = {projectId: String}
@@ -1666,6 +1674,7 @@ export const deleteScores = async (projectId: string, scoreIds: string[]) => {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "delete",
@@ -1677,6 +1686,7 @@ export const deleteScores = async (projectId: string, scoreIds: string[]) => {
 export const deleteScoresByTraceIds = async (
   projectId: string,
   traceIds: string[],
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     DELETE FROM scores
@@ -1693,6 +1703,7 @@ export const deleteScoresByTraceIds = async (
       request_timeout: 120_000, // 2 minutes
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "delete",
@@ -1703,8 +1714,9 @@ export const deleteScoresByTraceIds = async (
 
 export const deleteScoresByProjectId = async (
   projectId: string,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyScore(projectId);
+  const hasData = await hasAnyScore(projectId, clickHouseQueryTags);
   if (!hasData) {
     return false;
   }
@@ -1714,6 +1726,7 @@ export const deleteScoresByProjectId = async (
     WHERE project_id = {projectId: String};
   `;
   const tags = {
+    ...clickHouseQueryTags,
     feature: "tracing",
     type: "score",
     kind: "delete",
@@ -1735,6 +1748,7 @@ export const deleteScoresByProjectId = async (
 export const hasAnyScoreOlderThan = async (
   projectId: string,
   beforeDate: Date,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     SELECT 1
@@ -1751,6 +1765,7 @@ export const hasAnyScoreOlderThan = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "hasAnyOlderThan",
@@ -1764,8 +1779,13 @@ export const hasAnyScoreOlderThan = async (
 export const deleteScoresOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyScoreOlderThan(projectId, beforeDate);
+  const hasData = await hasAnyScoreOlderThan(
+    projectId,
+    beforeDate,
+    clickHouseQueryTags,
+  );
   if (!hasData) {
     return false;
   }
@@ -1785,6 +1805,7 @@ export const deleteScoresOlderThanDays = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "delete",
@@ -2228,7 +2249,10 @@ export const getScoresForAnalyticsIntegrations = async function* (
   }
 };
 
-export const hasAnyScore = async (projectId: string) => {
+export const hasAnyScore = async (
+  projectId: string,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
+) => {
   const query = `    SELECT 1
     FROM scores
     WHERE project_id = {projectId: String}
@@ -2241,6 +2265,7 @@ export const hasAnyScore = async (projectId: string) => {
       projectId,
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "hasAny",

@@ -154,7 +154,10 @@ export class BatchTraceDeletionCleaner extends PeriodicExclusiveRunner {
     // Delete from both Postgres and ClickHouse in parallel
     await Promise.all([
       processPostgresTraceDelete(projectId, traceIdsToDelete),
-      processClickhouseTraceDelete(projectId, traceIdsToDelete),
+      processClickhouseTraceDelete(projectId, traceIdsToDelete, {
+        surface: "worker",
+        route: this.instanceName,
+      }),
     ]);
 
     // Mark traces as deleted

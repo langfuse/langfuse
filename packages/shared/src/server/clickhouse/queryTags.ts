@@ -37,6 +37,11 @@ export type ClickHouseQueryTags = {
   [key: string]: unknown;
 };
 
+export type ClickHouseQueryContextTags = Pick<
+  ClickHouseQueryTags,
+  "surface" | "route"
+>;
+
 export type NormalizedClickHouseQueryTags = {
   tag_schema_version: typeof CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION;
   surface: ClickHouseQuerySurface;
