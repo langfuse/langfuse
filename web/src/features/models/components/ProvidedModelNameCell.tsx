@@ -56,16 +56,21 @@ export function ProvidedModelNameCell({
       prefilledModelData={{ modelName, prices }}
       className="cursor-pointer"
     >
-      <span
-        role="button"
-        tabIndex={0}
+      {/*
+        Native <button> (not a styled span): DialogTrigger's Slot only forwards
+        onClick, so Enter/Space activation must come from the element itself.
+        A real button also matches the table row's interactive-skip selector, so
+        activating it never opens the row's peek view.
+      */}
+      <button
+        type="button"
         title={`Add a model definition for "${modelName}"`}
         onClick={(e) => e.stopPropagation()}
-        className="inline-flex max-w-full cursor-pointer items-center gap-1"
+        className="inline-flex max-w-full cursor-pointer items-center gap-1 text-left"
       >
         <TableIdOrName value={modelName} className="min-w-0" />
         <PlusCircle className="h-3.5 w-3.5 shrink-0" />
-      </span>
+      </button>
     </UpsertModelFormDialog>
   );
 }

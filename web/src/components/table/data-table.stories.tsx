@@ -1427,12 +1427,16 @@ const iconCellColumns: LangfuseColumnDef<IconCellRow>[] = [
       const { name, kind } = row.original;
       switch (kind) {
         case "createModel":
-          // Faithful to ProvidedModelNameCell: same TableIdOrName, trailing icon.
+          // Faithful to ProvidedModelNameCell: same TableIdOrName + trailing
+          // icon, in a native <button> trigger (keyboard-activatable).
           return (
-            <span className="inline-flex max-w-full cursor-pointer items-center gap-1">
+            <button
+              type="button"
+              className="inline-flex max-w-full cursor-pointer items-center gap-1 text-left"
+            >
               <TableIdOrName value={name} className="min-w-0" />
               <PlusCircle className="h-3.5 w-3.5 shrink-0" />
-            </span>
+            </button>
           );
         case "link":
           return (
