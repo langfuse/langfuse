@@ -52,12 +52,23 @@ export default [
           ],
         },
       ],
+      "tailwindcss/enforces-negative-arbitrary-values": "warn",
       // TODO: Enable these rule later
       "tailwindcss/classnames-order": "off",
       "tailwindcss/enforces-shorthand": "off",
       "tailwindcss/no-unnecessary-arbitrary-value": "off",
       "tailwindcss/no-contradicting-classname": "off",
-      "tailwindcss/enforces-negative-arbitrary-values": "off",
+    },
+  },
+
+  {
+    name: "langfuse/web/no-unnecessary-cn",
+    files: ["src/**/*.{ts,tsx}"],
+    rules: {
+      "@repo/no-unnecessary-cn": [
+        "warn",
+        { importPath: "@/src/utils/tailwind" },
+      ],
     },
   },
 
