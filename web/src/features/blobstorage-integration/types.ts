@@ -52,6 +52,22 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   compressed: z.boolean().default(true),
 });
 
+// Reads the persisted `exportTuning` JSON column (client-safe, no server deps)
+// to reflect the Parquet override in the settings form. `exportTuning` is an
+// internal, DB-set knob with no UI write path; when `parquet` is true the worker
+// overrides `fileType` and `compressed` (Parquet compresses internally) — see
+// `blob-export-tuning.ts`. Mirrors the worker-side `resolveBlobExportTuning`
+// parquet semantics: anything that is not an object with `parquet === true` is
+// treated as off.
+export function parquetEnabledFromTuning(exportTuning: unknown): boolean {
+  return (
+    typeof exportTuning === "object" &&
+    exportTuning !== null &&
+    !Array.isArray(exportTuning) &&
+    (exportTuning as Record<string, unknown>).parquet === true
+  );
+}
+
 export const blobStorageIntegrationFormSchema =
   blobStorageIntegrationFormSchemaBase
     .superRefine(validateAzureContainerName)

@@ -117,10 +117,25 @@ const legacyDescriptionForGroup = (
     : "Not included in the legacy observations export";
 };
 
+// The Parquet export path (ClickHouse-native FORMAT Parquet) runs no JS
+// enrichment, so the model-price columns (MODEL_ENRICHMENT_FIELDS) are absent.
+// Drop them from the model group description; all other groups are unchanged.
+const parquetDescriptionForGroup = (
+  group: ObservationFieldGroupFull,
+): string => {
+  const base = EXPORT_FIELD_GROUP_LABELS[group].description;
+  if (group !== "model") return base;
+  return base
+    .split(", ")
+    .filter((field) => !MODEL_ENRICHMENT_FIELDS.includes(field))
+    .join(", ");
+};
+
 export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
   (value) => ({
     value,
     ...EXPORT_FIELD_GROUP_LABELS[value],
     legacyDescription: legacyDescriptionForGroup(value),
+    parquetDescription: parquetDescriptionForGroup(value),
   }),
 );

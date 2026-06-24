@@ -30,6 +30,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   blobStorageIntegrationFormSchema,
+  parquetEnabledFromTuning,
   type BlobStorageIntegrationFormSchema,
   type BlobStorageSyncStatus,
 } from "@/src/features/blobstorage-integration/types";
@@ -373,6 +374,11 @@ const BlobStorageIntegrationSettingsForm = ({
 
   const watchedExportMode = blobStorageForm.watch("exportMode");
   const watchedExportSource = blobStorageForm.watch("exportSource");
+  // Parquet is an internal, DB-set `exportTuning` override with no UI write path.
+  // The form reflects it read-only: when active it forces the format to Parquet
+  // (overriding the persisted fileType + gzip), so the selectors below are
+  // locked/hidden and the model group drops its enrichment-only price columns.
+  const isParquetOverride = parquetEnabledFromTuning(state?.exportTuning);
   const exportSourceOptions = getExportSourceOptions(
     state?.exportSource,
     availability,
@@ -700,7 +706,14 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>File Type</FormLabel>
               <FormControl>
-                <Select value={field.value} onValueChange={field.onChange}>
+                {/* When the Parquet override is active the selector is locked to
+                    a synthetic "PARQUET" value (not a BlobStorageIntegrationFileType);
+                    the persisted fileType is preserved but ignored by the worker. */}
+                <Select
+                  value={isParquetOverride ? "PARQUET" : field.value}
+                  onValueChange={field.onChange}
+                  disabled={isParquetOverride}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select file type" />
                   </SelectTrigger>
@@ -708,11 +721,16 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectItem value="JSONL">JSONL</SelectItem>
                     <SelectItem value="CSV">CSV</SelectItem>
                     <SelectItem value="JSON">JSON</SelectItem>
+                    {isParquetOverride && (
+                      <SelectItem value="PARQUET">Parquet</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </FormControl>
               <FormDescription>
-                The file format for exported data.
+                {isParquetOverride
+                  ? "Exporting as Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. This is configured for your project and overrides the file type and compression below."
+                  : "The file format for exported data."}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -899,9 +917,11 @@ const BlobStorageIntegrationSettingsForm = ({
                           )}
                         </div>
                         <div className="text-muted-foreground text-xs">
-                          {isLegacyOnlyExport
-                            ? option.legacyDescription
-                            : option.description}
+                          {isParquetOverride
+                            ? option.parquetDescription
+                            : isLegacyOnlyExport
+                              ? option.legacyDescription
+                              : option.description}
                         </div>
                       </label>
                     </div>
@@ -952,26 +972,31 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
-        <FormField
-          control={blobStorageForm.control}
-          name="compressed"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Gzip Compression</FormLabel>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className="mt-1 ml-4"
-                />
-              </FormControl>
-              <FormDescription>
-                Compress exported files with gzip (.csv.gz, .json.gz, .jsonl.gz)
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Gzip is meaningless for Parquet (ClickHouse compresses it
+            internally); the worker ignores `compressed` on that path. */}
+        {!isParquetOverride && (
+          <FormField
+            control={blobStorageForm.control}
+            name="compressed"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gzip Compression</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    className="mt-1 ml-4"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Compress exported files with gzip (.csv.gz, .json.gz,
+                  .jsonl.gz)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={blobStorageForm.control}

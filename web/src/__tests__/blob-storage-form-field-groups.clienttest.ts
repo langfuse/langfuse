@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   type BlobStorageIntegrationFormSchema,
   blobStorageIntegrationFormSchema,
+  parquetEnabledFromTuning,
 } from "@/src/features/blobstorage-integration/types";
 import {
   AnalyticsIntegrationExportSource,
@@ -11,6 +12,7 @@ import {
   BlobStorageExportMode,
   BlobStorageIntegrationFileType,
   BlobStorageIntegrationType,
+  EXPORT_FIELD_GROUP_OPTIONS,
 } from "@langfuse/shared";
 
 const VALID_BASE: BlobStorageIntegrationFormSchema = {
@@ -84,5 +86,45 @@ describe("blob storage form — exportFieldGroups validation", () => {
     });
 
     expect(onSubmit).toHaveBeenCalledOnce();
+  });
+});
+
+describe("parquetEnabledFromTuning", () => {
+  it.each([
+    [{ parquet: true }, true],
+    [{ parquet: true, gzipLevel: 1 }, true],
+    [{ parquet: false }, false],
+    [{ gzipLevel: 1 }, false],
+    [{}, false],
+    [null, false],
+    [undefined, false],
+    ["parquet", false],
+    [["parquet"], false],
+  ])("returns %s for %o", (input, expected) => {
+    expect(parquetEnabledFromTuning(input)).toBe(expected);
+  });
+});
+
+describe("EXPORT_FIELD_GROUP_OPTIONS — parquet description", () => {
+  const PRICE_FIELDS = ["input_price", "output_price", "total_price"];
+  const model = EXPORT_FIELD_GROUP_OPTIONS.find((o) => o.value === "model")!;
+
+  it("model group lists price columns in the standard description", () => {
+    expect(PRICE_FIELDS.every((f) => model.description.includes(f))).toBe(true);
+  });
+
+  it("model group drops price columns in the parquet description", () => {
+    expect(PRICE_FIELDS.some((f) => model.parquetDescription.includes(f))).toBe(
+      false,
+    );
+    // Non-price model columns are preserved.
+    expect(model.parquetDescription).toContain("provided_model_name");
+  });
+
+  it("non-model groups have identical standard and parquet descriptions", () => {
+    for (const option of EXPORT_FIELD_GROUP_OPTIONS) {
+      if (option.value === "model") continue;
+      expect(option.parquetDescription).toBe(option.description);
+    }
   });
 });
