@@ -475,7 +475,22 @@ export function useTableViewManager({
     // is still X, so "Update view" correctly trusts the live columns instead of
     // reverting to the view's stored snapshot. On a fresh shared-link visit
     // storedViewId is null (or another view), so the view's columns are
-    // preserved (LFE-10486).
+    // preserved (the visitor's own localStorage layout is not saved over the
+    // view).
+    //
+    // Deliberate tradeoff: storedViewId is sessionStorage (per-tab) while the
+    // column layout is localStorage (cross-tab). So the *owner* reopening their
+    // own `?viewId=X&filter=...` bookmark in a NEW tab is indistinguishable at
+    // runtime from a stranger opening a shared link — both have empty
+    // sessionStorage + explicit URL state. We intentionally err toward
+    // preserving the saved view's stored columns when ambiguous: the cost is
+    // that an in-tab column reorder in that new tab is not saved on "Update
+    // view" (recoverable — re-select the view, then update), whereas trusting
+    // the live columns would let any visitor silently overwrite a shared view's
+    // columns. A robust resolution needs the column-state-model rework
+    // (decouple "the view's columns" from "my personal columns"); a per-tab
+    // signal cannot tell the two visits apart. Keep this comment if "fixing"
+    // the symmetric case is attempted. (LFE-10486)
     appliedViewId: storedViewId,
     defaultViewScope: resolvedDefault?.scope ?? null,
   };
