@@ -65,6 +65,9 @@ const getLLMQueueRetryDelaySeconds = ({
   return Math.min(jitteredDelaySeconds, remainingAgeSeconds);
 };
 
+const getInitialQueueDelayMs = (delay: unknown) =>
+  typeof delay === "number" && Number.isFinite(delay) ? Math.max(0, delay) : 0;
+
 /**
  * Configuration for retry handling with rate limiting and age checks
  */
@@ -126,9 +129,15 @@ export async function retryLLMRateLimitError(
             where: { id: jobId, projectId: job.data.payload.projectId },
           });
 
+    // The retry budget starts when the LLM call is first attempted, not when a
+    // delayed evaluation job row was created.
+    const retryWindowStartTimeMs =
+      record.createdAt.getTime() +
+      getInitialQueueDelayMs(job.data.payload.delay);
+
     const elapsedSeconds = Math.max(
       0,
-      (Date.now() - record.createdAt.getTime()) / 1000,
+      (Date.now() - retryWindowStartTimeMs) / 1000,
     );
 
     if (elapsedSeconds >= maxAgeSeconds) {
@@ -159,18 +168,19 @@ export async function retryLLMRateLimitError(
     });
     const delayMs = Math.round(delaySeconds * 1000);
 
-    const retryBaggage: RetryBaggage = job.data.retryBaggage
-      ? {
-          originalJobTimestamp: new Date(
-            job.data.retryBaggage.originalJobTimestamp,
-          ),
-          attempt: currentAttempt,
-        }
-      : {
-          originalJobTimestamp:
-            record.createdAt ?? new Date(job.data.timestamp),
-          attempt: currentAttempt,
-        };
+    const retryWindowStart = new Date(retryWindowStartTimeMs);
+    const retryBaggage: RetryBaggage =
+      job.data.retryBaggage && job.data.retryBaggage.attempt > 0
+        ? {
+            originalJobTimestamp: new Date(
+              job.data.retryBaggage.originalJobTimestamp,
+            ),
+            attempt: currentAttempt,
+          }
+        : {
+            originalJobTimestamp: retryWindowStart,
+            attempt: currentAttempt,
+          };
 
     if (!config.queue) {
       logger.warn(

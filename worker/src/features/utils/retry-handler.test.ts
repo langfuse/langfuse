@@ -196,6 +196,59 @@ describe("retryLLMRateLimitError", () => {
     expect(add).not.toHaveBeenCalled();
   });
 
+  it("anchors retry age to the first LLM attempt after an initial queue delay", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    (prisma.jobExecution.findFirstOrThrow as Mock).mockResolvedValue({
+      createdAt: new Date("2025-12-31T23:00:00.000Z"),
+    });
+
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp: new Date("2026-01-01T02:00:00.000Z"),
+          payload: {
+            projectId: "project-id",
+            jobExecutionId: "job-execution-id",
+            delay: 3 * 60 * 60 * 1000,
+          },
+          retryBaggage: {
+            originalJobTimestamp: new Date("2025-12-31T23:00:00.000Z"),
+            attempt: 0,
+          },
+        },
+      },
+      {
+        table: "job_executions",
+        idField: "jobExecutionId",
+        queue: { add },
+        queueName: "llm-as-a-judge-execution-queue-1",
+        jobName: "llm-as-a-judge-execution-job",
+      },
+    );
+
+    expect(result).toMatchObject({
+      outcome: "scheduled",
+      delaySeconds: 5 * 60,
+      retryBaggage: {
+        attempt: 1,
+        originalJobTimestamp: new Date("2026-01-01T02:00:00.000Z"),
+      },
+    });
+    expect(add).toHaveBeenCalledWith(
+      "llm-as-a-judge-execution-queue-1",
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          delay: 3 * 60 * 60 * 1000,
+        }),
+        retryBaggage: expect.objectContaining({
+          attempt: 1,
+          originalJobTimestamp: new Date("2026-01-01T02:00:00.000Z"),
+        }),
+      }),
+      { delay: 5 * 60 * 1000 },
+    );
+  });
+
   it("caps scheduled delay at the remaining retry age budget", async () => {
     const add = vi.fn().mockResolvedValue(undefined);
     (prisma.jobExecution.findFirstOrThrow as Mock).mockResolvedValue({
