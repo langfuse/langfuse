@@ -59,7 +59,10 @@ const IOTableCellContent = ({
             `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
           true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
         )}
-        className={cn("h-full w-full self-stretch rounded-sm", className)}
+        className={cn(
+          "h-full w-full self-stretch overflow-hidden rounded-sm",
+          className,
+        )}
         codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless

@@ -224,22 +224,27 @@ export function DataTable<TData extends object, TValue>({
 
   // Releasing a column-resize drag fires a synthetic `click` on the underlying
   // header (the resize handle is a child of <TableHead>), which would otherwise
-  // toggle the column sort. We stamp when a resize ends and ignore header
-  // clicks that land within a short window after it. The stamp is set from a
-  // document listener registered on resize start, so it fires before the click
-  // regardless of where the pointer is released.
-  const lastColumnResizeEndRef = useRef(0);
+  // toggle the column sort. We stamp the resized column + time when a resize
+  // ends and ignore a header click only on that same column within a short
+  // window after it — so a deliberate sort click on a *different* header right
+  // after a resize is not dropped. The stamp is set from a document listener
+  // registered on resize start, so it fires before the click regardless of
+  // where the pointer is released.
+  const lastColumnResizeEndRef = useRef<{ columnId: string; at: number }>({
+    columnId: "",
+    at: 0,
+  });
   // Removes the in-flight resize listener pair; cleared once it has run so we
   // never leak listeners if the table unmounts mid-drag.
   const activeResizeCleanupRef = useRef<(() => void) | null>(null);
   const beginColumnResize = useCallback(
-    (handler: (event: unknown) => void) =>
+    (columnId: string, handler: (event: unknown) => void) =>
       (event: React.MouseEvent | React.TouchEvent) => {
         handler(event);
         // Drop any listener pair still attached from a prior resize.
         activeResizeCleanupRef.current?.();
         const onResizeEnd = () => {
-          lastColumnResizeEndRef.current = Date.now();
+          lastColumnResizeEndRef.current = { columnId, at: Date.now() };
           cleanup();
         };
         const cleanup = () => {
@@ -429,11 +434,13 @@ export function DataTable<TData extends object, TValue>({
                         onClick={(event) => {
                           event.preventDefault();
 
-                          // Ignore the click synthesized when a column-resize
-                          // drag is released over the header.
+                          // Ignore the click synthesized when this column's own
+                          // resize drag is released over its header (other
+                          // headers stay clickable during that window).
+                          const lastResize = lastColumnResizeEndRef.current;
                           if (
-                            Date.now() - lastColumnResizeEndRef.current <
-                            250
+                            lastResize.columnId === header.column.id &&
+                            Date.now() - lastResize.at < 250
                           ) {
                             return;
                           }
@@ -498,9 +505,11 @@ export function DataTable<TData extends object, TValue>({
                               }}
                               onDoubleClick={() => header.column.resetSize()}
                               onMouseDown={beginColumnResize(
+                                header.column.id,
                                 header.getResizeHandler(),
                               )}
                               onTouchStart={beginColumnResize(
+                                header.column.id,
                                 header.getResizeHandler(),
                               )}
                               className={cn(
