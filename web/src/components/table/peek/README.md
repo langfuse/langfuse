@@ -6,6 +6,36 @@ This document describes how table state (filters, sorting, pagination, search) i
 
 Peek views allow users to quickly preview table items in a side panel. When navigating between items using K/J shortcuts, tables inside the peek view remount, which would normally reset their state. The peek state management system prevents this by storing table state in a context that persists across navigation.
 
+## Panel shell, resize, and fullscreen
+
+`TablePeekView` ([`../peek.tsx`](../peek.tsx)) is responsive and keeps the peek
+**on top of the table** (it does not split the layout):
+
+- **Desktop** — a docked-right, non-modal Radix dialog (no overlay), so the
+  table behind stays interactive. A left-edge handle resizes it; dragging to the
+  far edge engages fullscreen.
+- **Mobile** (`useIsMobile`, <768px) — a `vaul` bottom drawer with native
+  swipe-down dismissal.
+
+Dismissal:
+
+- **Click-outside closes**, with two exceptions: clicking another table row
+  (`[data-row-index]`) **switches** the peeked item in place, and regions that
+  opt out via `data-ignore-outside-interaction` (e.g. the in-app assistant) or
+  the table's `ignoredSelectors` never close it. Nested Radix popovers/menus
+  opened inside the peek do not close it (DismissableLayer stacking).
+- **Escape**, the close button, and (mobile) swipe-down also close.
+
+Panel state lives in [`usePeekPanelState`](./usePeekPanelState.ts), at the state
+altitudes from `frontend-large-feature-architecture`:
+
+| State       | Altitude                        | Where it lives                                                            |
+| ----------- | ------------------------------- | ------------------------------------------------------------------------- |
+| width       | cross-view persisted preference | `localStorage` (`peekViewWidthFraction`, a viewport fraction)             |
+| fullscreen  | ephemeral per open session      | React state — resets on close, so the peek never reopens stuck fullscreen |
+| resize drag | high-frequency transient        | local draft, committed to `localStorage` only on pointer-up               |
+| which item  | route                           | the `peek` URL param (see below)                                          |
+
 ## Architecture
 
 The peek state architecture separates the persisting context provider from the remounting content:

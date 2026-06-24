@@ -1,19 +1,15 @@
-import { Button } from "@/src/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/src/components/ui/sheet";
-import { Expand, ExternalLink } from "lucide-react";
-import { Separator } from "@/src/components/ui/separator";
-import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import * as SheetPrimitive from "@radix-ui/react-dialog";
+import { Sheet, SheetPortal } from "@/src/components/ui/sheet";
+import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
+import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
 import { memo } from "react";
 import { useRouter } from "next/router";
+import { useIsMobile } from "@/src/hooks/use-mobile";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
+import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
 
 type PeekViewItemType = Extract<
@@ -86,95 +82,159 @@ type TablePeekViewProps = Pick<
   children: React.ReactNode;
 };
 
+/**
+ * Decide whether an outside interaction should keep the peek open instead of
+ * closing it. The peek closes on a genuine click-outside, with two exceptions
+ * that preserve power-user behavior:
+ * - clicking another table row (`[data-row-index]`) switches the peeked item in
+ *   place rather than closing (handled by the row's own click handler), and
+ * - regions that opt out via `data-ignore-outside-interaction` (e.g. the in-app
+ *   assistant) or the table's configured `ignoredSelectors` (row checkboxes,
+ *   bookmark toggles) never trigger a close.
+ */
+const shouldKeepPeekOpenOnOutsideInteraction = (
+  target: EventTarget | null,
+  matchesIgnoredSelector: () => boolean,
+): boolean => {
+  if (matchesIgnoredSelector()) return true;
+  if (shouldIgnoreOutsideInteraction(target)) return true;
+  if (target instanceof Element && target.closest("[data-row-index]")) {
+    return true;
+  }
+  return false;
+};
+
 function TablePeekViewComponent(props: TablePeekViewProps) {
-  const peekView = props;
   const { title, children } = props;
   const router = useRouter();
-  const eventHandler = createPeekEventHandler(peekView.peekEventOptions);
+  const isMobile = useIsMobile();
+  const panel = usePeekPanelState();
+  const eventHandler = createPeekEventHandler(props.peekEventOptions);
   const itemId = router.query.peek as string | undefined;
 
+  // Hooks run unconditionally above this early return so ordering stays stable
+  // across open/close. Returning null on close unmounts PeekTableStateProvider,
+  // which is what resets nested-table state when the peek closes (see README).
   if (!itemId) return null;
 
   const handleOpenChange = (open: boolean) => {
-    // Note: Only handles close events as open events are handled by user clicking on a row in the table or navigating via detail page navigation
-    if (open || eventHandler()) return;
-    peekView.closePeek();
+    // Open is driven by row clicks / detail-page navigation; we only react to
+    // close requests (Escape, swipe-down, click-outside, the close button).
+    if (open) return;
+    props.closePeek();
   };
 
-  const canExpand = typeof peekView.expandPeek === "function";
+  const resolvedTitle = title ?? itemId;
 
+  const header = (
+    <PeekHeader
+      itemType={props.itemType}
+      title={resolvedTitle}
+      itemId={itemId}
+      detailNavigationKey={props.detailNavigationKey}
+      resolveDetailNavigationPath={props.resolveDetailNavigationPath}
+      onExpand={props.expandPeek}
+      fullscreen={
+        isMobile
+          ? undefined
+          : {
+              isFullscreen: panel.isFullscreen,
+              onToggle: panel.toggleFullscreen,
+            }
+      }
+      onClose={props.closePeek}
+    />
+  );
+
+  const body = (
+    <PeekTableStateProvider>
+      <div className="flex max-h-full min-h-0 flex-1 flex-col">
+        <div className="flex-1 overflow-auto" key={itemId}>
+          {children}
+        </div>
+      </div>
+    </PeekTableStateProvider>
+  );
+
+  // Mobile: a vaul bottom drawer with native swipe-down dismissal.
+  if (isMobile) {
+    return (
+      <Drawer
+        open={!!itemId}
+        onOpenChange={handleOpenChange}
+        forceDirection="bottom"
+      >
+        <DrawerContent
+          size="full"
+          className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
+        >
+          <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
+          <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
+            <div className="bg-muted h-1.5 w-12 rounded-full" />
+          </div>
+          {header}
+          {body}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  // Desktop: a docked-right, resizable panel that stays on top of the table
+  // (non-modal, no overlay) so the table behind remains interactive.
   return (
     <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
-      <SheetContent
-        onPointerDownOutside={(e) => {
-          // Prevent the default behavior of closing when clicking outside when we set modal={false}
-          e.preventDefault();
-        }}
-        onInteractOutside={(e) => {
-          if (shouldIgnoreOutsideInteraction(e.target)) {
-            e.preventDefault();
-          }
-        }}
-        side="right"
-        className="flex max-h-full min-h-0 min-w-[60vw] flex-col gap-0 overflow-hidden p-0"
-      >
-        <SheetHeader className="bg-header flex min-h-11 flex-row flex-nowrap items-center justify-between px-2 py-1">
-          <SheetTitle className="flex min-w-0 flex-row items-center gap-2">
-            <ItemBadge type={peekView.itemType} showLabel />
-            <span
-              className="truncate text-sm font-medium focus:outline-hidden"
-              tabIndex={0}
-            >
-              {title ?? itemId}
-            </span>
-          </SheetTitle>
+      <SheetPortal>
+        <SheetPrimitive.Content
+          aria-describedby={undefined}
+          style={panel.panelStyle}
+          onPointerDownOutside={(e) => {
+            if (
+              shouldKeepPeekOpenOnOutsideInteraction(e.target, eventHandler)
+            ) {
+              e.preventDefault();
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (
+              shouldKeepPeekOpenOnOutsideInteraction(e.target, eventHandler)
+            ) {
+              e.preventDefault();
+            }
+          }}
+          // Never close because focus moved out (e.g. into a portaled popover or
+          // another input); only pointer/Escape/close-button drive dismissal.
+          onFocusOutside={(e) => e.preventDefault()}
+          className={cn(
+            "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 overflow-hidden border-l shadow-lg",
+            "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
+            panel.isResizing && "select-none",
+          )}
+        >
+          <SheetPrimitive.Title className="sr-only">
+            {resolvedTitle}
+          </SheetPrimitive.Title>
+          {header}
+          {body}
+          {/* Rendered last so it is not the dialog's initial focus target; it
+              is absolutely positioned on the left edge regardless of DOM order. */}
           <div
-            className={cn(
-              "mt-0! flex shrink-0 flex-row items-center gap-2",
-              !canExpand && "mr-8",
-            )}
+            {...panel.resizeHandleProps}
+            className="group/resize absolute inset-y-0 left-0 z-10 flex w-2 cursor-ew-resize touch-none items-center justify-center focus-visible:outline-hidden"
           >
-            {itemId &&
-              peekView.detailNavigationKey &&
-              peekView.resolveDetailNavigationPath && (
-                <DetailPageNav
-                  currentId={itemId}
-                  path={peekView.resolveDetailNavigationPath}
-                  listKey={peekView.detailNavigationKey}
-                />
+            <div
+              aria-hidden="true"
+              className={cn(
+                // Neutral, low-contrast affordance — the left border is the real
+                // edge; this only gently emphasizes it on hover/drag (no brand
+                // accent, in line with the cursor doing most of the signalling).
+                "h-full w-0.5 bg-transparent transition-colors",
+                "group-hover/resize:bg-muted-foreground/30 group-focus-visible/resize:bg-muted-foreground/40",
+                panel.isResizing && "bg-muted-foreground/50",
               )}
-            {canExpand && (
-              <div className="mt-0! mr-8 flex h-full flex-row items-center gap-1 border-l">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Open in current tab"
-                  className="ml-2"
-                  onClick={() => peekView.expandPeek?.(false)}
-                >
-                  <Expand className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Open in new tab"
-                  onClick={() => peekView.expandPeek?.(true)}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+            />
           </div>
-        </SheetHeader>
-        <Separator />
-        <PeekTableStateProvider>
-          <div className="flex max-h-full min-h-0 flex-1 flex-col">
-            <div className="flex-1 overflow-auto" key={itemId}>
-              {children}
-            </div>
-          </div>
-        </PeekTableStateProvider>
-      </SheetContent>
+        </SheetPrimitive.Content>
+      </SheetPortal>
     </Sheet>
   );
 }
