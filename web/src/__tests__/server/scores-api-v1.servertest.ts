@@ -26,11 +26,6 @@ import { v4 } from "uuid";
 import { z } from "zod";
 import waitForExpect from "wait-for-expect";
 
-const directPublicApiClickHouseQueryTags = {
-  surface: "publicapi" as const,
-  route: "scores-api-v1.servertest",
-};
-
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
     it("should GET a score", async () => {
@@ -189,12 +184,7 @@ describe("/api/public/scores API Endpoint", () => {
       // Then
       expect(deleteResponse.status).toBe(202);
       await waitForExpect(async () => {
-        const scores = await getScoresByIds(
-          projectId,
-          [scoreId],
-          undefined,
-          directPublicApiClickHouseQueryTags,
-        );
+        const scores = await getScoresByIds(projectId, [scoreId], undefined);
         expect(scores).toHaveLength(0);
       });
     });
@@ -1332,7 +1322,6 @@ describe("/api/public/scores API Endpoint", () => {
             projectId,
             [numericScoreId],
             undefined,
-            directPublicApiClickHouseQueryTags,
           );
           expect(checkScores).toHaveLength(1);
         });
@@ -1390,7 +1379,6 @@ describe("/api/public/scores API Endpoint", () => {
             projectId,
             [correctionScoreId],
             undefined,
-            directPublicApiClickHouseQueryTags,
           );
           expect(checkScore).toHaveLength(0);
         });
@@ -1434,7 +1422,6 @@ describe("/api/public/scores API Endpoint", () => {
         const score = await getScoreById({
           projectId,
           scoreId,
-          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(score).toBeDefined();
         expect(score!.id).toBe(scoreId);
@@ -1550,7 +1537,6 @@ describe("/api/public/scores API Endpoint", () => {
         const score = await getScoreById({
           projectId,
           scoreId,
-          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(score).toBeDefined();
         expect(score!.source).toBe("API");
@@ -1620,7 +1606,6 @@ describe("/api/public/scores API Endpoint", () => {
         const score = await getScoreById({
           projectId,
           scoreId,
-          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(score).toBeDefined();
         expect(score!.source).toBe("ANNOTATION");
@@ -1682,7 +1667,6 @@ describe("/api/public/scores API Endpoint", () => {
           const score = await getScoreById({
             projectId,
             scoreId,
-            clickHouseQueryTags: directPublicApiClickHouseQueryTags,
           });
           expect(score).toBeDefined();
           expect(score!.source).toBe("ANNOTATION");

@@ -41,11 +41,6 @@ import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import { randomUUID } from "crypto";
 
-const directTrpcClickHouseQueryTags = {
-  surface: "trpc" as const,
-  route: "multilingual-fulltext-search.servertest",
-};
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -412,7 +407,6 @@ describe("multilingual full-text search (issue #11538)", () => {
         const t = await getTraceById({
           traceId,
           projectId,
-          clickHouseQueryTags: directTrpcClickHouseQueryTags,
         });
         expect(t).toBeDefined();
       }, 45_000);

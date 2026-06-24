@@ -15,10 +15,6 @@ import { Job } from "bullmq";
 
 describe("trace deletion queue processor", () => {
   let projectId: string;
-  const directWorkerClickHouseQueryTags = {
-    surface: "worker" as const,
-    route: "traceDeleteQueue.test",
-  };
 
   beforeEach(async () => {
     // Create a real project for testing
@@ -70,7 +66,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesBeforeDeletion).toHaveLength(2);
 
@@ -85,7 +80,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesAfterDeletion).toHaveLength(0);
 
@@ -115,7 +109,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesBeforeDeletion).toHaveLength(3);
 
@@ -150,7 +143,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesAfterDeletion).toHaveLength(1); // Only alreadyDeletedTrace should remain
     expect(tracesAfterDeletion[0].id).toBe(alreadyDeletedTrace);
@@ -195,7 +187,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesBeforeDeletion).toHaveLength(4);
 
@@ -227,7 +218,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesAfterDeletion).toHaveLength(0);
 
@@ -255,7 +245,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesBeforeDeletion).toHaveLength(1);
 
@@ -279,7 +268,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesAfterDeletion).toHaveLength(0);
 
@@ -310,7 +298,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesBeforeDeletion).toHaveLength(3);
 
@@ -342,7 +329,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesAfterDeletion).toHaveLength(0);
 
@@ -370,7 +356,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesBeforeDeletion).toHaveLength(1);
 
@@ -394,7 +379,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesAfterDeletion).toHaveLength(1); // Trace should remain since it was filtered out
 
@@ -423,7 +407,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesBeforeDeletion).toHaveLength(2);
 
@@ -450,7 +433,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesAfterDeletion).toHaveLength(1); // Only alreadyDeletedTrace should remain
     expect(tracesAfterDeletion[0].id).toBe(alreadyDeletedTrace);
@@ -483,7 +465,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesBeforeDeletion).toHaveLength(4);
 
@@ -527,7 +508,6 @@ describe("trace deletion queue processor", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(tracesAfterDeletion).toHaveLength(1); // Only alreadyDeletedTrace should remain
     expect(tracesAfterDeletion[0].id).toBe(alreadyDeletedTrace);

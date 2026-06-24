@@ -15,10 +15,6 @@ import { processClickhouseScoreDelete } from "../features/scores/processClickhou
 
 describe("score deletion", () => {
   let eventStorageService: StorageService;
-  const directWorkerClickHouseQueryTags = {
-    surface: "worker" as const,
-    route: "scoreDeletion.test",
-  };
 
   beforeAll(() => {
     eventStorageService = StorageServiceFactory.getInstance({
@@ -42,12 +38,7 @@ describe("score deletion", () => {
     await processClickhouseScoreDelete(projectId, [score.id]);
 
     // Then
-    const scores = await getScoresByIds(
-      projectId,
-      [score.id],
-      undefined,
-      directWorkerClickHouseQueryTags,
-    );
+    const scores = await getScoresByIds(projectId, [score.id], undefined);
     expect(scores).toHaveLength(0);
   });
 
@@ -93,10 +84,7 @@ describe("score deletion", () => {
     await processClickhouseScoreDelete(projectId, [scoreId]);
 
     // Then
-    const eventLog = getBlobStorageByProjectId(
-      projectId,
-      directWorkerClickHouseQueryTags,
-    );
+    const eventLog = getBlobStorageByProjectId(projectId);
     for await (const _ of eventLog) {
       // Should never happen as the expect event log to be empty
       expect(true).toBe(false);

@@ -42,11 +42,6 @@ const maybeDescribe =
     ? describe
     : describe.skip;
 
-const directWorkerClickHouseQueryTags = {
-  surface: "worker" as const,
-  route: "batchAction.test",
-};
-
 const withIsolatedCreateEvalQueue = async <T>(
   projectId: string,
   fn: (queue: Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>) => Promise<T>,
@@ -245,12 +240,7 @@ describe("select all test suite", () => {
     });
 
     // Then
-    const scores = await getScoresByIds(
-      projectId,
-      [score.id],
-      undefined,
-      directWorkerClickHouseQueryTags,
-    );
+    const scores = await getScoresByIds(projectId, [score.id], undefined);
     expect(scores).toHaveLength(0);
   });
 

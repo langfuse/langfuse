@@ -27,10 +27,6 @@ import { promptNameHandler } from "@/src/features/prompts/server/handlers/prompt
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
-const directPublicApiClickHouseQueryTags = {
-  surface: "publicapi" as const,
-  route: "POST /api/public/ingestion",
-};
 
 afterAll(async () => {
   await disconnectQueues();
@@ -483,7 +479,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         const dbGeneration = await getObservationById({
           id: generationId,
           projectId,
-          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
 
         expect(dbGeneration?.id).toBe(generationId);

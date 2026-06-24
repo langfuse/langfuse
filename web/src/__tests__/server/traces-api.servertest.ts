@@ -30,11 +30,6 @@ import snakeCase from "lodash/snakeCase";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
 
-const directPublicApiClickHouseQueryTags = {
-  surface: "publicapi" as const,
-  route: "traces-api.servertest",
-};
-
 // Helper type for creating observation/event data
 // Times are always in milliseconds, conversion handled internally
 type ObservationEventData = {
@@ -907,7 +902,6 @@ describe("/api/public/traces API Endpoint", () => {
       const trace = await getTraceById({
         traceId: createdTrace.id,
         projectId,
-        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       });
       expect(trace).toBeUndefined();
     }, 10_000);
@@ -943,12 +937,10 @@ describe("/api/public/traces API Endpoint", () => {
         getTraceById({
           traceId: createdTrace1.id,
           projectId,
-          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         }),
         getTraceById({
           traceId: createdTrace2.id,
           projectId,
-          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         }),
       ]);
       expect(trace1).toBeUndefined();

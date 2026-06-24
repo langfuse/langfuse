@@ -23,10 +23,6 @@ import { prisma } from "@langfuse/shared/src/db";
 describe("trace deletion", () => {
   let eventStorageService: StorageService;
   let mediaStorageService: StorageService;
-  const directWorkerClickHouseQueryTags = {
-    surface: "worker" as const,
-    route: "traceDeletion.test",
-  };
 
   beforeAll(() => {
     eventStorageService = StorageServiceFactory.getInstance({
@@ -70,7 +66,6 @@ describe("trace deletion", () => {
       projectId,
       undefined,
       undefined,
-      directWorkerClickHouseQueryTags,
     );
     expect(traces).toHaveLength(0);
 
@@ -78,14 +73,12 @@ describe("trace deletion", () => {
       traceId,
       projectId,
       includeIO: true,
-      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(observations).toHaveLength(0);
 
     const scores = await getScoresForTraces({
       projectId,
       traceIds: [traceId],
-      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(scores).toHaveLength(0);
   });
@@ -477,10 +470,7 @@ describe("trace deletion", () => {
     await processClickhouseTraceDelete(projectId, [traceId]);
 
     // Then
-    const eventLog = getBlobStorageByProjectId(
-      projectId,
-      directWorkerClickHouseQueryTags,
-    );
+    const eventLog = getBlobStorageByProjectId(projectId);
     for await (const _ of eventLog) {
       // Should never happen as the expect event log to be empty
       expect(true).toBe(false);

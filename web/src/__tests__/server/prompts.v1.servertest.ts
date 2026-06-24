@@ -11,11 +11,6 @@ import {
   getObservationById,
 } from "@langfuse/shared/src/server";
 
-const directPublicApiClickHouseQueryTags = {
-  surface: "publicapi" as const,
-  route: "POST /api/public/ingestion",
-};
-
 describe("/api/public/prompts API Endpoint", () => {
   let auth: string;
   let projectId: string;
@@ -483,7 +478,6 @@ describe("/api/public/prompts API Endpoint", () => {
     const dbGeneration = await getObservationById({
       id: generationId,
       projectId,
-      clickHouseQueryTags: directPublicApiClickHouseQueryTags,
     });
 
     expect(dbGeneration?.id).toBe(generationId);
@@ -546,7 +540,6 @@ describe("/api/public/prompts API Endpoint", () => {
       getObservationById({
         id: generationId,
         projectId,
-        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       }),
     ).rejects.toThrow("not found");
   });
