@@ -258,11 +258,13 @@ export const AnnotationQueueItemPage: React.FC<{
           const active = document.activeElement;
           // An out-of-range numeric score is vetoed on blur (no mutation fires),
           // so completing now would silently drop it. Surface the constraint and
-          // abort completion, leaving focus on the field to fix.
+          // abort completion, leaving focus on the field to fix. Check only the
+          // range (mirrors validateNumericScore) — decimals are valid, so we must
+          // not block on stepMismatch.
           if (
             active instanceof HTMLInputElement &&
             active.type === "number" &&
-            !active.checkValidity()
+            (active.validity.rangeOverflow || active.validity.rangeUnderflow)
           ) {
             active.reportValidity();
             return;

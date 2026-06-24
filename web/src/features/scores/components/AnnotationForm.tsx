@@ -712,9 +712,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       // open the combobox or insert a newline).
       if (event.key === "Enter") {
         if (currentRow && active === currentRow) {
-          const control = currentRow.querySelector<HTMLElement>(
-            "[data-score-control] :is(textarea, input, button)",
-          );
+          // First *enabled* control — skip the disabled stale-category chip that
+          // enrichCategoryOptionsWithStaleScoreValue prepends (focusing a disabled
+          // control is a no-op, so Enter would otherwise appear to do nothing).
+          const control = Array.from(
+            currentRow.querySelectorAll<HTMLElement>(
+              "[data-score-control] :is(textarea, input, button)",
+            ),
+          ).find((el) => !el.matches(":disabled"));
           if (control) {
             event.preventDefault();
             control.focus();
@@ -961,11 +966,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                       type="number"
                                       // Mirror the config range as native
                                       // constraints so out-of-range values are
-                                      // catchable via checkValidity() (e.g. the
-                                      // ⌘/Ctrl+Enter complete gate) on top of the
-                                      // existing onBlur JS validation.
+                                      // catchable via the ⌘/Ctrl+Enter complete
+                                      // gate's rangeOverflow/Underflow check, on
+                                      // top of the existing onBlur JS validation.
+                                      // `step="any"` keeps decimals valid (config
+                                      // validation is range-only, not integer).
                                       min={config.minValue ?? undefined}
                                       max={config.maxValue ?? undefined}
+                                      step="any"
                                       className="text-xs"
                                       disabled={isInputDisabled(config)}
                                       onBlur={() => handleNumericUpsert(index)}
