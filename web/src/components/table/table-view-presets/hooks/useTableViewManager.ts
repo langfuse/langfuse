@@ -90,8 +90,6 @@ export function useTableViewManager({
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const capture = usePostHogClientCapture();
-  const pendingFiltersRef = useRef<FilterState | null>(null);
-  const pendingFiltersPreviousStateRef = useRef<FilterState | null>(null);
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
     `${tableName}-${projectId}-viewId`,
@@ -167,27 +165,40 @@ export function useTableViewManager({
     if (isInitialized) return;
     if (!isRouterReady) return;
 
-    // If viewId already in the URL and is not a system preset, let the getById
-    // query resolve it.
+    // Clear stale frontend-only system presets from the URL first (they are
+    // defined in code, not the DB, so there is nothing to fetch).
     if (
       selectedViewId &&
-      (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets)
+      isSystemPresetId(selectedViewId) &&
+      !allowBackendSystemPresets
     ) {
-      return;
-    }
-
-    // Clear stale frontend-only system presets from the URL.
-    if (selectedViewId && isSystemPresetId(selectedViewId)) {
       handleSetViewId(null);
       return;
     }
 
-    // Query params such as `filter` are explicit table state. They must take
-    // precedence over implicit session/default view restoration, otherwise a
-    // direct filtered URL is immediately overwritten by the restored view.
+    // Explicit table state in the URL (`filter`/`search`/`orderBy`) is
+    // authoritative, even when a `viewId` is present. The viewId is a
+    // provenance reference — which saved view a link came from — but the URL's
+    // filters/sort/search are what is actually applied (the URL is the source
+    // of truth). Without checking this before resolving the view, opening
+    // `?viewId=X&filter=...` (a shared "view + in-view edits" link, or any deep
+    // link onto a saved view) would fetch the view and overwrite the URL's
+    // filters with the view's stored state. This preserves deep-link
+    // precedence (#13865) and makes shared links carry in-view edits
+    // (LFE-10486). The viewId stays in the URL so the drawer still shows the
+    // originating view.
     if (hasExplicitTableStateInUrl(router.query)) {
       setIsInitialized(true);
       setIsLoading(false);
+      return;
+    }
+
+    // A real saved view (or an allowed backend system preset) in the URL with
+    // no explicit table state → let the getById query resolve and hydrate it.
+    if (
+      selectedViewId &&
+      (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets)
+    ) {
       return;
     }
 
@@ -292,16 +303,11 @@ export function useTableViewManager({
         setExpandedFiltersRef.current(nextExpandedFilters);
       }
 
-      if (setFiltersRef.current) {
+      // Apply the view's filters unless what is applied already matches. The
+      // sidebar filter hook updates optimistically, so the applied filter state
+      // — and the URL it writes to — reflect the view synchronously.
+      if (setFiltersRef.current && !filtersAlreadyApplied) {
         setFiltersRef.current(validFilters);
-        // Track expected filters to observe when state actually updates (for useEffect below)
-        // If filters are already applied, don't set pending ref (will unlock immediately).
-        // Also track pre-apply state so we can unlock when filters propagate but get
-        // migrated into an equivalent shape by downstream hooks.
-        if (!filtersAlreadyApplied) {
-          pendingFiltersRef.current = validFilters;
-          pendingFiltersPreviousStateRef.current = currentFilterState ?? [];
-        }
       }
 
       if (setSearchQueryRef.current) {
@@ -316,14 +322,15 @@ export function useTableViewManager({
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
 
-      // If filters were already applied, unlock table immediately
-      if (filtersAlreadyApplied) {
-        setIsLoading(false);
-      }
-
-      // NOTE: Table remains locked until useEffect observer detects filter state propagation
-      // This is relevant for the saved views. Because the URL lazy updates and we don't want to wait
-      // for a page reload
+      // Unlock as soon as the view is applied. Earlier versions kept the table
+      // locked until a useEffect observer saw the filter change propagate to
+      // `currentFilterState`; that observer was the source of LFE-7389
+      // fragility — an early return or a canonicalized-shape mismatch could
+      // leave the table showing unfiltered rows, or never unlock. The sidebar
+      // filter hook applies updates optimistically, so propagation is
+      // synchronous and the URL becomes the source of truth for the applied
+      // filters on the same render. Unlock deterministically here instead.
+      setIsLoading(false);
     },
     [
       setColumnOrder,
@@ -348,6 +355,11 @@ export function useTableViewManager({
         isRouterReady &&
         !!selectedViewId &&
         !isInitialized &&
+        // Explicit URL state is authoritative, so there is nothing to hydrate
+        // from the view — don't fetch it. This also guarantees the success
+        // handler can never apply the view over the URL's filters regardless of
+        // effect timing (LFE-10486).
+        !hasExplicitTableStateInUrl(router.query) &&
         (!isSystemPresetId(selectedViewId) || allowBackendSystemPresets),
     },
   );
@@ -358,6 +370,15 @@ export function useTableViewManager({
     const requestedViewId = selectedViewId;
     if (!requestedViewId) return;
     if (isInitializedRef.current) return;
+    // Explicit URL state wins over the saved view (the URL is the source of
+    // truth). Guard here too — not just in the query `enabled` — so cached view
+    // data can never be applied over the URL's filters on the first render
+    // regardless of effect timing (LFE-10486).
+    if (hasExplicitTableStateInUrl(router.query)) {
+      setIsInitialized(true);
+      setIsLoading(false);
+      return;
+    }
     if (selectedViewIdRef.current !== requestedViewId) return;
     if (selectedViewData.id !== requestedViewId) return;
     if (!isViewApplicableToTable(tableName, selectedViewData.tableName)) {
@@ -383,6 +404,7 @@ export function useTableViewManager({
     isSelectedViewSuccess,
     selectedViewData,
     selectedViewId,
+    router.query,
     handleSetViewId,
     capture,
     tableName,
@@ -411,29 +433,6 @@ export function useTableViewManager({
     selectedViewId,
     handleSetViewId,
   ]);
-
-  // Observe when filter state propagates from saved view
-  // After calling setFilters, URL updates async → filterState recalculates → this effect detects completion
-  useEffect(() => {
-    const pendingFilters = pendingFiltersRef.current;
-    if (!pendingFilters || currentFilterState === undefined) return;
-
-    const preApplyFilters = pendingFiltersPreviousStateRef.current ?? [];
-    const hasExpectedShape = isEqual(currentFilterState, pendingFilters);
-    const hasPropagatedWithCanonicalization = !isEqual(
-      currentFilterState,
-      preApplyFilters,
-    );
-
-    if (hasExpectedShape || hasPropagatedWithCanonicalization) {
-      // Filter state has synchronized - safe to unlock table.
-      // `hasPropagatedWithCanonicalization` handles equivalent rewrites
-      // (for example legacy env-delta -> canonical none-of shape).
-      pendingFiltersRef.current = null;
-      pendingFiltersPreviousStateRef.current = null;
-      setIsLoading(false);
-    }
-  }, [currentFilterState]);
 
   if (disabled) {
     return {

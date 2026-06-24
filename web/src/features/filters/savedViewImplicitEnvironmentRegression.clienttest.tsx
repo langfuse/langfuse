@@ -346,6 +346,46 @@ describe("Saved view restore with implicit environment defaults", () => {
     );
   });
 
+  it("applies explicit URL filters over the saved view when both viewId and filter are present (LFE-10486)", async () => {
+    // A shared "saved view + in-view filter edits" link carries both the
+    // viewId (provenance) and an explicit, edited filter. The edited filter
+    // must win; the saved view's stored filter must not overwrite it.
+    const explicitUrlFilters: FilterState = [
+      {
+        column: "name",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["search"],
+      },
+    ];
+    const encodedFilters = encodeFiltersGeneric(explicitUrlFilters);
+
+    queryParamStore.set("viewId", "view-1");
+    queryParamStore.set("filter", encodedFilters);
+    mockUseRouter.mockReturnValue({
+      isReady: true,
+      query: { viewId: "view-1", filter: encodedFilters },
+    });
+
+    render(<SavedViewHarness />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("loading-state").textContent).toBe("ready");
+    });
+
+    // The URL's filter ("search") wins over the saved view's stored filter
+    // ("checkout" from OLD_SAVED_VIEW_FILTERS).
+    expect(screen.getByTestId("explicit-state").textContent).toContain(
+      "search",
+    );
+    expect(screen.getByTestId("explicit-state").textContent).not.toContain(
+      "checkout",
+    );
+    // The viewId stays in the URL as a provenance reference so the drawer can
+    // still show the view the link came from.
+    expect(queryParamStore.get("viewId")).toBe("view-1");
+  });
+
   it("does not apply a default saved view over explicit URL filters", async () => {
     const explicitUrlFilters: FilterState = [
       {

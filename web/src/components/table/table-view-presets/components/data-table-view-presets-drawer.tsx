@@ -77,6 +77,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -355,6 +357,25 @@ export function TableViewPresetsDrawer({
       tableName,
       viewId,
     });
+
+    // For the view that is currently active, the page URL already encodes the
+    // applied filters, sort and search — the URL is the source of truth. Share
+    // it verbatim so in-view edits travel with the link. A server-built
+    // `?viewId=…` permalink points at the saved view's stored state and would
+    // silently drop those edits, which is the recipient-gets-stale-filters bug
+    // (LFE-10486). Non-active views still get a clean link to the saved view.
+    if (
+      viewId === selectedViewId &&
+      typeof window !== "undefined" &&
+      window.location?.href
+    ) {
+      copyTextToClipboard(window.location.href);
+      showSuccessToast({
+        title: "Permalink copied to clipboard",
+        description: "You can now share the permalink with others",
+      });
+      return;
+    }
 
     if (window.location.origin) {
       generatePermalinkMutation.mutate({
