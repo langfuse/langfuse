@@ -78,11 +78,8 @@ test.describe("Playground Draft Import/Export", () => {
     const fileChooser = await fileChooserPromise;
     await fileChooser.setFiles(uploadPath);
 
-    // Verify state was restored
-    await page.waitForTimeout(1000);
-
-    // Check if the page contains text from imported messages
-    await expect(page.locator("body")).toContainText("You are a test import bot.");
+    // Check if the page contains text from imported messages (using Playwright auto-retry assertions)
+    await expect(page.locator("body")).toContainText("You are a test import bot.", { timeout: 10000 });
     await expect(page.locator("body")).toContainText("Hello from imported test.");
 
     // Clean up temporary files
