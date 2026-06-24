@@ -3594,11 +3594,9 @@ export const getEventsForBlobStorageExportRaw = function (
   );
 };
 
-// LFE-10463: ClickHouse-native `FORMAT Parquet` export of events. Reuses the
-// same field-group-aware query builder and streams the raw binary body straight
-// to upload. Like the raw-passthrough variant there is no JS enrichment, so
-// latency ms→s conversion must happen in SQL (`convertLatencyToSeconds`) and
-// price columns are NOT added.
+// LFE-10463: FORMAT Parquet export — reuses the field-group-aware builder and
+// streams raw binary bytes to upload. No JS enrichment, so latency ms→s must run
+// in SQL (`convertLatencyToSeconds`) and price columns are NOT added.
 export const getEventsForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,

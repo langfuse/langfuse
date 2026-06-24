@@ -1924,10 +1924,9 @@ export const getObservationsForBlobStorageExportRaw = function (
   );
 };
 
-// LFE-10463: ClickHouse-native `FORMAT Parquet` export. Reuses the same field-
-// group-aware query builder and streams the raw binary body straight to upload.
-// Like the raw-passthrough variant, price columns are NOT added (no JS
-// enrichment on this path).
+// LFE-10463: FORMAT Parquet export — reuses the field-group-aware builder and
+// streams raw binary bytes to upload. Like raw passthrough, no JS enrichment, so
+// price columns are NOT added.
 export const getObservationsForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,

@@ -1458,9 +1458,8 @@ export const getTracesForBlobStorageExport = function (
   );
 };
 
-// LFE-10463: ClickHouse-native `FORMAT Parquet` export. Reuses the standard
-// query SQL and streams the raw binary body straight to upload (no JS parse,
-// enrich, or serialize). Returns the wrapped Readable from queryClickhouseExecRaw.
+// LFE-10463: FORMAT Parquet export — reuses the standard SQL, streams raw binary
+// bytes to upload (no JS parse/enrich/serialize) via queryClickhouseExecRaw.
 export const getTracesForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,

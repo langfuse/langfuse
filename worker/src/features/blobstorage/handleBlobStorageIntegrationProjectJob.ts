@@ -280,12 +280,10 @@ class ByteCounter extends Transform {
   }
 }
 
-// ByteCounter that also tallies the wall-clock gap between consecutive chunks
-// into `stats.sourceWaitMs`, used by the Parquet path (a piped binary stream
-// with no per-row generator) so it can reuse the same chReadMs/uploadWaitMs
-// derivation as the standard path. As with countedStream, this "source wait"
-// conflates upstream ClickHouse delivery with downstream S3 backpressure — it is
-// a coarse read-vs-upload split, not an exact one.
+// ByteCounter that also tallies the gap between chunks into `stats.sourceWaitMs`,
+// letting the Parquet path (a piped binary stream, no per-row generator) reuse
+// the standard chReadMs/uploadWaitMs derivation. Like countedStream, this "source
+// wait" conflates ClickHouse delivery with S3 backpressure — a coarse split.
 class TimedByteCounter extends ByteCounter {
   private readonly stats: { sourceWaitMs: number };
   private lastChunkDoneAt: number | null = null;
@@ -456,13 +454,11 @@ const processBlobStorageExport = async (config: {
       try {
         const blobStorageProps = getFileTypeProperties(config.fileType);
 
-        // LFE-10463: Parquet is a per-project opt-in (exportTuning.parquet) that
-        // applies to ALL tables and file types. It overrides fileType and
-        // compressed — Parquet handles compression internally (ClickHouse default
-        // codec) — and takes precedence over rawPassthrough (already enforced in
-        // resolveBlobExportTuning). Parquet is NOT a BlobStorageIntegrationFileType
-        // member, so the extension/content-type are computed inline here rather
-        // than via getFileTypeProperties (which switches on the enum).
+        // LFE-10463: per-project opt-in spanning all tables/file types. Overrides
+        // fileType and compressed (Parquet compresses internally) and outranks
+        // rawPassthrough (enforced in resolveBlobExportTuning). It isn't a
+        // BlobStorageIntegrationFileType member, so extension/content-type are set
+        // inline below rather than via getFileTypeProperties.
         const parquetEligible = config.parquet;
 
         // Raw passthrough (LFE-10402) is opt-in per project and only valid for
@@ -566,14 +562,12 @@ const processBlobStorageExport = async (config: {
         let fileStream: Readable;
 
         if (parquetEligible) {
-          // LFE-10463: ClickHouse-native FORMAT Parquet. Stream the raw binary
-          // body straight to upload — no JS parse/enrich/serialize, no worker
-          // gzip, and no row counting (a binary stream has no row boundaries, so
-          // sourceStats.rows stays 0). Field-group projection, latency ms→s, and
-          // the dropped price columns are all baked into the SQL. The
-          // exception-tag Transform inside queryClickhouseExecRaw errors the
-          // stream on a mid-stream ClickHouse failure (CH ≥ 25.11), aborting the
-          // upload before any S3 commit — same guarantee as raw passthrough.
+          // LFE-10463: stream raw FORMAT Parquet bytes straight to upload — no JS
+          // parse/enrich/serialize, no gzip, no row counting (binary has no row
+          // boundaries, so sourceStats.rows stays 0). Field-group projection,
+          // latency ms→s, and dropped price columns are baked into the SQL. The
+          // exception-tag Transform in queryClickhouseExecRaw aborts the upload
+          // before commit on a mid-stream failure — same guarantee as passthrough.
           let parquetSource: Readable;
           switch (config.table) {
             case "traces":

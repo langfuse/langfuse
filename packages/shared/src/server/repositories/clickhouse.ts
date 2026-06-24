@@ -361,47 +361,34 @@ export async function* queryClickhouseStreamRawText(
   }
 }
 
-// Shared ClickHouse settings for the blob-export Parquet path (LFE-10463).
-// `output_format_parquet_row_group_size` bounds how many rows ClickHouse buffers
-// before flushing a row group, which caps server-side memory and lets the body
-// stream incrementally rather than materializing the whole Parquet file first.
+// Blob-export Parquet settings (LFE-10463). row_group_size bounds the rows
+// ClickHouse buffers before flushing a row group — capping server memory and
+// letting the body stream incrementally instead of materializing the whole file.
 export const BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS: ClickHouseSettings = {
   output_format_parquet_row_group_size: "1000000",
 };
 
 export type ClickhouseExecRawResult = {
   queryId: string;
-  // ClickHouse's raw response body, with the exception-tag Transform already
-  // applied: a mid-stream failure (CH >= 25.11) errors this stream instead of
-  // emitting a truncated artifact.
+  // Raw response body, already wrapped by the exception-tag Transform so a
+  // mid-stream failure (CH >= 25.11) errors it instead of truncating.
   stream: Readable;
   responseHeaders: Record<string, string | string[] | undefined>;
 };
 
 /**
  * Raw binary read for the blob-export Parquet path (LFE-10463). Runs the query
- * via `clickhouseClient().exec()` — which returns the unparsed HTTP response
- * body as a {@link Readable} — and appends `FORMAT <format>` to the SQL (exec
- * has no `format` parameter; the FORMAT clause must live in the query string).
- * Used to stream ClickHouse-native `FORMAT Parquet` bytes straight to upload,
- * offloading columnar encoding + compression to ClickHouse query threads.
+ * via `clickhouseClient().exec()` (returns the unparsed HTTP body as a
+ * {@link Readable}) and appends `FORMAT <format>` to the SQL — exec has no
+ * `format` param. Streams ClickHouse-native Parquet bytes straight to upload,
+ * offloading columnar encoding + compression to ClickHouse.
  *
- * Unlike {@link queryClickhouseStream}, `exec()` does NOT run the
- * `@clickhouse/client` ResultSet machinery, so it performs no mid-stream
- * exception detection. We restore that by piping the body through
- * {@link ClickhouseExecExceptionTagTransform}, which scans for the
- * `x-clickhouse-exception-tag` end-of-stream marker and errors the stream on a
- * failed query — so the pipeline aborts before any S3 commit instead of
- * uploading a truncated object.
- *
- * IMPORTANT: that detection only works on ClickHouse >= 25.11 (it relies on the
- * exception-tag response header). On older servers a query that fails after a
- * 200 response is NOT detected. The only caller (blob Parquet export) is an
- * experimental, per-project opt-in carrying the same ClickHouse version caveat
- * as raw passthrough — see RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION.
- *
- * Pass Parquet tuning (e.g. `output_format_parquet_row_group_size`) via
- * `clickhouseSettings`.
+ * `exec()` skips the ResultSet machinery and its mid-stream exception detection,
+ * so we restore it by piping through {@link ClickhouseExecExceptionTagTransform}
+ * — the stream errors on a failed query, aborting the upload before any commit.
+ * Detection needs CH >= 25.11 (exception-tag header); the only caller is an
+ * experimental per-project opt-in with the same caveat as raw passthrough — see
+ * RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION. Pass Parquet tuning via `clickhouseSettings`.
  */
 export async function queryClickhouseExecRaw(
   opts: ClickhouseQueryOpts & { format: string },
@@ -451,7 +438,7 @@ export async function queryClickhouseExecRaw(
       | string
       | undefined;
 
-    const wrapped = res.stream.pipe(
+    const guardedStream = res.stream.pipe(
       new ClickhouseExecExceptionTagTransform({
         exceptionTag,
         wrapError: (error) =>
@@ -462,24 +449,22 @@ export async function queryClickhouseExecRaw(
       }),
     );
 
-    // The span outlives this function — it spans the consumer's read of the
-    // stream. Propagate a source-stream error forward so the consumer sees it.
-    res.stream.on("error", (error) => wrapped.destroy(error));
-    // `.pipe()` only wires src→dest; it does NOT tear the source down when the
-    // consumer destroys `wrapped` (e.g. the worker's stream.pipeline aborting on
-    // an S3 upload failure). Without this, the live ClickHouse HTTP body keeps
-    // streaming into an unread socket, pinning a connection-pool slot and a
-    // server-side query thread until the request timeout fires. 'close' is
-    // guaranteed to fire on every termination path — end, error, and the no-arg
-    // destroy() that emits neither — and span.end() is idempotent.
-    wrapped.once("close", () => {
+    // The span outlives this function (it covers the consumer's read). Forward
+    // source errors so the consumer sees them.
+    res.stream.on("error", (error) => guardedStream.destroy(error));
+    // `.pipe()` only wires src→dest, so destroying guardedStream (e.g. the
+    // worker's pipeline aborting on an upload failure) would leave the live CH
+    // body streaming into an unread socket — pinning a connection slot and query
+    // thread until the request timeout. 'close' fires on every termination path
+    // (end, error, no-arg destroy); span.end() is idempotent.
+    guardedStream.once("close", () => {
       span.end();
       if (!res.stream.destroyed) res.stream.destroy();
     });
 
     return {
       queryId,
-      stream: wrapped,
+      stream: guardedStream,
       responseHeaders: res.response_headers,
     };
   } catch (error) {
