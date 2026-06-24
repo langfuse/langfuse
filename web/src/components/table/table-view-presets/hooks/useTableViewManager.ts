@@ -466,6 +466,7 @@ export function useTableViewManager({
       isLoading: false,
       applyViewState: () => {},
       handleSetViewId: () => {},
+      markViewApplied: () => {},
       selectedViewId: null,
       appliedViewId: null,
       defaultViewScope: null,
@@ -476,6 +477,12 @@ export function useTableViewManager({
     isLoading,
     applyViewState,
     handleSetViewId,
+    // Lets callers that put the live table state into a view *without* going
+    // through applyViewState — notably creating a view, whose columns equal the
+    // current state by construction — record it as applied, so a follow-up
+    // "Update view" trusts the live columns instead of treating it like a
+    // shared-link visit (LFE-10486).
+    markViewApplied: setAppliedViewId,
     selectedViewId,
     appliedViewId,
     defaultViewScope: resolvedDefault?.scope ?? null,
