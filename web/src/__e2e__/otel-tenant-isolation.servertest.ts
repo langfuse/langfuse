@@ -91,6 +91,12 @@ describe("OTEL ingestion tenant isolation", () => {
             LIMIT 1 BY id, project_id
           )`,
           params: { projectId: projectA.projectId, spanId: spanIdHex },
+          tags: {
+            feature: "tracing",
+            type: "observation",
+            kind: "count",
+            projectId: projectA.projectId,
+          },
         });
         expect(Number(rowsA[0]?.count)).toBe(1);
 
@@ -107,6 +113,12 @@ describe("OTEL ingestion tenant isolation", () => {
             LIMIT 1 BY id, project_id
           )`,
           params: { projectId: projectB.projectId, spanId: spanIdHex },
+          tags: {
+            feature: "tracing",
+            type: "observation",
+            kind: "count",
+            projectId: projectB.projectId,
+          },
         });
         expect(Number(rowsB[0]?.count)).toBe(0);
       },

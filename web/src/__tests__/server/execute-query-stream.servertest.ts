@@ -5,7 +5,6 @@ import {
   createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
-  setClickHouseQueryTagTestFallbackForTests,
   type TraceRecordInsertType,
 } from "@langfuse/shared/src/server";
 import handler from "../../pages/api/dashboard/execute-query-stream";
@@ -234,12 +233,7 @@ describe("execute-query-stream handler", () => {
     mockGetServerAuthSession.mockResolvedValue(makeSession());
     const { req, res } = createPostMocks(makeBody());
 
-    setClickHouseQueryTagTestFallbackForTests(false);
-    try {
-      await handler(req, res);
-    } finally {
-      setClickHouseQueryTagTestFallbackForTests(true);
-    }
+    await handler(req, res);
 
     const events = parseSSEEvents(res._getData());
 

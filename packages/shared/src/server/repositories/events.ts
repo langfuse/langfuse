@@ -16,7 +16,10 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
+import type {
+  ClickHouseQueryContextTags,
+  ClickHouseQueryFeature,
+} from "../clickhouse/queryTags";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
@@ -979,7 +982,7 @@ export const getTraceByIdFromEventsTable = async ({
   timestamp?: Date;
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
-  clickhouseFeatureTag?: string;
+  clickhouseFeatureTag?: ClickHouseQueryFeature;
   clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
   /** When true, sets input/output columns to empty in the query to reduce database load */
@@ -1602,6 +1605,7 @@ type PublicApiTracesQuery = {
   fields?: string[];
   advancedFilters?: FilterState;
   orderBy?: { column: string; order: "ASC" | "DESC" } | null;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 };
 
 /**
@@ -1619,6 +1623,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
     advancedFilters,
     fields,
     orderBy,
+    clickHouseQueryTags,
     ...filterParams
   } = opts;
 
@@ -1757,6 +1762,7 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
     input: {
       params,
       tags: {
+        ...clickHouseQueryTags,
         feature: "tracing",
         type: "traces",
         kind: opts.select === "count" ? "publicApiCount" : "publicApiRows",

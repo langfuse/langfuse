@@ -43,7 +43,10 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
+import type {
+  ClickHouseQueryContextTags,
+  ClickHouseQueryFeature,
+} from "../clickhouse/queryTags";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
@@ -539,7 +542,7 @@ export const getTraceByIdFromTracesTable = async ({
   timestamp?: Date;
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
-  clickhouseFeatureTag?: string;
+  clickhouseFeatureTag?: ClickHouseQueryFeature;
   clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
   /** When true, sets input/output columns to empty in the query to reduce database load */
@@ -2119,12 +2122,14 @@ export const generateTracesForPublicApi = async ({
   orderBy,
   pagination,
   fields,
+  clickHouseQueryTags,
 }: {
   projectId: string;
   filter: FilterList;
   orderBy: OrderByState;
   pagination?: { limit: number; page: number };
   fields?: TraceFieldGroup[];
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const requestedFields = fields ?? TRACE_FIELD_GROUPS;
   const includeIO = requestedFields.includes("io");
@@ -2149,6 +2154,7 @@ export const generateTracesForPublicApi = async ({
     input: {
       params,
       tags: {
+        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "public-api",
@@ -2187,10 +2193,12 @@ export const getTracesCountForPublicApi = async ({
   projectId,
   filter,
   pagination,
+  clickHouseQueryTags,
 }: {
   projectId: string;
   filter: FilterList;
   pagination?: { limit: number; page: number };
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const appliedFilter = filter.apply();
 
@@ -2244,6 +2252,7 @@ export const getTracesCountForPublicApi = async ({
     input: {
       params,
       tags: {
+        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "count",

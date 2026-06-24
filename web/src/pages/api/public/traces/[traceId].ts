@@ -29,6 +29,11 @@ import Decimal from "decimal.js";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
+const publicApiTraceClickHouseQueryTags = {
+  surface: "publicapi",
+  route: "GET /api/public/traces/{id}",
+} as const;
+
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
@@ -63,7 +68,8 @@ export default withMiddlewares(
         const trace = await getTraceById({
           traceId,
           projectId: auth.scope.projectId,
-          clickhouseFeatureTag: "tracing-public-api",
+          clickhouseFeatureTag: "tracing",
+          clickHouseQueryTags: publicApiTraceClickHouseQueryTags,
           preferredClickhouseService: "ReadOnly",
           excludeInputOutput: !includeIO,
           excludeMetadata: !includeIO,
@@ -82,6 +88,7 @@ export default withMiddlewares(
                 projectId: auth.scope.projectId,
                 timestamp: trace?.timestamp,
                 includeIO: includeObservations,
+                clickHouseQueryTags: publicApiTraceClickHouseQueryTags,
                 preferredClickhouseService: "ReadOnly",
               })
             : Promise.resolve([]),
@@ -90,6 +97,7 @@ export default withMiddlewares(
                 projectId: auth.scope.projectId,
                 traceIds: [traceId],
                 timestamp: trace?.timestamp,
+                clickHouseQueryTags: publicApiTraceClickHouseQueryTags,
                 preferredClickhouseService: "ReadOnly",
               })
             : Promise.resolve([]),
