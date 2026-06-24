@@ -4,6 +4,7 @@ import React, {
   useState,
   useMemo,
   useCallback,
+  useRef,
   type CSSProperties,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -220,6 +221,28 @@ export function DataTable<TData extends object, TValue>({
 
   const { columnSizing, setColumnSizing } = useColumnSizing(tableName);
 
+  // Releasing a column-resize drag fires a synthetic `click` on the underlying
+  // header (the resize handle is a child of <TableHead>), which would otherwise
+  // toggle the column sort. We stamp when a resize ends and ignore header
+  // clicks that land within a short window after it. The stamp is set from a
+  // one-shot document listener registered on resize start, so it fires before
+  // the click regardless of where the pointer is released.
+  const lastColumnResizeEndRef = useRef(0);
+  const beginColumnResize = useCallback(
+    (handler: (event: unknown) => void) =>
+      (event: React.MouseEvent | React.TouchEvent) => {
+        handler(event);
+        const onResizeEnd = () => {
+          lastColumnResizeEndRef.current = Date.now();
+          document.removeEventListener("mouseup", onResizeEnd);
+          document.removeEventListener("touchend", onResizeEnd);
+        };
+        document.addEventListener("mouseup", onResizeEnd);
+        document.addEventListener("touchend", onResizeEnd);
+      },
+    [],
+  );
+
   // Infer column pinning state from column properties
   const columnPinning = useMemo<ColumnPinningState>(
     () => ({
@@ -393,6 +416,15 @@ export function DataTable<TData extends object, TValue>({
                         onClick={(event) => {
                           event.preventDefault();
 
+                          // Ignore the click synthesized when a column-resize
+                          // drag is released over the header.
+                          if (
+                            Date.now() - lastColumnResizeEndRef.current <
+                            250
+                          ) {
+                            return;
+                          }
+
                           if (!setOrderBy || !columnDef.id || !sortingEnabled) {
                             return;
                           }
@@ -428,7 +460,7 @@ export function DataTable<TData extends object, TValue>({
                       >
                         {header.isPlaceholder ? null : (
                           <div className="flex items-center select-none">
-                            <span className="truncate">
+                            <span className="truncate leading-normal">
                               {flexRender(
                                 header.column.columnDef.header,
                                 header.getContext(),
@@ -452,8 +484,12 @@ export function DataTable<TData extends object, TValue>({
                                 e.stopPropagation();
                               }}
                               onDoubleClick={() => header.column.resetSize()}
-                              onMouseDown={header.getResizeHandler()}
-                              onTouchStart={header.getResizeHandler()}
+                              onMouseDown={beginColumnResize(
+                                header.getResizeHandler(),
+                              )}
+                              onTouchStart={beginColumnResize(
+                                header.getResizeHandler(),
+                              )}
                               className={cn(
                                 "bg-secondary absolute top-0 right-0 h-full w-1.5 cursor-col-resize touch-none opacity-0 select-none group-hover:opacity-100",
                                 header.column.getIsResizing() &&
@@ -748,7 +784,7 @@ function TableBodyComponent<TData>({
                     )}
                   >
                     {isStringCell && isSmallRowHeight ? (
-                      <div className="min-w-0 truncate leading-none">
+                      <div className="min-w-0 truncate leading-normal">
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext(),
