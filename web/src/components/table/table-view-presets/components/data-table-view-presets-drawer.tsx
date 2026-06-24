@@ -140,6 +140,9 @@ interface TableViewPresetsDrawerProps {
     projectId: string;
     controllers: {
       selectedViewId: string | null;
+      /** The view whose full state was actually applied this session (null on a
+       * shared-link visit where the view is intentionally not applied). */
+      appliedViewId: string | null;
       handleSetViewId: (viewId: string | null) => void;
       applyViewState: (viewData: TableViewPresetState) => void;
     };
@@ -178,7 +181,8 @@ export function TableViewPresetsDrawer({
 }: TableViewPresetsDrawerProps) {
   const [searchQuery, setSearchQueryLocal] = useState("");
   const { tableName, projectId, controllers } = viewConfig;
-  const { handleSetViewId, applyViewState, selectedViewId } = controllers;
+  const { handleSetViewId, applyViewState, selectedViewId, appliedViewId } =
+    controllers;
   const { TableViewPresetsList } = useViewData({ tableName, projectId });
   const {
     createMutation,
@@ -302,6 +306,27 @@ export function TableViewPresetsDrawer({
       name: updatedView.name,
     });
 
+    // Column order/visibility are the visitor's per-table localStorage, which
+    // only reflects this view when the view was actually applied this session.
+    // On a shared-link visit the view is intentionally not applied, so
+    // `currentState`'s columns are the visitor's own unrelated layout — sending
+    // them would silently overwrite the saved view's columns. In that case keep
+    // the view's stored column layout instead (LFE-10486). Filters/sort/search
+    // always come from the live state, since updating those to what the visitor
+    // currently sees is exactly the intent.
+    const viewWasApplied = appliedViewId === selectedViewId;
+    const storedView = TableViewPresetsList?.find(
+      (view) => view.id === selectedViewId,
+    );
+    const columnOrder =
+      viewWasApplied || !storedView
+        ? currentState.columnOrder
+        : storedView.columnOrder;
+    const columnVisibility =
+      viewWasApplied || !storedView
+        ? currentState.columnVisibility
+        : storedView.columnVisibility;
+
     updateConfigMutation.mutate({
       projectId,
       name: updatedView.name,
@@ -309,8 +334,8 @@ export function TableViewPresetsDrawer({
       tableName,
       orderBy: currentState.orderBy,
       filters: currentState.filters,
-      columnOrder: currentState.columnOrder,
-      columnVisibility: currentState.columnVisibility,
+      columnOrder,
+      columnVisibility,
       searchQuery: currentState.searchQuery,
     });
   };

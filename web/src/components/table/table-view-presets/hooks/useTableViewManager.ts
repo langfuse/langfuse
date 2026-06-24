@@ -96,6 +96,12 @@ export function useTableViewManager({
   const isRouterReady = router.isReady;
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  // The view whose full state (incl. column layout) was actually applied to the
+  // live table this session — set whenever applyViewState runs. Used to tell a
+  // deliberate view application apart from a shared-link visit where the view
+  // is intentionally NOT applied, so "Update view" never saves the visitor's
+  // unrelated local columns over the view (LFE-10486).
+  const [appliedViewId, setAppliedViewId] = useState<string | null>(null);
   const capture = usePostHogClientCapture();
 
   const [storedViewId, setStoredViewId] = useSessionStorage<string | null>(
@@ -251,9 +257,14 @@ export function useTableViewManager({
 
   // Method to apply state from a view
   const applyViewState = useCallback(
-    (viewData: TableViewPresetState) => {
+    (viewData: TableViewPresetState & { id?: string }) => {
       // lock table
       setIsLoading(true);
+
+      // Record that this view's full state is now reflected in the live table
+      // (filters in the URL, column layout in localStorage). Saved views and
+      // drawer selections carry an id; synthetic system presets do not.
+      if (viewData.id) setAppliedViewId(viewData.id);
 
       /**
        * Validate orderBy and filters
@@ -456,6 +467,7 @@ export function useTableViewManager({
       applyViewState: () => {},
       handleSetViewId: () => {},
       selectedViewId: null,
+      appliedViewId: null,
       defaultViewScope: null,
     };
   }
@@ -465,6 +477,7 @@ export function useTableViewManager({
     applyViewState,
     handleSetViewId,
     selectedViewId,
+    appliedViewId,
     defaultViewScope: resolvedDefault?.scope ?? null,
   };
 }
