@@ -800,7 +800,7 @@ export default function ObservationsEventsTable({
           <MemoizedIOTableCell
             isLoading={false}
             data={value}
-            className={cn("bg-accent-light-green")}
+            className="bg-accent-light-green"
             singleLine={rowHeight === "s"}
           />
         ) : null;
