@@ -85,10 +85,11 @@ export function SearchBarAiPrompt({
     const prompt = value.trim();
     if (prompt.length === 0 || pending) return;
     setError(null);
-    // Re-read the live draft at submit time (mirrors how commit() always reads
-    // store.getState().draft): the filters can change via the sidebar/saved-view
-    // selector while AI mode is open, and sending a stale context would make the
-    // model return a complete set that silently drops the just-added filter.
+    // Snapshot the committed draft at submit (mirrors how commit() always reads
+    // store.getState().draft). It serves two no-silent-drop guards: it's the
+    // refine context sent to the model, AND the baseline we re-check on resolve.
+    // The sidebar/saved-view selector stay mounted and can change the filters
+    // mid-request; the model returns the COMPLETE set based on this snapshot.
     const refine = store.getState().draft.trim();
     try {
       const result = await generateFilter.mutateAsync({
@@ -99,6 +100,15 @@ export function SearchBarAiPrompt({
       });
       // Cancelled mid-flight (Back clicked while generating): don't apply.
       if (cancelledRef.current) return;
+      // Filters changed externally (e.g. a sidebar facet click) while the
+      // request was in flight: the model's COMPLETE set is now stale, so
+      // applying it would silently drop that change (it's grammar-representable,
+      // so mergeWithSkipped won't preserve it). Bail and let the user retry
+      // against the updated filters instead.
+      if (store.getState().draft.trim() !== refine) {
+        setError("Filters changed while generating — try again.");
+        return;
+      }
       if (result.filters.length === 0) {
         setError("Couldn't build filters from that — try rephrasing.");
         return;
