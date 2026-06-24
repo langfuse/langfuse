@@ -1220,9 +1220,13 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // counter is reset on re-enable (upsertBlobStorageIntegration), not
         // here, so a losing worker's stale increment can't shrink the next
         // grace period.
+        // Seed lastFailureNotificationSentAt in the same claim so a concurrent
+        // loser (paused=false) hits a fresh cooldown and is suppressed —
+        // otherwise it could send a contradictory "failed" email alongside the
+        // winner's "paused" email for the same trip.
         const { count } = await prisma.blobStorageIntegration.updateMany({
           where: { projectId, enabled: true },
-          data: { enabled: false },
+          data: { enabled: false, lastFailureNotificationSentAt: new Date() },
         });
         if (count > 0) {
           paused = true;

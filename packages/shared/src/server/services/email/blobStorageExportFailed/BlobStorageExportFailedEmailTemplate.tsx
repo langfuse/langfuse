@@ -85,8 +85,9 @@ export const BlobStorageExportFailedEmailTemplate = ({
 
             <Section>
               <Text className="text-[#666666] text-[12px] leading-[24px]">
-                This notification was sent to project admins regarding a failed
-                blob storage export for project &quot;{projectName}&quot;.
+                This notification was sent to project admins regarding a{" "}
+                {paused ? "paused" : "failed"} blob storage export for project
+                &quot;{projectName}&quot;.
               </Text>
             </Section>
           </Container>
