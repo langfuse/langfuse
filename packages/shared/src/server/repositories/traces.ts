@@ -235,6 +235,7 @@ export const getTracesByIds = async (
   projectId: string,
   timestamp?: Date,
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const records = await measureAndReturn({
     operationName: "getTracesByIds",
@@ -248,6 +249,7 @@ export const getTracesByIds = async (
           : null,
       },
       tags: {
+        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "byId",

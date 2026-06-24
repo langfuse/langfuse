@@ -154,6 +154,7 @@ export const getScoresByIds = async (
   projectId: string,
   scoreId: string[],
   source?: ScoreSourceType,
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<ScoreDomain[]> => {
   return _handleGetScoresByIds({
     projectId,
@@ -161,6 +162,7 @@ export const getScoresByIds = async (
     source,
     scoreScope: "all",
     dataTypes: LISTABLE_SCORE_TYPES,
+    clickHouseQueryTags,
   });
 };
 
@@ -198,6 +200,7 @@ export type GetScoresForTracesProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 };
 
@@ -212,6 +215,7 @@ type GetScoresForSessionsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 };
 
 type GetScoresForExperimentsProps<
@@ -225,6 +229,7 @@ type GetScoresForExperimentsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 };
 
 const formatMetadataSelect = (
@@ -255,6 +260,7 @@ export const getScoresForSessions = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    clickHouseQueryTags,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -281,6 +287,7 @@ export const getScoresForSessions = async <
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "list",
@@ -309,6 +316,7 @@ export const getScoresForExperiments = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    clickHouseQueryTags,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -335,6 +343,7 @@ export const getScoresForExperiments = async <
       offset,
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "list",
@@ -355,6 +364,7 @@ export const getScoresForExperiments = async <
 export const getTraceScoresForDatasetRuns = async (
   projectId: string,
   datasetRunIds: string[],
+  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<Array<{ dataset_run_id: string } & any>> => {
   if (datasetRunIds.length === 0) return [];
 
@@ -408,6 +418,7 @@ export const getTraceScoresForDatasetRuns = async (
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "datasets",
       type: "trace-scores",
       kind: "list",
@@ -534,6 +545,7 @@ const getScoresForTracesInternal = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    clickHouseQueryTags,
     preferredClickhouseService,
   } = props;
 
@@ -580,6 +592,7 @@ const getScoresForTracesInternal = async <
         : {}),
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "list",
@@ -656,6 +669,7 @@ export type GetScoresForObservationsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 };
 
 // Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
@@ -674,6 +688,7 @@ export const getScoresForObservations = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
+    clickHouseQueryTags,
   } = props;
 
   const select = [
@@ -719,6 +734,7 @@ export const getScoresForObservations = async <
         : {}),
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "list",
@@ -1064,11 +1080,13 @@ export async function getScoresUiTable<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) {
   const {
     excludeMetadata = false,
     includeHasMetadataFlag = false,
     clickhouseConfigs,
+    clickHouseQueryTags,
     ...rest
   } = props;
 
@@ -1107,6 +1125,7 @@ export async function getScoresUiTable<
   }>({
     select: "rows",
     tags: { kind: "analytic" },
+    clickHouseQueryTags,
     excludeMetadata,
     includeHasMetadataFlag,
     clickhouseConfigs,
@@ -1144,6 +1163,7 @@ const getScoresUiGeneric = async <T>(props: {
   limit?: number;
   offset?: number;
   tags?: Record<string, string>;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
@@ -1155,6 +1175,7 @@ const getScoresUiGeneric = async <T>(props: {
     limit,
     offset,
     clickhouseConfigs,
+    clickHouseQueryTags,
     excludeMetadata = false,
     includeHasMetadataFlag = false,
   } = props;
@@ -1237,6 +1258,7 @@ const getScoresUiGeneric = async <T>(props: {
         offset: offset,
       },
       tags: {
+        ...clickHouseQueryTags,
         ...(props.tags ?? {}),
         feature: "tracing",
         type: "score",

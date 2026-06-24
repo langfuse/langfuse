@@ -12,6 +12,10 @@ import { v4 } from "uuid";
 
 let projectId: string;
 let auth: string;
+const directPublicApiClickHouseQueryTags = {
+  surface: "publicapi" as const,
+  route: "POST /api/public/ingestion",
+};
 
 const postIngestion = (body: unknown) =>
   makeAPICall("POST", "/api/public/ingestion", body, auth);
@@ -107,6 +111,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         const trace = await getTraceById({
           traceId: entity.body.id,
           projectId,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(entity.body.id);
@@ -385,6 +390,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           id: entity.body.id,
           projectId,
           fetchWithInputOutput: true,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(observation).toBeDefined();
         expect(observation!.id).toBe(entity.body.id);
@@ -446,6 +452,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         const score = await getScoreById({
           projectId,
           scoreId: entity.body.id,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(score).toBeDefined();
         expect(score!.id).toBe(entity.body.id);
@@ -508,6 +515,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         const trace = await getTraceById({
           traceId: `${traceId}-${char}-test`,
           projectId,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(`${traceId}-${char}-test`);
@@ -670,6 +678,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         projectId,
         "trace",
         traceId,
+        directPublicApiClickHouseQueryTags,
       );
       expect(logs.length).toBeGreaterThan(0);
       expect(logs[0].bucket_path).toBe(
@@ -706,7 +715,11 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const trace = await getTraceById({ traceId, projectId });
+        const trace = await getTraceById({
+          traceId,
+          projectId,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+        });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(traceId);
         expect(JSON.stringify(trace!.metadata)).toBe(
@@ -751,6 +764,7 @@ describe("/api/public/ingestion API Endpoint", () => {
           id: observationId,
           projectId,
           fetchWithInputOutput: true,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(observation).toBeDefined();
         expect(observation!.id).toBe(observationId);
@@ -792,7 +806,11 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const score = await getScoreById({ projectId, scoreId });
+        const score = await getScoreById({
+          projectId,
+          scoreId,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+        });
         expect(score).toBeDefined();
         expect(score!.id).toBe(scoreId);
         expect(JSON.stringify(score!.metadata)).toBe(
@@ -838,7 +856,11 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response1.status).toBe(207);
 
     await waitForExpect(async () => {
-      const trace = await getTraceById({ traceId, projectId });
+      const trace = await getTraceById({
+        traceId,
+        projectId,
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+      });
       expect(trace?.metadata).toEqual({
         step: 1,
         status: "started",
@@ -851,7 +873,11 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response2.status).toBe(207);
 
     await waitForExpect(async () => {
-      const trace = await getTraceById({ traceId, projectId });
+      const trace = await getTraceById({
+        traceId,
+        projectId,
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+      });
       expect(trace).toBeDefined();
       expect(trace!.id).toBe(traceId);
       expect(trace!.projectId).toBe(projectId);
@@ -906,7 +932,11 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.status).toBe(207);
 
     await waitForExpect(async () => {
-      const score = await getScoreById({ projectId, scoreId });
+      const score = await getScoreById({
+        projectId,
+        scoreId,
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+      });
       expect(score).toBeDefined();
       expect(score!.id).toBe(scoreId);
       expect(score!.projectId).toBe(projectId);

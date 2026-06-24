@@ -8,6 +8,10 @@ import {
 import { randomBytes } from "crypto";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+const directPublicApiClickHouseQueryTags = {
+  surface: "publicapi" as const,
+  route: "POST /api/public/otel/v1/traces",
+};
 
 describe("/api/public/otel/v1/traces API Endpoint", () => {
   it("should process a json payload correctly", async () => {
@@ -70,6 +74,7 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       const trace = await getTraceById({
         projectId,
         traceId: traceId.toString("hex"),
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       });
       expect(trace).toBeDefined();
       expect(trace!.id).toBe(traceId.toString("hex"));
@@ -77,6 +82,7 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       const observation = await getObservationById({
         projectId,
         id: spanId.toString("hex"),
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       });
       expect(observation).toBeDefined();
       expect(observation!.id).toBe(spanId.toString("hex"));
@@ -185,6 +191,7 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       const trace = await getTraceById({
         projectId,
         traceId: traceId.toString("hex"),
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       });
       expect(trace).toBeDefined();
       expect(trace!.id).toBe(traceId.toString("hex"));
@@ -193,6 +200,7 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
         projectId,
         id: spanId.toString("hex"),
         fetchWithInputOutput: true,
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       });
       expect(observation).toBeDefined();
       expect(observation!.id).toBe(spanId.toString("hex"));
@@ -396,12 +404,14 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       const trace = await getTraceById({
         projectId,
         traceId: traceId.toString("hex"),
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       });
       expect(trace).toBeDefined();
 
       const observation = await getObservationById({
         projectId,
         id: spanId.toString("hex"),
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       });
       expect(observation).toBeDefined();
       expect(observation!.name).toBe("underscore-header-span");
@@ -473,6 +483,7 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       const trace = await getTraceById({
         projectId,
         traceId: traceId.toString("hex"),
+        clickHouseQueryTags: directPublicApiClickHouseQueryTags,
       });
       expect(trace).toBeDefined();
       expect(trace!.id).toBe(traceId.toString("hex"));
@@ -556,6 +567,7 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
         const trace = await getTraceById({
           projectId,
           traceId: traceId.toString("hex"),
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
         });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(traceId.toString("hex"));

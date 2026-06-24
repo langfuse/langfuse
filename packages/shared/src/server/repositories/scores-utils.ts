@@ -76,12 +76,14 @@ export const _handleGetScoresByIds = async ({
   source,
   scoreScope,
   dataTypes,
+  clickHouseQueryTags,
 }: {
   projectId: string;
   scoreId: string[];
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
   dataTypes?: readonly ScoreDataTypeType[];
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }): Promise<ScoreDomain[]> => {
   const query = `
   SELECT *
@@ -104,6 +106,7 @@ export const _handleGetScoresByIds = async ({
       ...(source !== undefined ? { source } : {}),
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "byId",

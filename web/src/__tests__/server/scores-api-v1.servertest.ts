@@ -26,6 +26,11 @@ import { v4 } from "uuid";
 import { z } from "zod";
 import waitForExpect from "wait-for-expect";
 
+const directPublicApiClickHouseQueryTags = {
+  surface: "publicapi" as const,
+  route: "scores-api-v1.servertest",
+};
+
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
     it("should GET a score", async () => {
@@ -184,7 +189,12 @@ describe("/api/public/scores API Endpoint", () => {
       // Then
       expect(deleteResponse.status).toBe(202);
       await waitForExpect(async () => {
-        const scores = await getScoresByIds(projectId, [scoreId]);
+        const scores = await getScoresByIds(
+          projectId,
+          [scoreId],
+          undefined,
+          directPublicApiClickHouseQueryTags,
+        );
         expect(scores).toHaveLength(0);
       });
     });
@@ -1318,7 +1328,12 @@ describe("/api/public/scores API Endpoint", () => {
         // Wait for scores to be available
         // Note: getScoresByIds only returns aggregatable scores, so we only check for the NUMERIC score
         await waitForExpect(async () => {
-          const checkScores = await getScoresByIds(projectId, [numericScoreId]);
+          const checkScores = await getScoresByIds(
+            projectId,
+            [numericScoreId],
+            undefined,
+            directPublicApiClickHouseQueryTags,
+          );
           expect(checkScores).toHaveLength(1);
         });
 
@@ -1371,9 +1386,12 @@ describe("/api/public/scores API Endpoint", () => {
 
         // Wait for score to be available
         await waitForExpect(async () => {
-          const checkScore = await getScoresByIds(projectId, [
-            correctionScoreId,
-          ]);
+          const checkScore = await getScoresByIds(
+            projectId,
+            [correctionScoreId],
+            undefined,
+            directPublicApiClickHouseQueryTags,
+          );
           expect(checkScore).toHaveLength(0);
         });
 
@@ -1413,7 +1431,11 @@ describe("/api/public/scores API Endpoint", () => {
       expect(response.body).toHaveProperty("id", scoreId);
 
       await waitForExpect(async () => {
-        const score = await getScoreById({ projectId, scoreId });
+        const score = await getScoreById({
+          projectId,
+          scoreId,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+        });
         expect(score).toBeDefined();
         expect(score!.id).toBe(scoreId);
         expect(score!.traceId).toBe(traceId);
@@ -1525,7 +1547,11 @@ describe("/api/public/scores API Endpoint", () => {
       expect(response.status).toBe(200);
 
       await waitForExpect(async () => {
-        const score = await getScoreById({ projectId, scoreId });
+        const score = await getScoreById({
+          projectId,
+          scoreId,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+        });
         expect(score).toBeDefined();
         expect(score!.source).toBe("API");
       });
@@ -1591,7 +1617,11 @@ describe("/api/public/scores API Endpoint", () => {
       expect(response.status).toBe(200);
 
       await waitForExpect(async () => {
-        const score = await getScoreById({ projectId, scoreId });
+        const score = await getScoreById({
+          projectId,
+          scoreId,
+          clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+        });
         expect(score).toBeDefined();
         expect(score!.source).toBe("ANNOTATION");
         expect(score!.configId).toBe(configId);
@@ -1649,7 +1679,11 @@ describe("/api/public/scores API Endpoint", () => {
 
       await waitForExpect(
         async () => {
-          const score = await getScoreById({ projectId, scoreId });
+          const score = await getScoreById({
+            projectId,
+            scoreId,
+            clickHouseQueryTags: directPublicApiClickHouseQueryTags,
+          });
           expect(score).toBeDefined();
           expect(score!.source).toBe("ANNOTATION");
           expect(score!.dataType).toBe("CORRECTION");

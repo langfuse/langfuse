@@ -1,4 +1,7 @@
+import * as opentelemetry from "@opentelemetry/api";
+import { it as baseIt } from "vitest";
 import {
+  contextWithLangfuseProps,
   createObservation,
   createObservationsCh,
 } from "@langfuse/shared/src/server";
@@ -9,6 +12,19 @@ import {
 import { v4 } from "uuid";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+const it = (name: string, fn: () => Promise<unknown> | unknown) =>
+  baseIt(name, () =>
+    opentelemetry.context.with(
+      contextWithLangfuseProps({
+        clickhouse: {
+          surface: "trpc",
+          route: "observation-repository.servertest",
+        },
+      }),
+      fn,
+    ),
+  );
 
 describe("Clickhouse Observations Repository Test", () => {
   it("should throw if no observations are found", async () => {

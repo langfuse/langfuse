@@ -270,6 +270,11 @@ async function createEventPatchParts(
       update_parallel_mode: "sync",
       lightweight_deletes_sync: 2,
     },
+    tags: {
+      surface: "worker",
+      route: "DeletedMaskCleaner.test",
+      feature: "deletion",
+    },
   });
 
   for (const { partition } of partitions) {

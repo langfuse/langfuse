@@ -249,6 +249,7 @@ describe("ProjectDeletionProcessingJob", () => {
         projectId,
         "trace",
         `${baseId}-trace`,
+        directWorkerClickHouseQueryTags,
       );
       expect(eventLogRecord).toHaveLength(0);
     },

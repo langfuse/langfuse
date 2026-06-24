@@ -24,6 +24,10 @@ describe("DataRetentionProcessingJob", () => {
   let storageService: StorageService;
   let s3Prefix: string | null = null;
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+  const directWorkerClickHouseQueryTags = {
+    surface: "worker" as const,
+    route: "DataRetentionProcessingJob.test",
+  };
 
   beforeAll(() => {
     storageService = StorageServiceFactory.getInstance({
@@ -101,6 +105,7 @@ describe("DataRetentionProcessingJob", () => {
       projectId,
       "trace",
       `${baseId}-trace`,
+      directWorkerClickHouseQueryTags,
     );
     expect(eventLogRecord).toHaveLength(1);
 
@@ -160,6 +165,7 @@ describe("DataRetentionProcessingJob", () => {
       projectId,
       "trace",
       `${baseId}-trace`,
+      directWorkerClickHouseQueryTags,
     );
     expect(eventLogRecord).toHaveLength(0);
 
@@ -335,11 +341,13 @@ describe("DataRetentionProcessingJob", () => {
     const traceOld = await getTraceById({
       traceId: `${baseId}-trace-old`,
       projectId,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(traceOld).toBeUndefined();
     const traceNew = await getTraceById({
       traceId: `${baseId}-trace-new`,
       projectId,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(traceNew).toBeDefined();
 
@@ -377,11 +385,16 @@ describe("DataRetentionProcessingJob", () => {
 
     // Then
     expect(() =>
-      getObservationById({ id: `${baseId}-observation-old`, projectId }),
+      getObservationById({
+        id: `${baseId}-observation-old`,
+        projectId,
+        clickHouseQueryTags: directWorkerClickHouseQueryTags,
+      }),
     ).rejects.toThrowError("not found");
     const observationNew = await getObservationById({
       id: `${baseId}-observation-new`,
       projectId,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(observationNew).toBeDefined();
 
@@ -421,11 +434,13 @@ describe("DataRetentionProcessingJob", () => {
     const scoresOld = await getScoreById({
       projectId,
       scoreId: `${baseId}-score-old`,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(scoresOld).toBeUndefined();
     const scoresNew = await getScoreById({
       projectId,
       scoreId: `${baseId}-score-new`,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(scoresNew).toBeDefined();
 
@@ -462,6 +477,7 @@ describe("DataRetentionProcessingJob", () => {
     const traceOld = await getTraceById({
       traceId: `${baseId}-trace-old`,
       projectId,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(traceOld).toBeDefined();
 
@@ -498,6 +514,7 @@ describe("DataRetentionProcessingJob", () => {
     const traceOld = await getTraceById({
       traceId: `${baseId}-trace-old-2`,
       projectId,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(traceOld).toBeDefined();
   });
@@ -535,12 +552,14 @@ describe("DataRetentionProcessingJob", () => {
     const traceVeryOld = await getTraceById({
       traceId: `${baseId}-trace-very-old`,
       projectId,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(traceVeryOld).toBeUndefined();
 
     const traceOld = await getTraceById({
       traceId: `${baseId}-trace-old`,
       projectId,
+      clickHouseQueryTags: directWorkerClickHouseQueryTags,
     });
     expect(traceOld).toBeDefined();
 

@@ -5,6 +5,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { fail } from "assert";
 
+const directTrpcClickHouseQueryTags = {
+  surface: "trpc" as const,
+  route: "clickhouse-resource-errors.servertest",
+  feature: "custom-query" as const,
+};
+
 describe("ClickHouse Resource Error Handling", () => {
   describe("queryClickhouse", () => {
     describe("Error transformation with throwIf", () => {
@@ -16,7 +22,7 @@ describe("ClickHouse Resource Error Handling", () => {
             res = await queryClickhouse<any>({
               query: `SELECT throwIf(number >= 2, 'memory limit exceeded: would use 10.23 GiB') AS v FROM system.numbers LIMIT 2000`,
               clickhouseSettings: { max_block_size: `${blockSize}` },
-              tags: { test: "marker" },
+              tags: { ...directTrpcClickHouseQueryTags, test: "marker" },
             });
             fail(
               "Should have thrown an error, observed instead " +
@@ -34,6 +40,7 @@ describe("ClickHouse Resource Error Handling", () => {
         try {
           await queryClickhouse({
             query: `SELECT throwIf(true, 'OvercommitTracker decision: Query was selected to stop by OvercommitTracker')`,
+            tags: directTrpcClickHouseQueryTags,
           });
           fail("Should have thrown an error");
         } catch (error: any) {
@@ -46,6 +53,7 @@ describe("ClickHouse Resource Error Handling", () => {
         try {
           await queryClickhouse({
             query: `SELECT throwIf(true, 'Timeout exceeded while reading from socket')`,
+            tags: directTrpcClickHouseQueryTags,
           });
           fail("Should have thrown an error");
         } catch (error: any) {
@@ -58,12 +66,14 @@ describe("ClickHouse Resource Error Handling", () => {
         await expect(
           queryClickhouse({
             query: `SELECT * FROM non_existent_table_xyz123`,
+            tags: directTrpcClickHouseQueryTags,
           }),
         ).rejects.toThrow();
 
         try {
           await queryClickhouse({
             query: `SELECT * FROM non_existent_table_xyz123`,
+            tags: directTrpcClickHouseQueryTags,
           });
         } catch (error: any) {
           expect(error).not.toBeInstanceOf(ClickHouseResourceError);
@@ -73,6 +83,7 @@ describe("ClickHouse Resource Error Handling", () => {
       it("should pass through successful queries", async () => {
         const result = await queryClickhouse<{ test_value: Number }>({
           query: "SELECT 1 as test_value",
+          tags: directTrpcClickHouseQueryTags,
         });
 
         expect(result).toBeDefined();
@@ -92,6 +103,7 @@ describe("ClickHouse Resource Error Handling", () => {
         const generator = queryClickhouseStream({
           query: `SELECT throwIf(number = 2, 'memory limit exceeded: would use 10.23 GiB') as V FROM numbers(10)`,
           clickhouseSettings: { max_block_size: `${blockSize}` },
+          tags: directTrpcClickHouseQueryTags,
         });
 
         let fullResponse = [];
@@ -111,6 +123,7 @@ describe("ClickHouse Resource Error Handling", () => {
       it("should stream successful queries", async () => {
         const generator = queryClickhouseStream({
           query: "SELECT number FROM system.numbers LIMIT 3",
+          tags: directTrpcClickHouseQueryTags,
         });
 
         const results = [];

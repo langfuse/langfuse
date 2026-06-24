@@ -1,5 +1,8 @@
+import * as opentelemetry from "@opentelemetry/api";
+import { it as baseIt } from "vitest";
 import {
   checkTraceExistsAndGetTimestamp,
+  contextWithLangfuseProps,
   createTracesCh,
 } from "@langfuse/shared/src/server";
 import {
@@ -11,6 +14,19 @@ import { createObservation, createTrace } from "@langfuse/shared/src/server";
 import { createObservationsCh } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+const it = (name: string, fn: () => Promise<unknown> | unknown) =>
+  baseIt(name, () =>
+    opentelemetry.context.with(
+      contextWithLangfuseProps({
+        clickhouse: {
+          surface: "trpc",
+          route: "trace-repository.servertest",
+        },
+      }),
+      fn,
+    ),
+  );
 
 describe("Clickhouse Traces Repository Test", () => {
   it("should throw if no traces are found", async () => {

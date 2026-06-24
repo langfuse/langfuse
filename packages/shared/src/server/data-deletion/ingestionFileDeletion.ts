@@ -23,6 +23,7 @@ export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
     p.projectId,
     "score",
     p.scoreIds,
+    p.clickHouseQueryTags,
   );
 
   return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
@@ -41,6 +42,7 @@ export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
     const stream = getBlobStorageByProjectIdAndTraceIds(
       p.projectId,
       p.traceIds,
+      p.clickHouseQueryTags,
     );
 
     return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
@@ -56,8 +58,12 @@ export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject = (
   clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const stream = cutOffDate
-    ? getBlobStorageByProjectIdBeforeDate(projectId, cutOffDate)
-    : getBlobStorageByProjectId(projectId);
+    ? getBlobStorageByProjectIdBeforeDate(
+        projectId,
+        cutOffDate,
+        clickHouseQueryTags,
+      )
+    : getBlobStorageByProjectId(projectId, clickHouseQueryTags);
 
   return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
     projectId: projectId,

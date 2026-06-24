@@ -1,4 +1,6 @@
+import * as opentelemetry from "@opentelemetry/api";
 import { prisma } from "@langfuse/shared/src/db";
+import { it as baseIt } from "vitest";
 import {
   createScoresCh,
   getScoreById,
@@ -23,8 +25,22 @@ import {
   createSessionScore,
   createOrgProjectAndApiKey,
   getScoreStringValues,
+  contextWithLangfuseProps,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+
+const it = (name: string, fn: () => Promise<unknown> | unknown) =>
+  baseIt(name, () =>
+    opentelemetry.context.with(
+      contextWithLangfuseProps({
+        clickhouse: {
+          surface: "trpc",
+          route: "score-repository.servertest",
+        },
+      }),
+      fn,
+    ),
+  );
 
 describe("Clickhouse Scores Repository Test", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -288,7 +304,10 @@ describe("Clickhouse Scores Repository Test", () => {
       const sessionId = v4();
 
       // Create trace
-      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      const trace = createTrace({
+        id: traceId,
+        project_id: isolatedProjectId,
+      });
       await createTracesCh([trace]);
 
       // Create session scores and trace scores
@@ -348,7 +367,10 @@ describe("Clickhouse Scores Repository Test", () => {
       const observationId2 = v4();
 
       // Create trace
-      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      const trace = createTrace({
+        id: traceId,
+        project_id: isolatedProjectId,
+      });
       await createTracesCh([trace]);
 
       // Create observations
@@ -692,7 +714,10 @@ describe("Clickhouse Scores Repository Test", () => {
         await createOrgProjectAndApiKey();
       const traceId = v4();
 
-      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      const trace = createTrace({
+        id: traceId,
+        project_id: isolatedProjectId,
+      });
       await createTracesCh([trace]);
 
       const score = createTraceScore({
@@ -717,7 +742,10 @@ describe("Clickhouse Scores Repository Test", () => {
         await createOrgProjectAndApiKey();
       const traceId = v4();
 
-      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      const trace = createTrace({
+        id: traceId,
+        project_id: isolatedProjectId,
+      });
       await createTracesCh([trace]);
 
       const scoreWithMeta = createTraceScore({
@@ -758,7 +786,10 @@ describe("Clickhouse Scores Repository Test", () => {
       const obsId1 = v4();
       const obsId2 = v4();
 
-      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      const trace = createTrace({
+        id: traceId,
+        project_id: isolatedProjectId,
+      });
       await createTracesCh([trace]);
 
       const obs1 = createObservation({
@@ -802,7 +833,10 @@ describe("Clickhouse Scores Repository Test", () => {
       const traceId = v4();
       const obsId = v4();
 
-      const trace = createTrace({ id: traceId, project_id: isolatedProjectId });
+      const trace = createTrace({
+        id: traceId,
+        project_id: isolatedProjectId,
+      });
       await createTracesCh([trace]);
 
       const obs = createObservation({

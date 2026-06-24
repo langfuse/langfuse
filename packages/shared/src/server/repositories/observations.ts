@@ -142,6 +142,7 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   projectId: string;
   timestamp?: Date;
   includeIO?: IncludeIO;
+  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 };
 
@@ -153,6 +154,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     projectId,
     timestamp,
     includeIO = false,
+    clickHouseQueryTags,
     preferredClickhouseService,
   } = opts;
 
@@ -208,6 +210,7 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
         : {}),
     },
     tags: {
+      ...clickHouseQueryTags,
       feature: "tracing",
       type: "observation",
       kind: "list",
