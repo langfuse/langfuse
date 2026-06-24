@@ -31,6 +31,7 @@ import {
 } from "@langfuse/shared";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
+import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
 
 // Custom language mode for prompts that highlights mustache variables and prompt dependency tags
 const promptLanguage = StreamLanguage.define({
@@ -465,6 +466,9 @@ export function CodeMirrorEditor({
       // `editable` DOM facet alone does not always prevent paste (see CM6
       // EditorState.readOnly vs EditorView.editable).
       ...(!editable ? [EditorState.readOnly.of(true)] : []),
+      // Restore native-textarea-like auto-scroll when a selection drag reaches
+      // the editor's top/bottom edge (CodeMirror doesn't do this on its own).
+      autoScrollOnSelectionDrag(),
       searchHighlightingSupport,
       search(),
       // RTL/bidi support - must be early for proper line decoration
