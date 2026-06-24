@@ -923,8 +923,17 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Blob storage integration is disabled for project ${projectId}`,
     );
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: { runStartedAt: null },
+    });
     return;
   }
+
+  await prisma.blobStorageIntegration.update({
+    where: { projectId },
+    data: { runStartedAt: new Date() },
+  });
 
   // Sync between lastSyncAt and now - 30 minutes
   // Cap the export to one frequency period to enable chunked historic exports
@@ -965,6 +974,15 @@ export const handleBlobStorageIntegrationProjectJob = async (
     logger.info(
       `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
     );
+    await prisma.blobStorageIntegration.update({
+      where: { projectId },
+      data: {
+        runStartedAt: null,
+        nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
+        lastError: null,
+        lastErrorAt: null,
+      },
+    });
     return;
   }
 
@@ -1140,6 +1158,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         nextSyncAt,
         lastError: null,
         lastErrorAt: null,
+        runStartedAt: null,
       },
     });
 
@@ -1176,6 +1195,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
         data: {
           lastError: errorMessage,
           lastErrorAt: new Date(),
+          runStartedAt: null,
         },
       });
     } catch (persistError) {
