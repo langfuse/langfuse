@@ -1,4 +1,6 @@
+import { Sha256 } from "@aws-crypto/sha256-browser";
 import { useCallback, useState } from "react";
+import { v4 as uuidv4 } from "uuid";
 
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { MediaContentType } from "@/src/features/media/validation";
@@ -18,9 +20,14 @@ const MAX_BROWSER_MEDIA_UPLOAD_SIZE_BYTES =
 export type PendingMediaUpload = { id: string; fileName: string };
 
 async function sha256Base64(buffer: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", buffer);
+  // Sha256 uses Web Crypto when available and falls back to a pure-JS
+  // implementation, so hashing also works on non-secure (HTTP) origins where
+  // crypto.subtle is unavailable.
+  const hash = new Sha256();
+  hash.update(new Uint8Array(buffer));
+  const digest = await hash.digest();
   let binary = "";
-  for (const byte of new Uint8Array(digest)) {
+  for (const byte of digest) {
     binary += String.fromCharCode(byte);
   }
   return btoa(binary);
@@ -79,7 +86,9 @@ export function useDatasetItemMediaUpload({
         return null;
       }
 
-      const pendingId = crypto.randomUUID();
+      // uuid's v4() falls back to crypto.getRandomValues, so it works on
+      // non-secure (HTTP) origins where crypto.randomUUID is unavailable.
+      const pendingId = uuidv4();
       setPendingUploads((prev) => [
         ...prev,
         { id: pendingId, fileName: file.name },
