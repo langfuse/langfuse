@@ -242,12 +242,12 @@ const generateDatasetQuery = ({
     FROM combined d
     ${orderAndLimit}
     `;
-  } else {
-    const baseColumns = Prisma.sql`id, name, description, metadata, project_id, updated_at, created_at, input_schema, expected_output_schema`;
+  }
+  const baseColumns = Prisma.sql`id, name, description, metadata, project_id, updated_at, created_at, input_schema, expected_output_schema`;
 
-    // When we're at the root level, show all individual datasets that don't have folders
-    // and one representative per folder for datasets that do have folders
-    return Prisma.sql`
+  // When we're at the root level, show all individual datasets that don't have folders
+  // and one representative per folder for datasets that do have folders
+  return Prisma.sql`
     WITH ${datasetsCTE},
     individual_datasets AS (
       /* Individual datasets without folders */
@@ -284,7 +284,6 @@ const generateDatasetQuery = ({
     FROM combined d
     ${orderAndLimit}
     `;
-  }
 };
 
 export const datasetRouter = createTRPCRouter({
@@ -608,30 +607,29 @@ export const datasetRouter = createTRPCRouter({
           totalRuns,
           runs,
         };
-      } else {
-        const [runs, totalRuns] = await Promise.all([
-          getDatasetRunsTableRowsCh({
-            projectId: input.projectId,
-            datasetId: input.datasetId,
-            filter: input.filter ?? [],
-            limit: isPresent(input.limit) ? input.limit : undefined,
-            offset:
-              isPresent(input.page) && isPresent(input.limit)
-                ? input.page * input.limit
-                : undefined,
-          }),
-          getDatasetRunsTableCountCh({
-            projectId: input.projectId,
-            datasetId: input.datasetId,
-            filter: input.filter ?? [],
-          }),
-        ]);
-
-        return {
-          totalRuns,
-          runs,
-        };
       }
+      const [runs, totalRuns] = await Promise.all([
+        getDatasetRunsTableRowsCh({
+          projectId: input.projectId,
+          datasetId: input.datasetId,
+          filter: input.filter ?? [],
+          limit: isPresent(input.limit) ? input.limit : undefined,
+          offset:
+            isPresent(input.page) && isPresent(input.limit)
+              ? input.page * input.limit
+              : undefined,
+        }),
+        getDatasetRunsTableCountCh({
+          projectId: input.projectId,
+          datasetId: input.datasetId,
+          filter: input.filter ?? [],
+        }),
+      ]);
+
+      return {
+        totalRuns,
+        runs,
+      };
     }),
 
   runsByDatasetIdMetrics: protectedProjectProcedure

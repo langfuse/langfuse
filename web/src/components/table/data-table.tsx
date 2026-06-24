@@ -274,9 +274,8 @@ export function DataTable<TData extends object, TValue>({
     getRowId: (row, index) => {
       if ("id" in row && typeof row.id === "string") {
         return row.id;
-      } else {
-        return index.toString();
       }
+      return index.toString();
     },
     state: {
       columnFilters,
@@ -524,12 +523,11 @@ export function DataTable<TData extends object, TValue>({
 function renderOrderingIndicator(orderBy?: OrderByState) {
   if (!orderBy) return null;
   if (orderBy.order === "ASC") return <span className="ml-1">▲</span>;
-  else
-    return (
-      <span className="ml-1" title="Sort by this column">
-        ▼
-      </span>
-    );
+  return (
+    <span className="ml-1" title="Sort by this column">
+      ▼
+    </span>
+  );
 }
 
 interface TableBodyComponentProps<TData> {

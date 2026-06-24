@@ -1045,10 +1045,11 @@ class GoogleCloudStorageService implements StorageService {
             .on("finish", () => {
               resolve();
             });
+          return;
         });
-      } else {
-        throw new Error("Unsupported data type. Must be Readable or string.");
       }
+
+      throw new Error("Unsupported data type. Must be Readable or string.");
     } catch (err) {
       logger.error(
         `Failed to upload file to Google Cloud Storage ${fileName}`,
