@@ -6,6 +6,8 @@ import {
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  exportStartDateNotInFuture,
+  EXPORT_START_DATE_FUTURE_ERROR,
 } from "@/src/features/blobstorage-integration/validation";
 
 /**
@@ -103,13 +105,9 @@ export const CreateBlobStorageIntegrationRequest = z
     exportMode: BlobStorageExportMode,
     exportStartDate: z.coerce
       .date()
-      .refine(
-        (d) => {
-          if (!d) return true;
-          return d.getTime() <= Date.now() + 27 * 60 * 60 * 1000;
-        },
-        { message: "Export start date must be at most 24 hours in the future" },
-      )
+      .refine(exportStartDateNotInFuture, {
+        message: EXPORT_START_DATE_FUTURE_ERROR,
+      })
       .nullable()
       .optional(),
     compressed: z.boolean().optional().default(true),

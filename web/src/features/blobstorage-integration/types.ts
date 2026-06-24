@@ -9,6 +9,8 @@ import {
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  exportStartDateNotInFuture,
+  EXPORT_START_DATE_FUTURE_ERROR,
 } from "@/src/features/blobstorage-integration/validation";
 
 export const blobStorageIntegrationFormSchemaBase = z.object({
@@ -36,16 +38,9 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .default(BlobStorageExportMode.FULL_HISTORY),
   exportStartDate: z.coerce
     .date()
-    .refine(
-      (d) => {
-        if (!d) return true;
-        // 27h tolerance covers all real-world TZ offsets (UTC-12 to UTC+14 = 26h span + 1h margin).
-        // The HTML date picker sends YYYY-MM-DD parsed as UTC midnight; on a UTC server,
-        // an east-of-UTC user's local today can be up to 14h ahead of server UTC.
-        return d.getTime() <= Date.now() + 27 * 60 * 60 * 1000;
-      },
-      { message: "Export start date must be at most 24 hours in the future" },
-    )
+    .refine(exportStartDateNotInFuture, {
+      message: EXPORT_START_DATE_FUTURE_ERROR,
+    })
     .optional()
     .nullable(),
   exportSource: z

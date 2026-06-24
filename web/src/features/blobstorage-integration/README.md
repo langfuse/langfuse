@@ -74,7 +74,7 @@ up_to_date  ← fallthrough
 | **idle/queued** | Scheduler finds `nextSyncAt<=now` or `lastSyncAt=null` | Enqueues BullMQ job (no DB write) | stays **queued** |
 | **queued** | Worker starts job | `runStartedAt=now` | **running** |
 | **running** | Worker: integration disabled | `runStartedAt=null` | **disabled** |
-| **running** | Worker: empty time window | `runStartedAt=null`, `nextSyncAt=now+frequency` | **up_to_date** |
+| **running** | Worker: empty time window | `runStartedAt=null`, `nextSyncAt=now+frequency`, `lastError=null` | **up_to_date** |
 | **running** | Worker: export succeeds, caught up | `lastSyncAt=max`, `nextSyncAt=max+freq`, `lastError=null`, `runStartedAt=null` | **up_to_date** |
 | **running** | Worker: export succeeds, not caught up | `lastSyncAt=max`, `nextSyncAt=now`, `lastError=null`, `runStartedAt=null` + re-enqueues job | **queued** (immediately) |
 | **running** | Worker: export fails | `lastError=msg`, `lastErrorAt=now`, `runStartedAt=null` | **error** |

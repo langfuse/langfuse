@@ -124,7 +124,7 @@ types:
       exportMode: BlobStorageExportMode
       exportStartDate:
         type: optional<datetime>
-        docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE). Must be at most 24 hours in the future to allow for timezone differences.
+        docs: Custom start date for exports (required when exportMode is FROM_CUSTOM_DATE). Must not be in the future (27 h tolerance for timezone differences).
       compressed:
         type: optional<boolean>
         docs: Enable gzip compression for exported files (.csv.gz, .json.gz, .jsonl.gz). Defaults to true.

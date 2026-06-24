@@ -7419,8 +7419,8 @@ components:
           nullable: true
           description: >-
             Custom start date for exports (required when exportMode is
-            FROM_CUSTOM_DATE). Must be at most 24 hours in the future to allow
-            for timezone differences.
+            FROM_CUSTOM_DATE). Must not be in the future (27 h tolerance for
+            timezone differences).
         compressed:
           type: boolean
           nullable: true

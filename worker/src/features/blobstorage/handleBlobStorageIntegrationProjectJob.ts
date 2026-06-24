@@ -809,6 +809,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
           new Date().getTime() +
             getFrequencyIntervalMs(blobStorageIntegration.exportFrequency),
         ),
+        lastError: null,
+        lastErrorAt: null,
       },
     });
     return;
