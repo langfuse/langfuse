@@ -815,7 +815,13 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         ) : null}
       </div>
       <Form {...form}>
-        <form className="flex flex-col gap-4">
+        {/* No real submit: scores save per-field. Prevent the browser's implicit
+            form submission (Enter in a single-line input would otherwise reload
+            the page). */}
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => e.preventDefault()}
+        >
           <div className="grid grid-flow-row gap-2">
             <FormField
               control={form.control}
