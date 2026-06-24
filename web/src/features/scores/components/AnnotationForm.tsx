@@ -71,7 +71,6 @@ import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
   hasModifier,
   isOpenDialogPresent,
-  isTypingTarget,
 } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useRouter } from "next/router";
 import { useAnnotationScoreConfigs } from "@/src/features/scores/hooks/useScoreConfigs";
@@ -657,9 +656,16 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         return;
       }
 
-      // A focused text field owns its keys (typing, caret, number step) — never
-      // hijack them; `Tab` / `Esc` move out.
-      if (isTypingTarget(target)) return;
+      // A focused *text* field owns its keys (typing, caret, number step) —
+      // never hijack them; `Tab`/`Esc` move out. A focused combobox *trigger*
+      // (a button) stays navigable: when its dropdown is open the
+      // isOpenDialogPresent() guard above already bails.
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable)
+      )
+        return;
       if (rowCount === 0) return;
 
       // Scope to a single form (DualAnnotationContent mounts two): the form that
