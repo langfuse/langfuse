@@ -1631,7 +1631,7 @@ export default function ObservationsEventsTable({
                 pageSize: paginationState.limit,
                 pageIndex: paginationState.page - 1,
               }}
-              // In bar mode AI filtering lives in the search bar (Tab / "Ask AI"),
+              // In bar mode AI filtering lives in the search bar ("Ask AI"),
               // so the legacy wand is only offered when the bar is absent.
               filterWithAI={!searchBarMode}
             />

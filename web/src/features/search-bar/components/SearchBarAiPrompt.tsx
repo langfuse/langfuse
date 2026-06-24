@@ -173,6 +173,11 @@ export function SearchBarAiPrompt({
               if (error) setError(null);
             }}
             onKeyDown={(event) => {
+              // Don't treat Enter/Escape as submit/exit while an IME is
+              // composing (CJK/Pinyin/Kana/Hangul): there Enter commits the
+              // composed glyph and Escape cancels composition. Same guard the
+              // grammar bar uses (SearchComposer onKeyDown).
+              if (event.nativeEvent.isComposing) return;
               if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 submit();
