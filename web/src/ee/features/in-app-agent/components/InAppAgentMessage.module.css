@@ -1,0 +1,113 @@
+@reference "../../../../styles/globals.css";
+
+.Streamdown {
+  @apply prose prose-sm text-foreground prose-headings:text-inherit prose-headings:text-sm max-w-none;
+}
+
+.Streamdown.compact {
+  @apply prose-headings:my-2 text-[0.775rem] leading-4;
+}
+
+.Streamdown:not(.compact) {
+  @apply prose-headings:my-2.5 text-sm leading-4.5;
+}
+
+.Streamdown blockquote {
+  @apply text-muted-foreground;
+}
+
+.Streamdown a {
+  @apply text-primary-accent;
+}
+
+.Streamdown > div > *:first-child {
+  @apply mt-0!;
+}
+
+.Streamdown > div > *:last-child {
+  @apply mb-0!;
+}
+
+.Streamdown pre {
+  @apply bg-muted text-foreground dark:bg-card leading-tight;
+}
+
+.Streamdown code {
+  @apply text-foreground bg-muted dark:bg-card rounded px-1 py-px font-normal before:content-[''] after:content-[''];
+}
+
+.Streamdown strong {
+  @apply text-inherit;
+}
+
+.Streamdown table {
+  @apply bg-muted dark:bg-card m-0! overflow-hidden rounded border;
+}
+
+.Streamdown td {
+  @apply p-2;
+}
+
+.Streamdown th {
+  @apply p-2;
+}
+
+.Streamdown tr {
+  @apply border-border dark:border-border border-b;
+}
+
+.Streamdown hr {
+  @apply border-border;
+}
+
+.Streamdown pre > code {
+  @apply p-0;
+}
+
+.Streamdown.compact ul,
+.Streamdown.compact ol,
+.Streamdown.compact p {
+  @apply my-1;
+}
+
+.Streamdown.compact li {
+  @apply my-0.5;
+}
+
+.Streamdown.compact th {
+  @apply text-xs;
+}
+
+.Streamdown.compact hr {
+  @apply my-3;
+}
+
+.Streamdown.compact blockquote,
+.Streamdown.compact pre,
+.Streamdown.compact table {
+  @apply my-2;
+}
+
+.Streamdown:not(.compact) ul,
+.Streamdown:not(.compact) ol,
+.Streamdown:not(.compact) p {
+  @apply my-1.5;
+}
+
+.Streamdown:not(.compact) li {
+  @apply my-1;
+}
+
+.Streamdown:not(.compact) th {
+  @apply text-sm;
+}
+
+.Streamdown:not(.compact) hr {
+  @apply my-5;
+}
+
+.Streamdown:not(.compact) blockquote,
+.Streamdown:not(.compact) pre,
+.Streamdown:not(.compact) table {
+  @apply my-2.5;
+}

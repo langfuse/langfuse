@@ -15,6 +15,14 @@ const originalCloudRegion = vi.hoisted(() => {
   return cloudRegion;
 });
 
+// Override only recordIncrement so the attempt counter is assertable.
+const mockRecordIncrement = vi.hoisted(() => vi.fn());
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return { ...actual, recordIncrement: mockRecordIncrement };
+});
+
 import { env } from "../env";
 import { randomUUID } from "crypto";
 import {
@@ -105,6 +113,61 @@ describe("BlobStorageIntegrationProcessingJob", () => {
 
     await s3StorageService.deleteFiles(files.map((f) => f.file));
     s3Prefix = null;
+  });
+
+  // LFE-10296: a persisted enriched export source on a deployment without the
+  // enriched export path (e.g. after a V4-preview rollback) must fail the job
+  // loudly instead of silently exporting from unpopulated tables.
+  describe("enriched export source guard", () => {
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+    });
+
+    it("fails the job and persists lastError when the enriched export path is unavailable", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "EVENTS",
+          // A past lastSyncAt yields a non-empty export window without
+          // requiring ClickHouse data.
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      await expect(
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job),
+      ).rejects.toThrow(/enriched/i);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toMatch(/enriched/i);
+      expect(row.lastErrorAt).not.toBeNull();
+
+      // Nothing was exported.
+      const files = await storageService.listFiles(s3Prefix);
+      expect(files.filter((f) => f.file.includes(projectId))).toHaveLength(0);
+    });
   });
 
   it("should not process when blob storage integration is disabled", async () => {
@@ -280,11 +343,28 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       ]);
 
       // When
+      mockRecordIncrement.mockClear();
       await handleBlobStorageIntegrationProjectJob({
         data: { payload: { projectId } },
       } as Job);
 
       // Then
+      // Each of the 4 tables emits a started + success attempt counter (LFE-10407).
+      for (const table of [
+        "traces",
+        "observations",
+        "scores",
+        "observations_v2",
+      ]) {
+        for (const outcome of ["started", "success"]) {
+          expect(mockRecordIncrement).toHaveBeenCalledWith(
+            "langfuse.blobstorage.table_export.count",
+            1,
+            { outcome, table, projectId },
+          );
+        }
+      }
+
       const files = await s3StorageService.listFiles(s3Prefix);
       const projectFiles = files.filter((f) => f.file.includes(projectId));
 
@@ -749,6 +829,90 @@ describe("BlobStorageIntegrationProcessingJob", () => {
               break;
           }
         }
+      }
+    });
+  });
+
+  describe("legacy observations export field groups", () => {
+    it("should exclude columns for deselected exportFieldGroups in the legacy observations export", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "TRACES_OBSERVATIONS",
+          exportFieldGroups: ["core", "io"],
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+        },
+      });
+
+      const traceId = randomUUID();
+      await createObservationsCh([
+        createObservation({
+          id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          start_time: dataTime,
+          end_time: dataTime + 5000,
+          name: "Legacy Observation",
+          metadata: { secret: "should-not-appear" },
+          usage_details: { input: 100, output: 200, total: 300 },
+        }),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const files = await s3StorageService.listFiles(s3Prefix);
+      const observationFile = files.find((f) =>
+        f.file.includes("/observations/"),
+      );
+      expect(observationFile).toBeDefined();
+
+      if (observationFile) {
+        const content = await s3StorageService.download(observationFile.file);
+        const row = JSON.parse(content.trim().split("\n")[0]);
+
+        // core + io fields should be present
+        expect(row).toHaveProperty("id");
+        expect(row).toHaveProperty("trace_id");
+        expect(row).toHaveProperty("input");
+        expect(row).toHaveProperty("output");
+
+        // metadata group not selected → must not leak
+        expect(row).not.toHaveProperty("metadata");
+
+        // metrics group not selected → computed fields must not appear
+        expect(row).not.toHaveProperty("latency");
+        expect(row).not.toHaveProperty("time_to_first_token");
+
+        // model group not selected → no model id or pricing enrichment
+        expect(row).not.toHaveProperty("model_id");
+        expect(row).not.toHaveProperty("input_price");
+
+        // other non-selected groups must not appear
+        expect(row).not.toHaveProperty("name");
+        expect(row).not.toHaveProperty("level");
+        expect(row).not.toHaveProperty("usage_details");
       }
     });
   });
@@ -1331,5 +1495,253 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         );
       },
     );
+  });
+
+  // LFE-10402: raw-passthrough streams ClickHouse JSONEachRow bytes straight to
+  // gzip → upload, skipping the per-row JS parse/enrich/serialize pipeline. The
+  // output must be parsed-equal to the standard path minus the dropped price
+  // columns. Passthrough only applies to JSONL exports of observations /
+  // observations_v2 and is gated behind the exportTuning.rawPassthrough flag.
+  maybeDescribe("raw passthrough export (LFE-10402)", () => {
+    const PRICE_COLUMNS = ["input_price", "output_price", "total_price"];
+    const stripPrices = (row: Record<string, unknown>) => {
+      const copy = { ...row };
+      for (const col of PRICE_COLUMNS) delete copy[col];
+      return copy;
+    };
+    const parseJsonl = (content: string): Record<string, unknown>[] =>
+      content
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+    const byId = (rows: Record<string, unknown>[]) =>
+      new Map(rows.map((r) => [r.id as string, r]));
+
+    const downloadDir = async (prefix: string, dir: string) => {
+      const files = await s3StorageService.listFiles(prefix);
+      const file = files.find((f) => f.file.includes(`/${dir}/`));
+      expect(file).toBeDefined();
+      return parseJsonl(await s3StorageService.download(file!.file));
+    };
+
+    const seedModelWithPrices = async (projectId: string, modelId: string) =>
+      prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName: "gpt-4-passthrough",
+          matchPattern: "gpt-4-passthrough",
+          unit: "TOKENS",
+          pricingTiers: {
+            create: {
+              name: "Standard",
+              isDefault: true,
+              conditions: [],
+              priority: 0,
+              prices: {
+                createMany: {
+                  data: [
+                    { modelId, usageType: "input", price: "0.03" },
+                    { modelId, usageType: "output", price: "0.06" },
+                    { modelId, usageType: "total", price: "0.09" },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      });
+
+    it("produces output parsed-equal to the standard path (minus price columns) for observations + events", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+      const modelId = randomUUID();
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const eventId = randomUUID();
+
+      await seedModelWithPrices(projectId, modelId);
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          compressed: false,
+          fileType: BlobStorageIntegrationFileType.JSONL,
+          // default (full) field groups → metadata + model selected in both paths
+        },
+      });
+
+      await Promise.all([
+        createTracesCh([
+          createTrace({
+            id: traceId,
+            project_id: projectId,
+            timestamp: dataTime,
+            name: "Passthrough Trace",
+          }),
+        ]),
+        createObservationsCh([
+          createObservation({
+            id: observationId,
+            trace_id: traceId,
+            project_id: projectId,
+            start_time: dataTime,
+            end_time: dataTime + 5500, // 5.5s → non-round latency
+            completion_start_time: dataTime + 1000,
+            total_cost: 42.5,
+            usage_details: { input: 100, output: 200, total: 300 },
+            internal_model_id: modelId,
+            name: "Passthrough Observation",
+            metadata: { k: "v" },
+          }),
+        ]),
+        createEventsCh([
+          createEvent({
+            id: eventId,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "GENERATION",
+            name: "Passthrough Event",
+            start_time: dataTime * 1000,
+            end_time: (dataTime + 5500) * 1000,
+            completion_start_time: (dataTime + 1000) * 1000,
+            model_id: modelId,
+            metadata: { k: "v" },
+            metadata_names: ["k"],
+            metadata_values: ["v"],
+          }),
+        ]),
+      ]);
+
+      // 1) Standard path
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+      const standardObs = byId(await downloadDir(s3Prefix, "observations"));
+      const standardEvents = byId(
+        await downloadDir(s3Prefix, "observations_v2"),
+      );
+
+      // Sanity: the standard path enriches with price columns. Events export
+      // is keyed by span_id (not the seeded event id), so grab the single row.
+      const standardEventRow = [...standardEvents.values()][0];
+      expect(standardObs.get(observationId)).toHaveProperty("input_price");
+      expect(standardEventRow).toHaveProperty("total_price");
+
+      // 2) Reset and re-run with rawPassthrough enabled.
+      const filesToClear = await s3StorageService.listFiles(s3Prefix);
+      await s3StorageService.deleteFiles(filesToClear.map((f) => f.file));
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: {
+          lastSyncAt: twoHoursAgo,
+          nextSyncAt: twoHoursAgo,
+          exportTuning: { rawPassthrough: true },
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+      const passthroughObs = byId(await downloadDir(s3Prefix, "observations"));
+      const passthroughEvents = byId(
+        await downloadDir(s3Prefix, "observations_v2"),
+      );
+
+      // Passthrough drops the price columns…
+      const passthroughEventRow = [...passthroughEvents.values()][0];
+      expect(passthroughObs.get(observationId)).not.toHaveProperty(
+        "input_price",
+      );
+      expect(passthroughEventRow).not.toHaveProperty("total_price");
+
+      // …and is otherwise parsed-equal to the standard output.
+      expect(passthroughObs.size).toBe(standardObs.size);
+      expect(passthroughEvents.size).toBe(standardEvents.size);
+      for (const [id, standardRow] of standardObs) {
+        expect(passthroughObs.get(id)).toEqual(stripPrices(standardRow));
+      }
+      for (const [id, standardRow] of standardEvents) {
+        expect(passthroughEvents.get(id)).toEqual(stripPrices(standardRow));
+      }
+    }, 60_000);
+
+    it("falls back to the standard path when fileType is not JSONL", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const dataTime = now.getTime() - 90 * 60 * 1000;
+      const eventId = randomUUID();
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "EVENTS",
+          nextSyncAt: twoHoursAgo,
+          lastSyncAt: twoHoursAgo,
+          compressed: false,
+          // CSV is ineligible for passthrough → standard path despite the flag
+          fileType: BlobStorageIntegrationFileType.CSV,
+          exportTuning: { rawPassthrough: true },
+        },
+      });
+
+      await createEventsCh([
+        createEvent({
+          id: eventId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          name: "CSV Fallback Event",
+          start_time: dataTime * 1000,
+          end_time: (dataTime + 5000) * 1000,
+        }),
+      ]);
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const eventRows = await s3StorageService.listFiles(s3Prefix);
+      const eventFile = eventRows.find((f) =>
+        f.file.includes("/observations_v2/"),
+      );
+      expect(eventFile).toBeDefined();
+      const content = await s3StorageService.download(eventFile!.file);
+      // CSV header row present → standard (CSV) path ran, not JSONL passthrough.
+      // (Events export keys by span_id, so assert on the seeded event name.)
+      expect(content.split("\n")[0]).toContain("id");
+      expect(content).toContain("CSV Fallback Event");
+    }, 30_000);
   });
 });

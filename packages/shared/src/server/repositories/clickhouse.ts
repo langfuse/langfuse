@@ -9,12 +9,19 @@ import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
 import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
-import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
+import {
+  type Span,
+  context,
+  isSpanContextValid,
+  SpanKind,
+  trace,
+} from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
 import {
   StorageService,
   StorageServiceFactory,
 } from "../services/StorageService";
+import { buildEventBucketPrefix } from "../ingestion/eventBucketPath";
 import {
   ClickHouseSettings,
   type RowOrProgress,
@@ -152,7 +159,12 @@ export async function upsertClickhouse<
           }
 
           const eventId = randomUUID();
-          const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${eventId}.json`;
+          const entityType = getClickhouseEntityType(eventType);
+          const bucketPath = `${buildEventBucketPrefix({
+            projectId: String(record.project_id),
+            entityType,
+            entityId: String(record.id),
+          })}${eventId}.json`;
 
           if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
             // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
@@ -163,7 +175,7 @@ export async function upsertClickhouse<
                 {
                   id: randomUUID(),
                   project_id: record.project_id,
-                  entity_type: getClickhouseEntityType(eventType),
+                  entity_type: entityType,
                   entity_id: record.id,
                   event_id: eventId,
                   bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
@@ -174,7 +186,7 @@ export async function upsertClickhouse<
               ],
               format: "JSONEachRow",
               clickhouse_settings: {
-                log_comment: JSON.stringify(opts.tags ?? {}),
+                log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
               },
             });
           }
@@ -200,7 +212,7 @@ export async function upsertClickhouse<
         })),
         format: "JSONEachRow",
         clickhouse_settings: {
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
         },
       });
       // same logic as for prisma. we want to see queries in development
@@ -262,6 +274,72 @@ export async function* queryClickhouseStream<T>(
     for await (const rows of res.stream<T>()) {
       for (const row of rows) {
         yield handleExceptionRow(row.json());
+      }
+    }
+  } catch (error) {
+    if (error instanceof ClickHouseResourceError) {
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(error.errorType, enriched, error.tags);
+    }
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      opts.tags,
+    );
+  } finally {
+    span.end();
+  }
+}
+
+/**
+ * Raw passthrough read for the blob-export path (LFE-10402): yields each row's
+ * unparsed JSONEachRow text (no trailing newline) instead of its parsed object.
+ * Skips the per-row `JSON.parse` (`row.json()`) and lets the caller skip the
+ * re-serialize step — the dominant CPU cost on large exports — while reusing the
+ * exact same client machinery as {@link queryClickhouseStream}, including its
+ * built-in mid-stream exception detection. A failed query therefore throws here,
+ * just like the parsed path, so the pipeline aborts instead of emitting a
+ * truncated object — no out-of-band system.query_log check needed.
+ *
+ * IMPORTANT: that mid-stream detection only works on ClickHouse >= 25.11 (it
+ * relies on the `x-clickhouse-exception-tag` response header). On older servers
+ * a query that fails after a 200 response is NOT detected and this can silently
+ * yield a truncated object. The only caller (blob raw-passthrough export) is an
+ * experimental, per-project opt-in gated on that version — see
+ * RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION in features/analytics-integrations.
+ */
+export async function* queryClickhouseStreamRawText(
+  opts: ClickhouseQueryOpts,
+): AsyncGenerator<string> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const tracer = getTracer("clickhouse-query-stream-raw-text");
+  const span = tracer.startSpan("clickhouse-query-stream-raw-text", {
+    kind: SpanKind.CLIENT,
+  });
+
+  let queryId: string | undefined;
+
+  try {
+    setSpanQueryAttributes(span, opts.query);
+
+    const res = await context
+      .with(trace.setSpan(context.active(), span), () =>
+        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span }),
+      )
+      .catch((error) => {
+        throw ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          opts.tags,
+        );
+      });
+
+    queryId = res.query_id;
+    span.setAttribute("ch.queryId", queryId);
+
+    for await (const rows of res.stream()) {
+      for (const row of rows) {
+        yield row.text;
       }
     }
   } catch (error) {
@@ -364,6 +442,18 @@ function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("db.operation.name", "SELECT");
 }
 
+export function tagsWithTraceId(
+  tags: Record<string, string> | undefined,
+): Record<string, string> {
+  const ctx = trace.getActiveSpan()?.spanContext();
+  if (!ctx || !isSpanContextValid(ctx)) return tags ?? {};
+  // Use a distinct, OTel-specific key so this never collides with a
+  // caller-supplied `traceId` tag (e.g. the Langfuse business trace ID used
+  // for query_log JOINs in dataset-run-items). A single log_comment row can
+  // then carry both identifiers.
+  return { ...tags, otel_trace_id: ctx.traceId };
+}
+
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
@@ -383,7 +473,7 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query_params: opts.params,
     clickhouse_settings: {
       ...opts.clickhouseSettings,
-      log_comment: JSON.stringify(opts.tags ?? {}),
+      log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
     },
   });
 
@@ -561,7 +651,7 @@ export async function commandClickhouse(opts: {
         ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
         },
       });
       // same logic as for prisma. we want to see queries in development

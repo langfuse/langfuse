@@ -1,0 +1,259 @@
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
+import { z } from "zod";
+
+const {
+  mockVerifyAuthHeaderAndReturnScope,
+  mockIsPrismaException,
+  mockRateLimitRequest,
+  mockTraceException,
+  mockCreateUnstablePublicApiAuthError,
+  mockSendUnstablePublicApiErrorResponse,
+} = vi.hoisted(() => ({
+  mockVerifyAuthHeaderAndReturnScope: vi.fn(),
+  mockIsPrismaException: vi.fn(),
+  mockRateLimitRequest: vi.fn(),
+  mockTraceException: vi.fn(),
+  mockCreateUnstablePublicApiAuthError: vi.fn((value) => value),
+  mockSendUnstablePublicApiErrorResponse: vi.fn(),
+}));
+
+vi.mock("@/src/features/public-api/server/apiAuth", () => ({
+  ApiAuthService: class {
+    verifyAuthHeaderAndReturnScope = mockVerifyAuthHeaderAndReturnScope;
+  },
+}));
+
+vi.mock("@langfuse/shared/src/db", () => ({
+  prisma: {},
+}));
+
+vi.mock("@langfuse/shared/src/server", () => ({
+  redis: null,
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
+  traceException: mockTraceException,
+  contextWithLangfuseProps: vi.fn(() => ({})),
+  ClickHouseClientManager: {
+    getInstance: () => ({
+      closeAllConnections: vi.fn(async () => undefined),
+    }),
+  },
+}));
+
+vi.mock("@/src/features/public-api/server/RateLimitService", () => ({
+  RateLimitService: {
+    getInstance: () => ({
+      rateLimitRequest: mockRateLimitRequest,
+    }),
+  },
+}));
+
+vi.mock("@/src/features/public-api/server/withMiddlewares", () => ({
+  isZodError: vi.fn(() => false),
+}));
+
+vi.mock(
+  "@/src/features/public-api/server/unstable-public-api-error-contract",
+  () => ({
+    unstablePublicEvalsErrorContract: "unstable-public-evals",
+    createUnstablePublicApiAuthError: mockCreateUnstablePublicApiAuthError,
+    createUnstablePublicApiRequestValidationError: vi.fn(),
+    sendUnstablePublicApiErrorResponse: mockSendUnstablePublicApiErrorResponse,
+  }),
+);
+
+vi.mock("@/src/env.mjs", () => ({
+  env: {
+    NODE_ENV: "test",
+  },
+}));
+
+vi.mock("@opentelemetry/api", () => ({
+  context: {
+    with: vi.fn(async (_ctx, fn) => await fn()),
+  },
+}));
+
+vi.mock("@/src/utils/exceptions", () => ({
+  isPrismaException: mockIsPrismaException,
+}));
+
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+
+describe("createAuthedProjectAPIRoute auth error handling", () => {
+  const validAuth = {
+    validKey: true,
+    scope: {
+      projectId: "project-1",
+      orgId: "org-1",
+      plan: "cloud:hobby",
+      accessLevel: "project",
+      rateLimitOverrides: [],
+      apiKeyId: "api-key-1",
+      publicKey: "pk-test",
+      isIngestionSuspended: false,
+      isInAppAgentKey: false,
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockIsPrismaException.mockReturnValue(false);
+    mockRateLimitRequest.mockResolvedValue({
+      isRateLimited: () => false,
+    });
+  });
+
+  async function callRoute(options?: {
+    useUnstableErrorContract?: boolean;
+    rateLimitUpgradePath?: {
+      legacyEndpoint: string;
+      replacementEndpoint: string;
+      docsUrl: string;
+    };
+    mockResponseSerializationError?: boolean;
+  }) {
+    const handler = createAuthedProjectAPIRoute({
+      name: "Test Route",
+      querySchema: z.object({}),
+      responseSchema: z.object({ ok: z.literal(true) }),
+      errorContract: options?.useUnstableErrorContract
+        ? "unstable-public-evals"
+        : undefined,
+      rateLimitUpgradePath: options?.rateLimitUpgradePath,
+      fn: async () => ({ ok: true as const }),
+    });
+
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: {
+        authorization: "Basic test",
+      },
+      query: {},
+    });
+
+    if (options?.mockResponseSerializationError) {
+      const writeJson = res.json.bind(res);
+      vi.spyOn(res, "json")
+        .mockImplementationOnce(() => {
+          throw new RangeError("Invalid string length");
+        })
+        .mockImplementation((body) => writeJson(body));
+    }
+
+    await handler(req, res);
+
+    return res;
+  }
+
+  it("returns 401 for invalid credentials", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce({
+      validKey: false,
+      error:
+        "Invalid credentials. Confirm that you've configured the correct host.",
+    });
+
+    const res = await callRoute();
+
+    expect(res.statusCode).toBe(401);
+    expect(res._getJSONData()).toEqual({
+      message:
+        "Invalid credentials. Confirm that you've configured the correct host.",
+    });
+  });
+
+  it("returns 503 when auth fails with a prisma exception", async () => {
+    const prismaLikeError = new Error("Can't reach database server");
+    mockVerifyAuthHeaderAndReturnScope.mockRejectedValueOnce(prismaLikeError);
+    mockIsPrismaException.mockReturnValue(true);
+
+    const res = await callRoute();
+
+    expect(res.statusCode).toBe(503);
+    expect(res._getJSONData()).toEqual({
+      message: "Service Unavailable",
+    });
+    expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
+  });
+
+  it("returns unstable auth errors and traces prisma auth failures", async () => {
+    const prismaLikeError = new Error("Can't reach database server");
+    mockVerifyAuthHeaderAndReturnScope.mockRejectedValueOnce(prismaLikeError);
+    mockIsPrismaException.mockReturnValue(true);
+
+    await callRoute({ useUnstableErrorContract: true });
+
+    expect(mockTraceException).toHaveBeenCalledWith(prismaLikeError);
+    expect(mockCreateUnstablePublicApiAuthError).toHaveBeenCalledWith({
+      statusCode: 503,
+      message: "Service Unavailable",
+    });
+    expect(mockSendUnstablePublicApiErrorResponse).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the shared rate limit response for routes without upgrade guidance", async () => {
+    const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
+      res.status(429).json({ message: "rate limited" });
+    });
+
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+      sendRestResponseIfLimited,
+    });
+
+    const res = await callRoute();
+
+    expect(res.statusCode).toBe(429);
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
+      errorContract: undefined,
+      upgradePath: undefined,
+    });
+  });
+
+  it("passes upgrade guidance to the shared rate limit response", async () => {
+    const sendRestResponseIfLimited = vi.fn((res: NextApiResponse) => {
+      res.status(429).json({ message: "rate limited" });
+    });
+    const upgradePath = {
+      legacyEndpoint: "GET /api/public/traces",
+      replacementEndpoint:
+        "GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>",
+      docsUrl:
+        "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+    };
+
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+    mockRateLimitRequest.mockResolvedValueOnce({
+      isRateLimited: () => true,
+      sendRestResponseIfLimited,
+    });
+
+    const res = await callRoute({
+      rateLimitUpgradePath: upgradePath,
+    });
+
+    expect(res.statusCode).toBe(429);
+    expect(sendRestResponseIfLimited).toHaveBeenCalledWith(res, {
+      errorContract: undefined,
+      upgradePath,
+    });
+  });
+
+  it("throws a 422 payload error when response serialization exceeds V8 string limits", async () => {
+    mockVerifyAuthHeaderAndReturnScope.mockResolvedValueOnce(validAuth);
+
+    await expect(
+      callRoute({ mockResponseSerializationError: true }),
+    ).rejects.toMatchObject({
+      name: "PayloadTooLargeError",
+      httpCode: 422,
+      message: "Response payload is too large",
+    });
+  });
+});

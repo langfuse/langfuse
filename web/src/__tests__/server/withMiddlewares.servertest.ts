@@ -60,6 +60,9 @@ describe("withMiddlewares error handling", () => {
         message: "Bad Request",
         error: "BadRequest",
       });
+      expect(logger.warn).toHaveBeenCalledWith(error);
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
 
     it("should handle BaseError with 5xx status code and trace exception", async () => {
@@ -239,6 +242,7 @@ describe("withMiddlewares error handling", () => {
       await handler(req, res);
 
       expect(res._getStatusCode()).toBe(422);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
       expect(logger.warn).toHaveBeenCalledWith(
         "ClickHouse resource limit exceeded",
         expect.objectContaining({
@@ -355,6 +359,9 @@ describe("withMiddlewares error handling", () => {
           }),
         ]),
       });
+      expect(logger.warn).toHaveBeenCalledWith(expect.any(z.ZodError));
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
   });
 
@@ -392,6 +399,34 @@ describe("withMiddlewares error handling", () => {
   });
 
   describe("Generic error handling", () => {
+    it("should keep handler RangeError instances on the generic 500 path", async () => {
+      const error = new RangeError("Invalid string length");
+
+      const handler = withMiddlewares({
+        GET: async () => {
+          throw error;
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(500);
+      const jsonData = JSON.parse(res._getData());
+      expect(jsonData).toMatchObject({
+        message: "Internal Server Error",
+        error: "Invalid string length",
+      });
+      expect(logger.error).toHaveBeenCalledWith(error);
+      expect(traceException).toHaveBeenCalledWith(error);
+    });
+
     it("should handle generic Error instances with 500 status", async () => {
       const error = new Error("Something went wrong");
 

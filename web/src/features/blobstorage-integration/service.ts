@@ -4,6 +4,9 @@ import {
   BlobStorageIntegrationType,
   InvalidRequestError,
   AnalyticsIntegrationExportSource,
+  LEGACY_BLOB_EXPORT_SOURCES,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+  isLegacyBlobExporter,
   type BlobStorageIntegrationFileType,
   type ObservationFieldGroupFull,
 } from "@langfuse/shared";
@@ -58,12 +61,21 @@ export async function upsertBlobStorageIntegration(params: {
   // Evaluated inside the transaction so the row-state check and the INSERT are
   // atomic — no TOCTOU window.
   forceEventsOnCreate?: boolean;
+  // When true and no existing row is found inside the transaction, the CREATE
+  // branch refuses a legacy export source (throws). Evaluated in-transaction so
+  // a concurrent DELETE between the router's pre-flight read and this upsert
+  // cannot slip a new post-cutoff row in with a legacy source. Symmetric with
+  // forceEventsOnCreate; set by both the tRPC and REST paths on Cloud.
+  refuseLegacyOnCreate?: boolean;
 }) {
   const { prisma, projectId, data } = params;
 
   const isSelfHosted = !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const canUseHostCredentials =
     isSelfHosted && data.type === BlobStorageIntegrationType.S3;
+
+  const accessKeyId = data.accessKeyId?.trim() || null;
+  const secretAccessKey = data.secretAccessKey?.trim() || null;
 
   if (data.endpoint) {
     try {
@@ -75,7 +87,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
   }
 
-  if (!canUseHostCredentials && !data.accessKeyId) {
+  if (!canUseHostCredentials && !accessKeyId) {
     throw new InvalidRequestError(
       "Access Key ID and Secret Access Key are required",
     );
@@ -91,7 +103,7 @@ export async function upsertBlobStorageIntegration(params: {
     bucketName: data.bucketName,
     endpoint: data.endpoint,
     region: data.region,
-    accessKeyId: data.accessKeyId,
+    accessKeyId,
     prefix: data.prefix,
     exportFrequency: data.exportFrequency,
     enabled: data.enabled,
@@ -113,8 +125,8 @@ export async function upsertBlobStorageIntegration(params: {
     // Require secret key for new integrations (unless using host credentials)
     if (!existing) {
       const isUsingHostCredentials =
-        canUseHostCredentials && (!data.accessKeyId || !data.secretAccessKey);
-      if (!isUsingHostCredentials && !data.secretAccessKey) {
+        canUseHostCredentials && (!accessKeyId || !secretAccessKey);
+      if (!isUsingHostCredentials && !secretAccessKey) {
         throw new InvalidRequestError(
           "Secret access key is required for new configuration",
         );
@@ -122,9 +134,7 @@ export async function upsertBlobStorageIntegration(params: {
     }
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
-    const encryptedSecret = data.secretAccessKey
-      ? encrypt(data.secretAccessKey)
-      : null;
+    const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
 
     // exportSource for the CREATE payload. The !existing guard was previously
     // here, but it created a residual TOCTOU: READ COMMITTED isolation means
@@ -141,7 +151,7 @@ export async function upsertBlobStorageIntegration(params: {
         ? AnalyticsIntegrationExportSource.EVENTS
         : undefined);
 
-    return tx.blobStorageIntegration.upsert({
+    const result = await tx.blobStorageIntegration.upsert({
       where: { projectId },
       create: {
         ...writeData,
@@ -160,5 +170,27 @@ export async function upsertBlobStorageIntegration(params: {
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: null } : {}),
       },
     });
+
+    // Race-free integration-cutoff backstop. The pre-flight `existing` snapshot
+    // (and the router's pre-flight gate) are racy under READ COMMITTED: a
+    // concurrent DELETE can flip this upsert to a CREATE after those reads.
+    // Validate the *persisted* row instead — its `createdAt` reflects the actual
+    // CREATE/UPDATE outcome (CREATE → now(); UPDATE → preserved). If the row
+    // that now exists is a brand-new post-cutoff Cloud exporter carrying a legacy
+    // source, throw to roll back. UPDATEs of pre-cutoff rows keep their
+    // original createdAt and are unaffected.
+    if (
+      params.refuseLegacyOnCreate &&
+      !isLegacyBlobExporter(result.createdAt, !isSelfHosted) &&
+      (LEGACY_BLOB_EXPORT_SOURCES as ReadonlyArray<string>).includes(
+        result.exportSource,
+      )
+    ) {
+      throw new InvalidRequestError(
+        `Legacy export sources are not available for blob storage integrations created on or after ${LEGACY_BLOB_EXPORTER_CUTOFF.toISOString()} on Cloud. Use 'OBSERVATIONS_V2' instead.`,
+      );
+    }
+
+    return result;
   });
 }

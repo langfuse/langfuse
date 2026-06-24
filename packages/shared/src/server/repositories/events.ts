@@ -1,5 +1,6 @@
 import { prisma } from "../../db";
 import { Readable } from "stream";
+import type { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import type {
   EventsObservation,
   MetadataDomain,
@@ -79,6 +80,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseStreamRawText,
 } from "./clickhouse";
 import {
   EventsObservationRecordReadType,
@@ -1359,6 +1361,7 @@ async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
   operationName: string = "getObservationsFromEventsTableForPublicApi_rows",
+  extraTags: Record<string, string> = {},
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
 
@@ -1372,6 +1375,7 @@ async function getObservationsRowsFromBuilder<T>(
         type: "events",
         kind: "publicApiRows",
         projectId,
+        ...extraTags,
       },
     },
     fn: async (input) => {
@@ -1500,32 +1504,50 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
       options,
     );
 
-  baseBuilder.selectFieldSet("core");
-  const excludeFromBase = new Set<string>(["core", "io"]);
-  if (metadataFromFullTable) excludeFromBase.add("metadata");
-  requestedFields
-    .filter((fg) => !excludeFromBase.has(fg))
-    .forEach((fg) => baseBuilder.selectFieldSet(fg));
-
+  // Shared steps: ordering and pagination apply to every path and are
+  // independent of which columns each path projects.
   applyOrderByForObservationsQuery(baseBuilder);
   applyCursorPagination(opts, baseBuilder);
 
-  let builder: QueryWithParams;
+  // Pick the query shape. When IO/expanded metadata is requested, use the
+  // CTE+JOIN split query that fetches those columns from events_full for the
+  // matched rows only; otherwise everything comes from events_core directly.
+  const queryPath: "simple" | "cte-join" = needsIOCTE ? "cte-join" : "simple";
 
-  if (!needsIOCTE) {
-    // Simple path: add CTEs back to the builder and use directly
-    for (const cte of externalCTEs) {
-      baseBuilder.withCTE(cte.name, cte.queryWithParams);
-    }
-    builder = baseBuilder;
-  } else {
-    builder = buildEventsFullTableSplitQuery({
-      projectId,
-      baseBuilder,
-      includeIO: needsIO,
-      includeMetadata: metadataFromFullTable,
-      externalCTEs,
-    }).orderByColumns(orderByForObservationsQuery("b", "id"));
+  // Field groups projected on the base builder.
+  // `io` (and `metadata` when it must come untruncated from events_full) is
+  // fetched by the io CTE instead; selecting it on events_core would return
+  // truncated values.
+  const selectBaseFieldSets = () => {
+    baseBuilder.selectFieldSet("core");
+    const excludeFromBase = new Set<string>(["core", "io"]);
+    if (metadataFromFullTable) excludeFromBase.add("metadata");
+    requestedFields
+      .filter((fg) => !excludeFromBase.has(fg))
+      .forEach((fg) => baseBuilder.selectFieldSet(fg));
+  };
+
+  let builder: QueryWithParams;
+  switch (queryPath) {
+    case "simple":
+      // Everything from events_core; CTEs attach directly to the builder.
+      selectBaseFieldSets();
+      for (const cte of externalCTEs) {
+        baseBuilder.withCTE(cte.name, cte.queryWithParams);
+      }
+      builder = baseBuilder;
+      break;
+    case "cte-join":
+      // Scalar groups from events_core, IO/metadata joined from events_full.
+      selectBaseFieldSets();
+      builder = buildEventsFullTableSplitQuery({
+        projectId,
+        baseBuilder,
+        includeIO: needsIO,
+        includeMetadata: metadataFromFullTable,
+        externalCTEs,
+      }).orderByColumns(orderByForObservationsQuery("b", "id"));
+      break;
   }
 
   const records =
@@ -3462,12 +3484,26 @@ export const hasAnyUserFromEventsTable = async (
  * Streams events from ClickHouse for blob storage export.
  * Uses EventsQueryBuilder for consistent query construction.
  */
-export const getEventsForBlobStorageExport = function (
+// metrics field set emits latency / time_to_first_token in MILLISECONDS. The
+// raw-passthrough path (LFE-10402) cannot convert ms→s in JS, so when requested
+// it selects the seconds-converted expressions directly in SQL instead. The
+// standard path keeps ms here and converts conditionally in JS, so it stays
+// byte-for-byte unchanged.
+const EVENTS_EXPORT_METRICS_SECONDS_SQL = [
+  "if(isNull(e.end_time), NULL, date_diff('millisecond', e.start_time, e.end_time) / 1000) as latency",
+  "if(isNull(e.completion_start_time), NULL, date_diff('millisecond', e.start_time, e.completion_start_time) / 1000) as \"time_to_first_token\"",
+];
+
+// Shared SQL+params builder for the events blob-export. `convertLatencyToSecondsInSql`
+// is only set by the raw-passthrough path; the standard path leaves it false so
+// its output is identical to today.
+const buildEventsForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-) {
+  fieldGroups: ObservationFieldGroupFull[],
+  convertLatencyToSecondsInSql: boolean,
+) => {
   const queryBuilder = new EventsQueryBuilder({ projectId });
 
   // core is always required (provides id, trace_id, start/end_time used for cursor and deduplication)
@@ -3480,6 +3516,8 @@ export const getEventsForBlobStorageExport = function (
       queryBuilder.selectIO(false); // Full I/O, no truncation
     } else if (group === "model") {
       queryBuilder.selectFieldSet("model_export"); // "model_export" is the SQL field set name for the "model" group
+    } else if (group === "metrics" && convertLatencyToSecondsInSql) {
+      queryBuilder.selectRaw(...EVENTS_EXPORT_METRICS_SECONDS_SQL);
     } else {
       queryBuilder.selectFieldSet(group);
     }
@@ -3498,7 +3536,7 @@ export const getEventsForBlobStorageExport = function (
 
   const { query, params } = queryBuilder.buildWithParams();
 
-  return queryClickhouseStream<Record<string, unknown>>({
+  return {
     query,
     params,
     tags: {
@@ -3510,8 +3548,48 @@ export const getEventsForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
-    preferredClickhouseService: "EventsReadOnly",
-  });
+    preferredClickhouseService: "EventsReadOnly" as const,
+  };
+};
+
+export const getEventsForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+) {
+  return queryClickhouseStream<Record<string, unknown>>(
+    buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      false, // standard path converts latency ms→s in JS
+    ),
+  );
+};
+
+// Raw-passthrough variant (LFE-10402): yields each row's unparsed JSONEachRow
+// text, skipping the per-row parse/enrich/serialize cycle. When
+// `convertLatencyToSeconds` is set, latency/ttft are divided by 1000 in SQL
+// (matching what the JS path would have done); otherwise they stay in ms (legacy
+// integrations). Price columns are NOT added.
+export const getEventsForBlobStorageExportRaw = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  convertLatencyToSeconds: boolean = false,
+) {
+  return queryClickhouseStreamRawText(
+    buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      convertLatencyToSeconds,
+    ),
+  );
 };
 
 /**
@@ -3647,6 +3725,7 @@ export const hasAnySessionFromEventsTable = async (
 export const getTraceMetadataByIdsFromEvents = async (props: {
   projectId: string;
   traceIds: string[];
+  clickhouseConfigs?: ClickHouseClientConfigOptions;
 }) => {
   if (props.traceIds.length === 0) return [];
 
@@ -3678,6 +3757,7 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
         query,
         params: input.params,
         tags: input.tags,
+        clickhouseConfigs: props.clickhouseConfigs,
         preferredClickhouseService: "EventsReadOnly",
       }),
   });

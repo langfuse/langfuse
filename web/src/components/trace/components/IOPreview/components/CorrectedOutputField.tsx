@@ -167,7 +167,7 @@ export function CorrectedOutputField({
                   compact ? "text-xs" : "text-sm",
                 )}
               >
-                {compact ? "" : "Corrected Output (Beta)"}
+                {compact ? "" : "Corrected Output"}
               </span>
               <HoverCard>
                 <HoverCardTrigger asChild>
@@ -267,9 +267,7 @@ export function CorrectedOutputField({
             <button
               onClick={handleEdit}
               disabled={!hasAccess}
-              className={cn(
-                "text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors",
-              )}
+              className="text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors"
             >
               Click to add corrected output
             </button>

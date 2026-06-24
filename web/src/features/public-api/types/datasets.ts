@@ -10,6 +10,7 @@ import {
   removeObjectKeys,
   type DatasetRunItemDomain,
   type DatasetItemDomain,
+  datasetItemMediaFields,
   stringDateTime,
 } from "@langfuse/shared";
 import { DatasetJSONSchema } from "@langfuse/shared/src/server";
@@ -61,6 +62,24 @@ const APIDatasetRunItem = z
 
 export type APIDatasetRunItem = z.infer<typeof APIDatasetRunItem>;
 
+const APIDatasetItemMediaReference = z
+  .object({
+    field: z.enum(datasetItemMediaFields),
+    referenceString: z.string(),
+    jsonPath: z.string(),
+    media: z.object({
+      mediaId: z.string(),
+      contentType: z.string(),
+      contentLength: z.number(),
+      url: z.string(),
+      urlExpiry: z.string(),
+    }),
+  })
+  .strict();
+export type APIDatasetItemMediaReference = z.infer<
+  typeof APIDatasetItemMediaReference
+>;
+
 const APIDatasetItem = z
   .object({
     datasetName: z.string(),
@@ -74,6 +93,7 @@ const APIDatasetItem = z
     datasetId: z.string(),
     createdAt: z.coerce.date(),
     updatedAt: z.coerce.date(),
+    mediaReferences: z.array(APIDatasetItemMediaReference),
   })
   .strict();
 
@@ -90,7 +110,7 @@ export const transformDbDatasetItemDomainToAPIDatasetItem = (
   dbDatasetItem: DatasetItemDomain & {
     datasetName: string;
   },
-): z.infer<typeof APIDatasetItem> =>
+): Omit<z.infer<typeof APIDatasetItem>, "mediaReferences"> =>
   removeObjectKeys(dbDatasetItem, ["projectId", "validFrom"]);
 
 export const transformDbDatasetRunItemToAPIDatasetRunItemCh = (
@@ -170,18 +190,23 @@ export const GetDatasetRunV1Response = APIDatasetRun.extend({
   datasetRunItems: z.array(APIDatasetRunItem),
 }).strict();
 
+export const publicApiIdSchema = z
+  .string()
+  .min(1, "ID must not be empty")
+  .max(255, "ID must be at most 255 characters");
+
 // POST /dataset-items
 export const PostDatasetItemsV1Body = z.object({
   datasetName: z.string(),
   input: z.any().nullish(),
   expectedOutput: z.any().nullish(),
   metadata: z.any().nullish(),
-  id: z.string().nullish(),
+  id: publicApiIdSchema.nullish(),
   sourceTraceId: z.string().nullish(),
   sourceObservationId: z.string().nullish(),
   status: z.enum(["ACTIVE", "ARCHIVED"]).nullish(),
 });
-export const PostDatasetItemsV1Response = APIDatasetItem.strict();
+export const PostDatasetItemsV1Response = APIDatasetItem;
 
 // GET /dataset-items
 export const GetDatasetItemsV1Query = z
@@ -216,7 +241,7 @@ export const GetDatasetItemsV1Response = z
 export const GetDatasetItemV1Query = z.object({
   datasetItemId: z.string(),
 });
-export const GetDatasetItemV1Response = APIDatasetItem.strict();
+export const GetDatasetItemV1Response = APIDatasetItem;
 
 // DELETE /dataset-items/{datasetItemId}
 export const DeleteDatasetItemV1Query = z.object({

@@ -282,7 +282,7 @@ export function BillingInvoiceTable() {
   return (
     <div className="space-y-0">
       <div className="flex items-center justify-between pt-4">
-        <h3 className="text-large font-medium">Invoice History</h3>
+        <h3 className="font-medium">Invoice History</h3>
       </div>
       <DataTableToolbar columns={columns} />
       <DataTable

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { DatasetRunItemsByRunTable } from "@/src/features/datasets/components/DatasetRunItemsByRunTable";
@@ -23,10 +23,6 @@ import {
 } from "@/src/components/ui/side-panel";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { LocalIsoDate } from "@/src/components/LocalIsoDate";
-import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
-import { ExperimentsBetaSwitch } from "@/src/features/experiments/components/ExperimentsBetaSwitch";
-import { singleRunToExperimentsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { V4IntroDialog } from "@/src/features/events/components/V4IntroDialog";
@@ -49,12 +45,6 @@ export default function Dataset() {
     projectId,
     runId,
   });
-  const {
-    canUseExperimentsBetaToggle,
-    isExperimentsBetaEnabled,
-    setExperimentsBetaEnabled,
-    isExperimentsBetaActive,
-  } = useExperimentAccess();
   const {
     isBetaEnabled: isFastPreviewEnabled,
     canToggleV4,
@@ -84,60 +74,6 @@ export default function Dataset() {
     }
   }, []);
 
-  const handleBetaSwitchChange = (enabled: boolean) => {
-    setExperimentsBetaEnabled(enabled);
-
-    if (enabled) {
-      router.push(singleRunToExperimentsUrl(projectId, runId));
-    }
-  };
-
-  // Auto-redirect when beta is ON (via direct URL or back navigation)
-  useEffect(() => {
-    if (isExperimentsBetaActive && projectId && runId) {
-      router.push(singleRunToExperimentsUrl(projectId, runId));
-    }
-  }, [isExperimentsBetaActive, projectId, runId, router]);
-
-  const betaSwitch = canUseExperimentsBetaToggle ? (
-    <ExperimentsBetaSwitch
-      enabled={isExperimentsBetaEnabled}
-      onEnabledChange={handleBetaSwitchChange}
-    />
-  ) : null;
-
-  if (isExperimentsBetaActive) {
-    return (
-      <Page
-        headerProps={{
-          title: run.data?.name ?? runId,
-          itemType: "DATASET_RUN",
-          breadcrumb: [
-            { name: "Datasets", href: `/project/${projectId}/datasets` },
-            {
-              name: dataset.data?.name ?? datasetId,
-              href: `/project/${projectId}/datasets/${datasetId}`,
-            },
-            {
-              name: "Experiments",
-              href: `/project/${projectId}/datasets/${datasetId}`,
-            },
-          ],
-          actionButtonsLeft: betaSwitch,
-        }}
-      >
-        <div className="flex h-full items-center justify-center">
-          <Spinner size="xl" variant="muted" />
-        </div>
-        <V4IntroDialog
-          open={showIntroDialog}
-          onConfirm={confirmIntroDialog}
-          onDismiss={dismissIntroDialog}
-        />
-      </Page>
-    );
-  }
-
   return (
     <Page
       headerProps={{
@@ -154,7 +90,6 @@ export default function Dataset() {
             href: `/project/${projectId}/datasets/${datasetId}`,
           },
         ],
-        actionButtonsLeft: betaSwitch,
         actionButtonsRight: (
           <>
             <Link

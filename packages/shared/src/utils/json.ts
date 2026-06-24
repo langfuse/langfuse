@@ -34,7 +34,9 @@ function tryParsePythonDict(str: string): unknown {
       // therefore, the failure case is the default already.
       .replace(/'/g, '"');
 
-    return JSON.parse(jsonStr);
+    // parsePreservingPrecision (not JSON.parse) so big integers in Python-dict
+    // payloads (e.g. LangChain/LangGraph run IDs) keep their precision too.
+    return parsePreservingPrecision(jsonStr);
   } catch {
     return str;
   }
@@ -92,9 +94,12 @@ function deepParseJsonRecursive(
   }
 
   if (typeof json === "string") {
+    // A bare JSON number literal stays a string: this preserves user-provided
+    // numeric strings and, critically, big integers that would lose precision
+    // if coerced to a JS number (issue #6628).
+    if (isJsonNumberLiteral(json)) return json;
     try {
-      const parsed = JSON.parse(json);
-      if (typeof parsed === "number") return json; // numbers that were strings in the input should remain as strings
+      const parsed = parsePreservingPrecision(json);
       return deepParseJsonRecursive(parsed, currentDepth + 1, maxDepth); // Recursively parse parsed value
     } catch {
       const pythonParsed = tryParsePythonDict(json);
@@ -208,15 +213,21 @@ export function deepParseJsonIterative(
 
     // Process strings - try to parse as JSON
     if (typeof input === "string") {
+      // A bare JSON number literal stays a string (see deepParseJsonRecursive):
+      // preserves numeric strings and big integers that would otherwise lose
+      // precision when coerced to a JS number (issue #6628).
+      if (isJsonNumberLiteral(input)) {
+        entry.output = input;
+        processed.add(entry);
+        continue;
+      }
+
       let parsed: unknown;
       let wasParsed = false;
 
       try {
-        parsed = JSON.parse(input);
-        // Numbers that were strings in the input should remain as strings
-        if (typeof parsed !== "number") {
-          wasParsed = true;
-        }
+        parsed = parsePreservingPrecision(input);
+        wasParsed = true;
       } catch {
         // Try Python dict parsing
         const pythonParsed = tryParsePythonDict(input);
@@ -264,7 +275,9 @@ export function deepParseJsonIterative(
           }
         }
       } else {
-        // Not JSON or parsed to number, use as-is
+        // Not valid JSON (and the Python-dict fallback also failed), keep as-is.
+        // Bare numeric literals never reach here — isJsonNumberLiteral above
+        // already short-circuits them to preserve big-int precision (#6628).
         entry.output = input;
         processed.add(entry);
         continue;
@@ -389,29 +402,40 @@ export function deepParseJsonIterative(
  * 2. \d[eE] - scientific notation (always use lossless-json for safety)
  */
 const UNSAFE_NUMBER_PATTERN = /[\d.]{13,}|\d[eE]/;
+const JSON_NUMBER_LITERAL_PATTERN =
+  /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+
+export const isJsonNumberLiteral = (value: string): boolean =>
+  JSON_NUMBER_LITERAL_PATTERN.test(value.trim());
+
+/**
+ * Parses a JSON string like JSON.parse, but preserves integers beyond
+ * Number.MAX_SAFE_INTEGER (2^53-1) by emitting them as strings instead of
+ * rounding them to a JS double (issue #6628). Throws on invalid JSON, exactly
+ * like JSON.parse, so callers can fall back to other parsing strategies.
+ */
+const parsePreservingPrecision = (json: string): unknown => {
+  // Fast path: native JSON.parse when no number could lose precision.
+  if (!UNSAFE_NUMBER_PATTERN.test(json)) {
+    return JSON.parse(json);
+  }
+
+  // Slow path: lossless-json keeps the exact token. Safe numbers become real
+  // numbers, unsafe ones are preserved as their string representation.
+  return parse(json, null, (value) =>
+    isNumber(value)
+      ? isSafeNumber(value)
+        ? Number(value.valueOf())
+        : value.toString()
+      : value,
+  );
+};
 
 export const parseJsonPrioritised = (
   json: string,
 ): JsonNested | string | undefined => {
   try {
-    // Fast path: use native JSON.parse if no potentially unsafe numbers detected
-    if (!UNSAFE_NUMBER_PATTERN.test(json)) {
-      return JSON.parse(json) as JsonNested;
-    }
-
-    // Slow path: use lossless-json to preserve precision
-    return parse(json, null, (value) => {
-      if (isNumber(value)) {
-        if (isSafeNumber(value)) {
-          // Safe numbers (integers and decimals) can be converted to Number
-          return Number(value.valueOf());
-        } else {
-          // For large integers beyond safe limits, preserve string representation
-          return value.toString();
-        }
-      }
-      return value;
-    }) as JsonNested;
+    return parsePreservingPrecision(json) as JsonNested;
   } catch {
     return json;
   }

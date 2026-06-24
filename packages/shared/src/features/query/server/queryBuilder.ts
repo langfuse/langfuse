@@ -23,6 +23,12 @@ import { getViewDeclaration } from "../dataModel";
 import { InvalidRequestError } from "../../../errors";
 import { env } from "../../../env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
+import {
+  getCompatibleFilterTypes,
+  isFilterColumnType,
+  type CompatibleFilterType,
+  type FilterColumnType,
+} from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
 
 type AppliedDimensionType = {
   table: string;
@@ -50,6 +56,51 @@ type MappedFilters = {
   whereFilters: Filter[];
   whereRawParts: RawSqlPart[];
 };
+
+const isQueryArrayDimensionType = (dimensionType: string | undefined) =>
+  dimensionType === "string[]" || dimensionType === "arrayString";
+
+const getFilterColumnTypeForQueryDimension = (
+  dimensionType: string | undefined,
+): FilterColumnType | null => {
+  if (isQueryArrayDimensionType(dimensionType)) {
+    return "arrayOptions";
+  }
+
+  if (dimensionType === "null" || dimensionType === "positionInTrace") {
+    return null;
+  }
+
+  return isFilterColumnType(dimensionType) ? dimensionType : null;
+};
+
+const getCompatibleFilterTypesForQueryDimension = (
+  dimensionType: string | undefined,
+): readonly CompatibleFilterType[] | null => {
+  const filterColumnType = getFilterColumnTypeForQueryDimension(dimensionType);
+
+  if (!filterColumnType) {
+    return null;
+  }
+
+  // Query array dimensions are ClickHouse Array(String) expressions. The shared
+  // table also allows stringOptions for legacy UI array columns, but metrics
+  // queries must use arrayOptions so QueryBuilder generates hasAny/hasAll in SQL.
+  if (isQueryArrayDimensionType(dimensionType)) {
+    return ["arrayOptions"];
+  }
+
+  return getCompatibleFilterTypes(filterColumnType);
+};
+
+const formatExpectedFilterTypes = (
+  filterTypes: readonly CompatibleFilterType[],
+) =>
+  filterTypes.length === 1
+    ? `'${filterTypes[0]}'`
+    : filterTypes
+        .map((filterType) => `'${filterType}'`)
+        .join(filterTypes.length === 2 ? " or " : ", ");
 
 type AppliedBucketingDimension =
   | { type: "none" }
@@ -271,24 +322,50 @@ export class QueryBuilder {
   ) {
     for (const filter of filters) {
       // Validate filters on dimension fields
-      if (filter.column in view.dimensions) {
-        const dimension = view.dimensions[filter.column];
+      const dimension = this.resolveDimension(filter.column, view);
 
-        // Array fields (like tags) validation
-        if (dimension.type === "string[]") {
-          if (filter.type === "string") {
-            throw new InvalidRequestError(
-              `Invalid filter for field '${filter.column}': Array fields require type 'arrayOptions', not 'string'. ` +
-                `Use operators like 'any of', 'all of', or 'none of' with an array of values.`,
-            );
-          }
+      if (dimension) {
+        const compatibleFilterTypes = getCompatibleFilterTypesForQueryDimension(
+          dimension.type,
+        );
 
-          // Additional validation: ensure value is array for arrayOptions
-          if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
-            throw new InvalidRequestError(
-              `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
-            );
-          }
+        if (!compatibleFilterTypes) {
+          throw new InvalidRequestError(
+            `Invalid query dimension '${filter.column}': Unsupported dimension type '${dimension.type ?? "undefined"}'.`,
+          );
+        }
+
+        if (filter.type === "null") {
+          continue;
+        }
+
+        if (!compatibleFilterTypes.includes(filter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': Filter type '${filter.type}' is not supported for dimension type '${dimension.type ?? "string"}'. ` +
+              `Expected ${formatExpectedFilterTypes(compatibleFilterTypes)}.`,
+          );
+        }
+
+        if (filter.type === "arrayOptions" && !Array.isArray(filter.value)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': arrayOptions type requires an array of values, not '${typeof filter.value}'.`,
+          );
+        }
+      }
+
+      // Special validation for time dimension filters
+      else if (filter.column === view.timeDimension) {
+        const compatibleFilterTypes: CompatibleFilterType[] = ["datetime"];
+
+        if (filter.type === "null") {
+          continue;
+        }
+
+        if (!compatibleFilterTypes.includes(filter.type)) {
+          throw new InvalidRequestError(
+            `Invalid filter for field '${filter.column}': Filter type '${filter.type}' is not supported for time dimension '${view.timeDimension}'. ` +
+              `Expected ${formatExpectedFilterTypes(compatibleFilterTypes)}.`,
+          );
         }
       }
 
@@ -832,6 +909,26 @@ export class QueryBuilder {
         return `toMonday(${sql})`;
       case "month":
         return `toStartOfMonth(${sql})`;
+      case "5m":
+        return `toStartOfInterval(${sql}, INTERVAL 5 MINUTE)`;
+      case "10m":
+        return `toStartOfInterval(${sql}, INTERVAL 10 MINUTE)`;
+      case "15m":
+        return `toStartOfInterval(${sql}, INTERVAL 15 MINUTE)`;
+      case "30m":
+        return `toStartOfInterval(${sql}, INTERVAL 30 MINUTE)`;
+      case "1h":
+        return `toStartOfInterval(${sql}, INTERVAL 1 HOUR)`;
+      case "2h":
+        return `toStartOfInterval(${sql}, INTERVAL 2 HOUR)`;
+      case "4h":
+        return `toStartOfInterval(${sql}, INTERVAL 4 HOUR)`;
+      case "1d":
+        return `toStartOfInterval(${sql}, INTERVAL 1 DAY)`;
+      case "2d":
+        return `toStartOfInterval(${sql}, INTERVAL 2 DAY)`;
+      case "1w":
+        return `toStartOfInterval(${sql}, INTERVAL 7 DAY)`;
       case "auto":
         throw new Error(
           `Granularity 'auto' is not supported for getTimeDimensionSql`,
@@ -1101,6 +1198,36 @@ export class QueryBuilder {
         break;
       case "month":
         step = "INTERVAL 1 MONTH";
+        break;
+      case "5m":
+        step = "INTERVAL 5 MINUTE";
+        break;
+      case "10m":
+        step = "INTERVAL 10 MINUTE";
+        break;
+      case "15m":
+        step = "INTERVAL 15 MINUTE";
+        break;
+      case "30m":
+        step = "INTERVAL 30 MINUTE";
+        break;
+      case "1h":
+        step = "INTERVAL 1 HOUR";
+        break;
+      case "2h":
+        step = "INTERVAL 2 HOUR";
+        break;
+      case "4h":
+        step = "INTERVAL 4 HOUR";
+        break;
+      case "1d":
+        step = "INTERVAL 1 DAY";
+        break;
+      case "2d":
+        step = "INTERVAL 2 DAY";
+        break;
+      case "1w":
+        step = "INTERVAL 7 DAY";
         break;
       default:
         step = "INTERVAL 1 DAY"; // Default to day if granularity is unknown

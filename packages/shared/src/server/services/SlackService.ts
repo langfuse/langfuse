@@ -49,11 +49,24 @@ export interface GetChannelsResult {
   hasPrivateChannelAccess: boolean;
 }
 
-export interface SlackMessageParams {
-  client: WebClient;
-  channelId: string;
+/** SlackMessage is the Block Kit payload sent to Slack. */
+export interface SlackMessage {
   blocks: any[];
   text?: string;
+  attachments?: { color: string; fallback?: string; blocks?: any[] }[];
+}
+
+export interface SlackMessageParams extends SlackMessage {
+  client: WebClient;
+  channelId: string;
+}
+
+/** escapeSlackMrkdwn escapes Slack mrkdwn special characters to prevent injection. */
+export function escapeSlackMrkdwn(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 export interface SlackMessageResponse {
@@ -122,6 +135,7 @@ export class SlackService {
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
+      directInstall: false,
       installUrlOptions: {
         scopes: SLACK_BOT_SCOPES as unknown as string[],
       },
@@ -463,7 +477,12 @@ export class SlackService {
       const result = await params.client.chat.postMessage({
         channel: params.channelId,
         blocks: params.blocks,
-        text: params.text || "Langfuse Notification",
+        attachments: params.attachments as any,
+        text:
+          params.text ||
+          (params.blocks?.length || params.attachments?.length
+            ? undefined
+            : "Langfuse Notification"),
         unfurl_links: false,
         unfurl_media: false,
       });

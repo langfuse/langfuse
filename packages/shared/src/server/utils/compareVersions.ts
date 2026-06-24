@@ -2,6 +2,51 @@ import { z } from "zod";
 
 export const versionSchema = z.string().regex(/^v?\d+\.\d+\.\d+(?:[-+].+)?$/); // e.g. v1.2.3, 1.2.3, v1.2.3-rc.1, v1.2.3+build.123
 
+type VersionTuple = readonly [number, number, number];
+
+export type ParsedVersion = {
+  raw: string;
+  major: number;
+  minor: number;
+  patch: number;
+  tuple: VersionTuple;
+  isPreRelease: boolean;
+};
+
+export const parseVersionString = (
+  rawVersion: string,
+): ParsedVersion | null => {
+  const match = rawVersion.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:[.+-].+)?$/);
+  if (!match) return null;
+
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+
+  if (![major, minor, patch].every(Number.isSafeInteger)) return null;
+
+  return {
+    raw: rawVersion,
+    major,
+    minor,
+    patch,
+    tuple: [major, minor, patch],
+    isPreRelease: /[-+]/.test(rawVersion),
+  };
+};
+
+export const compareParsedVersions = (
+  left: ParsedVersion,
+  right: ParsedVersion,
+): number => {
+  for (let i = 0; i < left.tuple.length; i++) {
+    if (left.tuple[i] > right.tuple[i]) return 1;
+    if (left.tuple[i] < right.tuple[i]) return -1;
+  }
+
+  return 0;
+};
+
 /**
  * Compare two semantic versions.
  * @param current - Current version (e.g., "v1.2.3")
@@ -15,44 +60,33 @@ export const compareVersions = (
   const currentValidated = versionSchema.parse(current);
   const latestValidated = versionSchema.parse(latest);
 
-  const parseVersion = (version: string) => {
-    if (version.startsWith("v")) {
-      version = version.slice(1);
-    }
-    // Split into version and pre-release parts
-    const [versionPart, ...rest] = version.split(/[-+]/);
-    const numbers = versionPart.split(".").map(Number);
-    return {
-      numbers,
-      isPreRelease: rest.length > 0,
-    };
-  };
+  const currentParsed = parseVersionString(currentValidated);
+  const latestParsed = parseVersionString(latestValidated);
 
-  const current_parsed = parseVersion(currentValidated);
-  const latest_parsed = parseVersion(latestValidated);
-
-  const [currentMajor, currentMinor, currentPatch] = current_parsed.numbers;
-  const [latestMajor, latestMinor, latestPatch] = latest_parsed.numbers;
+  if (!currentParsed || !latestParsed) {
+    throw new Error("Invalid semantic version");
+  }
 
   // If current is a pre-release (RC) and latest is a full release of the same version,
   // consider it as needing a patch update
   if (
-    current_parsed.isPreRelease &&
-    !latest_parsed.isPreRelease &&
-    currentMajor === latestMajor &&
-    currentMinor === latestMinor &&
-    currentPatch === latestPatch
+    currentParsed.isPreRelease &&
+    !latestParsed.isPreRelease &&
+    compareParsedVersions(currentParsed, latestParsed) === 0
   ) {
     return "patch";
   }
 
-  if (latestMajor > currentMajor) return "major";
-  if (latestMajor === currentMajor && latestMinor > currentMinor)
+  if (latestParsed.major > currentParsed.major) return "major";
+  if (
+    latestParsed.major === currentParsed.major &&
+    latestParsed.minor > currentParsed.minor
+  )
     return "minor";
   if (
-    latestMajor === currentMajor &&
-    latestMinor === currentMinor &&
-    latestPatch > currentPatch
+    latestParsed.major === currentParsed.major &&
+    latestParsed.minor === currentParsed.minor &&
+    latestParsed.patch > currentParsed.patch
   )
     return "patch";
 

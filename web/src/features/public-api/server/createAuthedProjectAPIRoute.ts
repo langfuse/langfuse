@@ -10,12 +10,14 @@ import {
   traceException,
   logger,
 } from "@langfuse/shared/src/server";
-import { type RateLimitResource } from "@langfuse/shared";
+import { PayloadTooLargeError, type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
+import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { contextWithLangfuseProps } from "@langfuse/shared/src/server";
 import * as opentelemetry from "@opentelemetry/api";
 import { env } from "@/src/env.mjs";
 import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
+import { isPrismaException } from "@/src/utils/exceptions";
 import {
   createUnstablePublicApiAuthError,
   createUnstablePublicApiRequestValidationError,
@@ -26,6 +28,11 @@ import {
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
+
+// Next's res.json uses JSON.stringify; V8 throws this when the JSON string
+// exceeds the engine limit. Keep this check scoped to the response write.
+const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
+  error instanceof RangeError && error.message === "Invalid string length";
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,
@@ -38,6 +45,7 @@ export type AuthedProjectAPIRouteConfig<
   responseSchema: TResponse;
   successStatusCode?: number;
   rateLimitResource?: z.infer<typeof RateLimitResource>; // defaults to public-api
+  rateLimitUpgradePath?: RateLimitUpgradePath;
   /**
    * Allow authentication via ADMIN_API_KEY for self-hosted instances only.
    * When enabled, the endpoint will accept admin API key authentication in addition to regular API keys.
@@ -324,8 +332,25 @@ export const createAuthedProjectAPIRoute = <
         routeConfig.allowInAppAgentKey === true,
       );
     } catch (error: any) {
-      const statusCode = error.status || 401;
-      const message = error.message || "Authentication failed";
+      if (isPrismaException(error)) {
+        traceException(error);
+
+        if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
+          return sendUnstablePublicApiErrorResponse(
+            res,
+            createUnstablePublicApiAuthError({
+              statusCode: 503,
+              message: "Service Unavailable",
+            }),
+          );
+        }
+
+        res.status(503).json({ message: "Service Unavailable" });
+        return;
+      }
+
+      const statusCode = error.status ?? 401;
+      const message = error.message ?? "Authentication failed";
 
       if (routeConfig.errorContract === unstablePublicEvalsErrorContract) {
         return sendUnstablePublicApiErrorResponse(
@@ -346,10 +371,10 @@ export const createAuthedProjectAPIRoute = <
       );
 
     if (rateLimitResponse?.isRateLimited()) {
-      return rateLimitResponse.sendRestResponseIfLimited(
-        res,
-        routeConfig.errorContract,
-      );
+      return rateLimitResponse.sendRestResponseIfLimited(res, {
+        errorContract: routeConfig.errorContract,
+        upgradePath: routeConfig.rateLimitUpgradePath,
+      });
     }
 
     logger.debug(
@@ -428,14 +453,22 @@ export const createAuthedProjectAPIRoute = <
         }
       }
 
-      res
-        .status(
-          // Check whether status code was already set inside handler to non default value
-          res.statusCode !== 200
-            ? res.statusCode
-            : routeConfig.successStatusCode || 200,
-        )
-        .json(response || { message: "OK" });
+      res.status(
+        // Check whether status code was already set inside handler to non default value
+        res.statusCode !== 200
+          ? res.statusCode
+          : routeConfig.successStatusCode || 200,
+      );
+
+      try {
+        res.json(response || { message: "OK" });
+      } catch (error) {
+        if (isJsonStringTooLargeError(error)) {
+          throw new PayloadTooLargeError();
+        }
+
+        throw error;
+      }
     });
   };
 };

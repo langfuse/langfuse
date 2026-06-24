@@ -1,4 +1,4 @@
-import { api } from "@/src/utils/api";
+import { api, sendAsPostOption } from "@/src/utils/api";
 import { useMemo } from "react";
 import {
   type FilterState,
@@ -76,12 +76,17 @@ export function useEventsTableData({
 
   const observations = api.events.all.useQuery(getAllPayload, {
     refetchOnWindowFocus: true,
+    placeholderData: (prev) => prev,
     meta: {
       silentHttpCodes, // Turns off red bubble
     },
   });
 
   const batchIOPayload = useMemo(() => {
+    if (observations.isPlaceholderData) {
+      return null;
+    }
+
     const validObservations =
       observations.data?.observations?.filter(
         (o) => o.id && o.traceId && o.startTime,
@@ -107,10 +112,15 @@ export function useEventsTableData({
       minStartTime,
       maxStartTime,
     };
-  }, [observations.data?.observations, projectId]);
+  }, [
+    observations.data?.observations,
+    observations.isPlaceholderData,
+    projectId,
+  ]);
 
   // Fetch I/O data
   const ioDataQuery = api.events.batchIO.useQuery(batchIOPayload!, {
+    ...sendAsPostOption,
     enabled: observations.isSuccess && batchIOPayload !== null,
     refetchOnWindowFocus: false,
     staleTime: 0,
@@ -129,7 +139,7 @@ export function useEventsTableData({
   // Memoize joined data to prevent infinite re-renders
   // Handle loading, error, and success states
   const joinedData = useMemo(() => {
-    if (observations.isLoading) {
+    if (observations.isLoading || observations.isPlaceholderData) {
       return { status: "loading" as const, rows: undefined };
     }
 
@@ -148,18 +158,30 @@ export function useEventsTableData({
     );
   }, [
     observations.isLoading,
+    observations.isPlaceholderData,
     observations.isError,
     observations.data?.observations,
     ioDataQuery.data,
     isSilencedError,
   ]);
 
-  // Fetch total count
+  // Fetch the exact count only after the user selects all matching rows.
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
+    enabled: selectAll,
     refetchOnWindowFocus: true,
   });
 
-  const totalCount = totalCountQuery.data?.totalCount ?? null;
+  const totalCount = selectAll
+    ? (totalCountQuery.data?.totalCount ?? null)
+    : null;
+  const isTotalCountLoading =
+    selectAll && totalCount === null && totalCountQuery.isFetching;
+  const isTotalCountError =
+    selectAll &&
+    totalCount === null &&
+    totalCountQuery.isError &&
+    !totalCountQuery.isFetching;
+  const hasMore = observations.data?.hasMore ?? false;
 
   // Add to queue mutation
   const addToQueueMutation = api.annotationQueueItems.createMany.useMutation({
@@ -210,8 +232,10 @@ export function useEventsTableData({
   return {
     observations: joinedData,
     dataUpdatedAt: observations.dataUpdatedAt,
-    totalCountQuery,
     totalCount,
+    isTotalCountLoading,
+    isTotalCountError,
+    hasMore,
     addToQueueMutation,
     handleAddToAnnotationQueue,
     ioLoading: ioDataQuery.isLoading,

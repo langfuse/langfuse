@@ -8,6 +8,7 @@ import {
   getCurrentSpan,
   contextWithLangfuseProps,
   eventTypes,
+  markProjectIngestFailure,
 } from "@langfuse/shared/src/server";
 import { telemetry } from "@/src/features/telemetry";
 import { jsonSchema } from "@langfuse/shared";
@@ -53,6 +54,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  let projectIdForIngestFailure: string | undefined;
+
   try {
     await runMiddleware(req, res, cors);
 
@@ -88,6 +91,8 @@ export default async function handler(
         "Missing projectId in scope. Are you using an organization key?",
       );
     }
+    const projectId = authCheck.scope.projectId;
+    projectIdForIngestFailure = projectId;
 
     if (authCheck.scope.isIngestionSuspended) {
       throw new ForbiddenError(
@@ -97,75 +102,85 @@ export default async function handler(
 
     const ctx = contextWithLangfuseProps({
       headers: req.headers,
-      projectId: authCheck.scope.projectId,
+      projectId,
       apiKeyId: authCheck.scope.apiKeyId,
     });
     // Execute the rest of the handler within the context
     return opentelemetry.context.with(ctx, async () => {
       try {
-        const rateLimitCheck =
-          await RateLimitService.getInstance().rateLimitRequest(
-            authCheck.scope,
-            "ingestion",
-          );
+        try {
+          const rateLimitCheck =
+            await RateLimitService.getInstance().rateLimitRequest(
+              authCheck.scope,
+              "ingestion",
+            );
 
-        if (rateLimitCheck?.isRateLimited()) {
-          return rateLimitCheck.sendRestResponseIfLimited(res);
+          if (rateLimitCheck?.isRateLimited()) {
+            return rateLimitCheck.sendRestResponseIfLimited(res);
+          }
+        } catch (e) {
+          // If rate-limiter returns an error, we log it and continue processing.
+          // This allows us to fail open instead of reject requests.
+          logger.error("Error while rate limiting", e);
         }
-      } catch (e) {
-        // If rate-limiter returns an error, we log it and continue processing.
-        // This allows us to fail open instead of reject requests.
-        logger.error("Error while rate limiting", e);
-      }
 
-      const batchType = z.object({
-        batch: z.array(z.unknown()),
-        metadata: jsonSchema.nullish(),
-      });
-
-      const parsedSchema = batchType.safeParse(req.body);
-
-      if (!parsedSchema.success) {
-        logger.info("Invalid request data", parsedSchema.error);
-        return res.status(400).json({
-          message: "Invalid request data",
-          errors: parsedSchema.error.issues.map((issue) => issue.message),
+        const batchType = z.object({
+          batch: z.array(z.unknown()),
+          metadata: jsonSchema.nullish(),
         });
+
+        const parsedSchema = batchType.safeParse(req.body);
+
+        if (!parsedSchema.success) {
+          logger.info("Invalid request data", parsedSchema.error);
+          return res.status(400).json({
+            message: "Invalid request data",
+            errors: parsedSchema.error.issues.map((issue) => issue.message),
+          });
+        }
+
+        await telemetry();
+
+        // V4 events_only mode: refuse trace/observation events because their
+        // writes would land in the legacy ClickHouse tables this deployment no
+        // longer reads. Scores and SDK logs are unaffected and pass through.
+        // Reject per-event so a mixed batch still processes its score events.
+        const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
+          parsedSchema.data.batch,
+          env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only",
+        );
+
+        const result = await processEventBatch(batchForProcessing, authCheck);
+        if (rejectedErrors.length > 0) {
+          result.errors = [...result.errors, ...rejectedErrors];
+        }
+        return res.status(207).json(result);
+      } catch (error) {
+        if (!(error instanceof BaseError && error.isUserError())) {
+          markProjectIngestFailure(projectId, {
+            source: "public_ingestion_api",
+            reason: "api_internal_error",
+          });
+        }
+        throw error;
       }
-
-      await telemetry();
-
-      // V4 events_only mode: refuse trace/observation events because their
-      // writes would land in the legacy ClickHouse tables this deployment no
-      // longer reads. Scores and SDK logs are unaffected and pass through.
-      // Reject per-event so a mixed batch still processes its score events.
-      const { batchForProcessing, rejectedErrors } = filterBatchForEventsOnly(
-        parsedSchema.data.batch,
-        env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only",
-      );
-
-      const result = await processEventBatch(batchForProcessing, authCheck);
-      if (rejectedErrors.length > 0) {
-        result.errors = [...result.errors, ...rejectedErrors];
-      }
-      return res.status(207).json(result);
     });
   } catch (error: unknown) {
-    if (!(error instanceof UnauthorizedError)) {
-      logger.error("error_handling_ingestion_event", error);
-      traceException(error);
-    }
-
     if (error instanceof BaseError) {
+      if (!error.isUserError()) {
+        logger.error(error);
+        traceException(error);
+        if (projectIdForIngestFailure) {
+          markProjectIngestFailure(projectIdForIngestFailure, {
+            source: "public_ingestion_api",
+            reason: "api_internal_error",
+          });
+        }
+      }
+
       return res.status(error.httpCode).json({
         error: error.name,
         message: error.message,
-      });
-    }
-
-    if (isPrismaException(error)) {
-      return res.status(500).json({
-        error: "Internal Server Error",
       });
     }
 
@@ -174,6 +189,22 @@ export default async function handler(
       return res.status(400).json({
         message: "Invalid request data",
         error: error.issues,
+      });
+    }
+
+    logger.error("error_handling_ingestion_event", error);
+    traceException(error);
+
+    if (projectIdForIngestFailure) {
+      markProjectIngestFailure(projectIdForIngestFailure, {
+        source: "public_ingestion_api",
+        reason: "api_internal_error",
+      });
+    }
+
+    if (isPrismaException(error)) {
+      return res.status(500).json({
+        error: "Internal Server Error",
       });
     }
 

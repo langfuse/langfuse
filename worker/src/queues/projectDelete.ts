@@ -1,6 +1,7 @@
 import { Job, Processor } from "bullmq";
 import {
   deleteEventsByProjectId,
+  deleteMediaLinkRowsByProjectId,
   deleteMediaFiles,
   deleteObservationsByProjectId,
   deleteScoresByProjectId,
@@ -37,6 +38,8 @@ export const projectDeleteProcessor: Processor = async (
   }
 
   logger.info(`Deleting ${projectId} in org ${orgId}`);
+
+  await deleteMediaLinkRowsByProjectId({ projectId });
 
   // Delete media data from S3 and PG for project
   if (env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET) {

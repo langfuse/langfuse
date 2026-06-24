@@ -41,6 +41,22 @@ This is the canonical shared review checklist for Langfuse.
   - `top-banner-offset` / `pt-banner-offset` - For sticky/fixed/absolute positioning and padding
   - `h-screen-with-banner` / `min-h-screen-with-banner` - For full-height containers accounting for banners
 
+## Security
+
+- For changes that accept a user-supplied URL, host, `endpoint`, `baseURL`,
+  or webhook target, or that issue a new outbound HTTP request, run the
+  shared [`security-review`](../../security-review/SKILL.md) skill and treat
+  its [`outbound-url-validation.md`](../../security-review/references/outbound-url-validation.md)
+  defenses (save-time validation + use-time / connection-time validation +
+  redirect-time validation) as required. Plain `fetch(<userUrl>)` or SDK
+  init with `endpoint: <userUrl>` without one of the canonical validators
+  (`validateLlmConnectionBaseURL`, `validateWebhookURL`,
+  `validateBlobStorageEndpoint`, or a new wrapper around
+  `validateOutboundUrlHost`) is a finding.
+- For changes that add a new integration, secret-bearing field, redirect
+  follower, or RBAC scope, run the rest of the
+  [`security-review/references/checklist.md`](../../security-review/references/checklist.md).
+
 ## JavaScript / TypeScript Style
 
 - use concat instead of spread to avoid stack overflow with large arrays

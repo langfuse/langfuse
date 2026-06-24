@@ -1510,10 +1510,10 @@
   },
   {
     "id": "clv2o2x0p000008jsf9afceau",
-    "modelName": " gpt-4-preview",
+    "modelName": "gpt-4-preview",
     "matchPattern": "(?i)^(openai\/)?(gpt-4-preview)$",
     "createdAt": "2024-04-23T10:37:17.092Z",
-    "updatedAt": "2025-12-12T15:00:06.513Z",
+    "updatedAt": "2026-06-16T00:00:00.000Z",
     "tokenizerConfig": {
       "tokensPerName": 1,
       "tokenizerModel": "gpt-4-turbo-preview",
@@ -2844,7 +2844,7 @@
     "modelName": "gemini-2.5-flash-lite",
     "matchPattern": "(?i)^(google(ai)?\/)?(gemini-2.5-flash-lite)$",
     "createdAt": "2025-07-03T13:44:06.964Z",
-    "updatedAt": "2026-03-19T00:00:00.000Z",
+    "updatedAt": "2026-06-19T00:00:00.000Z",
     "pricingTiers": [
       {
         "id": "cmcnjkrfa000207l4fpnh5mnv_tier_default",
@@ -2858,8 +2858,8 @@
           "input_modality_1": 1e-7,
           "prompt_token_count": 1e-7,
           "promptTokenCount": 1e-7,
-          "input_cached_tokens": 2.5e-8,
-          "cached_content_token_count": 2.5e-8,
+          "input_cached_tokens": 1e-8,
+          "cached_content_token_count": 1e-8,
           "output": 4e-7,
           "output_text": 4e-7,
           "output_modality_1": 4e-7,
@@ -2868,7 +2868,7 @@
           "thoughtsTokenCount": 4e-7,
           "thoughts_token_count": 4e-7,
           "output_reasoning": 4e-7,
-          "input_audio_tokens": 5e-7
+          "input_audio_tokens": 3e-7
         }
       }
     ]
@@ -3437,6 +3437,68 @@
           "cache_read_input_tokens": 0.5e-6,
           "input_cached_tokens": 0.5e-6,
           "input_cache_read": 0.5e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "0b9a828d-9fdc-46d4-b5ec-f6574c42ad65",
+    "modelName": "claude-fable-5",
+    "matchPattern": "(?i)^((anthropic\/)?claude-fable-5|(eu\\.|us\\.|apac\\.|global\\.)?anthropic\\.claude-fable-5(-v1(:0)?)?)$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "0b9a828d-9fdc-46d4-b5ec-f6574c42ad65_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "33f4e272-750f-49d9-90ed-313b3c920da1",
+    "modelName": "claude-mythos-5",
+    "matchPattern": "(?i)^(anthropic\/)?claude-mythos-5$",
+    "createdAt": "2026-06-09T00:00:00.000Z",
+    "updatedAt": "2026-06-09T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": "claude",
+    "pricingTiers": [
+      {
+        "id": "33f4e272-750f-49d9-90ed-313b3c920da1_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 10e-6,
+          "input_tokens": 10e-6,
+          "output": 50e-6,
+          "output_tokens": 50e-6,
+          "cache_creation_input_tokens": 12.5e-6,
+          "input_cache_creation": 12.5e-6,
+          "input_cache_creation_5m": 12.5e-6,
+          "input_cache_creation_1h": 20e-6,
+          "cache_read_input_tokens": 1e-6,
+          "input_cached_tokens": 1e-6,
+          "input_cache_read": 1e-6
         }
       }
     ]

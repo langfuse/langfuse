@@ -23,9 +23,21 @@ import {
 import { Label } from "@/src/components/ui/label";
 import { Input } from "@/src/components/ui/input";
 
-export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
+type DefaultEvalModelSuccessMessage = {
+  title: string;
+  description: string;
+};
+
+function useDefaultEvalModelSetup({
+  projectId,
+  onSuccess,
+  successMessage,
+}: {
+  projectId: string;
+  onSuccess?: () => void;
+  successMessage: DefaultEvalModelSuccessMessage;
+}) {
   const utils = api.useUtils();
-  const [isEditing, setIsEditing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   const hasWriteAccess = useHasProjectAccess({
@@ -51,17 +63,14 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
   const { mutateAsync: upsertDefaultModel, isPending: isUpsertLoading } =
     api.defaultLlmModel.upsertDefaultModel.useMutation({
       onSuccess: () => {
-        showSuccessToast({
-          title: "Default evaluation model updated",
-          description: "All running evaluators will use the new model.",
-        });
+        showSuccessToast(successMessage);
 
         utils.defaultLlmModel.fetchDefaultModel.invalidate({ projectId });
         setFormError(null);
-        setIsEditing(false);
+        onSuccess?.();
       },
       onError: (error) => {
-        setFormError(error.message as string);
+        setFormError(error.message);
       },
     });
 
@@ -75,7 +84,77 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
     });
   };
 
-  if (isDefaultModelLoading) {
+  return {
+    availableModels,
+    availableProviders,
+    executeUpsertMutation,
+    formError,
+    hasWriteAccess,
+    isDefaultModelLoading,
+    isUpsertLoading,
+    modelParams,
+    providerModelCombinations,
+    selectedModel,
+    setModelParamEnabled,
+    setFormError,
+    updateModelParamValue,
+  };
+}
+
+function DefaultEvalModelFields({
+  setup,
+  errorClassName = "w-full text-center",
+}: {
+  setup: ReturnType<typeof useDefaultEvalModelSetup>;
+  errorClassName?: string;
+}) {
+  return (
+    <>
+      <ModelParameters
+        customHeader={
+          <p className="leading-none font-medium">LLM connection</p>
+        }
+        modelParams={setup.modelParams}
+        availableModels={setup.availableModels}
+        providerModelCombinations={setup.providerModelCombinations}
+        availableProviders={setup.availableProviders}
+        updateModelParamValue={setup.updateModelParamValue}
+        setModelParamEnabled={setup.setModelParamEnabled}
+        formDisabled={!setup.hasWriteAccess}
+      />
+      <p className="text-muted-foreground text-xs">
+        Select a model which supports function calling.
+      </p>
+      {setup.formError ? (
+        <p className={errorClassName}>
+          <span className="font-bold">Error:</span> {setup.formError}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+export function DefaultEvalModelSetup({
+  projectId,
+  onSuccess,
+}: {
+  projectId: string;
+  onSuccess?: () => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const setup = useDefaultEvalModelSetup({
+    projectId,
+    onSuccess: () => {
+      setIsEditing(false);
+      onSuccess?.();
+    },
+    successMessage: {
+      title: "Default evaluation model updated",
+      description: "All running evaluators will use the new model.",
+    },
+  });
+
+  if (setup.isDefaultModelLoading) {
     return <Skeleton className="h-[500px] w-full" />;
   }
 
@@ -84,16 +163,15 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
       <Card className="mt-3 flex flex-col gap-6">
         <CardContent>
           <p className="my-2 text-lg font-semibold">
-            Set default evaluator model
+            Set up LLM connection to use for evaluations
           </p>
           <ManageDefaultEvalModel
             projectId={projectId}
             variant="color-coded"
             setUpMessage={
               <>
-                No default model set. LLM-as-a-judge evaluations require an LLM
-                connection for scoring. This default is used by all templates
-                that don&apos;t specify their own model.{" "}
+                LLM-as-a-judge evaluations require an LLM connection for
+                scoring. You can also specify a custom model for each evaluator.{" "}
                 <a
                   href="https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge#how-llm-as-a-judge-works"
                   target="_blank"
@@ -111,7 +189,7 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
       </Card>
 
       <div className="mt-2 flex justify-end gap-2">
-        {selectedModel && (
+        {setup.selectedModel && (
           <DeleteEvaluationModelButton
             projectId={projectId}
             scope="evalDefaultModel:CUD"
@@ -123,69 +201,91 @@ export function DefaultEvalModelSetup({ projectId }: { projectId: string }) {
           onOpenChange={(open) => {
             setIsEditing(open);
             if (!open) {
-              setFormError(null);
+              setup.setFormError(null);
             }
           }}
         >
           <DialogTrigger asChild>
             <Button
-              disabled={!hasWriteAccess}
+              disabled={!setup.hasWriteAccess}
               onClick={() => {
                 setIsEditing(true);
               }}
             >
               <Pencil className="mr-2 h-4 w-4" />
-              {selectedModel ? "Edit" : "Set up"}
+              {setup.selectedModel ? "Edit" : "Set up"}
             </Button>
           </DialogTrigger>
           <DialogContent className="px-3 py-10">
-            <ModelParameters
-              customHeader={
-                <p className="leading-none font-medium">
-                  Default model configuration
-                </p>
-              }
-              {...{
-                modelParams,
-                availableModels,
-                providerModelCombinations,
-                availableProviders,
-                updateModelParamValue,
-                setModelParamEnabled,
-              }}
-              formDisabled={!hasWriteAccess}
-            />
-            <div className="text-muted-foreground my-2 text-xs">
-              Select a model which supports function calling.
-            </div>
             <div className="flex flex-col gap-2">
+              <DefaultEvalModelFields setup={setup} />
               <div className="mt-2 flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setIsEditing(false)}>
                   Cancel
                 </Button>
-                {selectedModel ? (
+                {setup.selectedModel ? (
                   <UpdateButton
                     projectId={projectId}
-                    isLoading={isUpsertLoading}
-                    executeUpsertMutation={executeUpsertMutation}
+                    isLoading={setup.isUpsertLoading}
+                    executeUpsertMutation={setup.executeUpsertMutation}
                   />
                 ) : (
                   <Button
-                    disabled={!hasWriteAccess || !modelParams.provider.value}
-                    onClick={executeUpsertMutation}
+                    disabled={
+                      !setup.hasWriteAccess || !setup.modelParams.provider.value
+                    }
+                    onClick={setup.executeUpsertMutation}
                   >
                     Save
                   </Button>
                 )}
               </div>
-              {formError ? (
-                <p className="text-red w-full text-center">
-                  <span className="font-bold">Error:</span> {formError}
-                </p>
-              ) : null}
             </div>
           </DialogContent>
         </Dialog>
+      </div>
+    </>
+  );
+}
+
+export function InlineDefaultEvalModelSetup({
+  projectId,
+  onSuccess,
+  submitLabel = "Save",
+}: {
+  projectId: string;
+  onSuccess?: () => void;
+  submitLabel?: string;
+}) {
+  const setup = useDefaultEvalModelSetup({
+    projectId,
+    onSuccess,
+    successMessage: {
+      title: "Default evaluation model set",
+      description: "LLM-as-a-judge evaluators can now use this model.",
+    },
+  });
+
+  if (setup.isDefaultModelLoading) {
+    return <Skeleton className="h-[360px] w-full" />;
+  }
+
+  return (
+    <>
+      <div className="space-y-3">
+        <DefaultEvalModelFields
+          setup={setup}
+          errorClassName="w-full text-center text-sm"
+        />
+      </div>
+      <div className="flex w-full justify-end">
+        <Button
+          loading={setup.isUpsertLoading}
+          disabled={!setup.hasWriteAccess || !setup.modelParams.provider.value}
+          onClick={setup.executeUpsertMutation}
+        >
+          {submitLabel}
+        </Button>
       </div>
     </>
   );
@@ -224,7 +324,7 @@ function UpdateButton({
         onClick={(e) => e.stopPropagation()}
         className="w-fit max-w-[500px]"
       >
-        <h2 className="text-md mb-3 font-semibold">Please confirm</h2>
+        <h2 className="mb-3 font-semibold">Please confirm</h2>
         <p className="mb-3 text-sm">
           Updating the default model will impact any currently running
           evaluators that use it. Please confirm that you want to proceed with

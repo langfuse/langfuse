@@ -105,6 +105,11 @@ model Organization {
   cloudFreeTierUsageThresholdState String?                  @map("cloud_free_tier_usage_threshold_state")
   aiFeaturesEnabled                Boolean                  @default(false) @map("ai_features_enabled")
   aiTelemetryEnabled               Boolean                  @default(true) @map("ai_telemetry_enabled")
+  // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
+  // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch
+  // between the stored value and a subsequently returned ID indicates an SFDC
+  // side merge — logged as an error but does not throw (no retry loop).
+  sfdcOrgId                        String?                  @map("sfdc_org_id")
   organizationMemberships          OrganizationMembership[]
   projects                         Project[]
   MembershipInvitation             MembershipInvitation[]
@@ -141,6 +146,7 @@ model Project {
   PosthogIntegration        PosthogIntegration[]
   MixpanelIntegration       MixpanelIntegration[]
   BlobStorageIntegration    BlobStorageIntegration[]
+  webCalloutEndpoints       WebCalloutEndpoint[]
   scoreConfig               ScoreConfig[]
   BatchExport               BatchExport[]
   BatchAction               BatchAction[]
@@ -148,9 +154,7 @@ model Project {
   commentReactions          CommentReaction[]
   annotationQueue           AnnotationQueue[]
   annotationQueueItem       AnnotationQueueItem[]
-  TraceMedia                TraceMedia[]
   Media                     Media[]
-  ObservationMedia          ObservationMedia[]
   LegacyTrace               LegacyPrismaTrace[]
   LegacyObservation         LegacyPrismaObservation[]
   LegacyScore               LegacyPrismaScore[]
@@ -1008,7 +1012,6 @@ model EvalTemplate {
   sourceCode         String?                         @map("source_code") @db.VarChar(262144)
   sourceCodeLanguage EvalTemplateSourceCodeLanguage? @map("source_code_language")
   JobConfiguration   JobConfiguration[]
-  JobExecution       JobExecution[]
 
   @@unique([projectId, name, version])
   @@index([projectId, id])
@@ -1094,7 +1097,6 @@ model JobExecution {
   jobConfiguration   JobConfiguration @relation(fields: [jobConfigurationId], references: [id], onDelete: Cascade)
 
   jobTemplateId String?       @map("job_template_id")
-  jobTemplate   EvalTemplate? @relation(fields: [jobTemplateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   status    JobExecutionStatus
   startTime DateTime?          @map("start_time")
@@ -1230,6 +1232,11 @@ model BlobStorageIntegration {
   exportFieldGroups String[]                         @default(["core", "basic", "time", "io", "metadata", "model", "usage", "prompt", "metrics", "tools", "trace_context"]) @map("export_field_groups")
   compressed        Boolean                          @default(true) @map("compressed")
 
+  // Per-project blob-export tuning (set via DB directly for now; no UI/tRPC
+  // write path). Validated/clamped at job time; null/malformed → defaults.
+  // Shared with LFE-10394; extend the zod schema, do not duplicate the column.
+  exportTuning Json? @map("export_tuning")
+
   // Error tracking
   lastError   String?   @map("last_error")
   lastErrorAt DateTime? @map("last_error_at")
@@ -1241,6 +1248,26 @@ model BlobStorageIntegration {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("blob_storage_integrations")
+}
+
+model WebCalloutEndpoint {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  name              String   @default("Default")
+  url               String
+  enabled           Boolean  @default(true)
+  toastMessage      String   @default("Callout sent") @map("toast_message")
+  requestHeaders    String?  @map("request_headers")
+  requestHeaderKeys String[] @default([]) @map("request_header_keys")
+
+  @@index([projectId])
+  @@index([projectId, enabled])
+  @@map("web_callout_endpoints")
 }
 
 enum BlobStorageIntegrationFileType {
@@ -1342,8 +1369,6 @@ model Media {
   bucketName       String             @map("bucket_name")
   contentType      String             @map("content_type")
   contentLength    BigInt             @map("content_length")
-  TraceMedia       TraceMedia[]
-  ObservationMedia ObservationMedia[]
 
   @@unique([projectId, id])
   @@unique([projectId, sha256Hash])
@@ -1354,11 +1379,9 @@ model Media {
 model TraceMedia {
   id        String   @id @default(cuid())
   projectId String   @map("project_id")
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId   String   @map("media_id")
-  media     Media    @relation(fields: [mediaId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId   String   @map("trace_id")
   field     String   @map("field")
 
@@ -1370,11 +1393,9 @@ model TraceMedia {
 model ObservationMedia {
   id            String   @id @default(cuid())
   projectId     String   @map("project_id")
-  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
   mediaId       String   @map("media_id")
-  media         Media    @relation(fields: [mediaId, projectId], references: [id, projectId], onDelete: Cascade)
   traceId       String   @map("trace_id")
   observationId String   @map("observation_id")
   field         String   @map("field")
@@ -1382,6 +1403,34 @@ model ObservationMedia {
   @@unique([projectId, traceId, observationId, mediaId, field])
   @@index([projectId, mediaId])
   @@map("observation_media")
+}
+
+model DatasetItemMedia {
+  id                   String   @id @default(cuid())
+  projectId            String   @map("project_id")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @default(now()) @updatedAt @map("updated_at")
+  mediaId              String   @map("media_id")
+  // dataset items cascade on dataset deletion, but these rows have no FK;
+  // datasetId lets the dataset-delete worker clean them up directly
+  datasetId            String   @map("dataset_id")
+  datasetItemId        String   @map("dataset_item_id")
+  // null while pending: the row is declared at media upload and stamped with
+  // the item version's validFrom when the item is written.
+  datasetItemValidFrom DateTime? @map("dataset_item_valid_from")
+  // dataset item field containing the reference: input | expectedOutput | metadata
+  field                String   @map("field")
+  // null while pending; the dataset service fills it from the item JSON on claim.
+  // JSONPath of the string holding the media reference within the field, e.g. $['images'][0]
+  jsonPath             String?  @map("json_path")
+  // null while pending; the original @@@langfuseMedia:...@@@ string, filled on
+  // claim so reads need no JSON parsing
+  referenceString      String?  @map("reference_string")
+
+  @@unique([projectId, datasetItemId, datasetItemValidFrom, field, jsonPath], map: "dataset_item_media_item_version_field_path_key")
+  @@index([projectId, mediaId])
+  @@index([projectId, datasetId])
+  @@map("dataset_item_media")
 }
 
 model BillingMeterBackup {
@@ -1682,6 +1731,7 @@ enum MonitorView {
 }
 
 enum MonitorSeverity {
+  PAUSED
   UNKNOWN
   NO_DATA
   OK
@@ -1728,15 +1778,17 @@ model Monitor {
   renotify Json
 
   // === Scheduling ===
-  status             MonitorStatus @default(ACTIVE)
-  schedulerBatchId   BigInt        @map("scheduler_batch_id")
-  nextRunAt          DateTime      @map("next_run_at")
-  lastPublishedRunAt DateTime?     @map("last_published_run_at")
-  lastCompletedRunAt DateTime?     @map("last_completed_run_at")
+  status           MonitorStatus @default(ACTIVE)
+  schedulerBatchId BigInt        @map("scheduler_batch_id")
+  nextRunAt        DateTime?     @map("next_run_at")
+  lastPublishedAt  DateTime?     @map("last_published_at")
+  lastClaimedAt    DateTime?     @map("last_claimed_at")
+  lastCompletedAt  DateTime?     @map("last_completed_at")
 
   // === Alerts ===
   name      String
-  tags      String[]  @default([])
+  tags       String[]  @default([])
+  triggerIds String[]  @default([]) @map("trigger_ids")
   alertedAt DateTime? @map("alerted_at")
 
   @@index([projectId])

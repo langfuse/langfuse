@@ -2,10 +2,10 @@ import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt
 import { getPromptByName } from "@/src/features/prompts/server/actions/getPromptByName";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
+import { isZodError } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
 import { isPrismaException } from "@/src/utils/exceptions";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { z } from "zod";
 import {
   UnauthorizedError,
   LangfuseNotFoundError,
@@ -108,26 +108,32 @@ export default async function handler(
 
     throw new MethodNotAllowedError();
   } catch (error: unknown) {
-    logger.error(error);
-    traceException(error);
-
     if (error instanceof BaseError) {
+      if (!error.isUserError()) {
+        logger.error(error);
+        traceException(error);
+      }
+
       return res.status(error.httpCode).json({
         error: error.name,
         message: error.message,
       });
     }
 
-    if (isPrismaException(error)) {
-      return res.status(500).json({
-        error: "Internal Server Error",
-      });
-    }
-
-    if (error instanceof z.ZodError) {
+    if (isZodError(error)) {
+      logger.warn(`Zod exception`, { issues: error.issues });
       return res.status(400).json({
         message: "Invalid request data",
         error: error.issues,
+      });
+    }
+
+    logger.error(error);
+    traceException(error);
+
+    if (isPrismaException(error)) {
+      return res.status(500).json({
+        error: "Internal Server Error",
       });
     }
 

@@ -54,6 +54,14 @@
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
       "require": "./dist/src/features/query/server/index.js"
+    },
+    "./monitors": {
+      "import": "./dist/src/features/monitors/index.js",
+      "require": "./dist/src/features/monitors/index.js"
+    },
+    "./monitors/server": {
+      "import": "./dist/src/features/monitors/server.js",
+      "require": "./dist/src/features/monitors/server.js"
     }
   },
   "scripts": {
@@ -79,13 +87,15 @@
     "ch:dev-tables": "bash clickhouse/scripts/dev-tables.sh",
     "ch:reset": "pnpm run ch:down && pnpm run ch:up && pnpm run ch:seed && pnpm run ch:dev-tables",
     "ch:seed": "dotenv -e ../../.env -- ts-node -r dotenv/config --compiler-options '{\"module\":\"CommonJS\"}' scripts/seeder/seed-clickhouse.ts",
-    "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts"
+    "load:setup": "dotenv -e ../../.env -- tsx scripts/seeder/load-seed-clickhouse.ts",
+    "seed:scenario": "dotenv -e ../../.env -- tsx scripts/seeder/cli.ts"
   },
   "prisma": {
     "seed": "ts-node -r dotenv/config --compiler-options {\"module\":\"CommonJS\"} scripts/seeder/seed-postgres.ts"
   },
   "dependencies": {
     "@anthropic-ai/tokenizer": "^0.0.4",
+    "@anthropic-ai/vertex-sdk": "^0.17.1",
     "@aws-sdk/client-cloudwatch": "^3.1013.0",
     "@aws-sdk/client-lambda": "^3.1046.0",
     "@aws-sdk/client-s3": "^3.1013.0",
@@ -113,7 +123,7 @@
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.76.3",
     "date-fns": "^3.6.0",
-    "dd-trace": "5.97.0",
+    "dd-trace": "5.109.0",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.2",
     "google-auth-library": "^10.6.2",
@@ -130,7 +140,8 @@
     "oci-common": "^2.125.0",
     "oci-objectstorage": "^2.125.0",
     "safe-regex2": "^5.0.0",
-    "undici": "^7.24.6",
+    "slackify-markdown": "^5.0.0",
+    "undici": "^7.28.0",
     "uuid": "^14.0.0",
     "winston": "^3.15.0",
     "zod": "^4.3.6"
@@ -149,7 +160,7 @@
     "ts-node": "^10.9.2",
     "tsc-watch": "^6.2.0",
     "typescript": "^5.7.2",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "@types/react": "~19.2.14",

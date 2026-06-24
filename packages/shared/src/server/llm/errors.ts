@@ -37,8 +37,9 @@ export class LLMCompletionError extends Error {
     message: string;
     responseStatusCode?: number;
     isRetryable?: boolean;
+    cause?: unknown;
   }) {
-    super(params.message);
+    super(params.message, { cause: params.cause });
 
     this.name = LLMCompletionErrorName;
     this.responseStatusCode = params.responseStatusCode ?? 500;

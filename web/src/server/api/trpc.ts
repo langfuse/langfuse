@@ -93,7 +93,7 @@ import {
 
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
-import { BaseError, parseIO } from "@langfuse/shared";
+import { isBaseError, parseIO } from "@langfuse/shared";
 import { type Flag } from "@/src/features/feature-flags/types";
 
 setUpSuperjson();
@@ -138,7 +138,7 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
 export const createTRPCRouter = t.router;
 
 const resolveError = (error: TRPCError) => {
-  if (error.cause instanceof BaseError) {
+  if (isBaseError(error.cause)) {
     return {
       code: getTRPCErrorCodeFromHTTPStatusCode(error.cause.httpCode),
       httpStatus: error.cause.httpCode,
@@ -147,12 +147,20 @@ const resolveError = (error: TRPCError) => {
   return { code: error.code, httpStatus: getHTTPStatusCodeFromError(error) };
 };
 
-const logErrorByCode = (errorCode: TRPCError["code"], error: TRPCError) => {
+const logErrorByStatus = ({
+  errorCode,
+  httpStatus,
+  error,
+}: {
+  errorCode: TRPCError["code"];
+  httpStatus: number;
+  error: TRPCError;
+}) => {
   if (errorCode === "NOT_FOUND" || errorCode === "UNAUTHORIZED") {
     logger.info(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
-  } else if (errorCode === "UNPROCESSABLE_CONTENT") {
+  } else if (httpStatus >= 400 && httpStatus < 500) {
     logger.warn(`middleware intercepted error with code ${errorCode}`, {
       error,
     });
@@ -176,7 +184,6 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         message: res.error.cause.message,
         tags: res.error.cause.tags,
       });
-      logErrorByCode("UNPROCESSABLE_CONTENT", res.error);
       res.error = new TRPCError({
         code: "UNPROCESSABLE_CONTENT",
         message: ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
@@ -193,7 +200,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
         ? "We have been notified and are working on it."
         : "Please check error logs in your self-hosted deployment.";
 
-      logErrorByCode(code, res.error);
+      logErrorByStatus({ errorCode: code, httpStatus, error: res.error });
       res.error = new TRPCError({
         code,
         cause: null, // do not expose stack traces
@@ -385,6 +392,14 @@ export const requireFeatureFlag = (flag: Flag) =>
     }
     return next();
   });
+
+/** requireLangfuseCloud rejects calls from non-Langfuse-Cloud deployments. */
+export const requireLangfuseCloud = t.middleware(({ next }) => {
+  if (!isLangfuseCloud) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Not found" });
+  }
+  return next();
+});
 
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
