@@ -92,45 +92,6 @@ function getTestFallbackClickHouseQueryTags():
   }
 }
 
-const uuidLikePattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const longHexPattern = /^[0-9a-f]{16,}$/i;
-const longOpaqueIdPattern = /^[A-Za-z0-9_-]{16,}$/;
-
-function isIdLikePathSegment(segment: string): boolean {
-  return (
-    /^\d+$/.test(segment) ||
-    uuidLikePattern.test(segment) ||
-    longHexPattern.test(segment) ||
-    (longOpaqueIdPattern.test(segment) && /\d/.test(segment))
-  );
-}
-
-export function sanitizeClickHouseRoute(route: string): string {
-  const trimmed = route.trim();
-  if (!trimmed) return trimmed;
-
-  const [method, maybeUrl] = trimmed.match(/^[A-Z]+ /)
-    ? [trimmed.split(" ")[0], trimmed.slice(trimmed.indexOf(" ") + 1)]
-    : [undefined, trimmed];
-
-  let pathname = maybeUrl.split("?")[0]?.split("#")[0] ?? maybeUrl;
-  try {
-    pathname = new URL(pathname).pathname;
-  } catch {
-    // Route is already relative or is a non-URL procedure/tool name.
-  }
-
-  const sanitized = pathname.includes("/")
-    ? pathname
-        .split("/")
-        .map((segment) => (isIdLikePathSegment(segment) ? "{id}" : segment))
-        .join("/")
-    : pathname;
-
-  return method ? `${method} ${sanitized}` : sanitized;
-}
-
 export function normalizeClickHouseQueryTags(
   tags: ClickHouseQueryTags,
 ): NormalizedClickHouseQueryTags {
@@ -167,7 +128,7 @@ export function normalizeClickHouseQueryTags(
   return {
     tag_schema_version: CLICKHOUSE_QUERY_TAG_SCHEMA_VERSION,
     surface: surface as ClickHouseQuerySurface,
-    route: sanitizeClickHouseRoute(route),
+    route: route.trim(),
     feature: feature as ClickHouseQueryFeature,
     ...(projectId ? { projectId } : {}),
   };

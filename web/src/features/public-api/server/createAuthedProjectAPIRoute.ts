@@ -9,7 +9,6 @@ import {
   type ApiAccessLevel,
   traceException,
   logger,
-  type ClickHouseQuerySurface,
 } from "@langfuse/shared/src/server";
 import { PayloadTooLargeError, type RateLimitResource } from "@langfuse/shared";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
@@ -26,6 +25,10 @@ import {
   unstablePublicEvalsErrorContract,
   type PublicApiErrorContract,
 } from "@/src/features/public-api/server/unstable-public-api-error-contract";
+import {
+  clickHouseRouteForRequest,
+  clickHouseSurfaceForRequest,
+} from "@/src/features/public-api/server/clickHouseRequestTags";
 
 /** Access levels that can be accepted by project-scoped API routes. */
 type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
@@ -34,14 +37,6 @@ type RouteAccessLevel = Exclude<ApiAccessLevel, "organization">;
 // exceeds the engine limit. Keep this check scoped to the response write.
 const isJsonStringTooLargeError = (error: unknown): error is RangeError =>
   error instanceof RangeError && error.message === "Invalid string length";
-
-const clickHouseRouteForRequest = (req: NextApiRequest) =>
-  `${req.method ?? "UNKNOWN"} ${req.url ?? ""}`;
-
-const clickHouseSurfaceForRequest = (
-  req: NextApiRequest,
-): ClickHouseQuerySurface =>
-  req.url?.split("?")[0]?.startsWith("/api/public/") ? "publicapi" : "trpc";
 
 export type AuthedProjectAPIRouteConfig<
   TQuery extends ZodType<any>,

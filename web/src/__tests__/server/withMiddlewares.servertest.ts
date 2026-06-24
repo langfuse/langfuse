@@ -17,6 +17,10 @@ import {
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import {
+  clickHouseRouteForRequest,
+  clickHouseSurfaceForRequest,
+} from "@/src/features/public-api/server/clickHouseRequestTags";
 
 // Mock the logger and traceException
 vi.mock("@langfuse/shared/src/server", async () => ({
@@ -96,6 +100,32 @@ describe("withMiddlewares error handling", () => {
       });
       // Should trace 5xx errors
       expect(traceException).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe("ClickHouse query tags", () => {
+    it("derives pathname-only public API route tags without rewriting path segments", () => {
+      const { req } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        url: "/api/public/traces/trace-123?foo=bar",
+      });
+
+      expect(clickHouseSurfaceForRequest(req)).toBe("publicapi");
+      expect(clickHouseRouteForRequest(req)).toBe(
+        "GET /api/public/traces/trace-123",
+      );
+    });
+
+    it("keeps non-public API routes on the trpc surface", () => {
+      const { req } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+        url: "/api/traces/trace-123/download?foo=bar",
+      });
+
+      expect(clickHouseSurfaceForRequest(req)).toBe("trpc");
+      expect(clickHouseRouteForRequest(req)).toBe(
+        "POST /api/traces/trace-123/download",
+      );
     });
   });
 

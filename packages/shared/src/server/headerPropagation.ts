@@ -3,7 +3,6 @@ import type { IncomingHttpHeaders } from "http";
 import { env } from "../env";
 import {
   CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
-  sanitizeClickHouseRoute,
   type ClickHouseQuerySurface,
 } from "./clickhouse/queryTags";
 
@@ -74,7 +73,7 @@ export const contextWithLangfuseProps = (
       value: props.clickhouse.surface,
     });
     baggage = baggage.setEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route, {
-      value: sanitizeClickHouseRoute(props.clickhouse.route),
+      value: props.clickhouse.route,
     });
   }
 

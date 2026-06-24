@@ -1,21 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   buildClickHouseLogComment,
-  sanitizeClickHouseRoute,
   setClickHouseQueryTagTestFallbackForTests,
 } from "./queryTags";
 
 describe("ClickHouse query tags", () => {
-  it("sanitizes URL routes for log comments", () => {
-    expect(
-      sanitizeClickHouseRoute(
-        "GET https://cloud.langfuse.com/api/public/traces/123e4567-e89b-12d3-a456-426614174000?foo=bar",
-      ),
-    ).toBe("GET /api/public/traces/{id}");
-
-    expect(sanitizeClickHouseRoute("traces.byId")).toBe("traces.byId");
-  });
-
   it("builds v1 log comments from request context and feature tags", () => {
     const logComment = buildClickHouseLogComment({
       surface: "publicapi",
@@ -30,7 +19,8 @@ describe("ClickHouse query tags", () => {
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
       surface: "publicapi",
-      route: "GET /api/public/traces/{id}",
+      route:
+        "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000?select=full",
       feature: "tracing",
       projectId: "project-1",
     });
