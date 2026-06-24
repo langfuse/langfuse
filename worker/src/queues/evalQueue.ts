@@ -15,7 +15,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
-import { delayInMs } from "./utils/delays";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
@@ -188,15 +187,16 @@ export const evalJobExecutorQueueProcessorBuilder = (
       //       │ Yes                          │ No
       //       ▼                              ▼
       // ┌──────────────────┐       ┌───────────────────────┐
-      // │ Is job < 24h old?│       │ Is it retryable?      │
-      // └─────┬──────┬─────┘       │ (shouldRetryJob)      │
-      //   Yes │      │ No          └─────┬─────────────┬───┘
+      // │ Is job inside its│       │ Is it retryable?      │
+      // │ retry budget?    │       │ (shouldRetryJob)      │
+      // └─────┬──────┬─────┘       └─────┬─────────────┬───┘
+      //   Yes │      │ No             Yes│             │No
       //       ▼      ▼                Yes│             │No
       // ┌─────────┐ ┌────────┐          ▼             ▼
       // │Set:     │ │Set:    │    ┌─────────┐  ┌──────────┐
       // │DELAYED  │ │ERROR   │    │BullMQ   │  │Set:      │
-      // │Retry in │ │Stop    │    │retry    │  │ERROR     │
-      // │1-25 min │ │        │    │w/ exp.  │  │Done      │
+      // │Retry by │ │Stop    │    │retry    │  │ERROR     │
+      // │120 min  │ │        │    │w/ exp.  │  │Done      │
       // └─────────┘ └────────┘    │backoff  │  └──────────┘
       //                           └─────────┘
 
@@ -217,7 +217,6 @@ export const evalJobExecutorQueueProcessorBuilder = (
           queue,
           queueName,
           jobName: QueueJobs.EvaluationExecution,
-          delayFn: delayInMs,
         });
 
         if (retryResult.outcome === "scheduled") {
@@ -316,7 +315,6 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
           queue,
           queueName,
           jobName: QueueJobs.LLMAsJudgeExecution,
-          delayFn: delayInMs,
         });
 
         if (retryResult.outcome === "scheduled") {
