@@ -51,10 +51,7 @@ export const clickhouseSearchCondition = ({
 }: ClickhouseSearchConditionOptions) => {
   const prefix = tablePrefix ? `${tablePrefix}.` : "";
 
-  const ilikeWithPrefilter = (
-    col: string,
-    param: string = "{searchString: String}",
-  ) =>
+  const ilikeWithPrefilter = (col: string, param = "{searchString: String}") =>
     // Fast-mode UI search intentionally narrows IO search to token matches
     // before applying ILIKE. This gives ClickHouse an inverted-index lookup,
     // but drops embedded-word substring matches like "foobarneedle".

@@ -28,7 +28,7 @@ export class ClickHouseQueryBuilder {
 
   private buildNestedMetadataMapSql(
     baseEntries: string[],
-    rowExpression: string = "number",
+    rowExpression = "number",
   ): string {
     return `map(
           ${baseEntries.join(",\n          ")},
@@ -88,7 +88,7 @@ export class ClickHouseQueryBuilder {
   buildBulkTracesInsert(
     projectId: string,
     count: number,
-    environment: string = "default",
+    environment = "default",
     fileContent?: { heavyMarkdown: string; nestedJson: any; chatMlJson: any },
     opts: {
       numberOfDays: number;
@@ -169,8 +169,8 @@ export class ClickHouseQueryBuilder {
   buildBulkObservationsInsert(
     projectId: string,
     tracesCount: number,
-    observationsPerTrace: number = 5,
-    environment: string = "default",
+    observationsPerTrace = 5,
+    environment = "default",
     fileContent?: { heavyMarkdown: string; nestedJson: any; chatMlJson: any },
     opts: {
       numberOfDays: number;
@@ -301,8 +301,8 @@ export class ClickHouseQueryBuilder {
   buildBulkScoresInsert(
     projectId: string,
     tracesCount: number,
-    scoresPerTrace: number = 2,
-    environment: string = "default",
+    scoresPerTrace = 2,
+    environment = "default",
     opts: {
       numberOfDays: number;
       idPrefix?: string;
