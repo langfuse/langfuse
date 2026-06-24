@@ -109,7 +109,7 @@ export const ImportDraftButton: React.FC<ImportDraftButtonProps> = ({
         if (Array.isArray(parsed.messages)) {
           const mappedMessages = parsed.messages.map((m: any) => {
             const role = m.role || ChatMessageRole.User;
-            const content = m.content || "";
+            const content = m.content ?? "";
             const type = m.type || mapRoleToType(role, m.toolCalls);
             return {
               ...m,
