@@ -37,6 +37,7 @@ import {
   type BlobTableExportOutcome,
 } from "./inFlightExports";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
+import { classifyBlobExportTraffic } from "./blobExportTraffic";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
@@ -672,6 +673,11 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
             path: passthroughEligible ? "passthrough" : "standard",
             source: exportFormat,
+            traffic: classifyBlobExportTraffic(
+              config.endpoint,
+              config.region,
+              env.AWS_REGION,
+            ),
           };
           recordIncrement(
             "langfuse.blob_export.serialized_bytes",
