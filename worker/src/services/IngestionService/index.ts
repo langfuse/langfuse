@@ -50,7 +50,6 @@ import {
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
-  type ClickHouseQueryTags,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -143,10 +142,6 @@ export class IngestionService {
     private prisma: PrismaClient,
     private clickHouseWriter: ClickhouseWriter,
     private clickhouseClient: ClickhouseClientType,
-    private clickHouseQueryTags?: Pick<
-      ClickHouseQueryTags,
-      "surface" | "route"
-    >,
   ) {
     this.promptService = new PromptService(prisma, redis);
   }
@@ -1442,7 +1437,6 @@ export class IngestionService {
           query_params: { projectId, entityId, ...additionalFilters.params },
           clickhouse_settings: {
             log_comment: buildClickHouseLogComment({
-              ...(this.clickHouseQueryTags ?? {}),
               feature: "ingestion",
               projectId,
             }),

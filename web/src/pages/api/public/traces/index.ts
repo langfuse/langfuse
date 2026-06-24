@@ -32,11 +32,6 @@ import {
 import { env } from "@/src/env.mjs";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 
-const publicApiTracesClickHouseQueryTags = {
-  surface: "publicapi",
-  route: "GET /api/public/traces",
-} as const;
-
 export default withMiddlewares(
   {
     POST: createAuthedProjectAPIRoute({
@@ -141,12 +136,10 @@ export default withMiddlewares(
               ...filterProps,
               advancedFilters: query.filter,
               orderBy: query.orderBy ?? null,
-              clickHouseQueryTags: publicApiTracesClickHouseQueryTags,
             }),
             getTracesCountFromEventsTableForPublicApi({
               ...filterProps,
               advancedFilters: query.filter,
-              clickHouseQueryTags: publicApiTracesClickHouseQueryTags,
             }),
           ]);
 
@@ -170,12 +163,10 @@ export default withMiddlewares(
             props: filterProps,
             advancedFilters: query.filter,
             orderBy: query.orderBy ?? null,
-            clickHouseQueryTags: publicApiTracesClickHouseQueryTags,
           }),
           getTracesCountForPublicApi({
             props: filterProps,
             advancedFilters: query.filter,
-            clickHouseQueryTags: publicApiTracesClickHouseQueryTags,
           }),
         ]);
 

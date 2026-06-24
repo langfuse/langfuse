@@ -19,10 +19,6 @@ export const processClickhouseDatasetDelete = async (
   );
 
   try {
-    const clickHouseQueryTags = {
-      surface: "worker" as const,
-    };
-
     switch (deletionType) {
       case "dataset":
         // Always drop the dataset_item_media link rows; no FK cascades them.
@@ -33,7 +29,6 @@ export const processClickhouseDatasetDelete = async (
         await deleteDatasetRunItemsByDatasetId({
           projectId,
           datasetId,
-          clickHouseQueryTags,
         });
         break;
 
@@ -42,7 +37,6 @@ export const processClickhouseDatasetDelete = async (
           projectId,
           datasetRunIds: jobPayload.datasetRunIds,
           datasetId,
-          clickHouseQueryTags,
         });
         break;
 

@@ -3,16 +3,12 @@ import {
   logger,
   traceException,
   deleteIngestionEventsFromS3AndClickhouseForScores,
-  type ClickHouseQueryContextTags,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
 export const processClickhouseScoreDelete = async (
   projectId: string,
   scoreIds: string[],
-  clickHouseQueryTags: ClickHouseQueryContextTags = {
-    surface: "worker",
-  },
 ) => {
   logger.info(
     `Deleting scores ${JSON.stringify(scoreIds)} in project ${projectId} from Clickhouse and S3`,
@@ -24,10 +20,9 @@ export const processClickhouseScoreDelete = async (
         ? deleteIngestionEventsFromS3AndClickhouseForScores({
             projectId,
             scoreIds,
-            clickHouseQueryTags,
           })
         : Promise.resolve(),
-      deleteScores(projectId, scoreIds, clickHouseQueryTags),
+      deleteScores(projectId, scoreIds),
     ]);
   } catch (e) {
     logger.error(

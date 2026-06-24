@@ -98,9 +98,7 @@ export const traceDeleteProcessor: Processor = async (
     // Delete from both Postgres and ClickHouse
     await Promise.all([
       processPostgresTraceDelete(projectId, traceIdsToDelete),
-      processClickhouseTraceDelete(projectId, traceIdsToDelete, {
-        surface: "worker",
-      }),
+      processClickhouseTraceDelete(projectId, traceIdsToDelete),
     ]);
 
     // Mark only the pending traces as deleted (not the ones from the event, as they might be legacy)

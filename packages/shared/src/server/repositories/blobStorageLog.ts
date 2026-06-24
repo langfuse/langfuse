@@ -5,13 +5,11 @@ import {
 } from "./clickhouse";
 import { BlobStorageFileRefRecordReadType } from "./definitions";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
 
 export const getBlobStorageByProjectAndEntityId = async (
   projectId: string,
   entityType: string,
   entityId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<BlobStorageFileRefRecordReadType[]> => {
   const query = `
     select *
@@ -29,7 +27,6 @@ export const getBlobStorageByProjectAndEntityId = async (
       entityId,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "ingestion",
       kind: "byID",
       projectId,
@@ -39,7 +36,6 @@ export const getBlobStorageByProjectAndEntityId = async (
 
 export const getBlobStorageByProjectId = (
   projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     select *
@@ -53,7 +49,6 @@ export const getBlobStorageByProjectId = (
       projectId,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "ingestion",
       kind: "list",
       projectId,
@@ -64,7 +59,6 @@ export const getBlobStorageByProjectId = (
 export const getBlobStorageByProjectIdBeforeDate = (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
         select *
@@ -80,7 +74,6 @@ export const getBlobStorageByProjectIdBeforeDate = (
       beforeDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "ingestion",
       kind: "list",
       projectId,
@@ -92,7 +85,6 @@ export const getBlobStorageByProjectIdAndEntityIds = (
   projectId: string,
   entityType: "observation" | "trace" | "score",
   entityIds: string[],
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     select *
@@ -113,7 +105,6 @@ export const getBlobStorageByProjectIdAndEntityIds = (
       request_timeout: 120_000, // 2 minutes
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "ingestion",
       kind: "list",
       projectId,
@@ -124,7 +115,6 @@ export const getBlobStorageByProjectIdAndEntityIds = (
 export const getBlobStorageByProjectIdAndTraceIds = (
   projectId: string,
   traceIds: string[],
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): AsyncGenerator<BlobStorageFileRefRecordReadType> => {
   const query = `
     with filtered_traces as (
@@ -181,7 +171,6 @@ export const getBlobStorageByProjectIdAndTraceIds = (
       request_timeout: 120_000, // 2 minutes
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "ingestion",
       kind: "list",
       projectId,

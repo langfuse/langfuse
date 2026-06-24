@@ -4,7 +4,6 @@ import {
   createPublicApiTracesColumnMapping,
   deriveFilters,
   tracesTableUiColumnDefinitions,
-  type ClickHouseQueryContextTags,
   type TraceQueryType,
 } from "@langfuse/shared/src/server";
 import { tracesTableCols } from "@langfuse/shared";
@@ -19,12 +18,10 @@ export const generateTracesForPublicApi = ({
   props,
   advancedFilters,
   orderBy,
-  clickHouseQueryTags,
 }: {
   props: TraceQueryType;
   advancedFilters?: FilterState;
   orderBy: OrderByState;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const filter = deriveFilters(
     props,
@@ -39,18 +36,15 @@ export const generateTracesForPublicApi = ({
     orderBy,
     pagination: { limit: props.limit, page: props.page },
     fields: props.fields,
-    clickHouseQueryTags,
   });
 };
 
 export const getTracesCountForPublicApi = ({
   props,
   advancedFilters,
-  clickHouseQueryTags,
 }: {
   props: TraceQueryType;
   advancedFilters?: FilterState;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const filter = deriveFilters(
     props,
@@ -63,6 +57,5 @@ export const getTracesCountForPublicApi = ({
     projectId: props.projectId,
     filter,
     pagination: { limit: props.limit, page: props.page },
-    clickHouseQueryTags,
   });
 };

@@ -173,7 +173,6 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
       await removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(
         workload.projectId,
         workload.cutoffDate,
-        { surface: "worker" },
       );
     }
 

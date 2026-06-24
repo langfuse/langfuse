@@ -7,7 +7,6 @@ import {
   logger,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
   traceException,
-  type ClickHouseQueryContextTags,
 } from "@langfuse/shared/src/server";
 import { env, v4WritesToEventsTable } from "../../env";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
@@ -167,9 +166,6 @@ const deleteMediaItemsForTraces = async (
 export const processClickhouseTraceDelete = async (
   projectId: string,
   traceIds: string[],
-  clickHouseQueryTags: ClickHouseQueryContextTags = {
-    surface: "worker",
-  },
 ) => {
   logger.info(
     `Deleting traces ${JSON.stringify(traceIds)} in project ${projectId} from Clickhouse`,
@@ -183,14 +179,13 @@ export const processClickhouseTraceDelete = async (
         ? removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
             projectId,
             traceIds,
-            clickHouseQueryTags,
           })
         : Promise.resolve(),
-      deleteTraces(projectId, traceIds, clickHouseQueryTags),
-      deleteObservationsByTraceIds(projectId, traceIds, clickHouseQueryTags),
-      deleteScoresByTraceIds(projectId, traceIds, clickHouseQueryTags),
+      deleteTraces(projectId, traceIds),
+      deleteObservationsByTraceIds(projectId, traceIds),
+      deleteScoresByTraceIds(projectId, traceIds),
       v4WritesToEventsTable(env)
-        ? deleteEventsByTraceIds(projectId, traceIds, clickHouseQueryTags)
+        ? deleteEventsByTraceIds(projectId, traceIds)
         : Promise.resolve(),
     ]);
   } catch (e) {

@@ -8,76 +8,57 @@ import { BlobStorageFileRefRecordReadType } from "../repositories/definitions";
 import { logger } from "../logger";
 import { env } from "../../env";
 import { clickhouseClient } from "../clickhouse/client";
-import {
-  buildClickHouseLogComment,
-  type ClickHouseQueryContextTags,
-} from "../clickhouse/queryTags";
+import { buildClickHouseLogComment } from "../clickhouse/queryTags";
 import { getS3EventStorageClient } from "../s3";
 
 export const deleteIngestionEventsFromS3AndClickhouseForScores = async (p: {
   projectId: string;
   scoreIds: string[];
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const stream = getBlobStorageByProjectIdAndEntityIds(
     p.projectId,
     "score",
     p.scoreIds,
-    p.clickHouseQueryTags,
   );
 
   return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
     projectId: p.projectId,
     stream,
-    clickHouseQueryTags: p.clickHouseQueryTags,
   });
 };
 
 export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces =
-  async (p: {
-    projectId: string;
-    traceIds: string[];
-    clickHouseQueryTags?: ClickHouseQueryContextTags;
-  }) => {
+  async (p: { projectId: string; traceIds: string[] }) => {
     const stream = getBlobStorageByProjectIdAndTraceIds(
       p.projectId,
       p.traceIds,
-      p.clickHouseQueryTags,
     );
 
     return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
       projectId: p.projectId,
       stream: stream,
-      clickHouseQueryTags: p.clickHouseQueryTags,
     });
   };
 
 export const removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject = (
   projectId: string,
   cutOffDate: Date | undefined,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const stream = cutOffDate
-    ? getBlobStorageByProjectIdBeforeDate(
-        projectId,
-        cutOffDate,
-        clickHouseQueryTags,
-      )
-    : getBlobStorageByProjectId(projectId, clickHouseQueryTags);
+    ? getBlobStorageByProjectIdBeforeDate(projectId, cutOffDate)
+    : getBlobStorageByProjectId(projectId);
 
   return removeIngestionEventsFromS3AndDeleteClickhouseRefs({
     projectId: projectId,
     stream: stream,
-    clickHouseQueryTags,
   });
 };
 
 async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
   projectId: string;
   stream: AsyncGenerator<BlobStorageFileRefRecordReadType>;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) {
-  const { projectId, stream, clickHouseQueryTags } = p;
+  const { projectId, stream } = p;
 
   let batch = 0;
 
@@ -96,7 +77,6 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
       // soft delete the blob storage references in clickhouse
       await softDeleteInClickhouse(blobStorageRefs, {
         projectId,
-        clickHouseQueryTags,
       });
       batch++;
       logger.info(
@@ -111,7 +91,6 @@ async function removeIngestionEventsFromS3AndDeleteClickhouseRefs(p: {
   );
   await softDeleteInClickhouse(blobStorageRefs, {
     projectId,
-    clickHouseQueryTags,
   });
   logger.info(
     `Deleted last batch ${batch} of size ${blobStorageRefs.length} for ${projectId} of deleting s3 refs`,
@@ -122,7 +101,6 @@ async function softDeleteInClickhouse(
   blobStorageRefs: BlobStorageFileRefRecordReadType[],
   p: {
     projectId: string;
-    clickHouseQueryTags?: ClickHouseQueryContextTags;
   },
 ) {
   if (blobStorageRefs.length === 0) {
@@ -140,7 +118,6 @@ async function softDeleteInClickhouse(
     format: "JSONEachRow",
     clickhouse_settings: {
       log_comment: buildClickHouseLogComment({
-        ...p.clickHouseQueryTags,
         feature: "deletion",
         projectId: p.projectId,
       }),
