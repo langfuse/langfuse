@@ -148,7 +148,9 @@ const dialogHeaderVariants = cva(
     variants: {
       variant: {
         default: "border-b",
-        action: "",
+        // Borderless confirm dialogs drop the divider, so trim the bottom
+        // padding to keep title and body from drifting apart.
+        action: "pb-2",
       },
     },
     defaultVariants: {
@@ -203,7 +205,9 @@ const dialogFooterVariants = cva(
     variants: {
       variant: {
         default: "border-t",
-        action: "",
+        // Borderless confirm dialogs drop the divider, so trim the top padding
+        // to pull the buttons closer to the content.
+        action: "pt-2",
       },
     },
     defaultVariants: {
