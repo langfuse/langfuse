@@ -3581,7 +3581,7 @@ export const getEventsForBlobStorageExportRaw = function (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-  convertLatencyToSeconds: boolean = false,
+  convertLatencyToSeconds = false,
 ) {
   return queryClickhouseStreamRawText(
     buildEventsForBlobStorageExportQuery(
@@ -3602,7 +3602,7 @@ export const getEventsForBlobStorageExportParquet = function (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-  convertLatencyToSeconds: boolean = false,
+  convertLatencyToSeconds = false,
 ) {
   return queryClickhouseExecRaw({
     ...buildEventsForBlobStorageExportQuery(
