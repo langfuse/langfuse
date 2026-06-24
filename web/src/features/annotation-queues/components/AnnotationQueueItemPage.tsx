@@ -7,7 +7,7 @@ import {
   AnnotationQueueStatus,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
-import { ArrowLeft, ArrowRight, SearchXIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
@@ -17,9 +17,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/src/components/ui/dialog";
 import { cn } from "@/src/utils/tailwind";
 import {
   hasModifier,
+  isAppleDevice,
+  isCompleteShortcut,
   isInteractiveTarget,
   isOpenDialogPresent,
   isTypingTarget,
@@ -30,6 +39,18 @@ import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor"
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
 import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
 import { useSession } from "next-auth/react";
+
+// A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
+// more <KeyboardShortcut> glyphs (passed as children) on the right.
+const ShortcutRow: React.FC<{
+  label: string;
+  children: React.ReactNode;
+}> = ({ label, children }) => (
+  <div className="flex items-center justify-between gap-6 py-1.5">
+    <span className="text-sm">{label}</span>
+    <span className="flex items-center gap-1">{children}</span>
+  </div>
+);
 
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
@@ -205,33 +226,28 @@ export const AnnotationQueueItemPage: React.FC<{
     [],
   );
 
-  // The Mark-Completed button is allowed through the interactive-control guard:
-  // pressing Enter while it is focused fires its own click anyway.
-  const completeButtonRef = useRef<HTMLButtonElement | null>(null);
+  // Platform-aware modifier glyph for the complete chord (⌘ on macOS, Ctrl else).
+  const [isMac, setIsMac] = useState(false);
+  useEffect(() => {
+    setIsMac(isAppleDevice());
+  }, []);
+  const modLabel = isMac ? "⌘" : "Ctrl";
+
+  // "?" opens a keyboard-shortcuts cheatsheet.
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   useEffect(() => {
     if (isSingleItem) return; // single-item view has no queue navigation
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Bail if another listener (e.g. Radix roving focus) already handled it,
-      // if we're typing, or if a platform modifier is held.
       if (event.defaultPrevented) return;
-      if (isTypingTarget(event.target) || hasModifier(event)) return;
-      // Don't hijack Enter/arrows from focused buttons, radios, or roving-focus
-      // widgets, and don't fire while a modal/drawer is open (e.g. the comment
-      // drawer's Save Changes). The Mark-Completed button is exempt.
-      if (
-        isInteractiveTarget(event.target, completeButtonRef.current) ||
-        isInteractiveTarget(
-          document.activeElement,
-          completeButtonRef.current,
-        ) ||
-        isOpenDialogPresent()
-      )
-        return;
       if (!hasAccess) return;
 
-      // Complete + advance to next item.
-      if (event.key === "Enter") {
+      // Complete + next — the Cmd/Ctrl+Enter submit chord. Handled first and
+      // *before* the typing guard so it works even while the annotator is in the
+      // multi-line Feedback field (bare Enter there stays a newline). Defer to an
+      // open drawer/dialog so it never steals that surface's own submit.
+      if (isCompleteShortcut(event)) {
+        if (isOpenDialogPresent()) return;
         if (isPending && !completeMutation.isPending && !objectData.isError) {
           event.preventDefault();
           pulse("complete");
@@ -239,8 +255,33 @@ export const AnnotationQueueItemPage: React.FC<{
         }
         return;
       }
-      // Skip / go to next item without completing.
-      if (event.key === "ArrowRight" || event.key === "n") {
+
+      // "?" — open the shortcuts cheatsheet.
+      if (event.key === "?") {
+        if (
+          isTypingTarget(event.target) ||
+          hasModifier(event) ||
+          isOpenDialogPresent()
+        )
+          return;
+        event.preventDefault();
+        setShowShortcuts(true);
+        return;
+      }
+
+      // The remaining shortcuts are bare keys: bail if another listener already
+      // handled the event, while typing, on a held modifier, when a focusable
+      // control / roving-focus widget owns the key, or while a dialog is open.
+      if (isTypingTarget(event.target) || hasModifier(event)) return;
+      if (
+        isInteractiveTarget(event.target) ||
+        isInteractiveTarget(document.activeElement) ||
+        isOpenDialogPresent()
+      )
+        return;
+
+      // Next item (skip — no completion).
+      if (event.key === "ArrowRight") {
         if (isNextItemAvailable) {
           event.preventDefault();
           pulse("next");
@@ -248,8 +289,8 @@ export const AnnotationQueueItemPage: React.FC<{
         }
         return;
       }
-      // Back to previous item.
-      if (event.key === "ArrowLeft" || event.key === "p") {
+      // Previous item.
+      if (event.key === "ArrowLeft") {
         if (progressIndex > 0) {
           event.preventDefault();
           pulse("back");
@@ -374,15 +415,27 @@ export const AnnotationQueueItemPage: React.FC<{
             </Tooltip>
             {/* Shortcut legend so annotators can discover keyboard-first flow */}
             <span className="text-muted-foreground hidden items-center gap-1.5 pl-1 text-[11px] lg:flex">
-              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                ↵
-              </KeyboardShortcut>
+              <KeyboardShortcut
+                className="h-4 px-1 text-[9px]"
+                keys={[modLabel, "↵"]}
+              />
               complete + next ·
               <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
                 →
               </KeyboardShortcut>
               skip
             </span>
+            <button
+              type="button"
+              onClick={() => setShowShortcuts(true)}
+              className="text-muted-foreground hover:text-foreground hidden items-center gap-1 text-[11px] transition-colors lg:flex"
+              aria-label="Show keyboard shortcuts"
+            >
+              <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
+                ?
+              </KeyboardShortcut>
+              shortcuts
+            </button>
           </div>
         )}
         <div className="flex w-full min-w-[265px] items-center justify-end gap-2">
@@ -418,7 +471,6 @@ export const AnnotationQueueItemPage: React.FC<{
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-                    ref={completeButtonRef}
                     onClick={handleComplete}
                     size="lg"
                     className={cn(
@@ -433,9 +485,10 @@ export const AnnotationQueueItemPage: React.FC<{
                   >
                     <span>Mark Completed</span>
                     {!isSingleItem && (
-                      <KeyboardShortcut className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30">
-                        ↵
-                      </KeyboardShortcut>
+                      <KeyboardShortcut
+                        className="bg-primary-foreground/20 text-primary-foreground border-primary-foreground/30"
+                        keys={[modLabel, "↵"]}
+                      />
                     )}
                   </Button>
                 </TooltipTrigger>
@@ -446,7 +499,7 @@ export const AnnotationQueueItemPage: React.FC<{
                       : "Mark completed + go to next item"}
                   </span>
                   {!isSingleItem && (
-                    <KeyboardShortcut className="ml-2">↵</KeyboardShortcut>
+                    <KeyboardShortcut className="ml-2" keys={[modLabel, "↵"]} />
                   )}
                 </TooltipContent>
               </Tooltip>
@@ -457,6 +510,58 @@ export const AnnotationQueueItemPage: React.FC<{
             ))}
         </div>
       </div>
+      <Dialog open={showShortcuts} onOpenChange={setShowShortcuts}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Keyboard className="h-4 w-4" />
+              Keyboard shortcuts
+            </DialogTitle>
+          </DialogHeader>
+          <DialogBody className="gap-4 py-3">
+            <div>
+              <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+                Navigate
+              </p>
+              <ShortcutRow label="Complete & go to next item">
+                <KeyboardShortcut keys={[modLabel, "↵"]} />
+              </ShortcutRow>
+              <ShortcutRow label="Skip to next item">
+                <KeyboardShortcut>→</KeyboardShortcut>
+              </ShortcutRow>
+              <ShortcutRow label="Previous item">
+                <KeyboardShortcut>←</KeyboardShortcut>
+              </ShortcutRow>
+            </div>
+            <div>
+              <p className="text-muted-foreground mb-1 text-xs font-medium tracking-wide uppercase">
+                Score the item
+              </p>
+              <ShortcutRow label="Move between score fields">
+                <KeyboardShortcut>↑</KeyboardShortcut>
+                <KeyboardShortcut>↓</KeyboardShortcut>
+              </ShortcutRow>
+              <ShortcutRow label="Select an option on the active field">
+                <KeyboardShortcut>1</KeyboardShortcut>
+                <span className="text-muted-foreground text-xs">–</span>
+                <KeyboardShortcut>9</KeyboardShortcut>
+              </ShortcutRow>
+            </div>
+            <p className="text-muted-foreground border-t pt-3 text-xs">
+              Bare{" "}
+              <KeyboardShortcut className="h-4 px-1 text-[9px]">
+                ↵
+              </KeyboardShortcut>{" "}
+              inside a text field (e.g. Feedback) inserts a new line — use{" "}
+              <KeyboardShortcut
+                className="h-4 px-1 text-[9px]"
+                keys={[modLabel, "↵"]}
+              />{" "}
+              to complete.
+            </p>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

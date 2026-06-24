@@ -82,15 +82,40 @@ export function isOpenDialogPresent(): boolean {
 }
 
 /**
+ * True when the event is the "complete + next" submit chord: `Cmd+Enter`
+ * (macOS) or `Ctrl+Enter` (Windows/Linux).
+ *
+ * This is the universal web "submit / send" gesture (Slack, GitHub, Linear, and
+ * Langfuse's own NewProject / Comment forms). Unlike the bare-key shortcuts it
+ * is deliberately allowed to fire *while a text field is focused* — so an
+ * annotator can finish typing in the multi-line Feedback field and complete the
+ * item without first blurring it. Bare `Enter` inside a textarea stays a newline.
+ */
+export function isCompleteShortcut(event: KeyboardEvent): boolean {
+  return event.key === "Enter" && (event.metaKey || event.ctrlKey);
+}
+
+/**
+ * Best-effort "is this an Apple device" check, used only to render `⌘` vs `Ctrl`
+ * in shortcut hints. Call from an effect (not during render) to avoid an SSR
+ * hydration mismatch.
+ */
+export function isAppleDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return navigator.userAgent.includes("Mac");
+}
+
+/**
  * True when a "hot" platform modifier key is held — reserve those for browser /
  * app shortcuts (Cmd+K, Ctrl+S, …) and bail out of our printable-key shortcuts.
  *
  * AltGr (Right Alt) is deliberately NOT treated as hot: on many international
- * layouts (German QWERTZ, French AZERTY, Spanish, Italian, Nordic, …) the `[`
- * and `]` characters are typed via AltGr, which the browser surfaces as
- * `altKey=true` (and `ctrlKey=true` on Windows/Linux). Treating that as a
- * modifier would silently kill the bracket shortcut for those users, so we
- * detect AltGr explicitly and only treat `metaKey` / `ctrl-without-alt` as hot.
+ * layouts (German QWERTZ, French AZERTY, Spanish, Italian, Nordic, …) printable
+ * characters (digits, punctuation) are produced via AltGr, which the browser
+ * surfaces as `altKey=true` (and `ctrlKey=true` on Windows/Linux). Treating that
+ * as a modifier would silently kill the printable-key shortcuts for those users,
+ * so we detect AltGr explicitly and only treat `metaKey` / `ctrl-without-alt` as
+ * hot.
  */
 export function hasModifier(event: KeyboardEvent): boolean {
   if (event.getModifierState && event.getModifierState("AltGraph"))

@@ -70,6 +70,7 @@ import { useScoreConfigSelection } from "@/src/features/scores/hooks/useScoreCon
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
   hasModifier,
+  isOpenDialogPresent,
   isTypingTarget,
 } from "@/src/features/scores/lib/keyboardShortcuts";
 import { useRouter } from "next/router";
@@ -286,7 +287,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   // LFE-7628 — keyboard-first scoring.
   // Index of the score row that number keys (1-9) currently target. Only
   // categorical/boolean configs (discrete options) participate; numeric/text
-  // configs are filled by typing directly. `[` / `]` cycle the active row.
+  // configs are filled by typing directly. `↑` / `↓` move the active row.
   const isKeyboardSelectable = (
     field: (typeof controlledFields)[number] | undefined,
   ) => {
@@ -635,12 +636,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
   };
 
   // LFE-7628 — global keydown for score selection.
-  //  - `[` / `]` move the active score row (only categorical/boolean rows)
+  //  - `↑` / `↓` move the active score row (only categorical/boolean rows)
   //  - `1`-`9`  pick the Nth option of the active row
-  // Typing in inputs/textarea/comment fields is never hijacked.
+  // Typing in inputs/textarea/comment fields is never hijacked, and an open
+  // popover/drawer (e.g. the score-comment editor) suspends these shortcuts.
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (isTypingTarget(event.target) || hasModifier(event)) return;
+      if (isOpenDialogPresent()) return;
       if (selectableIndexes.length === 0) return;
       // Scope to a single form so a keypress never writes a score to two forms
       // at once (DualAnnotationContent mounts two AnnotationForm instances).
@@ -662,15 +665,17 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         if (firstForm !== root) return;
       }
 
-      // Cycle which score row the number keys target.
-      if (event.key === "[" || event.key === "]") {
+      // Move which score row the number keys target. Only meaningful when there
+      // is more than one selectable row; otherwise leave ↑/↓ to scroll the page.
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        if (selectableIndexes.length < 2) return;
         event.preventDefault();
         const current =
           activeConfigIndex !== null
             ? selectableIndexes.indexOf(activeConfigIndex)
             : 0;
         const safeCurrent = current < 0 ? 0 : current;
-        const delta = event.key === "]" ? 1 : -1;
+        const delta = event.key === "ArrowDown" ? 1 : -1;
         const nextPos =
           (safeCurrent + delta + selectableIndexes.length) %
           selectableIndexes.length;
@@ -1092,10 +1097,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
               {selectableIndexes.length > 1 && (
                 <span className="flex items-center gap-1">
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                    [
+                    ↑
                   </KeyboardShortcut>
                   <KeyboardShortcut className="h-4 min-w-4 px-1 text-[9px]">
-                    ]
+                    ↓
                   </KeyboardShortcut>
                   move between scores
                 </span>
