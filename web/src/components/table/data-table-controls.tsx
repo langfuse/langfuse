@@ -650,10 +650,48 @@ export function CategoricalFacet({
       })
     : visibleOptionValues;
 
-  const hasMoreFilteredOptions = filteredOptions.length > MAX_VISIBLE_OPTIONS;
-  const visibleOptions = showAll
-    ? filteredOptions
-    : filteredOptions.slice(0, MAX_VISIBLE_OPTIONS);
+  // Pin selected options to the top of the list so an applied filter is
+  // immediately visible — without scrolling or expanding "Show more" — even
+  // when the selected value sits far down a long list (LFE-10494). Selected
+  // options are always shown; the visible-count cap applies only to the
+  // unselected remainder. We only reorder long lists (more options than the
+  // cap), where burial can actually happen; short, fully-visible lists keep
+  // their natural order to avoid gratuitous reshuffling.
+  const selectedSet = new Set(value);
+  const pinSelected = hasMoreOptions;
+  const selectedOptions = pinSelected
+    ? filteredOptions.filter((option) => selectedSet.has(option))
+    : [];
+  const remainingOptions = pinSelected
+    ? filteredOptions.filter((option) => !selectedSet.has(option))
+    : filteredOptions;
+
+  const hasMoreFilteredOptions = remainingOptions.length > MAX_VISIBLE_OPTIONS;
+  const visibleRemainingOptions = showAll
+    ? remainingOptions
+    : remainingOptions.slice(0, MAX_VISIBLE_OPTIONS);
+
+  const renderOption = (option: string) => {
+    const displayLabel = displayByValue?.get(option) ?? option;
+    return (
+      <FilterValueCheckbox
+        key={option}
+        id={`${filterKey}-${option}`}
+        label={displayLabel}
+        icon={renderIcon?.(option)}
+        count={counts.get(option) || 0}
+        checked={value.includes(option)}
+        onCheckedChange={(checked) => {
+          const newValues = checked
+            ? [...value, option]
+            : value.filter((v: string) => v !== option);
+          onChange(newValues);
+        }}
+        onLabelClick={onOnlyChange ? () => onOnlyChange(option) : undefined}
+        totalSelected={value.length}
+      />
+    );
+  };
 
   return (
     <FilterAccordionItem
@@ -818,32 +856,20 @@ export function CategoricalFacet({
                   </div>
                 ) : (
                   <>
-                    {visibleOptions.map((option: string) => {
-                      const displayLabel =
-                        displayByValue?.get(option) ?? option;
-                      return (
-                        <FilterValueCheckbox
-                          key={option}
-                          id={`${filterKey}-${option}`}
-                          label={displayLabel}
-                          icon={renderIcon?.(option)}
-                          count={counts.get(option) || 0}
-                          checked={value.includes(option)}
-                          onCheckedChange={(checked) => {
-                            const newValues = checked
-                              ? [...value, option]
-                              : value.filter((v: string) => v !== option);
-                            onChange(newValues);
-                          }}
-                          onLabelClick={
-                            onOnlyChange
-                              ? () => onOnlyChange(option)
-                              : undefined
-                          }
-                          totalSelected={value.length}
+                    {/* Selected options, pinned to the top (long lists only) */}
+                    {selectedOptions.map(renderOption)}
+
+                    {/* Separator between the pinned selection and the rest */}
+                    {selectedOptions.length > 0 &&
+                      visibleRemainingOptions.length > 0 && (
+                        <div
+                          className="border-border/60 mx-3 my-1 border-t"
+                          aria-hidden
                         />
-                      );
-                    })}
+                      )}
+
+                    {/* Remaining (unselected) options, capped */}
+                    {visibleRemainingOptions.map(renderOption)}
                     {hasMoreFilteredOptions && !showAll && (
                       <div className="px-2">
                         <Button

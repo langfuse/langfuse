@@ -47,4 +47,70 @@ describe("CategoricalFacet", () => {
 
     expect(screen.getByLabelText("Clear Type filter")).toBeInTheDocument();
   });
+
+  it("pins a selected option to the top of a long list so it is visible without 'Show more'", () => {
+    // 20 options, one selected near the bottom. Without pinning the selected
+    // value sits below the 12-item cap and is hidden behind "Show more".
+    const options = Array.from({ length: 20 }, (_, i) => `opt-${i}`);
+    render(
+      <Accordion type="multiple" value={["c"]}>
+        <CategoricalFacet
+          label="C"
+          filterKey="c"
+          expanded
+          loading={false}
+          options={options}
+          counts={new Map()}
+          value={["opt-18"]}
+          onChange={() => {}}
+          isActive
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+    );
+
+    // The list is long enough to be capped...
+    expect(
+      screen.getByRole("button", { name: "Show more values" }),
+    ).toBeInTheDocument();
+
+    // ...yet the selected value is shown despite sitting at position 19,
+    // and it precedes the first unselected option in DOM order (pinned to top).
+    const selected = screen.getByText("opt-18");
+    const firstUnselected = screen.getByText("opt-0");
+    expect(selected).toBeInTheDocument();
+    expect(
+      selected.compareDocumentPosition(firstUnselected) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("does not reorder short, fully-visible lists", () => {
+    render(
+      <Accordion type="multiple" value={["c"]}>
+        <CategoricalFacet
+          label="C"
+          filterKey="c"
+          expanded
+          loading={false}
+          options={["a", "b", "c"]}
+          counts={new Map()}
+          value={["c"]}
+          onChange={() => {}}
+          isActive
+          isDisabled={false}
+          onReset={() => {}}
+        />
+      </Accordion>,
+    );
+
+    // No cap, no "Show more": the natural order is preserved (a, b, c) — the
+    // selected "c" is NOT pulled above "a".
+    const a = screen.getByText("a");
+    const c = screen.getByText("c");
+    expect(
+      a.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
 });
