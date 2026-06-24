@@ -152,7 +152,7 @@ function OverlayLayersDoc() {
 
       <p className="text-muted-foreground mt-8 border-t pt-4 text-xs">
         Part of the design system. Storybook is, step by step, becoming the home
-        for these design-system decisions — see also the DataTable stories.
+        for these design-system decisions.
       </p>
     </div>
   );
