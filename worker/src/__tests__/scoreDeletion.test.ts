@@ -17,6 +17,7 @@ describe("score deletion", () => {
   let eventStorageService: StorageService;
   const directWorkerClickHouseQueryTags = {
     surface: "worker" as const,
+    route: "scoreDeletion.test",
   };
 
   beforeAll(() => {

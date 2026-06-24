@@ -37,6 +37,7 @@ describe("ProjectDeletionProcessingJob", () => {
   const maybeEventsIt = v4WritesToEventsTable(env) ? it : it.skip;
   const directWorkerClickHouseQueryTags = {
     surface: "worker" as const,
+    route: "ProjectDeletionProcessingJob.test",
   };
 
   beforeAll(() => {

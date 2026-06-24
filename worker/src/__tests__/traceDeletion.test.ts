@@ -25,6 +25,7 @@ describe("trace deletion", () => {
   let mediaStorageService: StorageService;
   const directWorkerClickHouseQueryTags = {
     surface: "worker" as const,
+    route: "traceDeletion.test",
   };
 
   beforeAll(() => {

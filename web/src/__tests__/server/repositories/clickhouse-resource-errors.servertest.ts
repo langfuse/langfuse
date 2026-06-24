@@ -7,6 +7,7 @@ import { fail } from "assert";
 
 const directTrpcClickHouseQueryTags = {
   surface: "trpc" as const,
+  route: "clickhouse-resource-errors.servertest",
   feature: "custom-query" as const,
 };
 

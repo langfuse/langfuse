@@ -26,6 +26,7 @@ async function getClickhouseCount(
     params: { projectId },
     tags: {
       surface: "worker",
+      route: "BatchProjectCleaner.test",
       feature: "deletion",
     },
   });

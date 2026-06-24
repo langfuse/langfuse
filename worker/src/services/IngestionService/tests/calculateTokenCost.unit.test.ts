@@ -41,6 +41,7 @@ const mockIngestionService = new IngestionService(
   mockClickhouseClient as any,
   {
     surface: "worker",
+    route: "IngestionService.test",
   },
 );
 

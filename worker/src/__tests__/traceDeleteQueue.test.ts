@@ -17,6 +17,7 @@ describe("trace deletion queue processor", () => {
   let projectId: string;
   const directWorkerClickHouseQueryTags = {
     surface: "worker" as const,
+    route: "traceDeleteQueue.test",
   };
 
   beforeEach(async () => {

@@ -18,6 +18,7 @@ async function eventsCoreAvailable(): Promise<boolean> {
     params: {},
     tags: {
       surface: "worker",
+      route: "monitorProcessorScalarQuery.test",
       feature: "custom-query",
     },
   });

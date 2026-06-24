@@ -28,6 +28,7 @@ import waitForExpect from "wait-for-expect";
 
 const directPublicApiClickHouseQueryTags = {
   surface: "publicapi" as const,
+  route: "scores-api-v1.servertest",
 };
 
 describe("/api/public/scores API Endpoint", () => {

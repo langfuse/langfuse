@@ -43,6 +43,7 @@ import { randomUUID } from "crypto";
 
 const directTrpcClickHouseQueryTags = {
   surface: "trpc" as const,
+  route: "multilingual-fulltext-search.servertest",
 };
 
 // ---------------------------------------------------------------------------
