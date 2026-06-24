@@ -98,7 +98,7 @@ export async function executeQuery(
   projectId: string,
   query: QueryType,
   version: ViewVersion = "v1",
-  enableSingleLevelOptimization: boolean = false,
+  enableSingleLevelOptimization = false,
 ): Promise<Array<Record<string, unknown>>> {
   const prepared = await prepareExecuteQuery({
     projectId,

@@ -18,6 +18,19 @@ export function resolveProjectRole({
   );
 }
 
+export function buildUserSearchFilter(searchQuery: string | undefined | null) {
+  if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
+    return Prisma.empty;
+  }
+
+  const searchConditions: Prisma.Sql[] = [
+    Prisma.sql`u.name ILIKE ${`%${searchQuery}%`}`,
+    Prisma.sql`u.email ILIKE ${`%${searchQuery}%`}`,
+  ];
+
+  return Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`;
+}
+
 /**
  * Generates a SQL query to fetch users with their project roles, respecting role hierarchy.
  *
@@ -53,7 +66,7 @@ function generateUserProjectRolesQuery({
   select: Prisma.Sql;
   projectId: string;
   orgId: string;
-  filterCondition: FilterState;
+  filterCondition?: FilterState;
   searchFilter: Prisma.Sql;
   limit?: number;
   page?: number;
@@ -73,6 +86,7 @@ function generateUserProjectRolesQuery({
         AND NOT EXISTS (
           SELECT 1 FROM project_memberships pm 
           WHERE pm.org_membership_id = om.id
+            AND pm.project_id = ${projectId}
         )
       ${sqlFilter}
       ${searchFilter}
@@ -106,7 +120,7 @@ export const getUserProjectRoles = async ({
 }: {
   projectId: string;
   orgId: string;
-  filterCondition: FilterState;
+  filterCondition?: FilterState;
   searchFilter: Prisma.Sql;
   limit?: number;
   page?: number;
@@ -136,7 +150,7 @@ export const getUserProjectRolesCount = async ({
 }: {
   projectId: string;
   orgId: string;
-  filterCondition: FilterState;
+  filterCondition?: FilterState;
   searchFilter: Prisma.Sql;
 }) => {
   const count = await prisma.$queryRaw<Array<{ count: bigint }>>(

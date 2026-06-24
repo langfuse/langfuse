@@ -19,6 +19,8 @@ import {
   commandClickhouse,
   queryClickhouse,
   queryClickhouseStream,
+  queryClickhouseExecRaw,
+  BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
   upsertClickhouse,
   parseClickhouseUTCDateTimeFormat,
   clickhouseCompliantRandomCharacters,
@@ -2082,11 +2084,13 @@ export const getDistinctScoreNames = async (p: {
   return rows.map((row) => row.name);
 };
 
-export const getScoresForBlobStorageExport = function (
+// Shared query for both the standard (parsed) and Parquet (`exec` binary)
+// score export paths.
+const buildScoresForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
-) {
+) => {
   const query = `
     SELECT
       id,
@@ -2112,7 +2116,7 @@ export const getScoresForBlobStorageExport = function (
     AND data_type IN ({dataTypes: Array(String)})
   `;
 
-  const records = queryClickhouseStream<Record<string, unknown>>({
+  return {
     query,
     params: {
       projectId,
@@ -2131,9 +2135,35 @@ export const getScoresForBlobStorageExport = function (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DATA_EXPORT_REQUEST_TIMEOUT_MS,
     },
-  });
+  };
+};
 
-  return records;
+export const getScoresForBlobStorageExport = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  return queryClickhouseStream<Record<string, unknown>>(
+    buildScoresForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+  );
+};
+
+// LFE-10463: ClickHouse-native `FORMAT Parquet` export of scores. Reuses the
+// standard query SQL and streams the raw binary body straight to upload.
+export const getScoresForBlobStorageExportParquet = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+) {
+  return queryClickhouseExecRaw({
+    ...buildScoresForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+    ),
+    format: "Parquet",
+    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+  });
 };
 
 export const getScoresForAnalyticsIntegrations = async function* (

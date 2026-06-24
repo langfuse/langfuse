@@ -88,9 +88,9 @@ export const getChunkWithFlattenedScores = <
           ...acc,
           [key]: value,
         };
-      } else {
-        return acc;
       }
+
+      return acc;
     }, emptyScoreColumns);
     return {
       ...data,

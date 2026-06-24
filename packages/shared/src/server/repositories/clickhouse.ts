@@ -1,9 +1,12 @@
+import { type Readable } from "stream";
 import { env } from "../../env";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
+import { EXCEPTION_TAG_HEADER_NAME } from "@clickhouse/client-common";
+import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
@@ -365,6 +368,124 @@ export async function* queryClickhouseStreamRawText(
     );
   } finally {
     span.end();
+  }
+}
+
+// Blob-export Parquet settings (LFE-10463). CH buffers a row group in memory and
+// flushes at whichever cap hits first. The bytes cap is the real memory governor
+// (auto-adapts to row width); set below CH's 512 MiB default since the dispatcher
+// exports up to 4 tables concurrently (peak ≈ 4×). The row cap bounds narrow tables.
+export const BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS: ClickHouseSettings = {
+  output_format_parquet_row_group_size: "1000000",
+  output_format_parquet_row_group_size_bytes: String(128 * 1024 * 1024), // 128 MiB
+};
+
+export type ClickhouseExecRawResult = {
+  queryId: string;
+  // Raw response body, already wrapped by the exception-tag Transform so a
+  // mid-stream failure (CH >= 25.11) errors it instead of truncating.
+  stream: Readable;
+  responseHeaders: Record<string, string | string[] | undefined>;
+};
+
+/**
+ * Raw binary read for the blob-export Parquet path (LFE-10463). Runs the query
+ * via `clickhouseClient().exec()` (returns the unparsed HTTP body as a
+ * {@link Readable}) and appends `FORMAT <format>` to the SQL — exec has no
+ * `format` param. Streams ClickHouse-native Parquet bytes straight to upload,
+ * offloading columnar encoding + compression to ClickHouse.
+ *
+ * `exec()` skips the ResultSet machinery and its mid-stream exception detection,
+ * so we restore it by piping through {@link ClickhouseExecExceptionTagTransform}
+ * — the stream errors on a failed query, aborting the upload before any commit.
+ * Detection needs CH >= 25.11 (exception-tag header); the only caller is an
+ * experimental per-project opt-in with the same caveat as raw passthrough — see
+ * RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION. Pass Parquet tuning via `clickhouseSettings`.
+ */
+export async function queryClickhouseExecRaw(
+  opts: ClickhouseQueryOpts & { format: string },
+): Promise<ClickhouseExecRawResult> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const tracer = getTracer("clickhouse-query-exec-raw");
+  const span = tracer.startSpan("clickhouse-query-exec-raw", {
+    kind: SpanKind.CLIENT,
+  });
+
+  let queryId: string | undefined;
+
+  try {
+    const queryWithFormat = `${opts.query}\nFORMAT ${opts.format}`;
+    setSpanQueryAttributes(span, queryWithFormat);
+
+    const res = await context
+      .with(trace.setSpan(context.active(), span), () =>
+        clickhouseClient(
+          opts.clickhouseConfigs,
+          opts.preferredClickhouseService,
+        ).exec({
+          query: queryWithFormat,
+          query_params: opts.params,
+          clickhouse_settings: {
+            ...opts.clickhouseSettings,
+            log_comment: JSON.stringify(tagsWithTraceId(opts.tags)),
+          },
+        }),
+      )
+      .catch((error) => {
+        throw ClickHouseResourceError.wrapIfResourceError(
+          enrichWithQueryId(error as Error, queryId),
+          opts.tags,
+        );
+      });
+
+    queryId = res.query_id;
+    span.setAttribute("ch.queryId", queryId);
+    recordSummaryOnSpan(span, res.response_headers);
+
+    if (env.NODE_ENV === "development") {
+      logger.info(`clickhouse:exec ${res.query_id} ${queryWithFormat}`);
+    }
+
+    const exceptionTag = res.response_headers[EXCEPTION_TAG_HEADER_NAME] as
+      | string
+      | undefined;
+
+    const guardedStream = res.stream.pipe(
+      new ClickhouseExecExceptionTagTransform({
+        exceptionTag,
+        wrapError: (error) =>
+          ClickHouseResourceError.wrapIfResourceError(
+            enrichWithQueryId(error, queryId),
+            opts.tags,
+          ),
+      }),
+    );
+
+    // The span outlives this function (it covers the consumer's read). Forward
+    // source errors so the consumer sees them.
+    res.stream.on("error", (error) => guardedStream.destroy(error));
+    // `.pipe()` only wires src→dest, so destroying guardedStream (e.g. the
+    // worker's pipeline aborting on an upload failure) would leave the live CH
+    // body streaming into an unread socket — pinning a connection slot and query
+    // thread until the request timeout. 'close' fires on every termination path
+    // (end, error, no-arg destroy); span.end() is idempotent.
+    guardedStream.once("close", () => {
+      span.end();
+      if (!res.stream.destroyed) res.stream.destroy();
+    });
+
+    return {
+      queryId,
+      stream: guardedStream,
+      responseHeaders: res.response_headers,
+    };
+  } catch (error) {
+    span.end();
+    if (error instanceof ClickHouseResourceError) throw error;
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      opts.tags,
+    );
   }
 }
 
