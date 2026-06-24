@@ -170,6 +170,123 @@ describe("BlobStorageIntegrationProcessingJob", () => {
     });
   });
 
+  // LFE-10279: after N consecutive failures of the same chunk the integration
+  // is auto-disabled so it stops retrying forever. We drive deterministic
+  // failures via the enriched-export-source guard (no ClickHouse/network).
+  describe("circuit breaker", () => {
+    const originalV4Preview = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    const originalThreshold =
+      env.LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES;
+
+    afterEach(() => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalV4Preview;
+      (env as any).LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES =
+        originalThreshold;
+    });
+
+    it("disables the integration after the configured number of consecutive failures", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES = 3;
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          // Enriched source + V4 preview off => the guard throws on every run.
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      const runJob = () =>
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+      // First two failures: counter increments, integration stays enabled.
+      await expect(runJob()).rejects.toThrow(/enriched/i);
+      await expect(runJob()).rejects.toThrow(/enriched/i);
+
+      let row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.consecutiveFailures).toBe(2);
+      expect(row.enabled).toBe(true);
+
+      // Third failure reaches the threshold and disables the integration.
+      await expect(runJob()).rejects.toThrow(/enriched/i);
+
+      row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.consecutiveFailures).toBe(3);
+      expect(row.enabled).toBe(false);
+
+      // Once disabled the job short-circuits without throwing or counting.
+      await expect(runJob()).resolves.toBeUndefined();
+      row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.consecutiveFailures).toBe(3);
+      expect(row.enabled).toBe(false);
+    });
+
+    it("resets the failure counter after a successful run", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES = 3;
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+
+      // Start with a stale failure count to prove success clears it. Use a
+      // non-enriched source so the run succeeds (empty export window is fine).
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId: minioAccessKeyId,
+          secretAccessKey: encrypt(minioAccessKeySecret),
+          region: region ? region : "auto",
+          endpoint: minioEndpoint,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "hourly",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt: oneHourAgo,
+          compressed: false,
+          consecutiveFailures: 2,
+        },
+      });
+
+      await handleBlobStorageIntegrationProjectJob({
+        data: { payload: { projectId } },
+      } as Job);
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.consecutiveFailures).toBe(0);
+      expect(row.enabled).toBe(true);
+    });
+  });
+
   it("should not process when blob storage integration is disabled", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     s3Prefix = projectId;

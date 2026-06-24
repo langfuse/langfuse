@@ -1159,6 +1159,8 @@ export const handleBlobStorageIntegrationProjectJob = async (
         lastError: null,
         lastErrorAt: null,
         runStartedAt: null,
+        // Reset the circuit breaker: this chunk succeeded (LFE-10279).
+        consecutiveFailures: 0,
       },
     });
 
@@ -1188,16 +1190,47 @@ export const handleBlobStorageIntegrationProjectJob = async (
     );
   } catch (error) {
     const errorMessage = extractStorageErrorMessage(error);
+    const maxConsecutiveFailures =
+      env.LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES;
 
+    // Circuit breaker (LFE-10279): count consecutive failures and auto-disable
+    // the integration once the threshold is reached, so a wedged or
+    // misconfigured chunk stops retrying forever. lastSyncAt only advances on
+    // success, so every failure here is a retry of the same
+    // (projectId, lastSyncAt) chunk.
+    let paused = false;
     try {
-      await prisma.blobStorageIntegration.update({
-        where: { projectId },
-        data: {
-          lastError: errorMessage,
-          lastErrorAt: new Date(),
-          runStartedAt: null,
-        },
-      });
+      const { consecutiveFailures } =
+        await prisma.blobStorageIntegration.update({
+          where: { projectId },
+          data: {
+            lastError: errorMessage,
+            lastErrorAt: new Date(),
+            runStartedAt: null,
+            consecutiveFailures: { increment: 1 },
+          },
+          select: { consecutiveFailures: true },
+        });
+
+      if (consecutiveFailures >= maxConsecutiveFailures) {
+        // Atomic claim on the enabled true→false transition. The increment
+        // above is atomic, so two concurrent workers can both read a value at
+        // or past the threshold; gating the disable on actually flipping the
+        // flag means only one wins and sends the one-time pause email. The
+        // counter is reset on re-enable (upsertBlobStorageIntegration), not
+        // here, so a losing worker's stale increment can't shrink the next
+        // grace period.
+        const { count } = await prisma.blobStorageIntegration.updateMany({
+          where: { projectId, enabled: true },
+          data: { enabled: false },
+        });
+        if (count > 0) {
+          paused = true;
+          logger.warn(
+            `[BLOB INTEGRATION] Disabled blob storage integration for project ${projectId} after ${consecutiveFailures} consecutive failures (threshold ${maxConsecutiveFailures})`,
+          );
+        }
+      }
     } catch (persistError) {
       logger.error(
         `[BLOB INTEGRATION] Failed to persist blob storage error for project ${projectId}`,
@@ -1205,7 +1238,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    notifyBlobStorageExportFailedInBackground(projectId);
+    notifyBlobStorageExportFailedInBackground(projectId, paused);
 
     const chain = formatErrorChain(error);
     logger.error(
@@ -1222,7 +1255,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
   }
 };
 
-function notifyBlobStorageExportFailedInBackground(projectId: string): void {
+function notifyBlobStorageExportFailedInBackground(
+  projectId: string,
+  paused: boolean = false,
+): void {
   (async () => {
     try {
       const cooldownMs =
@@ -1231,29 +1267,36 @@ function notifyBlobStorageExportFailedInBackground(projectId: string): void {
         60 *
         1000;
 
-      // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
-      // If the email send subsequently fails, the cooldown still applies — the next failure
-      // after cooldown expiry will retry the notification.
-      const claimed = await prisma.blobStorageIntegration.updateMany({
-        where: {
-          projectId,
-          OR: [
-            { lastFailureNotificationSentAt: null },
-            {
-              lastFailureNotificationSentAt: {
-                lt: new Date(Date.now() - cooldownMs),
+      // Cooldown gating prevents email spam on repeated failures. The circuit
+      // breaker pause is a one-time state change, so it bypasses the cooldown to
+      // guarantee owners learn the integration was disabled (LFE-10279).
+      // Dedup for the pause email is handled upstream: only the worker that wins
+      // the atomic enabled true→false claim calls this with paused = true.
+      if (!paused) {
+        // Atomic claim: set timestamp before sending to prevent duplicate emails on concurrent retries.
+        // If the email send subsequently fails, the cooldown still applies — the next failure
+        // after cooldown expiry will retry the notification.
+        const claimed = await prisma.blobStorageIntegration.updateMany({
+          where: {
+            projectId,
+            OR: [
+              { lastFailureNotificationSentAt: null },
+              {
+                lastFailureNotificationSentAt: {
+                  lt: new Date(Date.now() - cooldownMs),
+                },
               },
-            },
-          ],
-        },
-        data: { lastFailureNotificationSentAt: new Date() },
-      });
+            ],
+          },
+          data: { lastFailureNotificationSentAt: new Date() },
+        });
 
-      if (claimed.count === 0) {
-        logger.info(
-          `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
-        );
-        return;
+        if (claimed.count === 0) {
+          logger.info(
+            `[BLOB INTEGRATION] Skipping failure notification for project ${projectId}, cooldown still active`,
+          );
+          return;
+        }
       }
 
       const emailEnv = {
@@ -1291,6 +1334,7 @@ function notifyBlobStorageExportFailedInBackground(projectId: string): void {
         projectName,
         settingsUrl,
         receiverEmails: adminEmails,
+        paused,
       });
     } catch (error) {
       logger.error(

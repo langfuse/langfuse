@@ -189,6 +189,15 @@ const EnvSchema = z.object({
     .positive()
     .default(24),
 
+  // Circuit breaker: after this many consecutive failed sync runs the blob
+  // storage integration is auto-disabled (enabled = false) and the project
+  // owners are notified, so a wedged chunk stops retrying forever (LFE-10279).
+  LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(5),
+
   // Comma-separated list of project IDs that should only export traces table (skip observations and scores)
   LANGFUSE_BLOB_STORAGE_EXPORT_TRACE_ONLY_PROJECT_IDS: z
     .string()

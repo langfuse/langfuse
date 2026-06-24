@@ -119,7 +119,12 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true, lastError: true, runStartedAt: true },
+      select: {
+        exportMode: true,
+        enabled: true,
+        lastError: true,
+        runStartedAt: true,
+      },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -134,6 +139,12 @@ export async function upsertBlobStorageIntegration(params: {
     }
 
     const modeChanged = existing && existing.exportMode !== data.exportMode;
+    // Re-enabling a circuit-breaker-disabled integration grants a fresh failure
+    // budget: clear the consecutive-failure counter and last error so the next
+    // failure doesn't immediately re-trip the breaker (LFE-10279). Only on the
+    // false→true transition — an edit to an already-enabled integration leaves
+    // an in-progress failure count intact.
+    const reactivated = existing != null && !existing.enabled && data.enabled;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
 
     // exportSource for the CREATE payload. The !existing guard was previously
@@ -174,6 +185,10 @@ export async function upsertBlobStorageIntegration(params: {
         // previous mode's lastSyncAt.
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
         runStartedAt: null,
+        // Reset the circuit breaker on re-enable (see `reactivated` above).
+        ...(reactivated
+          ? { consecutiveFailures: 0, lastError: null, lastErrorAt: null }
+          : {}),
       },
     });
 

@@ -17,17 +17,23 @@ import {
 type BlobStorageExportFailedEmailTemplateProps = {
   projectName: string;
   settingsUrl: string;
+  // When true the export was auto-disabled after repeated failures and needs
+  // to be re-enabled by the customer once the underlying issue is resolved.
+  paused?: boolean;
 };
 
 export const BlobStorageExportFailedEmailTemplate = ({
   projectName,
   settingsUrl,
+  paused = false,
 }: BlobStorageExportFailedEmailTemplateProps) => {
   return (
     <Html>
       <Head />
       <Preview>
-        Blob storage export failed for project &quot;{projectName}&quot;
+        {paused
+          ? `Blob storage export paused for project "${projectName}"`
+          : `Blob storage export failed for project "${projectName}"`}
       </Preview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
@@ -44,12 +50,25 @@ export const BlobStorageExportFailedEmailTemplate = ({
 
             <Section>
               <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
-                Blob Storage Export Failed
+                {paused
+                  ? "Blob Storage Export Paused"
+                  : "Blob Storage Export Failed"}
               </Heading>
               <Text className="text-gray-700 text-sm leading-6">
-                The scheduled blob storage export for project &quot;
-                {projectName}&quot; has failed. Review the integration settings
-                to see the error details and resolve the issue.
+                {paused ? (
+                  <>
+                    The scheduled blob storage export for project &quot;
+                    {projectName}&quot; has been paused after repeated failures.
+                    Review the integration settings to see the error details,
+                    resolve the issue, and re-enable the export.
+                  </>
+                ) : (
+                  <>
+                    The scheduled blob storage export for project &quot;
+                    {projectName}&quot; has failed. Review the integration
+                    settings to see the error details and resolve the issue.
+                  </>
+                )}
               </Text>
             </Section>
 
