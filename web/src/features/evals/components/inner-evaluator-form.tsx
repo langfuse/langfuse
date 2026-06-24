@@ -752,9 +752,8 @@ export const InnerEvaluatorForm = (props: {
         if ("message" in error && typeof error.message === "string") {
           setFormError(error.message as string);
           return;
-        } else {
-          setFormError(JSON.stringify(error));
         }
+        setFormError(JSON.stringify(error));
       });
   }
 
@@ -1193,12 +1192,11 @@ export const InnerEvaluatorForm = (props: {
                         return experimentEvalFilterColsWithOptions(
                           experimentEvalFilterOptions,
                         );
-                      } else {
-                        // dataset (legacy non-OTEL experiments)
-                        return datasetFormFilterColsWithOptions(
-                          datasetFilterOptions,
-                        );
                       }
+                      // dataset (legacy non-OTEL experiments)
+                      return datasetFormFilterColsWithOptions(
+                        datasetFilterOptions,
+                      );
                     };
 
                     const hasFilters = field.value && field.value.length > 0;
