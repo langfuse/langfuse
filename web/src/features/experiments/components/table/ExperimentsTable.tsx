@@ -288,6 +288,21 @@ export default function ExperimentsTable({
       },
     },
     {
+      // Placed here (right after the identifying name/description columns) rather
+      // than last so it is never the trailing column. As the last column its right
+      // resize handle sat flush against the table edge and could not be dragged
+      // wider in a maximized browser (LFE-10460).
+      accessorKey: "metadata",
+      id: "metadata",
+      header: getExperimentsColumnName("metadata"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Record<string, string> = row.getValue("metadata");
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+      },
+    },
+    {
       accessorKey: "itemCount",
       id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
@@ -459,17 +474,6 @@ export default function ExperimentsTable({
         ) : null;
       },
       columns: experimentScoreColumns,
-    },
-    {
-      accessorKey: "metadata",
-      id: "metadata",
-      header: getExperimentsColumnName("metadata"),
-      size: 100,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
     },
   ];
 

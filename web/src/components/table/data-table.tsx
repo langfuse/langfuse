@@ -352,7 +352,12 @@ export function DataTable<TData extends object, TValue>({
         )}
       >
         <div
-          className="relative min-h-full w-full overflow-auto border-t"
+          // pr-2 + scrollbar-gutter:stable reserve a small gutter on the right so the
+          // last column's resize handle is never flush against the scrollbar/edge and
+          // always has some cursor room. Partial mitigation for LFE-10460: a maximized
+          // browser still clamps the cursor at the screen edge, so this guarantees room
+          // to the right, not a complete fix.
+          className="relative min-h-full w-full overflow-auto border-t pr-2 [scrollbar-gutter:stable]"
           style={{ ...columnSizeVars }}
         >
           <Table>
