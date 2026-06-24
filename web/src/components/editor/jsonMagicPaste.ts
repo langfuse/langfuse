@@ -178,7 +178,10 @@ const magicPasteTipField = StateField.define<ActiveTip | null>({
 
 function buildTooltip(tip: ActiveTip): Tooltip {
   return {
-    pos: tip.from,
+    // Anchor at the caret (end of the insert), where `scrollIntoView` brought the
+    // viewport — anchoring at the start would land off-screen when a long paste
+    // scrolls the start out of view.
+    pos: tip.to,
     // Render below the paste so the editor's own top edge / overflow can't clip
     // it; `strictSide: false` still lets it flip up near the bottom of the view.
     above: false,
