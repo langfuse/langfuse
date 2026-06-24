@@ -483,9 +483,42 @@ export default function ExperimentsTable({
       columns,
     );
 
+  // One-time migration for LFE-10460: the metadata column's default position
+  // moved from last to right after `description`, but useColumnOrder replays a
+  // returning user's stored order verbatim and never repositions an existing
+  // column. So for anyone who visited this page before, metadata would stay the
+  // trailing column and the resize bug would persist. This migration moves
+  // metadata to its new default slot ONLY when it is currently the last column
+  // (the stale pre-PR default); if the user has manually moved it anywhere else,
+  // we leave their layout untouched. Guarded by a version flag so it runs once.
+  const columnOrderMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnOrder-metadataReorder-v1-${projectId}`,
+        apply: (order: string[]) => {
+          const lastIndex = order.length - 1;
+          // Only act on the stale default: metadata sitting as the last column.
+          if (order[lastIndex] !== "metadata") return order;
+          // New default slot: immediately after the `description` column,
+          // matching the JS column definition (select, name, description, metadata...).
+          const descriptionIndex = order.indexOf("description");
+          const targetIndex =
+            descriptionIndex === -1 ? 0 : descriptionIndex + 1;
+          if (targetIndex === lastIndex) return order; // already in place
+          const next = [...order];
+          next.splice(lastIndex, 1); // remove trailing metadata
+          next.splice(targetIndex, 0, "metadata"); // insert at new default slot
+          return next;
+        },
+      },
+    ],
+    [projectId],
+  );
+
   const [columnOrder, setColumnOrder] = useColumnOrder<ExperimentsTableRow>(
     `experimentsColumnOrder-${projectId}`,
     columns,
+    columnOrderMigrations,
   );
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
