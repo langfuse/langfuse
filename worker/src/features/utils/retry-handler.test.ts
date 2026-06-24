@@ -8,6 +8,11 @@ import {
   type Mock,
 } from "vitest";
 
+const mockEnv = vi.hoisted(() => ({
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS: 4,
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS: 120 * 60,
+}));
+
 vi.mock("@langfuse/shared/src/server", () => ({
   convertQueueNameToMetricName: vi.fn().mockImplementation((name) => name),
   logger: {
@@ -33,6 +38,10 @@ vi.mock("crypto", () => ({
   randomUUID: vi.fn().mockReturnValue("retry-job-id"),
 }));
 
+vi.mock("../../env", () => ({
+  env: mockEnv,
+}));
+
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, recordDistribution } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "./retry-handler";
@@ -43,6 +52,8 @@ describe("retryLLMRateLimitError", () => {
     vi.setSystemTime(new Date("2026-01-01T02:00:00.000Z"));
     vi.clearAllMocks();
     vi.spyOn(Math, "random").mockReturnValue(0.5);
+    mockEnv.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS = 4;
+    mockEnv.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS = 120 * 60;
     (prisma.jobExecution.findFirstOrThrow as Mock).mockResolvedValue({
       createdAt: new Date("2026-01-01T01:00:00.000Z"),
     });
@@ -233,6 +244,54 @@ describe("retryLLMRateLimitError", () => {
     );
   });
 
+  it("derives the default retry schedule from retry count and age window", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    (prisma.jobExecution.findFirstOrThrow as Mock).mockResolvedValue({
+      createdAt: new Date("2026-01-01T02:00:00.000Z"),
+    });
+
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp: new Date("2026-01-01T02:00:00.000Z"),
+          payload: {
+            projectId: "project-id",
+            jobExecutionId: "job-execution-id",
+          },
+          retryBaggage: {
+            originalJobTimestamp: new Date("2026-01-01T02:00:00.000Z"),
+            attempt: 1,
+          },
+        },
+      },
+      {
+        table: "job_executions",
+        idField: "jobExecutionId",
+        queue: { add },
+        queueName: "llm-as-a-judge-execution-queue-1",
+        jobName: "llm-as-a-judge-execution-job",
+      },
+    );
+
+    expect(result).toMatchObject({
+      outcome: "scheduled",
+      delaySeconds: 2600,
+      retryBaggage: {
+        attempt: 2,
+        originalJobTimestamp: new Date("2026-01-01T02:00:00.000Z"),
+      },
+    });
+    expect(add).toHaveBeenCalledWith(
+      "llm-as-a-judge-execution-queue-1",
+      expect.objectContaining({
+        retryBaggage: expect.objectContaining({
+          attempt: 2,
+        }),
+      }),
+      { delay: 2600 * 1000 },
+    );
+  });
+
   it("applies jitter to the scheduled delay", async () => {
     const add = vi.fn().mockResolvedValue(undefined);
     (Math.random as unknown as Mock).mockReturnValue(0);
@@ -275,6 +334,52 @@ describe("retryLLMRateLimitError", () => {
         }),
       }),
       { delay: 4 * 60 * 1000 },
+    );
+  });
+
+  it("derives retry delays from custom retry count and age window", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    mockEnv.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS = 4;
+    mockEnv.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS = 2 * 60;
+    (prisma.jobExecution.findFirstOrThrow as Mock).mockResolvedValue({
+      createdAt: new Date("2026-01-01T02:00:00.000Z"),
+    });
+
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp: new Date("2026-01-01T02:00:00.000Z"),
+          payload: {
+            projectId: "project-id",
+            jobExecutionId: "job-execution-id",
+          },
+        },
+      },
+      {
+        table: "job_executions",
+        idField: "jobExecutionId",
+        queue: { add },
+        queueName: "llm-as-a-judge-execution-queue-1",
+        jobName: "llm-as-a-judge-execution-job",
+      },
+    );
+
+    expect(result).toMatchObject({
+      outcome: "scheduled",
+      delaySeconds: 30,
+      retryBaggage: {
+        attempt: 1,
+        originalJobTimestamp: new Date("2026-01-01T02:00:00.000Z"),
+      },
+    });
+    expect(add).toHaveBeenCalledWith(
+      "llm-as-a-judge-execution-queue-1",
+      expect.objectContaining({
+        retryBaggage: expect.objectContaining({
+          attempt: 1,
+        }),
+      }),
+      { delay: 30 * 1000 },
     );
   });
 });

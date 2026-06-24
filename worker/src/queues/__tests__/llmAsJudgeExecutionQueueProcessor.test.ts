@@ -36,6 +36,12 @@ vi.mock("@langfuse/shared", () => ({
   },
 }));
 
+vi.mock("../../env", () => ({
+  env: {
+    LANGFUSE_SECONDARY_EVAL_EXECUTION_QUEUE_ENABLED_PROJECT_IDS: "",
+  },
+}));
+
 // Mock prisma
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: {
