@@ -1,5 +1,6 @@
 import { type Dataset, prisma, type Prisma } from "../../db";
 import { type BatchActionQuery } from "../../features/batchAction/types";
+import { escapeSqlLikePattern } from "../utils/sqlLike";
 
 type PrismaClientOrTransaction = typeof prisma | Prisma.TransactionClient;
 
@@ -7,7 +8,7 @@ type PrismaClientOrTransaction = typeof prisma | Prisma.TransactionClient;
 // folder path is rendered as its own row and must be deleted via its id only —
 // matching `name = folderPath` here would silently delete that sibling dataset.
 function buildDatasetFolderWhere(folderPath: string): Prisma.DatasetWhereInput {
-  return { name: { startsWith: `${folderPath}/` } };
+  return { name: { startsWith: `${escapeSqlLikePattern(folderPath)}/` } };
 }
 
 function buildDatasetBatchDeleteWhere({

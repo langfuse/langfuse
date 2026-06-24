@@ -85,6 +85,42 @@ describe("datasets repository", () => {
     expect(ids).not.toContain(standaloneFolderNamedDataset.id);
   });
 
+  it("treats SQL LIKE wildcards in folder names literally, sparing unrelated siblings", async () => {
+    const project = await createProject();
+    // Folder names derive from dataset names and can contain `%` / `_`. Without
+    // escaping, deleting folder "100%" or "a_b" would also wipe siblings whose
+    // names happen to match the wildcard (e.g. "1000/x", "aXb/x").
+    const percentChild = await createDataset({
+      name: "100%/child",
+      projectId: project.id,
+    });
+    const percentSibling = await createDataset({
+      name: "1000/sibling",
+      projectId: project.id,
+    });
+    const underscoreChild = await createDataset({
+      name: "a_b/child",
+      projectId: project.id,
+    });
+    const underscoreSibling = await createDataset({
+      name: "aXb/sibling",
+      projectId: project.id,
+    });
+
+    const deleted = await findDatasetsForDeletion({
+      projectId: project.id,
+      datasetIds: [],
+      folderPaths: ["100%", "a_b"],
+    });
+
+    const deletedIds = deleted.map((dataset) => dataset.id);
+    expect(deletedIds.sort()).toEqual(
+      [percentChild.id, underscoreChild.id].sort(),
+    );
+    expect(deletedIds).not.toContain(percentSibling.id);
+    expect(deletedIds).not.toContain(underscoreSibling.id);
+  });
+
   it("returns no deletion candidates without explicit dataset or folder inputs", async () => {
     const project = await createProject();
     await createDataset({
