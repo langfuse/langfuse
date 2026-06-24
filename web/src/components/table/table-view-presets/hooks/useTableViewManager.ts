@@ -38,6 +38,13 @@ interface UseTableStateProps {
     filterColumnDefinition?: ColumnDefinition[];
     expandableFilterColumns?: string[];
     migrateFilterState?: FilterStateMigration;
+    /**
+     * Runs on a persisted saved-view `columnOrder` before it is applied, so a
+     * table whose default column position changed can reposition a stale column
+     * in pre-PR view payloads (mirrors `migrateFilterState`). Must be a pure
+     * transform; return the input unchanged to leave the order untouched.
+     */
+    migrateColumnOrder?: (columnOrder: string[]) => string[];
   };
   currentFilterState?: FilterState;
   currentExpandedFilters?: string[];
@@ -311,8 +318,18 @@ export function useTableViewManager({
         setSearchQueryRef.current(viewData.searchQuery || null);
       }
 
-      // Apply column order and visibility without validation since UI will handle gracefully
-      if (viewData.columnOrder) setColumnOrder(viewData.columnOrder);
+      // Apply column order and visibility without validation since UI will handle gracefully.
+      // A saved view persists its own columnOrder snapshot, so a pre-PR view can
+      // re-introduce a stale column position even after the localStorage migration
+      // has run (the migration is one-shot and this is a separate persistence path).
+      // Run the table's opt-in columnOrder migration on the payload first so the
+      // same "only reposition a stale default" rule applies here too.
+      if (viewData.columnOrder) {
+        const migratedColumnOrder = validationContext.migrateColumnOrder
+          ? validationContext.migrateColumnOrder(viewData.columnOrder)
+          : viewData.columnOrder;
+        setColumnOrder(migratedColumnOrder);
+      }
       if (viewData.columnVisibility)
         setColumnVisibility(viewData.columnVisibility);
 
