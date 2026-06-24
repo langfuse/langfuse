@@ -3,10 +3,11 @@ import { type BatchActionQuery } from "../../features/batchAction/types";
 
 type PrismaClientOrTransaction = typeof prisma | Prisma.TransactionClient;
 
+// A folder is strictly a name prefix. A standalone dataset whose name equals the
+// folder path is rendered as its own row and must be deleted via its id only —
+// matching `name = folderPath` here would silently delete that sibling dataset.
 function buildDatasetFolderWhere(folderPath: string): Prisma.DatasetWhereInput {
-  return {
-    OR: [{ name: folderPath }, { name: { startsWith: `${folderPath}/` } }],
-  };
+  return { name: { startsWith: `${folderPath}/` } };
 }
 
 function buildDatasetBatchDeleteWhere({

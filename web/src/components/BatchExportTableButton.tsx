@@ -11,7 +11,7 @@ import { Button } from "@/src/components/ui/button";
 import Spinner from "@/src/components/design-system/Spinner/Spinner";
 import { Download, Info } from "lucide-react";
 import {
-  type BatchExportTableName,
+  type BatchExportSupportedTableName,
   exportOptions,
   type BatchExportFileFormat,
   type OrderByState,
@@ -24,7 +24,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 
 export type BatchExportTableButtonProps = {
   projectId: string;
-  tableName: BatchExportTableName;
+  tableName: BatchExportSupportedTableName;
   orderByState: OrderByState;
   filterState: any;
   searchQuery?: any;

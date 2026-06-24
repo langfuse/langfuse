@@ -46,8 +46,27 @@ export const exportOptions: Record<
   },
 } as const;
 
+// Tables the batch-export read stream can actually serve. `datasets` is a
+// batch-action-only table (multi-select delete) with no export case in the
+// worker, so it is excluded here to stop unsupported exports from queuing.
+const BatchExportTableNames = [
+  BatchTableNames.Traces,
+  BatchTableNames.Observations,
+  BatchTableNames.Events,
+  BatchTableNames.Scores,
+  BatchTableNames.Sessions,
+  BatchTableNames.DatasetRunItems,
+  BatchTableNames.DatasetItems,
+  BatchTableNames.AuditLogs,
+] as const;
+
+// The subset of batch tables that can actually be exported. Use this (not the
+// full `BatchExportTableName`) to type anything that feeds a batch-export query.
+export type BatchExportSupportedTableName =
+  (typeof BatchExportTableNames)[number];
+
 export const BatchExportQuerySchema = z.object({
-  tableName: z.enum(BatchTableNames),
+  tableName: z.enum(BatchExportTableNames),
   filter: z.array(singleFilter).nullable(),
   searchQuery: z.string().optional(),
   searchType: z.array(TracingSearchType).optional(),

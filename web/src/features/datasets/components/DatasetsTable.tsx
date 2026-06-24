@@ -95,14 +95,12 @@ function DatasetsMultiSelectActionMenu({
   rowsById,
   searchQuery,
   store,
-  totalCount,
 }: {
   currentFolderPath: string | undefined;
   projectId: string;
   rowsById: Map<string, DatasetTableRow>;
   searchQuery: string | null;
   store: DatasetsTableStore;
-  totalCount: number | null;
 }) {
   const selectAll = useStore(store, (state) => state.selectAll);
   const selectedRowIds = useStore(store, (state) => state.selectedPageRowIds);
@@ -127,7 +125,9 @@ function DatasetsMultiSelectActionMenu({
     },
   });
 
-  const selectedCount = selectAll ? totalCount : selectedRows.length;
+  // For select-all the true count is folder-expanded and unknown client-side,
+  // so omit the number rather than show the misleading folder-collapsed total.
+  const selectedCount = selectAll ? null : selectedRows.length;
 
   if (selectedRows.length === 0 && !selectAll) return null;
 
@@ -254,7 +254,6 @@ function DatasetsTableToolbar({
           rowsById={rowsById}
           searchQuery={searchQuery}
           store={store}
-          totalCount={totalCount}
         />,
       ]}
       multiSelect={{
@@ -263,6 +262,9 @@ function DatasetsTableToolbar({
         selectedRowIds: selectedPageRowIds,
         setRowSelection: selectionActions.setRowSelection,
         totalCount,
+        // A folder row deletes every dataset under it, so the displayed row
+        // count understates the true deletion scope — keep the banner vague.
+        approximateCount: true,
         ...paginationState,
       }}
     />

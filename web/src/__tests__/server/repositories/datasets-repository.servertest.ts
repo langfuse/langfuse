@@ -46,14 +46,16 @@ describe("datasets repository", () => {
     });
   });
 
-  it("finds datasets selected directly or via folder subtrees scoped to a project", async () => {
+  it("finds datasets selected directly or via folder subtrees, without the same-named standalone dataset", async () => {
     const project = await createProject();
     const otherProject = await createProject();
     const selectedDataset = await createDataset({
       name: `selected-${v4()}`,
       projectId: project.id,
     });
-    const folderDataset = await createDataset({
+    // Standalone dataset named exactly like the folder — its own row, must NOT
+    // be deleted when only the "folder" subtree is targeted.
+    const standaloneFolderNamedDataset = await createDataset({
       name: "folder",
       projectId: project.id,
     });
@@ -76,9 +78,11 @@ describe("datasets repository", () => {
       folderPaths: ["folder"],
     });
 
-    expect(datasets.map((dataset) => dataset.id).sort()).toEqual(
-      [folderDataset.id, nestedFolderDataset.id, selectedDataset.id].sort(),
+    const ids = datasets.map((dataset) => dataset.id);
+    expect(ids.sort()).toEqual(
+      [nestedFolderDataset.id, selectedDataset.id].sort(),
     );
+    expect(ids).not.toContain(standaloneFolderNamedDataset.id);
   });
 
   it("returns no deletion candidates without explicit dataset or folder inputs", async () => {

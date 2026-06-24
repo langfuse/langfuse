@@ -66,6 +66,10 @@ export interface MultiSelect {
   pageSize: number;
   pageIndex: number;
   totalCount: number | null;
+  // When the displayed row count does not equal the number of affected entities
+  // (e.g. datasets where a folder row expands to many datasets on delete), the
+  // select-all banner drops the precise number and says "matching" instead.
+  approximateCount?: boolean;
 }
 
 interface SearchConfig {
