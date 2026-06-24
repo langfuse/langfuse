@@ -37,7 +37,6 @@ import {
   type BlobTableExportOutcome,
 } from "./inFlightExports";
 import { TimedGzip, ZLIB_DEFAULT_LEVEL, type GzipStats } from "./gzipStream";
-import { classifyBlobExportTraffic } from "./blobExportTraffic";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
@@ -673,7 +672,10 @@ const processBlobStorageExport = async (config: {
             projectId: config.projectId,
             path: passthroughEligible ? "passthrough" : "standard",
             source: exportFormat,
-            traffic: classifyBlobExportTraffic(config.endpoint),
+            // Integration type (S3 / S3_COMPATIBLE / AZURE_BLOB_STORAGE) as the
+            // destination, so export volume can be split by data-transfer cost
+            // in the Datadog dashboard (native AWS S3 vs. external egress).
+            destination_type: config.type,
           };
           recordIncrement(
             "langfuse.blob_export.serialized_bytes",
