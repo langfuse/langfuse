@@ -190,7 +190,7 @@ export function TraceTimeline() {
         onScroll={handleTimeIndexScroll}
       >
         <div
-          className="bg-background border-border/60 text-muted-foreground sticky left-0 z-10 flex shrink-0 items-end border-r pb-2 pl-2 text-xs font-medium"
+          className="bg-background text-muted-foreground sticky left-0 z-10 flex shrink-0 items-end pb-2 pl-2 text-xs font-medium"
           style={{ width: `${gutterWidth}px` }}
         >
           Name
@@ -276,8 +276,15 @@ export function TraceTimeline() {
         </div>
       </div>
 
-      {/* Drag handle to resize the gutter. Anchored at the gutter's right edge,
-          which is pinned at viewport x = gutterWidth (the gutter is sticky). */}
+      {/* Full-height divider between gutter and track. Sits at viewport x =
+          gutterWidth (the gutter is sticky), so it runs the whole panel height
+          rather than stopping at the last row like a per-row border would. */}
+      <div
+        className="bg-border/60 pointer-events-none absolute top-0 bottom-0 w-px"
+        style={{ left: `${gutterWidth}px` }}
+      />
+
+      {/* Drag handle to resize the gutter, over the divider. */}
       <div
         role="separator"
         aria-orientation="vertical"
