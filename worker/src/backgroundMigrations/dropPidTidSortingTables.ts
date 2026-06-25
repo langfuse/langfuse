@@ -1,25 +1,16 @@
 import { IBackgroundMigration } from "./IBackgroundMigration";
 import { commandClickhouse, logger } from "@langfuse/shared/src/server";
-import { env } from "../env";
 import { parseArgs } from "node:util";
-import { checkPredecessorMigrationFinalized } from "./utils/backfillBase";
+import {
+  checkPredecessorMigrationFinalized,
+  onClusterClause,
+} from "./utils/backfillBase";
 
 // Hard-coded UUID identifying the row in background_migrations. Must match the
 // Prisma migration that registers this row.
 const backgroundMigrationId = "b3f1c5d8-9e47-4a26-8b3f-5c6d7e8f9a01";
 
 const LOG_PREFIX = "[Drop PID/TID sorting tables]";
-
-// ============================================================================
-// Cluster-aware DDL helpers
-// ============================================================================
-
-function onClusterClause(): string {
-  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
-    return `ON CLUSTER ${env.CLICKHOUSE_CLUSTER_NAME}`;
-  }
-  return "";
-}
 
 // ============================================================================
 // Migration class
@@ -29,15 +20,12 @@ function onClusterClause(): string {
  * Cleanup migration that drops the scratch table created by the V4 historic
  * backfill chain (M2 → M3 → M4):
  *
- *   - `observations_pid_tid_sorting` — populated by M2, read by M3.
+ *   - `observations_pid_tid_sorting` — populated by M2, read by M3, M4.
  *
  * This is a single-step migration with no chunking. It is gated by
  * `LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES` so self-hosters can keep
  * the scratch table around for forensics/restartability until they're
  * confident the new path is healthy.
- *
- * The `traces` rewrite was deliberately skipped for OSS (M3 joins live `traces`
- * directly), so there is no `traces_pid_tid_sorting` table to drop here.
  */
 export default class DropPidTidSortingTables implements IBackgroundMigration {
   private isAborted = false;
