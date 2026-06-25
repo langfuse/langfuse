@@ -335,11 +335,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
     }>({
       query,
       params,
-      tags: {
-        feature: "batch-data-retention-cleaner",
-        table: this.tableName,
-        operation: "count-chunk",
-      },
     });
 
     // Build maps from the result
@@ -389,11 +384,6 @@ export class BatchDataRetentionCleaner extends PeriodicExclusiveRunner {
       clickhouseConfigs: {
         request_timeout:
           env.LANGFUSE_BATCH_DATA_RETENTION_CLEANER_DELETE_TIMEOUT_MS,
-      },
-      tags: {
-        feature: "batch-data-retention-cleaner",
-        table: this.tableName,
-        operation: "delete",
       },
     });
   }
