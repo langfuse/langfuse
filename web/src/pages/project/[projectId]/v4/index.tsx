@@ -48,7 +48,7 @@ export default function V4Page() {
     [absoluteTimeRange.from, absoluteTimeRange.to],
   );
 
-  const legacyApiUsage = api.legacyApiUsage.timeSeriesByEntrypoint.useQuery(
+  const legacyApiUsage = api.v4Transition.timeSeriesByEntrypoint.useQuery(
     {
       projectId: projectId ?? "",
       fromTimestamp: absoluteTimeRange.from,

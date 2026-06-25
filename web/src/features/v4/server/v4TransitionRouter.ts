@@ -33,7 +33,7 @@ type LegacyApiUsageRow = {
   count: string | number;
 };
 
-export const legacyApiUsageRouter = createTRPCRouter({
+export const v4TransitionRouter = createTRPCRouter({
   timeSeriesByEntrypoint: protectedProjectProcedure
     .input(
       z.object({
