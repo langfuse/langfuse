@@ -68,6 +68,15 @@ export {
   type SplitQueryBuilder,
 } from "./clickhouse-sql/event-query-builder";
 export {
+  buildEventsFilterOptionColumnQuery,
+  buildEventsFilterOptionsForColumnsQuery,
+  EVENTS_FILTER_OPTION_TOP_N,
+  normalizeEventFilterOptionColumn,
+  type EventFilterOptionRow,
+  type EventFilterOptionColumn,
+  type EventFilterOptionScope,
+} from "./clickhouse-sql/event-filter-options";
+export {
   eventsScoresAggregation,
   eventsSessionsAggregation,
   eventsSessionScoresAggregation,
