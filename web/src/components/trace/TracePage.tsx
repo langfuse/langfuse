@@ -4,7 +4,10 @@ import { ErrorPage } from "@/src/components/error-page";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 import { useTraceDetailData } from "@/src/components/trace/useTraceDetailData";
 import Page from "@/src/components/layouts/page";
-import { Trace } from "@/src/components/trace/Trace";
+import {
+  TraceDetailBody,
+  traceDetailTitle,
+} from "@/src/components/trace/TraceDetailBody";
 import { useSession } from "next-auth/react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { Button } from "@/src/components/ui/button";
@@ -103,9 +106,7 @@ export function TracePage({
   return (
     <Page
       headerProps={{
-        title: trace.data.name
-          ? `${trace.data.name}: ${trace.data.id}`
-          : trace.data.id,
+        title: traceDetailTitle(trace.data) ?? trace.data.id,
         itemType: "TRACE",
         breadcrumb: [
           {
@@ -157,12 +158,8 @@ export function TracePage({
       }}
     >
       <div className="flex max-h-full min-h-0 flex-1 overflow-hidden">
-        <Trace
+        <TraceDetailBody
           trace={trace.data}
-          scores={trace.data.scores}
-          corrections={trace.data.corrections}
-          projectId={trace.data.projectId}
-          observations={trace.data.observations}
           context={router.query.peek !== undefined ? "peek" : "fullscreen"}
         />
       </div>

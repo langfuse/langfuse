@@ -1,33 +1,11 @@
 import { TablePeekView } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { Trace } from "@/src/components/trace/Trace";
+import {
+  TraceDetailBody,
+  traceDetailTitle,
+} from "@/src/components/trace/TraceDetailBody";
 import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
-import { Skeleton } from "@/src/components/ui/skeleton";
 import { useRouter } from "next/router";
-
-const PeekViewObservationDetail = ({
-  peekId,
-  trace,
-}: {
-  peekId: string | undefined;
-  trace: ReturnType<typeof usePeekData>;
-}) => {
-  if (!peekId || !trace.data) {
-    return <Skeleton className="h-full w-full rounded-none" />;
-  }
-
-  return (
-    <Trace
-      key={`${trace.data.id}-${peekId}`}
-      trace={trace.data}
-      scores={trace.data.scores}
-      corrections={trace.data.corrections}
-      projectId={trace.data.projectId}
-      observations={trace.data.observations}
-      context="peek"
-    />
-  );
-};
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -60,13 +38,7 @@ export const TablePeekViewObservationDetail = (
   return (
     <TablePeekView
       {...props}
-      title={
-        trace.data
-          ? trace.data.name
-            ? `${trace.data.name}: ${trace.data.id}`
-            : trace.data.id
-          : traceId
-      }
+      title={traceDetailTitle(trace.data, traceId)}
       actions={
         trace.data ? (
           <TraceDetailActions
@@ -81,7 +53,7 @@ export const TablePeekViewObservationDetail = (
         ) : undefined
       }
     >
-      <PeekViewObservationDetail trace={trace} peekId={peekId} />
+      <TraceDetailBody trace={trace.data} context="peek" keySuffix={peekId} />
     </TablePeekView>
   );
 };
