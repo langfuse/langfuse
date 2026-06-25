@@ -61,6 +61,7 @@ function getToolCallStringField(
   if (!toolCall || typeof toolCall !== "object") return undefined;
 
   const value = (toolCall as Record<string, unknown>)[field];
+
   return typeof value === "string" ? value : undefined;
 }
 
