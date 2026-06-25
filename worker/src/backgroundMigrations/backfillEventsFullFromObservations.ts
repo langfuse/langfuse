@@ -31,6 +31,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
     "traces",
     "events_full",
     "events_core",
+    "dataset_run_items_rmt",
   ];
   protected readonly predecessor = {
     id: "9c2d5a4f-7b8e-4f6a-a91c-3e5d7f8a2b1c",
@@ -210,6 +211,12 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
       ON o.project_id = t.project_id AND o.trace_id = t.id
       WHERE o._partition_id = {partition: String}
         AND o._part = {partId: String}
+        -- Skip observations of DRI-referenced traces: M4 owns those traces
+        -- end-to-end (every observation, enriched). Keeps ownership disjoint
+        -- with M1/M4. Relies on the same per-project co-location as the join.
+        AND (o.project_id, o.trace_id) NOT IN (
+          SELECT project_id, trace_id FROM dataset_run_items_rmt
+        )
       SETTINGS
         join_algorithm = 'full_sorting_merge',
         type_json_skip_duplicated_paths = 1

@@ -15,7 +15,8 @@ const LOG_PREFIX = "[Backfill Root Spans]";
 
 /**
  * V4 chain step 1: materializes one virtual root span per trace into
- * `events_full`, chunked by yyyymm traces partition.
+ * `events_full`, chunked by yyyymm traces partition. Traces referenced by a
+ * dataset run item are skipped — M4 owns those end-to-end.
  */
 export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfillMigration {
   protected readonly migrationId = backgroundMigrationId;
@@ -25,6 +26,7 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
     "traces",
     "events_core",
     "events_core_mv",
+    "dataset_run_items_rmt",
   ];
 
   protected async enumerateChunks(
@@ -41,7 +43,8 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
    * Builds the INSERT that materializes one virtual root span per trace into
    * `events_full`. Mirrors the trace-side insert in
    * `packages/shared/clickhouse/scripts/dev-tables.sh` but
-   *   - omits experiment fields (M4 enriches DRI-tagged events later),
+   *   - skips DRI-referenced traces entirely (M4 materializes those traces
+   *     end-to-end, root + every observation, with experiment enrichment),
    *   - uses backfill source attribution rather than dual-write,
    *   - is scoped to a single yyyymm partition so the scan is bounded.
    *
@@ -107,6 +110,13 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
         t.is_deleted
       FROM traces t
       WHERE t._partition_id = {partition: String}
+        -- DRI-referenced traces are materialized end-to-end by M4 (root + every
+        -- observation, with experiment enrichment), so M1 skips them to keep
+        -- ownership disjoint and avoid plain-vs-enriched root collisions. Relies
+        -- on the same per-project co-location as the rest of the chain.
+        AND (t.project_id, t.id) NOT IN (
+          SELECT project_id, trace_id FROM dataset_run_items_rmt
+        )
       SETTINGS
         type_json_skip_duplicated_paths = 1
     `;

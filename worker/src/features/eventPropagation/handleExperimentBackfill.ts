@@ -75,6 +75,15 @@ export interface SpanRecord {
   trace_name: string;
   user_id: string;
   session_id: string;
+  /**
+   * Source row's ReplacingMergeTree version (`event_ts`, DateTime64 string).
+   * Only populated by the historic backfill (M4) fetches; the live cron leaves
+   * it undefined. Used to stamp plain (un-enriched) leftover spans with their
+   * original version so that a `now()`-stamped enriched copy of the same span —
+   * possibly produced by a DRI in a different batch — always wins the
+   * events_full merge/argMax. See `convertEnrichedSpansToEventRecords`.
+   */
+  event_ts?: string;
 }
 
 export interface EnrichedSpan extends SpanRecord {
@@ -233,7 +242,7 @@ export async function getRelevantObservations(
       AND o.start_time <= {maxTime: DateTime64(3)} + interval 7 day
       AND coalesce(o.environment, '') != 'langfuse-prompt-experiment'
     ORDER BY o.event_ts DESC
-    LIMIT 1 BY o.project_id, o.id
+    LIMIT 1 BY o.project_id, o.trace_id, o.id
   `;
 
   return queryClickhouse<SpanRecord>({
@@ -336,17 +345,36 @@ export async function getRelevantTraces(
 }
 
 /**
- * Span/trace lookup key scoped by project. Span and trace ids are
- * user-supplied, so the same id can exist in multiple projects within one
- * batch; unscoped keys would let one project's data enrich another's.
+ * Trace-level lookup key scoped by project. Trace ids are user-supplied and
+ * only unique within a project, so the same id can exist in multiple projects
+ * within one batch; unscoped keys would let one project's data enrich
+ * another's. Use this for `(project_id, trace_id)` keys (e.g. trace
+ * properties). For span identity use `spanScopedKey`.
  */
 export function projectScopedKey(projectId: string, id: string): string {
   return `${projectId}:${id}`;
 }
 
 /**
+ * Span identity key, `(project_id, trace_id, span_id)`. This matches the
+ * `events_full` sort/dedup key. A span id (OTEL span id) is only unique within
+ * a trace, so two spans in different traces of the same project can share a
+ * span id; keying on `(project_id, span_id)` would collapse them or merge
+ * their children across traces.
+ */
+export function spanScopedKey(
+  projectId: string,
+  traceId: string,
+  spanId: string,
+): string {
+  return `${projectId}:${traceId}:${spanId}`;
+}
+
+/**
  * Build span and child maps for efficient lookups and tree traversal.
- * Both maps are keyed by `projectScopedKey`.
+ * Both maps are keyed by `spanScopedKey`. The child map keys a span under its
+ * parent's identity; since `parent_span_id` always references a span in the
+ * same trace, the parent shares the child's `trace_id`.
  */
 export function buildSpanMaps(spans: SpanRecord[]): {
   spanMap: Map<string, SpanRecord>;
@@ -356,10 +384,17 @@ export function buildSpanMaps(spans: SpanRecord[]): {
   const childMap = new Map<string, SpanRecord[]>();
 
   for (const span of spans) {
-    spanMap.set(projectScopedKey(span.project_id, span.span_id), span);
+    spanMap.set(
+      spanScopedKey(span.project_id, span.trace_id, span.span_id),
+      span,
+    );
 
-    // Add to parent's children list
-    const parentKey = projectScopedKey(span.project_id, span.parent_span_id);
+    // Add to parent's children list. The parent lives in the same trace.
+    const parentKey = spanScopedKey(
+      span.project_id,
+      span.trace_id,
+      span.parent_span_id,
+    );
     if (!childMap.has(parentKey)) {
       childMap.set(parentKey, []);
     }
@@ -371,7 +406,7 @@ export function buildSpanMaps(spans: SpanRecord[]): {
 
 /**
  * Recursively find all child spans for a given root span key
- * (see `projectScopedKey`).
+ * (see `spanScopedKey`).
  */
 export function findAllChildren(
   rootSpanKey: string,
@@ -386,7 +421,9 @@ export function findAllChildren(
 
     for (const child of directChildren) {
       children.push(child);
-      queue.push(projectScopedKey(child.project_id, child.span_id));
+      queue.push(
+        spanScopedKey(child.project_id, child.trace_id, child.span_id),
+      );
     }
   }
 
@@ -397,7 +434,7 @@ export function findAllChildren(
  * Convert a SpanRecord to EnrichedSpan format with empty experiment fields.
  * Used for spans that are not part of any dataset run item but should still be included in events.
  */
-function convertToEnrichedSpanWithoutExperiment(
+export function convertToEnrichedSpanWithoutExperiment(
   span: SpanRecord,
   traceProperties: TraceProperties | undefined,
 ): EnrichedSpan {
@@ -506,6 +543,7 @@ export function enrichSpansWithExperiment(
  */
 export function convertEnrichedSpansToEventRecords(
   spans: EnrichedSpan[],
+  opts: { plainEventTsFromSource?: boolean } = {},
 ): EventRecordInsertType[] {
   const records: EventRecordInsertType[] = [];
   const now = Date.now() * 1000; // microseconds
@@ -519,6 +557,18 @@ export function convertEnrichedSpansToEventRecords(
     const promptVersion = span.prompt_version
       ? parseInt(span.prompt_version, 10)
       : undefined;
+
+    // Enriched spans (experiment_id set) always use now() so the most recently
+    // written experiment wins for a span shared across DRIs. Plain spans keep
+    // their source event_ts (when the caller opts in and it was fetched) so an
+    // enriched copy of the same span — possibly written by a later batch —
+    // deterministically wins the events_full merge/argMax instead of being
+    // clobbered by a now()-stamped plain duplicate.
+    const isPlain = !span.experiment_id;
+    const eventTs =
+      opts.plainEventTsFromSource && isPlain && span.event_ts
+        ? new Date(span.event_ts).getTime() * 1000
+        : now;
 
     const eventRecord: EventRecordInsertType = {
       id: span.span_id,
@@ -605,7 +655,7 @@ export function convertEnrichedSpansToEventRecords(
 
       created_at: now,
       updated_at: now,
-      event_ts: now,
+      event_ts: eventTs,
     };
 
     records.push(eventRecord);
@@ -929,7 +979,11 @@ async function processExperimentBackfill(
     for (const dri of driChunk) {
       // Find the root span (either observation or trace)
       const rootSpanId = dri.observation_id || `t-${dri.trace_id}`;
-      const rootSpanKey = projectScopedKey(dri.project_id, rootSpanId);
+      const rootSpanKey = spanScopedKey(
+        dri.project_id,
+        dri.trace_id,
+        rootSpanId,
+      );
       const rootSpan = spanMap.get(rootSpanKey);
 
       if (!rootSpan) {
@@ -959,17 +1013,21 @@ async function processExperimentBackfill(
 
       // Track which spans have been processed
       processedSpanIds.add(
-        projectScopedKey(rootSpan.project_id, rootSpan.span_id),
+        spanScopedKey(rootSpan.project_id, rootSpan.trace_id, rootSpan.span_id),
       );
       for (const child of childSpans) {
-        processedSpanIds.add(projectScopedKey(child.project_id, child.span_id));
+        processedSpanIds.add(
+          spanScopedKey(child.project_id, child.trace_id, child.span_id),
+        );
       }
     }
 
     // Add all remaining spans that weren't enriched (e.g., trace-derived spans that weren't roots)
     for (const span of allSpans) {
       if (
-        !processedSpanIds.has(projectScopedKey(span.project_id, span.span_id))
+        !processedSpanIds.has(
+          spanScopedKey(span.project_id, span.trace_id, span.span_id),
+        )
       ) {
         const traceProperties = tracePropertiesMap.get(
           projectScopedKey(span.project_id, span.trace_id),

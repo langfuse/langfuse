@@ -11,9 +11,11 @@ import { parseArgs } from "node:util";
 import {
   buildSpanMaps,
   convertEnrichedSpansToEventRecords,
+  convertToEnrichedSpanWithoutExperiment,
   enrichSpansWithExperiment,
   findAllChildren,
   projectScopedKey,
+  spanScopedKey,
   type DatasetRunItem,
   type EnrichedSpan,
   type SpanRecord,
@@ -88,7 +90,8 @@ class DescendantCapExceededError extends Error {
         `  (a) raise maxDescendantsPerDri in the background_migrations.args`,
         `      JSONB and re-run the migration;`,
         `  (b) advance the cursor in background_migrations.state to skip this`,
-        `      DRI (the trace will not get experiment enrichment); or`,
+        `      DRI — M1/M3 skip DRI-referenced traces, so this trace will then`,
+        `      be absent from events_full entirely; or`,
         `  (c) handle this trace manually via SQL and then advance the cursor.`,
       ].join(" "),
     );
@@ -223,6 +226,14 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
    * either side of the batch's DRI created_at window so trace timestamps that
    * predate or postdate the DRI insert are still found.
    *
+   * Reads from `observations_pid_tid_sorting` (the M2 scratch table) rather than
+   * the live `observations` table: its sort key is `(project_id, trace_id, id)`,
+   * so the `project_id`/`trace_id` filters below resolve to precise primary-key
+   * seeks instead of a project-wide, time-bounded scan with a non-indexed
+   * trace_id predicate. The scratch is a full copy of `observations` (M2 does
+   * not exclude DRI-referenced rows) and is still present at this point in the
+   * chain (M5 drops it after M4).
+   *
    * Differs from `getRelevantObservations` in `handleExperimentBackfill.ts`:
    * we deliberately do **not** filter out the `langfuse-prompt-experiment`
    * environment because historical backfill must include that data.
@@ -273,19 +284,20 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         o.usage_pricing_tier_name,
         o.metadata,
         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-backfill', 'ingestion-api-backfill') AS source,
+        o.event_ts AS event_ts,
         [] as tags,
         false AS bookmarked,
         false AS public,
         '' AS trace_name,
         '' AS user_id,
         '' AS session_id
-      FROM observations o
+      FROM observations_pid_tid_sorting o
       WHERE o.project_id IN {projectIds: Array(String)}
         AND o.trace_id IN {traceIds: Array(String)}
         AND o.start_time >= {minTime: DateTime64(3)}
         AND o.start_time <= {maxTime: DateTime64(3)}
       ORDER BY o.event_ts DESC
-      LIMIT 1 BY o.project_id, o.id
+      LIMIT 1 BY o.project_id, o.trace_id, o.id
     `;
 
     return queryClickhouse<SpanRecord>({
@@ -361,7 +373,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         t.public,
         t.name AS trace_name,
         coalesce(t.user_id, '') AS user_id,
-        coalesce(t.session_id, '') AS session_id
+        coalesce(t.session_id, '') AS session_id,
+        t.event_ts AS event_ts
       FROM traces t
       WHERE t.project_id IN {projectIds: Array(String)}
         AND t.id IN {traceIds: Array(String)}
@@ -409,7 +422,12 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     await clickhouseClient().insert({
       table: "events_full",
       format: "JSONEachRow",
-      values: convertEnrichedSpansToEventRecords(spans),
+      // plainEventTsFromSource: plain (leftover) spans keep their source
+      // event_ts so an enriched copy of the same span from another batch always
+      // wins; enriched spans still use now().
+      values: convertEnrichedSpansToEventRecords(spans, {
+        plainEventTsFromSource: true,
+      }),
       clickhouse_settings: {
         log_comment: JSON.stringify({
           feature: "background-migration",
@@ -458,11 +476,18 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     }
 
     const allEnrichedSpans: EnrichedSpan[] = [];
+    // Span keys already emitted as part of a DRI subtree, so the leftover pass
+    // below doesn't write a plain duplicate of them.
+    const enrichedSpanKeys = new Set<string>();
     let skipped = 0;
 
     for (const dri of driBatch) {
       const rootSpanId = dri.observation_id || `t-${dri.trace_id}`;
-      const rootSpanKey = projectScopedKey(dri.project_id, rootSpanId);
+      const rootSpanKey = spanScopedKey(
+        dri.project_id,
+        dri.trace_id,
+        rootSpanId,
+      );
       const rootSpan = spanMap.get(rootSpanKey);
 
       if (!rootSpan) {
@@ -477,7 +502,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
       if (childSpans.length > config.maxDescendantsPerDri) {
         // Persist the DRIs enriched so far before halting, so an operator
         // who advances the cursor past the offending DRI does not lose the
-        // earlier DRIs of this batch.
+        // earlier DRIs of this batch. (The structural leftover spans for those
+        // traces are only written once the batch completes normally on resume.)
         await this.insertEnrichedSpans(allEnrichedSpans);
 
         throw new DescendantCapExceededError(
@@ -497,9 +523,44 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         traceProperties,
       );
       allEnrichedSpans.push(...enrichedSpans);
+
+      enrichedSpanKeys.add(rootSpanKey);
+      for (const child of childSpans) {
+        enrichedSpanKeys.add(
+          spanScopedKey(child.project_id, child.trace_id, child.span_id),
+        );
+      }
+    }
+
+    // Leftover pass: M4 owns every DRI-referenced trace end-to-end (M1 and M3
+    // skip referenced traces), so any fetched span that isn't part of an
+    // enriched DRI subtree — the virtual trace root for observation-level DRIs,
+    // plus sibling/ancestor spans — is materialized here without experiment
+    // fields. These keep their source event_ts (see insertEnrichedSpans), so an
+    // enriched copy of the same span produced by a DRI in another batch always
+    // wins the events_full merge/argMax.
+    let plainLeftovers = 0;
+    for (const span of allSpans) {
+      const spanKey = spanScopedKey(
+        span.project_id,
+        span.trace_id,
+        span.span_id,
+      );
+      if (enrichedSpanKeys.has(spanKey)) continue;
+      const traceProperties = tracePropertiesMap.get(
+        projectScopedKey(span.project_id, span.trace_id),
+      );
+      allEnrichedSpans.push(
+        convertToEnrichedSpanWithoutExperiment(span, traceProperties),
+      );
+      plainLeftovers++;
     }
 
     await this.insertEnrichedSpans(allEnrichedSpans);
+
+    logger.info(
+      `[Backfill Events DRIs] Wrote ${allEnrichedSpans.length} spans (${plainLeftovers} plain leftovers) for ${driBatch.length} DRIs`,
+    );
 
     return { enriched: allEnrichedSpans.length, skipped };
   }
@@ -525,7 +586,9 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
 
     const requiredTables = [
       "dataset_run_items_rmt",
-      "observations",
+      // M4 reads observations from the M2 scratch table (trace-id-sorted), not
+      // the live `observations` table — see fetchObservationsForBatch.
+      "observations_pid_tid_sorting",
       "traces",
       "events_full",
       "events_core",

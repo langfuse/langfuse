@@ -3,7 +3,8 @@
 -- live `traces` table and writes child events into `events_full`. Trace
 -- properties are propagated lightly (name, user_id, session_id, version,
 -- release, tags, public, bookmarked); metadata is intentionally not copied to
--- keep the join cheap on self-hoster hardware.
+-- keep the join cheap on self-hoster hardware. Observations of DRI-referenced
+-- traces are skipped here and owned end-to-end by M4.
 --
 -- Gated by `LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL`.
 INSERT INTO background_migrations (id, name, script, args)
