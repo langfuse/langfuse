@@ -64,7 +64,7 @@ Important implementation facts:
 - Scale-down removes `1` task per step; scale-up adds `2`.
 - `web-iso` uses `autoscaler_up_eval_periods = 1` and `autoscaler_step_size = 2`.
 - `web` and `web-iso` RPM autoscalers do not use processed-bytes weighting; `web-ingestion` does.
-- Use autoscaler-aligned ALB target group filters. For `web`, use exact `targetgroup:targetgroup/${env}-web/*`. For `web-iso`, use `targetgroup:targetgroup/${env}-web-iso*/*`. Avoid broad `web-*` filters because they can mix `web`, `web-iso`, and `web-ingestion`.
+- Use autoscaler-aligned ALB target group filters. For `web-ingestion`, use exact `targetgroup:targetgroup/${env}-web-ingestion/*`. For `web`, use exact `targetgroup:targetgroup/${env}-web/*`. For `web-iso`, use `targetgroup:targetgroup/${env}-web-iso*/*`. Avoid broad `web-*` filters because they can mix `web`, `web-iso`, and `web-ingestion`.
 
 ## Workflow
 
@@ -85,7 +85,7 @@ Useful 7-day queries:
 avg:aws.ecs.cpuutilization{servicename:prod-us-web-ingestion,environment:prod-us}.rollup(avg,60)
 max:aws.ecs.cpuutilization{servicename:prod-us-web-ingestion,environment:prod-us}.rollup(max,60)
 max:aws.ecs.service.running{servicename:prod-us-web-ingestion,environment:prod-us}.rollup(avg,60)
-sum:aws.applicationelb.request_count_per_target{environment:prod-us,targetgroup:targetgroup/*web-ingestion*/*}.as_count().rollup(sum,60)
+sum:aws.applicationelb.request_count_per_target{environment:prod-us,targetgroup:targetgroup/prod-us-web-ingestion/*}.as_count().rollup(sum,60)
 sum:aws.applicationelb.processed_bytes{environment:prod-us}.as_count().rollup(sum,60)
 ```
 
@@ -158,7 +158,7 @@ Trace interpretation rules:
 - Be conservative in `prod-jp`: normal traffic may sit at the HA floor, but spikes can be sharp.
 - For `web-iso`, only reduce RPM targets when the evidence points to container-local saturation. Keep the current target when slow spans are ClickHouse-dominated.
 
-Known settings from the May 10, 2026 tuning pass, to use as a reference after verifying current files:
+Known settings from the May 10, 2026 tuning pass are point-in-time snapshots only. Always supersede these values with the live file reads from step 1 before making recommendations or edits:
 
 ```text
 prod-us:    min 3, cpu 2048, target 2000, boundary 0.3, markers down 1400 / up 2600, max 90
