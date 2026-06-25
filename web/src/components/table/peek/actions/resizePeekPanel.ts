@@ -12,8 +12,8 @@ function widthFractionFromClientX(clientX: number): number {
 /**
  * Drag workflow for the left-edge resize handle. Attaches window pointer
  * listeners, drives the store's transient drag state, and on pointer-up either
- * commits a widget width or flips the URL `expanded` flag via
- * `onExpandedChange`. Dragging past {@link PEEK_EXPAND_ENTER_FRACTION} previews
+ * commits a widget width or flips the expanded flag via `commitExpanded` (which
+ * writes the URL). Dragging past {@link PEEK_EXPAND_ENTER_FRACTION} previews
  * (and, on release, commits) the expanded max width — so the drag and the
  * header button are two triggers of the same expanded state.
  *
@@ -25,7 +25,7 @@ function widthFractionFromClientX(clientX: number): number {
 export function beginPeekResize(
   store: PeekPanelStore,
   event: ReactPointerEvent,
-  onExpandedChange: (expanded: boolean) => void,
+  commitExpanded: (expanded: boolean) => void,
 ): () => void {
   // Only primary-button drags; the keyboard path handles the rest.
   if (event.button !== 0) return () => {};
@@ -54,12 +54,14 @@ export function beginPeekResize(
     const { draftExpanded, draftFraction, actions } = store.getState();
     if (draftExpanded) {
       // Released past the threshold → expanded (reflected in the URL).
-      onExpandedChange(true);
+      commitExpanded(true);
     } else if (draftFraction !== null) {
       // Released on a widget width → persist it and ensure we're collapsed.
       actions.commitWidth(draftFraction);
-      onExpandedChange(false);
+      commitExpanded(false);
     }
+    // The hook holds the committed expanded value (pendingExpanded) until the
+    // URL catches up, so clearing the drag state here can't flash the old width.
     actions.cancelResize();
   };
 

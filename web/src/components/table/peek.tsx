@@ -130,14 +130,15 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const isMobile = useIsMobile();
 
   // Expanded is view state, owned by the peek and reflected in the URL so it is
-  // shareable + survives back/forward. Managed here (not threaded through every
-  // table consumer); usePeekNavigation clears the param when the peek closes.
+  // shareable + survives reload. Managed here (not threaded through every table
+  // consumer); usePeekNavigation clears the param when the peek closes. Uses
+  // replace (not push) so toggling expand/collapse doesn't spam history.
   const setExpanded = useCallback(
     (expanded: boolean) => {
       const params = new URLSearchParams(window.location.search);
       if (expanded) params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
       else params.delete(PEEK_VIEW_PARAM);
-      router.push(
+      router.replace(
         {
           pathname: getPathnameWithoutBasePath(),
           query: urlSearchParamsToQuery(params),

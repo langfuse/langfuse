@@ -6,13 +6,17 @@ import { DeleteTraceButton } from "@/src/components/deleteButton";
 /**
  * Trace-level header actions (star / publish / delete) shared by the peek and
  * the standalone trace page, so both surfaces expose the same controls. Each
- * sub-component self-hides when the user lacks the relevant project scope (e.g.
- * a public trace viewed by a non-member), so this is safe to render anywhere.
+ * sub-component renders DISABLED (not hidden) when the user lacks the relevant
+ * project scope, matching the page's long-standing behavior.
  *
- * Delete behavior differs only by surface:
+ * Delete always targets the whole trace (same as the page, even when reached
+ * from an observation/event row — the surface shows that trace). Behavior
+ * differs only by surface:
  * - **page**: pass `deleteRedirectUrl` → navigates to the list after delete.
- * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place; the
- *   list is invalidated so the deleted row disappears.
+ * - **peek**: pass `onAfterDelete` (e.g. `closePeek`) → closes in place. We
+ *   invalidate broadly because the peek is hosted over many different lists
+ *   (traces, observations, events, sessions, experiments, datasets), each
+ *   backed by a different query — so the deleted row disappears everywhere.
  */
 export function TraceDetailActions({
   traceId,
@@ -57,7 +61,11 @@ export function TraceDetailActions({
         projectId={projectId}
         redirectUrl={deleteRedirectUrl}
         invalidateFunc={() => {
-          utils.traces.all.invalidate();
+          // The page path navigates away (redirectUrl) and never calls this.
+          // The peek path is hosted over many different lists, so invalidate
+          // all queries to refresh whichever list is behind the peek, then
+          // close it.
+          utils.invalidate();
           onAfterDelete?.();
         }}
         deleteConfirmation={name ?? ""}

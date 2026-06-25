@@ -10,6 +10,7 @@ import {
 import { useStore } from "zustand";
 import {
   createPeekPanelStore,
+  PEEK_MIN_WIDTH_FRACTION,
   selectDraftExpanded,
   selectIsResizing,
   selectWidgetWidth,
@@ -30,6 +31,9 @@ export type PeekPanelView = {
     role: "separator";
     "aria-orientation": "vertical";
     "aria-label": string;
+    "aria-valuemin": number;
+    "aria-valuemax": number;
+    "aria-valuenow": number;
     tabIndex: 0;
     onPointerDown: (event: ReactPointerEvent) => void;
     onKeyDown: (event: ReactKeyboardEvent) => void;
@@ -42,14 +46,20 @@ function readSidebarOffsetPx(): number {
   const el = document.querySelector('[data-sidebar="sidebar"]');
   if (!el) return 0;
   const rect = el.getBoundingClientRect();
+  // Guard against the off-canvas mobile sidebar (rendered in a Sheet): only a
+  // left-docked, on-screen sidebar contributes an offset.
   return rect.left < 100 && rect.width > 0 ? Math.round(rect.right) : 0;
 }
 
 /**
  * Integration boundary for the peek panel width: owns the per-mount widget-width
- * store, derives the final width (widget vs expanded), and wires drag/keyboard to
- * the store + resize action. Whether the peek is *expanded* is owned by the URL
- * (`isExpanded` in, `onExpandedChange` out) so it is shareable and back-able.
+ * store, derives the final width (widget vs expanded), and wires drag/keyboard
+ * to the store + resize action. Whether the peek is *expanded* is owned by the
+ * URL (`isExpanded` in, `onExpandedChange` out) so it is shareable + reloadable.
+ *
+ * `pendingExpanded` bridges the async gap: when a drag/button commits a new
+ * expanded value we hold it locally until the URL (`isExpanded`) catches up, so
+ * the panel never flashes the old width for a frame on release.
  */
 export function usePeekPanelState({
   isOpen,
@@ -66,12 +76,28 @@ export function usePeekPanelState({
   const draftExpanded = useStore(store, selectDraftExpanded);
   const widgetWidth = useStore(store, selectWidgetWidth);
 
-  // During a drag the live draft wins; otherwise the URL flag does.
-  const effectiveExpanded = isResizing ? draftExpanded : isExpanded;
+  // Locally-committed expanded value, held until the URL reflects it.
+  const [pendingExpanded, setPendingExpanded] = useState<boolean | null>(null);
+  useEffect(() => setPendingExpanded(null), [isExpanded]);
 
-  // While expanded, keep the panel at viewport − sidebar (sidebar stays visible).
-  // The peek portals into the `modal` layer, outside the sidebar's CSS-var scope,
-  // so the offset is measured live (and re-measured on viewport / sidebar resize).
+  // During a drag the live draft wins; otherwise the just-committed value, then
+  // the URL flag.
+  const effectiveExpanded = isResizing
+    ? draftExpanded
+    : (pendingExpanded ?? isExpanded);
+
+  const commitExpanded = useCallback(
+    (expanded: boolean) => {
+      setPendingExpanded(expanded);
+      onExpandedChange(expanded);
+    },
+    [onExpandedChange],
+  );
+
+  // While expanded, keep the panel at viewport − sidebar (sidebar stays
+  // visible). The peek portals into the `modal` layer, outside the sidebar's
+  // CSS-var scope, so the offset is measured live (re-measured on viewport /
+  // sidebar resize, which also covers the collapse/expand transition).
   const [sidebarOffset, setSidebarOffset] = useState(0);
   useEffect(() => {
     if (!effectiveExpanded) return;
@@ -94,8 +120,9 @@ export function usePeekPanelState({
     width: effectiveExpanded ? `calc(100vw - ${sidebarOffset}px)` : widgetWidth,
   };
 
-  // End an in-flight drag (drop listeners, restore body styles, clear drag state)
-  // on unmount and whenever the peek closes — the host outlives open/close.
+  // End an in-flight drag (drop listeners, restore body styles, clear drag
+  // state) on unmount and whenever the peek closes — the host outlives
+  // open/close.
   const dragTeardownRef = useRef<(() => void) | null>(null);
   const endActiveDrag = useCallback(() => {
     dragTeardownRef.current?.();
@@ -109,9 +136,9 @@ export function usePeekPanelState({
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent) => {
-      dragTeardownRef.current = beginPeekResize(store, event, onExpandedChange);
+      dragTeardownRef.current = beginPeekResize(store, event, commitExpanded);
     },
-    [store, onExpandedChange],
+    [store, commitExpanded],
   );
 
   const onKeyDown = useCallback(
@@ -120,22 +147,26 @@ export function usePeekPanelState({
       // collapses out of the expanded view onto a widget width.
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         event.preventDefault();
-        onExpandedChange(false);
+        commitExpanded(false);
         store
           .getState()
           .actions.nudgeWidth(event.key === "ArrowLeft" ? "grow" : "shrink");
       }
     },
-    [store, onExpandedChange],
+    [store, commitExpanded],
   );
 
   const toggleExpanded = useCallback(
-    () => onExpandedChange(!isExpanded),
-    [isExpanded, onExpandedChange],
+    () => commitExpanded(!isExpanded),
+    [isExpanded, commitExpanded],
   );
 
+  const widthPercent = effectiveExpanded
+    ? 100
+    : Math.round(parseFloat(widgetWidth));
+
   return {
-    isExpanded,
+    isExpanded: effectiveExpanded,
     isResizing,
     panelStyle,
     toggleExpanded,
@@ -143,6 +174,9 @@ export function usePeekPanelState({
       role: "separator",
       "aria-orientation": "vertical",
       "aria-label": "Resize peek view",
+      "aria-valuemin": Math.round(PEEK_MIN_WIDTH_FRACTION * 100),
+      "aria-valuemax": 100,
+      "aria-valuenow": widthPercent,
       tabIndex: 0,
       onPointerDown,
       onKeyDown,
