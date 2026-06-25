@@ -157,7 +157,7 @@ const contractReadOnlyExtension = EditorState.changeFilter.of((tr) => {
     }
   }, true);
 
-  return touchesProtectedRange ? false : true;
+  return !touchesProtectedRange;
 });
 
 const contractReadOnlyExtensions = [contractReadOnlyExtension];
