@@ -252,6 +252,42 @@ describe("default-model-prices.json", () => {
     expect(largeContextResult?.pricingTierName).toBe("Large Context");
     expect(largeContextResult?.prices.input.toNumber()).toBe(0.000006);
   });
+
+  it("should keep claude-sonnet-4-6 on standard pricing even with large cache reads", () => {
+    const claudeModel = defaultModelPrices.find(
+      (m) => m.modelName === "claude-sonnet-4-6",
+    );
+    expect(claudeModel).toBeDefined();
+    expect(claudeModel!.pricingTiers.length).toBe(1);
+
+    const tiers: PricingTierWithPrices[] = claudeModel!.pricingTiers.map(
+      (tier) => ({
+        id: tier.id,
+        name: tier.name,
+        isDefault: tier.isDefault,
+        priority: tier.priority,
+        conditions: tier.conditions,
+        prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+          usageType,
+          price: new Decimal(price),
+        })),
+      }),
+    );
+
+    const pricingResult = matchPricingTier(tiers, {
+      input: 16,
+      cache_read_input_tokens: 226784,
+      cache_creation_input_tokens: 48454,
+      output: 2621,
+    });
+
+    expect(pricingResult).not.toBeNull();
+    expect(pricingResult?.pricingTierName).toBe("Standard");
+    expect(pricingResult?.prices.input.toNumber()).toBe(0.000003);
+    expect(pricingResult?.prices.cache_read_input_tokens.toNumber()).toBe(
+      0.0000003,
+    );
+  });
 });
 
 describe("validateRegexPattern", () => {
