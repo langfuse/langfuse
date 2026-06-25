@@ -72,6 +72,8 @@ export interface PeekPanelStoreState {
   isResizing: boolean;
   actions: {
     setResizing: (isResizing: boolean) => void;
+    /** Abandon an in-flight drag without committing (e.g. peek closed mid-drag). */
+    cancelResize: () => void;
     /** Drag below the fullscreen threshold: live widget width. */
     setDraftFraction: (fraction: number) => void;
     /** Drag past the fullscreen threshold. */
@@ -97,6 +99,7 @@ export function createPeekPanelStore(): PeekPanelStore {
     isResizing: false,
     actions: {
       setResizing: (isResizing) => set({ isResizing }),
+      cancelResize: () => set({ draftFraction: null, isResizing: false }),
       setDraftFraction: (fraction) =>
         set({
           draftFraction: clampWidthFraction(fraction),

@@ -58,16 +58,25 @@ export function usePeekPanelState({
     (state) => state.actions.toggleFullscreen,
   );
 
-  // Fullscreen is per open session; the host outlives open/close, so reset it
-  // explicitly when the peek closes (not on item changes during K/J nav).
-  useEffect(() => {
-    store.getState().actions.resetForVisibility(isOpen);
-  }, [store, isOpen]);
-
-  // End an in-flight drag if the component unmounts mid-drag (drops window
-  // listeners, restores body cursor/selection styles).
+  // Ends an in-flight drag: drops the window listeners + restores body styles
+  // (via the resize action's teardown) and clears the store's drag state.
   const dragTeardownRef = useRef<(() => void) | null>(null);
-  useEffect(() => () => dragTeardownRef.current?.(), []);
+  const endActiveDrag = useCallback(() => {
+    dragTeardownRef.current?.();
+    dragTeardownRef.current = null;
+    store.getState().actions.cancelResize();
+  }, [store]);
+
+  // The host stays mounted across open/close, so on close (not on K/J item
+  // changes) explicitly reset fullscreen and abandon any in-flight resize drag —
+  // otherwise an Escape mid-drag would leave window listeners + body styles set.
+  useEffect(() => {
+    if (!isOpen) endActiveDrag();
+    store.getState().actions.resetForVisibility(isOpen);
+  }, [store, isOpen, endActiveDrag]);
+
+  // Also tear down on a real unmount.
+  useEffect(() => endActiveDrag, [endActiveDrag]);
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent) => {

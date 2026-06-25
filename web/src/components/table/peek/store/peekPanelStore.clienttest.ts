@@ -93,6 +93,20 @@ describe("peekPanelStore", () => {
     expect(store.getState().widthFraction).toBeCloseTo(PEEK_MIN_WIDTH_FRACTION);
   });
 
+  it("cancelResize abandons the draft without committing a width", () => {
+    window.localStorage.setItem(STORAGE_KEY, "0.5");
+    const store = createPeekPanelStore();
+    store.getState().actions.setResizing(true);
+    store.getState().actions.setDraftFraction(0.8);
+    store.getState().actions.cancelResize();
+    const state = store.getState();
+    expect(state.draftFraction).toBeNull();
+    expect(state.isResizing).toBe(false);
+    // The persisted width is untouched by an abandoned drag.
+    expect(state.widthFraction).toBeCloseTo(0.5);
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBe("0.5");
+  });
+
   it("resetForVisibility clears fullscreen on close, no-ops while open", () => {
     const store = createPeekPanelStore();
     store.getState().actions.toggleFullscreen();
