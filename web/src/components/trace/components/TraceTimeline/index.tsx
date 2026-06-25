@@ -12,6 +12,7 @@ import { useHandlePrefetchObservation } from "../../hooks/useHandlePrefetchObser
 import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
 import {
   calculateStepSize,
+  calculateTraceDuration,
   findEarliestStartTime,
   SCALE_WIDTH,
 } from "./timeline-calculations";
@@ -44,28 +45,14 @@ export function TraceTimeline() {
   }, [roots]);
 
   // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTree.tsx
-  // Total span of the scale, in seconds. Measured from the timeline origin
+  // Total span of the scale, in seconds, measured from the timeline origin
   // (earliest start) to the latest end across the tree, so every bar fits
-  // within the scale even when the origin sits before a root's start. Falls
-  // back to the largest root latency when end times are unavailable.
+  // within the scale even when the origin sits before a root's start. The
+  // latency fallback (for traces without end times) is anchored to the origin,
+  // so a root that starts after an earlier child still fits. See
+  // calculateTraceDuration.
   const traceDuration = useMemo(() => {
-    if (roots.length === 0) return 0;
-
-    const originMs = traceStartTime.getTime();
-    let latestEndMs = -Infinity;
-
-    const stack = [...roots];
-    while (stack.length > 0) {
-      const node = stack.pop()!;
-      const end = (node.endTime ?? node.startTime).getTime();
-      if (end > latestEndMs) latestEndMs = end;
-      for (const child of node.children) stack.push(child);
-    }
-
-    const spanFromEnds = (latestEndMs - originMs) / 1000;
-    const maxRootLatency = Math.max(...roots.map((r) => r.latency ?? 0));
-
-    return Math.max(spanFromEnds, maxRootLatency);
+    return calculateTraceDuration(roots, traceStartTime);
   }, [roots, traceStartTime]);
 
   // Calculate step size for time axis

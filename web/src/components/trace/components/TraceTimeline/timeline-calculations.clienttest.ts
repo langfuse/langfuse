@@ -4,6 +4,7 @@ import {
   calculateTimelineOffset,
   calculateTimelineWidth,
   calculateStepSize,
+  calculateTraceDuration,
   findEarliestStartTime,
   getPredefinedStepSizes,
   SCALE_WIDTH,
@@ -11,18 +12,25 @@ import {
 } from "./timeline-calculations";
 import { type TreeNode } from "../../lib/types";
 
-// Minimal TreeNode factory for origin tests (only the fields the helper reads).
+// Minimal TreeNode factory for origin/duration tests (only the fields the
+// helpers read). `opts` lets a test set endTime / latency / children.
 function makeNode(
   id: string,
   startTime: string,
-  children: TreeNode[] = [],
+  opts: {
+    children?: TreeNode[];
+    endTime?: string | null;
+    latency?: number;
+  } = {},
 ): TreeNode {
+  const { children = [], endTime = null, latency } = opts;
   return {
     id,
     type: "SPAN",
     name: id,
     startTime: new Date(startTime),
-    endTime: null,
+    endTime: endTime === null ? null : new Date(endTime),
+    latency,
     children,
     startTimeSinceTrace: 0,
     startTimeSinceParentStart: null,
@@ -293,9 +301,9 @@ describe("timeline-calculations", () => {
     });
 
     it("returns the root start time when the root starts first", () => {
-      const root = makeNode("root", "2024-01-01T00:00:00Z", [
-        makeNode("child", "2024-01-01T00:00:02Z"),
-      ]);
+      const root = makeNode("root", "2024-01-01T00:00:00Z", {
+        children: [makeNode("child", "2024-01-01T00:00:02Z")],
+      });
       expect(findEarliestStartTime([root])?.toISOString()).toBe(
         "2024-01-01T00:00:00.000Z",
       );
@@ -304,10 +312,12 @@ describe("timeline-calculations", () => {
     it("anchors to a child that starts BEFORE the root (the origin bug)", () => {
       // The root (TRACE wrapper) starts at the trace timestamp, but an early
       // observation began before it. The origin must be the child's start.
-      const root = makeNode("root", "2024-01-01T00:00:05Z", [
-        makeNode("early-child", "2024-01-01T00:00:01Z"),
-        makeNode("late-child", "2024-01-01T00:00:07Z"),
-      ]);
+      const root = makeNode("root", "2024-01-01T00:00:05Z", {
+        children: [
+          makeNode("early-child", "2024-01-01T00:00:01Z"),
+          makeNode("late-child", "2024-01-01T00:00:07Z"),
+        ],
+      });
 
       const origin = findEarliestStartTime([root]);
       expect(origin?.toISOString()).toBe("2024-01-01T00:00:01.000Z");
@@ -323,13 +333,17 @@ describe("timeline-calculations", () => {
     });
 
     it("descends into deeply nested children to find the minimum", () => {
-      const root = makeNode("root", "2024-01-01T00:00:10Z", [
-        makeNode("a", "2024-01-01T00:00:08Z", [
-          makeNode("b", "2024-01-01T00:00:03Z", [
-            makeNode("c", "2024-01-01T00:00:02Z"),
-          ]),
-        ]),
-      ]);
+      const root = makeNode("root", "2024-01-01T00:00:10Z", {
+        children: [
+          makeNode("a", "2024-01-01T00:00:08Z", {
+            children: [
+              makeNode("b", "2024-01-01T00:00:03Z", {
+                children: [makeNode("c", "2024-01-01T00:00:02Z")],
+              }),
+            ],
+          }),
+        ],
+      });
       expect(findEarliestStartTime([root])?.toISOString()).toBe(
         "2024-01-01T00:00:02.000Z",
       );
@@ -344,6 +358,79 @@ describe("timeline-calculations", () => {
       expect(findEarliestStartTime(roots)?.toISOString()).toBe(
         "2024-01-01T00:00:01.000Z",
       );
+    });
+  });
+
+  describe("calculateTraceDuration (timeline scale span)", () => {
+    it("returns 0 for an empty tree", () => {
+      expect(calculateTraceDuration([], new Date())).toBe(0);
+    });
+
+    it("spans from the origin to the latest end when end times exist", () => {
+      // Root T0..T+10, child T+2..T+12 → latest end is T+12.
+      const origin = new Date("2024-01-01T00:00:00Z");
+      const root = makeNode("root", "2024-01-01T00:00:00Z", {
+        endTime: "2024-01-01T00:00:10Z",
+        children: [
+          makeNode("child", "2024-01-01T00:00:02Z", {
+            endTime: "2024-01-01T00:00:12Z",
+          }),
+        ],
+      });
+      expect(calculateTraceDuration([root], origin)).toBe(12);
+    });
+
+    it("measures the latest end relative to an origin BEFORE the root start", () => {
+      // Early child anchors the origin at T+0; root runs T+5..T+9. The span
+      // must reach the child's end (T+11), not just the root's end.
+      const origin = new Date("2024-01-01T00:00:00Z");
+      const root = makeNode("root", "2024-01-01T00:00:05Z", {
+        endTime: "2024-01-01T00:00:09Z",
+        children: [
+          makeNode("early-child", "2024-01-01T00:00:00Z", {
+            endTime: "2024-01-01T00:00:11Z",
+          }),
+        ],
+      });
+      expect(calculateTraceDuration([root], origin)).toBe(11);
+    });
+
+    it("offset-aware latency fallback covers a root that starts after the origin (the P2 bug)", () => {
+      // No node has an end time, so `endTime ?? startTime` collapses
+      // spanFromEnds to the start gap only. An early child anchors the origin
+      // at T+0; the root starts at T+3 with latency 10. The root's bar reaches
+      // T+13, so the scale MUST be 13 — not the naive max(spanFromEnds=3,
+      // latency=10) = 10, which would let the bar overrun the axis.
+      const origin = new Date("2024-01-01T00:00:00Z");
+      const root = makeNode("root", "2024-01-01T00:00:03Z", {
+        latency: 10,
+        children: [makeNode("early-child", "2024-01-01T00:00:00Z")],
+      });
+
+      const span = calculateTraceDuration([root], origin);
+      expect(span).toBe(13);
+
+      // The root bar (offset from origin + width) fits exactly within the axis
+      // (modulo floating-point rounding). With the pre-fix scale of 10 it would
+      // have reached 1.3 * SCALE_WIDTH and overrun the last tick.
+      const offset = calculateTimelineOffset(root.startTime, origin, span);
+      const width = calculateTimelineWidth(root.latency!, span);
+      expect(offset + width).toBeCloseTo(SCALE_WIDTH, 6);
+    });
+
+    it("uses the larger of end-based span and offset-aware latency", () => {
+      // Root starts at the origin with latency 10 but a child ends at T+12 →
+      // the end-based span (12) wins over the latency span (10).
+      const origin = new Date("2024-01-01T00:00:00Z");
+      const root = makeNode("root", "2024-01-01T00:00:00Z", {
+        latency: 10,
+        children: [
+          makeNode("child", "2024-01-01T00:00:02Z", {
+            endTime: "2024-01-01T00:00:12Z",
+          }),
+        ],
+      });
+      expect(calculateTraceDuration([root], origin)).toBe(12);
     });
   });
 });
