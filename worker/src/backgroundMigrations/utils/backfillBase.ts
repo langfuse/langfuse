@@ -221,8 +221,8 @@ export async function fireQuery({
   params,
   attemptNumber = 0,
   retrySettings = DEFAULT_RETRY_SETTINGS,
-  initialWaitMs = 5_000,
-  retryWaitMs = 15_000,
+  initialWaitMs = 10_000,
+  retryWaitMs = 30_000,
   logPrefix = "[Backfill]",
 }: FireQueryOptions): Promise<void> {
   logger.info(`${logPrefix} Firing query ${queryId}`);
@@ -309,9 +309,11 @@ export async function fireQuery({
 
 /**
  * Reattach to in-flight queries from a previous worker run by polling each
- * queryId. Updates each todo in-place with the recovered status. Returns
- * the subset that ClickHouse still reports as running so the caller can keep
- * tracking them.
+ * queryId. Updates each todo in-place with the recovered status.
+ * Usually, persisted afterwards by a state update, i.e. relies on mutating behaviour
+ * outside the function.
+ * Returns the subset that ClickHouse still reports as running so the caller
+ * can keep tracking them.
  */
 export async function recoverInProgressTodos<T extends BaseChunkTodo>(
   todos: T[],
@@ -377,11 +379,7 @@ export async function recoverInProgressTodos<T extends BaseChunkTodo>(
  * chunk via `fireQuery`, and persist progress in `background_migrations.state`.
  *
  * `run()` drives a single sequential scheduler loop that polls active queries,
- * applies completions/failures, and fills free concurrency slots. That loop is
- * the only writer of the migration state — there is no interval timer and no
- * concurrent scheduling path, so the load-modify-save cycles on the state JSONB
- * cannot race. While `run()` is active the in-memory state is authoritative;
- * stop the worker before editing `background_migrations.state` manually.
+ * applies completions/failures, and fills free concurrency slots.
  *
  * Subclasses provide the chunk enumeration and per-chunk query, plus optional
  * hooks for lazy DDL, post-chunk verification, and completion side effects.
@@ -583,7 +581,7 @@ export abstract class ChunkedClickhouseBackfillMigration<
       }
     }
 
-    // Phase 3: single sequential scheduler loop (sole writer of `state`).
+    // Phase 3: single sequential scheduler loop.
     const active = new Map<string, T>();
     for (const todo of stillRunning) {
       active.set(todo.queryId!, todo);
