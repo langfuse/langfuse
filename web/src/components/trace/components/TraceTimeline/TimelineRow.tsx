@@ -31,10 +31,13 @@ export function TimelineRow({
   const { node, depth, treeLines, isLastSibling, metrics } = item;
 
   return (
-    <div className="group my-0.5 flex w-full min-w-fit cursor-pointer flex-row items-center">
+    // h-full + items-center: the row fills its virtualized slot so the tree
+    // guides below can span the full row height (and meet the adjacent rows'
+    // guides), while the bar stays centered on the row's vertical midpoint.
+    <div className="group flex h-full w-full min-w-fit cursor-pointer flex-row items-center">
       {/* Tree lines for ancestor levels (depth - 1) */}
       {depth > 0 && (
-        <div className="flex shrink-0">
+        <div className="flex shrink-0 self-stretch">
           {Array.from({ length: depth - 1 }, (_, i) => (
             <div
               key={i}
@@ -52,18 +55,20 @@ export function TimelineRow({
       {/* Current level tree connector */}
       {depth > 0 && (
         <div
-          className="relative shrink-0"
+          className="relative shrink-0 self-stretch"
           style={{ width: `${TREE_INDENTATION}px` }}
         >
-          {/* Vertical line up */}
+          {/* Vertical line: down to the elbow (last child) or full height so it
+              joins the next sibling's connector below. */}
           <div
             className={cn(
               "bg-border absolute top-0 left-1.5 w-px",
-              isLastSibling ? "h-3" : "bottom-0",
+              isLastSibling ? "h-1/2" : "bottom-0",
             )}
           />
-          {/* Horizontal line to content */}
-          <div className="bg-border absolute top-3 left-1.5 h-px w-2" />
+          {/* Elbow: horizontal connector at the row's vertical center, where the
+              bar is also centered. */}
+          <div className="bg-border absolute top-1/2 left-1.5 h-px w-2" />
         </div>
       )}
 
