@@ -30,7 +30,7 @@ const resolveTimelineGranularity = (
   return "month";
 };
 
-const getClickhouseTimelineBucketSql = (
+const getTimelineBucketSql = (
   sql: string,
   granularity: ResolvedTimelineGranularity,
 ): string => {
@@ -305,7 +305,7 @@ ORDER BY bucket_time ASC, status ASC
         input.fromTimestamp,
         input.toTimestamp,
       );
-      const bucketTimeSql = getClickhouseTimelineBucketSql(
+      const bucketTimeSql = getTimelineBucketSql(
         "event_time_microseconds",
         granularity,
       );
