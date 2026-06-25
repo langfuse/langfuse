@@ -161,11 +161,20 @@ describe("planMagicPaste", () => {
 
   it("does NOT escape a selection that spans two different strings", () => {
     // Selecting from inside the first value, across `","b":"`, into the second
-    // would collapse the two keys if escaped. Must be left to normal paste.
+    // would collapse the two keys if escaped. Must be left to normal paste. Use a
+    // paste that needs escaping so the no-op short-circuit doesn't mask the gate.
     const doc = '{"a":"1","b":"2"}';
     const from = doc.indexOf("1"); // inside the first value
     const to = doc.indexOf("2"); // inside the second value
-    expect(planMagicPaste(jsonState(doc, from, to), "x")).toBeNull();
+    expect(planMagicPaste(jsonState(doc, from, to), 'x"y')).toBeNull();
+  });
+
+  it("does NOT escape when the caret sits mid-escape (after a lone backslash)", () => {
+    // doc `"a\nb"` is valid JSON (string a + newline + b); caret between `\` and
+    // `n`. Escaping there would split the `\n` and corrupt the JSON.
+    const doc = '"a\\nb"';
+    const pos = doc.indexOf("\\") + 1; // right after the backslash
+    expect(planMagicPaste(jsonState(doc, pos), '"')).toBeNull();
   });
 
   it("returns null for an empty paste", () => {

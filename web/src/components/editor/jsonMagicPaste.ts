@@ -78,6 +78,10 @@ function isInsideJsonStringPrefix(prefix: string): boolean {
     const ch = prefix[i];
     if (inString) {
       if (ch === "\\") {
+        // A backslash at the very end escapes the caret position: the caret sits
+        // mid-escape-sequence (e.g. between `\` and `n` of `\n`). Inserting there
+        // would split the escape, so treat it as not a safe in-string point.
+        if (i === prefix.length - 1) return false;
         i++; // skip the escaped character
       } else if (ch === '"') {
         inString = false;
@@ -105,6 +109,9 @@ function selectionStaysInJsonString(
   for (let i = 0; i < selected.length; i++) {
     const ch = selected[i];
     if (ch === "\\") {
+      // A trailing backslash escapes a char outside the selection; replacing the
+      // selection would orphan that escape, so treat it as leaving the string.
+      if (i === selected.length - 1) return false;
       i++; // skip the escaped character
     } else if (ch === '"') {
       return false; // an unescaped quote closes the string mid-selection
@@ -208,12 +215,14 @@ const magicPasteTipField = StateField.define<ActiveTip | null>({
 });
 
 const PASTE_RAW_KEY = "Mod-Shift-v";
-// `Mod` is Cmd on macOS, Ctrl elsewhere; mirror that in the displayed hint.
-// `navigator.userAgent` (not the deprecated `.platform`) matches repo convention.
-const PASTE_RAW_KEY_LABEL =
-  typeof navigator !== "undefined" && navigator.userAgent.includes("Mac")
-    ? "⇧⌘V"
-    : "Ctrl+Shift+V";
+// `Mod` is Cmd on macOS, Ctrl elsewhere; mirror that in the hint and the
+// aria-keyshortcuts. `navigator.userAgent` (not the deprecated `.platform`)
+// matches repo convention.
+const IS_MAC =
+  typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
+const PASTE_RAW_KEY_LABEL = IS_MAC ? "⇧⌘V" : "Ctrl+Shift+V";
+// WAI-ARIA spells the macOS Cmd key as "Meta".
+const PASTE_RAW_ARIA_KEYS = IS_MAC ? "Meta+Shift+V" : "Control+Shift+V";
 
 /** Replace the transformed insert with the original raw text (the escape hatch). */
 function revertToRaw(view: EditorView, tip: ActiveTip): void {
@@ -262,7 +271,7 @@ function buildTooltip(tip: ActiveTip): Tooltip {
         "aria-label",
         `Paste raw — insert the original text, unescaped`,
       );
-      button.setAttribute("aria-keyshortcuts", "Control+Shift+V");
+      button.setAttribute("aria-keyshortcuts", PASTE_RAW_ARIA_KEYS);
       // Keep editor focus so the replace doesn't blur the editor first.
       button.addEventListener("mousedown", (event) => event.preventDefault());
       button.addEventListener("click", () => revertToRaw(view, tip));
