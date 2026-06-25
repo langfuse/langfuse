@@ -652,19 +652,8 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         target instanceof HTMLTextAreaElement ||
         (target instanceof HTMLElement && target.isContentEditable);
 
-      // `Esc` pops out of an editing text field back to its row, so `↑`/`↓`
-      // resume from there (handled before the editing guard so it fires from
-      // inside the field).
-      if (event.key === "Escape") {
-        if (editing && root.contains(target)) {
-          const row = (target as HTMLElement).closest<HTMLElement>(
-            "[data-score-row]",
-          );
-          if (row) row.focus();
-          else (target as HTMLElement).blur();
-        }
-        return;
-      }
+      // (`Esc` to leave a field is handled by a separate capture-phase listener
+      // below, so it can stop a wrapping drawer from also dismissing.)
 
       // `Enter` in a single-line field (e.g. a numeric score) commits the value
       // and returns to row navigation — there is no newline to insert, so this is
@@ -699,7 +688,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       if (rowCount === 0) return;
 
       // Scope to a single form (DualAnnotationContent mounts two): the form that
-      // contains focus acts; if focus is on the body, the first form acts.
+      // contains focus acts; if focus is on the body (nothing focused) the first
+      // form acts. A control focused *outside* any form (e.g. the Mark Completed
+      // / Skip / Back / "?" page buttons) must NOT drive the form — otherwise
+      // ↑/↓ would hijack focus off that button into the score rows.
       const active = document.activeElement;
       const focusedForm =
         active instanceof HTMLElement
@@ -707,8 +699,9 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
           : null;
       if (focusedForm) {
         if (focusedForm !== root) return;
-      } else if (document.querySelector("[data-annotation-form]") !== root) {
-        return;
+      } else {
+        if (active && active !== document.body) return;
+        if (document.querySelector("[data-annotation-form]") !== root) return;
       }
 
       const rowEls = Array.from(
@@ -796,6 +789,34 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     return () => window.removeEventListener("keydown", handleKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [controlledFields, configs, rowCount]);
+
+  // LFE-7628 — `Esc` leaves a focused score field (back to its row) WITHOUT
+  // dismissing a wrapping drawer. Vaul/Radix DismissableLayer listens for Esc on
+  // `document` with `{capture:true}`; a window capture-phase listener runs first
+  // (window is the ancestor), so stopping propagation here prevents the drawer
+  // from closing. Scoped to fields inside this form (a portaled comment popover
+  // is not inside the form root, so its own Esc-to-close still works).
+  useEffect(() => {
+    const onEscapeCapture = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const root = formRootRef.current;
+      if (!root) return;
+      const target = event.target;
+      const inField =
+        (target instanceof HTMLInputElement ||
+          target instanceof HTMLTextAreaElement) &&
+        root.contains(target);
+      if (!inField) return;
+      event.stopPropagation();
+      const row = (target as HTMLElement).closest<HTMLElement>(
+        "[data-score-row]",
+      );
+      if (row) row.focus();
+      else (target as HTMLElement).blur();
+    };
+    window.addEventListener("keydown", onEscapeCapture, true);
+    return () => window.removeEventListener("keydown", onEscapeCapture, true);
+  }, []);
 
   return (
     <div

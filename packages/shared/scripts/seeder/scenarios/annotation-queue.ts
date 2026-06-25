@@ -189,8 +189,11 @@ const run = async (
   const endMs = utcDayStartMs();
   const startMs = endMs - windowMs;
 
-  const coreQueueId = `${pfx}-q-core`;
-  const edgeQueueId = `${pfx}-q-edge`;
+  // Desired ids for fresh creation; reassigned to the actual row id after the
+  // upserts (the queues are keyed by name, so a row created under a different
+  // --id-prefix is reused — items must reference its real id, not ours).
+  let coreQueueId = `${pfx}-q-core`;
+  let edgeQueueId = `${pfx}-q-edge`;
 
   if (ctx.dryRun) {
     return {
@@ -202,10 +205,16 @@ const run = async (
       traceIds: [`${pfx}-core-t0`],
       sessionIds: [`${pfx}-edge-session`],
       counts: {
+        // Mirror the real-run counts: 8 edge items (partial1/2, stale, 2 obs,
+        // session, missing, done), of which 8 have traces (missing has none),
+        // 2 carry observations, and 9 pre-existing scores (2+3+1+3) are seeded.
         scoreConfigs: CONFIG_DEFS.length,
         queues: 2,
         items: coreItems + 8,
-        scores: 0,
+        traces: coreItems + 8,
+        observations: 2,
+        scores: 9,
+        events: withV4 ? coreItems + 10 : 0,
       },
       verified: {},
       links: [
@@ -242,7 +251,7 @@ const run = async (
   const coreConfigIds = CORE_KEYS.map((k) => configId[k]);
   const edgeConfigIds = CONFIG_DEFS.map((d) => configId[d.key]);
 
-  await prisma.annotationQueue.upsert({
+  const coreQueue = await prisma.annotationQueue.upsert({
     where: {
       projectId_name: {
         projectId: ctx.projectId,
@@ -261,7 +270,8 @@ const run = async (
       scoreConfigIds: coreConfigIds,
     },
   });
-  await prisma.annotationQueue.upsert({
+  coreQueueId = coreQueue.id;
+  const edgeQueue = await prisma.annotationQueue.upsert({
     where: {
       projectId_name: {
         projectId: ctx.projectId,
@@ -282,6 +292,7 @@ const run = async (
       scoreConfigIds: edgeConfigIds,
     },
   });
+  edgeQueueId = edgeQueue.id;
 
   // --- 3. ClickHouse rows + queue items -----------------------------------
   const traces: TraceRecordInsertType[] = [];
