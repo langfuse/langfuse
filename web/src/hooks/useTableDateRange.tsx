@@ -5,7 +5,7 @@ import {
 import {
   useGlobalDateRange,
   type UseGlobalDateRangeOutput,
-} from "@/src/hooks/useGlobalDateRange";
+} from "@/src/features/global-time-range/useGlobalDateRange";
 
 export type UseTableDateRangeOutput = UseGlobalDateRangeOutput;
 
