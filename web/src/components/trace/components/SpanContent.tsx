@@ -163,7 +163,7 @@ export function SpanContent({
                 title={
                   node.type === "TRACE"
                     ? "Total trace duration"
-                    : "Duration of this observation's own span (end − start)"
+                    : "Duration of this observation's own span"
                 }
                 className={cn(
                   "text-muted-foreground text-xs",

@@ -98,20 +98,19 @@ export function TimelineBar({
               {showComments && commentCount ? (
                 <CommentCountIcon count={commentCount} />
               ) : null}
-              {showDuration && isPresent(latency) && (
+              {showDuration && isPresent(ownDurationMs) && (
                 <span
                   className={cn(
                     "text-muted-foreground text-xs",
                     parentTotalDuration &&
                       colorCodeMetrics &&
-                      duration &&
                       heatMapTextColor({
                         max: parentTotalDuration,
-                        value: duration,
+                        value: ownDurationMs,
                       }),
                   )}
                 >
-                  {formatIntervalSeconds(latency)}
+                  {formatIntervalSeconds(ownDurationMs / 1000)}
                 </span>
               )}
               {subtreeWallClockOverflowMs != null && (
@@ -181,20 +180,19 @@ export function TimelineBar({
             {showComments && commentCount ? (
               <CommentCountIcon count={commentCount} />
             ) : null}
-            {showDuration && isPresent(latency) && (
+            {showDuration && isPresent(ownDurationMs) && (
               <span
                 className={cn(
                   "text-muted-foreground text-xs",
                   parentTotalDuration &&
                     colorCodeMetrics &&
-                    duration &&
                     heatMapTextColor({
                       max: parentTotalDuration,
-                      value: duration,
+                      value: ownDurationMs,
                     }),
                 )}
               >
-                {formatIntervalSeconds(latency)}
+                {formatIntervalSeconds(ownDurationMs / 1000)}
               </span>
             )}
             {subtreeWallClockOverflowMs != null && (
