@@ -14,7 +14,7 @@ const resolveMetricInfo = (queueName: QueueName) =>
   (
     WorkerManager as unknown as {
       resolveMetricInfo(queueName: QueueName): {
-        clickHouseRoute: string;
+        baseMetric: string;
       };
     }
   ).resolveMetricInfo(queueName);
@@ -61,17 +61,17 @@ describe("WorkerManager", () => {
   });
 
   describe("resolveMetricInfo", () => {
-    it("uses the queue name as the worker ClickHouse route", () => {
-      expect(resolveMetricInfo(QueueName.TraceDelete).clickHouseRoute).toBe(
-        QueueName.TraceDelete,
+    it("uses the base metric as the worker ClickHouse route", () => {
+      expect(resolveMetricInfo(QueueName.TraceDelete).baseMetric).toBe(
+        "langfuse.queue.trace_delete",
       );
     });
 
-    it("uses the base queue name as the worker ClickHouse route for sharded queues", () => {
+    it("uses the base metric as the worker ClickHouse route for sharded queues", () => {
       expect(
         resolveMetricInfo(`${QueueName.IngestionQueue}-1` as QueueName)
-          .clickHouseRoute,
-      ).toBe(QueueName.IngestionQueue);
+          .baseMetric,
+      ).toBe("langfuse.queue.ingestion");
     });
   });
 });
