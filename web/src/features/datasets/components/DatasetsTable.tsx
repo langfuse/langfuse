@@ -28,8 +28,10 @@ import { FolderBreadcrumbLink } from "@/src/features/folders/components/FolderBr
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   createDatasetsTableStore,
+  toFolderRowId,
   type DatasetsTableStore,
-} from "@/src/features/datasets/components/datasetsTableStore";
+} from "@/src/features/datasets/store/datasetsTableStore";
+import { useDatasetsTableSelectionSync } from "@/src/features/datasets/hooks/useDatasetsTableSelectionSync";
 import { useStore } from "zustand";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { TableActionMenu } from "@/src/features/table/components/TableActionMenu";
@@ -77,7 +79,7 @@ function createRow(
   },
 ): DatasetTableRow {
   return {
-    id: data.isFolder ? `folder:${data.folderPath}` : data.key.id,
+    id: data.isFolder ? toFolderRowId(data.folderPath) : data.key.id,
     description: null,
     createdAt: null,
     lastRunAt: null,
@@ -93,24 +95,27 @@ function createRow(
 function DatasetsMultiSelectActionMenu({
   currentFolderPath,
   projectId,
-  rowsById,
   searchQuery,
   store,
 }: {
   currentFolderPath: string | undefined;
   projectId: string;
-  rowsById: Map<string, DatasetTableRow>;
   searchQuery: string | null;
   store: DatasetsTableStore;
 }) {
   const selectAll = useStore(store, (state) => state.selectAll);
-  const selectedRowIds = useStore(store, (state) => state.selectedPageRowIds);
-  const actions = useStore(store, (state) => state.actions);
-  const selectedRows = selectedRowIds
-    .map((rowId) => rowsById.get(rowId))
-    .filter((row): row is DatasetTableRow => Boolean(row));
-  const selectedDatasetRows = selectedRows.filter((row) => !row.isFolder);
-  const selectedFolderRows = selectedRows.filter((row) => row.isFolder);
+  const selectedCount = useStore(
+    store,
+    (state) => state.selectedPageRowIds.length,
+  );
+  const clearSelection = useStore(
+    store,
+    (state) => state.actions.clearSelection,
+  );
+  const deleteSelected = useStore(
+    store,
+    (state) => state.actions.deleteSelected,
+  );
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const deleteManyMutation = api.datasets.deleteMany.useMutation({
@@ -126,34 +131,7 @@ function DatasetsMultiSelectActionMenu({
     },
   });
 
-  const selectedCount = selectedRows.length;
-
-  if (selectedRows.length === 0 && !selectAll) return null;
-
-  const handleDeleteDatasets = async ({ projectId }: { projectId: string }) => {
-    capture("datasets:delete_form_submit", {
-      source: "table-multi-select",
-      // Folder-expanded total is unknown client-side, so omit count for select-all.
-      count: selectAll ? undefined : selectedCount,
-      datasets: selectedDatasetRows.length,
-      folders: selectedFolderRows.length,
-      selectAll,
-    });
-
-    await deleteManyMutation.mutateAsync({
-      projectId,
-      datasetIds: selectedDatasetRows.map((row) => row.key.id),
-      folderPaths: selectedFolderRows.map((row) => row.folderPath),
-      isBatchAction: selectAll,
-      query: {
-        filter: null,
-        orderBy: { column: "createdAt", order: "DESC" },
-        searchQuery: searchQuery ?? undefined,
-        pathPrefix: currentFolderPath,
-      },
-    });
-    actions.clearSelection();
-  };
+  if (selectedCount === 0 && !selectAll) return null;
 
   const tableActions: TableAction[] = [
     {
@@ -165,7 +143,13 @@ function DatasetsMultiSelectActionMenu({
       accessCheck: {
         scope: "datasets:CUD",
       },
-      execute: handleDeleteDatasets,
+      execute: ({ projectId }) =>
+        deleteSelected({
+          projectId,
+          deleteMany: deleteManyMutation.mutateAsync,
+          capture,
+          scope: { folderPath: currentFolderPath, searchQuery },
+        }),
     },
   ];
 
@@ -176,7 +160,7 @@ function DatasetsMultiSelectActionMenu({
       tableName={BatchExportTableName.Datasets}
       selectedCount={selectedCount}
       approximateCount={selectAll}
-      onClearSelection={actions.clearSelection}
+      onClearSelection={clearSelection}
     />
   );
 }
@@ -189,7 +173,6 @@ function DatasetsTableToolbar({
   paginationState,
   projectId,
   rowHeight,
-  rowsById,
   searchQuery,
   setColumnOrder,
   setColumnVisibility,
@@ -206,7 +189,6 @@ function DatasetsTableToolbar({
   paginationState: { pageIndex: number; pageSize: number };
   projectId: string;
   rowHeight: ReturnType<typeof useRowHeightLocalStorage>[0];
-  rowsById: Map<string, DatasetTableRow>;
   searchQuery: string | null;
   setColumnOrder: ReturnType<typeof useColumnOrder<DatasetTableRow>>[1];
   setColumnVisibility: ReturnType<
@@ -252,7 +234,6 @@ function DatasetsTableToolbar({
           key="datasets-multi-select-delete"
           currentFolderPath={currentFolderPath}
           projectId={projectId}
-          rowsById={rowsById}
           searchQuery={searchQuery}
           store={store}
         />,
@@ -582,25 +563,13 @@ export function DatasetsTable(props: { projectId: string }) {
 
   const selectAll = useStore(datasetsTableStore, (state) => state.selectAll);
 
-  useEffect(() => {
-    datasetsTableStore.getState().actions.syncPageRows({
-      pageRowIds,
-      totalCount: datasets.data?.totalDatasets ?? null,
-    });
-  }, [datasetsTableStore, pageRowIds, datasets.data?.totalDatasets]);
-
-  // Selection (incl. select-all) is scoped to the current folder + search query.
-  // Clear it whenever that scope changes so Delete never targets a folder or
-  // search the user never selected — the action menu otherwise stays live with
-  // no on-screen cue. Pagination is excluded: it keeps the same scope.
-  useEffect(() => {
-    datasetsTableStore.getState().actions.clearSelection();
-  }, [datasetsTableStore, currentFolderPath, searchQuery]);
-
-  const rowsById = useMemo(
-    () => new Map(processedRowData.rows.map((row) => [row.id, row])),
-    [processedRowData.rows],
-  );
+  useDatasetsTableSelectionSync({
+    store: datasetsTableStore,
+    pageRowIds,
+    totalCount: datasets.data?.totalDatasets ?? null,
+    currentFolderPath,
+    searchQuery,
+  });
 
   return (
     <>
@@ -621,7 +590,6 @@ export function DatasetsTable(props: { projectId: string }) {
         currentFolderPath={currentFolderPath}
         paginationState={paginationState}
         projectId={props.projectId}
-        rowsById={rowsById}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         store={datasetsTableStore}
