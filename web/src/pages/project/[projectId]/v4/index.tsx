@@ -303,15 +303,15 @@ export default function V4Page() {
         </div>
 
         <DashboardCard
-          title="Public API usage by entrypoint over time"
-          description="Estimates ClickHouse-backed legacy public API calls for this project."
+          title="Public API calls to review"
+          description="ClickHouse-backed public API calls that may need changes for V4."
           isLoading={legacyApiUsage.isPending}
           cardContentClassName="min-h-[32rem]"
           headerClassName="pr-12"
         >
           {legacyApiUsage.error ? (
             <div className="border-destructive/30 bg-destructive/10 text-destructive flex min-h-36 items-center rounded-md border p-4 text-sm">
-              Failed to load legacy API usage.
+              Failed to load public API usage.
             </div>
           ) : (
             <>
@@ -343,7 +343,7 @@ export default function V4Page() {
               ) : (
                 <NoDataOrLoading
                   isLoading={legacyApiUsage.isPending}
-                  description="No ClickHouse-backed legacy public API usage was found for this project in the selected time range."
+                  description="No ClickHouse-backed public API usage was found for this project in the selected time range."
                   className="min-h-[30rem]"
                 />
               )}
