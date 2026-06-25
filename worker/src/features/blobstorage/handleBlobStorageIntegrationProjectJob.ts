@@ -1096,7 +1096,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
   // if the exporter stops entirely for a project (see LFE-10521).
   if (!isNaN(maxTimestamp.getTime())) {
     recordGauge(
-      "langfuse.blobstorage.export_lag_seconds",
+      "langfuse.blobstorage.export_delay_seconds",
       (now.getTime() - maxTimestamp.getTime()) / 1000,
       { projectId },
     );
