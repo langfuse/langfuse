@@ -173,17 +173,22 @@ describe("v4TransitionRouter", () => {
         count: vi.fn().mockResolvedValue(3),
       },
       posthogIntegration: {
-        findUnique: vi
-          .fn()
-          .mockResolvedValue({ exportSource: "TRACES_OBSERVATIONS" }),
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: true,
+          exportSource: "TRACES_OBSERVATIONS",
+        }),
       },
       mixpanelIntegration: {
-        findUnique: vi.fn().mockResolvedValue({ exportSource: "EVENTS" }),
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: true,
+          exportSource: "EVENTS",
+        }),
       },
       blobStorageIntegration: {
-        findUnique: vi
-          .fn()
-          .mockResolvedValue({ exportSource: "TRACES_OBSERVATIONS_EVENTS" }),
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: true,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+        }),
       },
     };
     const caller = createCaller(mockPrisma);
@@ -207,15 +212,52 @@ describe("v4TransitionRouter", () => {
     });
     expect(mockPrisma.posthogIntegration.findUnique).toHaveBeenCalledWith({
       where: { projectId },
-      select: { exportSource: true },
+      select: { enabled: true, exportSource: true },
     });
     expect(mockPrisma.mixpanelIntegration.findUnique).toHaveBeenCalledWith({
       where: { projectId },
-      select: { exportSource: true },
+      select: { enabled: true, exportSource: true },
     });
     expect(mockPrisma.blobStorageIntegration.findUnique).toHaveBeenCalledWith({
       where: { projectId },
-      select: { exportSource: true },
+      select: { enabled: true, exportSource: true },
+    });
+  });
+
+  it("does not count disabled legacy integrations", async () => {
+    const mockPrisma = {
+      jobConfiguration: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      posthogIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: false,
+          exportSource: "TRACES_OBSERVATIONS",
+        }),
+      },
+      mixpanelIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: true,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+        }),
+      },
+      blobStorageIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: false,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+        }),
+      },
+    };
+    const caller = createCaller(mockPrisma);
+
+    await expect(caller.summary({ projectId })).resolves.toEqual({
+      traceLevelEvalCount: 0,
+      legacyIntegrationCount: 1,
+      legacyIntegrations: {
+        posthog: false,
+        mixpanel: true,
+        blobStorage: false,
+      },
     });
   });
 

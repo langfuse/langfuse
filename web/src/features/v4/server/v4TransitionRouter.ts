@@ -127,6 +127,17 @@ const isLegacyIntegrationExportSource = (
   exportSource: AnalyticsIntegrationExportSource | null | undefined,
 ) => exportSource != null && legacyIntegrationExportSources.has(exportSource);
 
+const isEnabledLegacyIntegration = (
+  integration:
+    | { enabled: boolean; exportSource: AnalyticsIntegrationExportSource }
+    | null
+    | undefined,
+) =>
+  Boolean(
+    integration?.enabled &&
+    isLegacyIntegrationExportSource(integration.exportSource),
+  );
+
 type LegacyApiUsageRow = {
   time: string;
   entrypoint: string;
@@ -203,28 +214,22 @@ export const v4TransitionRouter = createTRPCRouter({
         }),
         ctx.prisma.posthogIntegration.findUnique({
           where: { projectId: input.projectId },
-          select: { exportSource: true },
+          select: { enabled: true, exportSource: true },
         }),
         ctx.prisma.mixpanelIntegration.findUnique({
           where: { projectId: input.projectId },
-          select: { exportSource: true },
+          select: { enabled: true, exportSource: true },
         }),
         ctx.prisma.blobStorageIntegration.findUnique({
           where: { projectId: input.projectId },
-          select: { exportSource: true },
+          select: { enabled: true, exportSource: true },
         }),
       ]);
 
       const legacyIntegrations = {
-        posthog: isLegacyIntegrationExportSource(
-          posthogIntegration?.exportSource,
-        ),
-        mixpanel: isLegacyIntegrationExportSource(
-          mixpanelIntegration?.exportSource,
-        ),
-        blobStorage: isLegacyIntegrationExportSource(
-          blobStorageIntegration?.exportSource,
-        ),
+        posthog: isEnabledLegacyIntegration(posthogIntegration),
+        mixpanel: isEnabledLegacyIntegration(mixpanelIntegration),
+        blobStorage: isEnabledLegacyIntegration(blobStorageIntegration),
       };
 
       return {
