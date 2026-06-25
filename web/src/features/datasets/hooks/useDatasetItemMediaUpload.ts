@@ -98,15 +98,16 @@ export function useDatasetItemMediaUpload({
         const buffer = await file.arrayBuffer();
         const sha256Hash = await sha256Base64(buffer);
 
-        const { mediaId, uploadUrl } = await getUploadUrl.mutateAsync({
-          projectId,
-          datasetId,
-          datasetItemId,
-          field,
-          contentType: file.type as MediaContentType,
-          contentLength: file.size,
-          sha256Hash,
-        });
+        const { mediaId, uploadUrl, uploadHeaders } =
+          await getUploadUrl.mutateAsync({
+            projectId,
+            datasetId,
+            datasetItemId,
+            field,
+            contentType: file.type as MediaContentType,
+            contentLength: file.size,
+            sha256Hash,
+          });
 
         // uploadUrl is null when the content already exists (dedupe by hash)
         if (uploadUrl) {
@@ -117,6 +118,9 @@ export function useDatasetItemMediaUpload({
             headers: {
               "Content-Type": file.type,
               "x-amz-checksum-sha256": sha256Hash,
+              // Storage-provider-specific headers (e.g. Azure's required
+              // x-ms-blob-type) the server tells us to send for this PUT.
+              ...uploadHeaders,
             },
           });
 
