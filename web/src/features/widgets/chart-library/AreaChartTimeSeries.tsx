@@ -9,6 +9,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getDimensionSummaries,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
@@ -36,6 +37,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
 
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  const dimensionSummaries = useMemo(() => getDimensionSummaries(data), [data]);
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -54,6 +56,9 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 highlightedDimension === null ||
                 highlightedDimension === dimension;
               const isMuted = highlightedDimension !== null && !isHighlighted;
+              // A `0` summary is a real value and must be shown; only a `null`
+              // summary (series with no data) is omitted. (LFE-10498)
+              const summary = dimensionSummaries.get(dimension) ?? null;
               return (
                 <button
                   key={dimension}
@@ -76,6 +81,11 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                     }}
                   />
                   <span className="text-muted-foreground">{dimension}</span>
+                  {summary !== null && (
+                    <span className="text-foreground font-medium">
+                      {tooltipFormatter(summary)}
+                    </span>
+                  )}
                 </button>
               );
             })}
