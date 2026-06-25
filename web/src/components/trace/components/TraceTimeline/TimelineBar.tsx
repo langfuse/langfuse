@@ -10,8 +10,14 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter } from "@/src/utils/numbers";
-import { heatMapTextColor } from "@/src/components/trace/lib/helpers";
+import {
+  heatMapTextColor,
+  getSubtreeDurationOverflowMs,
+} from "@/src/components/trace/lib/helpers";
 import { isPresent } from "@langfuse/shared";
+
+const SUBTREE_DURATION_TITLE =
+  "Subtree wall-clock duration (first start → last end)";
 
 export function TimelineBar({
   node,
@@ -32,6 +38,19 @@ export function TimelineBar({
   const { startOffset, itemWidth, firstTokenTimeOffset, latency } = metrics;
   const duration = latency ? latency * 1000 : undefined;
   const hasChildren = node.children.length > 0;
+
+  // Wall-clock duration of the whole subtree, surfaced only when async
+  // descendants outlive this node's own span (LFE-10475). Own-span basis
+  // mirrors SpanContent: fall back to node.latency when there's no endTime
+  // (e.g. the synthetic v4 trace-root span) so the tree and timeline agree.
+  const ownDurationMs =
+    duration ?? (node.latency ? node.latency * 1000 : undefined);
+  const subtreeWallClockOverflowMs = showDuration
+    ? getSubtreeDurationOverflowMs(
+        ownDurationMs,
+        node.subtreeWallClockDurationMs,
+      )
+    : null;
 
   // Render split bar for streaming LLMs (first token time)
   if (firstTokenTimeOffset) {
@@ -79,22 +98,31 @@ export function TimelineBar({
               {showComments && commentCount ? (
                 <CommentCountIcon count={commentCount} />
               ) : null}
-              {showDuration && isPresent(latency) && (
+              {showDuration && isPresent(ownDurationMs) && (
                 <span
                   className={cn(
                     "text-muted-foreground text-xs",
                     parentTotalDuration &&
                       colorCodeMetrics &&
-                      duration &&
                       heatMapTextColor({
                         max: parentTotalDuration,
-                        value: duration,
+                        value: ownDurationMs,
                       }),
                   )}
                 >
-                  {formatIntervalSeconds(latency)}
+                  {formatIntervalSeconds(ownDurationMs / 1000)}
                 </span>
               )}
+              {isPresent(ownDurationMs) &&
+                subtreeWallClockOverflowMs != null && (
+                  <span
+                    title={SUBTREE_DURATION_TITLE}
+                    className="text-muted-foreground text-xs whitespace-nowrap"
+                  >
+                    {"∑ "}
+                    {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
+                  </span>
+                )}
               {showCostTokens && node.totalCost && (
                 <span
                   className={cn(
@@ -153,20 +181,28 @@ export function TimelineBar({
             {showComments && commentCount ? (
               <CommentCountIcon count={commentCount} />
             ) : null}
-            {showDuration && isPresent(latency) && (
+            {showDuration && isPresent(ownDurationMs) && (
               <span
                 className={cn(
                   "text-muted-foreground text-xs",
                   parentTotalDuration &&
                     colorCodeMetrics &&
-                    duration &&
                     heatMapTextColor({
                       max: parentTotalDuration,
-                      value: duration,
+                      value: ownDurationMs,
                     }),
                 )}
               >
-                {formatIntervalSeconds(latency)}
+                {formatIntervalSeconds(ownDurationMs / 1000)}
+              </span>
+            )}
+            {isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null && (
+              <span
+                title={SUBTREE_DURATION_TITLE}
+                className="text-muted-foreground text-xs whitespace-nowrap"
+              >
+                {"∑ "}
+                {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
               </span>
             )}
             {showCostTokens && node.totalCost && (
