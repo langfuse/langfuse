@@ -59,6 +59,7 @@ import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { env, v4AllowPreviewOptIn } from "../../env";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
 
 export const BlobExportFormat = {
   JSON_RAW: "json-raw",
@@ -556,7 +557,9 @@ const processBlobStorageExport = async (config: {
           );
           recordGauge(
             "langfuse.blobstorage.export_heartbeat.serialized_bytes",
-            serializedCounter.bytes,
+            compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
             heartbeatTags,
           );
         }, HEARTBEAT_INTERVAL_MS);
@@ -785,28 +788,21 @@ const processBlobStorageExport = async (config: {
           const exportFormat = parquetEligible
             ? BlobExportFormat.PARQUET
             : resolveBlobExportFormat(config.fileType, config.compressed);
-          const byteTags = {
-            table: config.table,
+          // Unified export-volume metric: the actual uploaded volume per
+          // source (post-gzip size for compressed formats, raw/parquet size
+          // otherwise). destination_type (S3 / S3_COMPATIBLE / AZURE_*) splits
+          // the egress by data-transfer cost in the Datadog dashboard.
+          recordExportVolume({
+            integration: "blob_storage",
+            bytes: compressedCounter
+              ? compressedCounter.bytes
+              : serializedCounter.bytes,
             projectId: config.projectId,
-            path: exportPath,
+            destinationType: config.type,
             source: exportFormat,
-            // Integration type (S3 / S3_COMPATIBLE / AZURE_BLOB_STORAGE) as the
-            // destination, so export volume can be split by data-transfer cost
-            // in the Datadog dashboard (native AWS S3 vs. external egress).
-            destination_type: config.type,
-          };
-          recordIncrement(
-            "langfuse.blob_export.serialized_bytes",
-            serializedCounter.bytes,
-            byteTags,
-          );
-          if (compressedCounter && gzipStats) {
-            recordIncrement(
-              "langfuse.blob_export.compressed_bytes",
-              compressedCounter.bytes,
-              { ...byteTags, gzipLevel: gzipStats.level },
-            );
-          }
+            table: config.table,
+            path: exportPath,
+          });
 
           const uploadDurationMs = uploadDurationMsFinal;
           const chReadMs = Math.round(
