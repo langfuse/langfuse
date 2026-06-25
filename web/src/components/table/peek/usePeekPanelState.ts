@@ -16,8 +16,9 @@ import useLocalStorage from "@/src/components/useLocalStorage";
  * - **width** is a cross-view preference, so it persists in localStorage as a
  *   viewport fraction (resolution-independent) shared by every peek.
  * - **fullscreen** is ephemeral per open session: it lives in React state and
- *   resets when the peek unmounts (i.e. on close). The panel always reopens as
- *   the persisted widget width, never stuck fullscreen.
+ *   is reset whenever the peek closes (`isOpen` → false). The peek host stays
+ *   mounted across open/close, so this reset is explicit — the panel always
+ *   reopens as the persisted widget width, never stuck fullscreen.
  * - the **resize drag** is high-frequency transient state, held locally as a
  *   draft and only committed to localStorage on pointer-up — the store is not
  *   written on every move.
@@ -66,7 +67,11 @@ export type PeekPanelState = {
   };
 };
 
-export function usePeekPanelState(): PeekPanelState {
+export function usePeekPanelState({
+  isOpen,
+}: {
+  isOpen: boolean;
+}): PeekPanelState {
   const [storedFraction, setStoredFraction] = useLocalStorage<number>(
     STORAGE_KEY,
     PEEK_DEFAULT_WIDTH_FRACTION,
@@ -74,6 +79,13 @@ export function usePeekPanelState(): PeekPanelState {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [draftFraction, setDraftFraction] = useState<number | null>(null);
   const [isResizing, setIsResizing] = useState(false);
+
+  // Fullscreen is per open session. The peek host stays mounted across
+  // open/close, so reset it explicitly when the peek closes (not on item
+  // changes during K/J navigation, which keep `isOpen` true).
+  useEffect(() => {
+    if (!isOpen) setIsFullscreen(false);
+  }, [isOpen]);
 
   const committedFraction = clampFraction(storedFraction);
   const committedFractionRef = useRef(committedFraction);
@@ -144,21 +156,20 @@ export function usePeekPanelState(): PeekPanelState {
 
   const onKeyDown = useCallback(
     (event: ReactKeyboardEvent) => {
-      // Left grows the panel (it is docked right), Right shrinks it.
+      // Left grows the panel (it is docked right), Right shrinks it. Always base
+      // off the persisted widget width — even when exiting fullscreen — so a
+      // keypress never clobbers the saved preference with the fullscreen ceiling.
       if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
         event.preventDefault();
-        const base = isFullscreen
-          ? PEEK_MAX_WIDGET_WIDTH_FRACTION
-          : committedFractionRef.current;
         const delta =
           event.key === "ArrowLeft"
             ? KEYBOARD_RESIZE_STEP
             : -KEYBOARD_RESIZE_STEP;
         setIsFullscreen(false);
-        setStoredFraction(clampFraction(base + delta));
+        setStoredFraction(clampFraction(committedFractionRef.current + delta));
       }
     },
-    [isFullscreen, setStoredFraction],
+    [setStoredFraction],
   );
 
   const toggleFullscreen = useCallback(() => {

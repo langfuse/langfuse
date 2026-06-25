@@ -50,21 +50,6 @@ export type DataTablePeekViewProps = {
   peekEventOptions?: PeekEventControlOptions;
 };
 
-export const createPeekEventHandler = (options?: PeekEventControlOptions) => {
-  if (!options) return () => false;
-  const { ignoredSelectors = [] } = options;
-
-  return (): boolean => {
-    for (const selector of ignoredSelectors) {
-      if (document.activeElement?.closest(selector)) {
-        return true;
-      }
-    }
-
-    return false;
-  };
-};
-
 type TablePeekViewProps = Pick<
   DataTablePeekViewProps,
   | "itemType"
@@ -82,14 +67,21 @@ type TablePeekViewProps = Pick<
   children: React.ReactNode;
 };
 
+// Shared DataTable selection controls live outside the peek but must never
+// dismiss it — clicking a selection checkbox is a selection action, not a
+// dismiss. Row checkboxes are already covered by the `[data-row-index]` check
+// below; this also covers the header "select all". Applied to every peek so
+// tables don't each have to re-declare it (which is easy to forget).
+const ALWAYS_KEEP_PEEK_OPEN_SELECTORS = ['[role="checkbox"]'];
+
 /**
  * Decide whether an outside interaction should keep the peek open instead of
  * closing it. The peek closes on a genuine click-outside, with exceptions that
  * preserve power-user behavior:
  * - clicking another table row (`[data-row-index]`) switches the peeked item in
  *   place rather than closing (handled by the row's own click handler),
- * - row-level controls the table opts out via `ignoredSelectors` (checkboxes,
- *   bookmark toggles) don't close it, and
+ * - shared selection controls and any table-specific `ignoredSelectors`
+ *   (bookmark toggles, etc.) don't close it, and
  * - regions that opt out via `data-ignore-outside-interaction` (e.g. the in-app
  *   assistant) never trigger a close.
  *
@@ -104,19 +96,18 @@ const shouldKeepPeekOpenOnOutsideInteraction = (
   if (!(target instanceof Element)) return false;
   if (shouldIgnoreOutsideInteraction(target)) return true;
   if (target.closest("[data-row-index]")) return true;
-  if (ignoredSelectors.some((selector) => target.closest(selector))) {
-    return true;
-  }
-  return false;
+  return [...ALWAYS_KEEP_PEEK_OPEN_SELECTORS, ...ignoredSelectors].some(
+    (selector) => target.closest(selector),
+  );
 };
 
 function TablePeekViewComponent(props: TablePeekViewProps) {
   const { title, children } = props;
   const router = useRouter();
-  const isMobile = useIsMobile();
-  const panel = usePeekPanelState();
-  const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
   const itemId = router.query.peek as string | undefined;
+  const isMobile = useIsMobile();
+  const panel = usePeekPanelState({ isOpen: !!itemId });
+  const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
 
   // Gate the first render on mount so we never paint the desktop sheet before
   // `useIsMobile` resolves (which would flash the wrong shell on a mobile
