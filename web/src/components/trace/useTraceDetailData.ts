@@ -52,15 +52,24 @@ export function useTraceDetailData({
   });
 
   if (isBetaEnabled) {
+    // useEventsTraceData types its error as `unknown`; narrow to the trpc shape
+    // to read the code (the non-beta branch gets this for free from the typed
+    // tracesQuery.error).
+    const eventsErrorCode = (
+      eventsData.error as { data?: { code?: string } } | null | undefined
+    )?.data?.code;
+    const isUnauthorized = eventsErrorCode === "UNAUTHORIZED";
     return {
       data: eventsData.data,
       isLoading: eventsData.isLoading,
       error: eventsData.error,
       isError: !!eventsData.error,
       // The events path surfaces "missing" as no-data after loading rather than
-      // a NOT_FOUND error code.
-      isNotFound: !eventsData.isLoading && !eventsData.data,
-      isUnauthorized: false,
+      // a NOT_FOUND error code — but an UNAUTHORIZED failure also lands as no
+      // data, so exclude it here and report it via isUnauthorized instead (else
+      // the page mislabels an access error as "Trace not found").
+      isNotFound: !eventsData.isLoading && !eventsData.data && !isUnauthorized,
+      isUnauthorized,
       cutoffObservationsAfterMaxCount:
         eventsData.cutoffObservationsAfterMaxCount,
     };
