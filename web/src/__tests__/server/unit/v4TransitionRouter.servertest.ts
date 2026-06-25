@@ -97,10 +97,7 @@ describe("v4TransitionRouter", () => {
       projectId,
       fromTimestamp: new Date("2026-06-24T00:00:00Z"),
       toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      interval: {
-        count: 1,
-        unit: "day",
-      },
+      granularity: "auto",
     });
 
     expect(rows).toEqual([
@@ -117,7 +114,7 @@ describe("v4TransitionRouter", () => {
       "FROM clusterAllReplicas('test-cluster', 'system.query_log')",
     );
     expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 DAY, 'UTC')",
+      "toStartOfInterval(event_time_microseconds, INTERVAL 1 HOUR, 'UTC') AS bucket_time",
     );
     expect(clickhouseQuery?.query).toContain(
       "splitByChar('?', JSONExtractString(log_comment, 'route'))[1]",
@@ -239,28 +236,50 @@ describe("v4TransitionRouter", () => {
     };
     const caller = createCaller(mockPrisma);
 
-    await expect(
-      caller.traceLevelEvalExecutionsTimeSeries({
-        projectId,
-        fromTimestamp: new Date("2026-06-25T12:00:00Z"),
-        toTimestamp: new Date("2026-06-25T13:00:00Z"),
-        interval: {
-          count: 5,
-          unit: "minute",
-        },
-      }),
-    ).resolves.toEqual([
+    const rows = await caller.traceLevelEvalExecutionsTimeSeries({
+      projectId,
+      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+      toTimestamp: new Date("2026-06-25T13:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(rows).toHaveLength(122);
+    expect(rows.slice(0, 4)).toEqual([
       {
         time: "2026-06-25T12:00:00Z",
         status: "COMPLETED",
         count: 4,
       },
       {
-        time: "2026-06-25T12:05:00Z",
+        time: "2026-06-25T12:00:00Z",
         status: "ERROR",
-        count: 2,
+        count: 0,
+      },
+      {
+        time: "2026-06-25T12:01:00Z",
+        status: "COMPLETED",
+        count: 0,
+      },
+      {
+        time: "2026-06-25T12:01:00Z",
+        status: "ERROR",
+        count: 0,
       },
     ]);
+    expect(
+      rows.find(
+        (row) => row.time === "2026-06-25T12:05:00Z" && row.status === "ERROR",
+      ),
+    ).toEqual({
+      time: "2026-06-25T12:05:00Z",
+      status: "ERROR",
+      count: 2,
+    });
+    expect(rows.at(-1)).toEqual({
+      time: "2026-06-25T13:00:00Z",
+      status: "ERROR",
+      count: 0,
+    });
 
     expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     const query = mockPrisma.$queryRaw.mock.calls[0]?.[0] as
@@ -268,9 +287,7 @@ describe("v4TransitionRouter", () => {
       | undefined;
     const queryText = query?.sql ?? query?.text ?? "";
 
-    expect(queryText).toContain(
-      "date_bin(?::interval, je.created_at, TIMESTAMP '1970-01-01 00:00:00')",
-    );
+    expect(queryText).toContain("date_trunc(?, je.created_at)");
     expect(queryText).toContain(
       "INNER JOIN job_configurations jc ON jc.id = je.job_configuration_id",
     );
@@ -283,7 +300,7 @@ describe("v4TransitionRouter", () => {
     expect(queryText).toContain("je.created_at <= ?");
     expect(queryText).toContain("GROUP BY bucket_time, status");
     expect(query?.values).toEqual([
-      "5 minutes",
+      "minute",
       projectId,
       projectId,
       "trace",

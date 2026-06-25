@@ -11,7 +11,6 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { Button } from "@/src/components/ui/button";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
-  getOptimalInterval,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
@@ -87,17 +86,12 @@ export default function V4Page() {
     );
   }, [timeRange]);
 
-  const interval = useMemo(
-    () => getOptimalInterval(absoluteTimeRange.from, absoluteTimeRange.to),
-    [absoluteTimeRange.from, absoluteTimeRange.to],
-  );
-
   const legacyApiUsage = api.v4Transition.timeSeriesByEntrypoint.useQuery(
     {
       projectId: projectId ?? "",
       fromTimestamp: absoluteTimeRange.from,
       toTimestamp: absoluteTimeRange.to,
-      interval,
+      granularity: "auto",
     },
     {
       enabled: Boolean(projectId),
@@ -124,7 +118,7 @@ export default function V4Page() {
         projectId: projectId ?? "",
         fromTimestamp: absoluteTimeRange.from,
         toTimestamp: absoluteTimeRange.to,
-        interval,
+        granularity: "auto",
       },
       {
         enabled: Boolean(projectId),

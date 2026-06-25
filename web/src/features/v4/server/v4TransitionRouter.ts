@@ -1,5 +1,4 @@
 import { z } from "zod/v4";
-import { type IntervalUnit } from "@/src/utils/date-range-utils";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -14,30 +13,107 @@ import {
   systemTableRef,
 } from "@langfuse/shared/src/server";
 
-const intervalUnitSchema = z.enum([
-  "second",
-  "minute",
-  "hour",
-  "day",
-  "month",
-  "year",
-] satisfies [IntervalUnit, ...IntervalUnit[]]);
+const timelineGranularity = z.literal("auto");
+type ResolvedTimelineGranularity = "minute" | "hour" | "day" | "week" | "month";
 
-const intervalUnitSql: Record<IntervalUnit, string> = {
-  second: "SECOND",
-  minute: "MINUTE",
-  hour: "HOUR",
-  day: "DAY",
-  month: "MONTH",
-  year: "YEAR",
+const resolveTimelineGranularity = (
+  fromTimestamp: Date,
+  toTimestamp: Date,
+): ResolvedTimelineGranularity => {
+  const diffMs = toTimestamp.getTime() - fromTimestamp.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffHours < 2) return "minute";
+  if (diffHours < 72) return "hour";
+  if (diffHours < 1440) return "day";
+  if (diffHours < 8760) return "week";
+  return "month";
 };
 
-const postgresDateBinIntervalUnit: Partial<Record<IntervalUnit, string>> = {
-  second: "seconds",
-  minute: "minutes",
-  hour: "hours",
-  day: "days",
+const getClickhouseTimelineBucketSql = (
+  sql: string,
+  granularity: ResolvedTimelineGranularity,
+): string => {
+  const intervalByGranularity: Record<ResolvedTimelineGranularity, string> = {
+    minute: "1 MINUTE",
+    hour: "1 HOUR",
+    day: "1 DAY",
+    week: "1 WEEK",
+    month: "1 MONTH",
+  };
+
+  return `toStartOfInterval(${sql}, INTERVAL ${intervalByGranularity[granularity]}, 'UTC')`;
 };
+
+const getPostgresTimelineBucketExpression = (
+  granularity: ResolvedTimelineGranularity,
+): Prisma.Sql => {
+  const precisionByGranularity: Record<ResolvedTimelineGranularity, string> = {
+    minute: "minute",
+    hour: "hour",
+    day: "day",
+    week: "week",
+    month: "month",
+  };
+
+  return Prisma.sql`date_trunc(${precisionByGranularity[granularity]}, je.created_at)`;
+};
+
+const startOfTimelineBucket = (
+  date: Date,
+  granularity: ResolvedTimelineGranularity,
+): Date => {
+  const bucket = new Date(date);
+
+  bucket.setUTCSeconds(0, 0);
+
+  if (granularity === "minute") return bucket;
+
+  bucket.setUTCMinutes(0, 0, 0);
+
+  if (granularity === "hour") return bucket;
+
+  bucket.setUTCHours(0, 0, 0, 0);
+
+  if (granularity === "day") return bucket;
+
+  if (granularity === "week") {
+    const daysSinceMonday = (bucket.getUTCDay() + 6) % 7;
+    bucket.setUTCDate(bucket.getUTCDate() - daysSinceMonday);
+    return bucket;
+  }
+
+  bucket.setUTCDate(1);
+  return bucket;
+};
+
+const incrementTimelineBucket = (
+  date: Date,
+  granularity: ResolvedTimelineGranularity,
+): Date => {
+  const next = new Date(date);
+
+  switch (granularity) {
+    case "minute":
+      next.setUTCMinutes(next.getUTCMinutes() + 1);
+      return next;
+    case "hour":
+      next.setUTCHours(next.getUTCHours() + 1);
+      return next;
+    case "day":
+      next.setUTCDate(next.getUTCDate() + 1);
+      return next;
+    case "week":
+      next.setUTCDate(next.getUTCDate() + 7);
+      return next;
+    case "month":
+      next.setUTCMonth(next.getUTCMonth() + 1);
+      return next;
+  }
+};
+
+const formatTimelineBucketTime = (date: Date): string =>
+  date.toISOString().replace(".000Z", "Z");
 
 const legacyIntegrationExportSources =
   new Set<AnalyticsIntegrationExportSource>([
@@ -51,40 +127,6 @@ const isLegacyIntegrationExportSource = (
   exportSource: AnalyticsIntegrationExportSource | null | undefined,
 ) => exportSource != null && legacyIntegrationExportSources.has(exportSource);
 
-const getPostgresBucketExpression = (interval: {
-  count: number;
-  unit: IntervalUnit;
-}): Prisma.Sql => {
-  if (interval.unit === "month") {
-    return Prisma.sql`make_timestamp(
-      extract(year from je.created_at)::int,
-      ((floor(((extract(month from je.created_at)::int - 1)::numeric) / ${interval.count})::int * ${interval.count}) + 1)::int,
-      1,
-      0,
-      0,
-      0
-    )`;
-  }
-
-  if (interval.unit === "year") {
-    return Prisma.sql`make_timestamp(
-      (floor((extract(year from je.created_at)::numeric) / ${interval.count})::int * ${interval.count})::int,
-      1,
-      1,
-      0,
-      0,
-      0
-    )`;
-  }
-
-  const unit = postgresDateBinIntervalUnit[interval.unit];
-  if (!unit) {
-    throw new Error(`Unsupported interval unit: ${interval.unit}`);
-  }
-
-  return Prisma.sql`date_bin(${`${interval.count} ${unit}`}::interval, je.created_at, TIMESTAMP '1970-01-01 00:00:00')`;
-};
-
 type LegacyApiUsageRow = {
   time: string;
   entrypoint: string;
@@ -95,6 +137,51 @@ type TraceLevelEvalExecutionTimeSeriesRow = {
   time: string;
   status: string;
   count: bigint | number;
+};
+
+type TraceLevelEvalExecutionTimeSeriesPoint = {
+  time: string;
+  status: string;
+  count: number;
+};
+
+const fillTraceLevelEvalExecutionBuckets = ({
+  rows,
+  fromTimestamp,
+  toTimestamp,
+  granularity,
+}: {
+  rows: TraceLevelEvalExecutionTimeSeriesPoint[];
+  fromTimestamp: Date;
+  toTimestamp: Date;
+  granularity: ResolvedTimelineGranularity;
+}): TraceLevelEvalExecutionTimeSeriesPoint[] => {
+  const statuses = Array.from(new Set(rows.map((row) => row.status))).sort();
+  if (statuses.length === 0) return [];
+
+  const counts = new Map(
+    rows.map((row) => [`${row.time}\u0000${row.status}`, row.count] as const),
+  );
+  const endBucket = startOfTimelineBucket(toTimestamp, granularity);
+  const filledRows: TraceLevelEvalExecutionTimeSeriesPoint[] = [];
+
+  for (
+    let bucket = startOfTimelineBucket(fromTimestamp, granularity);
+    bucket.getTime() <= endBucket.getTime();
+    bucket = incrementTimelineBucket(bucket, granularity)
+  ) {
+    const time = formatTimelineBucketTime(bucket);
+
+    for (const status of statuses) {
+      filledRows.push({
+        time,
+        status,
+        count: counts.get(`${time}\u0000${status}`) ?? 0,
+      });
+    }
+  }
+
+  return filledRows;
 };
 
 export const v4TransitionRouter = createTRPCRouter({
@@ -154,14 +241,15 @@ export const v4TransitionRouter = createTRPCRouter({
         projectId: z.string(),
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
-        interval: z.object({
-          count: z.number().int().positive().max(10_000),
-          unit: intervalUnitSchema,
-        }),
+        granularity: timelineGranularity.default("auto"),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const bucketExpression = getPostgresBucketExpression(input.interval);
+      const granularity = resolveTimelineGranularity(
+        input.fromTimestamp,
+        input.toTimestamp,
+      );
+      const bucketExpression = getPostgresTimelineBucketExpression(granularity);
 
       const rows = await ctx.prisma.$queryRaw<
         TraceLevelEvalExecutionTimeSeriesRow[]
@@ -191,11 +279,16 @@ GROUP BY bucket_time, status
 ORDER BY bucket_time ASC, status ASC
       `);
 
-      return rows.map((row) => ({
-        time: row.time,
-        status: row.status,
-        count: Number(row.count),
-      }));
+      return fillTraceLevelEvalExecutionBuckets({
+        rows: rows.map((row) => ({
+          time: row.time,
+          status: row.status,
+          count: Number(row.count),
+        })),
+        fromTimestamp: input.fromTimestamp,
+        toTimestamp: input.toTimestamp,
+        granularity,
+      });
     }),
 
   timeSeriesByEntrypoint: protectedProjectProcedure
@@ -204,22 +297,24 @@ ORDER BY bucket_time ASC, status ASC
         projectId: z.string(),
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
-        interval: z.object({
-          count: z.number().int().positive().max(10_000),
-          unit: intervalUnitSchema,
-        }),
+        granularity: timelineGranularity.default("auto"),
       }),
     )
     .query(async ({ input }) => {
-      const intervalSql = `${input.interval.count} ${
-        intervalUnitSql[input.interval.unit]
-      }`;
+      const granularity = resolveTimelineGranularity(
+        input.fromTimestamp,
+        input.toTimestamp,
+      );
+      const bucketTimeSql = getClickhouseTimelineBucketSql(
+        "event_time_microseconds",
+        granularity,
+      );
 
       const rows = await queryClickhouse<LegacyApiUsageRow>({
         query: `
 WITH selected AS (
   SELECT
-    toStartOfInterval(event_time_microseconds, INTERVAL ${intervalSql}, 'UTC') AS bucket_time,
+    ${bucketTimeSql} AS bucket_time,
     splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
   FROM ${systemTableRef("system.query_log")}
   WHERE
