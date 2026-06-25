@@ -7,11 +7,48 @@ import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import {
-  DASHBOARD_AGGREGATION_OPTIONS,
+  DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
   toAbsoluteTimeRange,
+  type AbsoluteTimeRange,
+  type TimeRange,
 } from "@/src/utils/date-range-utils";
-import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
 import { api } from "@/src/utils/api";
+
+const V4_TIME_RANGE_PRESETS = [
+  "last5Minutes",
+  "last30Minutes",
+  "last1Hour",
+  "last3Hours",
+  "last1Day",
+  "last7Days",
+  "last30Days",
+] as const;
+
+const MAX_V4_TIMELINE_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+const getCappedAbsoluteTimeRange = (
+  timeRange: TimeRange,
+): AbsoluteTimeRange => {
+  const absoluteRange =
+    toAbsoluteTimeRange(timeRange) ??
+    ({
+      from: new Date(Date.now() - 24 * 60 * 60 * 1000),
+      to: new Date(),
+    } satisfies AbsoluteTimeRange);
+
+  if (
+    absoluteRange.to.getTime() - absoluteRange.from.getTime() <=
+    MAX_V4_TIMELINE_RANGE_MS
+  ) {
+    return absoluteRange;
+  }
+
+  return {
+    from: new Date(absoluteRange.to.getTime() - MAX_V4_TIMELINE_RANGE_MS),
+    to: absoluteRange.to,
+  };
+};
 
 const UPGRADE_DOCS = [
   {
@@ -31,16 +68,19 @@ const UPGRADE_DOCS = [
 export default function V4Page() {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
-  const { timeRange, setTimeRange } = useDashboardDateRange();
+  const { timeRange, setTimeRange } = useGlobalDateRange({
+    allowedRanges: V4_TIME_RANGE_PRESETS,
+    fallback: DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
+  });
 
   const absoluteTimeRange = useMemo(() => {
-    return (
-      toAbsoluteTimeRange(timeRange) ?? {
-        from: new Date(Date.now() - 24 * 60 * 60 * 1000),
-        to: new Date(),
-      }
-    );
+    return getCappedAbsoluteTimeRange(timeRange);
   }, [timeRange]);
+
+  const earliestSelectableDate = useMemo(
+    () => new Date(Date.now() - MAX_V4_TIMELINE_RANGE_MS),
+    [],
+  );
 
   const legacyApiUsage = api.v4Transition.timeSeriesByEntrypoint.useQuery(
     {
@@ -80,7 +120,8 @@ export default function V4Page() {
           <TimeRangePicker
             timeRange={timeRange}
             onTimeRangeChange={setTimeRange}
-            timeRangePresets={DASHBOARD_AGGREGATION_OPTIONS}
+            timeRangePresets={V4_TIME_RANGE_PRESETS}
+            disabled={{ before: earliestSelectableDate }}
             className="my-0 max-w-full overflow-x-auto"
           />
         ),

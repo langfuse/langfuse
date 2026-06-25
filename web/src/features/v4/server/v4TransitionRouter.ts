@@ -10,20 +10,26 @@ import {
 } from "@langfuse/shared/src/server";
 
 const timelineGranularity = z.literal("auto");
-type ResolvedTimelineGranularity = "minute" | "hour" | "day" | "week" | "month";
+type ResolvedTimelineGranularity = "minute" | "2m" | "5m" | "hour" | "day";
+const MINUTE_MS = 60 * 1000;
+const MAX_TIMELINE_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
+const TIMELINE_GRANULARITY_DURATION_TOLERANCE_MS = 1000;
+
+const isTimelineDuration = (actualMs: number, expectedMs: number): boolean =>
+  Math.abs(actualMs - expectedMs) <= TIMELINE_GRANULARITY_DURATION_TOLERANCE_MS;
 
 const resolveTimelineGranularity = (
   fromTimestamp: Date,
   toTimestamp: Date,
 ): ResolvedTimelineGranularity => {
   const diffMs = toTimestamp.getTime() - fromTimestamp.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
 
-  if (diffHours < 2) return "minute";
-  if (diffHours < 72) return "hour";
-  if (diffHours < 1440) return "day";
-  if (diffHours < 8760) return "week";
-  return "month";
+  if (isTimelineDuration(diffMs, 60 * MINUTE_MS)) return "2m";
+  if (isTimelineDuration(diffMs, 3 * 60 * MINUTE_MS)) return "5m";
+  if (isTimelineDuration(diffMs, 24 * 60 * MINUTE_MS)) return "hour";
+  if (isTimelineDuration(diffMs, MAX_TIMELINE_RANGE_MS)) return "day";
+
+  return "minute";
 };
 
 const getTimelineBucketSql = (
@@ -32,10 +38,10 @@ const getTimelineBucketSql = (
 ): string => {
   const intervalByGranularity: Record<ResolvedTimelineGranularity, string> = {
     minute: "1 MINUTE",
+    "2m": "2 MINUTE",
+    "5m": "5 MINUTE",
     hour: "1 HOUR",
     day: "1 DAY",
-    week: "1 WEEK",
-    month: "1 MONTH",
   };
 
   return `toStartOfInterval(${sql}, INTERVAL ${intervalByGranularity[granularity]}, 'UTC')`;
@@ -47,15 +53,128 @@ type LegacyApiUsageRow = {
   count: string | number;
 };
 
+type LegacyApiUsageResultRow = {
+  time: string;
+  entrypoint: string;
+  count: number;
+};
+
+const floorTimelineBucket = (
+  timestamp: Date,
+  granularity: ResolvedTimelineGranularity,
+): Date => {
+  const bucket = new Date(timestamp);
+
+  switch (granularity) {
+    case "minute":
+      bucket.setUTCSeconds(0, 0);
+      return bucket;
+    case "2m":
+      bucket.setUTCMinutes(Math.floor(bucket.getUTCMinutes() / 2) * 2, 0, 0);
+      return bucket;
+    case "5m":
+      bucket.setUTCMinutes(Math.floor(bucket.getUTCMinutes() / 5) * 5, 0, 0);
+      return bucket;
+    case "hour":
+      bucket.setUTCMinutes(0, 0, 0);
+      return bucket;
+    case "day":
+      bucket.setUTCHours(0, 0, 0, 0);
+      return bucket;
+    default: {
+      const exhaustiveCheck: never = granularity;
+      throw new Error(`Invalid timeline granularity: ${exhaustiveCheck}`);
+    }
+  }
+};
+
+const addTimelineBucket = (
+  timestamp: Date,
+  granularity: ResolvedTimelineGranularity,
+): Date => {
+  const next = new Date(timestamp);
+
+  switch (granularity) {
+    case "minute":
+      next.setUTCMinutes(next.getUTCMinutes() + 1);
+      return next;
+    case "2m":
+      next.setUTCMinutes(next.getUTCMinutes() + 2);
+      return next;
+    case "5m":
+      next.setUTCMinutes(next.getUTCMinutes() + 5);
+      return next;
+    case "hour":
+      next.setUTCHours(next.getUTCHours() + 1);
+      return next;
+    case "day":
+      next.setUTCDate(next.getUTCDate() + 1);
+      return next;
+    default: {
+      const exhaustiveCheck: never = granularity;
+      throw new Error(`Invalid timeline granularity: ${exhaustiveCheck}`);
+    }
+  }
+};
+
+const formatTimelineBucket = (timestamp: Date): string =>
+  timestamp.toISOString().replace(/\.\d{3}Z$/, "Z");
+
+const getEmptyTimelineBuckets = (
+  fromTimestamp: Date,
+  toTimestamp: Date,
+  granularity: ResolvedTimelineGranularity,
+): LegacyApiUsageResultRow[] => {
+  const buckets: LegacyApiUsageResultRow[] = [];
+
+  for (
+    let bucket = floorTimelineBucket(fromTimestamp, granularity);
+    bucket.getTime() < toTimestamp.getTime();
+    bucket = addTimelineBucket(bucket, granularity)
+  ) {
+    buckets.push({
+      time: formatTimelineBucket(bucket),
+      entrypoint: "",
+      count: 0,
+    });
+  }
+
+  return buckets;
+};
+
+const compareTimelineRows = (
+  left: LegacyApiUsageResultRow,
+  right: LegacyApiUsageResultRow,
+): number => {
+  if (left.time < right.time) return -1;
+  if (left.time > right.time) return 1;
+  if (left.entrypoint === right.entrypoint) return 0;
+  if (left.entrypoint === "") return -1;
+  if (right.entrypoint === "") return 1;
+  return left.entrypoint.localeCompare(right.entrypoint);
+};
+
 export const v4TransitionRouter = createTRPCRouter({
   timeSeriesByEntrypoint: protectedProjectProcedure
     .input(
-      z.object({
-        projectId: z.string(),
-        fromTimestamp: z.date(),
-        toTimestamp: z.date(),
-        granularity: timelineGranularity.default("auto"),
-      }),
+      z
+        .object({
+          projectId: z.string(),
+          fromTimestamp: z.date(),
+          toTimestamp: z.date(),
+          granularity: timelineGranularity.default("auto"),
+        })
+        .refine(
+          ({ fromTimestamp, toTimestamp }) =>
+            toTimestamp.getTime() > fromTimestamp.getTime(),
+          { message: "fromTimestamp must be before toTimestamp" },
+        )
+        .refine(
+          ({ fromTimestamp, toTimestamp }) =>
+            toTimestamp.getTime() - fromTimestamp.getTime() <=
+            MAX_TIMELINE_RANGE_MS,
+          { message: "V4 legacy API usage ranges cannot exceed 30 days" },
+        ),
     )
     .query(async ({ input }) => {
       const granularity = resolveTimelineGranularity(
@@ -155,10 +274,20 @@ ORDER BY bucket_time ASC, legacy_route ASC
         },
       });
 
-      return rows.map((row) => ({
+      const dataRows = rows.map((row) => ({
         time: row.time,
         entrypoint: row.entrypoint,
         count: Number(row.count),
       }));
+
+      return dataRows.length === 0
+        ? dataRows
+        : getEmptyTimelineBuckets(
+            input.fromTimestamp,
+            input.toTimestamp,
+            granularity,
+          )
+            .concat(dataRows)
+            .sort(compareTimelineRows);
     }),
 });

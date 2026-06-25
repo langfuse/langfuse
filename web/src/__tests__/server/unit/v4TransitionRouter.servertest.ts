@@ -72,7 +72,7 @@ describe("v4TransitionRouter", () => {
   beforeEach(() => {
     mockedQueryClickhouse.mockResolvedValue([
       {
-        time: "2026-06-25T12:00:00Z",
+        time: "2026-06-24T12:00:00Z",
         entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: "0.6666666666666666",
       },
@@ -95,13 +95,28 @@ describe("v4TransitionRouter", () => {
       granularity: "auto",
     });
 
-    expect(rows).toEqual([
-      {
-        time: "2026-06-25T12:00:00Z",
-        entrypoint: "publicapi: GET /api/public/traces/{id}",
-        count: 0.6666666666666666,
-      },
-    ]);
+    expect(rows).toHaveLength(25);
+    expect(new Set(rows.map((row) => row.time)).size).toBe(24);
+    expect(rows[0]).toEqual({
+      time: "2026-06-24T00:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[12]).toEqual({
+      time: "2026-06-24T12:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[13]).toEqual({
+      time: "2026-06-24T12:00:00Z",
+      entrypoint: "publicapi: GET /api/public/traces/{id}",
+      count: 0.6666666666666666,
+    });
+    expect(rows[24]).toEqual({
+      time: "2026-06-24T23:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
 
     expect(mockedQueryClickhouse).toHaveBeenCalledTimes(1);
     const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
@@ -160,5 +175,240 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).toContain(
       "match(route_path, '^GET /api/public/traces/[^/?#]+$'), 3",
     );
+  });
+
+  it("fills daily buckets for a 30 day timeline", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-10T00:00:00Z",
+        entrypoint: "publicapi: GET /api/public/traces",
+        count: "42",
+      },
+    ]);
+
+    const caller = v4TransitionRouter.createCaller(
+      createInnerTRPCContext({ session, headers: {} }),
+    );
+
+    const rows = await caller.timeSeriesByEntrypoint({
+      projectId,
+      fromTimestamp: new Date("2026-05-26T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(rows).toHaveLength(31);
+    expect(new Set(rows.map((row) => row.time)).size).toBe(30);
+    expect(rows[0]).toEqual({
+      time: "2026-05-26T00:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[15]).toEqual({
+      time: "2026-06-10T00:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[16]).toEqual({
+      time: "2026-06-10T00:00:00Z",
+      entrypoint: "publicapi: GET /api/public/traces",
+      count: 42,
+    });
+    expect(rows[30]).toEqual({
+      time: "2026-06-24T00:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+
+    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(clickhouseQuery?.query).toContain(
+      "toStartOfInterval(event_time_microseconds, INTERVAL 1 DAY, 'UTC') AS bucket_time",
+    );
+  });
+
+  it("fills 2 minute buckets for a 1 hour timeline", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-24T00:20:00Z",
+        entrypoint: "publicapi: GET /api/public/traces",
+        count: "8",
+      },
+    ]);
+
+    const caller = v4TransitionRouter.createCaller(
+      createInnerTRPCContext({ session, headers: {} }),
+    );
+
+    const rows = await caller.timeSeriesByEntrypoint({
+      projectId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-24T01:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(rows).toHaveLength(31);
+    expect(new Set(rows.map((row) => row.time)).size).toBe(30);
+    expect(rows[0]).toEqual({
+      time: "2026-06-24T00:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[10]).toEqual({
+      time: "2026-06-24T00:20:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[11]).toEqual({
+      time: "2026-06-24T00:20:00Z",
+      entrypoint: "publicapi: GET /api/public/traces",
+      count: 8,
+    });
+    expect(rows[30]).toEqual({
+      time: "2026-06-24T00:58:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+
+    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(clickhouseQuery?.query).toContain(
+      "toStartOfInterval(event_time_microseconds, INTERVAL 2 MINUTE, 'UTC') AS bucket_time",
+    );
+  });
+
+  it("fills minute buckets for a non-special 45 minute timeline", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-24T00:15:00Z",
+        entrypoint: "publicapi: GET /api/public/traces",
+        count: "8",
+      },
+    ]);
+
+    const caller = v4TransitionRouter.createCaller(
+      createInnerTRPCContext({ session, headers: {} }),
+    );
+
+    const rows = await caller.timeSeriesByEntrypoint({
+      projectId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-24T00:45:00Z"),
+      granularity: "auto",
+    });
+
+    expect(rows).toHaveLength(46);
+    expect(new Set(rows.map((row) => row.time)).size).toBe(45);
+    expect(rows[0]).toEqual({
+      time: "2026-06-24T00:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[15]).toEqual({
+      time: "2026-06-24T00:15:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[16]).toEqual({
+      time: "2026-06-24T00:15:00Z",
+      entrypoint: "publicapi: GET /api/public/traces",
+      count: 8,
+    });
+    expect(rows[45]).toEqual({
+      time: "2026-06-24T00:44:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+
+    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(clickhouseQuery?.query).toContain(
+      "toStartOfInterval(event_time_microseconds, INTERVAL 1 MINUTE, 'UTC') AS bucket_time",
+    );
+  });
+
+  it("fills 5 minute buckets for a 3 hour timeline", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([
+      {
+        time: "2026-06-24T01:00:00Z",
+        entrypoint: "publicapi: GET /api/public/traces",
+        count: "12",
+      },
+    ]);
+
+    const caller = v4TransitionRouter.createCaller(
+      createInnerTRPCContext({ session, headers: {} }),
+    );
+
+    const rows = await caller.timeSeriesByEntrypoint({
+      projectId,
+      fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+      toTimestamp: new Date("2026-06-24T03:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(rows).toHaveLength(37);
+    expect(new Set(rows.map((row) => row.time)).size).toBe(36);
+    expect(rows[0]).toEqual({
+      time: "2026-06-24T00:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[12]).toEqual({
+      time: "2026-06-24T01:00:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+    expect(rows[13]).toEqual({
+      time: "2026-06-24T01:00:00Z",
+      entrypoint: "publicapi: GET /api/public/traces",
+      count: 12,
+    });
+    expect(rows[36]).toEqual({
+      time: "2026-06-24T02:55:00Z",
+      entrypoint: "",
+      count: 0,
+    });
+
+    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(clickhouseQuery?.query).toContain(
+      "toStartOfInterval(event_time_microseconds, INTERVAL 5 MINUTE, 'UTC') AS bucket_time",
+    );
+  });
+
+  it("uses minute buckets for a non-special 7 day timeline", async () => {
+    mockedQueryClickhouse.mockResolvedValueOnce([]);
+
+    const caller = v4TransitionRouter.createCaller(
+      createInnerTRPCContext({ session, headers: {} }),
+    );
+
+    const rows = await caller.timeSeriesByEntrypoint({
+      projectId,
+      fromTimestamp: new Date("2026-06-18T00:00:00Z"),
+      toTimestamp: new Date("2026-06-25T00:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(rows).toEqual([]);
+
+    const clickhouseQuery = mockedQueryClickhouse.mock.calls[0]?.[0];
+    expect(clickhouseQuery?.query).toContain(
+      "toStartOfInterval(event_time_microseconds, INTERVAL 1 MINUTE, 'UTC') AS bucket_time",
+    );
+  });
+
+  it("rejects ranges over 30 days", async () => {
+    const caller = v4TransitionRouter.createCaller(
+      createInnerTRPCContext({ session, headers: {} }),
+    );
+
+    await expect(
+      caller.timeSeriesByEntrypoint({
+        projectId,
+        fromTimestamp: new Date("2026-05-25T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
+        granularity: "auto",
+      }),
+    ).rejects.toThrow("30 days");
+
+    expect(mockedQueryClickhouse).not.toHaveBeenCalled();
   });
 });
