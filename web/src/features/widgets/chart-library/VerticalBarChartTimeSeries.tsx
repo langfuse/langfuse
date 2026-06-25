@@ -71,6 +71,7 @@ export const VerticalBarChartTimeSeries: React.FC<ChartProps> = ({
             fill={`hsl(var(--chart-${(index % 8) + 1}))`}
             fillOpacity={subtleFill ? 0.3 : 1}
             stackId={dimensions.length > 1 ? "stack" : undefined}
+            isAnimationActive={false}
           />
         ))}
         <ChartActiveReferenceLine />

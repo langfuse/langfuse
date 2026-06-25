@@ -275,6 +275,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                 stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
                 strokeOpacity={isMuted ? 0.2 : 1}
                 connectNulls
+                isAnimationActive={false}
               />
             );
           })}

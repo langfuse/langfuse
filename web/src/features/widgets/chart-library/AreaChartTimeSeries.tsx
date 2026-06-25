@@ -118,6 +118,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 strokeWidth={2.5}
                 strokeOpacity={isMuted ? 0.2 : 1}
                 connectNulls
+                isAnimationActive={false}
               />
             );
           })}
