@@ -138,6 +138,7 @@ describe("ClickhouseWriter", () => {
     );
     expect(logComment).toMatchObject({
       surface: "worker",
+      route: "clickhouse-writer",
       projectId: "MULTI_PROJECT",
     });
   });
