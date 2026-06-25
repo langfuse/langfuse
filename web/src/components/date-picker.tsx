@@ -254,20 +254,23 @@ export function DatePickerWithRange({
             className="[&>div]:hidden sm:[&>div]:block [&>div:first-child]:block"
             disabled={disabled}
           />
-          <div className="flex flex-col gap-2 border-t-2 py-1.5 sm:flex-row sm:gap-0">
-            <div className="px-3">
-              <p className="px-1 text-sm font-medium">
-                Start<span className="hidden sm:inline"> time</span>
-              </p>
-              <TimePicker
-                date={internalDateRange?.from}
-                setDate={onStartTimeSelection}
-                className="border-0 px-0 pt-1"
-              />
-            </div>
-            {/* Only meaningful once an end exists; during the partial range
-                (after the first click) the input would silently ignore edits. */}
-            {internalDateRange?.to && (
+          {/* Time pickers tune the boundaries of a *complete* range. During
+              the partial range (after the first click, before the second) they
+              are hidden: the End-time input would silently ignore edits, and a
+              typed Start time would be clobbered by setBeginningOfDay on the
+              next calendar click. See LFE-8156. */}
+          {internalDateRange?.from && internalDateRange.to && (
+            <div className="flex flex-col gap-2 border-t-2 py-1.5 sm:flex-row sm:gap-0">
+              <div className="px-3">
+                <p className="px-1 text-sm font-medium">
+                  Start<span className="hidden sm:inline"> time</span>
+                </p>
+                <TimePicker
+                  date={internalDateRange?.from}
+                  setDate={onStartTimeSelection}
+                  className="border-0 px-0 pt-1"
+                />
+              </div>
               <div className="px-3">
                 <p className="px-1 text-sm font-medium">
                   End<span className="hidden sm:inline"> time</span>
@@ -278,8 +281,8 @@ export function DatePickerWithRange({
                   className="border-0 px-0 pt-1"
                 />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </PopoverContent>
       </Popover>
       <DashboardDateRangeDropdown
@@ -503,18 +506,21 @@ export function TimeRangePicker({
                 numberOfMonths={1}
                 disabled={calendarDisabled}
               />
-              <div className="flex flex-col gap-3 border-t p-3">
-                <div className="flex flex-col gap-1">
-                  <p className="px-1 text-sm font-medium">Start time</p>
-                  <TimePicker
-                    date={internalDateRange?.from}
-                    setDate={onStartTimeSelection}
-                    className="border-0 px-0 py-0"
-                  />
-                </div>
-                {/* Only meaningful once an end exists; during the partial
-                    range the input would silently ignore edits. */}
-                {internalDateRange?.to && (
+              {/* Time pickers tune the boundaries of a *complete* range.
+                  During the partial range (after the first click, before the
+                  second) they are hidden: the End-time input would silently
+                  ignore edits, and a typed Start time would be clobbered by
+                  setBeginningOfDay on the next calendar click. See LFE-8156. */}
+              {internalDateRange?.from && internalDateRange.to && (
+                <div className="flex flex-col gap-3 border-t p-3">
+                  <div className="flex flex-col gap-1">
+                    <p className="px-1 text-sm font-medium">Start time</p>
+                    <TimePicker
+                      date={internalDateRange?.from}
+                      setDate={onStartTimeSelection}
+                      className="border-0 px-0 py-0"
+                    />
+                  </div>
                   <div className="flex flex-col gap-1">
                     <p className="px-1 text-sm font-medium">End time</p>
                     <TimePicker
@@ -523,8 +529,8 @@ export function TimeRangePicker({
                       className="border-0 px-0 py-0"
                     />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </>
           ) : (
             /* Always show preset options dropdown */
