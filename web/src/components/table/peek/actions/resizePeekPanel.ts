@@ -1,6 +1,6 @@
 import { type PointerEvent as ReactPointerEvent } from "react";
 import {
-  PEEK_FULLSCREEN_ENTER_FRACTION,
+  PEEK_EXPAND_ENTER_FRACTION,
   type PeekPanelStore,
 } from "@/src/components/table/peek/store/peekPanelStore";
 
@@ -11,18 +11,21 @@ function widthFractionFromClientX(clientX: number): number {
 
 /**
  * Drag workflow for the left-edge resize handle. Attaches window pointer
- * listeners, drives the store through its `actions`, and commits the width on
- * pointer-up. Dragging past {@link PEEK_FULLSCREEN_ENTER_FRACTION} enters
- * fullscreen (without persisting a width).
+ * listeners, drives the store's transient drag state, and on pointer-up either
+ * commits a widget width or flips the URL `expanded` flag via
+ * `onExpandedChange`. Dragging past {@link PEEK_EXPAND_ENTER_FRACTION} previews
+ * (and, on release, commits) the expanded max width — so the drag and the
+ * header button are two triggers of the same expanded state.
  *
  * Not a hook — it takes the store instance directly (per the local-feature
  * state pattern). Returns a teardown that ends an in-flight drag; the caller
- * also runs it on unmount so a drag interrupted by the peek closing can't leak
- * listeners or leave the body cursor/selection styles applied.
+ * also runs it on unmount / when the peek closes so a drag interrupted mid-flight
+ * can't leak listeners or leave the body cursor/selection styles applied.
  */
 export function beginPeekResize(
   store: PeekPanelStore,
   event: ReactPointerEvent,
+  onExpandedChange: (expanded: boolean) => void,
 ): () => void {
   // Only primary-button drags; the keyboard path handles the rest.
   if (event.button !== 0) return () => {};
@@ -31,8 +34,8 @@ export function beginPeekResize(
   const onPointerMove = (move: PointerEvent) => {
     const fraction = widthFractionFromClientX(move.clientX);
     const { actions } = store.getState();
-    if (fraction >= PEEK_FULLSCREEN_ENTER_FRACTION) {
-      actions.enterFullscreenDraft();
+    if (fraction >= PEEK_EXPAND_ENTER_FRACTION) {
+      actions.setDraftExpanded();
     } else {
       actions.setDraftFraction(fraction);
     }
@@ -48,11 +51,16 @@ export function beginPeekResize(
 
   const onPointerUp = () => {
     teardown();
-    const { draftFraction, actions } = store.getState();
-    // A drag that ended on a widget width commits it; one that ended in
-    // fullscreen (draftFraction === null) leaves the persisted width untouched.
-    if (draftFraction !== null) actions.commitWidth(draftFraction);
-    actions.setResizing(false);
+    const { draftExpanded, draftFraction, actions } = store.getState();
+    if (draftExpanded) {
+      // Released past the threshold → expanded (reflected in the URL).
+      onExpandedChange(true);
+    } else if (draftFraction !== null) {
+      // Released on a widget width → persist it and ensure we're collapsed.
+      actions.commitWidth(draftFraction);
+      onExpandedChange(false);
+    }
+    actions.cancelResize();
   };
 
   window.addEventListener("pointermove", onPointerMove);

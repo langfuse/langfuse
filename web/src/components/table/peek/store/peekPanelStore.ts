@@ -1,23 +1,24 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 /**
- * Per-mount store for the desktop peek panel: how wide it is and whether it is
- * fullscreen. Follows the local-feature-state pattern from
- * `frontend-large-feature-architecture` — one store instance per peek host,
- * mutated only through named `actions`, the drag workflow lives in
- * `../actions/resizePeekPanel.ts`.
+ * Per-mount store for the desktop peek panel's WIDTH. Follows the
+ * local-feature-state pattern from `frontend-large-feature-architecture` — one
+ * store instance per peek host, mutated only through named `actions`; the drag
+ * workflow lives in `../actions/resizePeekPanel.ts`.
  *
- * State altitudes:
- * - **widthFraction** — cross-view persisted preference. Mirrored to
- *   localStorage (resolution-independent fraction) so every peek shares it.
- * - **isFullscreen** — ephemeral per open session; reset on close via
- *   `resetForVisibility` (the host outlives open/close, so it is explicit).
- * - **draftFraction / isResizing** — high-frequency transient drag state; the
- *   draft is committed to `widthFraction` (and localStorage) only on pointer-up.
+ * Whether the peek is *expanded* (max width) is NOT stored here — it lives in
+ * the URL (`peekView=expanded`, owned by `usePeekNavigation`) so it is shareable
+ * and survives back/forward. This store only owns the widget width and the
+ * transient drag state:
+ * - **widthFraction** — cross-view persisted widget width (localStorage, a
+ *   resolution-independent viewport fraction).
+ * - **draftFraction / draftExpanded / isResizing** — high-frequency transient
+ *   drag state. On pointer-up the drag either commits a widget width or asks the
+ *   caller to flip the URL `expanded` flag (see the resize action).
  *
- * Width and fullscreen are one continuum: dragging past
- * `PEEK_FULLSCREEN_ENTER_FRACTION` enters fullscreen; dragging back returns to a
- * widget width. The header button is just a shortcut for the same toggle.
+ * Width and expanded are one continuum: dragging the handle past
+ * `PEEK_EXPAND_ENTER_FRACTION` previews the expanded width (`draftExpanded`);
+ * dragging back returns to a widget width.
  */
 
 const STORAGE_KEY = "peekViewWidthFraction";
@@ -26,8 +27,8 @@ const STORAGE_KEY = "peekViewWidthFraction";
 export const PEEK_MIN_WIDTH_FRACTION = 0.4;
 export const PEEK_MAX_WIDGET_WIDTH_FRACTION = 0.9;
 export const PEEK_DEFAULT_WIDTH_FRACTION = 0.5;
-// Dragging the handle beyond this fraction of the viewport snaps to fullscreen.
-export const PEEK_FULLSCREEN_ENTER_FRACTION = 0.95;
+// Dragging the handle beyond this fraction of the viewport previews "expanded".
+export const PEEK_EXPAND_ENTER_FRACTION = 0.95;
 const KEYBOARD_RESIZE_STEP = 0.05;
 
 export const clampWidthFraction = (fraction: number) =>
@@ -64,28 +65,24 @@ function writeStoredWidthFraction(fraction: number): void {
 export interface PeekPanelStoreState {
   /** Committed widget width (persisted), as a fraction of the viewport. */
   widthFraction: number;
-  /** Live width during a drag; null when not dragging. */
+  /** Live widget width during a drag; null when not dragging or expanded. */
   draftFraction: number | null;
-  /** Whether the panel fills the viewport. */
-  isFullscreen: boolean;
+  /** True while a drag is previewing the expanded (max) width. */
+  draftExpanded: boolean;
   /** True while the resize handle is being dragged. */
   isResizing: boolean;
   actions: {
     setResizing: (isResizing: boolean) => void;
     /** Abandon an in-flight drag without committing (e.g. peek closed mid-drag). */
     cancelResize: () => void;
-    /** Drag below the fullscreen threshold: live widget width. */
+    /** Drag below the expand threshold: live widget width. */
     setDraftFraction: (fraction: number) => void;
-    /** Drag past the fullscreen threshold. */
-    enterFullscreenDraft: () => void;
+    /** Drag past the expand threshold: preview the expanded (max) width. */
+    setDraftExpanded: () => void;
     /** End a drag on a widget width: persist it and clear the draft. */
     commitWidth: (fraction: number) => void;
-    /** Toggle fullscreen; off falls back to the persisted widget width. */
-    toggleFullscreen: () => void;
-    /** Keyboard resize from the persisted widget width (never the ceiling). */
+    /** Keyboard resize of the persisted widget width. */
     nudgeWidth: (direction: "grow" | "shrink") => void;
-    /** Reset fullscreen when the peek closes (`isOpen` → false). */
-    resetForVisibility: (isOpen: boolean) => void;
   };
 }
 
@@ -95,53 +92,47 @@ export function createPeekPanelStore(): PeekPanelStore {
   return createStore<PeekPanelStoreState>((set, get) => ({
     widthFraction: readStoredWidthFraction(),
     draftFraction: null,
-    isFullscreen: false,
+    draftExpanded: false,
     isResizing: false,
     actions: {
       setResizing: (isResizing) => set({ isResizing }),
-      cancelResize: () => set({ draftFraction: null, isResizing: false }),
+      cancelResize: () =>
+        set({ draftFraction: null, draftExpanded: false, isResizing: false }),
       setDraftFraction: (fraction) =>
         set({
           draftFraction: clampWidthFraction(fraction),
-          isFullscreen: false,
+          draftExpanded: false,
         }),
-      enterFullscreenDraft: () =>
-        set({ isFullscreen: true, draftFraction: null }),
+      setDraftExpanded: () => set({ draftExpanded: true, draftFraction: null }),
       commitWidth: (fraction) => {
         const clamped = clampWidthFraction(fraction);
         writeStoredWidthFraction(clamped);
         set({
           widthFraction: clamped,
           draftFraction: null,
-          isFullscreen: false,
+          draftExpanded: false,
         });
       },
-      toggleFullscreen: () =>
-        set((state) => ({ isFullscreen: !state.isFullscreen })),
       nudgeWidth: (direction) => {
         const delta =
           direction === "grow" ? KEYBOARD_RESIZE_STEP : -KEYBOARD_RESIZE_STEP;
         const next = clampWidthFraction(get().widthFraction + delta);
         writeStoredWidthFraction(next);
-        set({ widthFraction: next, draftFraction: null, isFullscreen: false });
-      },
-      resetForVisibility: (isOpen) => {
-        if (!isOpen && get().isFullscreen) set({ isFullscreen: false });
+        set({ widthFraction: next, draftFraction: null, draftExpanded: false });
       },
     },
   }));
 }
 
-export const selectIsFullscreen = (state: PeekPanelStoreState) =>
-  state.isFullscreen;
 export const selectIsResizing = (state: PeekPanelStoreState) =>
   state.isResizing;
+export const selectDraftExpanded = (state: PeekPanelStoreState) =>
+  state.draftExpanded;
 
 /**
- * The panel's CSS width as a primitive string (`"50vw"` / `"100vw"`) so the
- * subscription bails out unless the rendered width actually changes.
+ * The widget width as a primitive CSS string (`"50vw"`) so the subscription
+ * bails out unless the rendered width changes. The expanded (max) width is
+ * computed by the hook, since it depends on the live sidebar offset.
  */
-export const selectWidth = (state: PeekPanelStoreState): string =>
-  state.isFullscreen
-    ? "100vw"
-    : `${clampWidthFraction(state.draftFraction ?? state.widthFraction) * 100}vw`;
+export const selectWidgetWidth = (state: PeekPanelStoreState): string =>
+  `${clampWidthFraction(state.draftFraction ?? state.widthFraction) * 100}vw`;

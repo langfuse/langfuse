@@ -4,13 +4,20 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/src/components/ui/drawer";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
 import { cn } from "@/src/utils/tailwind";
-import { memo, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { useIsMobile } from "@/src/hooks/use-mobile";
+import { getPathnameWithoutBasePath } from "@/src/utils/api";
+import { urlSearchParamsToQuery } from "@/src/utils/navigation";
 import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
 import { PeekHeader } from "@/src/components/table/peek/PeekHeader";
 import { usePeekPanelState } from "@/src/components/table/peek/usePeekPanelState";
 import { shouldIgnoreOutsideInteraction } from "@/src/utils/outside-interaction";
+
+// Peek view-mode URL param (also cleared by usePeekNavigation on close). When
+// `expanded`, the desktop peek widens to viewport − sidebar — shareable + back-able.
+const PEEK_VIEW_PARAM = "peekView";
+const PEEK_VIEW_EXPANDED = "expanded";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
@@ -56,10 +63,18 @@ type TablePeekViewProps = Pick<
   | "detailNavigationKey"
   | "resolveDetailNavigationPath"
   | "closePeek"
+  // Accepted for back-compat (table consumers still pass it via expandConfig);
+  // the in-place URL "Expand" replaces the old open-in-tab behavior, so it is
+  // no longer rendered. expandConfig cleanup is a follow-up.
   | "expandPeek"
   | "peekEventOptions"
 > & {
   title?: string;
+  /**
+   * Item-specific header actions (star / publish / delete …), shared with the
+   * full detail page so the peek and the page expose the same controls.
+   */
+  actions?: React.ReactNode;
   // Content
   /**
    * The content to display in the peek view.
@@ -111,8 +126,34 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const { title, children } = props;
   const router = useRouter();
   const itemId = router.query.peek as string | undefined;
+  const isExpanded = router.query[PEEK_VIEW_PARAM] === PEEK_VIEW_EXPANDED;
   const isMobile = useIsMobile();
-  const panel = usePeekPanelState({ isOpen: !!itemId });
+
+  // Expanded is view state, owned by the peek and reflected in the URL so it is
+  // shareable + survives back/forward. Managed here (not threaded through every
+  // table consumer); usePeekNavigation clears the param when the peek closes.
+  const setExpanded = useCallback(
+    (expanded: boolean) => {
+      const params = new URLSearchParams(window.location.search);
+      if (expanded) params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
+      else params.delete(PEEK_VIEW_PARAM);
+      router.push(
+        {
+          pathname: getPathnameWithoutBasePath(),
+          query: urlSearchParamsToQuery(params),
+        },
+        undefined,
+        { shallow: true },
+      );
+    },
+    [router],
+  );
+
+  const panel = usePeekPanelState({
+    isOpen: !!itemId,
+    isExpanded,
+    onExpandedChange: setExpanded,
+  });
   const ignoredSelectors = props.peekEventOptions?.ignoredSelectors ?? [];
 
   // Gate the first render on mount so we never paint the desktop sheet before
@@ -142,13 +183,13 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       itemId={itemId}
       detailNavigationKey={props.detailNavigationKey}
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}
-      onExpand={props.expandPeek}
-      fullscreen={
+      actions={props.actions}
+      expand={
         isMobile
           ? undefined
           : {
-              isFullscreen: panel.isFullscreen,
-              onToggle: panel.toggleFullscreen,
+              isExpanded: panel.isExpanded,
+              onToggle: panel.toggleExpanded,
             }
       }
       onClose={props.closePeek}
@@ -215,7 +256,10 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           // another input); only pointer/Escape/close-button drive dismissal.
           onFocusOutside={(e) => e.preventDefault()}
           className={cn(
-            "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 overflow-hidden border-l shadow-lg",
+            "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 overflow-hidden border-l",
+            // Soft shadow cast leftward (toward the table) to lift the peek off
+            // the content behind it.
+            "shadow-[-12px_0_32px_-16px_rgb(0_0_0_/_0.30)]",
             "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
             panel.isResizing && "select-none",
           )}

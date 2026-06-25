@@ -2,7 +2,7 @@ import { Button } from "@/src/components/ui/button";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
-import { Expand, ExternalLink, Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, Minimize2, X } from "lucide-react";
 
 type PeekHeaderProps = {
   itemType: LangfuseItemType;
@@ -10,10 +10,10 @@ type PeekHeaderProps = {
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
-  /** Open the full detail page (current tab / new tab). Hidden when absent. */
-  onExpand?: (openInNewTab: boolean) => void;
-  /** In-place fullscreen toggle. Desktop only; hidden on mobile. */
-  fullscreen?: { isFullscreen: boolean; onToggle: () => void };
+  /** Item-specific actions (star / publish / delete …), shared with the page. */
+  actions?: React.ReactNode;
+  /** Expand-to-max-width toggle. Desktop only; hidden on mobile. */
+  expand?: { isExpanded: boolean; onToggle: () => void };
   onClose: () => void;
 };
 
@@ -28,12 +28,10 @@ export function PeekHeader({
   itemId,
   detailNavigationKey,
   resolveDetailNavigationPath,
-  onExpand,
-  fullscreen,
+  actions,
+  expand,
   onClose,
 }: PeekHeaderProps) {
-  const canExpand = typeof onExpand === "function";
-
   return (
     <div className="bg-header flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 px-2 py-1">
       <div className="flex min-w-0 flex-row items-center gap-2">
@@ -47,6 +45,9 @@ export function PeekHeader({
         </span>
       </div>
       <div className="flex shrink-0 flex-row items-center gap-1">
+        {actions ? (
+          <div className="flex flex-row items-center gap-1">{actions}</div>
+        ) : null}
         {detailNavigationKey && resolveDetailNavigationPath && (
           <DetailPageNav
             currentId={itemId}
@@ -54,60 +55,32 @@ export function PeekHeader({
             listKey={detailNavigationKey}
           />
         )}
-        {(fullscreen || canExpand) && (
-          <div className="flex h-full flex-row items-center gap-1 border-l pl-1">
-            {fullscreen && (
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label={
-                  fullscreen.isFullscreen ? "Exit fullscreen" : "Fullscreen"
-                }
-                title={
-                  fullscreen.isFullscreen ? "Exit fullscreen" : "Fullscreen"
-                }
-                onClick={fullscreen.onToggle}
-              >
-                {fullscreen.isFullscreen ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-              </Button>
-            )}
-            {canExpand && (
-              <>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Open in current tab"
-                  title="Open in current tab"
-                  onClick={() => onExpand?.(false)}
-                >
-                  <Expand className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label="Open in new tab"
-                  title="Open in new tab"
-                  onClick={() => onExpand?.(true)}
-                >
-                  <ExternalLink className="h-4 w-4" />
-                </Button>
-              </>
-            )}
-          </div>
-        )}
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Close"
-          title="Close"
-          onClick={onClose}
-        >
-          <X className="h-4 w-4" />
-        </Button>
+        <div className="flex h-full flex-row items-center gap-1 border-l pl-1">
+          {expand && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={expand.isExpanded ? "Collapse peek" : "Expand peek"}
+              title={expand.isExpanded ? "Collapse" : "Expand"}
+              onClick={expand.onToggle}
+            >
+              {expand.isExpanded ? (
+                <Minimize2 className="h-4 w-4" />
+              ) : (
+                <Maximize2 className="h-4 w-4" />
+              )}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Close"
+            title="Close"
+            onClick={onClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
