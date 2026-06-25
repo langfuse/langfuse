@@ -56,8 +56,8 @@ export const v4TransitionRouter = createTRPCRouter({
         query: `
 WITH selected AS (
   SELECT
-    toStartOfInterval(event_time_microseconds, INTERVAL ${intervalSql}) AS bucket_time,
-    splitByChar('?', simpleJSONExtractString(log_comment, 'route'))[1] AS route_path
+    toStartOfInterval(event_time_microseconds, INTERVAL ${intervalSql}, 'UTC') AS bucket_time,
+    splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
   FROM ${systemTableRef("system.query_log")}
   WHERE
     event_time >= {fromTimestamp: DateTime64(3)}
@@ -65,9 +65,9 @@ WITH selected AS (
     AND event_date >= toDate({fromTimestamp: DateTime64(3)})
     AND event_date <= toDate({toTimestamp: DateTime64(3)})
     AND type = 'QueryFinish'
-    AND simpleJSONExtractString(log_comment, 'tag_schema_version') = '1'
-    AND simpleJSONExtractString(log_comment, 'surface') = 'publicapi'
-    AND simpleJSONExtractString(log_comment, 'projectId') = {projectId: String}
+    AND JSONExtractString(log_comment, 'tag_schema_version') = '1'
+    AND JSONExtractString(log_comment, 'surface') = 'publicapi'
+    AND JSONExtractString(log_comment, 'projectId') = {projectId: String}
 ),
 classified AS (
   SELECT
