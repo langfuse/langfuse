@@ -23,7 +23,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 const STORAGE_KEY = "peekViewWidthFraction";
 
 // Widget width bounds, as a fraction of the viewport width.
-export const PEEK_MIN_WIDTH_FRACTION = 0.3;
+export const PEEK_MIN_WIDTH_FRACTION = 0.4;
 export const PEEK_MAX_WIDGET_WIDTH_FRACTION = 0.9;
 export const PEEK_DEFAULT_WIDTH_FRACTION = 0.5;
 // Dragging the handle beyond this fraction of the viewport snaps to fullscreen.

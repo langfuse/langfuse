@@ -94,6 +94,12 @@ const shouldKeepPeekOpenOnOutsideInteraction = (
   ignoredSelectors: string[],
 ): boolean => {
   if (!(target instanceof Element)) return false;
+  // Never dismiss for a target actually inside the peek. Radix usually detects
+  // this, but primitives that capture the pointer natively (e.g. the inner
+  // react-resizable-panels split handle) can bypass its inside-detection and be
+  // misreported as outside — which would close the peek mid-drag and unmount
+  // the panel group. This guard keeps interactions within the peek safe.
+  if (target.closest("[data-peek-content]")) return true;
   if (shouldIgnoreOutsideInteraction(target)) return true;
   if (target.closest("[data-row-index]")) return true;
   return [...ALWAYS_KEEP_PEEK_OPEN_SELECTORS, ...ignoredSelectors].some(
@@ -189,6 +195,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       <SheetPortal>
         <SheetPrimitive.Content
           aria-describedby={undefined}
+          data-peek-content=""
           style={panel.panelStyle}
           onPointerDownOutside={(e) => {
             if (
