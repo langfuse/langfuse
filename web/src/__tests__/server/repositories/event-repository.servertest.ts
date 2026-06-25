@@ -26,7 +26,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
-import { type FilterCondition } from "@langfuse/shared";
+import { type FilterCondition, type FilterExpression } from "@langfuse/shared";
 import waitForExpect from "wait-for-expect";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -463,6 +463,150 @@ describe("Clickhouse Events Repository Test", () => {
 
       expect(count).toBe(5);
       expect(observations.length).toBe(5);
+    });
+  });
+
+  maybe("Nested Filter Expression", () => {
+    const nestedOrAndFilter = (): FilterExpression => ({
+      type: "group",
+      operator: "OR",
+      conditions: [
+        {
+          type: "group",
+          operator: "AND",
+          conditions: [
+            { type: "string", column: "type", operator: "=", value: "SPAN" },
+            {
+              type: "string",
+              column: "environment",
+              operator: "=",
+              value: "prod",
+            },
+          ],
+        },
+        {
+          type: "group",
+          operator: "AND",
+          conditions: [
+            {
+              type: "string",
+              column: "type",
+              operator: "=",
+              value: "GENERATION",
+            },
+            {
+              type: "string",
+              column: "name",
+              operator: "=",
+              value: "beta-generation",
+            },
+          ],
+        },
+      ],
+    });
+
+    it("supports nested AND/OR filters for list and count queries", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const matchingSpanId = randomUUID();
+      const matchingGenerationId = randomUUID();
+      const nonMatchingId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingSpanId,
+          span_id: matchingSpanId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "alpha-span",
+          environment: "prod",
+        }),
+        createEvent({
+          id: matchingGenerationId,
+          span_id: matchingGenerationId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "beta-generation",
+          environment: "staging",
+        }),
+        createEvent({
+          id: nonMatchingId,
+          span_id: nonMatchingId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "beta-generation",
+          environment: "staging",
+        }),
+      ]);
+
+      const filter = nestedOrAndFilter();
+
+      const [observations, count] = await Promise.all([
+        getObservationsWithModelDataFromEventsTable({
+          projectId: uniqueProjectId,
+          filter,
+          limit: 100,
+          offset: 0,
+        }),
+        getObservationsCountFromEventsTable({
+          projectId: uniqueProjectId,
+          filter,
+        }),
+      ]);
+
+      expect(count).toBe(2);
+      expect(observations).toHaveLength(2);
+      expect(observations.map((observation) => observation.id).sort()).toEqual(
+        [matchingGenerationId, matchingSpanId].sort(),
+      );
+    });
+
+    it("normalizes a flat filter array to the same result as a single-leaf query", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const matchingId = randomUUID();
+      const nonMatchingId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: matchingId,
+          span_id: matchingId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "alpha-span",
+          environment: "prod",
+        }),
+        createEvent({
+          id: nonMatchingId,
+          span_id: nonMatchingId,
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "alpha-span",
+          environment: "staging",
+        }),
+      ]);
+
+      // A flat FilterState array (implicit AND) flows through the same v2 path
+      // and matches only the row satisfying every condition.
+      const flatCount = await getObservationsCountFromEventsTable({
+        projectId: uniqueProjectId,
+        filter: [
+          { type: "string", column: "type", operator: "=", value: "SPAN" },
+          {
+            type: "string",
+            column: "environment",
+            operator: "=",
+            value: "prod",
+          },
+        ],
+      });
+
+      expect(flatCount).toBe(1);
     });
   });
 

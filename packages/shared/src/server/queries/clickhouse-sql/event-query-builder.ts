@@ -3,7 +3,10 @@ import {
   ObservationFieldGroupPublicApi,
 } from "../../../domain/observation-field-groups";
 import { OBSERVATIONS_TO_TRACE_INTERVAL } from "../../repositories/constants";
-import { FilterList, StringFilter } from "./clickhouse-filter";
+import {
+  type CompiledFilterCollection,
+  StringFilter,
+} from "./clickhouse-filter";
 
 /**
  * Extract the output column alias from a field expression (unquoted).
@@ -544,10 +547,11 @@ abstract class AbstractQueryBuilder {
   }
 
   /**
-   * Apply filters from a FilterList.
-   * Subclasses can override to add optimizations (e.g., partition pruning).
+   * Apply filters from a compiled filter collection (flat FilterList or nested
+   * FilterTree). Subclasses can override to add optimizations (e.g., partition
+   * pruning).
    */
-  applyFilters(filterList: FilterList): this {
+  applyFilters(filterList: CompiledFilterCollection): this {
     this.where(filterList.apply());
     return this;
   }
@@ -818,8 +822,10 @@ abstract class BaseEventsQueryBuilder<
    * Apply filters with automatic query optimizations.
    * Adds xxHash32 optimization for trace_id equality filters.
    */
-  override applyFilters(filterList: FilterList): this {
-    const traceIdFilter = filterList.find(
+  override applyFilters(filterList: CompiledFilterCollection): this {
+    // findMandatory (AND-only leaves) so the xxHash32 prune never fires on a
+    // trace_id leaf that sits under an OR, where it would not constrain rows.
+    const traceIdFilter = filterList.findMandatory(
       (f) =>
         f.clickhouseTable.startsWith("events") &&
         f.field === 'e."trace_id"' &&

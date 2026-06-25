@@ -4,7 +4,10 @@ import {
   CTEQueryBuilder,
   EventsAggregationQueryBuilder,
   EventsQueryBuilder,
+  createFilterTreeFromFilterExpression,
+  eventsTableUiColumnDefinitions,
 } from "@langfuse/shared/src/server";
+import { eventsTableCols, type FilterExpression } from "@langfuse/shared";
 
 describe("buildEventsFilterOptionsForColumnsQuery", () => {
   it("builds one events_core scan for multiple filter option columns", () => {
@@ -419,5 +422,102 @@ describe("EventsQueryBuilder", () => {
     expect(query).toContain(
       "mapFromArrays(e.experiment_item_metadata_names, e.experiment_item_metadata_values) as experiment_item_metadata",
     );
+  });
+});
+
+describe("EventsQueryBuilder nested filter expressions", () => {
+  it("adds trace hash pruning only for mandatory traceId filters", () => {
+    const filterExpression: FilterExpression = {
+      type: "group",
+      operator: "AND",
+      conditions: [
+        { type: "string", column: "traceId", operator: "=", value: "trace-1" },
+        {
+          type: "group",
+          operator: "OR",
+          conditions: [
+            { type: "string", column: "name", operator: "=", value: "alpha" },
+            { type: "string", column: "name", operator: "=", value: "beta" },
+          ],
+        },
+      ],
+    };
+
+    const { query, params } = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("count")
+      .applyFilters(
+        createFilterTreeFromFilterExpression(
+          filterExpression,
+          eventsTableUiColumnDefinitions,
+          eventsTableCols,
+        ),
+      )
+      .buildWithParams();
+
+    expect(query).toContain(
+      "xxHash32(trace_id) = xxHash32({traceIdXxHash: String})",
+    );
+    expect(params.traceIdXxHash).toBe("trace-1");
+  });
+
+  it("does not add trace hash pruning for OR-only traceId filters", () => {
+    const filterExpression: FilterExpression = {
+      type: "group",
+      operator: "OR",
+      conditions: [
+        { type: "string", column: "traceId", operator: "=", value: "trace-1" },
+        { type: "string", column: "name", operator: "=", value: "alpha" },
+      ],
+    };
+
+    const { query, params } = new EventsQueryBuilder({
+      projectId: "test-project",
+    })
+      .selectFieldSet("count")
+      .applyFilters(
+        createFilterTreeFromFilterExpression(
+          filterExpression,
+          eventsTableUiColumnDefinitions,
+          eventsTableCols,
+        ),
+      )
+      .buildWithParams();
+
+    expect(query).not.toContain("traceIdXxHash");
+    expect(params.traceIdXxHash).toBeUndefined();
+  });
+
+  it("keeps the authorized project filter outside nested OR expressions", () => {
+    const filterExpression: FilterExpression = {
+      type: "group",
+      operator: "OR",
+      conditions: [
+        { type: "string", column: "name", operator: "=", value: "alpha" },
+        { type: "string", column: "type", operator: "=", value: "SPAN" },
+      ],
+    };
+
+    const { query, params } = new EventsQueryBuilder({
+      projectId: "authorized-project",
+    })
+      .selectFieldSet("count")
+      .applyFilters(
+        createFilterTreeFromFilterExpression(
+          filterExpression,
+          eventsTableUiColumnDefinitions,
+          eventsTableCols,
+        ),
+      )
+      .buildWithParams();
+
+    // projectId is unshifted as a builder-level root-AND wrapping the user OR —
+    // structurally impossible to OR away.
+    expect(query).toContain("WHERE e.project_id = {projectId: String}");
+    expect(query).toMatch(
+      /WHERE e\.project_id = \{projectId: String\}[\s\S]*AND \(\(.+\) OR \(.+\)\)/,
+    );
+    expect(params.projectId).toBe("authorized-project");
   });
 });
