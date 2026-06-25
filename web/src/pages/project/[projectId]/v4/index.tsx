@@ -210,7 +210,7 @@ export default function V4Page() {
       }}
     >
       <div className="mx-auto flex w-full max-w-screen-xl flex-col gap-3">
-        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
+        <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
           <DashboardCard
             title="Trace-level evals"
             description="Trace-targeting evaluator configs and non-cancelled execution jobs in the selected range."
