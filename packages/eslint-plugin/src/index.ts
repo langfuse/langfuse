@@ -2,11 +2,13 @@ import { default as noTailwindOverflowScroll } from "./rules/no-tailwind-overflo
 import { default as noInSourceVitest } from "./rules/no-in-source-vitest.js";
 import { default as noOverlayZindex } from "./rules/no-overlay-zindex.js";
 import { default as noStyleProps } from "./rules/no-style-props.js";
+import { default as noNestedTernary } from "./rules/no-nested-ternary.js";
 import { default as noUnnecessaryCn } from "./rules/no-unnecessary-cn.js";
 
 export const plugin = {
   rules: {
     "no-in-source-vitest": noInSourceVitest,
+    "no-nested-ternary": noNestedTernary,
     "no-overlay-zindex": noOverlayZindex,
     "no-style-props": noStyleProps,
     "no-tailwind-overflow-scroll": noTailwindOverflowScroll,
