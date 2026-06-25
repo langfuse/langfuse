@@ -5,6 +5,7 @@ import {
   logger,
   queryClickhouse,
   sleep,
+  TupleParam,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import { parseArgs } from "node:util";
@@ -157,11 +158,6 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
    * the scan is index-aligned. Dedupes to one row per
    * (project_id, trace_id, observation_id) — matching the live cron — so we
    * don't process the same trace+observation slot twice within a batch.
-   *
-   * Note: traces that belong to multiple dataset_runs may surface in
-   * different batches, in which case events_full ends up enriched with the
-   * last-written experiment (ReplacingMergeTree). This matches the live
-   * cron's behaviour.
    */
   private async loadDriBatch(
     cursor: DriCursor | null,
@@ -222,21 +218,24 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   // ============================================================================
 
   /**
+   * Deduplicated `(project_id, trace_id)` pairs for the batch, as ClickHouse
+   * tuple params for composite `(project_id, trace_id) IN (...)` filters.
+   */
+  private buildTracePairs(driBatch: DatasetRunItem[]): TupleParam[] {
+    return [
+      ...new Map(
+        driBatch.map((d) => [
+          JSON.stringify([d.project_id, d.trace_id]),
+          new TupleParam([d.project_id, d.trace_id]),
+        ]),
+      ).values(),
+    ];
+  }
+
+  /**
    * Fetches observations for the batch's traces, padded by `lookbackDays` on
    * either side of the batch's DRI created_at window so trace timestamps that
    * predate or postdate the DRI insert are still found.
-   *
-   * Reads from `observations_pid_tid_sorting` (the M2 scratch table) rather than
-   * the live `observations` table: its sort key is `(project_id, trace_id, id)`,
-   * so the `project_id`/`trace_id` filters below resolve to precise primary-key
-   * seeks instead of a project-wide, time-bounded scan with a non-indexed
-   * trace_id predicate. The scratch is a full copy of `observations` (M2 does
-   * not exclude DRI-referenced rows) and is still present at this point in the
-   * chain (M5 drops it after M4).
-   *
-   * Differs from `getRelevantObservations` in `handleExperimentBackfill.ts`:
-   * we deliberately do **not** filter out the `langfuse-prompt-experiment`
-   * environment because historical backfill must include that data.
    */
   private async fetchObservationsForBatch(
     driBatch: DatasetRunItem[],
@@ -244,8 +243,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   ): Promise<SpanRecord[]> {
     if (driBatch.length === 0) return [];
 
-    const projectIds = [...new Set(driBatch.map((d) => d.project_id))];
-    const traceIds = [...new Set(driBatch.map((d) => d.trace_id))];
+    const tracePairs = this.buildTracePairs(driBatch);
     const { minTime, maxTime } = computeBatchTimeWindow(driBatch, lookbackDays);
 
     const query = `
@@ -292,8 +290,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         '' AS user_id,
         '' AS session_id
       FROM observations_pid_tid_sorting o
-      WHERE o.project_id IN {projectIds: Array(String)}
-        AND o.trace_id IN {traceIds: Array(String)}
+      WHERE (o.project_id, o.trace_id) IN {tracePairs: Array(Tuple(String, String))}
         AND o.start_time >= {minTime: DateTime64(3)}
         AND o.start_time <= {maxTime: DateTime64(3)}
       ORDER BY o.event_ts DESC
@@ -303,8 +300,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     return queryClickhouse<SpanRecord>({
       query,
       params: {
-        projectIds,
-        traceIds,
+        tracePairs,
         minTime: convertDateToClickhouseDateTime(minTime),
         maxTime: convertDateToClickhouseDateTime(maxTime),
       },
@@ -319,10 +315,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   }
 
   /**
-   * Fetches traces for the batch, padded by `lookbackDays`. Mirrors the
-   * shape of `getRelevantTraces` so the result can flow through the same
-   * `buildSpanMaps`/`findAllChildren` helpers, but without the prompt-
-   * experiment environment filter.
+   * Fetches traces for the batch, padded by `lookbackDays`.
    */
   private async fetchTracesForBatch(
     driBatch: DatasetRunItem[],
@@ -330,8 +323,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
   ): Promise<SpanRecord[]> {
     if (driBatch.length === 0) return [];
 
-    const projectIds = [...new Set(driBatch.map((d) => d.project_id))];
-    const traceIds = [...new Set(driBatch.map((d) => d.trace_id))];
+    const tracePairs = this.buildTracePairs(driBatch);
     const { minTime, maxTime } = computeBatchTimeWindow(driBatch, lookbackDays);
 
     const query = `
@@ -376,8 +368,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
         coalesce(t.session_id, '') AS session_id,
         t.event_ts AS event_ts
       FROM traces t
-      WHERE t.project_id IN {projectIds: Array(String)}
-        AND t.id IN {traceIds: Array(String)}
+      WHERE (t.project_id, t.id) IN {tracePairs: Array(Tuple(String, String))}
         AND t.timestamp >= {minTime: DateTime64(3)}
         AND t.timestamp <= {maxTime: DateTime64(3)}
       ORDER BY t.event_ts DESC
@@ -387,8 +378,7 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
     return queryClickhouse<SpanRecord>({
       query,
       params: {
-        projectIds,
-        traceIds,
+        tracePairs,
         minTime: convertDateToClickhouseDateTime(minTime),
         maxTime: convertDateToClickhouseDateTime(maxTime),
       },
@@ -408,10 +398,8 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
 
   /**
    * Inserts enriched spans into events_full synchronously. The migration
-   * deliberately bypasses the shared ClickhouseWriter queue: its buffer is
-   * owned by live ingestion and flushed on its own schedule, so buffered
-   * migration writes could be dropped on shutdown after the cursor already
-   * advanced. An awaited insert keeps the invariant that the cursor only
+   * deliberately bypasses the shared ClickhouseWriter queue.
+   * An awaited insert keeps the invariant that the cursor only
    * moves past durably written data. Transient insert failures propagate to
    * the batch retry loop in run(); re-inserting a batch is safe because
    * events_full is a ReplacingMergeTree.
@@ -586,8 +574,6 @@ export default class BackfillEventsFullFromDatasetRunItems implements IBackgroun
 
     const requiredTables = [
       "dataset_run_items_rmt",
-      // M4 reads observations from the M2 scratch table (trace-id-sorted), not
-      // the live `observations` table — see fetchObservationsForBatch.
       "observations_pid_tid_sorting",
       "traces",
       "events_full",

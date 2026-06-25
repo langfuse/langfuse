@@ -33,6 +33,14 @@ import {
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
 
 /**
+ * Re-exported so callers can build `Array(Tuple(...))` query parameters without
+ * importing `@clickhouse/client` directly (e.g. composite `(col_a, col_b) IN`
+ * predicates). A plain JS array serializes as an `Array`; `TupleParam` is what
+ * renders each element as a `(...)` tuple, with string contents escaped.
+ */
+export { TupleParam } from "@clickhouse/client";
+
+/**
  * Custom error class for ClickHouse resource-related errors
  */
 // Error type configuration map
