@@ -4,10 +4,32 @@ import {
   calculateTimelineOffset,
   calculateTimelineWidth,
   calculateStepSize,
+  findEarliestStartTime,
   getPredefinedStepSizes,
   SCALE_WIDTH,
   PREDEFINED_STEP_SIZES,
 } from "./timeline-calculations";
+import { type TreeNode } from "../../lib/types";
+
+// Minimal TreeNode factory for origin tests (only the fields the helper reads).
+function makeNode(
+  id: string,
+  startTime: string,
+  children: TreeNode[] = [],
+): TreeNode {
+  return {
+    id,
+    type: "SPAN",
+    name: id,
+    startTime: new Date(startTime),
+    endTime: null,
+    children,
+    startTimeSinceTrace: 0,
+    startTimeSinceParentStart: null,
+    depth: 0,
+    childrenDepth: 0,
+  } as TreeNode;
+}
 
 describe("timeline-calculations", () => {
   describe("calculateTimelineOffset", () => {
@@ -262,6 +284,66 @@ describe("timeline-calculations", () => {
       // This shouldn't happen in practice, but handle gracefully
       const width = calculateTimelineWidth(20, 10);
       expect(width).toBe(SCALE_WIDTH * 2); // Just calculates proportionally
+    });
+  });
+
+  describe("findEarliestStartTime (timeline origin)", () => {
+    it("returns null for an empty tree", () => {
+      expect(findEarliestStartTime([])).toBeNull();
+    });
+
+    it("returns the root start time when the root starts first", () => {
+      const root = makeNode("root", "2024-01-01T00:00:00Z", [
+        makeNode("child", "2024-01-01T00:00:02Z"),
+      ]);
+      expect(findEarliestStartTime([root])?.toISOString()).toBe(
+        "2024-01-01T00:00:00.000Z",
+      );
+    });
+
+    it("anchors to a child that starts BEFORE the root (the origin bug)", () => {
+      // The root (TRACE wrapper) starts at the trace timestamp, but an early
+      // observation began before it. The origin must be the child's start.
+      const root = makeNode("root", "2024-01-01T00:00:05Z", [
+        makeNode("early-child", "2024-01-01T00:00:01Z"),
+        makeNode("late-child", "2024-01-01T00:00:07Z"),
+      ]);
+
+      const origin = findEarliestStartTime([root]);
+      expect(origin?.toISOString()).toBe("2024-01-01T00:00:01.000Z");
+
+      // And the offset of that early child against the corrected origin is 0,
+      // not negative as it would be when anchoring to the root.
+      const offset = calculateTimelineOffset(
+        new Date("2024-01-01T00:00:01Z"),
+        origin!,
+        10,
+      );
+      expect(offset).toBe(0);
+    });
+
+    it("descends into deeply nested children to find the minimum", () => {
+      const root = makeNode("root", "2024-01-01T00:00:10Z", [
+        makeNode("a", "2024-01-01T00:00:08Z", [
+          makeNode("b", "2024-01-01T00:00:03Z", [
+            makeNode("c", "2024-01-01T00:00:02Z"),
+          ]),
+        ]),
+      ]);
+      expect(findEarliestStartTime([root])?.toISOString()).toBe(
+        "2024-01-01T00:00:02.000Z",
+      );
+    });
+
+    it("considers all roots when there are multiple", () => {
+      const roots = [
+        makeNode("r1", "2024-01-01T00:00:04Z"),
+        makeNode("r2", "2024-01-01T00:00:01Z"),
+        makeNode("r3", "2024-01-01T00:00:06Z"),
+      ];
+      expect(findEarliestStartTime(roots)?.toISOString()).toBe(
+        "2024-01-01T00:00:01.000Z",
+      );
     });
   });
 });

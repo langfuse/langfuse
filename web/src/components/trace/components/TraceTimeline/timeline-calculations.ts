@@ -3,9 +3,43 @@
  * These functions handle all timeline positioning and sizing logic
  */
 
+import { type TreeNode } from "../../lib/types";
+
 // Fixed widths for timeline styling
 export const SCALE_WIDTH = 900;
 export const STEP_SIZE = 100;
+
+/**
+ * Find the earliest start time across the whole tree (roots + all descendants).
+ *
+ * This is the timeline origin (the 0s mark). It must be the minimum start time
+ * over the entire tree, not just the roots: a child observation can start
+ * before its root (the TRACE wrapper's start time is the trace's own timestamp,
+ * which may be later than the first observation). Anchoring the origin to the
+ * roots alone pushes the 0s mark past such early children, giving them negative
+ * offsets and misaligning the whole gantt.
+ *
+ * @param roots - Root nodes of the trace tree
+ * @returns Earliest start time across the tree, or `null` when there are no nodes
+ */
+export function findEarliestStartTime(roots: TreeNode[]): Date | null {
+  if (roots.length === 0) return null;
+
+  let earliest = Infinity;
+
+  // Iterative DFS to avoid stack overflow on deep trees.
+  const stack: TreeNode[] = [...roots];
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    const start = node.startTime.getTime();
+    if (start < earliest) earliest = start;
+    for (const child of node.children) {
+      stack.push(child);
+    }
+  }
+
+  return new Date(earliest);
+}
 
 // Predefined step sizes for time axis (in seconds)
 export const PREDEFINED_STEP_SIZES = [
