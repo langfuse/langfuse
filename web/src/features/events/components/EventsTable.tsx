@@ -106,6 +106,9 @@ import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSea
 import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
 import { buildAiContext } from "@/src/features/search-bar/lib/ai-context";
 import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
+import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
+import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
 
 export type EventsTableRow = {
   // Identity fields
@@ -346,6 +349,25 @@ export default function ObservationsEventsTable({
   }, [timeRange, refreshTick]);
 
   const dateRange = externalDateRange ?? tableDateRange;
+
+  // Chart view ("any view is a chart"): URL-driven table↔chart toggle + config.
+  // Only offered on the full (non-embedded) events surface, which is already
+  // v4-only (the page mounts this table only for v4 users), so v1/legacy users
+  // never see it.
+  const {
+    viewMode: chartViewMode,
+    setViewMode: setChartViewMode,
+    config: chartConfig,
+    setConfig: setChartConfig,
+  } = useChartViewState();
+  const chartEnabled = !hideControls;
+  const chartTimeWindow = useMemo(
+    () => ({
+      from: dateRange?.from ?? new Date(Date.now() - 24 * 60 * 60 * 1000),
+      to: dateRange?.to ?? new Date(),
+    }),
+    [dateRange],
+  );
 
   const dateRangeFilter: FilterState = dateRange
     ? [
@@ -1551,14 +1573,14 @@ export default function ObservationsEventsTable({
               setRowHeight={setRowHeight}
               timeRange={timeRange}
               setTimeRange={setTimeRange}
-              // Disabled, for now moved to filter sidebar
-              // TODO: remove this toggle once v4 looks good as is
-              // viewModeToggle={
-              //   <EventsViewModeToggle
-              //     viewMode={viewMode}
-              //     onViewModeChange={setViewMode}
-              //   />
-              // }
+              viewModeToggle={
+                chartEnabled ? (
+                  <ViewModeToggle
+                    mode={chartViewMode}
+                    onModeChange={setChartViewMode}
+                  />
+                ) : undefined
+              }
               refreshConfig={{
                 onRefresh: handleRefresh,
                 isRefreshing: observations.status === "loading",
@@ -1630,105 +1652,116 @@ export default function ObservationsEventsTable({
           )}
 
           <div className="flex flex-1 flex-col overflow-hidden">
-            <DataTable
-              key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
-              tableName={"observations"}
-              columns={columns}
-              peekView={peekConfig}
-              data={
-                observations.status === "loading" || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : observations.status === "error"
-                    ? isSilencedError
-                      ? {
-                          isLoading: false,
-                          isError: false,
-                          data: [],
-                        }
+            {chartEnabled && chartViewMode === "chart" ? (
+              <EventsChartView
+                projectId={projectId}
+                filterState={filterState}
+                fromTimestamp={chartTimeWindow.from}
+                toTimestamp={chartTimeWindow.to}
+                config={chartConfig}
+                onConfigChange={setChartConfig}
+              />
+            ) : (
+              <DataTable
+                key={`observations-table-${dataUpdatedAt}-${rows.length > 0 && rows[0]?.input ? "with-io" : "without-io"}`}
+                tableName={"observations"}
+                columns={columns}
+                peekView={peekConfig}
+                data={
+                  observations.status === "loading" || isViewLoading
+                    ? { isLoading: true, isError: false }
+                    : observations.status === "error"
+                      ? isSilencedError
+                        ? {
+                            isLoading: false,
+                            isError: false,
+                            data: [],
+                          }
+                        : {
+                            isLoading: false,
+                            isError: true,
+                            error: "",
+                          }
                       : {
                           isLoading: false,
-                          isError: true,
-                          error: "",
+                          isError: false,
+                          data: rows,
                         }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: rows,
-                      }
-              }
-              noResultsMessage={
-                isSilencedError ? (
-                  <span className="text-muted-foreground">
-                    {RESOURCE_LIMIT_ERROR_MESSAGE}
-                  </span>
-                ) : undefined
-              }
-              pagination={
-                limitRows
-                  ? undefined
-                  : {
-                      totalCount,
-                      hasNextPage: hasMore,
-                      hideTotalCount: true,
-                      canJumpPages: false,
-                      onChange: (updater) => {
-                        const newState =
-                          typeof updater === "function"
-                            ? updater({
-                                pageIndex: paginationState.page - 1,
-                                pageSize: paginationState.limit,
-                              })
-                            : updater;
-                        setPaginationState({
-                          page: newState.pageIndex + 1,
-                          limit: newState.pageSize,
-                        });
-                      },
-                      state: {
-                        pageIndex: paginationState.page - 1,
-                        pageSize: paginationState.limit,
-                      },
-                    }
-              }
-              rowSelection={selectedRows}
-              highlightAllRows={selectAll}
-              setRowSelection={setSelectedRows}
-              setOrderBy={setOrderByState}
-              orderBy={orderByState}
-              columnOrder={columnOrder}
-              onColumnOrderChange={setColumnOrder}
-              columnVisibility={columnVisibility}
-              onColumnVisibilityChange={setColumnVisibilityState}
-              rowHeight={rowHeight}
-              onRowClick={(row, event) => {
-                // Handle Command/Ctrl+click to open observation in new tab
-                if (event && (event.metaKey || event.ctrlKey)) {
-                  // Prevent the default peek behavior
-                  event.preventDefault();
-
-                  // Construct the observation URL directly to avoid race conditions
-                  const observationId = row.id;
-                  const traceId = row.traceId;
-                  const timestamp = row.timestamp;
-
-                  if (traceId) {
-                    const observationUrl = buildTraceDetailPath({
-                      projectId,
-                      traceId,
-                      observationId,
-                      timestamp,
-                    });
-
-                    window.open(
-                      getSafeRedirectPath(observationUrl),
-                      "_blank",
-                      "noopener,noreferrer",
-                    );
-                  }
                 }
-                // For normal clicks, let the data-table handle opening the peek view
-              }}
-            />
+                noResultsMessage={
+                  isSilencedError ? (
+                    <span className="text-muted-foreground">
+                      {RESOURCE_LIMIT_ERROR_MESSAGE}
+                    </span>
+                  ) : undefined
+                }
+                pagination={
+                  limitRows
+                    ? undefined
+                    : {
+                        totalCount,
+                        hasNextPage: hasMore,
+                        hideTotalCount: true,
+                        canJumpPages: false,
+                        onChange: (updater) => {
+                          const newState =
+                            typeof updater === "function"
+                              ? updater({
+                                  pageIndex: paginationState.page - 1,
+                                  pageSize: paginationState.limit,
+                                })
+                              : updater;
+                          setPaginationState({
+                            page: newState.pageIndex + 1,
+                            limit: newState.pageSize,
+                          });
+                        },
+                        state: {
+                          pageIndex: paginationState.page - 1,
+                          pageSize: paginationState.limit,
+                        },
+                      }
+                }
+                rowSelection={selectedRows}
+                highlightAllRows={selectAll}
+                setRowSelection={setSelectedRows}
+                setOrderBy={setOrderByState}
+                orderBy={orderByState}
+                columnOrder={columnOrder}
+                onColumnOrderChange={setColumnOrder}
+                columnVisibility={columnVisibility}
+                onColumnVisibilityChange={setColumnVisibilityState}
+                rowHeight={rowHeight}
+                onRowClick={(row, event) => {
+                  // Handle Command/Ctrl+click to open observation in new tab
+                  if (event && (event.metaKey || event.ctrlKey)) {
+                    // Prevent the default peek behavior
+                    event.preventDefault();
+
+                    // Construct the observation URL directly to avoid race conditions
+                    const observationId = row.id;
+                    const traceId = row.traceId;
+                    const timestamp = row.timestamp;
+
+                    if (traceId) {
+                      const observationUrl = buildTraceDetailPath({
+                        projectId,
+                        traceId,
+                        observationId,
+                        timestamp,
+                      });
+
+                      window.open(
+                        getSafeRedirectPath(observationUrl),
+                        "_blank",
+                        "noopener,noreferrer",
+                      );
+                    }
+                  }
+                  // For normal clicks, let the data-table handle opening the peek view
+                }}
+              />
+            )}
           </div>
         </ResizableFilterLayout>
         {peekConfig && (

@@ -29,10 +29,9 @@ import {
 } from "../vocab";
 
 /**
- * View-only config pickers shared by both UX takes. Each is a thin controlled
- * wrapper over a primitive — `value` in, `onChange` out, no feature logic — so
- * the inline bar and the side panel differ only in how they arrange these, not
- * in what they do.
+ * View-only config pickers shared by the production chart view and the
+ * Storybook harness. Each is a thin controlled wrapper over a primitive —
+ * `value` in, `onChange` out, no feature logic.
  */
 
 const TRIGGER_CLASS = "h-7 w-auto gap-1 text-xs";

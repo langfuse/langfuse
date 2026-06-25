@@ -1,4 +1,5 @@
 import { coerceConfig, describeConfig, DEFAULT_CONFIG } from "./vocab";
+import { type ChartViewConfig } from "./types";
 
 describe("coerceConfig", () => {
   it("resets the aggregation when the metric does not support it", () => {
@@ -17,6 +18,21 @@ describe("coerceConfig", () => {
       aggregation: "p99",
     });
     expect(coerced.aggregation).toBe("p99");
+  });
+
+  it("clamps unknown fields (untrusted URL params) to safe defaults", () => {
+    const coerced = coerceConfig({
+      metric: "bogus" as ChartViewConfig["metric"],
+      aggregation: "nope" as ChartViewConfig["aggregation"],
+      breakdown: "whoops" as ChartViewConfig["breakdown"],
+      chartType: "FOO" as ChartViewConfig["chartType"],
+      timeGranularity: "century" as ChartViewConfig["timeGranularity"],
+    });
+    expect(coerced.metric).toBe("count");
+    expect(coerced.aggregation).toBe("count");
+    expect(coerced.breakdown).toBe("none");
+    expect(coerced.chartType).toBe("LINE_TIME_SERIES");
+    expect(coerced.timeGranularity).toBe("hour");
   });
 });
 

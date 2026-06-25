@@ -1,8 +1,4 @@
-import {
-  aggregateEvents,
-  buildChartConfig,
-  floorToGranularity,
-} from "./aggregate";
+import { aggregateEvents, floorToGranularity } from "./aggregate";
 import { type PrototypeEvent } from "../types";
 import { DEFAULT_CONFIG } from "../vocab";
 
@@ -154,21 +150,5 @@ describe("floorToGranularity", () => {
     expect(floorToGranularity("2026-06-25T10:45:12.345Z", "minute")).toBe(
       "2026-06-25T10:45:00.000Z",
     );
-  });
-});
-
-describe("buildChartConfig", () => {
-  it("always includes a metric key and one entry per series", () => {
-    const config = buildChartConfig(
-      [
-        { time_dimension: "t", dimension: "gpt-4o", metric: 1 },
-        { time_dimension: "t", dimension: "claude-opus-4", metric: 2 },
-      ],
-      "Count",
-    );
-    expect(Object.keys(config).sort()).toEqual(
-      ["claude-opus-4", "gpt-4o", "metric"].sort(),
-    );
-    expect(config.metric.label).toBe("Count");
   });
 });

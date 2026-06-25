@@ -1,12 +1,11 @@
 import React from "react";
 import { BarChart3, Table } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/src/components/ui/toggle-group";
-
-export type ViewMode = "table" | "chart";
+import { type ViewMode } from "../types";
 
 /**
- * The toolbar affordance that flips the view between table and chart. The whole
- * prototype hangs off this one control — "any view is a chart". View-only.
+ * The toolbar affordance that flips the v4 events view between table and chart.
+ * "Any view is a chart". View-only.
  */
 export const ViewModeToggle = React.memo(function ViewModeToggle({
   mode,
