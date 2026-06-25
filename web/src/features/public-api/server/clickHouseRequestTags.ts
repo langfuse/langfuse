@@ -1,5 +1,7 @@
 import { type NextApiRequest } from "next";
 
+const stripSearchAndHash = (url: string) => url.split(/[?#]/, 1)[0] ?? "";
+
 export const clickHouseRouteForRequest = (req: NextApiRequest) => {
   const method = req.method ?? "UNKNOWN";
   const rawUrl = req.url ?? "";
@@ -10,6 +12,6 @@ export const clickHouseRouteForRequest = (req: NextApiRequest) => {
       : "";
     return `${method} ${pathname}`;
   } catch {
-    return `${method} ${rawUrl}`;
+    return `${method} ${stripSearchAndHash(rawUrl)}`;
   }
 };
