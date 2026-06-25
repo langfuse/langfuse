@@ -335,12 +335,11 @@ export const formatDateRange = (from: Date, to: Date) => {
     const fromPattern = showFromYear ? "LLL dd, yyyy" : "LLL dd";
     const toPattern = showToYear ? "LLL dd, yyyy" : "LLL dd";
     return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
-  } else {
-    // Show dates with times for partial day ranges
-    const fromPattern = showFromYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
-    const toPattern = showToYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
-    return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
   }
+  // Show dates with times for partial day ranges
+  const fromPattern = showFromYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
+  const toPattern = showToYear ? "LLL dd yyyy, HH:mm" : "LLL dd, HH:mm";
+  return `${format(from, fromPattern)} - ${format(to, toPattern)}`;
 };
 
 export type RelativeTimeRange = {
@@ -480,9 +479,9 @@ function getIntervalDuration(interval: IntervalConfig): number {
 export function getOptimalInterval(
   fromDate: Date,
   toDate: Date,
-  targetPoints: number = 13,
-  minPoints: number = 10,
-  maxPoints: number = 16,
+  targetPoints = 13,
+  minPoints = 10,
+  maxPoints = 16,
 ): IntervalConfig {
   const durationMs = toDate.getTime() - fromDate.getTime();
 
@@ -586,9 +585,8 @@ export function getScoreAnalyticsInterval(
     return "week";
   }
   // > 1 year → month (yields 12+ points)
-  else {
-    return "month";
-  }
+
+  return "month";
 }
 
 /**
@@ -599,9 +597,8 @@ export function getScoreAnalyticsInterval(
 export function rangeToString(range: TimeRange): string {
   if ("range" in range) {
     return getAbbreviatedTimeRange(range.range);
-  } else {
-    return `${range.from.getTime()}-${range.to.getTime()}`;
   }
+  return `${range.from.getTime()}-${range.to.getTime()}`;
 }
 
 /**
@@ -691,10 +688,9 @@ export function getChartAxisFormat(
       if (durationHours !== null && durationHours <= 24) {
         // Within 1 day: time only
         return "HH:mm";
-      } else {
-        // Multiple days: date + time
-        return "MMM dd, HH:mm";
       }
+      // Multiple days: date + time
+      return "MMM dd, HH:mm";
 
     case "day":
       // 7 days - 90 days: date without time

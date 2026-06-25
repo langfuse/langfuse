@@ -51,41 +51,21 @@ const deleteMediaItemsForTraces = async (
   traceMediaItems.forEach((item) => allMediaIds.add(item.mediaId));
   observationMediaItems.forEach((item) => allMediaIds.add(item.mediaId));
 
-  // Delete the junction table records by traceId (should be covered by indexes)
-  await Promise.all([
-    prisma.traceMedia.deleteMany({
-      where: {
-        projectId,
-        traceId: {
-          in: traceIds,
-        },
-      },
-    }),
-    prisma.observationMedia.deleteMany({
-      where: {
-        projectId,
-        traceId: {
-          in: traceIds,
-        },
-      },
-    }),
-  ]);
-
   // Phase 2: Delete orphaned media items using NOT EXISTS subquery
   if (allMediaIds.size === 0) {
     return;
   }
 
   const mediaIdChunks = chunk(Array.from(allMediaIds), 1000);
+  const s3DeletedMediaIds: string[] = [];
 
   for (const mediaIdChunk of mediaIdChunks) {
-    // First, fetch media items that are orphaned (no references) to get their bucket paths
+    // Delete S3 before Postgres so a storage failure leaves trace links for
+    // retry discovery. Re-check orphan guards after deleting the trace links.
     const orphanedMedia = await prisma.$queryRaw<
       { id: string; bucketPath: string }[]
     >`
-      SELECT
-        m.id,
-        m.bucket_path AS "bucketPath"
+      SELECT m.id, m.bucket_path AS "bucketPath"
       FROM media m
       WHERE
         m.project_id = ${projectId}
@@ -95,32 +75,92 @@ const deleteMediaItemsForTraces = async (
           FROM trace_media tm
           WHERE tm.project_id = m.project_id
             AND tm.media_id = m.id
+            AND tm.trace_id NOT IN (${Prisma.join(traceIds)})
         )
         AND NOT EXISTS (
           SELECT 1
           FROM observation_media om
           WHERE om.project_id = m.project_id
             AND om.media_id = m.id
+            AND om.trace_id NOT IN (${Prisma.join(traceIds)})
+        )
+        -- Only a claimed association (validFrom set) protects media; pending
+        -- rows (null validFrom) are sweepable, matching deleteMediaFiles.
+        AND NOT EXISTS (
+          SELECT 1
+          FROM dataset_item_media dim
+          WHERE dim.project_id = m.project_id
+            AND dim.media_id = m.id
+            AND dim.dataset_item_valid_from IS NOT NULL
         )
     `;
 
     if (orphanedMedia.length > 0) {
-      // Delete from S3
       await getS3MediaStorageClient(
         env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET ?? "", // Fallback is never used.
       ).deleteFiles(orphanedMedia.map((f) => f.bucketPath));
 
-      // Delete from postgres
-      await prisma.media.deleteMany({
-        where: {
-          projectId,
-          id: {
-            in: orphanedMedia.map((f) => f.id),
-          },
-        },
-      });
+      s3DeletedMediaIds.push(...orphanedMedia.map((m) => m.id));
     }
   }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.traceMedia.deleteMany({
+      where: {
+        projectId,
+        traceId: {
+          in: traceIds,
+        },
+      },
+    });
+
+    await tx.observationMedia.deleteMany({
+      where: {
+        projectId,
+        traceId: {
+          in: traceIds,
+        },
+      },
+    });
+
+    if (s3DeletedMediaIds.length > 0) {
+      // Sweep leftover pending rows for the deleted media (claimed rows can't
+      // exist for deletable media), matching deleteMediaFiles.
+      await tx.datasetItemMedia.deleteMany({
+        where: {
+          projectId,
+          mediaId: { in: s3DeletedMediaIds },
+          datasetItemValidFrom: null,
+        },
+      });
+
+      await tx.$executeRaw`
+        DELETE FROM media m
+        WHERE
+          m.project_id = ${projectId}
+          AND m.id IN (${Prisma.join(s3DeletedMediaIds)})
+          AND NOT EXISTS (
+            SELECT 1
+            FROM trace_media tm
+            WHERE tm.project_id = m.project_id
+              AND tm.media_id = m.id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM observation_media om
+            WHERE om.project_id = m.project_id
+              AND om.media_id = m.id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM dataset_item_media dim
+            WHERE dim.project_id = m.project_id
+              AND dim.media_id = m.id
+              AND dim.dataset_item_valid_from IS NOT NULL
+          )
+      `;
+    }
+  });
 };
 
 export const processClickhouseTraceDelete = async (

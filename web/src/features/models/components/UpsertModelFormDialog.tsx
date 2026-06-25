@@ -93,29 +93,28 @@ export const UpsertModelFormDialog = (({
         tokenizerConfig: JSON.stringify(props.modelData.tokenizerConfig ?? {}),
         pricingTiers: loadedTiers,
       };
-    } else {
-      // CREATE: Start with 1 default tier
-      return {
-        modelName: props.prefilledModelData?.modelName ?? "",
-        matchPattern: props.prefilledModelData?.modelName
-          ? `(?i)^(${props.prefilledModelData?.modelName})$`
-          : "",
-        tokenizerId: null,
-        tokenizerConfig: null,
-        pricingTiers: [
-          {
-            name: "Standard",
-            isDefault: true,
-            priority: 0,
-            conditions: [],
-            prices: props.prefilledModelData?.prices ?? {
-              input: 0.000001,
-              output: 0.000002,
-            },
-          },
-        ],
-      };
     }
+    // CREATE: Start with 1 default tier
+    return {
+      modelName: props.prefilledModelData?.modelName ?? "",
+      matchPattern: props.prefilledModelData?.modelName
+        ? `(?i)^(${props.prefilledModelData?.modelName})$`
+        : "",
+      tokenizerId: null,
+      tokenizerConfig: null,
+      pricingTiers: [
+        {
+          name: "Standard",
+          isDefault: true,
+          priority: 0,
+          conditions: [],
+          prices: props.prefilledModelData?.prices ?? {
+            input: 0.000001,
+            output: 0.000002,
+          },
+        },
+      ],
+    };
   }, [props]);
 
   const form = useForm({

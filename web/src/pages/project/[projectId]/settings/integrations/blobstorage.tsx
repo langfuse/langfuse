@@ -30,6 +30,7 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   blobStorageIntegrationFormSchema,
+  parquetEnabledFromTuning,
   type BlobStorageIntegrationFormSchema,
   type BlobStorageSyncStatus,
 } from "@/src/features/blobstorage-integration/types";
@@ -41,7 +42,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Card } from "@/src/components/ui/card";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
@@ -81,6 +82,18 @@ export default function BlobStorageIntegrationSettings() {
       refetchOnWindowFocus: false,
       refetchOnReconnect: false,
       staleTime: 50 * 60 * 1000, // 50 minutes
+      refetchInterval: (query) => {
+        const cfg = query.state.data?.config;
+        if (!cfg) return false;
+        const status = deriveSyncStatus({
+          enabled: cfg.enabled,
+          lastError: cfg.lastError,
+          lastSyncAt: cfg.lastSyncAt ? new Date(cfg.lastSyncAt) : null,
+          nextSyncAt: cfg.nextSyncAt ? new Date(cfg.nextSyncAt) : null,
+          runStartedAt: cfg.runStartedAt ? new Date(cfg.runStartedAt) : null,
+        });
+        return status === "running" || status === "queued" ? 5_000 : false;
+      },
     },
   );
 
@@ -96,10 +109,14 @@ export default function BlobStorageIntegrationSettings() {
           nextSyncAt: state.data.config.nextSyncAt
             ? new Date(state.data.config.nextSyncAt)
             : null,
+          runStartedAt: state.data.config.runStartedAt
+            ? new Date(state.data.config.runStartedAt)
+            : null,
         });
 
   const syncStatusToBadge: Record<BlobStorageSyncStatus, string> = {
     up_to_date: "active",
+    running: "running",
     queued: "queued",
     idle: "pending",
     disabled: "disabled",
@@ -247,8 +264,6 @@ const BlobStorageIntegrationSettingsForm = ({
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const { project } = useQueryProject();
-  const [integrationType, setIntegrationType] =
-    useState<BlobStorageIntegrationType>(BlobStorageIntegrationType.S3);
 
   // Check if this is a self-hosted instance (no cloud region set)
   const isSelfHosted = !isLangfuseCloud;
@@ -318,39 +333,50 @@ const BlobStorageIntegrationSettingsForm = ({
     disabled: isLoading,
   });
 
+  const integrationType =
+    blobStorageForm.watch("type") ?? BlobStorageIntegrationType.S3;
+
   useEffect(() => {
-    setIntegrationType(state?.type || BlobStorageIntegrationType.S3);
-    blobStorageForm.reset({
-      type: state?.type || BlobStorageIntegrationType.S3,
-      bucketName: state?.bucketName || "",
-      endpoint: state?.endpoint || null,
-      region: state?.region || "auto",
-      accessKeyId: state?.accessKeyId || "",
-      secretAccessKey: state?.secretAccessKey || null,
-      prefix: state?.prefix || "",
-      exportFrequency: (state?.exportFrequency || "daily") as
-        | "every_20_minutes"
-        | "daily"
-        | "weekly"
-        | "hourly",
-      enabled: state?.enabled || false,
-      forcePathStyle: state?.forcePathStyle || false,
-      fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
-      exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
-      exportStartDate: state?.exportStartDate || null,
-      exportSource: getExportSourceFormValue(state?.exportSource, availability),
-      // Empty array in the DB means "export everything" (the worker falls back
-      // to all groups), so surface it as the full selection in the form.
-      exportFieldGroups: state?.exportFieldGroups?.length
-        ? (state.exportFieldGroups as ObservationFieldGroupFull[])
-        : [...OBSERVATION_FIELD_GROUPS_FULL],
-      compressed: state?.compressed ?? true,
-    });
+    blobStorageForm.reset(
+      {
+        type: state?.type || BlobStorageIntegrationType.S3,
+        bucketName: state?.bucketName || "",
+        endpoint: state?.endpoint || null,
+        region: state?.region || "auto",
+        accessKeyId: state?.accessKeyId || "",
+        secretAccessKey: state?.secretAccessKey || null,
+        prefix: state?.prefix || "",
+        exportFrequency: (state?.exportFrequency || "daily") as
+          | "every_20_minutes"
+          | "daily"
+          | "weekly"
+          | "hourly",
+        enabled: state?.enabled || false,
+        forcePathStyle: state?.forcePathStyle || false,
+        fileType: state?.fileType || BlobStorageIntegrationFileType.JSONL,
+        exportMode: state?.exportMode || BlobStorageExportMode.FULL_HISTORY,
+        exportStartDate: state?.exportStartDate || null,
+        exportSource: getExportSourceFormValue(
+          state?.exportSource,
+          availability,
+        ),
+        // Empty array in the DB means "export everything" (the worker falls back
+        // to all groups), so surface it as the full selection in the form.
+        exportFieldGroups: state?.exportFieldGroups?.length
+          ? (state.exportFieldGroups as ObservationFieldGroupFull[])
+          : [...OBSERVATION_FIELD_GROUPS_FULL],
+        compressed: state?.compressed ?? true,
+      },
+      state ? { keepDirtyValues: true } : undefined,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, availability]);
 
   const watchedExportMode = blobStorageForm.watch("exportMode");
   const watchedExportSource = blobStorageForm.watch("exportSource");
+  // Internal `exportTuning.parquet` override (no write path); reflected read-only
+  // below since the worker forces Parquet over the persisted fileType + gzip.
+  const isParquetOverride = parquetEnabledFromTuning(state?.exportTuning);
   const exportSourceOptions = getExportSourceOptions(
     state?.exportSource,
     availability,
@@ -413,8 +439,7 @@ const BlobStorageIntegrationSettingsForm = ({
   }
 
   const handleIntegrationTypeChange = (value: BlobStorageIntegrationType) => {
-    setIntegrationType(value);
-    blobStorageForm.setValue("type", value);
+    blobStorageForm.setValue("type", value, { shouldDirty: true });
   };
 
   return (
@@ -679,7 +704,12 @@ const BlobStorageIntegrationSettingsForm = ({
             <FormItem>
               <FormLabel>File Type</FormLabel>
               <FormControl>
-                <Select value={field.value} onValueChange={field.onChange}>
+                {/* "PARQUET" is display-only; the persisted fileType is kept but ignored. */}
+                <Select
+                  value={isParquetOverride ? "PARQUET" : field.value}
+                  onValueChange={field.onChange}
+                  disabled={isParquetOverride}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select file type" />
                   </SelectTrigger>
@@ -687,11 +717,16 @@ const BlobStorageIntegrationSettingsForm = ({
                     <SelectItem value="JSONL">JSONL</SelectItem>
                     <SelectItem value="CSV">CSV</SelectItem>
                     <SelectItem value="JSON">JSON</SelectItem>
+                    {isParquetOverride && (
+                      <SelectItem value="PARQUET">Parquet</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </FormControl>
               <FormDescription>
-                The file format for exported data.
+                {isParquetOverride
+                  ? "Exporting as Apache Parquet — a columnar binary format encoded and compressed by ClickHouse. This is configured for your project and overrides the file type; gzip compression is not applicable."
+                  : "The file format for exported data."}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -878,9 +913,13 @@ const BlobStorageIntegrationSettingsForm = ({
                           )}
                         </div>
                         <div className="text-muted-foreground text-xs">
-                          {isLegacyOnlyExport
-                            ? option.legacyDescription
-                            : option.description}
+                          {isParquetOverride
+                            ? isLegacyOnlyExport
+                              ? option.legacyParquetDescription
+                              : option.parquetDescription
+                            : isLegacyOnlyExport
+                              ? option.legacyDescription
+                              : option.description}
                         </div>
                       </label>
                     </div>
@@ -904,6 +943,10 @@ const BlobStorageIntegrationSettingsForm = ({
                 <FormControl>
                   <Input
                     type="date"
+                    max={(() => {
+                      const t = new Date();
+                      return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+                    })()}
                     value={
                       field.value instanceof Date
                         ? field.value.toISOString().split("T")[0]
@@ -927,26 +970,30 @@ const BlobStorageIntegrationSettingsForm = ({
           />
         )}
 
-        <FormField
-          control={blobStorageForm.control}
-          name="compressed"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Gzip Compression</FormLabel>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className="mt-1 ml-4"
-                />
-              </FormControl>
-              <FormDescription>
-                Compress exported files with gzip (.csv.gz, .json.gz, .jsonl.gz)
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        {/* Parquet compresses internally — gzip does not apply. */}
+        {!isParquetOverride && (
+          <FormField
+            control={blobStorageForm.control}
+            name="compressed"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Gzip Compression</FormLabel>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    className="mt-1 ml-4"
+                  />
+                </FormControl>
+                <FormDescription>
+                  Compress exported files with gzip (.csv.gz, .json.gz,
+                  .jsonl.gz)
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <FormField
           control={blobStorageForm.control}

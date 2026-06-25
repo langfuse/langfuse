@@ -10,6 +10,7 @@ import {
   paginationZod,
   timeFilter,
 } from "@langfuse/shared";
+import { MonitorWindowSchema } from "@langfuse/shared/monitors";
 import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
@@ -91,7 +92,7 @@ export const eventsRouter = createTRPCRouter({
       });
 
       if (hasNoMatches) {
-        return { observations: [] };
+        return { observations: [], hasMore: false };
       }
 
       return instrumentAsync(
@@ -156,6 +157,7 @@ export const eventsRouter = createTRPCRouter({
       zodSchema.object({
         projectId: zodSchema.string(),
         startTimeFilter: zodSchema.array(timeFilter).optional(),
+        monitorWindow: MonitorWindowSchema.optional(),
         isRootObservation: zodSchema.boolean().optional(),
         hasParentObservation: zodSchema.boolean().optional(),
       }),
@@ -171,6 +173,7 @@ export const eventsRouter = createTRPCRouter({
           return getEventFilterOptions({
             projectId: input.projectId,
             startTimeFilter: input.startTimeFilter,
+            monitorWindow: input.monitorWindow,
             isRootObservation:
               input.isRootObservation ??
               (input.hasParentObservation !== undefined

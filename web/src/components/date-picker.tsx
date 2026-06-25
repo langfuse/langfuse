@@ -418,15 +418,14 @@ export function TimeRangePicker({
           <span>{setting?.label || namedRangeValue}</span>
         </div>
       );
-    } else {
-      // No time range selected
-      return (
-        <div className="flex items-center gap-2">
-          <CalendarIcon className="h-4 w-4" />
-          <span>Select time range</span>
-        </div>
-      );
     }
+    // No time range selected
+    return (
+      <div className="flex items-center gap-2">
+        <CalendarIcon className="h-4 w-4" />
+        <span>Select time range</span>
+      </div>
+    );
   };
 
   return (
@@ -505,7 +504,7 @@ export function TimeRangePicker({
                   setTab("calendar");
                 }}
               >
-                <span className="leading bg-muted flex h-5 w-10 items-center justify-center rounded px-1.5 text-center text-xs">
+                <span className="bg-muted flex h-5 w-10 items-center justify-center rounded px-1.5 text-center text-xs">
                   <CalendarIcon className="h-3 w-3" />
                 </span>
                 <span>Select from calendar</span>

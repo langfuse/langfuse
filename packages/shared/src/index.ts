@@ -97,6 +97,7 @@ export * from "./domain";
 
 // io representation
 export * from "./utils/IORepresentation";
+export * from "./utils/mediaReferences";
 
 // analytics integrations (client-safe)
 export * from "./features/analytics-integrations";

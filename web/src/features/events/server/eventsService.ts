@@ -9,36 +9,25 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
-  getEventsGroupedByModel,
-  getEventsGroupedByModelId,
-  getEventsGroupedByName,
-  getEventsGroupedByTraceName,
-  getEventsGroupedByTraceTags,
-  getEventsGroupedByPromptName,
-  getEventsGroupedByType,
-  getEventsGroupedByUserId,
-  getEventsGroupedByVersion,
+  getEventsFilterOptionsForColumns,
+  getEventsFilterOptionValuesPage,
   getEventsNumericStatsByFilterColumn,
-  getEventsGroupedBySessionId,
-  getEventsGroupedByLevel,
-  getEventsGroupedByEnvironment,
-  getEventsGroupedByExperimentDatasetId,
-  getEventsGroupedByExperimentId,
-  getEventsGroupedByExperimentName,
-  getEventsGroupedByHasParentObservation,
-  getEventsGroupedByIsRootObservation,
-  getEventsGroupedByToolName,
-  getEventsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getObservationsBatchIOFromEventsTable,
   getScoresForObservations,
   getScoresForTraces,
+  logger,
   traceException,
+  type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import { type timeFilter, type FilterState } from "@langfuse/shared";
+import {
+  monitorEvaluationOffsetMs,
+  type MonitorWindow,
+  windowToMs,
+} from "@langfuse/shared/monitors";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { assertUnreachable } from "@/src/utils/types";
 
 type TimeFilter = z.infer<typeof timeFilter>;
 
@@ -78,6 +67,7 @@ interface GetObservationsCountParams {
 interface GetObservationsFilterOptionsParams {
   projectId: string;
   startTimeFilter?: TimeFilter[];
+  monitorWindow?: MonitorWindow;
   isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
@@ -88,11 +78,132 @@ type EventFilterValueOption = {
   count?: number;
 };
 
-type GroupedEventsFilterOptions = {
-  extraWhereRaw?: string;
-  limit?: number;
-  offset?: number;
-  orderBy?: string;
+// Subset of event filter option columns returned by the bulk filter-options response.
+const EVENT_FILTER_OPTION_COLUMNS = [
+  "providedModelName",
+  "modelId",
+  "name",
+  "promptName",
+  "traceTags",
+  "traceName",
+  "type",
+  "userId",
+  "version",
+  "sessionId",
+  "level",
+  "environment",
+  "experimentDatasetId",
+  "experimentId",
+  "experimentName",
+  "isRootObservation",
+  "toolNames",
+  "calledToolNames",
+] as const satisfies readonly EventFilterOptionColumn[];
+
+const OBSERVATIONS_TO_TRACE_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
+const SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS = 60 * 60 * 1000;
+const EVENT_FILTER_OPTIONS_SCORE_LOOKBACK_BUFFER_MS =
+  OBSERVATIONS_TO_TRACE_INTERVAL_MS + SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS;
+const EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_DAYS = 30;
+const EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_MS =
+  EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
+const isEventFilterOptionsLowerBoundStartTimeFilter = (filter: TimeFilter) =>
+  (filter.column === "startTime" || filter.column === "Start Time") &&
+  (filter.operator === ">=" || filter.operator === ">");
+
+const hasEventFilterOptionsLowerBoundStartTimeFilter = (
+  filters?: TimeFilter[],
+) => filters?.some(isEventFilterOptionsLowerBoundStartTimeFilter) ?? false;
+
+const getDefaultEventFilterOptionsStartTimeFilter = (): TimeFilter[] => [
+  {
+    column: "startTime",
+    type: "datetime",
+    operator: ">=",
+    value: new Date(Date.now() - EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_MS),
+  },
+];
+
+const getMonitorWindowStartTimeFilter = (
+  monitorWindow: MonitorWindow,
+): TimeFilter[] => {
+  const windowMs = Number(windowToMs(monitorWindow));
+  const to = new Date(Date.now() - monitorEvaluationOffsetMs);
+  const from = new Date(to.getTime() - windowMs);
+
+  return [
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: ">=",
+      value: from,
+    },
+    {
+      column: "startTime",
+      type: "datetime",
+      operator: "<=",
+      value: to,
+    },
+  ];
+};
+
+const ensureStartTimeFilterForEventFilterOptions = <
+  TParams extends GetObservationsFilterOptionsParams,
+>(
+  params: TParams,
+): TParams => {
+  if (hasEventFilterOptionsLowerBoundStartTimeFilter(params.startTimeFilter)) {
+    return params;
+  }
+
+  if (params.monitorWindow) {
+    return {
+      ...params,
+      startTimeFilter: [
+        ...getMonitorWindowStartTimeFilter(params.monitorWindow),
+        ...(params.startTimeFilter ?? []),
+      ],
+    };
+  }
+
+  logger.warn(
+    "events.filterOptions called without lower startTimeFilter; applying default lookback",
+    {
+      projectId: params.projectId,
+      defaultLookbackDays: EVENT_FILTER_OPTIONS_DEFAULT_LOOKBACK_DAYS,
+    },
+  );
+
+  return {
+    ...params,
+    startTimeFilter: [
+      ...getDefaultEventFilterOptionsStartTimeFilter(),
+      // Preserve upper-only bounds while adding the missing lower bound.
+      ...(params.startTimeFilter ?? []),
+    ],
+  } as TParams;
+};
+
+const toScoreTimestampFilters = (
+  startTimeFilter: TimeFilter[] | undefined,
+  column: "Timestamp" | "timestamp",
+): FilterCondition[] => {
+  return (startTimeFilter ?? []).flatMap((filter) => {
+    if (!isEventFilterOptionsLowerBoundStartTimeFilter(filter)) return [];
+
+    return [
+      {
+        column,
+        operator: filter.operator,
+        value: new Date(
+          filter.value.getTime() -
+            EVENT_FILTER_OPTIONS_SCORE_LOOKBACK_BUFFER_MS,
+        ),
+        type: "datetime",
+      },
+    ];
+  });
 };
 
 /**
@@ -105,17 +216,21 @@ export async function getEventList(params: GetObservationsListParams) {
     searchQuery: params.searchQuery,
     searchType: params.searchType,
     orderBy: params.orderBy,
-    limit: params.limit,
+    limit: params.limit + 1,
     offset: (params.page - 1) * params.limit, // Page is 1-indexed (page 1 = offset 0)
     selectIOAndMetadata: false, // Exclude I/O for performance - fetched separately via batchIO endpoint
     renderingProps: { truncated: true, shouldJsonParse: false },
   };
 
-  const observations =
+  const fetchedObservations =
     await getObservationsWithModelDataFromEventsTable(queryOpts);
+  const hasMore = fetchedObservations.length > params.limit;
+  const observations = hasMore
+    ? fetchedObservations.slice(0, params.limit)
+    : fetchedObservations;
 
   if (observations.length === 0) {
-    return { observations };
+    return { observations, hasMore };
   }
 
   const traceIds = Array.from(
@@ -214,7 +329,7 @@ export async function getEventList(params: GetObservationsListParams) {
       : {},
   }));
 
-  return { observations: observationsWithScores };
+  return { observations: observationsWithScores, hasMore };
 }
 
 /**
@@ -236,17 +351,47 @@ export async function getEventCount(params: GetObservationsCountParams) {
   return { totalCount };
 }
 
-const toFilterValueOptions = <
-  TKey extends string,
-  TItem extends Record<TKey, string | null> & { count: number },
->(
-  items: TItem[],
-  key: TKey,
-) =>
-  items.flatMap((item) => {
-    const value = item[key];
-    return value === null ? [] : [{ value, count: item.count }];
-  });
+type EventFilterOptionRow = Awaited<
+  ReturnType<typeof getEventsFilterOptionsForColumns>
+>[number];
+
+const toFilterValueOptions = (
+  items: EventFilterOptionRow[],
+  column: EventFilterOptionColumn,
+): EventFilterValueOption[] =>
+  items
+    .filter((item) => item.column === column)
+    .map((item) => ({ value: item.value, count: item.count }));
+
+const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
+  "traceTags",
+  "toolNames",
+  "calledToolNames",
+]);
+
+type EventFilterOptionsByColumn = Record<
+  (typeof EVENT_FILTER_OPTION_COLUMNS)[number],
+  EventFilterValueOption[]
+>;
+
+const toEventFilterValueOptions = (
+  items: EventFilterOptionRow[],
+  column: EventFilterOptionColumn,
+): EventFilterValueOption[] => {
+  const options = toFilterValueOptions(items, column);
+
+  return EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
+    ? options.map(({ value }) => ({ value }))
+    : options;
+};
+
+const toEventFilterOptionsByColumn = (
+  items: EventFilterOptionRow[],
+): EventFilterOptionsByColumn =>
+  EVENT_FILTER_OPTION_COLUMNS.reduce((acc, column) => {
+    acc[column] = toEventFilterValueOptions(items, column);
+    return acc;
+  }, {} as EventFilterOptionsByColumn);
 
 const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
@@ -293,25 +438,17 @@ const getEventFilterOptionsScope = (
       : []),
   ];
 
-  // Map startTimeFilter to Timestamp column for trace queries
-  const traceTimestampFilters =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "Timestamp" as const,
-          operator: f.operator,
-          value: f.value,
-          type: "datetime" as const,
-        }))
-      : [];
-  const traceScoreTimestampFilters: FilterCondition[] =
-    startTimeFilter && startTimeFilter.length > 0
-      ? startTimeFilter.map((f) => ({
-          column: "timestamp",
-          operator: f.operator,
-          value: f.value,
-          type: "datetime",
-        }))
-      : [];
+  // Derive score-table timestamp filters from observation startTime filters.
+  // This is not a 1:1 remap: score loading allows trace/score timestamp skew,
+  // and upper observation bounds would hide backfilled scores data queries use.
+  const traceTimestampFilters = toScoreTimestampFilters(
+    startTimeFilter,
+    "Timestamp",
+  );
+  const traceScoreTimestampFilters = toScoreTimestampFilters(
+    startTimeFilter,
+    "timestamp",
+  );
 
   return {
     eventsFilter,
@@ -340,130 +477,32 @@ export async function getEventFilterValuePage(
     offset: number;
   },
 ) {
-  const { projectId, column, limit, offset } = params;
-  const { eventsFilter } = getEventFilterOptionsScope(params);
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId, column, limit, offset } = scopedParams;
+  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
   const queryLimit = limit + 1;
 
-  const createResultFromGroupedQuery = async <T>(
-    query: (
-      projectId: string,
-      filter: FilterState,
-      opts?: GroupedEventsFilterOptions,
-    ) => Promise<Array<T & { count?: number }>>,
-    valueGetter: (item: T) => string,
-  ) => {
-    const values = await query(projectId, eventsFilter, {
-      limit: queryLimit,
-      offset,
-    }).then((items) =>
-      items.map(
-        (item) =>
-          ({
-            value: valueGetter(item),
-            count: item.count,
-          }) satisfies EventFilterValueOption,
-      ),
-    );
+  const rows = await getEventsFilterOptionValuesPage({
+    projectId,
+    filter: eventsFilter,
+    column,
+    limit: queryLimit,
+    offset,
+  });
 
-    return {
-      values: values.slice(0, limit),
-      nextOffset: values.length > limit ? offset + limit : undefined,
-    };
+  const values = rows.map((row) =>
+    column === "traceTags"
+      ? ({ value: row.value } satisfies EventFilterValueOption)
+      : ({
+          value: row.value,
+          count: row.count,
+        } satisfies EventFilterValueOption),
+  );
+
+  return {
+    values: values.slice(0, limit),
+    nextOffset: values.length > limit ? offset + limit : undefined,
   };
-
-  if (column === "hasParentObservation") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByHasParentObservation,
-      (item) => (item.hasParentObservation ? "true" : "false"),
-    );
-  }
-
-  if (column === "traceTags") {
-    // Trace tags do not support counting right now
-    return createResultFromGroupedQuery(
-      getEventsGroupedByTraceTags,
-      (item) => item.tag,
-    );
-  }
-
-  if (column === "providedModelName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByModel,
-      (item) => item.model,
-    );
-  }
-
-  if (column === "modelId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByModelId,
-      (item) => item.modelId,
-    );
-  }
-
-  if (column === "name") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByName,
-      (item) => item.name,
-    );
-  }
-
-  if (column === "traceName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByTraceName,
-      (item) => item.traceName,
-    );
-  }
-
-  if (column === "type") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByType,
-      (item) => item.type,
-    );
-  }
-
-  if (column === "userId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByUserId,
-      (item) => item.userId,
-    );
-  }
-
-  if (column === "version") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByVersion,
-      (item) => item.version,
-    );
-  }
-
-  if (column === "sessionId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedBySessionId,
-      (item) => item.sessionId,
-    );
-  }
-
-  if (column === "level") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByLevel,
-      (item) => item.level,
-    );
-  }
-
-  if (column === "environment") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByEnvironment,
-      (item) => item.environment,
-    );
-  }
-
-  if (column === "promptName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByPromptName,
-      (item) => item.promptName,
-    );
-  }
-
-  return assertUnreachable(column);
 }
 
 export async function getEventFilterNumericRange(
@@ -474,8 +513,9 @@ export async function getEventFilterNumericRange(
     >;
   },
 ) {
-  const { projectId, column } = params;
-  const { eventsFilter } = getEventFilterOptionsScope(params);
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId, column } = scopedParams;
+  const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
 
   return getEventsNumericStatsByFilterColumn(projectId, eventsFilter, column);
 }
@@ -486,32 +526,16 @@ export async function getEventFilterNumericRange(
 export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
-  const { projectId } = params;
+  const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
+  const { projectId } = scopedParams;
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
-    getEventFilterOptionsScope(params);
+    getEventFilterOptionsScope(scopedParams);
 
   const [
     numericScoreNames,
     categoricalScoreNames,
     traceScoreColumns,
-    providedModelName,
-    name,
-    promptNames,
-    traceTags,
-    traceNames,
-    modelId,
-    types,
-    userIds,
-    versions,
-    sessionIds,
-    levels,
-    environments,
-    experimentDatasetIds,
-    experimentIds,
-    experimentNames,
-    isRootObservationResults,
-    toolNames,
-    calledToolNames,
+    eventFilterOptions,
   ] = await Promise.all([
     getNumericScoresGroupedByName(projectId, traceTimestampFilters),
     getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
@@ -519,24 +543,11 @@ export async function getEventFilterOptions(
       projectId,
       filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
     }),
-    getEventsGroupedByModel(projectId, eventsFilter),
-    getEventsGroupedByName(projectId, eventsFilter),
-    getEventsGroupedByPromptName(projectId, eventsFilter),
-    getEventsGroupedByTraceTags(projectId, eventsFilter),
-    getEventsGroupedByTraceName(projectId, eventsFilter),
-    getEventsGroupedByModelId(projectId, eventsFilter),
-    getEventsGroupedByType(projectId, eventsFilter),
-    getEventsGroupedByUserId(projectId, eventsFilter),
-    getEventsGroupedByVersion(projectId, eventsFilter),
-    getEventsGroupedBySessionId(projectId, eventsFilter),
-    getEventsGroupedByLevel(projectId, eventsFilter),
-    getEventsGroupedByEnvironment(projectId, eventsFilter),
-    getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
-    getEventsGroupedByExperimentId(projectId, eventsFilter),
-    getEventsGroupedByExperimentName(projectId, eventsFilter),
-    getEventsGroupedByIsRootObservation(projectId, eventsFilter),
-    getEventsGroupedByToolName(projectId, eventsFilter),
-    getEventsGroupedByCalledToolName(projectId, eventsFilter),
+    getEventsFilterOptionsForColumns({
+      projectId,
+      filter: eventsFilter,
+      columns: EVENT_FILTER_OPTION_COLUMNS,
+    }),
   ]);
   const traceNumericScoreNames = Array.from(
     new Set(
@@ -553,47 +564,17 @@ export async function getEventFilterOptions(
       .filter((score) => score.dataType === "CATEGORICAL")
       .map((score) => score.name),
   );
+  const eventFilterOptionsByColumn =
+    toEventFilterOptionsByColumn(eventFilterOptions);
 
   return {
-    providedModelName: toFilterValueOptions(providedModelName, "model"),
-    modelId: toFilterValueOptions(modelId, "modelId"),
-    name: toFilterValueOptions(name, "name"),
+    ...eventFilterOptionsByColumn,
     scores_avg: numericScoreNames.map((score) => score.name),
     score_categories: categoricalScoreNames,
     trace_scores_avg: traceNumericScoreNames,
     trace_score_categories: categoricalScoreNames.filter((score) =>
       traceCategoricalScoreNames.has(score.label),
     ),
-    promptName: toFilterValueOptions(promptNames, "promptName"),
-    traceTags: traceTags
-      .filter((i) => i.tag !== null)
-      .map((i) => ({
-        value: i.tag,
-      })),
-    traceName: toFilterValueOptions(traceNames, "traceName"),
-    type: toFilterValueOptions(types, "type"),
-    userId: toFilterValueOptions(userIds, "userId"),
-    version: toFilterValueOptions(versions, "version"),
-    sessionId: toFilterValueOptions(sessionIds, "sessionId"),
-    level: toFilterValueOptions(levels, "level"),
-    environment: toFilterValueOptions(environments, "environment"),
-    experimentDatasetId: toFilterValueOptions(
-      experimentDatasetIds,
-      "experimentDatasetId",
-    ),
-    experimentId: toFilterValueOptions(experimentIds, "experimentId"),
-    experimentName: toFilterValueOptions(experimentNames, "experimentName"),
-    isRootObservation: isRootObservationResults.map((i) => ({
-      // ClickHouse returns UInt8 (0/1) for computed boolean; normalize to "true"/"false"
-      value: i.isRootObservation ? "true" : "false",
-      count: i.count,
-    })),
-    toolNames: toolNames
-      .filter((i) => i.toolName !== null)
-      .map((i) => ({ value: i.toolName })),
-    calledToolNames: calledToolNames
-      .filter((i) => i.calledToolName !== null)
-      .map((i) => ({ value: i.calledToolName })),
   };
 }
 

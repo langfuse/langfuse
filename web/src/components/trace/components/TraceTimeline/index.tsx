@@ -177,9 +177,8 @@ export function TraceTimeline() {
               // Match based on observation ID or trace ID
               if (item.node.type === "TRACE") {
                 return score.traceId === item.node.id;
-              } else {
-                return score.observationId === item.node.id;
               }
+              return score.observationId === item.node.id;
             });
 
             // Get comment count for this node
