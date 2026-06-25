@@ -11,6 +11,7 @@ import {
   type QueryStatus,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import { env } from "../../env";
 import { IBackgroundMigration } from "../IBackgroundMigration";
 
 // ============================================================================
@@ -72,6 +73,46 @@ export function assertSafePartition(partition: string): void {
   if (!PARTITION_RE.test(partition)) {
     throw new Error(`Invalid partition_id: ${partition}`);
   }
+}
+
+// ============================================================================
+// Cluster-aware helpers
+// ============================================================================
+
+/**
+ * Returns `ON CLUSTER <name>` when running against a clustered ClickHouse
+ * deployment, an empty string otherwise. Shared by every chain step that
+ * issues DDL or SYSTEM commands so they fan out to all nodes consistently.
+ */
+export function onClusterClause(): string {
+  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
+    return `ON CLUSTER ${env.CLICKHOUSE_CLUSTER_NAME}`;
+  }
+  return "";
+}
+
+/**
+ * Returns the engine ClickHouse actually picked for a table. On ClickHouse
+ * Cloud the requested engine is silently rewritten to a `Shared*` variant
+ * (e.g. `SharedReplacingMergeTree`), and single-node deployments use the plain
+ * (non-`Replicated*`) engine — so the prefix is the reliable way to branch on
+ * deployment topology. Returns "" if the table does not exist.
+ */
+export async function detectTableEngine(table: string): Promise<string> {
+  const rows = await queryClickhouse<{ engine: string }>({
+    query: `
+      SELECT engine
+      FROM system.tables
+      WHERE database = currentDatabase()
+        AND name = {table: String}
+    `,
+    params: { table },
+    tags: {
+      feature: "background-migration",
+      operation: "detectTableEngine",
+    },
+  });
+  return rows[0]?.engine ?? "";
 }
 
 // ============================================================================

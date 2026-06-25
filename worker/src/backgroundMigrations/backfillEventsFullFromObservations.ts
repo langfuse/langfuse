@@ -1,10 +1,12 @@
-import { logger, queryClickhouse } from "@langfuse/shared/src/server";
+import { logger, queryClickhouse, sleep } from "@langfuse/shared/src/server";
+import { env } from "../env";
 import {
   BaseChunkTodo,
   ChunkedBackfillState,
   ChunkedClickhouseBackfillMigration,
   ResolvedChunkedBackfillConfig,
   assertSafePartition,
+  detectTableEngine,
   runBackfillMigrationCli,
 } from "./utils/backfillBase";
 
@@ -37,6 +39,144 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
     id: "9c2d5a4f-7b8e-4f6a-a91c-3e5d7f8a2b1c",
     name: "20260617_v4_step_2_rewrite_observations_to_pid_tid_sorting",
   };
+
+  // ==========================================================================
+  // Validation
+  // ==========================================================================
+
+  /**
+   * On top of the base table/predecessor checks, verify the scratch table's
+   * part layout is identical across every replica before we start reading
+   * `system.parts` and issuing `_part`-targeted INSERTs.
+   */
+  async validate(
+    args: Record<string, unknown>,
+    attempts = 5,
+  ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
+    const base = await super.validate(args, attempts);
+    if (!base.valid) return base;
+    return this.assertReplicasConverged(attempts);
+  }
+
+  /**
+   * Polls `system.replicas` across all replicas (via `clusterAllReplicas`)
+   * until every known replica is online, writable, and reports a drained
+   * replication queue — which, with merges frozen and no new writes, implies
+   * identical active part sets. Uses `system.replicas` (one row per replica
+   * regardless of part count) rather than diffing `system.parts` directly,
+   * which would be blind to a replica that has simply not fetched any parts
+   * yet. No-op unless the scratch table is a replicated engine: single-node
+   * has one authoritative view and Cloud/SharedMergeTree keeps part metadata
+   * centrally consistent.
+   */
+  private async assertReplicasConverged(
+    attempts: number,
+  ): Promise<{ valid: boolean; invalidReason: string | undefined }> {
+    const engine = await detectTableEngine("observations_pid_tid_sorting");
+    if (!engine.startsWith("Replicated")) {
+      logger.info(
+        `${this.logPrefix} Skipping cross-replica consistency check (engine=${engine || "unknown"} is not replicated)`,
+      );
+      return { valid: true, invalidReason: undefined };
+    }
+
+    const cluster = env.CLICKHOUSE_CLUSTER_NAME;
+    let lastSummary = "no replicas reported";
+
+    for (let attempt = 0; attempt <= attempts; attempt++) {
+      const status = await this.readReplicaConvergence(cluster);
+      if (status.converged) {
+        logger.info(
+          `${this.logPrefix} Cross-replica consistency check passed (${status.summary})`,
+        );
+        return { valid: true, invalidReason: undefined };
+      }
+      lastSummary = status.summary;
+      if (attempt < attempts) {
+        logger.info(
+          `${this.logPrefix} Replicas of observations_pid_tid_sorting not yet converged (${status.summary}). Retrying in 10s...`,
+        );
+        await sleep(10_000);
+      }
+    }
+
+    return {
+      valid: false,
+      invalidReason:
+        `observations_pid_tid_sorting replicas have not converged (${lastSummary}). ` +
+        `M2 freezes merges and syncs all replicas on success, so this indicates a replica joined or ` +
+        `recovered after M2, or M3 resumed after a topology change. Once replication settles (or after ` +
+        `running SYSTEM SYNC REPLICA ON CLUSTER ${cluster} observations_pid_tid_sorting STRICT), clear ` +
+        `failedAt and re-run.`,
+    };
+  }
+
+  /**
+   * Reads one convergence snapshot from `system.replicas` across the cluster.
+   * Every known replica must respond, be online and writable, and report a
+   * fully drained replication queue (no pending fetches/merges). Unreachable
+   * replicas are skipped by `skip_unavailable_shards` and then surface as
+   * `responding < expected`, so they are treated as not-converged rather than
+   * erroring the whole check.
+   */
+  private async readReplicaConvergence(
+    cluster: string,
+  ): Promise<{ converged: boolean; summary: string }> {
+    const rows = await queryClickhouse<{
+      responding_replicas: string;
+      expected_replicas: string;
+      min_active_replicas: string;
+      total_queue_size: string;
+      total_future_parts: string;
+      expired_replicas: string;
+      readonly_replicas: string;
+    }>({
+      query: `
+        SELECT
+          count() AS responding_replicas,
+          max(total_replicas) AS expected_replicas,
+          min(active_replicas) AS min_active_replicas,
+          sum(queue_size) AS total_queue_size,
+          sum(future_parts) AS total_future_parts,
+          countIf(is_session_expired) AS expired_replicas,
+          countIf(is_readonly) AS readonly_replicas
+        FROM clusterAllReplicas('${cluster}', 'system.replicas')
+        WHERE database = currentDatabase()
+          AND table = 'observations_pid_tid_sorting'
+      `,
+      clickhouseSettings: {
+        skip_unavailable_shards: 1,
+      },
+      tags: {
+        feature: "background-migration",
+        operation: "assertReplicasConverged",
+      },
+    });
+
+    const r = rows[0];
+    const responding = parseInt(r?.responding_replicas ?? "0", 10);
+    const expected = parseInt(r?.expected_replicas ?? "0", 10);
+    const minActive = parseInt(r?.min_active_replicas ?? "0", 10);
+    const queue = parseInt(r?.total_queue_size ?? "0", 10);
+    const future = parseInt(r?.total_future_parts ?? "0", 10);
+    const expired = parseInt(r?.expired_replicas ?? "0", 10);
+    const readonly = parseInt(r?.readonly_replicas ?? "0", 10);
+
+    const summary =
+      `responding=${responding}, expected=${expected}, minActive=${minActive}, ` +
+      `queueSize=${queue}, futureParts=${future}, expired=${expired}, readonly=${readonly}`;
+
+    const converged =
+      responding > 0 &&
+      responding >= expected &&
+      minActive >= expected &&
+      queue === 0 &&
+      future === 0 &&
+      expired === 0 &&
+      readonly === 0;
+
+    return { converged, summary };
+  }
 
   // ==========================================================================
   // Part discovery
@@ -134,9 +274,7 @@ export default class BackfillEventsFullFromObservations extends ChunkedClickhous
     // The traces subquery dedupes to the latest row per (project_id, id):
     // traces is a ReplacingMergeTree, so unmerged duplicate versions co-exist
     // between background merges and ANY-join strictness would pick an
-    // arbitrary one. Unlike M1 (which copies every version with its own
-    // event_ts and lets events_full's replacing key collapse them), a stale
-    // pick here is baked into the observation row and never repaired.
+    // arbitrary one.
     //
     // `bookmarked` is only propagated to root spans (observations without a
     // parent); child spans always get false.

@@ -1,8 +1,4 @@
-import {
-  commandClickhouse,
-  logger,
-  queryClickhouse,
-} from "@langfuse/shared/src/server";
+import { commandClickhouse, logger } from "@langfuse/shared/src/server";
 import { env } from "../env";
 import {
   BaseChunkTodo,
@@ -10,7 +6,9 @@ import {
   ChunkedClickhouseBackfillMigration,
   ResolvedChunkedBackfillConfig,
   assertSafePartition,
+  detectTableEngine,
   loadPartitionsFromClickhouse,
+  onClusterClause,
   runBackfillMigrationCli,
 } from "./utils/backfillBase";
 
@@ -23,17 +21,6 @@ const LOG_PREFIX = "[Backfill PidTid Sorting]";
 // ============================================================================
 // Cluster-aware DDL helpers
 // ============================================================================
-
-/**
- * Returns `ON CLUSTER <name>` when running against a clustered ClickHouse
- * deployment, an empty string otherwise.
- */
-function onClusterClause(): string {
-  if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
-    return `ON CLUSTER ${env.CLICKHOUSE_CLUSTER_NAME}`;
-  }
-  return "";
-}
 
 /**
  * Returns the engine clause for the scratch table. We use the replicated
@@ -136,31 +123,8 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
   // Merge control
   // ==========================================================================
 
-  /**
-   * Returns the engine name ClickHouse actually picked for the scratch table.
-   * On ClickHouse Cloud the engine is silently rewritten to a `Shared*` variant
-   * (e.g. `SharedReplacingMergeTree`) regardless of what the DDL requested, so
-   * inspecting `system.tables` is the most reliable way to tell whether we're
-   * talking to a SharedMergeTree-based deployment.
-   */
-  private async detectScratchTableEngine(): Promise<string> {
-    const rows = await queryClickhouse<{ engine: string }>({
-      query: `
-        SELECT engine
-        FROM system.tables
-        WHERE database = currentDatabase()
-          AND name = 'observations_pid_tid_sorting'
-      `,
-      tags: {
-        feature: "background-migration",
-        operation: "detectScratchTableEngine",
-      },
-    });
-    return rows[0]?.engine ?? "";
-  }
-
   private async stopMergesOnScratchTable(): Promise<void> {
-    const engine = await this.detectScratchTableEngine();
+    const engine = await detectTableEngine("observations_pid_tid_sorting");
     const isSharedMergeTree = engine.startsWith("Shared");
     const isReplicatedMergeTree = engine.startsWith("Replicated");
 
@@ -208,6 +172,43 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
         });
       }
     }
+  }
+
+  /**
+   * Drives every replica to drain its replication queue so each node's
+   * `system.parts` reflects the full, post-backfill part set before M3 reads
+   * it. This is the convergence half of the pair: the freeze above keeps the
+   * layout from drifting, and this makes every node actually current.
+   *
+   * Only meaningful on the replicated engine — a single-node plain MergeTree
+   * has nothing to sync (and `SYSTEM SYNC REPLICA` errors on it), and
+   * Cloud/SharedMergeTree keeps part metadata centrally consistent already.
+   * `STRICT` waits for the queue to fully empty so a merge that committed just
+   * before the freeze is propagated everywhere. `ON CLUSTER` fans the sync to
+   * every node, and the default `distributed_ddl_output_mode='throw'` surfaces
+   * an unreachable replica as a hard failure — which keeps M2 unfinished (and
+   * therefore blocks M3) until the cluster converges, instead of advancing on
+   * a half-synced cluster.
+   */
+  private async syncReplicasOnScratchTable(): Promise<void> {
+    const engine = await detectTableEngine("observations_pid_tid_sorting");
+    if (!engine.startsWith("Replicated")) {
+      logger.info(
+        `${this.logPrefix} Skipping SYSTEM SYNC REPLICA (engine=${engine || "unknown"} is not replicated)`,
+      );
+      return;
+    }
+
+    logger.info(
+      `${this.logPrefix} Syncing all replicas of observations_pid_tid_sorting`,
+    );
+    await commandClickhouse({
+      query: `SYSTEM SYNC REPLICA ${onClusterClause()} observations_pid_tid_sorting STRICT`,
+      tags: {
+        feature: "background-migration",
+        operation: "syncReplica",
+      },
+    });
   }
 
   // ==========================================================================
@@ -276,16 +277,20 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
   // ==========================================================================
 
   /**
-   * Stop merges now that the backfill is done. The subsequent migration step
-   * depends on the post-backfill part layout staying frozen and owns
-   * re-enabling (or replacing the table entirely).
+   * Finalize the scratch table for downstream processing: freeze its part
+   * layout, then converge every replica onto that frozen layout. M3 depends on
+   * the post-backfill parts staying frozen and identical across replicas; it
+   * owns re-enabling merges (or replacing the table entirely). Syncing here
+   * gates the chain — a throw leaves M2 unfinished and M3 blocked until the
+   * cluster converges, rather than advancing on a half-synced cluster.
    */
   protected async onBackfillSucceeded(
     _state: ChunkedBackfillState<BaseChunkTodo>,
   ): Promise<void> {
     await this.stopMergesOnScratchTable();
+    await this.syncReplicasOnScratchTable();
     logger.info(
-      `${this.logPrefix} Stopped merges on observations_pid_tid_sorting for downstream processing`,
+      `${this.logPrefix} Froze and synced observations_pid_tid_sorting for downstream processing`,
     );
   }
 
