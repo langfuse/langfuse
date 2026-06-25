@@ -428,7 +428,7 @@ export const SessionPage: React.FC<{
                 <Switch
                   checked={showCorrections}
                   onCheckedChange={setShowCorrectionsForSession}
-                  className="scale-75"
+                  size="sm"
                 />
                 <span className="text-muted-foreground text-xs">
                   Show corrections
@@ -1021,7 +1021,7 @@ const LoadedSessionEventsPage: React.FC<{
                 <Switch
                   checked={showCorrections}
                   onCheckedChange={setShowCorrectionsForSession}
-                  className="scale-75"
+                  size="sm"
                 />
                 <span className="text-muted-foreground text-xs">
                   Show corrections

@@ -198,7 +198,6 @@ export function TraceSettingsDropdown({
                 checked={colorCodeMetrics}
                 onCheckedChange={setColorCodeMetrics}
                 disabled={!isColorCodeEnabled}
-                className={cn(!isColorCodeEnabled && "cursor-not-allowed")}
               />
             </div>
           </DropdownMenuItem>

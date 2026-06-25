@@ -203,19 +203,21 @@ export function AnnotationQueueItemsTable({
                 }
               }}
               aria-label="Select all"
-              className="opacity-60"
+              translucent
             />
           </div>
         );
       },
       cell: ({ row }) => {
         return (
-          <Checkbox
-            checked={row.getIsSelected()}
-            onCheckedChange={(value) => row.toggleSelected(!!value)}
-            aria-label="Select row"
-            className="mt-1 opacity-60 data-[state=checked]:mt-[5px]"
-          />
+          <div className="mt-1 w-fit data-[state=checked]:mt-[5px]">
+            <Checkbox
+              checked={row.getIsSelected()}
+              onCheckedChange={(value) => row.toggleSelected(!!value)}
+              aria-label="Select row"
+              translucent
+            />
+          </div>
         );
       },
     },
