@@ -14,20 +14,26 @@ import {
 } from "@langfuse/shared/src/server";
 
 const timelineGranularity = z.literal("auto");
-type ResolvedTimelineGranularity = "minute" | "hour" | "day" | "week" | "month";
+type ResolvedTimelineGranularity = "minute" | "2m" | "5m" | "hour" | "day";
+const MINUTE_MS = 60 * 1000;
+const MAX_TIMELINE_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
+const TIMELINE_GRANULARITY_DURATION_TOLERANCE_MS = 1000;
+
+const isTimelineDuration = (actualMs: number, expectedMs: number): boolean =>
+  Math.abs(actualMs - expectedMs) <= TIMELINE_GRANULARITY_DURATION_TOLERANCE_MS;
 
 const resolveTimelineGranularity = (
   fromTimestamp: Date,
   toTimestamp: Date,
 ): ResolvedTimelineGranularity => {
   const diffMs = toTimestamp.getTime() - fromTimestamp.getTime();
-  const diffHours = diffMs / (1000 * 60 * 60);
 
-  if (diffHours < 2) return "minute";
-  if (diffHours < 72) return "hour";
-  if (diffHours < 1440) return "day";
-  if (diffHours < 8760) return "week";
-  return "month";
+  if (isTimelineDuration(diffMs, 60 * MINUTE_MS)) return "2m";
+  if (isTimelineDuration(diffMs, 3 * 60 * MINUTE_MS)) return "5m";
+  if (isTimelineDuration(diffMs, 24 * 60 * MINUTE_MS)) return "hour";
+  if (isTimelineDuration(diffMs, MAX_TIMELINE_RANGE_MS)) return "day";
+
+  return "minute";
 };
 
 const getTimelineBucketSql = (
@@ -36,10 +42,10 @@ const getTimelineBucketSql = (
 ): string => {
   const intervalByGranularity: Record<ResolvedTimelineGranularity, string> = {
     minute: "1 MINUTE",
+    "2m": "2 MINUTE",
+    "5m": "5 MINUTE",
     hour: "1 HOUR",
     day: "1 DAY",
-    week: "1 WEEK",
-    month: "1 MONTH",
   };
 
   return `toStartOfInterval(${sql}, INTERVAL ${intervalByGranularity[granularity]}, 'UTC')`;
@@ -48,72 +54,16 @@ const getTimelineBucketSql = (
 const getPostgresTimelineBucketExpression = (
   granularity: ResolvedTimelineGranularity,
 ): Prisma.Sql => {
-  const precisionByGranularity: Record<ResolvedTimelineGranularity, string> = {
-    minute: "minute",
-    hour: "hour",
-    day: "day",
-    week: "week",
-    month: "month",
+  const intervalByGranularity: Record<ResolvedTimelineGranularity, string> = {
+    minute: "1 minute",
+    "2m": "2 minutes",
+    "5m": "5 minutes",
+    hour: "1 hour",
+    day: "1 day",
   };
 
-  return Prisma.sql`date_trunc(${precisionByGranularity[granularity]}, je.created_at)`;
+  return Prisma.sql`date_bin(${intervalByGranularity[granularity]}::interval, je.created_at, '1970-01-01T00:00:00Z'::timestamptz)`;
 };
-
-const startOfTimelineBucket = (
-  date: Date,
-  granularity: ResolvedTimelineGranularity,
-): Date => {
-  const bucket = new Date(date);
-
-  bucket.setUTCSeconds(0, 0);
-
-  if (granularity === "minute") return bucket;
-
-  bucket.setUTCMinutes(0, 0, 0);
-
-  if (granularity === "hour") return bucket;
-
-  bucket.setUTCHours(0, 0, 0, 0);
-
-  if (granularity === "day") return bucket;
-
-  if (granularity === "week") {
-    const daysSinceMonday = (bucket.getUTCDay() + 6) % 7;
-    bucket.setUTCDate(bucket.getUTCDate() - daysSinceMonday);
-    return bucket;
-  }
-
-  bucket.setUTCDate(1);
-  return bucket;
-};
-
-const incrementTimelineBucket = (
-  date: Date,
-  granularity: ResolvedTimelineGranularity,
-): Date => {
-  const next = new Date(date);
-
-  switch (granularity) {
-    case "minute":
-      next.setUTCMinutes(next.getUTCMinutes() + 1);
-      return next;
-    case "hour":
-      next.setUTCHours(next.getUTCHours() + 1);
-      return next;
-    case "day":
-      next.setUTCDate(next.getUTCDate() + 1);
-      return next;
-    case "week":
-      next.setUTCDate(next.getUTCDate() + 7);
-      return next;
-    case "month":
-      next.setUTCMonth(next.getUTCMonth() + 1);
-      return next;
-  }
-};
-
-const formatTimelineBucketTime = (date: Date): string =>
-  date.toISOString().replace(".000Z", "Z");
 
 const legacyIntegrationExportSources =
   new Set<AnalyticsIntegrationExportSource>([
@@ -138,10 +88,129 @@ const isEnabledLegacyIntegration = (
     isLegacyIntegrationExportSource(integration.exportSource),
   );
 
+const timelineInputSchema = z
+  .object({
+    projectId: z.string(),
+    fromTimestamp: z.date(),
+    toTimestamp: z.date(),
+    granularity: timelineGranularity.default("auto"),
+  })
+  .refine(
+    ({ fromTimestamp, toTimestamp }) =>
+      toTimestamp.getTime() > fromTimestamp.getTime(),
+    { message: "fromTimestamp must be before toTimestamp" },
+  )
+  .refine(
+    ({ fromTimestamp, toTimestamp }) =>
+      toTimestamp.getTime() - fromTimestamp.getTime() <= MAX_TIMELINE_RANGE_MS,
+    { message: "V4 timeline ranges cannot exceed 30 days" },
+  );
+
 type LegacyApiUsageRow = {
   time: string;
   entrypoint: string;
   count: string | number;
+};
+
+type LegacyApiUsageResultRow = {
+  time: string;
+  entrypoint: string;
+  count: number;
+};
+
+const floorTimelineBucket = (
+  timestamp: Date,
+  granularity: ResolvedTimelineGranularity,
+): Date => {
+  const bucket = new Date(timestamp);
+
+  switch (granularity) {
+    case "minute":
+      bucket.setUTCSeconds(0, 0);
+      return bucket;
+    case "2m":
+      bucket.setUTCMinutes(Math.floor(bucket.getUTCMinutes() / 2) * 2, 0, 0);
+      return bucket;
+    case "5m":
+      bucket.setUTCMinutes(Math.floor(bucket.getUTCMinutes() / 5) * 5, 0, 0);
+      return bucket;
+    case "hour":
+      bucket.setUTCMinutes(0, 0, 0);
+      return bucket;
+    case "day":
+      bucket.setUTCHours(0, 0, 0, 0);
+      return bucket;
+    default: {
+      const exhaustiveCheck: never = granularity;
+      throw new Error(`Invalid timeline granularity: ${exhaustiveCheck}`);
+    }
+  }
+};
+
+const addTimelineBucket = (
+  timestamp: Date,
+  granularity: ResolvedTimelineGranularity,
+): Date => {
+  const next = new Date(timestamp);
+
+  switch (granularity) {
+    case "minute":
+      next.setUTCMinutes(next.getUTCMinutes() + 1);
+      return next;
+    case "2m":
+      next.setUTCMinutes(next.getUTCMinutes() + 2);
+      return next;
+    case "5m":
+      next.setUTCMinutes(next.getUTCMinutes() + 5);
+      return next;
+    case "hour":
+      next.setUTCHours(next.getUTCHours() + 1);
+      return next;
+    case "day":
+      next.setUTCDate(next.getUTCDate() + 1);
+      return next;
+    default: {
+      const exhaustiveCheck: never = granularity;
+      throw new Error(`Invalid timeline granularity: ${exhaustiveCheck}`);
+    }
+  }
+};
+
+const formatTimelineBucket = (timestamp: Date): string =>
+  timestamp.toISOString().replace(/\.\d{3}Z$/, "Z");
+
+const getEmptyTimelineBuckets = (
+  fromTimestamp: Date,
+  toTimestamp: Date,
+  granularity: ResolvedTimelineGranularity,
+): LegacyApiUsageResultRow[] => {
+  const buckets: LegacyApiUsageResultRow[] = [];
+
+  for (
+    let bucket = floorTimelineBucket(fromTimestamp, granularity);
+    bucket.getTime() < toTimestamp.getTime();
+    bucket = addTimelineBucket(bucket, granularity)
+  ) {
+    buckets.push({
+      time: formatTimelineBucket(bucket),
+      entrypoint: "",
+      count: 0,
+    });
+  }
+
+  return buckets;
+};
+
+const compareTimelineRows = (
+  left: LegacyApiUsageResultRow,
+  right: LegacyApiUsageResultRow,
+): number => {
+  if (left.time < right.time) return -1;
+  if (left.time > right.time) return 1;
+  if (left.entrypoint === right.entrypoint) return 0;
+  if (left.entrypoint === "") return -1;
+  if (right.entrypoint === "") return 1;
+  return left.entrypoint.localeCompare(right.entrypoint);
 };
 
 type TraceLevelEvalExecutionTimeSeriesRow = {
@@ -177,15 +246,14 @@ const fillTraceLevelEvalExecutionBuckets = ({
       (row) => [`${row.time}\u0000${row.scoreName}`, row.count] as const,
     ),
   );
-  const endBucket = startOfTimelineBucket(toTimestamp, granularity);
   const filledRows: TraceLevelEvalExecutionTimeSeriesPoint[] = [];
 
   for (
-    let bucket = startOfTimelineBucket(fromTimestamp, granularity);
-    bucket.getTime() <= endBucket.getTime();
-    bucket = incrementTimelineBucket(bucket, granularity)
+    let bucket = floorTimelineBucket(fromTimestamp, granularity);
+    bucket.getTime() < toTimestamp.getTime();
+    bucket = addTimelineBucket(bucket, granularity)
   ) {
-    const time = formatTimelineBucketTime(bucket);
+    const time = formatTimelineBucket(bucket);
 
     for (const scoreName of scoreNames) {
       filledRows.push({
@@ -245,14 +313,7 @@ export const v4TransitionRouter = createTRPCRouter({
     }),
 
   traceLevelEvalExecutionsTimeSeries: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        fromTimestamp: z.date(),
-        toTimestamp: z.date(),
-        granularity: timelineGranularity.default("auto"),
-      }),
-    )
+    .input(timelineInputSchema)
     .query(async ({ input, ctx }) => {
       const granularity = resolveTimelineGranularity(
         input.fromTimestamp,
@@ -280,7 +341,7 @@ WITH selected AS (
 )
 
 SELECT
-  to_char(bucket_time, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time,
+  to_char(bucket_time AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time,
   score_name AS "scoreName",
   COUNT(*)::bigint AS count
 FROM selected
@@ -301,14 +362,7 @@ ORDER BY bucket_time ASC, score_name ASC
     }),
 
   timeSeriesByEntrypoint: protectedProjectProcedure
-    .input(
-      z.object({
-        projectId: z.string(),
-        fromTimestamp: z.date(),
-        toTimestamp: z.date(),
-        granularity: timelineGranularity.default("auto"),
-      }),
-    )
+    .input(timelineInputSchema)
     .query(async ({ input }) => {
       const granularity = resolveTimelineGranularity(
         input.fromTimestamp,
@@ -408,10 +462,20 @@ SETTINGS skip_unavailable_shards = 1
         },
       });
 
-      return rows.map((row) => ({
+      const dataRows = rows.map((row) => ({
         time: row.time,
         entrypoint: row.entrypoint,
         count: Number(row.count),
       }));
+
+      return dataRows.length === 0
+        ? dataRows
+        : getEmptyTimelineBuckets(
+            input.fromTimestamp,
+            input.toTimestamp,
+            granularity,
+          )
+            .concat(dataRows)
+            .sort(compareTimelineRows);
     }),
 });
