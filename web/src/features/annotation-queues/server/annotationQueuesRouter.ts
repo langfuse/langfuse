@@ -469,6 +469,7 @@ export const queueRouter = createTRPCRouter({
         queueId: z.string(),
         projectId: z.string(),
         seenItemIds: z.array(z.string()),
+        order: z.enum(["asc", "desc"]).default("asc"),
         isBetaEnabled: z.boolean().optional().default(false),
       }),
     )
@@ -496,9 +497,7 @@ export const queueRouter = createTRPCRouter({
             id: { in: input.seenItemIds },
           },
         },
-        orderBy: {
-          createdAt: "asc",
-        },
+        orderBy: [{ createdAt: input.order }, { id: input.order }],
       });
 
       // Expected behavior, non-error case: all items have been seen AND/OR completed, no more unseen pending items

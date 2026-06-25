@@ -18,6 +18,8 @@ import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProces
 import { ObjectNotFoundCard } from "@/src/components/ui/object-not-found-card";
 import { useSession } from "next-auth/react";
 
+type QueueOrder = "asc" | "desc";
+
 export const AnnotationQueueItemPage: React.FC<{
   annotationQueueId: string;
   projectId: string;
@@ -32,6 +34,8 @@ export const AnnotationQueueItemPage: React.FC<{
   >(null);
   const [seenItemIds, setSeenItemIds] = useState<string[]>([]);
   const [progressIndex, setProgressIndex] = useState(0);
+  const order: QueueOrder = router.query.order === "desc" ? "desc" : "asc";
+  const orderLabel = order === "desc" ? "Newest first" : "Oldest first";
 
   const hasAccess = useHasProjectAccess({
     projectId,
@@ -51,18 +55,19 @@ export const AnnotationQueueItemPage: React.FC<{
   // Effects
   useEffect(() => {
     async function fetchNextItem() {
-      if (!itemId && !isSingleItem && sessionLoaded) {
+      if (!itemId && !isSingleItem && sessionLoaded && router.isReady) {
         const nextItem = await fetchAndLockNextMutation.mutateAsync({
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
+          order,
         });
         setNextItemData(nextItem);
       }
     }
     fetchNextItem();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionLoaded]);
+  }, [sessionLoaded, router.isReady]);
   const { configs } = useAnnotationQueueData({ annotationQueueId, projectId });
 
   const unseenPendingItemCount =
@@ -88,6 +93,7 @@ export const AnnotationQueueItemPage: React.FC<{
           queueId: annotationQueueId,
           projectId,
           seenItemIds,
+          order,
         });
         setNextItemData(nextItem);
       }
@@ -127,12 +133,15 @@ export const AnnotationQueueItemPage: React.FC<{
       router.push(
         {
           pathname: `/project/${projectId}/annotation-queues/${annotationQueueId}/items/${relevantItem.id}`,
-          query: observation ? { observation } : undefined,
+          query: {
+            order,
+            ...(observation ? { observation } : {}),
+          },
         },
         undefined,
       );
     }
-  }, [relevantItem, router, projectId, annotationQueueId]);
+  }, [relevantItem, router, projectId, annotationQueueId, order]);
 
   useEffect(() => {
     if (
@@ -150,6 +159,7 @@ export const AnnotationQueueItemPage: React.FC<{
     (fetchAndLockNextMutation.isPending && !itemId) ||
     unseenPendingItemCount.isPending ||
     objectData.isLoading ||
+    (!router.isReady && !isSingleItem) ||
     (!sessionLoaded && !isSingleItem)
   ) {
     return <Skeleton className="h-full w-full" />;
@@ -171,6 +181,7 @@ export const AnnotationQueueItemPage: React.FC<{
         queueId: annotationQueueId,
         projectId,
         seenItemIds,
+        order,
       });
       setNextItemData(nextItem);
     }
@@ -242,6 +253,9 @@ export const AnnotationQueueItemPage: React.FC<{
       <div className="grid w-full shrink-0 grid-cols-1 justify-end gap-2 py-2 sm:grid-cols-[auto_min-content]">
         {!isSingleItem && (
           <div className="flex max-h-10 flex-row gap-2">
+            <span className="bg-muted text-muted-foreground grid h-9 min-w-28 items-center rounded-md px-3 text-center text-sm">
+              {orderLabel}
+            </span>
             <span className="bg-muted grid h-9 min-w-16 items-center rounded-md p-1 text-center text-sm">
               {progressIndex + 1} / {totalItems}
             </span>

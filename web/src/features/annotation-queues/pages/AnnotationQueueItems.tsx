@@ -2,10 +2,7 @@ import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import { AnnotationQueueItemsTable } from "@/src/features/annotation-queues/components/AnnotationQueueItemsTable";
 import { CardDescription } from "@/src/components/ui/card";
-import { Button } from "@/src/components/ui/button";
-import { ClipboardPen, Lock } from "lucide-react";
 import { Badge } from "@/src/components/ui/badge";
-import Link from "next/link";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing/components/SupportOrUpgradePage";
@@ -19,6 +16,7 @@ import {
 } from "@/src/components/ui/side-panel";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
 import { getScoreDataTypeIcon } from "@/src/features/scores/lib/scoreColumns";
+import { ProcessAnnotationQueueButton } from "@/src/features/annotation-queues/components/ProcessAnnotationQueueButton";
 
 export default function QueueItems() {
   const router = useRouter();
@@ -52,20 +50,12 @@ export default function QueueItems() {
             href: `/project/${projectId}/annotation-queues`,
           },
         ],
-        actionButtonsRight: !hasWriteAccess ? (
-          <Button disabled>
-            <Lock className="mr-1 h-4 w-4" />
-            <span className="text-sm">Process queue</span>
-          </Button>
-        ) : (
-          <Button asChild>
-            <Link
-              href={`/project/${projectId}/annotation-queues/${queueId}/items`}
-            >
-              <ClipboardPen className="mr-1 h-4 w-4" />
-              <span className="text-sm">Process queue</span>
-            </Link>
-          </Button>
+        actionButtonsRight: (
+          <ProcessAnnotationQueueButton
+            projectId={projectId}
+            queueId={queueId}
+            disabled={!hasWriteAccess}
+          />
         ),
       }}
     >
