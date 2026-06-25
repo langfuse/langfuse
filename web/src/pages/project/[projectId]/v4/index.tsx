@@ -113,7 +113,7 @@ export default function V4Page() {
 
         <DashboardCard
           title="Legacy API usage by entrypoint over time"
-          description="Counts ClickHouse-backed legacy public API reads for this project."
+          description="Estimates ClickHouse-backed legacy public API calls for this project."
           isLoading={legacyApiUsage.isPending}
           cardContentClassName="min-h-[32rem]"
         >

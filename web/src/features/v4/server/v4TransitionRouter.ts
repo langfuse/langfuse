@@ -90,16 +90,38 @@ classified AS (
       match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/:id',
       match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/:id',
       NULL
-    ) AS legacy_route
+    ) AS legacy_route,
+    multiIf(
+      route_path IN (
+        'GET /api/public/spans',
+        'GET /api/public/generations',
+        'GET /api/public/traces',
+        'GET /api/public/observations',
+        'GET /api/public/scores',
+        'GET /api/public/v2/scores',
+        'GET /api/public/metrics/daily'
+      ), 2,
+      route_path IN (
+        'GET /api/public/sessions',
+        'GET /api/public/metrics'
+      ), 1,
+      match(route_path, '^GET /api/public/traces/[^/?#]+$'), 3,
+      match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/observations/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/scores/[^/?#]+$'), 1,
+      match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 1,
+      NULL
+    ) AS clickhouse_queries_per_api_call
   FROM selected
 )
 
 SELECT
   formatDateTime(bucket_time, '%Y-%m-%dT%H:%i:%SZ', 'UTC') AS time,
   concat('publicapi: ', legacy_route) AS entrypoint,
-  count() AS count
+  sum(1.0 / clickhouse_queries_per_api_call) AS count
 FROM classified
 WHERE legacy_route IS NOT NULL
+  AND clickhouse_queries_per_api_call IS NOT NULL
 GROUP BY bucket_time, legacy_route
 ORDER BY bucket_time ASC, legacy_route ASC
         `,

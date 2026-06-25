@@ -74,7 +74,7 @@ describe("v4TransitionRouter", () => {
       {
         time: "2026-06-25T12:00:00Z",
         entrypoint: "publicapi: GET /api/public/traces/:id",
-        count: "2",
+        count: "0.6666666666666666",
       },
     ]);
   });
@@ -102,7 +102,7 @@ describe("v4TransitionRouter", () => {
       {
         time: "2026-06-25T12:00:00Z",
         entrypoint: "publicapi: GET /api/public/traces/:id",
-        count: 2,
+        count: 0.6666666666666666,
       },
     ]);
 
@@ -116,6 +116,9 @@ describe("v4TransitionRouter", () => {
     );
     expect(clickhouseQuery?.query).toContain(
       "splitByChar('?', JSONExtractString(log_comment, 'route'))[1]",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "sum(1.0 / clickhouse_queries_per_api_call) AS count",
     );
     expect(clickhouseQuery?.query).toContain("AND type = 'QueryFinish'");
     expect(clickhouseQuery?.query).toContain(
@@ -150,5 +153,15 @@ describe("v4TransitionRouter", () => {
       "GET /api/public/scores/:id",
       "GET /api/public/v2/scores/:id",
     ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
+
+    expect(clickhouseQuery?.query).toContain(
+      "'GET /api/public/traces',\n        'GET /api/public/observations',\n        'GET /api/public/scores',\n        'GET /api/public/v2/scores',\n        'GET /api/public/metrics/daily'\n      ), 2",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "'GET /api/public/sessions',\n        'GET /api/public/metrics'\n      ), 1",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "match(route_path, '^GET /api/public/traces/[^/?#]+$'), 3",
+    );
   });
 });
