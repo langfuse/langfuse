@@ -136,6 +136,11 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
   const setExpanded = useCallback(
     (expanded: boolean) => {
       const params = new URLSearchParams(window.location.search);
+      const currentlyExpanded =
+        params.get(PEEK_VIEW_PARAM) === PEEK_VIEW_EXPANDED;
+      // No-op when the flag already matches: skip the redundant shallow
+      // router.replace (and the re-render it would otherwise trigger).
+      if (expanded === currentlyExpanded) return;
       if (expanded) params.set(PEEK_VIEW_PARAM, PEEK_VIEW_EXPANDED);
       else params.delete(PEEK_VIEW_PARAM);
       router.replace(
@@ -197,104 +202,117 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     />
   );
 
-  const body = (
-    <PeekTableStateProvider>
-      <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-auto" key={itemId}>
-          {children}
-        </div>
+  const content = (
+    <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex-1 overflow-auto" key={itemId}>
+        {children}
       </div>
-    </PeekTableStateProvider>
+    </div>
   );
 
-  // Mobile: a vaul bottom drawer with native swipe-down dismissal.
-  if (isMobile) {
-    return (
-      <Drawer
-        open={!!itemId}
-        onOpenChange={handleOpenChange}
-        forceDirection="bottom"
-      >
-        <DrawerContent
-          size="full"
-          className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
-        >
-          <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
-          <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
-            <div className="bg-muted h-1.5 w-12 rounded-full" />
-          </div>
-          {header}
-          {body}
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-
-  // Desktop: a docked-right, resizable panel that stays on top of the table
-  // (non-modal, no overlay) so the table behind remains interactive.
+  // One PeekTableStateProvider wraps BOTH shells, above the mobile/desktop
+  // branch, so the nested-table state it holds (filters, sort, pagination,
+  // search) survives a breakpoint cross — without this, resizing across the
+  // mobile/desktop boundary swaps Drawer↔Sheet and would otherwise remount a
+  // fresh provider, dropping that state. It unmounts only on close (the early
+  // `return null` above), which is what resets the state (see README).
   return (
-    <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
-      <SheetPortal>
-        <SheetPrimitive.Content
-          aria-describedby={undefined}
-          data-peek-content=""
-          style={panel.panelStyle}
-          onPointerDownOutside={(e) => {
-            if (
-              shouldKeepPeekOpenOnOutsideInteraction(e.target, ignoredSelectors)
-            ) {
-              e.preventDefault();
-            }
-          }}
-          onInteractOutside={(e) => {
-            if (
-              shouldKeepPeekOpenOnOutsideInteraction(e.target, ignoredSelectors)
-            ) {
-              e.preventDefault();
-            }
-          }}
-          // Never close because focus moved out (e.g. into a portaled popover or
-          // another input); only pointer/Escape/close-button drive dismissal.
-          onFocusOutside={(e) => e.preventDefault()}
-          className={cn(
-            // No overflow-hidden here: the resize handle straddles the left edge
-            // (overhangs onto the table) so it's grabbable from either side. The
-            // body clips its own content instead.
-            "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
-            // Soft shadow cast leftward (toward the table) to lift the peek off
-            // the content behind it.
-            "shadow-[-12px_0_32px_-16px_rgb(0_0_0_/_0.30)]",
-            "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
-            panel.isResizing && "select-none",
-          )}
+    <PeekTableStateProvider>
+      {isMobile ? (
+        // Mobile: a vaul bottom drawer with native swipe-down dismissal.
+        <Drawer
+          open={!!itemId}
+          onOpenChange={handleOpenChange}
+          forceDirection="bottom"
         >
-          <SheetPrimitive.Title className="sr-only">
-            {resolvedTitle}
-          </SheetPrimitive.Title>
-          {header}
-          {body}
-          {/* Rendered last so it is not the dialog's initial focus target. It
-              STRADDLES the left edge (−4px onto the table … +8px inside) so it's
-              an easy, grabbable target from either side; absolutely positioned,
-              so DOM order doesn't affect its placement. */}
-          <div
-            {...panel.resizeHandleProps}
-            className="group/resize absolute inset-y-0 -left-1 z-20 flex w-3 cursor-ew-resize touch-none justify-center focus-visible:outline-hidden"
+          <DrawerContent
+            size="full"
+            className="min-h-screen-with-banner top-[calc(var(--banner-offset)+10px)] bottom-0 gap-0 p-0"
           >
-            <div
-              aria-hidden="true"
+            <DrawerTitle className="sr-only">{resolvedTitle}</DrawerTitle>
+            <div className="flex w-full shrink-0 items-center justify-center pt-2 pb-1">
+              <div className="bg-muted h-1.5 w-12 rounded-full" />
+            </div>
+            {header}
+            {content}
+          </DrawerContent>
+        </Drawer>
+      ) : (
+        // Desktop: a docked-right, resizable panel that stays on top of the
+        // table (non-modal, no overlay) so the table behind stays interactive.
+        <Sheet open={!!itemId} onOpenChange={handleOpenChange} modal={false}>
+          <SheetPortal>
+            <SheetPrimitive.Content
+              aria-describedby={undefined}
+              data-peek-content=""
+              style={panel.panelStyle}
+              onPointerDownOutside={(e) => {
+                if (
+                  shouldKeepPeekOpenOnOutsideInteraction(
+                    e.target,
+                    ignoredSelectors,
+                  )
+                ) {
+                  e.preventDefault();
+                }
+              }}
+              onInteractOutside={(e) => {
+                if (
+                  shouldKeepPeekOpenOnOutsideInteraction(
+                    e.target,
+                    ignoredSelectors,
+                  )
+                ) {
+                  e.preventDefault();
+                }
+              }}
+              // Never close because focus moved out (e.g. into a portaled
+              // popover or another input); only pointer/Escape/close-button
+              // drive dismissal.
+              onFocusOutside={(e) => e.preventDefault()}
               className={cn(
-                // Sits on the panel's left edge; subtle at rest, clearer on
-                // hover/drag (neutral, no brand accent — the cursor signals it).
-                "h-full w-1 rounded-full transition-colors",
-                "group-hover/resize:bg-muted-foreground/40 group-focus-visible/resize:bg-muted-foreground/50",
-                panel.isResizing ? "bg-muted-foreground/60" : "bg-transparent",
+                // No overflow-hidden here: the resize handle straddles the left
+                // edge (overhangs onto the table) so it's grabbable from either
+                // side. The body clips its own content instead.
+                "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
+                // Soft shadow cast leftward (toward the table) to lift the peek
+                // off the content behind it.
+                "shadow-[-12px_0_32px_-16px_rgb(0_0_0_/_0.30)]",
+                "data-[state=open]:animate-in data-[state=open]:slide-in-from-right data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=closed]:duration-100 data-[state=open]:duration-100",
+                panel.isResizing && "select-none",
               )}
-            />
-          </div>
-        </SheetPrimitive.Content>
-      </SheetPortal>
-    </Sheet>
+            >
+              <SheetPrimitive.Title className="sr-only">
+                {resolvedTitle}
+              </SheetPrimitive.Title>
+              {header}
+              {content}
+              {/* Rendered last so it is not the dialog's initial focus target.
+                  It STRADDLES the left edge (−4px onto the table … +8px inside)
+                  so it's an easy, grabbable target from either side; absolutely
+                  positioned, so DOM order doesn't affect its placement. */}
+              <div
+                {...panel.resizeHandleProps}
+                className="group/resize absolute inset-y-0 -left-1 z-20 flex w-3 cursor-ew-resize touch-none justify-center focus-visible:outline-hidden"
+              >
+                <div
+                  aria-hidden="true"
+                  className={cn(
+                    // Sits on the panel's left edge; subtle at rest, clearer on
+                    // hover/drag (neutral, no brand accent — cursor signals it).
+                    "h-full w-1 rounded-full transition-colors",
+                    "group-hover/resize:bg-muted-foreground/40 group-focus-visible/resize:bg-muted-foreground/50",
+                    panel.isResizing
+                      ? "bg-muted-foreground/60"
+                      : "bg-transparent",
+                  )}
+                />
+              </div>
+            </SheetPrimitive.Content>
+          </SheetPortal>
+        </Sheet>
+      )}
+    </PeekTableStateProvider>
   );
 }
 
