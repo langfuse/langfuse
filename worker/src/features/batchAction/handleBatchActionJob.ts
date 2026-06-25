@@ -7,6 +7,7 @@ import {
   QueueJobs,
   QueueName,
   TQueueJobTypes,
+  findDatasetIdsForBatchDeletion,
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import {
@@ -40,6 +41,7 @@ import {
 import { processAddObservationsToDataset } from "./processAddObservationsToDataset";
 import { ObservationAddToDatasetConfigSchema } from "@langfuse/shared";
 import { processBatchedObservationEval } from "./processBatchedObservationEval";
+import { processDeleteDatasets } from "./processDeleteDatasets";
 
 const CHUNK_SIZE = 1000;
 const convertDatesInFiltersFromStrings = (filters: FilterCondition[]) => {
@@ -90,6 +92,10 @@ async function processActionChunk(
 
       case "score-delete":
         await processClickhouseScoreDelete(projectId, chunkIds);
+        break;
+
+      case "dataset-delete":
+        await processDeleteDatasets(projectId, chunkIds);
         break;
 
       default:
@@ -166,7 +172,8 @@ export const handleBatchActionJob = async (
     actionId === "trace-add-to-annotation-queue" ||
     actionId === "session-add-to-annotation-queue" ||
     actionId === "observation-add-to-annotation-queue" ||
-    actionId === "score-delete"
+    actionId === "score-delete" ||
+    actionId === "dataset-delete"
   ) {
     const { projectId, tableName, query, cutoffCreatedAt, targetId, type } =
       batchActionEvent;
@@ -184,21 +191,27 @@ export const handleBatchActionJob = async (
     };
 
     const dbReadStream =
-      actionId === "trace-delete"
-        ? await getTraceIdentifierStream({
-            ...streamParams,
-            orderBy: query.orderBy,
+      actionId === "dataset-delete"
+        ? await findDatasetIdsForBatchDeletion({
+            projectId,
+            cutoffCreatedAt: new Date(cutoffCreatedAt),
+            query,
           })
-        : tableName === BatchTableNames.Events
-          ? await getEventsStreamForAnnotationQueue(streamParams)
-          : tableName === BatchTableNames.Observations
-            ? await getObservationStream(streamParams)
-            : await getDatabaseReadStreamPaginated({
-                ...streamParams,
-                orderBy: query.orderBy,
-                tableName: tableName as BatchTableNames,
-                useEventsTable: query.useEventsTable,
-              });
+        : actionId === "trace-delete"
+          ? await getTraceIdentifierStream({
+              ...streamParams,
+              orderBy: query.orderBy,
+            })
+          : tableName === BatchTableNames.Events
+            ? await getEventsStreamForAnnotationQueue(streamParams)
+            : tableName === BatchTableNames.Observations
+              ? await getObservationStream(streamParams)
+              : await getDatabaseReadStreamPaginated({
+                  ...streamParams,
+                  orderBy: query.orderBy,
+                  tableName: tableName as BatchTableNames,
+                  useEventsTable: query.useEventsTable,
+                });
 
     // Process stream in database-sized batches
     // 1. Read all records
