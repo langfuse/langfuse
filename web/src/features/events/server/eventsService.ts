@@ -9,26 +9,9 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getCategoricalScoresGroupedByName,
-  getEventsGroupedByModel,
-  getEventsGroupedByModelId,
-  getEventsGroupedByName,
-  getEventsGroupedByTraceName,
-  getEventsGroupedByTraceTags,
-  getEventsGroupedByPromptName,
-  getEventsGroupedByType,
-  getEventsGroupedByUserId,
-  getEventsGroupedByVersion,
+  getEventsFilterOptionsForColumns,
+  getEventsFilterOptionValuesPage,
   getEventsNumericStatsByFilterColumn,
-  getEventsGroupedBySessionId,
-  getEventsGroupedByLevel,
-  getEventsGroupedByEnvironment,
-  getEventsGroupedByExperimentDatasetId,
-  getEventsGroupedByExperimentId,
-  getEventsGroupedByExperimentName,
-  getEventsGroupedByHasParentObservation,
-  getEventsGroupedByIsRootObservation,
-  getEventsGroupedByToolName,
-  getEventsGroupedByCalledToolName,
   getNumericScoresGroupedByName,
   getScoresGroupedByNameSourceType,
   getObservationsBatchIOFromEventsTable,
@@ -36,6 +19,7 @@ import {
   getScoresForTraces,
   logger,
   traceException,
+  type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import { type timeFilter, type FilterState } from "@langfuse/shared";
 import {
@@ -44,7 +28,6 @@ import {
   windowToMs,
 } from "@langfuse/shared/monitors";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
-import { assertUnreachable } from "@/src/utils/types";
 
 type TimeFilter = z.infer<typeof timeFilter>;
 
@@ -88,6 +71,7 @@ interface GetObservationsFilterOptionsParams {
   isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
+  columns?: readonly EventFilterOptionsColumn[];
 }
 
 type EventFilterValueOption = {
@@ -95,12 +79,41 @@ type EventFilterValueOption = {
   count?: number;
 };
 
-type GroupedEventsFilterOptions = {
-  extraWhereRaw?: string;
-  limit?: number;
-  offset?: number;
-  orderBy?: string;
-};
+// Subset of event filter option columns returned by the bulk filter-options response.
+const EVENT_FILTER_OPTION_COLUMNS = [
+  "providedModelName",
+  "modelId",
+  "name",
+  "promptName",
+  "traceTags",
+  "traceName",
+  "type",
+  "userId",
+  "version",
+  "sessionId",
+  "level",
+  "environment",
+  "experimentDatasetId",
+  "experimentId",
+  "experimentName",
+  "isRootObservation",
+  "toolNames",
+  "calledToolNames",
+] as const satisfies readonly EventFilterOptionColumn[];
+
+const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
+  "scores_avg",
+  "score_categories",
+  "trace_scores_avg",
+  "trace_score_categories",
+] as const;
+
+export const EVENT_FILTER_OPTIONS_COLUMNS = [
+  ...EVENT_FILTER_OPTION_COLUMNS,
+  ...EVENT_SCORE_FILTER_OPTION_COLUMNS,
+] as const;
+
+type EventFilterOptionsColumn = (typeof EVENT_FILTER_OPTIONS_COLUMNS)[number];
 
 const OBSERVATIONS_TO_TRACE_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
 const SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS = 60 * 60 * 1000;
@@ -353,17 +366,47 @@ export async function getEventCount(params: GetObservationsCountParams) {
   return { totalCount };
 }
 
-const toFilterValueOptions = <
-  TKey extends string,
-  TItem extends Record<TKey, string | null> & { count: number },
->(
-  items: TItem[],
-  key: TKey,
-) =>
-  items.flatMap((item) => {
-    const value = item[key];
-    return value === null ? [] : [{ value, count: item.count }];
-  });
+type EventFilterOptionRow = Awaited<
+  ReturnType<typeof getEventsFilterOptionsForColumns>
+>[number];
+
+const toFilterValueOptions = (
+  items: EventFilterOptionRow[],
+  column: EventFilterOptionColumn,
+): EventFilterValueOption[] =>
+  items
+    .filter((item) => item.column === column)
+    .map((item) => ({ value: item.value, count: item.count }));
+
+const EVENT_FILTER_VALUE_ONLY_COLUMNS = new Set<EventFilterOptionColumn>([
+  "traceTags",
+  "toolNames",
+  "calledToolNames",
+]);
+
+type EventFilterOptionsByColumn = Record<
+  (typeof EVENT_FILTER_OPTION_COLUMNS)[number],
+  EventFilterValueOption[]
+>;
+
+const toEventFilterValueOptions = (
+  items: EventFilterOptionRow[],
+  column: EventFilterOptionColumn,
+): EventFilterValueOption[] => {
+  const options = toFilterValueOptions(items, column);
+
+  return EVENT_FILTER_VALUE_ONLY_COLUMNS.has(column)
+    ? options.map(({ value }) => ({ value }))
+    : options;
+};
+
+const toEventFilterOptionsByColumn = (
+  items: EventFilterOptionRow[],
+): EventFilterOptionsByColumn =>
+  EVENT_FILTER_OPTION_COLUMNS.reduce((acc, column) => {
+    acc[column] = toEventFilterValueOptions(items, column);
+    return acc;
+  }, {} as EventFilterOptionsByColumn);
 
 const getEventFilterOptionsScope = (
   params: GetObservationsFilterOptionsParams,
@@ -454,126 +497,27 @@ export async function getEventFilterValuePage(
   const { eventsFilter } = getEventFilterOptionsScope(scopedParams);
   const queryLimit = limit + 1;
 
-  const createResultFromGroupedQuery = async <T>(
-    query: (
-      projectId: string,
-      filter: FilterState,
-      opts?: GroupedEventsFilterOptions,
-    ) => Promise<Array<T & { count?: number }>>,
-    valueGetter: (item: T) => string,
-  ) => {
-    const values = await query(projectId, eventsFilter, {
-      limit: queryLimit,
-      offset,
-    }).then((items) =>
-      items.map(
-        (item) =>
-          ({
-            value: valueGetter(item),
-            count: item.count,
-          }) satisfies EventFilterValueOption,
-      ),
-    );
+  const rows = await getEventsFilterOptionValuesPage({
+    projectId,
+    filter: eventsFilter,
+    column,
+    limit: queryLimit,
+    offset,
+  });
 
-    return {
-      values: values.slice(0, limit),
-      nextOffset: values.length > limit ? offset + limit : undefined,
-    };
+  const values = rows.map((row) =>
+    column === "traceTags"
+      ? ({ value: row.value } satisfies EventFilterValueOption)
+      : ({
+          value: row.value,
+          count: row.count,
+        } satisfies EventFilterValueOption),
+  );
+
+  return {
+    values: values.slice(0, limit),
+    nextOffset: values.length > limit ? offset + limit : undefined,
   };
-
-  if (column === "hasParentObservation") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByHasParentObservation,
-      (item) => (item.hasParentObservation ? "true" : "false"),
-    );
-  }
-
-  if (column === "traceTags") {
-    // Trace tags do not support counting right now
-    return createResultFromGroupedQuery(
-      getEventsGroupedByTraceTags,
-      (item) => item.tag,
-    );
-  }
-
-  if (column === "providedModelName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByModel,
-      (item) => item.model,
-    );
-  }
-
-  if (column === "modelId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByModelId,
-      (item) => item.modelId,
-    );
-  }
-
-  if (column === "name") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByName,
-      (item) => item.name,
-    );
-  }
-
-  if (column === "traceName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByTraceName,
-      (item) => item.traceName,
-    );
-  }
-
-  if (column === "type") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByType,
-      (item) => item.type,
-    );
-  }
-
-  if (column === "userId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByUserId,
-      (item) => item.userId,
-    );
-  }
-
-  if (column === "version") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByVersion,
-      (item) => item.version,
-    );
-  }
-
-  if (column === "sessionId") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedBySessionId,
-      (item) => item.sessionId,
-    );
-  }
-
-  if (column === "level") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByLevel,
-      (item) => item.level,
-    );
-  }
-
-  if (column === "environment") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByEnvironment,
-      (item) => item.environment,
-    );
-  }
-
-  if (column === "promptName") {
-    return createResultFromGroupedQuery(
-      getEventsGroupedByPromptName,
-      (item) => item.promptName,
-    );
-  }
-
-  return assertUnreachable(column);
 }
 
 export async function getEventFilterNumericRange(
@@ -598,57 +542,46 @@ export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
-  const { projectId } = scopedParams;
+  const { projectId, columns = EVENT_FILTER_OPTIONS_COLUMNS } = scopedParams;
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
     getEventFilterOptionsScope(scopedParams);
+  const requestedColumns = new Set<EventFilterOptionsColumn>(columns);
+  const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
+    requestedColumns.has(column),
+  );
+  const shouldLoadScoresAvg = requestedColumns.has("scores_avg");
+  const shouldLoadScoreCategories =
+    requestedColumns.has("score_categories") ||
+    requestedColumns.has("trace_score_categories");
+  const shouldLoadTraceScores =
+    requestedColumns.has("trace_scores_avg") ||
+    requestedColumns.has("trace_score_categories");
 
   const [
     numericScoreNames,
     categoricalScoreNames,
     traceScoreColumns,
-    providedModelName,
-    name,
-    promptNames,
-    traceTags,
-    traceNames,
-    modelId,
-    types,
-    userIds,
-    versions,
-    sessionIds,
-    levels,
-    environments,
-    experimentDatasetIds,
-    experimentIds,
-    experimentNames,
-    isRootObservationResults,
-    toolNames,
-    calledToolNames,
+    eventFilterOptions,
   ] = await Promise.all([
-    getNumericScoresGroupedByName(projectId, traceTimestampFilters),
-    getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
-    getScoresGroupedByNameSourceType({
-      projectId,
-      filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
-    }),
-    getEventsGroupedByModel(projectId, eventsFilter),
-    getEventsGroupedByName(projectId, eventsFilter),
-    getEventsGroupedByPromptName(projectId, eventsFilter),
-    getEventsGroupedByTraceTags(projectId, eventsFilter),
-    getEventsGroupedByTraceName(projectId, eventsFilter),
-    getEventsGroupedByModelId(projectId, eventsFilter),
-    getEventsGroupedByType(projectId, eventsFilter),
-    getEventsGroupedByUserId(projectId, eventsFilter),
-    getEventsGroupedByVersion(projectId, eventsFilter),
-    getEventsGroupedBySessionId(projectId, eventsFilter),
-    getEventsGroupedByLevel(projectId, eventsFilter),
-    getEventsGroupedByEnvironment(projectId, eventsFilter),
-    getEventsGroupedByExperimentDatasetId(projectId, eventsFilter),
-    getEventsGroupedByExperimentId(projectId, eventsFilter),
-    getEventsGroupedByExperimentName(projectId, eventsFilter),
-    getEventsGroupedByIsRootObservation(projectId, eventsFilter),
-    getEventsGroupedByToolName(projectId, eventsFilter),
-    getEventsGroupedByCalledToolName(projectId, eventsFilter),
+    shouldLoadScoresAvg
+      ? getNumericScoresGroupedByName(projectId, traceTimestampFilters)
+      : Promise.resolve([]),
+    shouldLoadScoreCategories
+      ? getCategoricalScoresGroupedByName(projectId, traceTimestampFilters)
+      : Promise.resolve([]),
+    shouldLoadTraceScores
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
+        })
+      : Promise.resolve([]),
+    eventColumns.length > 0
+      ? getEventsFilterOptionsForColumns({
+          projectId,
+          filter: eventsFilter,
+          columns: eventColumns,
+        })
+      : Promise.resolve([]),
   ]);
   const traceNumericScoreNames = Array.from(
     new Set(
@@ -665,47 +598,25 @@ export async function getEventFilterOptions(
       .filter((score) => score.dataType === "CATEGORICAL")
       .map((score) => score.name),
   );
+  const eventFilterOptionsByColumn =
+    toEventFilterOptionsByColumn(eventFilterOptions);
 
   return {
-    providedModelName: toFilterValueOptions(providedModelName, "model"),
-    modelId: toFilterValueOptions(modelId, "modelId"),
-    name: toFilterValueOptions(name, "name"),
-    scores_avg: numericScoreNames.map((score) => score.name),
-    score_categories: categoricalScoreNames,
-    trace_scores_avg: traceNumericScoreNames,
-    trace_score_categories: categoricalScoreNames.filter((score) =>
-      traceCategoricalScoreNames.has(score.label),
-    ),
-    promptName: toFilterValueOptions(promptNames, "promptName"),
-    traceTags: traceTags
-      .filter((i) => i.tag !== null)
-      .map((i) => ({
-        value: i.tag,
-      })),
-    traceName: toFilterValueOptions(traceNames, "traceName"),
-    type: toFilterValueOptions(types, "type"),
-    userId: toFilterValueOptions(userIds, "userId"),
-    version: toFilterValueOptions(versions, "version"),
-    sessionId: toFilterValueOptions(sessionIds, "sessionId"),
-    level: toFilterValueOptions(levels, "level"),
-    environment: toFilterValueOptions(environments, "environment"),
-    experimentDatasetId: toFilterValueOptions(
-      experimentDatasetIds,
-      "experimentDatasetId",
-    ),
-    experimentId: toFilterValueOptions(experimentIds, "experimentId"),
-    experimentName: toFilterValueOptions(experimentNames, "experimentName"),
-    isRootObservation: isRootObservationResults.map((i) => ({
-      // ClickHouse returns UInt8 (0/1) for computed boolean; normalize to "true"/"false"
-      value: i.isRootObservation ? "true" : "false",
-      count: i.count,
-    })),
-    toolNames: toolNames
-      .filter((i) => i.toolName !== null)
-      .map((i) => ({ value: i.toolName })),
-    calledToolNames: calledToolNames
-      .filter((i) => i.calledToolName !== null)
-      .map((i) => ({ value: i.calledToolName })),
+    ...eventFilterOptionsByColumn,
+    scores_avg: shouldLoadScoresAvg
+      ? numericScoreNames.map((score) => score.name)
+      : [],
+    score_categories: requestedColumns.has("score_categories")
+      ? categoricalScoreNames
+      : [],
+    trace_scores_avg: requestedColumns.has("trace_scores_avg")
+      ? traceNumericScoreNames
+      : [],
+    trace_score_categories: requestedColumns.has("trace_score_categories")
+      ? categoricalScoreNames.filter((score) =>
+          traceCategoricalScoreNames.has(score.label),
+        )
+      : [],
   };
 }
 
