@@ -1,4 +1,5 @@
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -47,11 +48,22 @@ export const useViewMutations = ({
   const generatePermalinkMutation =
     api.TableViewPresets.generatePermalink.useMutation({
       onSuccess: (data) => {
-        copyTextToClipboard(data);
-        showSuccessToast({
-          title: "Permalink copied to clipboard",
-          description: "You can now share the permalink with others",
-        });
+        // Toast on the clipboard write's resolution so a permission failure
+        // surfaces an error instead of falsely reporting success.
+        copyTextToClipboard(data)
+          .then(() =>
+            showSuccessToast({
+              title: "Permalink copied to clipboard",
+              description: "You can now share the permalink with others",
+            }),
+          )
+          .catch(() =>
+            showErrorToast(
+              "Failed to copy permalink",
+              "Could not write to the clipboard. Please copy the link manually.",
+              "WARNING",
+            ),
+          );
       },
     });
 
