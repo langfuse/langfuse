@@ -59,6 +59,19 @@ describe("usePeekPanelState", () => {
     expect(onExpandedChange).toHaveBeenCalledWith(true);
   });
 
+  it("toggleExpanded toggles against the displayed (pending) state, not the stale URL prop", () => {
+    const { result, onExpandedChange } = setup(false);
+    // First click commits expanded; the hook holds it as `pending` until the
+    // URL (isExpanded prop) catches up — we deliberately do NOT rerender it.
+    act(() => result.current.toggleExpanded());
+    expect(onExpandedChange).toHaveBeenLastCalledWith(true);
+    expect(result.current.isExpanded).toBe(true); // button now shows Collapse
+    // A rapid second click in that pending window must collapse (match the
+    // button), not re-commit `true` against the stale prop (a no-op).
+    act(() => result.current.toggleExpanded());
+    expect(onExpandedChange).toHaveBeenLastCalledWith(false);
+  });
+
   it("keyboard resize collapses expanded and nudges the widget width", () => {
     const { result, onExpandedChange } = setup(false);
     pressArrow(result, "ArrowLeft");

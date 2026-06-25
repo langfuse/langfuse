@@ -53,11 +53,16 @@ State altitudes:
 | resize drag | high-frequency transient        | store `draftFraction` / `draftExpanded` / `isResizing`, committed on pointer-up                            |
 | which item  | route                           | the `peek` URL param (see below)                                                                           |
 
-The peek and the standalone trace page share trace-level actions via
-[`../../trace/TraceDetailActions.tsx`](../../trace/TraceDetailActions.tsx)
-(star / publish / delete). **Next slice:** a shared `TraceDetailSurface`
-(one trace-data hook + header + body) so the peek and `TracePage` stop forking
-title/nav/fetch and `<Trace context>` branching — see the PR discussion.
+The peek and the standalone trace page already share one beta-aware fetch
+([`../../trace/useTraceDetailData.ts`](../../trace/useTraceDetailData.ts)), one
+body + title
+([`../../trace/TraceDetailBody.tsx`](../../trace/TraceDetailBody.tsx) →
+`TraceDetailBody` / `traceDetailTitle`), and one action set
+([`../../trace/TraceDetailActions.tsx`](../../trace/TraceDetailActions.tsx) —
+star / publish / delete) — `usePeekData` is now a thin wrapper over the shared
+hook. **Next slice:** collapse the `<Trace context>` branching and fold these
+primitives into a single `TraceDetailSurface` wrapper so the peek and `TracePage`
+share one component, not four — see the PR discussion.
 
 ## Architecture
 

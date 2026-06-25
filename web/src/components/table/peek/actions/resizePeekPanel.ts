@@ -44,7 +44,7 @@ export function beginPeekResize(
   const teardown = () => {
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
-    window.removeEventListener("pointercancel", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerCancel);
     document.body.style.removeProperty("user-select");
     document.body.style.removeProperty("cursor");
   };
@@ -65,9 +65,18 @@ export function beginPeekResize(
     actions.cancelResize();
   };
 
+  // pointercancel is an ABORT, not a release (system gesture intercept, palm
+  // rejection, accessibility tooling, pointer-capture transfer, OS interrupt).
+  // Tear down and drop the in-flight draft WITHOUT committing — a cancelled
+  // gesture must not overwrite the persisted width or flip the expanded flag.
+  const onPointerCancel = () => {
+    teardown();
+    store.getState().actions.cancelResize();
+  };
+
   window.addEventListener("pointermove", onPointerMove);
   window.addEventListener("pointerup", onPointerUp);
-  window.addEventListener("pointercancel", onPointerUp);
+  window.addEventListener("pointercancel", onPointerCancel);
   document.body.style.userSelect = "none";
   document.body.style.cursor = "ew-resize";
   store.getState().actions.setResizing(true);

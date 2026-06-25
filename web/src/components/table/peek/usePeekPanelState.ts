@@ -98,7 +98,13 @@ export function usePeekPanelState({
   // visible). The peek portals into the `modal` layer, outside the sidebar's
   // CSS-var scope, so the offset is measured live (re-measured on viewport /
   // sidebar resize, which also covers the collapse/expand transition).
-  const [sidebarOffset, setSidebarOffset] = useState(0);
+  // Lazy-measured on mount (SSR-safe via the guard in readSidebarOffsetPx) so
+  // the FIRST expanded paint already uses the real offset — initializing to 0
+  // would paint calc(100vw - 0px) = full width for one frame, covering the
+  // sidebar, before the effect below measures and corrects it.
+  const [sidebarOffset, setSidebarOffset] = useState(() =>
+    readSidebarOffsetPx(),
+  );
   useEffect(() => {
     if (!effectiveExpanded) return;
     const measure = () => setSidebarOffset(readSidebarOffsetPx());
@@ -156,9 +162,13 @@ export function usePeekPanelState({
     [store, commitExpanded],
   );
 
+  // Toggle relative to what the button currently SHOWS (effectiveExpanded),
+  // not the URL-derived isExpanded — during the pending window after a commit
+  // the two differ for a render, and reading isExpanded there would make a
+  // rapid second click re-commit the same value (a no-op) instead of toggling.
   const toggleExpanded = useCallback(
-    () => commitExpanded(!isExpanded),
-    [isExpanded, commitExpanded],
+    () => commitExpanded(!effectiveExpanded),
+    [effectiveExpanded, commitExpanded],
   );
 
   const widthPercent = effectiveExpanded
