@@ -184,8 +184,10 @@ export const describeConfig = (config: ChartViewConfig): string => {
     config.metric === "count"
       ? "Count of events"
       : `${AGGREGATION_LABELS[config.aggregation]} ${metric.label.toLowerCase()}`;
+  // A big number is a single total — it ignores any breakdown, so don't claim
+  // one in the subtitle.
   const byPart =
-    config.breakdown === "none"
+    config.breakdown === "none" || config.chartType === "NUMBER"
       ? ""
       : ` by ${getDimension(config.breakdown).label.toLowerCase()}`;
   const timePart = isTimeSeriesChartType(config.chartType) ? " over time" : "";
