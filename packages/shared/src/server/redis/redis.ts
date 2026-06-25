@@ -319,21 +319,39 @@ const scanKeysForNode = async (
   client: Redis,
   pattern: string,
   collector: Set<string>,
+  keyPrefix: string,
 ) => {
   let cursor = "0";
+  // ioredis keyPrefix is not applied to SCAN patterns, but it is applied to
+  // DEL/GET/SET keys. Scan physical keys and return logical keys to callers.
+  const scanPattern = keyPrefix ? `${keyPrefix}${pattern}` : pattern;
 
   do {
     const [nextCursor, keys]: [string, string[]] = await client.scan(
       cursor,
       "MATCH",
-      pattern,
+      scanPattern,
       "COUNT",
       REDIS_SCAN_COUNT,
     );
 
-    keys.forEach((key) => collector.add(key));
+    keys.forEach((key) =>
+      collector.add(
+        keyPrefix && key.startsWith(keyPrefix)
+          ? key.slice(keyPrefix.length)
+          : key,
+      ),
+    );
     cursor = nextCursor;
   } while (cursor !== "0");
+};
+
+const getRedisKeyPrefix = (redis: Redis | Cluster): string => {
+  const keyPrefix =
+    redis.options?.keyPrefix ??
+    (redis instanceof Cluster ? redis.options.redisOptions?.keyPrefix : "");
+
+  return keyPrefix?.toString() ?? "";
 };
 
 export const scanKeys = async (
@@ -343,15 +361,18 @@ export const scanKeys = async (
   if (!redis) return [];
 
   const collectedKeys = new Set<string>();
+  const keyPrefix = getRedisKeyPrefix(redis);
 
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     await Promise.all(
       (redis as Cluster)
         .nodes("master")
-        .map((node) => scanKeysForNode(node, pattern, collectedKeys)),
+        .map((node) =>
+          scanKeysForNode(node, pattern, collectedKeys, keyPrefix),
+        ),
     );
   } else {
-    await scanKeysForNode(redis as Redis, pattern, collectedKeys);
+    await scanKeysForNode(redis as Redis, pattern, collectedKeys, keyPrefix);
   }
 
   return Array.from(collectedKeys);

@@ -105,7 +105,6 @@ export type InAppAgentWindowProps = {
     comment?: string | null;
   }) => Promise<void>;
   selectedConversationId: string | undefined;
-  zIndex?: number;
 } & InAppAgentWindowCloseButtonProps;
 
 export function InAppAgentWindow(props: InAppAgentWindowProps) {
@@ -125,7 +124,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
     onSubmit,
     onSubmitFeedback,
     selectedConversationId,
-    zIndex,
   } = props;
   const viewportRef = useRef<HTMLDivElement>(null);
   const isAutoScrollAttachedRef = useRef(true);
@@ -245,9 +243,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
             <DropdownMenuContent
               align="end"
               className="max-h-80 w-64 overflow-y-auto"
-              style={
-                typeof zIndex === "number" ? { zIndex: zIndex + 1 } : undefined
-              }
             >
               <DropdownMenuLabel>Recent conversations</DropdownMenuLabel>
               <DropdownMenuSeparator />
@@ -349,7 +344,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
         >
           <div
             className={cn(
-              "flex h-full w-full flex-col gap-4 py-4",
+              "flex h-full w-full flex-col py-4",
               isExpanded && "mx-auto max-w-3xl",
               isExpanded ? "px-0" : "px-3",
             )}
@@ -391,7 +386,10 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
 
             <ol className="flex w-full flex-col gap-3 pb-4">
               {messages.map((message, index) => {
-                const hasToolContent = message.content.type === "toolGroup";
+                const hasFullWidthContent =
+                  message.content.type === "toolGroup" ||
+                  message.content.type === "redirectAction";
+
                 const nextUserMessageIndex = messages.findIndex(
                   (nextMessage, nextIndex) =>
                     nextIndex > index && nextMessage.role === "user",
@@ -415,7 +413,7 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                     key={message.id}
                     className={cn(
                       "max-w-[92%]",
-                      hasToolContent ? "w-full" : "w-fit",
+                      hasFullWidthContent ? "w-full" : "w-fit",
                       message.role === "user" && "ml-auto",
                     )}
                   >
@@ -424,7 +422,6 @@ export function InAppAgentWindow(props: InAppAgentWindowProps) {
                       content={message.content}
                       isCompact={!isExpanded}
                       isFeedbackDisabled={isInputDisabled}
-                      windowZIndex={zIndex}
                       onSubmitFeedback={
                         feedbackRunId
                           ? (params) =>

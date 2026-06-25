@@ -92,6 +92,21 @@ export const AssistantTextWithLongFeedbackComment = meta.story({
   },
 });
 
+export const AssistantTextWithRedirectAction = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "text",
+      text: "I found the members settings page for this project.",
+      redirectAction: {
+        type: "redirectAction",
+        label: "Open members",
+        href: "/project/project-1/settings/members",
+      },
+    },
+  },
+});
+
 export const AssistantMarkdown = meta.story({
   args: {
     role: "assistant",
@@ -105,7 +120,7 @@ export const AssistantMarkdown = meta.story({
         "##### Heading 5",
         "###### Heading 6",
         "",
-        "You can use **Langfuse** to inspect _production traces_ and compare `input`, `output`, `metadata` and `scores` across releases.",
+        "You can use **[Langfuse](https://langfuse.com)** to inspect _production traces_ and compare `input`, `output`, `metadata` and `scores` across releases.",
         "",
         "- Inspect traces with nested observations",
         "- Evaluate outputs with scores",
@@ -213,6 +228,28 @@ export const SingleToolCallGroup = meta.story({
   },
 });
 
+export const RedirectAction = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "redirectAction",
+      label: "Open members",
+      href: "/project/project-1/settings/members",
+    },
+  },
+});
+
+export const RedirectActionWithParams = meta.story({
+  args: {
+    role: "assistant",
+    content: {
+      type: "redirectAction",
+      label: "Open error traces",
+      href: "/project/project-1/traces?dateRange=1d&search=checkout&searchType=content&filter=level%3BstringOptions%3B%3Bany+of%3BERROR",
+    },
+  },
+});
+
 export const LoadingToolCallGroup = meta.story({
   args: {
     role: "assistant",
@@ -276,7 +313,7 @@ export const FeedbackPopoverInteraction = meta.story({
     const commentInput = await body.findByPlaceholderText(
       "Optional feedback comment",
     );
-    await expect(commentInput).toBeVisible();
+    await waitFor(() => expect(commentInput).toBeVisible());
 
     const saveButton = await body.findByRole("button", {
       name: "Save comment",

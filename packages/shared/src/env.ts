@@ -1,6 +1,17 @@
 import { z } from "zod";
 import { removeEmptyEnvVariables } from "./utils/environment";
 
+// Per-segment byte budget for S3 event keys. Off by default (2048 > 800-byte
+// idSchema cap). Lower to 255 for MinIO on ext4. Affects only new writes —
+// existing objects are read by recorded path, not reconstructed.
+// Shared with worker/src/env.ts to keep validation rules identical.
+export const langfuseS3EventKeyMaxSegmentBytesSchema = z.coerce
+  .number()
+  .int()
+  .min(64)
+  .max(2048)
+  .default(2048);
+
 const EnvSchema = z.object({
   NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: z.string().optional(),
   // Dev-only override: set to an ISO datetime string to shift the legacy blob
@@ -229,6 +240,8 @@ const EnvSchema = z.object({
     .default("false"),
   LANGFUSE_S3_EVENT_UPLOAD_SSE: z.enum(["AES256", "aws:kms"]).optional(),
   LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID: z.string().optional(),
+  LANGFUSE_S3_EVENT_KEY_MAX_SEGMENT_BYTES:
+    langfuseS3EventKeyMaxSegmentBytesSchema,
   LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: z.string().optional(),
   LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: z.string().default(""),
   LANGFUSE_S3_MEDIA_UPLOAD_REGION: z.string().optional(),
@@ -283,6 +296,11 @@ const EnvSchema = z.object({
   LANGFUSE_S3_RATE_ERROR_SLOWDOWN_TTL_SECONDS: z.coerce
     .number()
     .positive()
+    .default(3600), // 1 hour
+  LANGFUSE_INGEST_FAILURE_PROJECT_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .gt(60)
     .default(3600), // 1 hour
   LANGFUSE_S3_CORE_DATA_EXPORT_IS_ENABLED: z
     .enum(["true", "false"])

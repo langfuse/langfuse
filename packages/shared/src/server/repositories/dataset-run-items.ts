@@ -353,6 +353,11 @@ const getDatasetRunsTableInternal = async <T>(
           avg(value) as avg_value
         FROM scores s FINAL
         WHERE ${appliedScoresFilter.query}
+        AND s.trace_id IN (
+          SELECT dri.trace_id
+          FROM dataset_run_items_rmt dri
+          WHERE ${baseFilter.query}
+        )
         GROUP BY
           project_id,
           trace_id,
@@ -667,6 +672,11 @@ const getQualifyingDatasetItems = async <T>(opts: {
          avg(value) as avg_value
        FROM scores s FINAL
        WHERE ${appliedScoresFilter.query}
+       AND s.trace_id IN (
+         SELECT dri.trace_id
+         FROM dataset_run_items_rmt dri
+         WHERE ${baseFilter.query}
+       )
        GROUP BY
          project_id,
          trace_id,
@@ -770,6 +780,7 @@ const getDatasetRunItemsTableInternal = async <
     projectId,
     datasetId,
   );
+  const baseFilter = datasetRunItemsFilter.apply();
 
   datasetRunItemsFilter.push(
     ...createFilterFromFilterState(
@@ -847,6 +858,11 @@ const getDatasetRunItemsTableInternal = async <
          avg(value) as avg_value
        FROM scores s FINAL
        WHERE ${appliedScoresFilter.query}
+       AND s.trace_id IN (
+        SELECT dri.trace_id
+        FROM dataset_run_items_rmt dri
+        WHERE ${baseFilter.query}
+      )
        GROUP BY
          project_id,
          trace_id,
@@ -886,6 +902,7 @@ const getDatasetRunItemsTableInternal = async <
   const res = await queryClickhouse<T>({
     query,
     params: {
+      ...baseFilter.params,
       ...appliedFilter.params,
       ...appliedScoresFilter.params,
       ...(limit !== undefined && offset !== undefined ? { limit, offset } : {}),

@@ -30,7 +30,6 @@ function InAppAgentWindowStoryShell({
       floatingPanelHandle={floatingPanelHandle}
       isExpanded={isExpanded}
       panelRef={panelRef}
-      zIndex={1}
     >
       {children}
     </InAppAgentWindowShell>
@@ -495,6 +494,15 @@ export const Conversation = meta.story({
         content: {
           type: "text",
           text: "Start by filtering traces by timestamp, then sort by latency. Open the slowest traces to inspect long-running observations.",
+        },
+      },
+      {
+        id: "assistant-redirect-1",
+        role: "assistant",
+        content: {
+          type: "redirectAction",
+          label: "Open slow traces",
+          href: "/project/project-1/traces?dateRange=1d&orderBy=column-latency_order-DESC",
         },
       },
       {

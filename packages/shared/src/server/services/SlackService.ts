@@ -135,6 +135,7 @@ export class SlackService {
       clientId: env.SLACK_CLIENT_ID!,
       clientSecret: env.SLACK_CLIENT_SECRET!,
       stateSecret: env.SLACK_STATE_SECRET!,
+      directInstall: false,
       installUrlOptions: {
         scopes: SLACK_BOT_SCOPES as unknown as string[],
       },
@@ -343,9 +344,9 @@ export class SlackService {
    */
   private async getChannelsRecursive(
     client: WebClient,
-    channelTypes: string = "public_channel,private_channel",
+    channelTypes = "public_channel,private_channel",
     cursor?: string,
-    fetchedRecords: number = 0,
+    fetchedRecords = 0,
   ): Promise<SlackChannel[]> {
     try {
       const result = await client.conversations.list({

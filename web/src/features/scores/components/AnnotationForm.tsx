@@ -877,7 +877,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                 </Button>
                               </PopoverTrigger>
                               <PopoverContent>
-                                <h2 className="text-md mb-3 font-semibold">
+                                <h2 className="mb-3 font-semibold">
                                   Your score is archived
                                 </h2>
                                 <p className="mb-3 text-sm">
@@ -952,15 +952,14 @@ export function AnnotationForm<Target extends ScoreTarget>({
     if (Array.isArray(serverScores)) {
       // Flat scores from trace/session detail
       return transformToAnnotationScores(serverScores, availableConfigs);
-    } else {
-      // Aggregates from compare view
-      return transformToAnnotationScores(
-        serverScores,
-        availableConfigs,
-        scoreTarget.type === "trace" ? scoreTarget.traceId : "",
-        scoreTarget.type === "trace" ? scoreTarget.observationId : undefined,
-      );
     }
+    // Aggregates from compare view
+    return transformToAnnotationScores(
+      serverScores,
+      availableConfigs,
+      scoreTarget.type === "trace" ? scoreTarget.traceId : "",
+      scoreTarget.type === "trace" ? scoreTarget.observationId : undefined,
+    );
   }, [serverScores, availableConfigs, scoreTarget]);
 
   // Step 2: Merge with cache

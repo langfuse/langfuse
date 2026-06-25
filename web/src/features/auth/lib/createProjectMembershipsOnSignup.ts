@@ -5,11 +5,16 @@ import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import { projectRoleAccessRights } from "@/src/features/rbac/constants/projectAccessRights";
 
 export async function createProjectMembershipsOnSignup(
   user: {
     id: string;
     email: string | null;
+    name: string | null;
   },
   options?: { userWasJustCreated?: boolean },
 ) {
@@ -153,8 +158,51 @@ export async function createProjectMembershipsOnSignup(
       }
     }
 
+    // SFDC lead upsert (never throws; no-op when SfdcService is not
+    // configured).
+    // Must run BEFORE processMembershipInvitations below so the lead exists
+    // when setUserRole events fire for accepted invitations.
+    if (options?.userWasJustCreated || isNewUser) {
+      await getSfdcService()?.upsertUser({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+      });
+    }
+
     // Invites do not work for users without emails (some future SSO users)
-    if (user.email) await processMembershipInvitations(user.email, user.id);
+    const joinedRealOrganizationViaInvitation = user.email
+      ? await processMembershipInvitations(user.email, user.id)
+      : false;
+
+    if (
+      isCloudDeployment &&
+      !joinedRealOrganizationViaInvitation &&
+      canCreateOrganizations(user.email) &&
+      (options?.userWasJustCreated || isNewUser)
+    ) {
+      const starterOrg = await provisionStarterOrganizationForNewUser({
+        prisma,
+        userId: user.id,
+        userName: user.name,
+      });
+
+      if (starterOrg) {
+        await getSfdcService()?.upsertOrg({
+          orgId: starterOrg.organization.id,
+          orgName: starterOrg.organization.name,
+          userId: user.id,
+          email: user.email,
+          role: "OWNER",
+        });
+        await getSfdcService()?.setUserRole({
+          orgId: starterOrg.organization.id,
+          userId: user.id,
+          email: user.email,
+          role: "OWNER",
+        });
+      }
+    }
 
     if (isCloudDeployment && (options?.userWasJustCreated || isNewUser)) {
       const userRolloutState = await prisma.user.findUnique({
@@ -244,7 +292,21 @@ async function processMembershipInvitations(email: string, userId: string) {
       email: email.toLowerCase(),
     },
   });
-  if (invitationsForUser.length === 0) return;
+  if (invitationsForUser.length === 0) return false;
+
+  const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
+    (invitation) => {
+      if (
+        invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ||
+        !invitation.projectId
+      ) {
+        return false;
+      }
+
+      const projectRole = invitation.projectRole ?? invitation.orgRole;
+      return projectRoleAccessRights[projectRole].includes("project:read");
+    },
+  );
 
   // Map to individual payloads instead of using createMany as we can thereby use nested writes for ProjectMemberships
   const createOrgMembershipData = invitationsForUser.map((invitation) => ({
@@ -279,4 +341,18 @@ async function processMembershipInvitations(email: string, userId: string) {
       },
     }),
   ]);
+
+  // SFDC: link the freshly-created lead to each org as an org-member.
+  await Promise.all(
+    invitationsForUser.map((invitation) =>
+      getSfdcService()?.setUserRole({
+        orgId: invitation.orgId,
+        userId,
+        email,
+        role: invitation.orgRole,
+      }),
+    ),
+  );
+
+  return joinedReadableRealProjectViaInvitation;
 }
