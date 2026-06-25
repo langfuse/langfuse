@@ -18,7 +18,7 @@ import { api } from "@/src/utils/api";
 import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
 import { numberFormatter } from "@/src/utils/numbers";
 
-const UPGRADE_DOCS = [
+const PUBLIC_API_DOCS = [
   {
     label: "V4 upgrade guide",
     href: "https://langfuse.com/docs/v4",
@@ -69,6 +69,21 @@ const ProductLinkButton = ({
       {children}
       <ArrowRight className="ml-1 h-3.5 w-3.5" />
     </Link>
+  </Button>
+);
+
+const ExternalDocButton = ({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) => (
+  <Button asChild variant="outline" size="sm">
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+      <ExternalLink className="ml-1 h-3.5 w-3.5" />
+    </a>
   </Button>
 );
 
@@ -155,6 +170,8 @@ export default function V4Page() {
     [projectId, summary.data?.legacyIntegrations],
   );
 
+  const integrationsHref = `/project/${projectId}/settings/integrations`;
+
   const chartData = useMemo(
     () =>
       legacyApiUsage.data?.map((row) => ({
@@ -193,151 +210,144 @@ export default function V4Page() {
       }}
     >
       <div className="mx-auto flex w-full max-w-screen-xl flex-col gap-3">
-        <section className="flex flex-col gap-2">
-          <h4 className="text-base font-semibold">V4 upgrade status</h4>
-          <div className="flex flex-wrap gap-2">
-            {UPGRADE_DOCS.map((doc) => (
-              <a
-                key={doc.href}
-                href={doc.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="border-border hover:bg-muted inline-flex h-8 items-center gap-1 rounded-md border px-2 text-sm"
-              >
-                {doc.label}
-                <ExternalLink className="h-3.5 w-3.5" />
-              </a>
-            ))}
-          </div>
-        </section>
-
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
           <DashboardCard
             title="Trace-level evals"
-            description="Trace-targeting evaluator configs set up in this project."
-            isLoading={summary.isPending}
+            description="Trace-targeting evaluator configs and non-cancelled execution jobs in the selected range."
+            isLoading={summary.isPending || traceLevelEvalExecutions.isPending}
+            cardContentClassName="min-h-[30rem]"
+            headerClassName="pr-12"
+            headerRight={
+              <ProductLinkButton href={traceLevelEvalsHref}>
+                View evals
+              </ProductLinkButton>
+            }
           >
-            {summary.error ? (
-              <CardError>Failed to load trace-level evals.</CardError>
-            ) : (
-              <div className="flex h-full min-h-32 flex-col justify-between gap-4">
-                <div className="text-4xl font-semibold">
-                  {numberFormatter(summary.data?.traceLevelEvalCount ?? 0, 0)}
+            <div className="flex flex-col gap-4">
+              {summary.error ? (
+                <CardError>Failed to load trace-level evals.</CardError>
+              ) : (
+                <div>
+                  <p className="text-muted-foreground text-sm">
+                    Configured trace-level evals
+                  </p>
+                  <div className="text-4xl font-semibold">
+                    {numberFormatter(summary.data?.traceLevelEvalCount ?? 0, 0)}
+                  </div>
                 </div>
-                <ProductLinkButton href={traceLevelEvalsHref}>
-                  View trace-level evals
-                </ProductLinkButton>
-              </div>
-            )}
+              )}
+
+              {traceLevelEvalExecutions.error ? (
+                <CardError>
+                  Failed to load trace-level eval executions.
+                </CardError>
+              ) : evalExecutionChartData.length > 0 ? (
+                <div className="h-[22rem] w-full">
+                  <Chart
+                    chartType="BAR_TIME_SERIES"
+                    data={evalExecutionChartData}
+                    rowLimit={1_000}
+                    chartConfig={{
+                      type: "BAR_TIME_SERIES",
+                      unit: "short",
+                    }}
+                    overrideWarning
+                  />
+                </div>
+              ) : (
+                <NoDataOrLoading
+                  isLoading={traceLevelEvalExecutions.isPending}
+                  description="No trace-level eval executions were found for this project in the selected time range."
+                  className="min-h-[22rem]"
+                />
+              )}
+            </div>
           </DashboardCard>
 
           <DashboardCard
-            title="Old integrations"
-            description="Configured integrations that still use legacy trace and observation exports."
+            title="Integrations"
+            description="PostHog, Mixpanel, and Blob Storage exports that need review for V4."
             isLoading={summary.isPending}
           >
             {summary.error ? (
-              <CardError>Failed to load old integrations.</CardError>
+              <CardError>Failed to load integrations.</CardError>
             ) : (
-              <div className="flex h-full min-h-32 flex-col justify-between gap-4">
-                <div className="text-4xl font-semibold">
-                  {numberFormatter(
-                    summary.data?.legacyIntegrationCount ?? 0,
-                    0,
-                  )}
-                </div>
-                {legacyIntegrationLinks.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {legacyIntegrationLinks.map((link) => (
-                      <ProductLinkButton key={link.key} href={link.href}>
-                        {link.label}
-                      </ProductLinkButton>
-                    ))}
-                  </div>
-                ) : (
+              <div className="flex min-h-32 flex-col gap-4">
+                <div>
                   <p className="text-muted-foreground text-sm">
-                    No legacy PostHog, Mixpanel, or Blob Storage integrations
-                    found.
+                    Configured integrations to review
                   </p>
-                )}
+                  <div className="text-4xl font-semibold">
+                    {numberFormatter(
+                      summary.data?.legacyIntegrationCount ?? 0,
+                      0,
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <ProductLinkButton href={integrationsHref}>
+                    View integrations
+                  </ProductLinkButton>
+                  {legacyIntegrationLinks.length > 0
+                    ? legacyIntegrationLinks.map((link) => (
+                        <ProductLinkButton key={link.key} href={link.href}>
+                          {link.label}
+                        </ProductLinkButton>
+                      ))
+                    : null}
+                </div>
               </div>
             )}
           </DashboardCard>
         </div>
 
         <DashboardCard
-          title="Trace-level eval executions over time"
-          description="Non-cancelled execution jobs for trace-level evaluators in the selected range."
-          isLoading={traceLevelEvalExecutions.isPending}
-          cardContentClassName="min-h-[24rem]"
-          headerRight={
-            <ProductLinkButton href={traceLevelEvalsHref}>
-              View evals
-            </ProductLinkButton>
-          }
-        >
-          {traceLevelEvalExecutions.error ? (
-            <CardError>Failed to load trace-level eval executions.</CardError>
-          ) : evalExecutionChartData.length > 0 ? (
-            <div className="h-[22rem] w-full">
-              <Chart
-                chartType="BAR_TIME_SERIES"
-                data={evalExecutionChartData}
-                rowLimit={1_000}
-                chartConfig={{
-                  type: "BAR_TIME_SERIES",
-                  unit: "short",
-                }}
-                overrideWarning
-              />
-            </div>
-          ) : (
-            <NoDataOrLoading
-              isLoading={traceLevelEvalExecutions.isPending}
-              description="No trace-level eval executions were found for this project in the selected time range."
-              className="min-h-[22rem]"
-            />
-          )}
-        </DashboardCard>
-
-        <section className="flex flex-col gap-2">
-          <h4 className="text-base font-semibold">legacy api usage</h4>
-          <p className="text-muted-foreground text-sm">
-            We do not have query-log data for GET /api/public/sessions because
-            that endpoint does not execute ClickHouse queries.
-          </p>
-        </section>
-
-        <DashboardCard
-          title="Legacy API usage by entrypoint over time"
+          title="Public API usage by entrypoint over time"
           description="Estimates ClickHouse-backed legacy public API calls for this project."
           isLoading={legacyApiUsage.isPending}
           cardContentClassName="min-h-[32rem]"
+          headerClassName="pr-12"
         >
           {legacyApiUsage.error ? (
             <div className="border-destructive/30 bg-destructive/10 text-destructive flex min-h-36 items-center rounded-md border p-4 text-sm">
               Failed to load legacy API usage.
             </div>
-          ) : chartData.length > 0 ? (
-            <div className="h-[30rem] w-full">
-              <Chart
-                chartType="BAR_TIME_SERIES"
-                data={chartData}
-                rowLimit={1_000}
-                chartConfig={{
-                  type: "BAR_TIME_SERIES",
-                  unit: "short",
-                }}
-                overrideWarning
-              />
-            </div>
           ) : (
-            <NoDataOrLoading
-              isLoading={legacyApiUsage.isPending}
-              description="No ClickHouse-backed legacy public API usage was found for this project in the selected time range."
-              href="https://langfuse.com/docs/v4"
-              className="min-h-[30rem]"
-            />
+            <>
+              <div className="flex flex-wrap gap-2">
+                {PUBLIC_API_DOCS.map((doc) => (
+                  <ExternalDocButton key={doc.href} href={doc.href}>
+                    {doc.label}
+                  </ExternalDocButton>
+                ))}
+              </div>
+              <p className="text-muted-foreground text-sm">
+                We do not have query-log data for GET /api/public/sessions
+                because that endpoint does not execute ClickHouse queries.
+              </p>
+
+              {chartData.length > 0 ? (
+                <div className="h-[30rem] w-full">
+                  <Chart
+                    chartType="BAR_TIME_SERIES"
+                    data={chartData}
+                    rowLimit={1_000}
+                    chartConfig={{
+                      type: "BAR_TIME_SERIES",
+                      unit: "short",
+                    }}
+                    overrideWarning
+                  />
+                </div>
+              ) : (
+                <NoDataOrLoading
+                  isLoading={legacyApiUsage.isPending}
+                  description="No ClickHouse-backed legacy public API usage was found for this project in the selected time range."
+                  className="min-h-[30rem]"
+                />
+              )}
+            </>
           )}
         </DashboardCard>
       </div>
