@@ -530,7 +530,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
     if (!config || !field) return;
 
     if (field.value === null || field.value === undefined) {
-      return; // Don't create/update score with empty value
+      // Cleared to empty: remove an existing score (mirrors the text field),
+      // otherwise nothing to do.
+      if (field.id) handleDeleteScore(index);
+      return;
     }
 
     // Client-side validation - don't fire mutation if invalid
@@ -1007,10 +1010,14 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                                         value={field.value ?? ""}
                                         onChange={(e) => {
                                           const value = e.target.value;
-                                          if (value === "") {
-                                            return;
-                                          }
-                                          field.onChange(Number(value));
+                                          // Empty → null so the field can be
+                                          // cleared back to blank (returning here
+                                          // instead trapped the last digit — the
+                                          // form kept the old value and re-rendered
+                                          // it). onBlur deletes the score when null.
+                                          field.onChange(
+                                            value === "" ? null : Number(value),
+                                          );
                                         }}
                                         type="number"
                                         // Mirror the config range as native
