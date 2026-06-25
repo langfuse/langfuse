@@ -480,11 +480,8 @@ const processBlobStorageExport = async (config: {
           }
         };
 
-        // Tracks ClickHouse read wait (and, on the parquet path, S3 backpressure
-        // in backpressureMs). Declared before the counters so the parquet
-        // TimedByteCounter can write into it (the parquet path has no per-row
-        // generator, so countedStream does not run and backpressureMs stays 0
-        // on every non-parquet path).
+        // Source read wait; backpressureMs is set only by the parquet
+        // TimedByteCounter and stays 0 on every other path.
         const sourceStats = { rows: 0, sourceWaitMs: 0, backpressureMs: 0 };
         // When enrichment is active, chStats isolates ClickHouse read wait from
         // enrichment CPU. enrichMs = sourceStats.sourceWaitMs - chStats.sourceWaitMs.
@@ -774,11 +771,9 @@ const processBlobStorageExport = async (config: {
           }
 
           const uploadDurationMs = uploadDurationMsFinal;
-          // On the parquet path the source counter sits at the upload boundary,
-          // so its sourceWaitMs folds S3 backpressure into the CH-read wait;
-          // strip the measured backpressure to recover pure chReadMs. Other
-          // paths leave sourceStats.backpressureMs at 0, so this is a no-op
-          // (gzip isolates CH read upstream in chStats).
+          // Parquet's source counter sits at the upload boundary, so strip its
+          // backpressure to recover pure CH read (no-op elsewhere: gzip isolates
+          // CH read in chStats, and backpressureMs is 0 on every other path).
           const chReadMs = Math.round(
             Math.max(
               0,
@@ -798,9 +793,7 @@ const processBlobStorageExport = async (config: {
                 Math.round(gzipStats.activeMs - gzipStats.backpressureMs),
               )
             : 0;
-          // Upload wait comes from a measured backpressure signal where one
-          // exists — gzip push/read on the standard path, the boundary counter
-          // on parquet — and falls back to the duration residual otherwise.
+          // Measured backpressure (gzip / parquet boundary), else duration residual.
           const uploadWaitMs = gzipStats
             ? Math.round(gzipStats.backpressureMs)
             : parquetEligible
@@ -827,8 +820,7 @@ const processBlobStorageExport = async (config: {
           );
         } finally {
           span.setAttribute("blob.rows", sourceStats.rows);
-          // See the success-path derivation: strip parquet boundary backpressure
-          // from sourceWaitMs to recover pure chReadMs (no-op on other paths).
+          // Same chReadMs / uploadWaitMs derivation as the success path above.
           const finalChReadMs = Math.round(
             Math.max(
               0,
