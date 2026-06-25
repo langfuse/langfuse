@@ -22,12 +22,13 @@ const has = (q: string, ...needles: string[]): boolean =>
 
 /**
  * Whole-word match — used for short, collision-prone aggregation tokens so e.g.
- * "min" doesn't fire on "minute" / "minutely".
+ * "min" doesn't fire on "minute" / "minutely". Tokenizes on a literal regex and
+ * checks set membership (no dynamic `RegExp`, so no ReDoS surface).
  */
-const hasWord = (q: string, ...words: string[]): boolean =>
-  words.some((w) =>
-    new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q),
-  );
+const hasWord = (q: string, ...words: string[]): boolean => {
+  const tokens = new Set(q.split(/[^a-z0-9]+/).filter(Boolean));
+  return words.some((w) => tokens.has(w));
+};
 
 function pickMetric(q: string): MetricKey {
   if (has(q, "cost", "spend", "$", "dollar", "usd")) return "totalCost";
