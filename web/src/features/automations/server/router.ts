@@ -351,11 +351,15 @@ export const automationsRouter = createTRPCRouter({
       return {
         action: {
           ...action,
-          config: isWebhookAction(action)
-            ? convertToSafeWebhookConfig(action.config)
-            : isGitHubDispatchAction(action)
-              ? convertToSafeGitHubDispatchConfig(action.config)
-              : action.config,
+          config: (() => {
+            if (isWebhookAction(action)) {
+              return convertToSafeWebhookConfig(action.config);
+            }
+            if (isGitHubDispatchAction(action)) {
+              return convertToSafeGitHubDispatchConfig(action.config);
+            }
+            return action.config;
+          })(),
         },
         trigger,
         automation,
@@ -486,11 +490,15 @@ export const automationsRouter = createTRPCRouter({
       return {
         action: {
           ...action,
-          config: isWebhookAction(action)
-            ? convertToSafeWebhookConfig(action.config)
-            : isGitHubDispatchAction(action)
-              ? convertToSafeGitHubDispatchConfig(action.config)
-              : action.config,
+          config: (() => {
+            if (isWebhookAction(action)) {
+              return convertToSafeWebhookConfig(action.config);
+            }
+            if (isGitHubDispatchAction(action)) {
+              return convertToSafeGitHubDispatchConfig(action.config);
+            }
+            return action.config;
+          })(),
         },
         trigger,
         automation,

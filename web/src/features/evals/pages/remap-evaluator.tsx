@@ -183,128 +183,141 @@ export default function RemapEvaluatorPage() {
         </div>
 
         <div>
-          {isLoading ? (
-            <div className="grid grid-cols-2 gap-6">
-              <Skeleton className="h-[600px] w-full" />
-              <Skeleton className="h-[600px] w-full" />
-            </div>
-          ) : !oldConfig || !evalTemplate ? (
-            <Alert variant="destructive">
-              <AlertDescription>
-                Failed to load eval configuration or template.
-              </AlertDescription>
-            </Alert>
-          ) : (
-            <div className="grid grid-cols-[1fr_2px_1fr] items-start">
-              {/* LEFT: Read-only old config */}
-              <div className="space-y-4 p-3">
-                <div className="flex items-center gap-2 pb-2">
-                  <h3 className="text-lg font-semibold">
-                    Legacy Configuration{" "}
+          {(() => {
+            if (isLoading) {
+              return (
+                <div className="grid grid-cols-2 gap-6">
+                  <Skeleton className="h-[600px] w-full" />
+                  <Skeleton className="h-[600px] w-full" />
+                </div>
+              );
+            }
+            if (!oldConfig || !evalTemplate) {
+              return (
+                <Alert variant="destructive">
+                  <AlertDescription>
+                    Failed to load eval configuration or template.
+                  </AlertDescription>
+                </Alert>
+              );
+            }
+            return (
+              <div className="grid grid-cols-[1fr_2px_1fr] items-start">
+                {/* LEFT: Read-only old config */}
+                <div className="space-y-4 p-3">
+                  <div className="flex items-center gap-2 pb-2">
+                    <h3 className="text-lg font-semibold">
+                      Legacy Configuration{" "}
+                      {isTraceTarget(oldConfig.targetObject)
+                        ? "(runs on traces)"
+                        : ""}
+                    </h3>
+                    <span className="text-muted-foreground text-xs">
+                      Read-only
+                    </span>
+                  </div>
+                  <InnerEvaluatorForm
+                    projectId={projectId}
+                    evalTemplate={evalTemplate}
+                    useDialog={false}
+                    disabled={true}
+                    existingEvaluator={oldConfig}
+                    mode="edit"
+                    hideTargetSection={false}
+                    hideTargetSelection={true}
+                    hideAdvancedSettings={true}
+                    preventRedirect={true}
+                    renderFooter={() => null}
+                    evalCapabilities={evalCapabilities}
+                  />
+                </div>
+
+                <Separator orientation="vertical" className="self-stretch" />
+
+                {/* RIGHT: Editable new config form */}
+                <div className="space-y-4 p-3">
+                  <h3 className="pb-2 text-lg font-semibold">
+                    New Configuration{" "}
                     {isTraceTarget(oldConfig.targetObject)
-                      ? "(runs on traces)"
+                      ? "(runs on observations)"
                       : ""}
                   </h3>
-                  <span className="text-muted-foreground text-xs">
-                    Read-only
-                  </span>
-                </div>
-                <InnerEvaluatorForm
-                  projectId={projectId}
-                  evalTemplate={evalTemplate}
-                  useDialog={false}
-                  disabled={true}
-                  existingEvaluator={oldConfig}
-                  mode="edit"
-                  hideTargetSection={false}
-                  hideTargetSelection={true}
-                  hideAdvancedSettings={true}
-                  preventRedirect={true}
-                  renderFooter={() => null}
-                  evalCapabilities={evalCapabilities}
-                />
-              </div>
-
-              <Separator orientation="vertical" className="self-stretch" />
-
-              {/* RIGHT: Editable new config form */}
-              <div className="space-y-4 p-3">
-                <h3 className="pb-2 text-lg font-semibold">
-                  New Configuration{" "}
-                  {isTraceTarget(oldConfig.targetObject)
-                    ? "(runs on observations)"
-                    : ""}
-                </h3>
-                <InnerEvaluatorForm
-                  projectId={projectId}
-                  evalTemplate={evalTemplate}
-                  useDialog={false}
-                  existingEvaluator={mappedConfig ?? undefined}
-                  onFormSuccess={handleFormSuccess}
-                  mode="create"
-                  hideTargetSection={false}
-                  hideTargetSelection={true}
-                  preventRedirect={true}
-                  hideAdvancedSettings={true}
-                  evalCapabilities={evalCapabilities}
-                  oldConfigId={evalConfigId}
-                  renderFooter={({ isLoading, formError }) => (
-                    <div className="flex w-full flex-col items-end gap-4">
-                      <div className="flex items-center">
-                        <Button
-                          type="submit"
-                          loading={isLoading}
-                          className="mt-3 rounded-l-md rounded-r-none"
-                        >
-                          {legacyAction === "keep-active"
-                            ? "Save & keep legacy active"
-                            : legacyAction === "mark-inactive"
-                              ? "Save & mark legacy inactive"
-                              : "Save & delete legacy"}
-                        </Button>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              disabled={isLoading}
-                              className="mt-3 rounded-l-none rounded-r-md border-l-2"
-                            >
-                              <ChevronDown className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setLegacyAction("keep-active")}
-                            >
-                              {legacyAction === "keep-active" && "✓ "}
-                              Save & keep legacy active
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setLegacyAction("mark-inactive")}
-                            >
-                              {legacyAction === "mark-inactive" && "✓ "}
-                              Save & mark legacy inactive
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => setLegacyAction("delete")}
-                            >
-                              {legacyAction === "delete" && "✓ "}
-                              Save & delete legacy
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                  <InnerEvaluatorForm
+                    projectId={projectId}
+                    evalTemplate={evalTemplate}
+                    useDialog={false}
+                    existingEvaluator={mappedConfig ?? undefined}
+                    onFormSuccess={handleFormSuccess}
+                    mode="create"
+                    hideTargetSection={false}
+                    hideTargetSelection={true}
+                    preventRedirect={true}
+                    hideAdvancedSettings={true}
+                    evalCapabilities={evalCapabilities}
+                    oldConfigId={evalConfigId}
+                    renderFooter={({ isLoading, formError }) => (
+                      <div className="flex w-full flex-col items-end gap-4">
+                        <div className="flex items-center">
+                          <Button
+                            type="submit"
+                            loading={isLoading}
+                            className="mt-3 rounded-l-md rounded-r-none"
+                          >
+                            {(() => {
+                              if (legacyAction === "keep-active") {
+                                return "Save & keep legacy active";
+                              }
+                              if (legacyAction === "mark-inactive") {
+                                return "Save & mark legacy inactive";
+                              }
+                              return "Save & delete legacy";
+                            })()}
+                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                type="button"
+                                disabled={isLoading}
+                                className="mt-3 rounded-l-none rounded-r-md border-l-2"
+                              >
+                                <ChevronDown className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => setLegacyAction("keep-active")}
+                              >
+                                {legacyAction === "keep-active" && "✓ "}
+                                Save & keep legacy active
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setLegacyAction("mark-inactive")}
+                              >
+                                {legacyAction === "mark-inactive" && "✓ "}
+                                Save & mark legacy inactive
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => setLegacyAction("delete")}
+                              >
+                                {legacyAction === "delete" && "✓ "}
+                                Save & delete legacy
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        {formError ? (
+                          <p className="w-full text-center">
+                            <span className="font-bold">Error:</span>{" "}
+                            {formError}
+                          </p>
+                        ) : null}
                       </div>
-                      {formError ? (
-                        <p className="w-full text-center">
-                          <span className="font-bold">Error:</span> {formError}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-                />
+                    )}
+                  />
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {error && (

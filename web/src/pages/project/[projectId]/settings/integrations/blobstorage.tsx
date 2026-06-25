@@ -200,16 +200,27 @@ export default function BlobStorageIntegrationSettings() {
               )}
               <span className="text-muted-foreground">Export mode</span>
               <span>
-                {state.data.config.exportMode ===
-                BlobStorageExportMode.FULL_HISTORY
-                  ? "Full history"
-                  : state.data.config.exportMode ===
-                      BlobStorageExportMode.FROM_TODAY
-                    ? "From setup date"
-                    : state.data.config.exportMode ===
-                        BlobStorageExportMode.FROM_CUSTOM_DATE
-                      ? "From custom date"
-                      : "Unknown"}
+                {(() => {
+                  if (
+                    state.data.config.exportMode ===
+                    BlobStorageExportMode.FULL_HISTORY
+                  ) {
+                    return "Full history";
+                  }
+                  if (
+                    state.data.config.exportMode ===
+                    BlobStorageExportMode.FROM_TODAY
+                  ) {
+                    return "From setup date";
+                  }
+                  if (
+                    state.data.config.exportMode ===
+                    BlobStorageExportMode.FROM_CUSTOM_DATE
+                  ) {
+                    return "From custom date";
+                  }
+                  return "Unknown";
+                })()}
               </span>
               {(state.data.config.exportMode ===
                 BlobStorageExportMode.FROM_CUSTOM_DATE ||
@@ -582,11 +593,15 @@ const BlobStorageIntegrationSettingsForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                {integrationType === "AZURE_BLOB_STORAGE"
-                  ? "Storage Account Name"
-                  : integrationType === "S3"
-                    ? "AWS Access Key ID"
-                    : "Access Key ID"}
+                {(() => {
+                  if (integrationType === "AZURE_BLOB_STORAGE") {
+                    return "Storage Account Name";
+                  }
+                  if (integrationType === "S3") {
+                    return "AWS Access Key ID";
+                  }
+                  return "Access Key ID";
+                })()}
                 {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
                 {isSelfHosted && integrationType === "S3" && (
                   <span className="text-muted-foreground"> (optional)</span>
@@ -615,11 +630,15 @@ const BlobStorageIntegrationSettingsForm = ({
           render={({ field }) => (
             <FormItem>
               <FormLabel>
-                {integrationType === "AZURE_BLOB_STORAGE"
-                  ? "Storage Account Key"
-                  : integrationType === "S3"
-                    ? "AWS Secret Access Key"
-                    : "Secret Access Key"}
+                {(() => {
+                  if (integrationType === "AZURE_BLOB_STORAGE") {
+                    return "Storage Account Key";
+                  }
+                  if (integrationType === "S3") {
+                    return "AWS Secret Access Key";
+                  }
+                  return "Secret Access Key";
+                })()}
                 {/* Show optional indicator for S3 types on self-hosted instances with entitlement */}
                 {isSelfHosted && integrationType === "S3" && (
                   <span className="text-muted-foreground"> (optional)</span>
@@ -656,11 +675,15 @@ const BlobStorageIntegrationSettingsForm = ({
                 <Input {...field} />
               </FormControl>
               <FormDescription>
-                {integrationType === "AZURE_BLOB_STORAGE"
-                  ? 'Optional prefix path for exported files in your Azure container (e.g., "langfuse-exports/")'
-                  : integrationType === "S3"
-                    ? 'Optional prefix path for exported files in your S3 bucket (e.g., "langfuse-exports/")'
-                    : 'Optional prefix path for exported files (e.g., "langfuse-exports/")'}
+                {(() => {
+                  if (integrationType === "AZURE_BLOB_STORAGE") {
+                    return 'Optional prefix path for exported files in your Azure container (e.g., "langfuse-exports/")';
+                  }
+                  if (integrationType === "S3") {
+                    return 'Optional prefix path for exported files in your S3 bucket (e.g., "langfuse-exports/")';
+                  }
+                  return 'Optional prefix path for exported files (e.g., "langfuse-exports/")';
+                })()}
               </FormDescription>
               <FormMessage />
             </FormItem>

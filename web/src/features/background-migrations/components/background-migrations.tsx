@@ -92,21 +92,23 @@ export default function BackgroundMigrationsTable() {
       <DataTable
         tableName={"backgroundMigrations"}
         columns={columns}
-        data={
-          backgroundMigrations.isPending
-            ? { isLoading: true, isError: false }
-            : backgroundMigrations.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: backgroundMigrations.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: backgroundMigrations.data?.migrations ?? [],
-                }
-        }
+        data={(() => {
+          if (backgroundMigrations.isPending) {
+            return { isLoading: true, isError: false };
+          }
+          if (backgroundMigrations.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: backgroundMigrations.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: backgroundMigrations.data?.migrations ?? [],
+          };
+        })()}
       />
     </Page>
   );

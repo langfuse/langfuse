@@ -227,21 +227,23 @@ export function BatchExportsTable(props: { projectId: string }) {
       <DataTable
         tableName={"batchExports"}
         columns={columns}
-        data={
-          batchExports.isPending
-            ? { isLoading: true, isError: false }
-            : batchExports.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: batchExports.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(batchExports.data, "exports", []),
-                }
-        }
+        data={(() => {
+          if (batchExports.isPending) {
+            return { isLoading: true, isError: false };
+          }
+          if (batchExports.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: batchExports.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: safeExtract(batchExports.data, "exports", []),
+          };
+        })()}
         pagination={{
           totalCount: batchExports.data?.totalCount ?? null,
           onChange: setPaginationState,

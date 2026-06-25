@@ -350,13 +350,15 @@ export function DatasetRunsTable(props: {
         return (
           <div className="flex h-full items-center">
             <Checkbox
-              checked={
-                table.getIsAllPageRowsSelected()
-                  ? true
-                  : table.getIsSomePageRowsSelected()
-                    ? "indeterminate"
-                    : false
-              }
+              checked={(() => {
+                if (table.getIsAllPageRowsSelected()) {
+                  return true;
+                }
+                if (table.getIsSomePageRowsSelected()) {
+                  return "indeterminate";
+                }
+                return false;
+              })()}
               onCheckedChange={(value) => {
                 table.toggleAllPageRowsSelected(!!value);
                 if (!value) {
@@ -740,23 +742,25 @@ export function DatasetRunsTable(props: {
             <DataTable
               tableName={"datasetRuns"}
               columns={columns}
-              data={
-                runs.isPending
-                  ? { isLoading: true, isError: false }
-                  : runs.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: runs.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: (runsWithMetrics.rows ?? []).map((t) =>
-                          convertToTableRow(t),
-                        ),
-                      }
-              }
+              data={(() => {
+                if (runs.isPending) {
+                  return { isLoading: true, isError: false };
+                }
+                if (runs.isError) {
+                  return {
+                    isLoading: false,
+                    isError: true,
+                    error: runs.error.message,
+                  };
+                }
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: (runsWithMetrics.rows ?? []).map((t) =>
+                    convertToTableRow(t),
+                  ),
+                };
+              })()}
               pagination={{
                 totalCount: runs.data?.totalRuns ?? null,
                 onChange: setPaginationState,
@@ -804,23 +808,25 @@ export function DatasetRunsTable(props: {
           <DataTable
             tableName={"datasetRuns"}
             columns={columns}
-            data={
-              runs.isPending
-                ? { isLoading: true, isError: false }
-                : runs.isError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: runs.error.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: (runsWithMetrics.rows ?? []).map((t) =>
-                        convertToTableRow(t),
-                      ),
-                    }
-            }
+            data={(() => {
+              if (runs.isPending) {
+                return { isLoading: true, isError: false };
+              }
+              if (runs.isError) {
+                return {
+                  isLoading: false,
+                  isError: true,
+                  error: runs.error.message,
+                };
+              }
+              return {
+                isLoading: false,
+                isError: false,
+                data: (runsWithMetrics.rows ?? []).map((t) =>
+                  convertToTableRow(t),
+                ),
+              };
+            })()}
             pagination={{
               totalCount: runs.data?.totalRuns ?? null,
               onChange: setPaginationState,

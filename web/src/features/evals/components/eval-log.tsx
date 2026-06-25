@@ -285,23 +285,25 @@ export default function EvalLogTable({
             <DataTable
               tableName={"evalLogs"}
               columns={columns}
-              data={
-                logs.isLoading
-                  ? { isLoading: true, isError: false }
-                  : logs.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: logs.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: safeExtract(logs.data, "data", []).map((t) =>
-                          convertToTableRow(t),
-                        ),
-                      }
-              }
+              data={(() => {
+                if (logs.isLoading) {
+                  return { isLoading: true, isError: false };
+                }
+                if (logs.isError) {
+                  return {
+                    isLoading: false,
+                    isError: true,
+                    error: logs.error.message,
+                  };
+                }
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: safeExtract(logs.data, "data", []).map((t) =>
+                    convertToTableRow(t),
+                  ),
+                };
+              })()}
               pagination={{
                 totalCount,
                 onChange: setPaginationState,

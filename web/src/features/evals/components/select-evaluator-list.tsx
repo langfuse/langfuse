@@ -160,28 +160,38 @@ export function SelectEvaluatorList({ projectId }: SelectEvaluatorListProps) {
           <h2 className="shrink-0 text-base font-semibold">Use existing</h2>
           <Card className="grid max-h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-y-auto p-3">
             <div className="flex min-h-0 flex-col overflow-hidden">
-              {templates.isLoading ? (
-                <Skeleton className="h-full w-full" />
-              ) : templates.isError ? (
-                <div className="text-destructive py-8 text-center">
-                  Error: {templates.error.message}
-                </div>
-              ) : templates.data?.templates.length === 0 ? (
-                <div className="text-muted-foreground py-8 text-center">
-                  No evaluators found. Create a new evaluator to get started.
-                </div>
-              ) : (
-                <div className="flex-1 overflow-hidden">
-                  <EvaluatorSelector
-                    projectId={projectId}
-                    evalTemplates={templates.data?.templates || []}
-                    showMissingProviderWarning={false}
-                    onTemplateSelect={(templateId) =>
-                      handleTemplateSelect(templateId)
-                    }
-                  />
-                </div>
-              )}
+              {(() => {
+                if (templates.isLoading) {
+                  return <Skeleton className="h-full w-full" />;
+                }
+                if (templates.isError) {
+                  return (
+                    <div className="text-destructive py-8 text-center">
+                      Error: {templates.error.message}
+                    </div>
+                  );
+                }
+                if (templates.data?.templates.length === 0) {
+                  return (
+                    <div className="text-muted-foreground py-8 text-center">
+                      No evaluators found. Create a new evaluator to get
+                      started.
+                    </div>
+                  );
+                }
+                return (
+                  <div className="flex-1 overflow-hidden">
+                    <EvaluatorSelector
+                      projectId={projectId}
+                      evalTemplates={templates.data?.templates || []}
+                      showMissingProviderWarning={false}
+                      onTemplateSelect={(templateId) =>
+                        handleTemplateSelect(templateId)
+                      }
+                    />
+                  </div>
+                );
+              })()}
             </div>
           </Card>
         </div>
@@ -312,28 +322,36 @@ function CreateLlmEvaluatorWizard({
             return (
               <Fragment key={step.id}>
                 <BreadcrumbItem>
-                  {isActive ? (
-                    <BreadcrumbPage className="flex items-center font-semibold">
-                      {isComplete ? (
-                        <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
-                      ) : null}
-                      {index + 1}. {step.label}
-                    </BreadcrumbPage>
-                  ) : !canNavigateToStep ? (
-                    <BreadcrumbPage className="text-muted-foreground flex items-center">
-                      {index + 1}. {step.label}
-                    </BreadcrumbPage>
-                  ) : (
-                    <BreadcrumbLink
-                      onClick={() => onStepChange(step.id)}
-                      className="flex cursor-pointer items-center"
-                    >
-                      {isComplete ? (
-                        <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
-                      ) : null}
-                      {index + 1}. {step.label}
-                    </BreadcrumbLink>
-                  )}
+                  {(() => {
+                    if (isActive) {
+                      return (
+                        <BreadcrumbPage className="flex items-center font-semibold">
+                          {isComplete ? (
+                            <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
+                          ) : null}
+                          {index + 1}. {step.label}
+                        </BreadcrumbPage>
+                      );
+                    }
+                    if (!canNavigateToStep) {
+                      return (
+                        <BreadcrumbPage className="text-muted-foreground flex items-center">
+                          {index + 1}. {step.label}
+                        </BreadcrumbPage>
+                      );
+                    }
+                    return (
+                      <BreadcrumbLink
+                        onClick={() => onStepChange(step.id)}
+                        className="flex cursor-pointer items-center"
+                      >
+                        {isComplete ? (
+                          <Check className="text-dark-green mr-1.5 h-3.5 w-3.5" />
+                        ) : null}
+                        {index + 1}. {step.label}
+                      </BreadcrumbLink>
+                    );
+                  })()}
                 </BreadcrumbItem>
                 {index < steps.length - 1 ? <BreadcrumbSeparator /> : null}
               </Fragment>

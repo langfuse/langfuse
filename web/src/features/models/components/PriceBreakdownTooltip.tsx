@@ -41,74 +41,80 @@ export const PriceBreakdownTooltip = ({
 
   return (
     <>
-      {Object.keys(prices).length === 0 ? (
-        <p>No prices</p>
-      ) : Object.keys(prices).length <= (rowHeight === "m" ? 4 : 2) ? (
-        <div className="grid w-full grid-cols-[2fr_3fr] gap-x-2">
-          {Object.entries(prices).map(([type, price]) => (
-            <span key={type}>
-              <span
-                key={`${type}-label`}
-                className="truncate font-mono text-xs font-medium"
-                title={type}
-              >
-                {type}
-              </span>
-              <span
-                key={`${type}-price`}
-                className="text-left font-mono text-xs font-medium tabular-nums"
-              >
-                $
-                {new Decimal(price)
-                  .mul(priceUnitMultiplier)
-                  .toFixed(maxDecimals)}
-              </span>
-            </span>
-          ))}
-        </div>
-      ) : (
-        <TooltipProvider>
-          <Tooltip open={isOpen} onOpenChange={setIsOpen}>
-            <TooltipTrigger
-              className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
-              onClick={() => setIsOpen(!isOpen)}
-            >
-              <InfoIcon className="h-3 w-3" />
-              {Object.keys(prices).length} prices set
-            </TooltipTrigger>
-            <TooltipContent className="min-w-64 grow p-4">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <span className="font-semibold">Price breakdown</span>
-                  <span className="font-mono text-xs font-medium">
-                    {modelName}
+      {(() => {
+        if (Object.keys(prices).length === 0) {
+          return <p>No prices</p>;
+        }
+        if (Object.keys(prices).length <= (rowHeight === "m" ? 4 : 2)) {
+          return (
+            <div className="grid w-full grid-cols-[2fr_3fr] gap-x-2">
+              {Object.entries(prices).map(([type, price]) => (
+                <span key={type}>
+                  <span
+                    key={`${type}-label`}
+                    className="truncate font-mono text-xs font-medium"
+                    title={type}
+                  >
+                    {type}
                   </span>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between font-mono text-xs font-semibold">
-                    <span className="mr-4">Usage Type</span>
-                    <span>Price {priceUnit}</span>
+                  <span
+                    key={`${type}-price`}
+                    className="text-left font-mono text-xs font-medium tabular-nums"
+                  >
+                    $
+                    {new Decimal(price)
+                      .mul(priceUnitMultiplier)
+                      .toFixed(maxDecimals)}
+                  </span>
+                </span>
+              ))}
+            </div>
+          );
+        }
+        return (
+          <TooltipProvider>
+            <Tooltip open={isOpen} onOpenChange={setIsOpen}>
+              <TooltipTrigger
+                className="flex cursor-pointer items-center gap-2 pr-4 text-xs"
+                onClick={() => setIsOpen(!isOpen)}
+              >
+                <InfoIcon className="h-3 w-3" />
+                {Object.keys(prices).length} prices set
+              </TooltipTrigger>
+              <TooltipContent className="min-w-64 grow p-4">
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-semibold">Price breakdown</span>
+                    <span className="font-mono text-xs font-medium">
+                      {modelName}
+                    </span>
                   </div>
-                  {Object.entries(prices).map(([usageType, price]) => (
-                    <div
-                      key={usageType}
-                      className="flex justify-between font-mono text-xs"
-                    >
-                      <span className="mr-4">{usageType}</span>
-                      <span>
-                        {"$" +
-                          new Decimal(price)
-                            .mul(priceUnitMultiplier)
-                            .toFixed(maxDecimals)}
-                      </span>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex justify-between font-mono text-xs font-semibold">
+                      <span className="mr-4">Usage Type</span>
+                      <span>Price {priceUnit}</span>
                     </div>
-                  ))}
+                    {Object.entries(prices).map(([usageType, price]) => (
+                      <div
+                        key={usageType}
+                        className="flex justify-between font-mono text-xs"
+                      >
+                        <span className="mr-4">{usageType}</span>
+                        <span>
+                          {"$" +
+                            new Decimal(price)
+                              .mul(priceUnitMultiplier)
+                              .toFixed(maxDecimals)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      )}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
+      })()}
     </>
   );
 };

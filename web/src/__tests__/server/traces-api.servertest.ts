@@ -71,12 +71,15 @@ const createObservationOrEvent = (
       type: data.type ?? "SPAN",
       level: data.level ?? "DEFAULT",
       start_time: data.start_time * timeMultiplier, // Convert ms to microseconds
-      end_time:
-        data.end_time === null
-          ? null
-          : data.end_time
-            ? data.end_time * timeMultiplier
-            : null,
+      end_time: (() => {
+        if (data.end_time === null) {
+          return null;
+        }
+        if (data.end_time) {
+          return data.end_time * timeMultiplier;
+        }
+        return null;
+      })(),
     });
   }
   // For observations table: milliseconds

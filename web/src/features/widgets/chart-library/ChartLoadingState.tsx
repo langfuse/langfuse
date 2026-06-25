@@ -107,12 +107,15 @@ export function ChartLoadingState({
     );
   }
 
-  const statusTitle =
-    isPendingProgressState || shouldShowProgress
-      ? "Running query"
-      : showSpinner
-        ? "Loading widget"
-        : "Query needs attention";
+  const statusTitle = (() => {
+    if (isPendingProgressState || shouldShowProgress) {
+      return "Running query";
+    }
+    if (showSpinner) {
+      return "Loading widget";
+    }
+    return "Query needs attention";
+  })();
 
   return (
     <div
@@ -135,7 +138,15 @@ export function ChartLoadingState({
         <div
           className={cn(
             "flex flex-col",
-            isTightProgressState ? "gap-2" : isCompact ? "gap-3" : "gap-4",
+            (() => {
+              if (isTightProgressState) {
+                return "gap-2";
+              }
+              if (isCompact) {
+                return "gap-3";
+              }
+              return "gap-4";
+            })(),
           )}
         >
           {shouldRenderStatusTitle ? (
@@ -149,13 +160,19 @@ export function ChartLoadingState({
               {statusTitle}
             </p>
           ) : null}
-          {shouldShowProgress ? (
-            <QueryProgressBar progress={progress} layout={layout} />
-          ) : showSpinner ? (
-            <div className="flex h-4 w-4 items-center justify-center self-center">
-              <Spinner size="sm" />
-            </div>
-          ) : null}
+          {(() => {
+            if (shouldShowProgress) {
+              return <QueryProgressBar progress={progress} layout={layout} />;
+            }
+            if (showSpinner) {
+              return (
+                <div className="flex h-4 w-4 items-center justify-center self-center">
+                  <Spinner size="sm" />
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           {isTightProgressState ? null : (
             <p
@@ -163,11 +180,15 @@ export function ChartLoadingState({
                 "text-muted-foreground",
                 shouldShowProgress ? "text-left" : "text-center",
                 shouldRenderHint ? "animate-in fade-in-0 duration-300" : "",
-                isTight
-                  ? "line-clamp-3 min-h-12 text-[11px] leading-4"
-                  : isCompact
-                    ? "line-clamp-4 min-h-8 text-xs leading-4"
-                    : "line-clamp-3 min-h-10 text-xs leading-5",
+                (() => {
+                  if (isTight) {
+                    return "line-clamp-3 min-h-12 text-[11px] leading-4";
+                  }
+                  if (isCompact) {
+                    return "line-clamp-4 min-h-8 text-xs leading-4";
+                  }
+                  return "line-clamp-3 min-h-10 text-xs leading-5";
+                })(),
                 hintClassName,
               )}
             >

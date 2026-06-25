@@ -130,18 +130,24 @@ export const upsertDataset = async ({
     name: input.name,
     description: input.description ?? undefined,
     metadata: input.metadata ?? undefined,
-    inputSchema:
-      input.inputSchema === undefined
-        ? undefined
-        : input.inputSchema === null
-          ? Prisma.DbNull
-          : input.inputSchema,
-    expectedOutputSchema:
-      input.expectedOutputSchema === undefined
-        ? undefined
-        : input.expectedOutputSchema === null
-          ? Prisma.DbNull
-          : input.expectedOutputSchema,
+    inputSchema: (() => {
+      if (input.inputSchema === undefined) {
+        return undefined;
+      }
+      if (input.inputSchema === null) {
+        return Prisma.DbNull;
+      }
+      return input.inputSchema;
+    })(),
+    expectedOutputSchema: (() => {
+      if (input.expectedOutputSchema === undefined) {
+        return undefined;
+      }
+      if (input.expectedOutputSchema === null) {
+        return Prisma.DbNull;
+      }
+      return input.expectedOutputSchema;
+    })(),
   };
 
   try {
@@ -219,18 +225,24 @@ export const updateDataset = async ({
       remoteExperimentUrl: input.remoteExperimentUrl,
       remoteExperimentPayload: input.remoteExperimentPayload ?? undefined,
       remoteExperimentEnabled: input.remoteExperimentEnabled ?? undefined,
-      inputSchema:
-        input.inputSchema === undefined
-          ? undefined
-          : input.inputSchema === null
-            ? Prisma.DbNull
-            : input.inputSchema,
-      expectedOutputSchema:
-        input.expectedOutputSchema === undefined
-          ? undefined
-          : input.expectedOutputSchema === null
-            ? Prisma.DbNull
-            : input.expectedOutputSchema,
+      inputSchema: (() => {
+        if (input.inputSchema === undefined) {
+          return undefined;
+        }
+        if (input.inputSchema === null) {
+          return Prisma.DbNull;
+        }
+        return input.inputSchema;
+      })(),
+      expectedOutputSchema: (() => {
+        if (input.expectedOutputSchema === undefined) {
+          return undefined;
+        }
+        if (input.expectedOutputSchema === null) {
+          return Prisma.DbNull;
+        }
+        return input.expectedOutputSchema;
+      })(),
     },
   });
 };

@@ -410,14 +410,20 @@ export function DataTable<TData extends object, TValue>({
                     const sortingEnabled = columnDef.enableSorting;
                     // if the header id does not translate to a valid css variable name, default to 150px as width
                     // may only happen for dynamic columns, as column names are user defined
-                    const width = columnDef.isFlexWidth
-                      ? "auto"
-                      : isValidCssVariableName({
-                            name: header.id,
-                            includesHyphens: false,
-                          })
-                        ? `calc(var(--header-${header.id}-size) * 1px)`
-                        : 150;
+                    const width = (() => {
+                      if (columnDef.isFlexWidth) {
+                        return "auto";
+                      }
+                      if (
+                        isValidCssVariableName({
+                          name: header.id,
+                          includesHyphens: false,
+                        })
+                      ) {
+                        return `calc(var(--header-${header.id}-size) * 1px)`;
+                      }
+                      return 150;
+                    })();
 
                     return header.column.getIsVisible() ? (
                       <TableHead
@@ -697,153 +703,169 @@ function TableBodyComponent<TData>({
 
   return (
     <TableBody>
-      {data.isLoading || !data.data ? (
-        Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
-          <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
-            {visibleColumns.map((column, columnIndex) => {
-              const columnDef = column.columnDef as LangfuseColumnDef<TData>;
+      {(() => {
+        if (data.isLoading || !data.data) {
+          return Array.from({ length: skeletonRowCount }).map((_, rowIndex) => (
+            <TableRow key={`loading-row-${rowIndex}`} aria-hidden="true">
+              {visibleColumns.map((column, columnIndex) => {
+                const columnDef = column.columnDef as LangfuseColumnDef<TData>;
 
-              return (
-                <TableCell
-                  key={`${column.id}-loading-cell-${rowIndex}`}
-                  className={cn(
-                    "overflow-hidden border-b text-xs first:pl-2",
-                    getCellPaddingClassName(
-                      columnDef.cellPadding ?? cellPadding,
-                    ),
-                    (rowHeight ?? "s") === "s" && "whitespace-nowrap",
-                    getPinningClasses(column),
-                  )}
-                  style={{
-                    ...getCommonPinningStyles(column),
-                    width: columnDef.isFlexWidth
-                      ? "auto"
-                      : `calc(var(--col-${column.id}-size) * 1px)`,
-                  }}
-                >
-                  <div
+                return (
+                  <TableCell
+                    key={`${column.id}-loading-cell-${rowIndex}`}
                     className={cn(
-                      "flex",
-                      (rowHeight ?? "s") === "s" && !topAlignCells
-                        ? "items-center"
-                        : "items-start",
-                      (rowHeight ?? "s") !== "s" && "py-1",
-                      rowheighttw,
+                      "overflow-hidden border-b text-xs first:pl-2",
+                      getCellPaddingClassName(
+                        columnDef.cellPadding ?? cellPadding,
+                      ),
+                      (rowHeight ?? "s") === "s" && "whitespace-nowrap",
+                      getPinningClasses(column),
                     )}
+                    style={{
+                      ...getCommonPinningStyles(column),
+                      width: columnDef.isFlexWidth
+                        ? "auto"
+                        : `calc(var(--col-${column.id}-size) * 1px)`,
+                    }}
                   >
-                    {(() => {
-                      const loadingCell = columnDef.loadingCell;
+                    <div
+                      className={cn(
+                        "flex",
+                        (rowHeight ?? "s") === "s" && !topAlignCells
+                          ? "items-center"
+                          : "items-start",
+                        (rowHeight ?? "s") !== "s" && "py-1",
+                        rowheighttw,
+                      )}
+                    >
+                      {(() => {
+                        const loadingCell = columnDef.loadingCell;
 
-                      if (typeof loadingCell === "function") {
-                        return loadingCell();
-                      }
+                        if (typeof loadingCell === "function") {
+                          return loadingCell();
+                        }
 
-                      if (loadingCell !== undefined) {
-                        return loadingCell;
-                      }
+                        if (loadingCell !== undefined) {
+                          return loadingCell;
+                        }
 
-                      return (
-                        <TableTextLoadingCell
-                          className={cn(
-                            "min-w-[3rem]",
-                            (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
-                            (rowIndex + columnIndex) % 4 === 1 && "w-1/2",
-                            (rowIndex + columnIndex) % 4 === 2 && "w-2/3",
-                            (rowIndex + columnIndex) % 4 === 3 && "w-5/6",
-                          )}
-                        />
-                      );
-                    })()}
-                  </div>
-                </TableCell>
-              );
-            })}
+                        return (
+                          <TableTextLoadingCell
+                            className={cn(
+                              "min-w-[3rem]",
+                              (rowIndex + columnIndex) % 4 === 0 && "w-3/4",
+                              (rowIndex + columnIndex) % 4 === 1 && "w-1/2",
+                              (rowIndex + columnIndex) % 4 === 2 && "w-2/3",
+                              (rowIndex + columnIndex) % 4 === 3 && "w-5/6",
+                            )}
+                          />
+                        );
+                      })()}
+                    </div>
+                  </TableCell>
+                );
+              })}
+            </TableRow>
+          ));
+        }
+        if (rowModelRows.length) {
+          return rowModelRows.map((row) => (
+            <TableRowComponent
+              key={row.id}
+              row={row}
+              onRowClick={onRowClick}
+              getRowClassName={getRowClassName}
+              highlightAllRows={highlightAllRows}
+              selectionStore={selectionStore}
+            >
+              {row.getVisibleCells().map((cell) => {
+                const cellValue = cell.getValue();
+                const isStringCell = typeof cellValue === "string";
+                const isSmallRowHeight = (rowHeight ?? "s") === "s";
+                const columnDef = cell.column
+                  .columnDef as LangfuseColumnDef<TData>;
+
+                return (
+                  <TableCell
+                    key={cell.id}
+                    className={cn(
+                      "overflow-hidden border-b text-xs first:pl-2",
+                      getCellPaddingClassName(
+                        columnDef.cellPadding ?? cellPadding,
+                      ),
+                      isSmallRowHeight && "whitespace-nowrap",
+                      getPinningClasses(cell.column),
+                    )}
+                    style={{
+                      ...getCommonPinningStyles(cell.column),
+                      width: columnDef.isFlexWidth
+                        ? "auto"
+                        : `calc(var(--col-${cell.column.id}-size) * 1px)`,
+                    }}
+                  >
+                    <div
+                      className={cn(
+                        "flex",
+                        isSmallRowHeight && !topAlignCells
+                          ? "items-center"
+                          : "items-start",
+                        !isSmallRowHeight && "py-1",
+                        rowheighttw,
+                      )}
+                    >
+                      {(() => {
+                        if (isStringCell && isSmallRowHeight) {
+                          return (
+                            <div className="min-w-0 truncate leading-normal">
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </div>
+                          );
+                        }
+                        if (isStringCell && !isSmallRowHeight) {
+                          return (
+                            <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </div>
+                          );
+                        }
+                        return flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        );
+                      })()}
+                    </div>
+                  </TableCell>
+                );
+              })}
+            </TableRowComponent>
+          ));
+        }
+        return (
+          <TableRow className="hover:bg-transparent">
+            <TableCell colSpan={columns.length} className="h-24">
+              <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
+                {noResultsMessage ?? (
+                  <>
+                    No results.{" "}
+                    {help && (
+                      <DocPopup
+                        description={help.description}
+                        href={help.href}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            </TableCell>
           </TableRow>
-        ))
-      ) : rowModelRows.length ? (
-        rowModelRows.map((row) => (
-          <TableRowComponent
-            key={row.id}
-            row={row}
-            onRowClick={onRowClick}
-            getRowClassName={getRowClassName}
-            highlightAllRows={highlightAllRows}
-            selectionStore={selectionStore}
-          >
-            {row.getVisibleCells().map((cell) => {
-              const cellValue = cell.getValue();
-              const isStringCell = typeof cellValue === "string";
-              const isSmallRowHeight = (rowHeight ?? "s") === "s";
-              const columnDef = cell.column
-                .columnDef as LangfuseColumnDef<TData>;
-
-              return (
-                <TableCell
-                  key={cell.id}
-                  className={cn(
-                    "overflow-hidden border-b text-xs first:pl-2",
-                    getCellPaddingClassName(
-                      columnDef.cellPadding ?? cellPadding,
-                    ),
-                    isSmallRowHeight && "whitespace-nowrap",
-                    getPinningClasses(cell.column),
-                  )}
-                  style={{
-                    ...getCommonPinningStyles(cell.column),
-                    width: columnDef.isFlexWidth
-                      ? "auto"
-                      : `calc(var(--col-${cell.column.id}-size) * 1px)`,
-                  }}
-                >
-                  <div
-                    className={cn(
-                      "flex",
-                      isSmallRowHeight && !topAlignCells
-                        ? "items-center"
-                        : "items-start",
-                      !isSmallRowHeight && "py-1",
-                      rowheighttw,
-                    )}
-                  >
-                    {isStringCell && isSmallRowHeight ? (
-                      <div className="min-w-0 truncate leading-normal">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </div>
-                    ) : isStringCell && !isSmallRowHeight ? (
-                      <div className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden text-ellipsis">
-                        {flexRender(
-                          cell.column.columnDef.cell,
-                          cell.getContext(),
-                        )}
-                      </div>
-                    ) : (
-                      flexRender(cell.column.columnDef.cell, cell.getContext())
-                    )}
-                  </div>
-                </TableCell>
-              );
-            })}
-          </TableRowComponent>
-        ))
-      ) : (
-        <TableRow className="hover:bg-transparent">
-          <TableCell colSpan={columns.length} className="h-24">
-            <div className="pointer-events-none absolute left-[50%] flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-center">
-              {noResultsMessage ?? (
-                <>
-                  No results.{" "}
-                  {help && (
-                    <DocPopup description={help.description} href={help.href} />
-                  )}
-                </>
-              )}
-            </div>
-          </TableCell>
-        </TableRow>
-      )}
+        );
+      })()}
     </TableBody>
   );
 }

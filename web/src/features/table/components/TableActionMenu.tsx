@@ -69,13 +69,20 @@ export function TableActionMenu({
       <div className="pointer-events-none fixed inset-x-0 bottom-16 z-50 flex justify-center">
         <div className="ring-dark-blue/20 dark:border-dark-blue/30 dark:ring-dark-blue/30 bg-background pointer-events-auto flex items-center gap-2 rounded-lg border px-3 py-2 opacity-95 shadow-lg ring-2 backdrop-blur-md dark:shadow-none">
           <div className="text-sm font-medium">
-            {approximateCount ? (
-              <span> All matching selected</span>
-            ) : selectedCount !== null ? (
-              <span> {`${numberFormatter(selectedCount, 0)} selected`}</span>
-            ) : (
-              <Spinner size="sm" />
-            )}
+            {(() => {
+              if (approximateCount) {
+                return <span> All matching selected</span>;
+              }
+              if (selectedCount !== null) {
+                return (
+                  <span>
+                    {" "}
+                    {`${numberFormatter(selectedCount, 0)} selected`}
+                  </span>
+                );
+              }
+              return <Spinner size="sm" />;
+            })()}
           </div>
           <Button
             variant="ghost"

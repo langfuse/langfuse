@@ -55,14 +55,18 @@ export async function instrumentAsync<T>(
   ctx: SpanCtx,
   callback: AsyncCallbackFn<T>,
 ): Promise<T> {
-  const activeContext = ctx.startNewTrace
-    ? opentelemetry.ROOT_CONTEXT
-    : ctx.traceContext
-      ? opentelemetry.propagation.extract(
-          opentelemetry.context.active(),
-          ctx.traceContext,
-        )
-      : opentelemetry.context.active();
+  const activeContext = (() => {
+    if (ctx.startNewTrace) {
+      return opentelemetry.ROOT_CONTEXT;
+    }
+    if (ctx.traceContext) {
+      return opentelemetry.propagation.extract(
+        opentelemetry.context.active(),
+        ctx.traceContext,
+      );
+    }
+    return opentelemetry.context.active();
+  })();
 
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
@@ -99,14 +103,18 @@ export function instrumentSync<T>(
   ctx: SpanCtx,
   callback: SyncCallbackFn<T>,
 ): T {
-  const activeContext = ctx.startNewTrace
-    ? opentelemetry.ROOT_CONTEXT
-    : ctx.traceContext
-      ? opentelemetry.propagation.extract(
-          opentelemetry.context.active(),
-          ctx.traceContext,
-        )
-      : opentelemetry.context.active();
+  const activeContext = (() => {
+    if (ctx.startNewTrace) {
+      return opentelemetry.ROOT_CONTEXT;
+    }
+    if (ctx.traceContext) {
+      return opentelemetry.propagation.extract(
+        opentelemetry.context.active(),
+        ctx.traceContext,
+      );
+    }
+    return opentelemetry.context.active();
+  })();
 
   return getTracer(ctx.traceScope ?? callback.name).startActiveSpan(
     ctx.name,
@@ -152,24 +160,33 @@ export const traceException = (
 
   const exception = {
     code: code,
-    message:
-      ex instanceof Error
-        ? ex.message
-        : typeof ex === "object" && ex !== null && "message" in ex
-          ? JSON.stringify(ex.message)
-          : JSON.stringify(ex),
-    name:
-      ex instanceof Error
-        ? ex.name
-        : typeof ex === "object" && ex !== null && "name" in ex
-          ? JSON.stringify(ex.name)
-          : "Error",
-    stack:
-      ex instanceof Error
-        ? JSON.stringify(ex.stack)
-        : typeof ex === "object" && ex !== null && "stack" in ex
-          ? JSON.stringify(ex.stack)
-          : undefined,
+    message: (() => {
+      if (ex instanceof Error) {
+        return ex.message;
+      }
+      if (typeof ex === "object" && ex !== null && "message" in ex) {
+        return JSON.stringify(ex.message);
+      }
+      return JSON.stringify(ex);
+    })(),
+    name: (() => {
+      if (ex instanceof Error) {
+        return ex.name;
+      }
+      if (typeof ex === "object" && ex !== null && "name" in ex) {
+        return JSON.stringify(ex.name);
+      }
+      return "Error";
+    })(),
+    stack: (() => {
+      if (ex instanceof Error) {
+        return JSON.stringify(ex.stack);
+      }
+      if (typeof ex === "object" && ex !== null && "stack" in ex) {
+        return JSON.stringify(ex.stack);
+      }
+      return undefined;
+    })(),
   };
 
   // adds an otel event

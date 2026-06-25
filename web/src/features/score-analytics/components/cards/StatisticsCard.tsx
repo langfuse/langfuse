@@ -145,26 +145,30 @@ export function StatisticsCard() {
               />
               <MetricCard
                 label="Mean"
-                value={
-                  showScore1Data && statistics.score1.mean !== null
-                    ? statistics.score1.mean.toFixed(2)
-                    : !showScore1Data
-                      ? "--"
-                      : "N/A"
-                }
+                value={(() => {
+                  if (showScore1Data && statistics.score1.mean !== null) {
+                    return statistics.score1.mean.toFixed(2);
+                  }
+                  if (!showScore1Data) {
+                    return "--";
+                  }
+                  return "N/A";
+                })()}
                 helpText={`Average value for ${score1.name}`}
                 isPlaceholder={!showScore1Data}
                 isContext
               />
               <MetricCard
                 label="Std Dev"
-                value={
-                  showScore1Data && statistics.score1.std !== null
-                    ? statistics.score1.std.toFixed(2)
-                    : !showScore1Data
-                      ? "--"
-                      : "N/A"
-                }
+                value={(() => {
+                  if (showScore1Data && statistics.score1.std !== null) {
+                    return statistics.score1.std.toFixed(2);
+                  }
+                  if (!showScore1Data) {
+                    return "--";
+                  }
+                  return "N/A";
+                })()}
                 helpText={`Standard deviation for ${score1.name}`}
                 isPlaceholder={!showScore1Data}
                 isContext
@@ -185,26 +189,33 @@ export function StatisticsCard() {
               />
               <MetricCard
                 label="Mode"
-                value={
-                  showScore1Data && statistics.score1.mode
-                    ? `${statistics.score1.mode.category} (${statistics.score1.mode.count.toLocaleString()})`
-                    : !showScore1Data
-                      ? "--"
-                      : "N/A"
-                }
+                value={(() => {
+                  if (showScore1Data && statistics.score1.mode) {
+                    return `${statistics.score1.mode.category} (${statistics.score1.mode.count.toLocaleString()})`;
+                  }
+                  if (!showScore1Data) {
+                    return "--";
+                  }
+                  return "N/A";
+                })()}
                 helpText="Most frequent category and its count"
                 isPlaceholder={!showScore1Data}
                 isContext
               />
               <MetricCard
                 label="Mode %"
-                value={
-                  showScore1Data && statistics.score1.modePercentage !== null
-                    ? `${statistics.score1.modePercentage.toFixed(1)}%`
-                    : !showScore1Data
-                      ? "--"
-                      : "N/A"
-                }
+                value={(() => {
+                  if (
+                    showScore1Data &&
+                    statistics.score1.modePercentage !== null
+                  ) {
+                    return `${statistics.score1.modePercentage.toFixed(1)}%`;
+                  }
+                  if (!showScore1Data) {
+                    return "--";
+                  }
+                  return "N/A";
+                })()}
                 helpText="Percentage of observations with the most frequent category"
                 isPlaceholder={!showScore1Data}
                 isContext
@@ -235,30 +246,38 @@ export function StatisticsCard() {
                 />
                 <MetricCard
                   label="Mean"
-                  value={
-                    showScore2Data &&
-                    statistics.score2 &&
-                    statistics.score2.mean !== null
-                      ? statistics.score2.mean.toFixed(2)
-                      : !showScore2Data
-                        ? "--"
-                        : "N/A"
-                  }
+                  value={(() => {
+                    if (
+                      showScore2Data &&
+                      statistics.score2 &&
+                      statistics.score2.mean !== null
+                    ) {
+                      return statistics.score2.mean.toFixed(2);
+                    }
+                    if (!showScore2Data) {
+                      return "--";
+                    }
+                    return "N/A";
+                  })()}
                   helpText={`Average value for ${score2?.name ?? "Score 2"}`}
                   isPlaceholder={!showScore2Data}
                   isContext
                 />
                 <MetricCard
                   label="Std Dev"
-                  value={
-                    showScore2Data &&
-                    statistics.score2 &&
-                    statistics.score2.std !== null
-                      ? statistics.score2.std.toFixed(2)
-                      : !showScore2Data
-                        ? "--"
-                        : "N/A"
-                  }
+                  value={(() => {
+                    if (
+                      showScore2Data &&
+                      statistics.score2 &&
+                      statistics.score2.std !== null
+                    ) {
+                      return statistics.score2.std.toFixed(2);
+                    }
+                    if (!showScore2Data) {
+                      return "--";
+                    }
+                    return "N/A";
+                  })()}
                   helpText={`Standard deviation for ${score2?.name ?? "Score 2"}`}
                   isPlaceholder={!showScore2Data}
                   isContext
@@ -279,28 +298,34 @@ export function StatisticsCard() {
                 />
                 <MetricCard
                   label="Mode"
-                  value={
-                    showScore2Data && statistics.score2?.mode
-                      ? `${statistics.score2.mode.category} (${statistics.score2.mode.count.toLocaleString()})`
-                      : !showScore2Data
-                        ? "--"
-                        : "N/A"
-                  }
+                  value={(() => {
+                    if (showScore2Data && statistics.score2?.mode) {
+                      return `${statistics.score2.mode.category} (${statistics.score2.mode.count.toLocaleString()})`;
+                    }
+                    if (!showScore2Data) {
+                      return "--";
+                    }
+                    return "N/A";
+                  })()}
                   helpText="Most frequent category and its count"
                   isPlaceholder={!showScore2Data}
                   isContext
                 />
                 <MetricCard
                   label="Mode %"
-                  value={
-                    showScore2Data &&
-                    statistics.score2 &&
-                    statistics.score2.modePercentage !== null
-                      ? `${statistics.score2.modePercentage.toFixed(1)}%`
-                      : !showScore2Data
-                        ? "--"
-                        : "N/A"
-                  }
+                  value={(() => {
+                    if (
+                      showScore2Data &&
+                      statistics.score2 &&
+                      statistics.score2.modePercentage !== null
+                    ) {
+                      return `${statistics.score2.modePercentage.toFixed(1)}%`;
+                    }
+                    if (!showScore2Data) {
+                      return "--";
+                    }
+                    return "N/A";
+                  })()}
                   helpText="Percentage of observations with the most frequent category"
                   isPlaceholder={!showScore2Data}
                   isContext
@@ -358,15 +383,21 @@ export function StatisticsCard() {
                   />
                   <MetricCard
                     label="Pearson r"
-                    value={
-                      showComparisonMetrics &&
-                      statistics.comparison &&
-                      statistics.comparison.pearsonCorrelation !== null
-                        ? statistics.comparison.pearsonCorrelation.toFixed(3)
-                        : showComparisonMetrics
-                          ? "N/A"
-                          : "--"
-                    }
+                    value={(() => {
+                      if (
+                        showComparisonMetrics &&
+                        statistics.comparison &&
+                        statistics.comparison.pearsonCorrelation !== null
+                      ) {
+                        return statistics.comparison.pearsonCorrelation.toFixed(
+                          3,
+                        );
+                      }
+                      if (showComparisonMetrics) {
+                        return "N/A";
+                      }
+                      return "--";
+                    })()}
                     interpretation={
                       showComparisonMetrics &&
                       statistics.comparison &&
@@ -381,15 +412,21 @@ export function StatisticsCard() {
                   />
                   <MetricCard
                     label="Spearman ρ"
-                    value={
-                      showComparisonMetrics &&
-                      statistics.comparison &&
-                      statistics.comparison.spearmanCorrelation !== null
-                        ? statistics.comparison.spearmanCorrelation.toFixed(3)
-                        : showComparisonMetrics
-                          ? "N/A"
-                          : "--"
-                    }
+                    value={(() => {
+                      if (
+                        showComparisonMetrics &&
+                        statistics.comparison &&
+                        statistics.comparison.spearmanCorrelation !== null
+                      ) {
+                        return statistics.comparison.spearmanCorrelation.toFixed(
+                          3,
+                        );
+                      }
+                      if (showComparisonMetrics) {
+                        return "N/A";
+                      }
+                      return "--";
+                    })()}
                     interpretation={
                       showComparisonMetrics &&
                       statistics.comparison &&
@@ -408,15 +445,19 @@ export function StatisticsCard() {
                   <div />
                   <MetricCard
                     label="MAE"
-                    value={
-                      showComparisonMetrics &&
-                      statistics.comparison &&
-                      statistics.comparison.mae !== null
-                        ? statistics.comparison.mae.toFixed(3)
-                        : showComparisonMetrics
-                          ? "N/A"
-                          : "--"
-                    }
+                    value={(() => {
+                      if (
+                        showComparisonMetrics &&
+                        statistics.comparison &&
+                        statistics.comparison.mae !== null
+                      ) {
+                        return statistics.comparison.mae.toFixed(3);
+                      }
+                      if (showComparisonMetrics) {
+                        return "N/A";
+                      }
+                      return "--";
+                    })()}
                     interpretation={
                       showComparisonMetrics &&
                       statistics.comparison &&
@@ -429,15 +470,19 @@ export function StatisticsCard() {
                   />
                   <MetricCard
                     label="RMSE"
-                    value={
-                      showComparisonMetrics &&
-                      statistics.comparison &&
-                      statistics.comparison.rmse !== null
-                        ? statistics.comparison.rmse.toFixed(3)
-                        : showComparisonMetrics
-                          ? "N/A"
-                          : "--"
-                    }
+                    value={(() => {
+                      if (
+                        showComparisonMetrics &&
+                        statistics.comparison &&
+                        statistics.comparison.rmse !== null
+                      ) {
+                        return statistics.comparison.rmse.toFixed(3);
+                      }
+                      if (showComparisonMetrics) {
+                        return "N/A";
+                      }
+                      return "--";
+                    })()}
                     interpretation={
                       showComparisonMetrics &&
                       statistics.comparison &&
@@ -494,13 +539,15 @@ export function StatisticsCard() {
                   />
                   <MetricCard
                     label="Agreement"
-                    value={
-                      showComparisonMetrics && overallAgreement !== null
-                        ? `${(overallAgreement * 100).toFixed(1)}%`
-                        : showComparisonMetrics
-                          ? "N/A"
-                          : "--"
-                    }
+                    value={(() => {
+                      if (showComparisonMetrics && overallAgreement !== null) {
+                        return `${(overallAgreement * 100).toFixed(1)}%`;
+                      }
+                      if (showComparisonMetrics) {
+                        return "N/A";
+                      }
+                      return "--";
+                    })()}
                     interpretation={
                       showComparisonMetrics && overallAgreement !== null
                         ? interpretOverallAgreement(overallAgreement)
@@ -515,13 +562,15 @@ export function StatisticsCard() {
                   <div />
                   <MetricCard
                     label="Cohen's κ"
-                    value={
-                      showComparisonMetrics && cohensKappa !== null
-                        ? cohensKappa.toFixed(3)
-                        : showComparisonMetrics
-                          ? "N/A"
-                          : "--"
-                    }
+                    value={(() => {
+                      if (showComparisonMetrics && cohensKappa !== null) {
+                        return cohensKappa.toFixed(3);
+                      }
+                      if (showComparisonMetrics) {
+                        return "N/A";
+                      }
+                      return "--";
+                    })()}
                     interpretation={
                       showComparisonMetrics && cohensKappa !== null
                         ? interpretCohensKappa(cohensKappa)
@@ -532,13 +581,15 @@ export function StatisticsCard() {
                   />
                   <MetricCard
                     label="F1 Score"
-                    value={
-                      showComparisonMetrics && f1Score !== null
-                        ? f1Score.toFixed(3)
-                        : showComparisonMetrics
-                          ? "N/A"
-                          : "--"
-                    }
+                    value={(() => {
+                      if (showComparisonMetrics && f1Score !== null) {
+                        return f1Score.toFixed(3);
+                      }
+                      if (showComparisonMetrics) {
+                        return "N/A";
+                      }
+                      return "--";
+                    })()}
                     interpretation={
                       showComparisonMetrics && f1Score !== null
                         ? interpretF1Score(f1Score)

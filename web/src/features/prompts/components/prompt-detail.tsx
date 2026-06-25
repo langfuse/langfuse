@@ -160,15 +160,19 @@ export const PromptDetail = ({
   const promptHistory = api.prompts.allVersions.useQuery(promptHistoryInput, {
     enabled: Boolean(projectId),
   });
-  const prompt = currentPromptVersion
-    ? promptHistory.data?.promptVersions.find(
+  const prompt = (() => {
+    if (currentPromptVersion) {
+      return promptHistory.data?.promptVersions.find(
         (prompt) => prompt.version === currentPromptVersion,
-      )
-    : currentPromptLabel
-      ? promptHistory.data?.promptVersions.find((prompt) =>
-          prompt.labels.includes(currentPromptLabel),
-        )
-      : promptHistory.data?.promptVersions[0];
+      );
+    }
+    if (currentPromptLabel) {
+      return promptHistory.data?.promptVersions.find((prompt) =>
+        prompt.labels.includes(currentPromptLabel),
+      );
+    }
+    return promptHistory.data?.promptVersions[0];
+  })();
 
   const promptGraph = api.prompts.resolvePromptGraph.useQuery(
     {

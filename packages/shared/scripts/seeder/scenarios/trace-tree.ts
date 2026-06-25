@@ -72,11 +72,15 @@ const buildTreeShape = (
   // column, and stream-position randomness would re-key rows when flags
   // that shift rng consumption change between same-prefix re-runs.
   const kindAt = (index: number): ObservationType =>
-    index < kinds.length
-      ? kinds[index]
-      : jitter(seed, index * 5 + 3, 9) < 4
-        ? "GENERATION"
-        : kinds[jitter(seed, index * 5 + 4, kinds.length - 1)];
+    (() => {
+      if (index < kinds.length) {
+        return kinds[index];
+      }
+      if (jitter(seed, index * 5 + 3, 9) < 4) {
+        return "GENERATION";
+      }
+      return kinds[jitter(seed, index * 5 + 4, kinds.length - 1)];
+    })();
 
   for (let i = 0; i < count; i++) {
     if (i === 0) {
@@ -271,11 +275,15 @@ const run = async (
 
     const longName = node.index % 37 === 11;
     const baseName = rng.pick(NAME_BY_KIND[node.kind]);
-    const name = longName
-      ? `${baseName}-with-an-extremely-long-name-${"x".repeat(140)}`
-      : isFailedToolRetryPair
-        ? `${baseName}-retry`
-        : baseName;
+    const name = (() => {
+      if (longName) {
+        return `${baseName}-with-an-extremely-long-name-${"x".repeat(140)}`;
+      }
+      if (isFailedToolRetryPair) {
+        return `${baseName}-retry`;
+      }
+      return baseName;
+    })();
 
     const payloadForNode = (): string | null => {
       if (node.index === 0) return rootInput;
@@ -315,12 +323,15 @@ const run = async (
       start_time: startTime,
       end_time: missingEndTime ? null : traceTimestamp + endOffsets[node.index],
       completion_start_time: isGeneration ? startTime + rng.int(80, 400) : null,
-      level:
-        isError || isFailedToolRetryPair
-          ? "ERROR"
-          : node.index % 13 === 5
-            ? "WARNING"
-            : "DEFAULT",
+      level: (() => {
+        if (isError || isFailedToolRetryPair) {
+          return "ERROR";
+        }
+        if (node.index % 13 === 5) {
+          return "WARNING";
+        }
+        return "DEFAULT";
+      })(),
       status_message:
         isError || isFailedToolRetryPair
           ? node.kind === "TOOL"
@@ -329,12 +340,15 @@ const run = async (
           : null,
       version: null,
       input: payloadForNode(),
-      output:
-        node.index === 0
-          ? rootOutput
-          : isGeneration
-            ? buildPayload("text", rng.int(150, 900), rng)
-            : null,
+      output: (() => {
+        if (node.index === 0) {
+          return rootOutput;
+        }
+        if (isGeneration) {
+          return buildPayload("text", rng.int(150, 900), rng);
+        }
+        return null;
+      })(),
       metadata: {
         scenario: "trace-tree",
         "node.depth": String(node.depth),

@@ -290,13 +290,21 @@ export function InlineFilterState({
               ? filter.value.length > 2
                 ? `${filter.value.length} selected`
                 : filter.value.join(", ")
-              : filter.type === "number" || filter.type === "numberObject"
-                ? filter.value
-                : filter.type === "boolean"
-                  ? `${filter.value}`
-                  : filter.type === "null"
-                    ? ""
-                    : `"${filter.value}"`}
+              : (() => {
+                  if (
+                    filter.type === "number" ||
+                    filter.type === "numberObject"
+                  ) {
+                    return filter.value;
+                  }
+                  if (filter.type === "boolean") {
+                    return `${filter.value}`;
+                  }
+                  if (filter.type === "null") {
+                    return "";
+                  }
+                  return `"${filter.value}"`;
+                })()}
       </span>
     );
   });
@@ -515,16 +523,20 @@ function FilterBuilderForm({
             className="text-muted-foreground w-full justify-start"
           >
             <WandSparkles className="mr-2 h-4 w-4" />
-            {!organization?.aiFeaturesEnabled ? (
-              <>
-                AI Filters: Enable in Organization Settings (Admin Only)
-                <ExternalLink className="ml-2 h-4 w-4" />
-              </>
-            ) : showAiFilter ? (
-              "Cancel"
-            ) : (
-              "Create Filter with AI"
-            )}
+            {(() => {
+              if (!organization?.aiFeaturesEnabled) {
+                return (
+                  <>
+                    AI Filters: Enable in Organization Settings (Admin Only)
+                    <ExternalLink className="ml-2 h-4 w-4" />
+                  </>
+                );
+              }
+              if (showAiFilter) {
+                return "Cancel";
+              }
+              return "Create Filter with AI";
+            })()}
           </Button>
           {showAiFilter && (
             <div className="flex flex-col gap-3">
@@ -754,66 +766,82 @@ function FilterBuilderForm({
                             }
                           />
                         )
-                      ) : filter.type === "categoryOptions" &&
-                        column?.type === "categoryOptions" ? (
-                        // Case 3: categoryOptions
-                        <Select
-                          onValueChange={(value) => {
-                            handleFilterChange({ ...filter, key: value }, i);
-                          }}
-                          value={filter.key ?? ""}
-                        >
-                          <SelectTrigger className="min-w-[60px]">
-                            <SelectValue placeholder="" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {column?.options.map((option) => (
-                              <SelectItem
-                                key={option.label}
-                                value={option.label}
+                      ) : (
+                        (() => {
+                          if (
+                            filter.type === "categoryOptions" &&
+                            column?.type === "categoryOptions"
+                          ) {
+                            return (
+                              <Select
+                                onValueChange={(value) => {
+                                  handleFilterChange(
+                                    { ...filter, key: value },
+                                    i,
+                                  );
+                                }}
+                                value={filter.key ?? ""}
                               >
-                                {option.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : filter.type === "positionInTrace" ? (
-                        <Select
-                          onValueChange={(value) => {
-                            const needsValue =
-                              value === "nthFromEnd" ||
-                              value === "nthFromStart";
-                            handleFilterChange(
-                              {
-                                ...filter,
-                                key: value,
-                                value: needsValue
-                                  ? typeof filter.value === "number" &&
-                                    filter.value >= 1
-                                    ? filter.value
-                                    : 1
-                                  : undefined,
-                              } as WipFilterCondition,
-                              i,
+                                <SelectTrigger className="min-w-[60px]">
+                                  <SelectValue placeholder="" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {column?.options.map((option) => (
+                                    <SelectItem
+                                      key={option.label}
+                                      value={option.label}
+                                    >
+                                      {option.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             );
-                          }}
-                          value={getSessionPositionInTraceFilterMode(filter)}
-                        >
-                          <SelectTrigger className="min-w-[140px]">
-                            <SelectValue placeholder="" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="first">1st</SelectItem>
-                            <SelectItem value="last">last</SelectItem>
-                            <SelectItem value="nthFromStart">
-                              nth from start
-                            </SelectItem>
-                            <SelectItem value="nthFromEnd">
-                              nth from end
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : null}
+                          }
+                          if (filter.type === "positionInTrace") {
+                            return (
+                              <Select
+                                onValueChange={(value) => {
+                                  const needsValue =
+                                    value === "nthFromEnd" ||
+                                    value === "nthFromStart";
+                                  handleFilterChange(
+                                    {
+                                      ...filter,
+                                      key: value,
+                                      value: needsValue
+                                        ? typeof filter.value === "number" &&
+                                          filter.value >= 1
+                                          ? filter.value
+                                          : 1
+                                        : undefined,
+                                    } as WipFilterCondition,
+                                    i,
+                                  );
+                                }}
+                                value={getSessionPositionInTraceFilterMode(
+                                  filter,
+                                )}
+                              >
+                                <SelectTrigger className="min-w-[140px]">
+                                  <SelectValue placeholder="" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="first">1st</SelectItem>
+                                  <SelectItem value="last">last</SelectItem>
+                                  <SelectItem value="nthFromStart">
+                                    nth from start
+                                  </SelectItem>
+                                  <SelectItem value="nthFromEnd">
+                                    nth from end
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            );
+                          }
+                          return null;
+                        })()
+                      )}
                     </td>
                     <td className="p-1">
                       <Select

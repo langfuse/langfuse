@@ -251,48 +251,56 @@ const ObservationsPreview = memo(
         </div>
         <div className="mb-4 flex max-h-[30dvh] w-full flex-col overflow-hidden border-r border-b border-l">
           <Suspense fallback={<Skeleton className="h-[30dvh] w-full" />}>
-            {showSdkUpgradeMessage ? (
-              <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
-                <AlertTriangle className="text-dark-yellow h-8 w-8" />
-                <div className="flex flex-col gap-1">
-                  <span className="text-foreground font-medium">
-                    Please verify your SDK version
-                  </span>
-                  <span className="text-muted-foreground max-w-md text-sm">
-                    We did not find any data ingested with langfuse
-                    OTEL-compatible SDKs in the last 7 days. Observation-level
-                    evaluators require JS SDK v4+ or Python SDK v3+. You can
-                    still configure this evaluator now—it will start running
-                    once you upgrade.{" "}
-                    <a
-                      href="https://langfuse.com/docs/observability/sdk/upgrade-path"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-dark-blue font-medium hover:opacity-80"
-                    >
-                      Learn more
-                    </a>
-                    .
-                  </span>
-                </div>
-              </div>
-            ) : isBetaEnabled ? (
-              <EventsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
-            ) : (
-              <ObservationsTable
-                projectId={projectId}
-                hideControls
-                externalFilterState={filterState}
-                externalDateRange={dateRange}
-                limitRows={10}
-              />
-            )}
+            {(() => {
+              if (showSdkUpgradeMessage) {
+                return (
+                  <div className="flex h-[30dvh] flex-col items-center justify-center gap-2 border-t p-4 text-center">
+                    <AlertTriangle className="text-dark-yellow h-8 w-8" />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-foreground font-medium">
+                        Please verify your SDK version
+                      </span>
+                      <span className="text-muted-foreground max-w-md text-sm">
+                        We did not find any data ingested with langfuse
+                        OTEL-compatible SDKs in the last 7 days.
+                        Observation-level evaluators require JS SDK v4+ or
+                        Python SDK v3+. You can still configure this evaluator
+                        now—it will start running once you upgrade.{" "}
+                        <a
+                          href="https://langfuse.com/docs/observability/sdk/upgrade-path"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-dark-blue font-medium hover:opacity-80"
+                        >
+                          Learn more
+                        </a>
+                        .
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+              if (isBetaEnabled) {
+                return (
+                  <EventsTable
+                    projectId={projectId}
+                    hideControls
+                    externalFilterState={filterState}
+                    externalDateRange={dateRange}
+                    limitRows={10}
+                  />
+                );
+              }
+              return (
+                <ObservationsTable
+                  projectId={projectId}
+                  hideControls
+                  externalFilterState={filterState}
+                  externalDateRange={dateRange}
+                  limitRows={10}
+                />
+              );
+            })()}
           </Suspense>
         </div>
       </>
@@ -470,15 +478,18 @@ export const InnerEvaluatorForm = (props: {
       scoreName:
         props.existingEvaluator?.scoreName ?? `${props.evalTemplate.name}`,
       target: defaultTarget,
-      filter: props.existingEvaluator?.filter
-        ? z.array(singleFilter).parse(props.existingEvaluator.filter)
-        : defaultTarget === EvalTargetObject.TRACE
-          ? // For new trace evaluators, exclude internal environments by default
-            DEFAULT_TRACE_FILTER
-          : defaultTarget === EvalTargetObject.EVENT
-            ? // For new observation evaluators, default to GENERATION type
-              DEFAULT_OBSERVATION_FILTER
-            : [],
+      filter: (() => {
+        if (props.existingEvaluator?.filter) {
+          return z.array(singleFilter).parse(props.existingEvaluator.filter);
+        }
+        if (defaultTarget === EvalTargetObject.TRACE) {
+          return DEFAULT_TRACE_FILTER;
+        }
+        if (defaultTarget === EvalTargetObject.EVENT) {
+          return DEFAULT_OBSERVATION_FILTER;
+        }
+        return [];
+      })(),
       mapping: getDefaultMapping(),
       sampling: props.existingEvaluator?.sampling
         ? props.existingEvaluator.sampling.toNumber()
@@ -788,11 +799,15 @@ export const InnerEvaluatorForm = (props: {
       actualTarget = EvalTargetObject.EVENT;
     } else {
       // offline-experiment: code evaluators always use the observation-backed experiment target
-      actualTarget = isCodeEvalConfig
-        ? EvalTargetObject.EXPERIMENT
-        : useOtelDataForExperiment
-          ? EvalTargetObject.EXPERIMENT
-          : EvalTargetObject.DATASET;
+      actualTarget = (() => {
+        if (isCodeEvalConfig) {
+          return EvalTargetObject.EXPERIMENT;
+        }
+        if (useOtelDataForExperiment) {
+          return EvalTargetObject.EXPERIMENT;
+        }
+        return EvalTargetObject.DATASET;
+      })();
     }
 
     // Transform variable mapping for new target type
@@ -804,11 +819,15 @@ export const InnerEvaluatorForm = (props: {
     // Update form state with target-appropriate default filters
     form.setValue(
       "filter",
-      actualTarget === EvalTargetObject.TRACE
-        ? DEFAULT_TRACE_FILTER
-        : actualTarget === EvalTargetObject.EVENT
-          ? DEFAULT_OBSERVATION_FILTER
-          : [],
+      (() => {
+        if (actualTarget === EvalTargetObject.TRACE) {
+          return DEFAULT_TRACE_FILTER;
+        }
+        if (actualTarget === EvalTargetObject.EVENT) {
+          return DEFAULT_OBSERVATION_FILTER;
+        }
+        return [];
+      })(),
     );
     form.setValue("mapping", newMapping);
     form.setValue("runOnLive", props.defaultRunOnLive ?? true);
@@ -1240,13 +1259,15 @@ export const InnerEvaluatorForm = (props: {
                                   }
                                 }}
                                 disabled={props.disabled}
-                                columnsWithCustomSelect={
-                                  isTraceTarget(target)
-                                    ? ["traceTags", "traceName"]
-                                    : isEventTarget(target)
-                                      ? ["tags", "name", "calledToolNames"]
-                                      : undefined
-                                }
+                                columnsWithCustomSelect={(() => {
+                                  if (isTraceTarget(target)) {
+                                    return ["traceTags", "traceName"];
+                                  }
+                                  if (isEventTarget(target)) {
+                                    return ["tags", "name", "calledToolNames"];
+                                  }
+                                  return undefined;
+                                })()}
                               />
                             )}
                           </div>
@@ -1350,31 +1371,39 @@ export const InnerEvaluatorForm = (props: {
           </div>
         </Card>
       )}
-      {shouldShowCodeEvalTestPanel ? (
-        <CodeEvalTestRunCard
-          projectId={props.projectId}
-          evalTemplate={props.evalTemplate}
-          target={watchedTarget}
-          scoreName={watchedScoreName}
-          disabled={props.disabled}
-          enableExecutionTracePeek={!props.existingEvaluator}
-        />
-      ) : isCodeEvalConfig ? null : (
-        <VariableMappingCard
-          projectId={props.projectId}
-          availableVariables={availableVariables}
-          evalTemplate={props.evalTemplate}
-          form={form}
-          disabled={props.disabled}
-          shouldWrapVariables={props.shouldWrapVariables}
-          hideAdvancedSettings={props.hideAdvancedSettings}
-          oldConfigId={props.oldConfigId}
-          isNewCompatible={props.evalCapabilities.isNewCompatible}
-          compatibilityCheckWasPerformed={
-            props.evalCapabilities.compatibilityCheckWasPerformed
-          }
-        />
-      )}
+      {(() => {
+        if (shouldShowCodeEvalTestPanel) {
+          return (
+            <CodeEvalTestRunCard
+              projectId={props.projectId}
+              evalTemplate={props.evalTemplate}
+              target={watchedTarget}
+              scoreName={watchedScoreName}
+              disabled={props.disabled}
+              enableExecutionTracePeek={!props.existingEvaluator}
+            />
+          );
+        }
+        if (isCodeEvalConfig) {
+          return null;
+        }
+        return (
+          <VariableMappingCard
+            projectId={props.projectId}
+            availableVariables={availableVariables}
+            evalTemplate={props.evalTemplate}
+            form={form}
+            disabled={props.disabled}
+            shouldWrapVariables={props.shouldWrapVariables}
+            hideAdvancedSettings={props.hideAdvancedSettings}
+            oldConfigId={props.oldConfigId}
+            isNewCompatible={props.evalCapabilities.isNewCompatible}
+            compatibilityCheckWasPerformed={
+              props.evalCapabilities.compatibilityCheckWasPerformed
+            }
+          />
+        );
+      })()}
     </div>
   );
 

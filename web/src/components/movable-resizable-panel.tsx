@@ -376,32 +376,40 @@ function getResizedPanel(
   const deltaY = clientY - interaction.startClientY;
   const nextPosition = { ...interaction.startPosition };
   const nextSize = { ...interaction.startSize };
-  const maxWidth = interaction.direction.includes("left")
-    ? Math.min(
+  const maxWidth = (() => {
+    if (interaction.direction.includes("left")) {
+      return Math.min(
         constraints.maxWidth,
         interaction.startPosition.left +
           interaction.startSize.width -
           bounds.minLeft,
-      )
-    : interaction.direction.includes("right")
-      ? Math.min(
-          constraints.maxWidth,
-          bounds.maxRight - interaction.startPosition.left,
-        )
-      : constraints.maxWidth;
-  const maxHeight = interaction.direction.includes("top")
-    ? Math.min(
+      );
+    }
+    if (interaction.direction.includes("right")) {
+      return Math.min(
+        constraints.maxWidth,
+        bounds.maxRight - interaction.startPosition.left,
+      );
+    }
+    return constraints.maxWidth;
+  })();
+  const maxHeight = (() => {
+    if (interaction.direction.includes("top")) {
+      return Math.min(
         constraints.maxHeight,
         interaction.startPosition.top +
           interaction.startSize.height -
           bounds.minTop,
-      )
-    : interaction.direction.includes("bottom")
-      ? Math.min(
-          constraints.maxHeight,
-          bounds.maxBottom - interaction.startPosition.top,
-        )
-      : constraints.maxHeight;
+      );
+    }
+    if (interaction.direction.includes("bottom")) {
+      return Math.min(
+        constraints.maxHeight,
+        bounds.maxBottom - interaction.startPosition.top,
+      );
+    }
+    return constraints.maxHeight;
+  })();
 
   if (interaction.direction.includes("right")) {
     nextSize.width = clamp(

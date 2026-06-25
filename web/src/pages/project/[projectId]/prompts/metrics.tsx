@@ -442,21 +442,23 @@ export default function PromptVersionTable({
       <DataTable
         tableName={"promptVersions"}
         columns={columns}
-        data={
-          promptVersions.isLoading
-            ? { isLoading: true, isError: false }
-            : promptVersions.error
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: promptVersions.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: rows,
-                }
-        }
+        data={(() => {
+          if (promptVersions.isLoading) {
+            return { isLoading: true, isError: false };
+          }
+          if (promptVersions.error) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: promptVersions.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: rows,
+          };
+        })()}
         pagination={{
           totalCount,
           onChange: setPaginationState,

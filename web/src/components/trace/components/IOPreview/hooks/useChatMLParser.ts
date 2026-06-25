@@ -39,11 +39,15 @@ export interface ChatMLParserResult {
 function parseToolCallsFromMessage(
   message: ReturnType<typeof combineInputOutputMessages>[0],
 ) {
-  return message.tool_calls && Array.isArray(message.tool_calls)
-    ? message.tool_calls
-    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
-      ? message.json.tool_calls
-      : [];
+  return (() => {
+    if (message.tool_calls && Array.isArray(message.tool_calls)) {
+      return message.tool_calls;
+    }
+    if (message.json?.tool_calls && Array.isArray(message.json?.tool_calls)) {
+      return message.json.tool_calls;
+    }
+    return [];
+  })();
 }
 
 /**
@@ -131,13 +135,15 @@ export function useChatMLParser(
         const messageToolNumbers: number[] = [];
 
         for (const toolCall of toolCallList) {
-          const calledToolName =
-            toolCall.name && typeof toolCall.name === "string"
-              ? toolCall.name
-              : // AI SDK has 'toolName'
-                toolCall.toolName && typeof toolCall.toolName === "string"
-                ? toolCall.toolName
-                : undefined;
+          const calledToolName = (() => {
+            if (toolCall.name && typeof toolCall.name === "string") {
+              return toolCall.name;
+            }
+            if (toolCall.toolName && typeof toolCall.toolName === "string") {
+              return toolCall.toolName;
+            }
+            return undefined;
+          })();
 
           if (calledToolName) {
             // Count tool calls from OUTPUT messages only

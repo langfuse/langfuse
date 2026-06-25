@@ -161,13 +161,15 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                 )}
                 onClick={indentDisabled ? undefined : onToggleIndent}
                 disabled={indentDisabled}
-                title={
-                  indentDisabled
-                    ? undefined
-                    : indentEnabled
-                      ? "Hide indentation"
-                      : "Show indentation"
-                }
+                title={(() => {
+                  if (indentDisabled) {
+                    return undefined;
+                  }
+                  if (indentEnabled) {
+                    return "Hide indentation";
+                  }
+                  return "Show indentation";
+                })()}
               >
                 <IndentIncrease className="h-3.5 w-3.5" />
               </Button>
@@ -223,11 +225,15 @@ export const LogViewToolbar = memo(function LogViewToolbar({
               </span>
             </TooltipTrigger>
             <TooltipContent>
-              {isVirtualized
-                ? "Disabled for large traces"
-                : allRowsExpanded
-                  ? "Collapse all"
-                  : "Expand all"}
+              {(() => {
+                if (isVirtualized) {
+                  return "Disabled for large traces";
+                }
+                if (allRowsExpanded) {
+                  return "Collapse all";
+                }
+                return "Expand all";
+              })()}
             </TooltipContent>
           </Tooltip>
         )}
@@ -247,21 +253,27 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                     }
                     disabled={isCopyOrDownloadLoading}
                   >
-                    {isCopyOrDownloadLoading ? (
-                      <Spinner size="xs" />
-                    ) : isCopied ? (
-                      <Check className="h-3.5 w-3.5" />
-                    ) : (
-                      <Copy className="h-3.5 w-3.5" />
-                    )}
+                    {(() => {
+                      if (isCopyOrDownloadLoading) {
+                        return <Spinner size="xs" />;
+                      }
+                      if (isCopied) {
+                        return <Check className="h-3.5 w-3.5" />;
+                      }
+                      return <Copy className="h-3.5 w-3.5" />;
+                    })()}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isCopyOrDownloadLoading
-                    ? "Loading data..."
-                    : isCopyOrDownloadCacheOnly
-                      ? "Copy as JSON (cache only)"
-                      : "Copy as JSON"}
+                  {(() => {
+                    if (isCopyOrDownloadLoading) {
+                      return "Loading data...";
+                    }
+                    if (isCopyOrDownloadCacheOnly) {
+                      return "Copy as JSON (cache only)";
+                    }
+                    return "Copy as JSON";
+                  })()}
                 </TooltipContent>
               </Tooltip>
             </HoverCardTrigger>
@@ -309,11 +321,15 @@ export const LogViewToolbar = memo(function LogViewToolbar({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {isCopyOrDownloadLoading
-                    ? "Loading data..."
-                    : isCopyOrDownloadCacheOnly
-                      ? "Download as JSON (cache only)"
-                      : "Download as JSON"}
+                  {(() => {
+                    if (isCopyOrDownloadLoading) {
+                      return "Loading data...";
+                    }
+                    if (isCopyOrDownloadCacheOnly) {
+                      return "Download as JSON (cache only)";
+                    }
+                    return "Download as JSON";
+                  })()}
                 </TooltipContent>
               </Tooltip>
             </HoverCardTrigger>

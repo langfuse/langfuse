@@ -162,14 +162,17 @@ export function getDrawerMessages({
       return;
     }
 
-    const text =
-      typeof message.content === "string"
-        ? message.content
-        : Array.isArray(message.content)
-          ? message.content
-              .flatMap((part) => (part.type === "text" ? [part.text] : []))
-              .join("")
-          : "";
+    const text = (() => {
+      if (typeof message.content === "string") {
+        return message.content;
+      }
+      if (Array.isArray(message.content)) {
+        return message.content
+          .flatMap((part) => (part.type === "text" ? [part.text] : []))
+          .join("");
+      }
+      return "";
+    })();
 
     const toolContent =
       message.role === "assistant"

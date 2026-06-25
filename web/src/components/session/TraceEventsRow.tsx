@@ -95,58 +95,67 @@ export const TraceEventsRow = React.memo(
           }
         >
           <div className="overflow-hidden py-4 pr-4 pl-4">
-            {observationsQuery.isLoading ? (
-              <JsonSkeleton className="h-full w-full" numRows={8} />
-            ) : observationsQuery.isError ? (
-              <div className="text-destructive p-2 text-xs">
-                Failed to load observations.
-              </div>
-            ) : observationsQuery.data && observationsQuery.data.length > 0 ? (
-              <div className="flex flex-col gap-4">
-                {observationsQuery.data.map((observation) => (
-                  <div key={observation.id} className="flex flex-col gap-2">
-                    <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
-                      <span>{observation.name ?? "Observation"}</span>
-                      <span className="-mr-1">•</span>
-                      <span className="inline-flex items-center gap-1">
-                        <ItemBadge
-                          type={observation.type ?? "EVENT"}
-                          isSmall
-                          className="h-3 w-3"
-                        />
-                        <span>
-                          {String(observation.type ?? "EVENT")
-                            .toLowerCase()
-                            .replace(/_/g, " ")}
-                        </span>
-                      </span>
-                      <span>•</span>
-                      <span>{observation.startTime.toLocaleString()}</span>
-                    </div>
-                    <IOPreview
-                      input={observation.input ?? undefined}
-                      output={observation.output ?? undefined}
-                      metadata={observation.metadata ?? undefined}
-                      observationName={observation.name ?? undefined}
-                      hideIfNull
-                      projectId={projectId}
-                      traceId={trace.id}
-                      observationId={observation.id}
-                      environment={
-                        observation.environment ??
-                        trace.environment ??
-                        undefined
-                      }
-                      showCorrections={showCorrections}
-                    />
+            {(() => {
+              if (observationsQuery.isLoading) {
+                return <JsonSkeleton className="h-full w-full" numRows={8} />;
+              }
+              if (observationsQuery.isError) {
+                return (
+                  <div className="text-destructive p-2 text-xs">
+                    Failed to load observations.
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-muted-foreground p-2 text-xs">
-                No observations match the current filter.
-              </div>
-            )}
+                );
+              }
+              if (observationsQuery.data && observationsQuery.data.length > 0) {
+                return (
+                  <div className="flex flex-col gap-4">
+                    {observationsQuery.data.map((observation) => (
+                      <div key={observation.id} className="flex flex-col gap-2">
+                        <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs">
+                          <span>{observation.name ?? "Observation"}</span>
+                          <span className="-mr-1">•</span>
+                          <span className="inline-flex items-center gap-1">
+                            <ItemBadge
+                              type={observation.type ?? "EVENT"}
+                              isSmall
+                              className="h-3 w-3"
+                            />
+                            <span>
+                              {String(observation.type ?? "EVENT")
+                                .toLowerCase()
+                                .replace(/_/g, " ")}
+                            </span>
+                          </span>
+                          <span>•</span>
+                          <span>{observation.startTime.toLocaleString()}</span>
+                        </div>
+                        <IOPreview
+                          input={observation.input ?? undefined}
+                          output={observation.output ?? undefined}
+                          metadata={observation.metadata ?? undefined}
+                          observationName={observation.name ?? undefined}
+                          hideIfNull
+                          projectId={projectId}
+                          traceId={trace.id}
+                          observationId={observation.id}
+                          environment={
+                            observation.environment ??
+                            trace.environment ??
+                            undefined
+                          }
+                          showCorrections={showCorrections}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              }
+              return (
+                <div className="text-muted-foreground p-2 text-xs">
+                  No observations match the current filter.
+                </div>
+              );
+            })()}
           </div>
           {!hideTracePanel && (
             <>

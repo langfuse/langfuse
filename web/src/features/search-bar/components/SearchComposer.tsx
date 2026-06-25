@@ -362,11 +362,15 @@ export function SearchComposer({
   // highlights (arrows/hover) always win; otherwise only plans that completed
   // a partial token pre-highlight their best match. With nothing highlighted,
   // Enter falls through to committing the query.
-  const highlightedId = options.some((o) => o.id === highlightedOptionId)
-    ? highlightedOptionId
-    : plan?.autoHighlight === true
-      ? (options[0]?.id ?? null)
-      : null;
+  const highlightedId = (() => {
+    if (options.some((o) => o.id === highlightedOptionId)) {
+      return highlightedOptionId;
+    }
+    if (plan?.autoHighlight === true) {
+      return options[0]?.id ?? null;
+    }
+    return null;
+  })();
   // Both the per-token red pill and the global border follow the same
   // "reveal on Enter/blur" rule — mid-typing and partial structured picks
   // (level:, tags:(, has:) must not flash red. The committed query is derived
@@ -765,11 +769,15 @@ export function SearchComposer({
         // Replacing the key of an existing filter: the span ends AT the colon,
         // so the insert must not bring its own.
         const colonFollows = current.slice(currentPlan.to).startsWith(":");
-        insert = option.fieldId.endsWith(".")
-          ? option.fieldId
-          : colonFollows
-            ? option.fieldId
-            : `${option.fieldId}:`;
+        insert = (() => {
+          if (option.fieldId.endsWith(".")) {
+            return option.fieldId;
+          }
+          if (colonFollows) {
+            return option.fieldId;
+          }
+          return `${option.fieldId}:`;
+        })();
         keepOpen = true;
         // A dot-prefix field (`metadata.`/`scores.`/`traceScores.`) is itself a
         // partial key. When an existing `:value` follows the replaced key, the

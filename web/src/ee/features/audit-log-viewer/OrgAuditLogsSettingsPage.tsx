@@ -11,21 +11,27 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
 
-  const body = !hasEntitlement ? (
-    <p className="text-muted-foreground text-sm">
-      Audit logs are an Enterprise feature. Upgrade your plan to track all
-      changes made to your organization.
-    </p>
-  ) : !hasAccess ? (
-    <Alert>
-      <AlertTitle>Access Denied</AlertTitle>
-      <AlertDescription>
-        Contact your organization administrator to request access.
-      </AlertDescription>
-    </Alert>
-  ) : (
-    <AuditLogsTable scope="organization" orgId={props.orgId} />
-  );
+  const body = (() => {
+    if (!hasEntitlement) {
+      return (
+        <p className="text-muted-foreground text-sm">
+          Audit logs are an Enterprise feature. Upgrade your plan to track all
+          changes made to your organization.
+        </p>
+      );
+    }
+    if (!hasAccess) {
+      return (
+        <Alert>
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            Contact your organization administrator to request access.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    return <AuditLogsTable scope="organization" orgId={props.orgId} />;
+  })();
 
   return (
     <>

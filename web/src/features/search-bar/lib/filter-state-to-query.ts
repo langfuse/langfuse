@@ -314,12 +314,15 @@ export function filterStateToQueryText(
     }
   }
 
-  const ast: ASTNode | null =
-    nodes.length === 0
-      ? null
-      : nodes.length === 1
-        ? nodes[0]!
-        : { kind: "and", children: nodes };
+  const ast: ASTNode | null = (() => {
+    if (nodes.length === 0) {
+      return null;
+    }
+    if (nodes.length === 1) {
+      return nodes[0]!;
+    }
+    return { kind: "and", children: nodes };
+  })();
   return { text: serialize(ast), skipped, skippedFilters };
 }
 

@@ -125,14 +125,24 @@ const run = async (
     const timestamp =
       sessionStart + Math.floor(t * stepMs) + jitter(ctx.seed, t, 500);
     const isHuge = t > 0 && t % 17 === 0;
-    const style: PayloadStyle =
-      t % 7 === 3 ? "unicode" : rng.bool(0.6) ? "json" : "text";
-    const name =
-      t % 9 === 4
-        ? `${rng.pick(TRACE_NAMES)}-with-a-very-long-descriptive-name-${"y".repeat(120)}`
-        : t % 7 === 3
-          ? `多言語サポート ${rng.pick(TRACE_NAMES)}`
-          : rng.pick(TRACE_NAMES);
+    const style: PayloadStyle = (() => {
+      if (t % 7 === 3) {
+        return "unicode";
+      }
+      if (rng.bool(0.6)) {
+        return "json";
+      }
+      return "text";
+    })();
+    const name = (() => {
+      if (t % 9 === 4) {
+        return `${rng.pick(TRACE_NAMES)}-with-a-very-long-descriptive-name-${"y".repeat(120)}`;
+      }
+      if (t % 7 === 3) {
+        return `多言語サポート ${rng.pick(TRACE_NAMES)}`;
+      }
+      return rng.pick(TRACE_NAMES);
+    })();
 
     const trace = createTrace({
       id: traceId,
@@ -193,19 +203,27 @@ const run = async (
           trace_id: traceId,
           project_id: ctx.projectId,
           environment: ctx.environment,
-          type: isRoot
-            ? "AGENT"
-            : isGeneration
-              ? "GENERATION"
-              : (["TOOL", "SPAN", "EVENT"] as const)[
-                  jitter(ctx.seed, t * 977 + o, 2)
-                ],
+          type: (() => {
+            if (isRoot) {
+              return "AGENT";
+            }
+            if (isGeneration) {
+              return "GENERATION";
+            }
+            return (["TOOL", "SPAN", "EVENT"] as const)[
+              jitter(ctx.seed, t * 977 + o, 2)
+            ];
+          })(),
           parent_observation_id: isRoot ? null : `${traceId}-o0`,
-          name: isRoot
-            ? "session-turn"
-            : isGeneration
-              ? "gpt-4o-completion"
-              : rng.pick(["fetch-context", "log-event", "format-reply"]),
+          name: (() => {
+            if (isRoot) {
+              return "session-turn";
+            }
+            if (isGeneration) {
+              return "gpt-4o-completion";
+            }
+            return rng.pick(["fetch-context", "log-event", "format-reply"]);
+          })(),
           start_time: startTime,
           end_time: endTime,
           completion_start_time: isGeneration

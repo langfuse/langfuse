@@ -292,21 +292,23 @@ export function DashboardWidgetTable() {
     <DataTable
       tableName={"widgets"}
       columns={widgetColumns}
-      data={
-        widgets.isLoading
-          ? { isLoading: true, isError: false }
-          : widgets.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: widgets.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: widgets.data?.widgets ?? [],
-              }
-      }
+      data={(() => {
+        if (widgets.isLoading) {
+          return { isLoading: true, isError: false };
+        }
+        if (widgets.isError) {
+          return {
+            isLoading: false,
+            isError: true,
+            error: widgets.error.message,
+          };
+        }
+        return {
+          isLoading: false,
+          isError: false,
+          data: widgets.data?.widgets ?? [],
+        };
+      })()}
       orderBy={orderByState}
       setOrderBy={setOrderByState}
       cellPadding="comfortable"

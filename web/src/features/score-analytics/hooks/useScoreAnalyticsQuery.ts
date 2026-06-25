@@ -298,13 +298,18 @@ export function useScoreAnalyticsQuery(
 
     // Extract score2 categories for proper binning
     // When comparing two different categorical scores, score2 may have different categories
-    const score2Categories = isBoolean
-      ? categories
-      : apiData.score2Categories && apiData.score2Categories.length > 0
-        ? apiData.score2Categories
-        : mode === "two" && categories
-          ? categories // Fallback to score1 categories if score2Categories empty
-          : undefined;
+    const score2Categories = (() => {
+      if (isBoolean) {
+        return categories;
+      }
+      if (apiData.score2Categories && apiData.score2Categories.length > 0) {
+        return apiData.score2Categories;
+      }
+      if (mode === "two" && categories) {
+        return categories;
+      }
+      return undefined;
+    })();
 
     // ========================================================================
     // 2. Fill distribution bins (categorical/boolean only)
@@ -323,63 +328,100 @@ export function useScoreAnalyticsQuery(
         ? apiData.timeSeriesCategorical1Matched
         : apiData.timeSeriesCategorical2Matched;
 
-    const distribution1 = isBoolean
-      ? buildBooleanDistribution(
+    const distribution1 = (() => {
+      if (isBoolean) {
+        return buildBooleanDistribution(
           apiData.timeSeriesCategorical1,
           booleanCategories,
-        )
-      : categories
-        ? fillDistributionBins(apiData.distribution1, categories)
-        : apiData.distribution1.slice().sort((a, b) => a.binIndex - b.binIndex);
+        );
+      }
+      if (categories) {
+        return fillDistributionBins(apiData.distribution1, categories);
+      }
+      return apiData.distribution1
+        .slice()
+        .sort((a, b) => a.binIndex - b.binIndex);
+    })();
 
-    const distribution2 = isBoolean
-      ? buildBooleanDistribution(booleanTimeSeries2, booleanScore2Categories)
-      : categories && mode === "two"
-        ? fillDistributionBins(apiData.distribution2, categories)
-        : apiData.distribution2.slice().sort((a, b) => a.binIndex - b.binIndex);
+    const distribution2 = (() => {
+      if (isBoolean) {
+        return buildBooleanDistribution(
+          booleanTimeSeries2,
+          booleanScore2Categories,
+        );
+      }
+      if (categories && mode === "two") {
+        return fillDistributionBins(apiData.distribution2, categories);
+      }
+      return apiData.distribution2
+        .slice()
+        .sort((a, b) => a.binIndex - b.binIndex);
+    })();
 
-    const distribution1Individual = isBoolean
-      ? distribution1
-      : categories
-        ? fillDistributionBins(apiData.distribution1Individual, categories)
-        : apiData.distribution1Individual
-            .slice()
-            .sort((a, b) => a.binIndex - b.binIndex);
+    const distribution1Individual = (() => {
+      if (isBoolean) {
+        return distribution1;
+      }
+      if (categories) {
+        return fillDistributionBins(
+          apiData.distribution1Individual,
+          categories,
+        );
+      }
+      return apiData.distribution1Individual
+        .slice()
+        .sort((a, b) => a.binIndex - b.binIndex);
+    })();
 
     // Use score2Categories for score2Individual (not score1 categories)
-    const distribution2Individual = isBoolean
-      ? distribution2
-      : score2Categories
-        ? fillDistributionBins(
-            apiData.distribution2Individual,
-            score2Categories,
-          )
-        : apiData.distribution2Individual
-            .slice()
-            .sort((a, b) => a.binIndex - b.binIndex);
+    const distribution2Individual = (() => {
+      if (isBoolean) {
+        return distribution2;
+      }
+      if (score2Categories) {
+        return fillDistributionBins(
+          apiData.distribution2Individual,
+          score2Categories,
+        );
+      }
+      return apiData.distribution2Individual
+        .slice()
+        .sort((a, b) => a.binIndex - b.binIndex);
+    })();
 
-    const distribution1Matched = isBoolean
-      ? buildBooleanDistribution(
+    const distribution1Matched = (() => {
+      if (isBoolean) {
+        return buildBooleanDistribution(
           apiData.timeSeriesCategorical1Matched,
           booleanCategories,
-        )
-      : categories
-        ? fillDistributionBins(apiData.distribution1Matched, categories)
-        : apiData.distribution1Matched
-            .slice()
-            .sort((a, b) => a.binIndex - b.binIndex);
+        );
+      }
+      if (categories) {
+        return fillDistributionBins(apiData.distribution1Matched, categories);
+      }
+      return apiData.distribution1Matched
+        .slice()
+        .sort((a, b) => a.binIndex - b.binIndex);
+    })();
 
     // Use score2Categories for score2Matched (not score1 categories)
-    const distribution2Matched = isBoolean
-      ? buildBooleanDistribution(
+    const distribution2Matched = (() => {
+      if (isBoolean) {
+        return buildBooleanDistribution(
           booleanTimeSeries2Matched,
           booleanScore2Categories,
-        )
-      : score2Categories
-        ? fillDistributionBins(apiData.distribution2Matched, score2Categories)
-        : apiData.distribution2Matched
-            .slice()
-            .sort((a, b) => a.binIndex - b.binIndex);
+        );
+      }
+      if (score2Categories) {
+        return fillDistributionBins(
+          apiData.distribution2Matched,
+          score2Categories,
+        );
+      }
+      return apiData.distribution2Matched
+        .slice()
+        .sort((a, b) => a.binIndex - b.binIndex);
+    })();
 
     // ========================================================================
     // 3. Generate bin labels (numeric only)

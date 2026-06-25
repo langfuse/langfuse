@@ -253,27 +253,44 @@ export function MappingPreviewPanel({
           {/* Validation status indicator */}
           {config.mode !== "none" && (
             <div className="flex items-center gap-1">
-              {jsonPathErrors.length > 0 ||
-              (hasSchema && !validationResult.isValid) ? (
-                <AlertCircle className="text-destructive h-3.5 w-3.5" />
-              ) : jsonPathMisses.length > 0 ? (
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
-              ) : hasSchema ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
-              ) : null}
+              {(() => {
+                if (
+                  jsonPathErrors.length > 0 ||
+                  (hasSchema && !validationResult.isValid)
+                ) {
+                  return (
+                    <AlertCircle className="text-destructive h-3.5 w-3.5" />
+                  );
+                }
+                if (jsonPathMisses.length > 0) {
+                  return (
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-500" />
+                  );
+                }
+                if (hasSchema) {
+                  return (
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                  );
+                }
+                return null;
+              })()}
             </div>
           )}
         </div>
         <div
-          className={`bg-background max-h-[21vh] overflow-auto rounded-md border ${
-            (jsonPathErrors.length > 0 ||
-              (hasSchema && !validationResult.isValid)) &&
-            config.mode !== "none"
-              ? "border-destructive"
-              : jsonPathMisses.length > 0 && config.mode !== "none"
-                ? "border-amber-500/50"
-                : ""
-          }`}
+          className={`bg-background max-h-[21vh] overflow-auto rounded-md border ${(() => {
+            if (
+              (jsonPathErrors.length > 0 ||
+                (hasSchema && !validationResult.isValid)) &&
+              config.mode !== "none"
+            ) {
+              return "border-destructive";
+            }
+            if (jsonPathMisses.length > 0 && config.mode !== "none") {
+              return "border-amber-500/50";
+            }
+            return "";
+          })()}`}
         >
           {config.mode === "none" ? (
             <div className="text-muted-foreground p-3 text-xs italic">null</div>

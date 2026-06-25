@@ -401,23 +401,25 @@ export function MembersTable({
           <DataTable
             tableName={project ? "projectMembers" : "orgMembers"}
             columns={columns}
-            data={
-              members.isPending
-                ? { isLoading: true, isError: false }
-                : members.isError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: members.error.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: safeExtract(members.data, "memberships", []).map(
-                        (t) => convertToTableRow(t),
-                      ),
-                    }
-            }
+            data={(() => {
+              if (members.isPending) {
+                return { isLoading: true, isError: false };
+              }
+              if (members.isError) {
+                return {
+                  isLoading: false,
+                  isError: true,
+                  error: members.error.message,
+                };
+              }
+              return {
+                isLoading: false,
+                isError: false,
+                data: safeExtract(members.data, "memberships", []).map((t) =>
+                  convertToTableRow(t),
+                ),
+              };
+            })()}
             pagination={{
               totalCount,
               onChange: setPaginationState,
@@ -434,23 +436,25 @@ export function MembersTable({
         <DataTable
           tableName={project ? "projectMembers" : "orgMembers"}
           columns={columns}
-          data={
-            members.isPending
-              ? { isLoading: true, isError: false }
-              : members.isError
-                ? {
-                    isLoading: false,
-                    isError: true,
-                    error: members.error.message,
-                  }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: safeExtract(members.data, "memberships", []).map(
-                      (t) => convertToTableRow(t),
-                    ),
-                  }
-          }
+          data={(() => {
+            if (members.isPending) {
+              return { isLoading: true, isError: false };
+            }
+            if (members.isError) {
+              return {
+                isLoading: false,
+                isError: true,
+                error: members.error.message,
+              };
+            }
+            return {
+              isLoading: false,
+              isError: false,
+              data: safeExtract(members.data, "memberships", []).map((t) =>
+                convertToTableRow(t),
+              ),
+            };
+          })()}
           pagination={{
             totalCount,
             onChange: setPaginationState,

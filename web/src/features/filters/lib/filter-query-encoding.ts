@@ -172,13 +172,18 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type === "categoryOptions"
     ) {
       // Split on unescaped pipe characters only, then unescape each value
-      parsedValue = decodedValue
-        ? splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue)
-        : type === "arrayOptions"
-          ? [] // Empty array for arrayOptions — empty strings are not valid array values (e.g., tags)
-          : decodedValue === ""
-            ? [""] // allow empty strings for stringOptions (i.e, filter for empty trace name)
-            : [decodedValue];
+      parsedValue = (() => {
+        if (decodedValue) {
+          return splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue);
+        }
+        if (type === "arrayOptions") {
+          return [];
+        }
+        if (decodedValue === "") {
+          return [""];
+        }
+        return [decodedValue];
+      })();
     } else if (type === "boolean") {
       parsedValue = decodedValue === "true";
     } else {

@@ -1164,30 +1164,38 @@ export const SessionIO = ({
 
   return (
     <div className="flex w-full flex-col gap-2 overflow-hidden p-0">
-      {!trace.data ? (
-        <JsonSkeleton
-          className="h-full w-full overflow-hidden px-2 py-1"
-          numRows={4}
-        />
-      ) : trace.data.input || trace.data.output ? (
-        <IOPreview
-          key={traceId}
-          input={trace.data.input}
-          output={trace.data.output}
-          parsedInput={parsedInput}
-          parsedOutput={parsedOutput}
-          isParsing={isParsing}
-          hideIfNull
-          projectId={projectId}
-          traceId={traceId}
-          environment={previewEnvironment}
-          showCorrections={showCorrections}
-        />
-      ) : (
-        <div className="text-muted-foreground p-2 text-xs">
-          This trace has no input or output.
-        </div>
-      )}
+      {(() => {
+        if (!trace.data) {
+          return (
+            <JsonSkeleton
+              className="h-full w-full overflow-hidden px-2 py-1"
+              numRows={4}
+            />
+          );
+        }
+        if (trace.data.input || trace.data.output) {
+          return (
+            <IOPreview
+              key={traceId}
+              input={trace.data.input}
+              output={trace.data.output}
+              parsedInput={parsedInput}
+              parsedOutput={parsedOutput}
+              isParsing={isParsing}
+              hideIfNull
+              projectId={projectId}
+              traceId={traceId}
+              environment={previewEnvironment}
+              showCorrections={showCorrections}
+            />
+          );
+        }
+        return (
+          <div className="text-muted-foreground p-2 text-xs">
+            This trace has no input or output.
+          </div>
+        );
+      })()}
     </div>
   );
 };

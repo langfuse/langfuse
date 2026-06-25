@@ -283,12 +283,15 @@ const optionRowsArrayExpression = (column: EventFilterOptionColumn) => {
   const topAlias = optionTopAlias(column);
   // Alpha facets use a constant sort key; the final ORDER BY value tie-breaker
   // below provides alphabetical ordering within the top-k candidate set.
-  const sortKeyExpression =
-    definition.sort === "countDesc"
-      ? "-toInt64(tupleElement(option, 2))"
-      : definition.sort === "booleanAsc"
-        ? "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))"
-        : "toInt64(0)";
+  const sortKeyExpression = (() => {
+    if (definition.sort === "countDesc") {
+      return "-toInt64(tupleElement(option, 2))";
+    }
+    if (definition.sort === "booleanAsc") {
+      return "if(tupleElement(option, 1) = 'true', toInt64(1), toInt64(0))";
+    }
+    return "toInt64(0)";
+  })();
 
   return `arrayMap(option -> tuple(${eventFilterOptionColumnSqlLiteral(column)}, tupleElement(option, 1), tupleElement(option, 2), ${sortKeyExpression}), ${topAlias})`;
 };
@@ -324,12 +327,15 @@ export const buildEventsFilterOptionColumnQuery = (params: {
     ),
   );
 
-  const valueExpression =
-    definition.kind === "scalar"
-      ? `toString(${definition.expression})`
-      : definition.kind === "boolean"
-        ? `if(${definition.expression}, 'true', 'false')`
-        : `arrayJoin(${optionValuesArrayExpression(column)})`;
+  const valueExpression = (() => {
+    if (definition.kind === "scalar") {
+      return `toString(${definition.expression})`;
+    }
+    if (definition.kind === "boolean") {
+      return `if(${definition.expression}, 'true', 'false')`;
+    }
+    return `arrayJoin(${optionValuesArrayExpression(column)})`;
+  })();
 
   const queryBuilder = new EventsAggQueryBuilder({
     projectId: params.projectId,

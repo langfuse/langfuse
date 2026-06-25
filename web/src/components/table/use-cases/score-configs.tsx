@@ -246,34 +246,36 @@ export function ScoreConfigsTable({ projectId }: { projectId: string }) {
         <DataTable
           tableName={"scoreConfigs"}
           columns={columns}
-          data={
-            configs.isPending
-              ? { isLoading: true, isError: false }
-              : configs.isError
-                ? {
-                    isLoading: false,
-                    isError: true,
-                    error: configs.error.message,
-                  }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: configs.data?.configs.map((config) => ({
-                      id: config.id,
-                      name: config.name,
-                      dataType: config.dataType,
-                      description: config.description,
-                      createdAt: config.createdAt.toLocaleString(),
-                      updatedAt: config.updatedAt.toLocaleString(),
-                      range: {
-                        maxValue: config.maxValue,
-                        minValue: config.minValue,
-                        categories: config.categories,
-                      },
-                      isArchived: config.isArchived,
-                    })),
-                  }
-          }
+          data={(() => {
+            if (configs.isPending) {
+              return { isLoading: true, isError: false };
+            }
+            if (configs.isError) {
+              return {
+                isLoading: false,
+                isError: true,
+                error: configs.error.message,
+              };
+            }
+            return {
+              isLoading: false,
+              isError: false,
+              data: configs.data?.configs.map((config) => ({
+                id: config.id,
+                name: config.name,
+                dataType: config.dataType,
+                description: config.description,
+                createdAt: config.createdAt.toLocaleString(),
+                updatedAt: config.updatedAt.toLocaleString(),
+                range: {
+                  maxValue: config.maxValue,
+                  minValue: config.minValue,
+                  categories: config.categories,
+                },
+                isArchived: config.isArchived,
+              })),
+            };
+          })()}
           pagination={{
             totalCount,
             onChange: setPaginationState,

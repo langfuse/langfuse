@@ -70,28 +70,38 @@ export default function ConfigureRetention() {
           retain data indefinitely. The deletion happens asynchronously, i.e.
           event may be available for a while after they expired.
         </p>
-        {Boolean(form.getValues().retention) &&
-        form.getValues().retention !== project?.retentionDays ? (
-          <p className="text-primary mb-4 text-sm">
-            Your Project&#39;s retention will be set from &quot;
-            {project?.retentionDays ?? "Indefinite"}
-            &quot; to &quot;
-            {Number(form.watch("retention")) === 0
-              ? "Indefinite"
-              : Number(form.watch("retention"))}
-            &quot; days.
-          </p>
-        ) : !Boolean(project?.retentionDays) ? (
-          <p className="text-primary mb-4 text-sm">
-            Your Project retains data indefinitely.
-          </p>
-        ) : (
-          <p className="text-primary mb-4 text-sm">
-            Your Project&#39;s current retention is &quot;
-            {project?.retentionDays ?? ""}
-            &quot; days.
-          </p>
-        )}
+        {(() => {
+          if (
+            Boolean(form.getValues().retention) &&
+            form.getValues().retention !== project?.retentionDays
+          ) {
+            return (
+              <p className="text-primary mb-4 text-sm">
+                Your Project&#39;s retention will be set from &quot;
+                {project?.retentionDays ?? "Indefinite"}
+                &quot; to &quot;
+                {Number(form.watch("retention")) === 0
+                  ? "Indefinite"
+                  : Number(form.watch("retention"))}
+                &quot; days.
+              </p>
+            );
+          }
+          if (!Boolean(project?.retentionDays)) {
+            return (
+              <p className="text-primary mb-4 text-sm">
+                Your Project retains data indefinitely.
+              </p>
+            );
+          }
+          return (
+            <p className="text-primary mb-4 text-sm">
+              Your Project&#39;s current retention is &quot;
+              {project?.retentionDays ?? ""}
+              &quot; days.
+            </p>
+          );
+        })()}
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit)}

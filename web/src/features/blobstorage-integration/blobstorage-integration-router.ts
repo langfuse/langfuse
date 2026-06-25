@@ -34,11 +34,15 @@ import {
 } from "@langfuse/shared";
 
 const getAuditLogErrorType = (error: unknown) =>
-  error instanceof TRPCError
-    ? error.code
-    : error instanceof Error
-      ? error.name
-      : "UnknownError";
+  (() => {
+    if (error instanceof TRPCError) {
+      return error.code;
+    }
+    if (error instanceof Error) {
+      return error.name;
+    }
+    return "UnknownError";
+  })();
 
 const formatRootCause = (err: Error): string => {
   // SDK errors (e.g. S3, GCS) carry a descriptive name like

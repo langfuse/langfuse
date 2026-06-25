@@ -11,21 +11,27 @@ export function AuditLogsSettingsPage(props: { projectId: string }) {
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
 
-  const body = !hasEntitlement ? (
-    <p className="text-muted-foreground text-sm">
-      Audit logs are an Enterprise feature. Upgrade your plan to track all
-      changes made to your project.
-    </p>
-  ) : !hasAccess ? (
-    <Alert>
-      <AlertTitle>Access Denied</AlertTitle>
-      <AlertDescription>
-        Contact your project administrator to request access.
-      </AlertDescription>
-    </Alert>
-  ) : (
-    <AuditLogsTable scope="project" projectId={props.projectId} />
-  );
+  const body = (() => {
+    if (!hasEntitlement) {
+      return (
+        <p className="text-muted-foreground text-sm">
+          Audit logs are an Enterprise feature. Upgrade your plan to track all
+          changes made to your project.
+        </p>
+      );
+    }
+    if (!hasAccess) {
+      return (
+        <Alert>
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            Contact your project administrator to request access.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    return <AuditLogsTable scope="project" projectId={props.projectId} />;
+  })();
 
   return (
     <>

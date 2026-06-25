@@ -20,11 +20,15 @@ export const convertRunItemToItemsByItemUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: isPresent(item.observation?.calculatedTotalCost)
-      ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-      : isPresent(item.trace?.totalCost)
-        ? usdFormatter(item.trace.totalCost)
-        : undefined,
+    totalCost: (() => {
+      if (isPresent(item.observation?.calculatedTotalCost)) {
+        return usdFormatter(item.observation.calculatedTotalCost.toNumber());
+      }
+      if (isPresent(item.trace?.totalCost)) {
+        return usdFormatter(item.trace.totalCost);
+      }
+      return undefined;
+    })(),
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
   };
 };
@@ -44,11 +48,15 @@ export const convertRunItemToItemsByRunUiTableRow = (
         }
       : undefined,
     scores: item.scores,
-    totalCost: isPresent(item.observation?.calculatedTotalCost)
-      ? usdFormatter(item.observation.calculatedTotalCost.toNumber())
-      : isPresent(item.trace?.totalCost)
-        ? usdFormatter(item.trace.totalCost)
-        : undefined,
+    totalCost: (() => {
+      if (isPresent(item.observation?.calculatedTotalCost)) {
+        return usdFormatter(item.observation.calculatedTotalCost.toNumber());
+      }
+      if (isPresent(item.trace?.totalCost)) {
+        return usdFormatter(item.trace.totalCost);
+      }
+      return undefined;
+    })(),
     latency: item.observation?.latency ?? item.trace?.duration ?? undefined,
   };
 };

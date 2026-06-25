@@ -307,21 +307,23 @@ export function DatasetRunItemsByRunTable(props: {
       <DataTable
         tableName={"datasetRunItems"}
         columns={columns}
-        data={
-          runItems.isLoading
-            ? { isLoading: true, isError: false }
-            : runItems.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: runItems.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: rows,
-                }
-        }
+        data={(() => {
+          if (runItems.isLoading) {
+            return { isLoading: true, isError: false };
+          }
+          if (runItems.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: runItems.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: rows,
+          };
+        })()}
         pagination={{
           totalCount: runItems.data?.totalRunItems ?? null,
           onChange: setPaginationState,

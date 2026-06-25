@@ -114,11 +114,15 @@ export default function UserPage() {
             </Badge>
             <Badge variant="outline">
               Active:{" "}
-              {user.data.firstTrace
-                ? `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`
-                : isBetaEnabled
-                  ? "No activity yet"
-                  : "No traces yet"}
+              {(() => {
+                if (user.data.firstTrace) {
+                  return `${user.data.firstTrace.toLocaleString()} - ${user.data.lastTrace?.toLocaleString()}`;
+                }
+                if (isBetaEnabled) {
+                  return "No activity yet";
+                }
+                return "No traces yet";
+              })()}
             </Badge>
           </div>
         )}

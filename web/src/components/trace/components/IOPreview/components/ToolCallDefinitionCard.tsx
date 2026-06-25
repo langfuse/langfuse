@@ -53,12 +53,15 @@ export function ToolCallDefinitionCard({
         const callCount = toolCallCounts.get(tool.name) || 0;
         const isCalled = callCount > 0;
         const toolDefinitionNumber = toolNameToDefinitionNumber?.get(tool.name);
-        const statusText =
-          callCount === 0
-            ? "not called"
-            : callCount === 1
-              ? "called"
-              : `called ${callCount}x`;
+        const statusText = (() => {
+          if (callCount === 0) {
+            return "not called";
+          }
+          if (callCount === 1) {
+            return "called";
+          }
+          return `called ${callCount}x`;
+        })();
 
         return (
           <div

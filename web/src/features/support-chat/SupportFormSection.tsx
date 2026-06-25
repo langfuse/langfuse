@@ -640,16 +640,20 @@ export function SupportFormSection({
               disabled={isSubmittingLocal}
               className="w-full"
             >
-              {isSubmittingLocal ? (
-                <span className="inline-flex items-center gap-2">
-                  <Spinner size="sm" />
-                  Submitting…
-                </span>
-              ) : messageIsShortAfterWarning ? (
-                "Submit Anyways"
-              ) : (
-                "Submit"
-              )}
+              {(() => {
+                if (isSubmittingLocal) {
+                  return (
+                    <span className="inline-flex items-center gap-2">
+                      <Spinner size="sm" />
+                      Submitting…
+                    </span>
+                  );
+                }
+                if (messageIsShortAfterWarning) {
+                  return "Submit Anyways";
+                }
+                return "Submit";
+              })()}
             </Button>
           </div>
 

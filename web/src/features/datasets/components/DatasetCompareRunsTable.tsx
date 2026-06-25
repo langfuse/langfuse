@@ -272,21 +272,23 @@ function DatasetCompareRunsTableInternal(props: {
         columns={columns}
         columnVisibility={columnVisibility}
         onColumnVisibilityChange={setColumnVisibility}
-        data={
-          datasetItemsWithRunData.isPending
-            ? { isLoading: true, isError: false }
-            : datasetItemsWithRunData.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: datasetItemsWithRunData.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: rows,
-                }
-        }
+        data={(() => {
+          if (datasetItemsWithRunData.isPending) {
+            return { isLoading: true, isError: false };
+          }
+          if (datasetItemsWithRunData.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: datasetItemsWithRunData.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: rows,
+          };
+        })()}
         pagination={{
           totalCount: totalCount,
           onChange: setPaginationState,

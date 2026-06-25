@@ -123,11 +123,15 @@ export const CreateExperimentsForm = ({
   const hasRemoteExperiment = !!existingRemoteExperiment.data;
   const isRemoteExperimentEnabled =
     existingRemoteExperiment.data?.enabled !== false;
-  const webhookActionLabel = isRemoteExperimentLoading
-    ? "Loading..."
-    : hasRemoteExperiment
-      ? "Run"
-      : "Configure";
+  const webhookActionLabel = (() => {
+    if (isRemoteExperimentLoading) {
+      return "Loading...";
+    }
+    if (hasRemoteExperiment) {
+      return "Run";
+    }
+    return "Configure";
+  })();
 
   if (!hasExperimentWriteAccess) {
     return null;

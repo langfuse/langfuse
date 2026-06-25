@@ -211,18 +211,26 @@ export const DatasetItemFields = ({
         />
       )}
 
-      {isFormMode && control ? (
-        <FormModeMediaAttachments
-          control={control}
-          pendingUploads={pendingUploads}
-        />
-      ) : datasetItemId ? (
-        <DatasetItemSavedMediaAttachments
-          projectId={projectId}
-          datasetItemId={datasetItemId}
-          datasetItemValidFrom={datasetItemValidFrom}
-        />
-      ) : null}
+      {(() => {
+        if (isFormMode && control) {
+          return (
+            <FormModeMediaAttachments
+              control={control}
+              pendingUploads={pendingUploads}
+            />
+          );
+        }
+        if (datasetItemId) {
+          return (
+            <DatasetItemSavedMediaAttachments
+              projectId={projectId}
+              datasetItemId={datasetItemId}
+              datasetItemValidFrom={datasetItemValidFrom}
+            />
+          );
+        }
+        return null;
+      })()}
     </div>
   );
 };

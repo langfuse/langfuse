@@ -331,23 +331,25 @@ export default function ModelTable({ projectId }: { projectId: string }) {
         <DataTable
           tableName={"models"}
           columns={columns}
-          data={
-            models.isPending
-              ? { isLoading: true, isError: false }
-              : models.isError
-                ? {
-                    isLoading: false,
-                    isError: true,
-                    error: models.error.message,
-                  }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: safeExtract(models.data, "models", []).map((t) =>
-                      convertToTableRow(t),
-                    ),
-                  }
-          }
+          data={(() => {
+            if (models.isPending) {
+              return { isLoading: true, isError: false };
+            }
+            if (models.isError) {
+              return {
+                isLoading: false,
+                isError: true,
+                error: models.error.message,
+              };
+            }
+            return {
+              isLoading: false,
+              isError: false,
+              data: safeExtract(models.data, "models", []).map((t) =>
+                convertToTableRow(t),
+              ),
+            };
+          })()}
           pagination={{
             totalCount,
             onChange: setPaginationState,

@@ -646,11 +646,15 @@ export default function ObservationsEventsTable({
   };
 
   const isSelectAllCountUnavailable = isTotalCountLoading || isTotalCountError;
-  const selectAllCountUnavailableReason = isTotalCountLoading
-    ? "Counting selected observations."
-    : isTotalCountError
-      ? "Could not count selected observations. Clear selection and try again."
-      : undefined;
+  const selectAllCountUnavailableReason = (() => {
+    if (isTotalCountLoading) {
+      return "Counting selected observations.";
+    }
+    if (isTotalCountError) {
+      return "Could not count selected observations. Clear selection and try again.";
+    }
+    return undefined;
+  })();
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [

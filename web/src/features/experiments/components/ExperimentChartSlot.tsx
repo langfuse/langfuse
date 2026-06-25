@@ -198,32 +198,39 @@ export function ExperimentChartSlot({
 
       {/* Chart content area */}
       <div className="mt-1 flex h-56 flex-col">
-        {isExternalLoading ? (
-          <Skeleton className="h-[190px] w-full" />
-        ) : !isMetricAvailable || !isEnabled ? (
-          <NoDataOrLoading isLoading={false} className="h-[190px]" />
-        ) : widgetConfig && query ? (
-          <WidgetContent
-            projectId={projectId}
-            query={query}
-            version={widgetConfig.minVersion}
-            chartType={widgetConfig.chartType}
-            chartConfig={widgetConfig.chartConfig}
-            metrics={[...widgetConfig.metrics]}
-            dimensions={[...widgetConfig.dimensions]}
-            view={widgetConfig.view}
-            schedulerId={`chart-slot-${chartIndex}-${selectedMetricId}`}
-            isExternalLoading={isExternalLoading}
-            layoutHint="compact"
-            entityDimensionLabelMap={entityDimensionLabelMap}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
-            <span className="text-muted-foreground text-sm">
-              Select a metric
-            </span>
-          </div>
-        )}
+        {(() => {
+          if (isExternalLoading) {
+            return <Skeleton className="h-[190px] w-full" />;
+          }
+          if (!isMetricAvailable || !isEnabled) {
+            return <NoDataOrLoading isLoading={false} className="h-[190px]" />;
+          }
+          if (widgetConfig && query) {
+            return (
+              <WidgetContent
+                projectId={projectId}
+                query={query}
+                version={widgetConfig.minVersion}
+                chartType={widgetConfig.chartType}
+                chartConfig={widgetConfig.chartConfig}
+                metrics={[...widgetConfig.metrics]}
+                dimensions={[...widgetConfig.dimensions]}
+                view={widgetConfig.view}
+                schedulerId={`chart-slot-${chartIndex}-${selectedMetricId}`}
+                isExternalLoading={isExternalLoading}
+                layoutHint="compact"
+                entityDimensionLabelMap={entityDimensionLabelMap}
+              />
+            );
+          }
+          return (
+            <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
+              <span className="text-muted-foreground text-sm">
+                Select a metric
+              </span>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

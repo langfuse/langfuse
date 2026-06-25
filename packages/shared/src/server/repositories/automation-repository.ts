@@ -44,19 +44,23 @@ export const getActionByIdWithSecrets = async ({
     const config = actionConfig.config; // Type guard ensures this is WebhookActionConfigWithSecrets
 
     // Decrypt secret headers for webhook execution using new structure
-    const decryptedHeaders = config.requestHeaders
-      ? decryptSecretHeaders(
+    const decryptedHeaders = (() => {
+      if (config.requestHeaders) {
+        return decryptSecretHeaders(
           mergeHeaders(config.headers, config.requestHeaders),
-        )
-      : config.headers
-        ? Object.entries(config.headers).reduce(
-            (acc, [key, value]) => {
-              acc[key] = { secret: false, value };
-              return acc;
-            },
-            {} as Record<string, { secret: boolean; value: string }>,
-          )
-        : {};
+        );
+      }
+      if (config.headers) {
+        return Object.entries(config.headers).reduce(
+          (acc, [key, value]) => {
+            acc[key] = { secret: false, value };
+            return acc;
+          },
+          {} as Record<string, { secret: boolean; value: string }>,
+        );
+      }
+      return {};
+    })();
 
     return {
       ...actionConfig,

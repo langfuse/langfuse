@@ -407,12 +407,18 @@ export class OtelIngestionProcessor {
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_LEVEL
                     ] ??
-                    (span.status?.code === 2
-                      ? ObservationLevel.ERROR
-                      : scopeSpan?.scope?.name === "livekit-agents" &&
-                          LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-                        ? ObservationLevel.DEBUG
-                        : ObservationLevel.DEFAULT),
+                    (() => {
+                      if (span.status?.code === 2) {
+                        return ObservationLevel.ERROR;
+                      }
+                      if (
+                        scopeSpan?.scope?.name === "livekit-agents" &&
+                        LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+                      ) {
+                        return ObservationLevel.DEBUG;
+                      }
+                      return ObservationLevel.DEFAULT;
+                    })(),
                   statusMessage:
                     spanAttributes[
                       LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE
@@ -1011,12 +1017,18 @@ export class OtelIngestionProcessor {
       metadata: normalizedToolMetadata.metadata,
       level:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_LEVEL] ??
-        (span.status?.code === 2
-          ? ObservationLevel.ERROR
-          : scopeSpan?.scope?.name === "livekit-agents" &&
-              LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
-            ? ObservationLevel.DEBUG
-            : ObservationLevel.DEFAULT),
+        (() => {
+          if (span.status?.code === 2) {
+            return ObservationLevel.ERROR;
+          }
+          if (
+            scopeSpan?.scope?.name === "livekit-agents" &&
+            LIVEKIT_DEBUG_SPAN_NAMES.has(span.name)
+          ) {
+            return ObservationLevel.DEBUG;
+          }
+          return ObservationLevel.DEFAULT;
+        })(),
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
         span.status?.message ??
@@ -1569,14 +1581,18 @@ export class OtelIngestionProcessor {
 
     // Vercel AI SDK
     if (instrumentationScopeName === "ai") {
-      input =
-        "ai.prompt.messages" in attributes
-          ? attributes["ai.prompt.messages"]
-          : "ai.prompt" in attributes
-            ? attributes["ai.prompt"]
-            : "ai.toolCall.args" in attributes
-              ? attributes["ai.toolCall.args"]
-              : undefined;
+      input = (() => {
+        if ("ai.prompt.messages" in attributes) {
+          return attributes["ai.prompt.messages"];
+        }
+        if ("ai.prompt" in attributes) {
+          return attributes["ai.prompt"];
+        }
+        if ("ai.toolCall.args" in attributes) {
+          return attributes["ai.toolCall.args"];
+        }
+        return undefined;
+      })();
 
       if (
         "ai.response.text" in attributes &&
@@ -1588,23 +1604,33 @@ export class OtelIngestionProcessor {
           tool_calls: attributes["ai.response.toolCalls"],
         });
       } else {
-        output =
-          "ai.response.text" in attributes &&
-          Boolean(attributes["ai.response.text"])
-            ? attributes["ai.response.text"]
-            : "ai.result.text" in attributes // Legacy support for ai SDK versions < 4.0.0
-              ? attributes["ai.result.text"]
-              : "ai.toolCall.result" in attributes
-                ? attributes["ai.toolCall.result"]
-                : "ai.response.object" in attributes
-                  ? attributes["ai.response.object"]
-                  : "ai.result.object" in attributes // Legacy support for ai SDK versions < 4.0.0
-                    ? attributes["ai.result.object"]
-                    : "ai.response.toolCalls" in attributes
-                      ? attributes["ai.response.toolCalls"]
-                      : "ai.result.toolCalls" in attributes // Legacy support for ai SDK versions < 4.0.0
-                        ? attributes["ai.result.toolCalls"]
-                        : undefined;
+        output = (() => {
+          if (
+            "ai.response.text" in attributes &&
+            Boolean(attributes["ai.response.text"])
+          ) {
+            return attributes["ai.response.text"];
+          }
+          if ("ai.result.text" in attributes) {
+            return attributes["ai.result.text"];
+          }
+          if ("ai.toolCall.result" in attributes) {
+            return attributes["ai.toolCall.result"];
+          }
+          if ("ai.response.object" in attributes) {
+            return attributes["ai.response.object"];
+          }
+          if ("ai.result.object" in attributes) {
+            return attributes["ai.result.object"];
+          }
+          if ("ai.response.toolCalls" in attributes) {
+            return attributes["ai.response.toolCalls"];
+          }
+          if ("ai.result.toolCalls" in attributes) {
+            return attributes["ai.result.toolCalls"];
+          }
+          return undefined;
+        })();
       }
 
       return { input, output, filteredAttributes };
@@ -2152,18 +2178,26 @@ export class OtelIngestionProcessor {
           "gen_ai.request.max_tokens" in attributes
             ? (attributes["gen_ai.request.max_tokens"]?.toString() ?? null)
             : null,
-        finishReason:
-          "gen_ai.response.finish_reasons" in attributes
-            ? (attributes["gen_ai.response.finish_reasons"]?.toString() ?? null)
-            : "gen_ai.finishReason" in attributes //  Legacy support for ai SDK versions < 4.0.0
-              ? (attributes["gen_ai.finishReason"]?.toString() ?? null)
-              : null,
-        system:
-          "gen_ai.system" in attributes
-            ? (attributes["gen_ai.system"]?.toString() ?? null)
-            : "ai.model.provider" in attributes
-              ? (attributes["ai.model.provider"]?.toString() ?? null)
-              : null,
+        finishReason: (() => {
+          if ("gen_ai.response.finish_reasons" in attributes) {
+            return (
+              attributes["gen_ai.response.finish_reasons"]?.toString() ?? null
+            );
+          }
+          if ("gen_ai.finishReason" in attributes) {
+            return attributes["gen_ai.finishReason"]?.toString() ?? null;
+          }
+          return null;
+        })(),
+        system: (() => {
+          if ("gen_ai.system" in attributes) {
+            return attributes["gen_ai.system"]?.toString() ?? null;
+          }
+          if ("ai.model.provider" in attributes) {
+            return attributes["ai.model.provider"]?.toString() ?? null;
+          }
+          return null;
+        })(),
         maxRetries:
           "ai.settings.maxRetries" in attributes
             ? (attributes["ai.settings.maxRetries"]?.toString() ?? null)
@@ -2294,28 +2328,33 @@ export class OtelIngestionProcessor {
     if (instrumentationScopeName === "ai") {
       try {
         const usageDetails: Record<string, number | undefined> = {
-          input:
-            "gen_ai.usage.prompt_tokens" in attributes // Backward compat, input_tokens used in latest ai SDK versions
-              ? parseInt(
-                  attributes["gen_ai.usage.prompt_tokens"]?.toString() ?? "0",
-                )
-              : "gen_ai.usage.input_tokens" in attributes
-                ? parseInt(
-                    attributes["gen_ai.usage.input_tokens"]?.toString() ?? "0",
-                  )
-                : undefined,
+          input: (() => {
+            if ("gen_ai.usage.prompt_tokens" in attributes) {
+              return parseInt(
+                attributes["gen_ai.usage.prompt_tokens"]?.toString() ?? "0",
+              );
+            }
+            if ("gen_ai.usage.input_tokens" in attributes) {
+              return parseInt(
+                attributes["gen_ai.usage.input_tokens"]?.toString() ?? "0",
+              );
+            }
+            return undefined;
+          })(),
 
-          output:
-            "gen_ai.usage.completion_tokens" in attributes // Backward compat, output_tokens used in latest ai SDK versions
-              ? parseInt(
-                  attributes["gen_ai.usage.completion_tokens"]?.toString() ??
-                    "0",
-                )
-              : "gen_ai.usage.output_tokens" in attributes
-                ? parseInt(
-                    attributes["gen_ai.usage.output_tokens"]?.toString() ?? "0",
-                  )
-                : undefined,
+          output: (() => {
+            if ("gen_ai.usage.completion_tokens" in attributes) {
+              return parseInt(
+                attributes["gen_ai.usage.completion_tokens"]?.toString() ?? "0",
+              );
+            }
+            if ("gen_ai.usage.output_tokens" in attributes) {
+              return parseInt(
+                attributes["gen_ai.usage.output_tokens"]?.toString() ?? "0",
+              );
+            }
+            return undefined;
+          })(),
           total:
             "ai.usage.tokens" in attributes
               ? parseInt(attributes["ai.usage.tokens"]?.toString() ?? "0")

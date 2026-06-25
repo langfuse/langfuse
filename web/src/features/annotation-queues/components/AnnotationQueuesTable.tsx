@@ -229,23 +229,25 @@ export function AnnotationQueuesTable({ projectId }: { projectId: string }) {
       <DataTable
         tableName={"annotationQueues"}
         columns={columns}
-        data={
-          queues.isLoading
-            ? { isLoading: true, isError: false }
-            : queues.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: queues.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(queues.data, "queues", []).map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
-        }
+        data={(() => {
+          if (queues.isLoading) {
+            return { isLoading: true, isError: false };
+          }
+          if (queues.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: queues.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: safeExtract(queues.data, "queues", []).map((t) =>
+              convertToTableRow(t),
+            ),
+          };
+        })()}
         pagination={{
           totalCount: queues.data?.totalCount ?? null,
           onChange: setPaginationState,

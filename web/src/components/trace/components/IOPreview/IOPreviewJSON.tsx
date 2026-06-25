@@ -236,13 +236,15 @@ function IOPreviewJSONInner({
 
   const wrapIcon = useMemo(
     () =>
-      stringWrapMode === "truncate" ? (
-        <Minus size={14} />
-      ) : stringWrapMode === "wrap" ? (
-        <WrapText size={14} />
-      ) : (
-        <ChevronDown size={14} className="-rotate-90" />
-      ),
+      (() => {
+        if (stringWrapMode === "truncate") {
+          return <Minus size={14} />;
+        }
+        if (stringWrapMode === "wrap") {
+          return <WrapText size={14} />;
+        }
+        return <ChevronDown size={14} className="-rotate-90" />;
+      })(),
     [stringWrapMode],
   );
 

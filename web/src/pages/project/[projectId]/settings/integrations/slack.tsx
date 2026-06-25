@@ -70,11 +70,15 @@ export default function SlackIntegrationSettings() {
       { enabled: !!projectId },
     );
 
-  const status = isLoading
-    ? undefined
-    : integrationStatus?.isConnected
-      ? "active"
-      : "inactive";
+  const status = (() => {
+    if (isLoading) {
+      return undefined;
+    }
+    if (integrationStatus?.isConnected) {
+      return "active";
+    }
+    return "inactive";
+  })();
 
   const [selectedChannel, setSelectedChannel] = useState<SlackChannel | null>(
     null,

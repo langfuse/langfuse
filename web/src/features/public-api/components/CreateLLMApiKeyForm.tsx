@@ -781,179 +781,84 @@ export function CreateLLMApiKeyForm({
               />
 
               {/* API Key or AWS Credentials or Vertex AI Credentials */}
-              {currentAdapter === LLMAdapter.Bedrock ? (
-                <>
-                  <FormField
-                    control={form.control}
-                    name="authMethod"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Authentication Method</FormLabel>
-                        <FormDescription>
-                          Select how Langfuse should authenticate to Bedrock.
-                        </FormDescription>
-                        <FormControl>
-                          <Tabs
-                            value={field.value}
-                            onValueChange={(value) =>
-                              field.onChange(value as BedrockAuthMethod)
-                            }
-                            className="w-full"
-                          >
-                            <TabsList
-                              className={cn(
-                                "grid h-auto w-full gap-1",
-                                "grid-cols-2",
-                              )}
-                            >
-                              <TabsTrigger
-                                value={AuthMethod.AccessKeys}
-                                className="text-xs"
-                              >
-                                AWS access keys
-                              </TabsTrigger>
-                              <TabsTrigger
-                                value={AuthMethod.ApiKey}
-                                className="text-xs"
-                              >
-                                API key
-                              </TabsTrigger>
-                            </TabsList>
-                          </Tabs>
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <FormField
-                    control={form.control}
-                    name="awsRegion"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>AWS Region</FormLabel>
-                        <FormDescription>
-                          {mode === "update" &&
-                            existingKey?.config &&
-                            (existingKey.config as BedrockConfig).region && (
-                              <span className="text-sm">
-                                Current:{" "}
-                                <code className="bg-muted rounded px-1 py-0.5">
-                                  {(existingKey.config as BedrockConfig).region}
-                                </code>
-                              </span>
-                            )}
-                        </FormDescription>
-                        <FormControl>
-                          <Input
-                            {...field}
-                            placeholder={
-                              mode === "update" && existingKey?.config
-                                ? ((existingKey.config as BedrockConfig)
-                                    .region ?? "")
-                                : "e.g., us-east-1"
-                            }
-                            data-1p-ignore
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  {currentAuthMethod === AuthMethod.ApiKey && (
-                    <FormField
-                      control={form.control}
-                      name="bedrockApiKey"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Bedrock API Key</FormLabel>
-                          <FormDescription>
-                            {mode === "update" ? (
-                              <>
-                                Use{" "}
-                                <a
-                                  href="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 underline hover:text-blue-800"
-                                >
-                                  Amazon Bedrock API keys
-                                </a>{" "}
-                                to replace the current authentication.
-                              </>
-                            ) : (
-                              <>
-                                Use{" "}
-                                <a
-                                  href="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 underline hover:text-blue-800"
-                                >
-                                  Amazon Bedrock API keys
-                                </a>
-                                .
-                              </>
-                            )}
-                          </FormDescription>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              type="password"
-                              placeholder={
-                                mode === "update"
-                                  ? isKeepingCurrentBedrockAuthMethod &&
-                                    existingKey?.displaySecretKey
-                                    ? `${existingKey.displaySecretKey} (preserved unless replaced)`
-                                    : "Enter Bedrock API key"
-                                  : undefined
-                              }
-                              autoComplete="new-password"
-                              data-1p-ignore
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-                  {currentAuthMethod === AuthMethod.AccessKeys && (
+              {(() => {
+                if (currentAdapter === LLMAdapter.Bedrock) {
+                  return (
                     <>
                       <FormField
                         control={form.control}
-                        name="awsAccessKeyId"
+                        name="authMethod"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>
-                              AWS Access Key ID
-                              {!isLangfuseCloud && (
-                                <span className="text-muted-foreground font-normal">
-                                  {" "}
-                                  (optional)
-                                </span>
-                              )}
-                            </FormLabel>
+                            <FormLabel>Authentication Method</FormLabel>
                             <FormDescription>
-                              {mode === "update"
-                                ? isKeepingCurrentBedrockAuthMethod
-                                  ? "Leave empty to keep existing credentials. To update, provide both Access Key ID and Secret Access Key."
-                                  : "Provide both Access Key ID and Secret Access Key."
-                                : isLangfuseCloud
-                                  ? "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission."
-                                  : "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain."}
+                              Select how Langfuse should authenticate to
+                              Bedrock.
+                            </FormDescription>
+                            <FormControl>
+                              <Tabs
+                                value={field.value}
+                                onValueChange={(value) =>
+                                  field.onChange(value as BedrockAuthMethod)
+                                }
+                                className="w-full"
+                              >
+                                <TabsList
+                                  className={cn(
+                                    "grid h-auto w-full gap-1",
+                                    "grid-cols-2",
+                                  )}
+                                >
+                                  <TabsTrigger
+                                    value={AuthMethod.AccessKeys}
+                                    className="text-xs"
+                                  >
+                                    AWS access keys
+                                  </TabsTrigger>
+                                  <TabsTrigger
+                                    value={AuthMethod.ApiKey}
+                                    className="text-xs"
+                                  >
+                                    API key
+                                  </TabsTrigger>
+                                </TabsList>
+                              </Tabs>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="awsRegion"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>AWS Region</FormLabel>
+                            <FormDescription>
+                              {mode === "update" &&
+                                existingKey?.config &&
+                                (existingKey.config as BedrockConfig)
+                                  .region && (
+                                  <span className="text-sm">
+                                    Current:{" "}
+                                    <code className="bg-muted rounded px-1 py-0.5">
+                                      {
+                                        (existingKey.config as BedrockConfig)
+                                          .region
+                                      }
+                                    </code>
+                                  </span>
+                                )}
                             </FormDescription>
                             <FormControl>
                               <Input
                                 {...field}
                                 placeholder={
-                                  mode === "update"
-                                    ? isUsingDefaultAwsCredentialsForCurrentAuthMethod
-                                      ? "Using default AWS credentials"
-                                      : isKeepingCurrentBedrockAuthMethod
-                                        ? "•••••••• (existing credentials preserved if empty)"
-                                        : "Enter AWS access key ID"
-                                    : undefined
+                                  mode === "update" && existingKey?.config
+                                    ? ((existingKey.config as BedrockConfig)
+                                        .region ?? "")
+                                    : "e.g., us-east-1"
                                 }
-                                autoComplete="off"
                                 data-1p-ignore
                               />
                             </FormControl>
@@ -961,133 +866,258 @@ export function CreateLLMApiKeyForm({
                           </FormItem>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="awsSecretAccessKey"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              AWS Secret Access Key
-                              {!isLangfuseCloud && (
-                                <span className="text-muted-foreground font-normal">
-                                  {" "}
-                                  (optional)
-                                </span>
-                              )}
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                {...field}
-                                type="password"
-                                placeholder={
-                                  mode === "update"
-                                    ? isUsingDefaultAwsCredentialsForCurrentAuthMethod
-                                      ? "Using default AWS credentials"
-                                      : isKeepingCurrentBedrockAuthMethod &&
-                                          existingKey?.displaySecretKey
-                                        ? `${existingKey.displaySecretKey} (preserved if empty)`
-                                        : "Enter AWS secret access key"
-                                    : undefined
-                                }
-                                autoComplete="new-password"
-                                data-1p-ignore
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </>
-                  )}
-                  {!isLangfuseCloud &&
-                    currentAuthMethod === AuthMethod.AccessKeys && (
-                      <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
-                        <p>
-                          <strong>Default credential provider chain:</strong>{" "}
-                          When AWS credentials are omitted, the system will
-                          automatically check for credentials in this order:
-                        </p>
-                        <ul className="ml-2 list-inside list-disc space-y-1">
-                          <li>
-                            Environment variables (AWS_ACCESS_KEY_ID,
-                            AWS_SECRET_ACCESS_KEY)
-                          </li>
-                          <li>AWS credentials file (~/.aws/credentials)</li>
-                          <li>IAM roles for EC2 instances</li>
-                          <li>IAM roles for ECS tasks</li>
-                        </ul>
-                        <p>
-                          <a
-                            href="https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/setting-credentials-node.html"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 underline hover:text-blue-800"
-                          >
-                            Learn more about AWS credential providers →
-                          </a>
-                        </p>
-                      </div>
-                    )}
-                </>
-              ) : currentAdapter === LLMAdapter.VertexAI ? (
-                <>
-                  {/* Vertex AI ADC option for self-hosted only, create mode only */}
-                  {!isLangfuseCloud && mode === "create" && (
-                    <FormItem>
-                      <span className="flex">
-                        <span className="flex-1">
-                          <FormLabel>
-                            Use Application Default Credentials (ADC)
-                          </FormLabel>
-                          <FormDescription>
-                            When enabled, authentication uses the GCP
-                            environment&apos;s default credentials instead of a
-                            service account key.
-                          </FormDescription>
-                        </span>
-                        <FormControl>
-                          <Switch
-                            checked={
-                              form.watch("secretKey") ===
-                              VERTEXAI_USE_DEFAULT_CREDENTIALS
-                            }
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                form.setValue(
-                                  "secretKey",
-                                  VERTEXAI_USE_DEFAULT_CREDENTIALS,
-                                );
-                              } else {
-                                form.setValue("secretKey", "");
-                              }
-                            }}
+                      {currentAuthMethod === AuthMethod.ApiKey && (
+                        <FormField
+                          control={form.control}
+                          name="bedrockApiKey"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Bedrock API Key</FormLabel>
+                              <FormDescription>
+                                {mode === "update" ? (
+                                  <>
+                                    Use{" "}
+                                    <a
+                                      href="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 underline hover:text-blue-800"
+                                    >
+                                      Amazon Bedrock API keys
+                                    </a>{" "}
+                                    to replace the current authentication.
+                                  </>
+                                ) : (
+                                  <>
+                                    Use{" "}
+                                    <a
+                                      href="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 underline hover:text-blue-800"
+                                    >
+                                      Amazon Bedrock API keys
+                                    </a>
+                                    .
+                                  </>
+                                )}
+                              </FormDescription>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  type="password"
+                                  placeholder={
+                                    mode === "update"
+                                      ? isKeepingCurrentBedrockAuthMethod &&
+                                        existingKey?.displaySecretKey
+                                        ? `${existingKey.displaySecretKey} (preserved unless replaced)`
+                                        : "Enter Bedrock API key"
+                                      : undefined
+                                  }
+                                  autoComplete="new-password"
+                                  data-1p-ignore
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      )}
+                      {currentAuthMethod === AuthMethod.AccessKeys && (
+                        <>
+                          <FormField
+                            control={form.control}
+                            name="awsAccessKeyId"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  AWS Access Key ID
+                                  {!isLangfuseCloud && (
+                                    <span className="text-muted-foreground font-normal">
+                                      {" "}
+                                      (optional)
+                                    </span>
+                                  )}
+                                </FormLabel>
+                                <FormDescription>
+                                  {mode === "update"
+                                    ? isKeepingCurrentBedrockAuthMethod
+                                      ? "Leave empty to keep existing credentials. To update, provide both Access Key ID and Secret Access Key."
+                                      : "Provide both Access Key ID and Secret Access Key."
+                                    : isLangfuseCloud
+                                      ? "These should be long-lived credentials for an AWS user with `bedrock:InvokeModel` permission."
+                                      : "For self-hosted deployments, AWS credentials are optional. When omitted, authentication will use the AWS SDK default credential provider chain."}
+                                </FormDescription>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    placeholder={
+                                      mode === "update"
+                                        ? (() => {
+                                            if (
+                                              isUsingDefaultAwsCredentialsForCurrentAuthMethod
+                                            ) {
+                                              return "Using default AWS credentials";
+                                            }
+                                            if (
+                                              isKeepingCurrentBedrockAuthMethod
+                                            ) {
+                                              return "•••••••• (existing credentials preserved if empty)";
+                                            }
+                                            return "Enter AWS access key ID";
+                                          })()
+                                        : undefined
+                                    }
+                                    autoComplete="off"
+                                    data-1p-ignore
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
                           />
-                        </FormControl>
-                      </span>
-                    </FormItem>
-                  )}
-
-                  {/* Service Account Key - hidden when ADC is enabled */}
-                  {(isLangfuseCloud ||
-                    form.watch("secretKey") !==
-                      VERTEXAI_USE_DEFAULT_CREDENTIALS) && (
-                    <FormField
-                      control={form.control}
-                      name="secretKey"
-                      render={({ field }) => (
+                          <FormField
+                            control={form.control}
+                            name="awsSecretAccessKey"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>
+                                  AWS Secret Access Key
+                                  {!isLangfuseCloud && (
+                                    <span className="text-muted-foreground font-normal">
+                                      {" "}
+                                      (optional)
+                                    </span>
+                                  )}
+                                </FormLabel>
+                                <FormControl>
+                                  <Input
+                                    {...field}
+                                    type="password"
+                                    placeholder={
+                                      mode === "update"
+                                        ? (() => {
+                                            if (
+                                              isUsingDefaultAwsCredentialsForCurrentAuthMethod
+                                            ) {
+                                              return "Using default AWS credentials";
+                                            }
+                                            if (
+                                              isKeepingCurrentBedrockAuthMethod &&
+                                              existingKey?.displaySecretKey
+                                            ) {
+                                              return `${existingKey.displaySecretKey} (preserved if empty)`;
+                                            }
+                                            return "Enter AWS secret access key";
+                                          })()
+                                        : undefined
+                                    }
+                                    autoComplete="new-password"
+                                    data-1p-ignore
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </>
+                      )}
+                      {!isLangfuseCloud &&
+                        currentAuthMethod === AuthMethod.AccessKeys && (
+                          <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
+                            <p>
+                              <strong>
+                                Default credential provider chain:
+                              </strong>{" "}
+                              When AWS credentials are omitted, the system will
+                              automatically check for credentials in this order:
+                            </p>
+                            <ul className="ml-2 list-inside list-disc space-y-1">
+                              <li>
+                                Environment variables (AWS_ACCESS_KEY_ID,
+                                AWS_SECRET_ACCESS_KEY)
+                              </li>
+                              <li>AWS credentials file (~/.aws/credentials)</li>
+                              <li>IAM roles for EC2 instances</li>
+                              <li>IAM roles for ECS tasks</li>
+                            </ul>
+                            <p>
+                              <a
+                                href="https://docs.aws.amazon.com/sdk-for-javascript/v3/developer-guide/setting-credentials-node.html"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline hover:text-blue-800"
+                              >
+                                Learn more about AWS credential providers →
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                    </>
+                  );
+                }
+                if (currentAdapter === LLMAdapter.VertexAI) {
+                  return (
+                    <>
+                      {/* Vertex AI ADC option for self-hosted only, create mode only */}
+                      {!isLangfuseCloud && mode === "create" && (
                         <FormItem>
-                          <FormLabel>GCP Service Account Key (JSON)</FormLabel>
-                          <FormDescription>
-                            {isLangfuseCloud
-                              ? "Your API keys are stored encrypted on our servers."
-                              : "Your API keys are stored encrypted in your database."}
-                          </FormDescription>
-                          <FormDescription className="text-dark-yellow">
-                            Paste your GCP service account JSON key here. The
-                            service account must have `Vertex AI User` role
-                            permissions. Example JSON:
-                            <pre className="text-xs">
-                              {`{
+                          <span className="flex">
+                            <span className="flex-1">
+                              <FormLabel>
+                                Use Application Default Credentials (ADC)
+                              </FormLabel>
+                              <FormDescription>
+                                When enabled, authentication uses the GCP
+                                environment&apos;s default credentials instead
+                                of a service account key.
+                              </FormDescription>
+                            </span>
+                            <FormControl>
+                              <Switch
+                                checked={
+                                  form.watch("secretKey") ===
+                                  VERTEXAI_USE_DEFAULT_CREDENTIALS
+                                }
+                                onCheckedChange={(checked) => {
+                                  if (checked) {
+                                    form.setValue(
+                                      "secretKey",
+                                      VERTEXAI_USE_DEFAULT_CREDENTIALS,
+                                    );
+                                  } else {
+                                    form.setValue("secretKey", "");
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                          </span>
+                        </FormItem>
+                      )}
+
+                      {/* Service Account Key - hidden when ADC is enabled */}
+                      {(isLangfuseCloud ||
+                        form.watch("secretKey") !==
+                          VERTEXAI_USE_DEFAULT_CREDENTIALS) && (
+                        <FormField
+                          control={form.control}
+                          name="secretKey"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>
+                                GCP Service Account Key (JSON)
+                              </FormLabel>
+                              <FormDescription>
+                                {isLangfuseCloud
+                                  ? "Your API keys are stored encrypted on our servers."
+                                  : "Your API keys are stored encrypted in your database."}
+                              </FormDescription>
+                              <FormDescription className="text-dark-yellow">
+                                Paste your GCP service account JSON key here.
+                                The service account must have `Vertex AI User`
+                                role permissions. Example JSON:
+                                <pre className="text-xs">
+                                  {`{
   "type": "service_account",
   "project_id": "<project_id>",
   "private_key_id": "<private_key_id>",
@@ -1099,98 +1129,101 @@ export function CreateLLMApiKeyForm({
   "auth_provider_x509_cert_url": "<auth_provider_x509_cert_url>",
   "client_x509_cert_url": "<client_x509_cert_url>",
 }`}
-                            </pre>
-                          </FormDescription>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              placeholder={
-                                mode === "update"
-                                  ? existingKey?.displaySecretKey
-                                  : '{"type": "service_account", ...}'
-                              }
-                              autoComplete="off"
-                              spellCheck="false"
-                              autoCapitalize="off"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  )}
-
-                  {/* ADC info box for self-hosted */}
-                  {!isLangfuseCloud &&
-                    form.watch("secretKey") ===
-                      VERTEXAI_USE_DEFAULT_CREDENTIALS && (
-                      <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
-                        <p>
-                          <strong>
-                            Application Default Credentials (ADC):
-                          </strong>{" "}
-                          When enabled, the system will automatically check for
-                          credentials in this order:
-                        </p>
-                        <ul className="ml-2 list-inside list-disc space-y-1">
-                          <li>
-                            Environment variable
-                            (GOOGLE_APPLICATION_CREDENTIALS)
-                          </li>
-                          <li>
-                            gcloud CLI credentials (gcloud auth
-                            application-default login)
-                          </li>
-                          <li>GKE Workload Identity</li>
-                          <li>Cloud Run service account</li>
-                          <li>
-                            GCE instance service account (metadata service)
-                          </li>
-                        </ul>
-                        <p>
-                          <a
-                            href="https://cloud.google.com/docs/authentication/application-default-credentials"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 underline hover:text-blue-800"
-                          >
-                            Learn more about GCP Application Default Credentials
-                            →
-                          </a>
-                        </p>
-                      </div>
-                    )}
-                </>
-              ) : (
-                <FormField
-                  control={form.control}
-                  name="secretKey"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>API Key</FormLabel>
-                      <FormDescription>
-                        {isLangfuseCloud
-                          ? "Your API keys are stored encrypted on our servers."
-                          : "Your API keys are stored encrypted in your database."}
-                      </FormDescription>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder={
-                            mode === "update"
-                              ? existingKey?.displaySecretKey
-                              : undefined
-                          }
-                          autoComplete="off"
-                          spellCheck="false"
-                          autoCapitalize="off"
+                                </pre>
+                              </FormDescription>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  placeholder={
+                                    mode === "update"
+                                      ? existingKey?.displaySecretKey
+                                      : '{"type": "service_account", ...}'
+                                  }
+                                  autoComplete="off"
+                                  spellCheck="false"
+                                  autoCapitalize="off"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
                         />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              )}
+                      )}
+
+                      {/* ADC info box for self-hosted */}
+                      {!isLangfuseCloud &&
+                        form.watch("secretKey") ===
+                          VERTEXAI_USE_DEFAULT_CREDENTIALS && (
+                          <div className="text-muted-foreground space-y-2 border-l-2 border-blue-200 pl-4 text-sm">
+                            <p>
+                              <strong>
+                                Application Default Credentials (ADC):
+                              </strong>{" "}
+                              When enabled, the system will automatically check
+                              for credentials in this order:
+                            </p>
+                            <ul className="ml-2 list-inside list-disc space-y-1">
+                              <li>
+                                Environment variable
+                                (GOOGLE_APPLICATION_CREDENTIALS)
+                              </li>
+                              <li>
+                                gcloud CLI credentials (gcloud auth
+                                application-default login)
+                              </li>
+                              <li>GKE Workload Identity</li>
+                              <li>Cloud Run service account</li>
+                              <li>
+                                GCE instance service account (metadata service)
+                              </li>
+                            </ul>
+                            <p>
+                              <a
+                                href="https://cloud.google.com/docs/authentication/application-default-credentials"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline hover:text-blue-800"
+                              >
+                                Learn more about GCP Application Default
+                                Credentials →
+                              </a>
+                            </p>
+                          </div>
+                        )}
+                    </>
+                  );
+                }
+                return (
+                  <FormField
+                    control={form.control}
+                    name="secretKey"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>API Key</FormLabel>
+                        <FormDescription>
+                          {isLangfuseCloud
+                            ? "Your API keys are stored encrypted on our servers."
+                            : "Your API keys are stored encrypted in your database."}
+                        </FormDescription>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder={
+                              mode === "update"
+                                ? existingKey?.displaySecretKey
+                                : undefined
+                            }
+                            autoComplete="off"
+                            spellCheck="false"
+                            autoCapitalize="off"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                );
+              })()}
 
               {/* Azure Base URL - Always required for Azure */}
               {currentAdapter === LLMAdapter.Azure && (

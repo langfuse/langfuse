@@ -284,14 +284,21 @@ const validateVariableMappingForTarget = ({
   targetObject: string;
   mapping: unknown;
 }) => {
-  const result =
-    targetObject === EvalTargetObject.EVENT ||
-    targetObject === EvalTargetObject.EXPERIMENT
-      ? z.array(observationVariableMapping).safeParse(mapping)
-      : targetObject === EvalTargetObject.TRACE ||
-          targetObject === EvalTargetObject.DATASET
-        ? z.array(variableMapping).safeParse(mapping)
-        : null;
+  const result = (() => {
+    if (
+      targetObject === EvalTargetObject.EVENT ||
+      targetObject === EvalTargetObject.EXPERIMENT
+    ) {
+      return z.array(observationVariableMapping).safeParse(mapping);
+    }
+    if (
+      targetObject === EvalTargetObject.TRACE ||
+      targetObject === EvalTargetObject.DATASET
+    ) {
+      return z.array(variableMapping).safeParse(mapping);
+    }
+    return null;
+  })();
 
   if (!result?.success) {
     throw new TRPCError({

@@ -97,11 +97,15 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                           {automation.trigger.eventSource}
                         </span>
                         {" → "}
-                        {automation.action.type === "WEBHOOK"
-                          ? "Webhook"
-                          : automation.action.type === "SLACK"
-                            ? "Slack"
-                            : "Annotation Queue"}
+                        {(() => {
+                          if (automation.action.type === "WEBHOOK") {
+                            return "Webhook";
+                          }
+                          if (automation.action.type === "SLACK") {
+                            return "Slack";
+                          }
+                          return "Annotation Queue";
+                        })()}
                       </p>
                     </div>
                   </div>

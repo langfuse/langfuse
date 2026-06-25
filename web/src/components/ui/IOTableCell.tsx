@@ -39,26 +39,55 @@ const IOTableCellContent = ({
   const shouldTruncate =
     stringifiedJson && stringifiedJson.length > IO_TABLE_CHAR_LIMIT;
 
-  return singleLine ? (
-    <div
-      className={cn(
-        "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
-        paddingClassName,
-        className,
-      )}
-    >
-      {stringifiedJson
-        ? decodeUnicodeEscapesOnly(stringifiedJson, true)
-        : stringifiedJson}
-    </div>
-  ) : shouldTruncate ? (
-    <div className="grid h-full grid-cols-1">
+  return (() => {
+    if (singleLine) {
+      return (
+        <div
+          className={cn(
+            "h-full w-full self-stretch truncate overflow-hidden overflow-y-auto rounded-sm",
+            paddingClassName,
+            className,
+          )}
+        >
+          {stringifiedJson
+            ? decodeUnicodeEscapesOnly(stringifiedJson, true)
+            : stringifiedJson}
+        </div>
+      );
+    }
+    if (shouldTruncate) {
+      return (
+        <div className="grid h-full grid-cols-1">
+          <JSONView
+            json={decodeUnicodeEscapesOnly(
+              stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
+                `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
+              true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
+            )}
+            className={cn(
+              "h-full w-full self-stretch overflow-hidden rounded-sm",
+              className,
+            )}
+            codeClassName={cn(
+              "min-h-0 h-full overflow-y-auto",
+              paddingClassName,
+            )}
+            collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
+            borderless
+          />
+          <div className="text-muted-foreground text-xs">
+            Content was truncated.
+          </div>
+        </div>
+      );
+    }
+    return (
       <JSONView
-        json={decodeUnicodeEscapesOnly(
-          stringifiedJson.slice(0, IO_TABLE_CHAR_LIMIT) +
-            `...[truncated ${stringifiedJson.length - IO_TABLE_CHAR_LIMIT} characters]`,
-          true, // greedy mode for double-escaped Unicode (e.g., \\uXXXX)
-        )}
+        json={
+          stringifiedJson
+            ? decodeUnicodeEscapesOnly(stringifiedJson, true)
+            : data
+        }
         className={cn(
           "h-full w-full self-stretch overflow-hidden rounded-sm",
           className,
@@ -67,24 +96,8 @@ const IOTableCellContent = ({
         collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
         borderless
       />
-      <div className="text-muted-foreground text-xs">
-        Content was truncated.
-      </div>
-    </div>
-  ) : (
-    <JSONView
-      json={
-        stringifiedJson ? decodeUnicodeEscapesOnly(stringifiedJson, true) : data
-      }
-      className={cn(
-        "h-full w-full self-stretch overflow-hidden rounded-sm",
-        className,
-      )}
-      codeClassName={cn("min-h-0 h-full overflow-y-auto", paddingClassName)}
-      collapseStringsAfterLength={null} // in table, show full strings as row height is fixed
-      borderless
-    />
-  );
+    );
+  })();
 };
 
 export const IOTableCell = ({
