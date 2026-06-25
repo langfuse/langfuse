@@ -113,15 +113,16 @@ export function TimelineBar({
                   {formatIntervalSeconds(ownDurationMs / 1000)}
                 </span>
               )}
-              {subtreeWallClockOverflowMs != null && (
-                <span
-                  title={SUBTREE_DURATION_TITLE}
-                  className="text-muted-foreground text-xs whitespace-nowrap"
-                >
-                  {"∑ "}
-                  {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
-                </span>
-              )}
+              {isPresent(ownDurationMs) &&
+                subtreeWallClockOverflowMs != null && (
+                  <span
+                    title={SUBTREE_DURATION_TITLE}
+                    className="text-muted-foreground text-xs whitespace-nowrap"
+                  >
+                    {"∑ "}
+                    {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
+                  </span>
+                )}
               {showCostTokens && node.totalCost && (
                 <span
                   className={cn(
@@ -195,7 +196,7 @@ export function TimelineBar({
                 {formatIntervalSeconds(ownDurationMs / 1000)}
               </span>
             )}
-            {subtreeWallClockOverflowMs != null && (
+            {isPresent(ownDurationMs) && subtreeWallClockOverflowMs != null && (
               <span
                 title={SUBTREE_DURATION_TITLE}
                 className="text-muted-foreground text-xs whitespace-nowrap"

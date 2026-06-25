@@ -73,13 +73,17 @@ export function SpanContent({
   const shouldRenderDuration =
     showDuration && Boolean(duration || node.latency);
 
-  // Wall-clock duration of the whole subtree, surfaced as a separate badge only
-  // when async descendants outlive the parent span (so the own-span duration
-  // above understates the real elapsed time). See LFE-10475.
+  // Wall-clock duration of the whole subtree, surfaced as a second badge beside
+  // the own-span badge when async descendants outlive the parent span (so the
+  // own-span duration above understates the real elapsed time). See LFE-10475.
+  // It only complements the own-span badge — never renders alone — so a node
+  // with no own-span duration (e.g. an in-flight/crashed observation with no
+  // endTime) shows nothing rather than an orphaned "∑" with no anchor.
   const subtreeWallClockOverflowMs = showDuration
     ? getSubtreeDurationOverflowMs(duration, node.subtreeWallClockDurationMs)
     : null;
-  const shouldRenderSubtreeDuration = subtreeWallClockOverflowMs != null;
+  const shouldRenderSubtreeDuration =
+    shouldRenderDuration && subtreeWallClockOverflowMs != null;
 
   const shouldRenderCostTokens =
     showCostTokens &&
@@ -87,10 +91,7 @@ export function SpanContent({
       node.inputUsage || node.outputUsage || node.totalUsage || totalCost,
     );
 
-  const shouldRenderAnyMetrics =
-    shouldRenderDuration ||
-    shouldRenderSubtreeDuration ||
-    shouldRenderCostTokens;
+  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
   const hasTraceNode = roots.some((r) => r.type === "TRACE");
 
