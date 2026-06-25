@@ -122,6 +122,9 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).toContain(
       "sum(1.0 / clickhouse_queries_per_api_call) AS count",
     );
+    expect(clickhouseQuery?.query).toContain(
+      "SETTINGS skip_unavailable_shards = 1",
+    );
     expect(clickhouseQuery?.query).toContain("AND type = 'QueryFinish'");
     expect(clickhouseQuery?.query).toContain(
       "JSONExtractString(log_comment, 'tag_schema_version') = '1'",

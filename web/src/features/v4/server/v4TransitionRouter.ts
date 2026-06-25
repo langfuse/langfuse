@@ -391,6 +391,7 @@ WHERE legacy_route IS NOT NULL
   AND clickhouse_queries_per_api_call IS NOT NULL
 GROUP BY bucket_time, legacy_route
 ORDER BY bucket_time ASC, legacy_route ASC
+SETTINGS skip_unavailable_shards = 1
         `,
         params: {
           projectId: input.projectId,
