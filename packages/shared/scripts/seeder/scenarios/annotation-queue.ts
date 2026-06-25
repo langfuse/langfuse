@@ -167,7 +167,7 @@ const ANSWERS = [
   "Langfuse is an open-source LLM engineering platform.",
   "The release adds keyboard-first annotation and bug fixes.",
   "Yes — the customer reports a production outage.",
-  "Der Build ist fehlgeschlagen; bitte erneut versuchen.",
+  "Der Build schlug fehl; bitte erneut versuchen.",
   "1) Send the report 2) Schedule a follow-up call.",
 ] as const;
 
