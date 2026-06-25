@@ -52,7 +52,10 @@ export function TimelineRow({
   const ownRailX = depth * INDENT + RAIL;
   const parentRailX = (depth - 1) * INDENT + RAIL;
   const showsChildSpine = hasChildren && !isCollapsed;
-  const contentLeft = depth > 0 ? ownRailX + CONTENT_GAP : CONTENT_GAP;
+  // Badge sits a uniform gap to the right of the node's own rail at EVERY depth
+  // (including the root), so the downward rail always passes cleanly to the left
+  // of the badge instead of cutting into it.
+  const contentLeft = ownRailX + CONTENT_GAP;
 
   return (
     <div
