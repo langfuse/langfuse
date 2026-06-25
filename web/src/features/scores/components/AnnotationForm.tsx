@@ -663,6 +663,33 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
         return;
       }
 
+      // `Enter` in a single-line field (e.g. a numeric score) commits the value
+      // and returns to row navigation — there is no newline to insert, so this is
+      // the spreadsheet "confirm cell" gesture. Multi-line text (textarea) keeps
+      // Enter for newlines and is excluded here.
+      if (
+        event.key === "Enter" &&
+        target instanceof HTMLInputElement &&
+        root.contains(target)
+      ) {
+        // Out-of-range numeric: surface the constraint and stay so the value
+        // isn't committed-and-dropped (mirrors the ⌘/Ctrl+Enter complete gate).
+        if (
+          target.type === "number" &&
+          (target.validity.rangeOverflow || target.validity.rangeUnderflow)
+        ) {
+          event.preventDefault();
+          target.reportValidity();
+          return;
+        }
+        event.preventDefault();
+        const row = target.closest<HTMLElement>("[data-score-row]");
+        // Focusing the row blurs the input (its onBlur saves) and resumes ↑/↓.
+        if (row) row.focus();
+        else target.blur();
+        return;
+      }
+
       // While editing a text field, leave its keys (typing, caret, number step)
       // alone — `Esc` / `Tab` move out.
       if (editing) return;
@@ -708,8 +735,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       }
 
       // `Enter` drills into the focused row's control (only from the row
-      // container — once a control is focused, `Enter` is left to it, e.g. to
-      // open the combobox or insert a newline).
+      // container itself — once a control is focused, Enter is left to it).
       if (event.key === "Enter") {
         if (currentRow && active === currentRow) {
           // First *enabled* control — skip the disabled stale-category chip that
@@ -722,7 +748,18 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
           ).find((el) => !el.matches(":disabled"));
           if (control) {
             event.preventDefault();
-            control.focus();
+            // A dropdown trigger (combobox, `aria-haspopup`) opens directly so a
+            // single Enter is enough (not focus-then-Enter). Radix's Popover
+            // trigger opens on click. Other controls (number/text input, toggle)
+            // just take focus.
+            if (
+              control.tagName === "BUTTON" &&
+              control.getAttribute("aria-haspopup")
+            ) {
+              control.click();
+            } else {
+              control.focus();
+            }
           }
         }
         return;
@@ -814,7 +851,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
           className="flex flex-col gap-4"
           onSubmit={(e) => e.preventDefault()}
         >
-          <div className="grid grid-flow-row gap-2">
+          <div className="grid grid-flow-row gap-2.5">
             <FormField
               control={form.control}
               name="scoreData"
@@ -844,7 +881,7 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                         role="group"
                         aria-label={score.name}
                         className={cn(
-                          "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-sm px-1 text-left transition-colors outline-none",
+                          "group grid w-full grid-cols-[1fr_2fr] items-center gap-3 rounded-md px-3 py-1 text-left transition-colors outline-none",
                           "focus-within:ring-primary/30 focus-within:bg-accent/40 focus-within:ring-1 focus-within:ring-inset",
                         )}
                       >

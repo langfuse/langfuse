@@ -579,10 +579,10 @@ export const AnnotationQueueItemPage: React.FC<{
                 <span className="text-muted-foreground text-xs">–</span>
                 <KeyboardShortcut>9</KeyboardShortcut>
               </ShortcutRow>
-              <ShortcutRow label="Edit the focused text / number field">
+              <ShortcutRow label="Edit a field / open a dropdown">
                 <KeyboardShortcut>↵</KeyboardShortcut>
               </ShortcutRow>
-              <ShortcutRow label="Leave a text / number field">
+              <ShortcutRow label="Commit a number / leave a text field">
                 <KeyboardShortcut>Esc</KeyboardShortcut>
                 <span className="text-muted-foreground text-xs">/</span>
                 <KeyboardShortcut>Tab</KeyboardShortcut>
