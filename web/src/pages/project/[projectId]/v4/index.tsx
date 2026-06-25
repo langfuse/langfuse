@@ -323,8 +323,7 @@ export default function V4Page() {
                 ))}
               </div>
               <p className="text-muted-foreground text-sm">
-                We do not have query-log data for GET /api/public/sessions
-                because that endpoint does not execute ClickHouse queries.
+                We do not have query-log data for GET /api/public/sessions.
               </p>
 
               {chartData.length > 0 ? (
