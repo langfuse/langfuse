@@ -109,6 +109,10 @@ export default function V4Page() {
               </a>
             ))}
           </div>
+          <p className="text-muted-foreground text-sm">
+            We do not have query-log data for GET /api/public/sessions because
+            that endpoint does not execute ClickHouse queries.
+          </p>
         </section>
 
         <DashboardCard
