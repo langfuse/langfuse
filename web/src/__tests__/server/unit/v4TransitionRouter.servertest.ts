@@ -73,7 +73,7 @@ describe("v4TransitionRouter", () => {
     mockedQueryClickhouse.mockResolvedValue([
       {
         time: "2026-06-25T12:00:00Z",
-        entrypoint: "publicapi: GET /api/public/traces/:id",
+        entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: "0.6666666666666666",
       },
     ]);
@@ -101,7 +101,7 @@ describe("v4TransitionRouter", () => {
     expect(rows).toEqual([
       {
         time: "2026-06-25T12:00:00Z",
-        entrypoint: "publicapi: GET /api/public/traces/:id",
+        entrypoint: "publicapi: GET /api/public/traces/{id}",
         count: 0.6666666666666666,
       },
     ]);
@@ -147,11 +147,11 @@ describe("v4TransitionRouter", () => {
     ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
 
     [
-      "GET /api/public/traces/:id",
-      "GET /api/public/sessions/:id",
-      "GET /api/public/observations/:id",
-      "GET /api/public/scores/:id",
-      "GET /api/public/v2/scores/:id",
+      "GET /api/public/traces/{id}",
+      "GET /api/public/sessions/{id}",
+      "GET /api/public/observations/{id}",
+      "GET /api/public/scores/{id}",
+      "GET /api/public/v2/scores/{id}",
     ].forEach((route) => expect(clickhouseQuery?.query).toContain(route));
 
     expect(clickhouseQuery?.query).toContain(

@@ -84,11 +84,11 @@ classified AS (
         'GET /api/public/metrics',
         'GET /api/public/metrics/daily'
       ), route_path,
-      match(route_path, '^GET /api/public/traces/[^/?#]+$'), 'GET /api/public/traces/:id',
-      match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 'GET /api/public/sessions/:id',
-      match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/:id',
-      match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/:id',
-      match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/:id',
+      match(route_path, '^GET /api/public/traces/[^/?#]+$'), 'GET /api/public/traces/{id}',
+      match(route_path, '^GET /api/public/sessions/[^/?#]+$'), 'GET /api/public/sessions/{id}',
+      match(route_path, '^GET /api/public/observations/[^/?#]+$'), 'GET /api/public/observations/{id}',
+      match(route_path, '^GET /api/public/scores/[^/?#]+$'), 'GET /api/public/scores/{id}',
+      match(route_path, '^GET /api/public/v2/scores/[^/?#]+$'), 'GET /api/public/v2/scores/{id}',
       NULL
     ) AS legacy_route,
     multiIf(
