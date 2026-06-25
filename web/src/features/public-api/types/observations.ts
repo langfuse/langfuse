@@ -321,9 +321,9 @@ export const GetObservationsV2Query = z.object({
   }),
   // Metadata expansion keys (optional)
   // Comma-separated list of metadata keys to return non-truncated: expandMetadata=transcript,steps
-  expandMetadata: z
-    .union([optionalCommaSeparatedStringArray, z.null()])
-    .transform((keys) => keys ?? null),
+  expandMetadata: optionalCommaSeparatedStringArray.transform(
+    (keys) => keys ?? null,
+  ),
   // Pagination
   limit: z.coerce.number().nonnegative().lte(1000).default(50),
   cursor: EncodedObservationsCursorV2.optional(),
