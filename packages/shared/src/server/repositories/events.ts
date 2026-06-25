@@ -81,6 +81,8 @@ import {
   queryClickhouse,
   queryClickhouseStream,
   queryClickhouseStreamRawText,
+  queryClickhouseExecRaw,
+  BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
 } from "./clickhouse";
 import {
   EventsObservationRecordReadType,
@@ -1309,8 +1311,8 @@ function buildObservationsQueryBase(
 }
 
 function orderByForObservationsQuery(
-  prefix: string = "e",
-  span_id: string = "span_id",
+  prefix = "e",
+  span_id = "span_id",
 ): OrderByEntry[] {
   // Order by to cursor ordering.
   // project_id and potentially other prefixes are injected in the query builder when necessary
@@ -1360,7 +1362,7 @@ function applyCursorPagination(
 async function getObservationsRowsFromBuilder<T>(
   projectId: string,
   queryBuilder: QueryWithParams,
-  operationName: string = "getObservationsFromEventsTableForPublicApi_rows",
+  operationName = "getObservationsFromEventsTableForPublicApi_rows",
   extraTags: Record<string, string> = {},
 ): Promise<Array<T>> {
   const { query, params } = queryBuilder.buildWithParams();
@@ -3579,7 +3581,7 @@ export const getEventsForBlobStorageExportRaw = function (
   minTimestamp: Date,
   maxTimestamp: Date,
   fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
-  convertLatencyToSeconds: boolean = false,
+  convertLatencyToSeconds = false,
 ) {
   return queryClickhouseStreamRawText(
     buildEventsForBlobStorageExportQuery(
@@ -3590,6 +3592,29 @@ export const getEventsForBlobStorageExportRaw = function (
       convertLatencyToSeconds,
     ),
   );
+};
+
+// LFE-10463: FORMAT Parquet export — reuses the field-group-aware builder and
+// streams raw binary bytes to upload. No JS enrichment, so latency ms→s must run
+// in SQL (`convertLatencyToSeconds`) and price columns are NOT added.
+export const getEventsForBlobStorageExportParquet = function (
+  projectId: string,
+  minTimestamp: Date,
+  maxTimestamp: Date,
+  fieldGroups: ObservationFieldGroupFull[] = [...OBSERVATION_FIELD_GROUPS_FULL],
+  convertLatencyToSeconds = false,
+) {
+  return queryClickhouseExecRaw({
+    ...buildEventsForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+      convertLatencyToSeconds,
+    ),
+    format: "Parquet",
+    clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
+  });
 };
 
 /**

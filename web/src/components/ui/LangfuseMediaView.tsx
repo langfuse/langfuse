@@ -122,9 +122,8 @@ export const LangfuseMediaView = ({
     return <AudioPlayer src={mediaUrl} />;
   } else if (mediaData.type.startsWith("video")) {
     return <VideoPlayer src={mediaUrl} />;
-  } else {
-    return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
   }
+  return <FileViewer src={mediaUrl} contentType={mediaData.type} />;
 };
 
 function FileViewer({

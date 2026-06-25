@@ -55,6 +55,7 @@ import { supportRouter } from "@/src/features/support-chat/trpc/supportRouter";
 import { queueAssignmentRouter } from "@/src/features/annotation-queues/server/annotationQueueAssignmentsRouter";
 import { surveysRouter } from "@/src/server/api/routers/surveys";
 import { naturalLanguageFilterRouter } from "@/src/features/natural-language-filters/server/router";
+import { searchBarRouter } from "@/src/features/search-bar/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
 import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRouter";
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
@@ -123,6 +124,7 @@ export const appRouter = createTRPCRouter({
   surveys: surveysRouter,
   onboarding: onboardingRouter,
   naturalLanguageFilters: naturalLanguageFilterRouter,
+  searchBar: searchBarRouter,
   notificationPreferences: notificationPreferencesRouter,
   webCallouts: webCalloutsRouter,
   inAppAgent: inAppAgentRouter,
