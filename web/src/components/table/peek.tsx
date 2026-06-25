@@ -104,7 +104,7 @@ const ALWAYS_KEEP_PEEK_OPEN_SELECTORS = ['[role="checkbox"]'];
  * `document.activeElement` — `onPointerDownOutside` fires on pointer-down,
  * before focus has moved to the clicked element.
  */
-const shouldKeepPeekOpenOnOutsideInteraction = (
+export const shouldKeepPeekOpenOnOutsideInteraction = (
   target: EventTarget | null,
   ignoredSelectors: string[],
 ): boolean => {
