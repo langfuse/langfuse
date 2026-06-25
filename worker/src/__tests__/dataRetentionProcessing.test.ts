@@ -377,10 +377,7 @@ describe("DataRetentionProcessingJob", () => {
 
     // Then
     expect(() =>
-      getObservationById({
-        id: `${baseId}-observation-old`,
-        projectId,
-      }),
+      getObservationById({ id: `${baseId}-observation-old`, projectId }),
     ).rejects.toThrowError("not found");
     const observationNew = await getObservationById({
       id: `${baseId}-observation-new`,

@@ -3,7 +3,6 @@ import { queryClickhouse } from "./clickhouse";
 import { TRACE_TO_OBSERVATIONS_INTERVAL } from "./constants";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import { type ClickHouseQueryTags } from "../clickhouse/queryTags";
 
 export const generateDailyMetrics = async ({
   projectId,
@@ -116,7 +115,7 @@ export const generateDailyMetrics = async ({
     },
     fn: async (input: {
       params: Record<string, unknown>;
-      tags: ClickHouseQueryTags;
+      tags: Record<string, string>;
       timestamp?: Date;
     }) => {
       const result = await queryClickhouse<{
@@ -194,7 +193,7 @@ export const getDailyMetricsCount = async ({
     },
     fn: async (input: {
       params: Record<string, unknown>;
-      tags: ClickHouseQueryTags;
+      tags: Record<string, string>;
       timestamp?: Date;
     }) => {
       const records = await queryClickhouse<{ count: string }>({

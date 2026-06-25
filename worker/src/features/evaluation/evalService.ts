@@ -269,7 +269,7 @@ export const createEvalJobs = async ({
             : "timestamp" in event
               ? new Date(event.timestamp)
               : new Date(jobTimestamp),
-        clickhouseFeatureTag: "eval-execution",
+        clickhouseFeatureTag: "eval-create",
         excludeInputOutput: true,
         excludeMetadata: false, // Metadata needed for in-memory filter evaluation
       });

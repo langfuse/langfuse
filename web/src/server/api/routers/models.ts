@@ -218,11 +218,6 @@ export const modelRouter = createTRPCRouter({
         await queryClickhouse({
           query: lastUsedQuery,
           params: { projectId, modelIds },
-          tags: {
-            feature: "models",
-            kind: "lastUsed",
-            projectId,
-          },
         }),
       );
 

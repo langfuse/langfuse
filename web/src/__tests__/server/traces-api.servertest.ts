@@ -899,10 +899,7 @@ describe("/api/public/traces API Endpoint", () => {
     // Then
     expect(deleteResponse.status).toBe(200);
     await waitForExpect(async () => {
-      const trace = await getTraceById({
-        traceId: createdTrace.id,
-        projectId,
-      });
+      const trace = await getTraceById({ traceId: createdTrace.id, projectId });
       expect(trace).toBeUndefined();
     }, 10_000);
   }, 10_000);

@@ -1437,7 +1437,6 @@ export class IngestionService {
           query_params: { projectId, entityId, ...additionalFilters.params },
           clickhouse_settings: {
             log_comment: buildClickHouseLogComment({
-              feature: "ingestion",
               projectId,
             }),
           },

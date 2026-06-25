@@ -84,7 +84,6 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   logger.info(
     `[Data Retention] Deleting ClickHouse and S3 data older than ${currentRetention} days for project ${projectId}`,
   );
-
   await Promise.all([
     env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true"
       ? removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject(

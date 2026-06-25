@@ -91,7 +91,7 @@ export const getScoreAggregate = async (
         : {}),
     },
     tags: {
-      feature: "dashboards",
+      feature: "dashboard",
       type: "scoreAggregate",
       kind: "analytic",
       projectId,
@@ -174,7 +174,7 @@ export const getObservationCostByTypeByTime = async (
         : {}),
     },
     tags: {
-      feature: "dashboards",
+      feature: "dashboard",
       type: "observationCostByTypeByTime",
       kind: "analytic",
       projectId,
@@ -272,7 +272,7 @@ export const getObservationUsageByTypeByTime = async (
         : {}),
     },
     tags: {
-      feature: "dashboards",
+      feature: "dashboard",
       type: "observationUsageByTime",
       kind: "analytic",
       projectId,

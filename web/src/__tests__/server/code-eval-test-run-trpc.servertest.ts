@@ -217,7 +217,7 @@ maybe("evals.testRunCodeEval", () => {
       query: `SELECT count() as count FROM scores WHERE project_id = {projectId: String}`,
       params: { projectId: project.id },
       tags: {
-        feature: "scores",
+        feature: "evals",
         type: "scores",
         kind: "testRunCodeEvalNoScores",
         projectId: project.id,
@@ -535,7 +535,7 @@ maybe("evals.testRunCodeEval", () => {
         query: `SELECT environment, metadata['code_eval_source_code'] as sourceCode FROM traces WHERE project_id = {projectId: String} AND id = {traceId: String} LIMIT 1`,
         params: { projectId: project.id, traceId: executionTraceId },
         tags: {
-          feature: "scores",
+          feature: "evals",
           type: "traces",
           kind: "testRunCodeEvalTrace",
           projectId: project.id,

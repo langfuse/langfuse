@@ -16,10 +16,6 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import type {
-  ClickHouseQueryContextTags,
-  ClickHouseQueryFeature,
-} from "../clickhouse/queryTags";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
@@ -694,7 +690,6 @@ export const getObservationByIdFromEventsTable = async ({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
-  clickHouseQueryTags,
   preferredClickhouseService,
 }: {
   id: string;
@@ -704,7 +699,6 @@ export const getObservationByIdFromEventsTable = async ({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const records = await getObservationByIdFromEventsTableInternal({
@@ -715,7 +709,6 @@ export const getObservationByIdFromEventsTable = async ({
     type,
     traceId,
     renderingProps,
-    clickHouseQueryTags,
     preferredClickhouseService: preferredClickhouseService ?? "EventsReadOnly",
   });
   const mapped = records.map((record) => {
@@ -875,7 +868,7 @@ export const getEventsStreamForEval = async (props: {
       },
     },
     tags: {
-      feature: "scores",
+      feature: "batch-eval",
       type: "event",
       kind: "eval",
       projectId,
@@ -906,7 +899,6 @@ async function getObservationByIdFromEventsTableInternal({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
-  clickHouseQueryTags,
   preferredClickhouseService,
 }: {
   id: string;
@@ -916,7 +908,6 @@ async function getObservationByIdFromEventsTableInternal({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 }) {
   const queryBuilder = new EventsQueryBuilder({ projectId })
@@ -949,7 +940,6 @@ async function getObservationByIdFromEventsTableInternal({
     query,
     params,
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "events",
       kind: "byId",
@@ -973,7 +963,6 @@ export const getTraceByIdFromEventsTable = async ({
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
-  clickHouseQueryTags,
   preferredClickhouseService,
   excludeInputOutput = false,
   excludeMetadata = false,
@@ -983,8 +972,7 @@ export const getTraceByIdFromEventsTable = async ({
   timestamp?: Date;
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
-  clickhouseFeatureTag?: ClickHouseQueryFeature;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
+  clickhouseFeatureTag?: string;
   preferredClickhouseService?: PreferredClickhouseService;
   /** When true, sets input/output columns to empty in the query to reduce database load */
   excludeInputOutput?: boolean;
@@ -1060,7 +1048,6 @@ export const getTraceByIdFromEventsTable = async ({
     input: {
       params,
       tags: {
-        ...clickHouseQueryTags,
         feature: clickhouseFeatureTag,
         type: "trace",
         kind: "byId",
@@ -1606,7 +1593,6 @@ type PublicApiTracesQuery = {
   fields?: string[];
   advancedFilters?: FilterState;
   orderBy?: { column: string; order: "ASC" | "DESC" } | null;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 };
 
 /**
@@ -1624,7 +1610,6 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
     advancedFilters,
     fields,
     orderBy,
-    clickHouseQueryTags,
     ...filterParams
   } = opts;
 
@@ -1763,7 +1748,6 @@ async function getTracesFromEventsTableForPublicApiInternal<T>(
     input: {
       params,
       tags: {
-        ...clickHouseQueryTags,
         feature: "tracing",
         type: "traces",
         kind: opts.select === "count" ? "publicApiCount" : "publicApiRows",
@@ -1882,7 +1866,7 @@ export const updateEvents = async (
       ? `UPDATE ${table} SET ${setClauses.join(", ")} ${whereClause}`
       : `ALTER TABLE ${table} UPDATE ${setClauses.join(", ")} ${whereClause}`,
     params,
-    tags: { feature: "tracing", type: table, kind: "update", projectId },
+    tags: { type: table, kind: "update", projectId },
   });
 
   await Promise.all([
@@ -2871,7 +2855,6 @@ export const getEventsGroupedByCalledToolName = async (
 export const deleteEventsByTraceIds = async (
   projectId: string,
   traceIds: string[],
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   // Preflight query uses events_core (faster)
   const preflight = await queryClickhouse<{
@@ -2892,7 +2875,6 @@ export const deleteEventsByTraceIds = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "events",
       kind: "delete-preflight",
@@ -2928,7 +2910,6 @@ export const deleteEventsByTraceIds = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: table,
       kind: "delete",
@@ -2943,10 +2924,7 @@ export const deleteEventsByTraceIds = async (
   ]);
 };
 
-export const hasAnyEvent = async (
-  projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
-) => {
+export const hasAnyEvent = async (projectId: string) => {
   const query = `
     SELECT 1
     FROM events_core
@@ -2958,7 +2936,6 @@ export const hasAnyEvent = async (
     query,
     params: { projectId },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "events",
       kind: "hasAny",
@@ -2975,9 +2952,8 @@ export const hasAnyEvent = async (
  */
 export const deleteEventsByProjectId = async (
   projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyEvent(projectId, clickHouseQueryTags);
+  const hasData = await hasAnyEvent(projectId);
   if (!hasData) {
     return false;
   }
@@ -2989,13 +2965,7 @@ export const deleteEventsByProjectId = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: {
-      ...clickHouseQueryTags,
-      feature: "tracing",
-      type: table,
-      kind: "delete",
-      projectId,
-    },
+    tags: { feature: "tracing", type: table, kind: "delete", projectId },
     clickhouseSettings: { send_logs_level: "trace" as const },
   });
 
@@ -3059,7 +3029,6 @@ export async function getAgentGraphDataFromEventsTable(params: {
 export const hasAnyEventOlderThan = async (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     SELECT 1
@@ -3076,7 +3045,6 @@ export const hasAnyEventOlderThan = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "events",
       kind: "hasAnyOlderThan",
@@ -3094,13 +3062,8 @@ export const hasAnyEventOlderThan = async (
 export const deleteEventsOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyEventOlderThan(
-    projectId,
-    beforeDate,
-    clickHouseQueryTags,
-  );
+  const hasData = await hasAnyEventOlderThan(projectId, beforeDate);
   if (!hasData) {
     return false;
   }
@@ -3118,13 +3081,7 @@ export const deleteEventsOlderThanDays = async (
     clickhouseConfigs: {
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
-    tags: {
-      ...clickHouseQueryTags,
-      feature: "tracing",
-      type: table,
-      kind: "delete",
-      projectId,
-    },
+    tags: { feature: "tracing", type: table, kind: "delete", projectId },
   });
 
   await Promise.all([
@@ -3343,7 +3300,7 @@ export const getUsersFromEventsTable = async (
     query,
     params,
     tags: {
-      feature: "tracing",
+      feature: "users",
       type: "events",
       kind: "analytic",
       projectId,
@@ -3388,7 +3345,7 @@ export const getUsersCountFromEventsTable = async (
       ...(searchQuery ? { searchQuery: `%${searchQuery}%` } : {}),
     },
     tags: {
-      feature: "tracing",
+      feature: "users",
       type: "events",
       kind: "analytic",
       projectId,
@@ -3471,7 +3428,7 @@ export const getUserMetricsFromEventsTable = async (
     query,
     params: statsParams,
     tags: {
-      feature: "tracing",
+      feature: "users",
       type: "events",
       kind: "analytic",
       projectId,
@@ -3515,7 +3472,7 @@ export const hasAnyUserFromEventsTable = async (
     query,
     params: { projectId },
     tags: {
-      feature: "tracing",
+      feature: "users",
       type: "events",
       kind: "hasAny",
       projectId,
@@ -3585,8 +3542,7 @@ const buildEventsForBlobStorageExportQuery = (
     query,
     params,
     tags: {
-      surface: "worker" as const,
-      feature: "batch-export",
+      feature: "blobstorage",
       type: "event",
       kind: "analytic",
       projectId,
@@ -3702,7 +3658,7 @@ export const getEventsForAnalyticsIntegrations = async function* (
     query,
     params,
     tags: {
-      feature: "batch-export",
+      feature: "analytics-integration",
       type: "event",
       kind: "analytic",
       projectId,
@@ -3775,7 +3731,7 @@ export const hasAnySessionFromEventsTable = async (
         query,
         params: input.params,
         tags: {
-          feature: "tracing",
+          feature: "sessions",
           type: "events",
           kind: "hasAny",
           projectId,
@@ -3868,7 +3824,7 @@ export const getAvgCostByEvaluatorIds = async (
     query,
     params,
     tags: {
-      feature: "scores",
+      feature: "evals",
       type: "events",
       kind: "analytic",
       projectId,
@@ -4026,7 +3982,7 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
     query,
     params: queryParams,
     tags: {
-      feature: "tracing",
+      feature: "sdk-metadata-detection",
       kind: "sdkMetadata",
       projectId,
     },

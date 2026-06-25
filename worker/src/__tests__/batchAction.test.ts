@@ -240,7 +240,7 @@ describe("select all test suite", () => {
     });
 
     // Then
-    const scores = await getScoresByIds(projectId, [score.id], undefined);
+    const scores = await getScoresByIds(projectId, [score.id]);
     expect(scores).toHaveLength(0);
   });
 

@@ -118,7 +118,6 @@ async function softDeleteInClickhouse(
     format: "JSONEachRow",
     clickhouse_settings: {
       log_comment: buildClickHouseLogComment({
-        feature: "deletion",
         projectId: p.projectId,
       }),
     },

@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { buildClickHouseLogComment } from "./queryTags";
 
 describe("ClickHouse query tags", () => {
-  it("builds v1 log comments from request context and feature tags", () => {
+  it("builds v1 log comments from entrypoint context", () => {
     const logComment = buildClickHouseLogComment({
       surface: "publicapi",
       route:
         "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000?select=full",
-      feature: "tracing",
       projectId: "project-1",
+      feature: "legacy-field",
       operation_name: "legacy-field",
       type: "trace",
     });
@@ -18,7 +18,6 @@ describe("ClickHouse query tags", () => {
       surface: "publicapi",
       route:
         "GET /api/public/traces/123e4567-e89b-12d3-a456-426614174000?select=full",
-      feature: "tracing",
       projectId: "project-1",
     });
   });
@@ -29,7 +28,6 @@ describe("ClickHouse query tags", () => {
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
       surface: "unknown",
-      feature: "tracing",
     });
   });
 
@@ -39,22 +37,21 @@ describe("ClickHouse query tags", () => {
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
       surface: "unknown",
-      feature: "unknown",
     });
   });
 
-  it("uses unknown feature when feature is outside the allowlist", () => {
+  it("ignores non-entrypoint tags", () => {
     const logComment = buildClickHouseLogComment({
       surface: "publicapi",
       route: "GET /api/public/traces",
       feature: "legacy-feature",
+      operation_name: "legacy-operation",
     });
 
     expect(JSON.parse(logComment)).toEqual({
       tag_schema_version: "1",
       surface: "publicapi",
       route: "GET /api/public/traces",
-      feature: "unknown",
     });
   });
 });

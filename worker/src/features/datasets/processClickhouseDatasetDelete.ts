@@ -26,10 +26,7 @@ export const processClickhouseDatasetDelete = async (
           projectId,
           datasetId,
         });
-        await deleteDatasetRunItemsByDatasetId({
-          projectId,
-          datasetId,
-        });
+        await deleteDatasetRunItemsByDatasetId({ projectId, datasetId });
         break;
 
       case "dataset-runs":

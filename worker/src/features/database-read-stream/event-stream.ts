@@ -449,7 +449,7 @@ export const getEventsStreamForDataset = async (props: {
       },
     },
     tags: {
-      feature: "datasets",
+      feature: "batch-add-to-dataset",
       type: "event",
       kind: "dataset",
       projectId,
@@ -556,7 +556,7 @@ export const getEventsStreamForAnnotationQueue = async (props: {
       },
     },
     tags: {
-      feature: "tracing",
+      feature: "batch-add-to-annotation-queue",
       type: "event",
       kind: "annotation",
       projectId,

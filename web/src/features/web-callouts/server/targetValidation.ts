@@ -163,7 +163,7 @@ const tryGetTrace = async ({
       projectId,
       excludeInputOutput: true,
       excludeMetadata: true,
-      clickhouseFeatureTag: "tracing",
+      clickhouseFeatureTag: "web-callouts",
     });
   } catch (error) {
     logger.warn("Failed to validate web callout trace via traces table", {
@@ -190,7 +190,7 @@ const tryGetTraceFromEvents = async ({
         truncated: true,
         shouldJsonParse: false,
       },
-      clickhouseFeatureTag: "tracing",
+      clickhouseFeatureTag: "web-callouts",
     });
   } catch (error) {
     logger.warn("Failed to validate web callout trace via events table", {

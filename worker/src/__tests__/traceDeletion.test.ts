@@ -61,12 +61,7 @@ describe("trace deletion", () => {
     await processClickhouseTraceDelete("projectId", [traceId]);
 
     // Then
-    const traces = await getTracesByIds(
-      [traceId],
-      projectId,
-      undefined,
-      undefined,
-    );
+    const traces = await getTracesByIds([traceId], projectId);
     expect(traces).toHaveLength(0);
 
     const observations = await getObservationsForTrace({

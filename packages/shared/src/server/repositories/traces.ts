@@ -44,10 +44,6 @@ import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import type { AnalyticsTraceEvent } from "../analytics-integrations/types";
 import { measureAndReturn } from "../clickhouse/measureAndReturn";
-import type {
-  ClickHouseQueryContextTags,
-  ClickHouseQueryFeature,
-} from "../clickhouse/queryTags";
 import { DEFAULT_RENDERING_PROPS, RenderingProps } from "../utils/rendering";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
@@ -239,7 +235,6 @@ export const getTracesByIds = async (
   projectId: string,
   timestamp?: Date,
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const records = await measureAndReturn({
     operationName: "getTracesByIds",
@@ -253,7 +248,6 @@ export const getTracesByIds = async (
           : null,
       },
       tags: {
-        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "byId",
@@ -343,10 +337,7 @@ export const getTracesBySessionId = async (
   return traces;
 };
 
-export const hasAnyTrace = async (
-  projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
-) => {
+export const hasAnyTrace = async (projectId: string) => {
   // Check PostgreSQL flag first — once set, it's never reverted
   try {
     const project = await prisma.project.findUnique({
@@ -370,7 +361,6 @@ export const hasAnyTrace = async (
     input: {
       projectId,
       tags: {
-        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "hasAny",
@@ -533,7 +523,6 @@ export const getTraceByIdFromTracesTable = async ({
   fromTimestamp,
   renderingProps = DEFAULT_RENDERING_PROPS,
   clickhouseFeatureTag = "tracing",
-  clickHouseQueryTags,
   preferredClickhouseService,
   excludeInputOutput = false,
   excludeMetadata = false,
@@ -543,8 +532,7 @@ export const getTraceByIdFromTracesTable = async ({
   timestamp?: Date;
   fromTimestamp?: Date;
   renderingProps?: RenderingProps;
-  clickhouseFeatureTag?: ClickHouseQueryFeature;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
+  clickhouseFeatureTag?: string;
   preferredClickhouseService?: PreferredClickhouseService;
   /** When true, sets input/output columns to empty in the query to reduce database load */
   excludeInputOutput?: boolean;
@@ -566,7 +554,6 @@ export const getTraceByIdFromTracesTable = async ({
           : {}),
       },
       tags: {
-        ...clickHouseQueryTags,
         feature: clickhouseFeatureTag,
         type: "trace",
         kind: "byId",
@@ -978,11 +965,7 @@ export const getTracesIdentifierForSessionFromTracesTable = async (
   }));
 };
 
-export const deleteTraces = async (
-  projectId: string,
-  traceIds: string[],
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
-) => {
+export const deleteTraces = async (projectId: string, traceIds: string[]) => {
   await measureAndReturn({
     operationName: "deleteTraces",
     projectId,
@@ -992,7 +975,6 @@ export const deleteTraces = async (
         traceIds,
       },
       tags: {
-        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "delete",
@@ -1054,7 +1036,6 @@ export const deleteTraces = async (
 export const hasAnyTraceOlderThan = async (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     SELECT 1
@@ -1071,7 +1052,6 @@ export const hasAnyTraceOlderThan = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "trace",
       kind: "hasAnyOlderThan",
@@ -1085,13 +1065,8 @@ export const hasAnyTraceOlderThan = async (
 export const deleteTracesOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyTraceOlderThan(
-    projectId,
-    beforeDate,
-    clickHouseQueryTags,
-  );
+  const hasData = await hasAnyTraceOlderThan(projectId, beforeDate);
   if (!hasData) {
     return false;
   }
@@ -1105,7 +1080,6 @@ export const deleteTracesOlderThanDays = async (
         cutoffDate: convertDateToClickhouseDateTime(beforeDate),
       },
       tags: {
-        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "delete",
@@ -1134,9 +1108,8 @@ export const deleteTracesOlderThanDays = async (
 
 export const deleteTracesByProjectId = async (
   projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyTrace(projectId, clickHouseQueryTags);
+  const hasData = await hasAnyTrace(projectId);
   if (!hasData) {
     return false;
   }
@@ -1149,7 +1122,6 @@ export const deleteTracesByProjectId = async (
         projectId,
       },
       tags: {
-        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "delete",
@@ -1465,8 +1437,7 @@ const buildTracesForBlobStorageExportQuery = (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
-      surface: "worker" as const,
-      feature: "batch-export",
+      feature: "blobstorage",
       type: "trace",
       kind: "analytic",
       projectId,
@@ -1559,7 +1530,7 @@ export const getTracesForAnalyticsIntegrations = async function* (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
-      feature: "batch-export",
+      feature: "posthog",
       type: "trace",
       kind: "analytic",
       projectId,
@@ -1684,11 +1655,6 @@ export async function getAgentGraphData(params: {
       projectId,
       chMinStartTime,
       chMaxStartTime,
-    },
-    tags: {
-      feature: "tracing",
-      kind: "langgraphObservations",
-      projectId,
     },
   });
 }
@@ -2152,14 +2118,12 @@ export const generateTracesForPublicApi = async ({
   orderBy,
   pagination,
   fields,
-  clickHouseQueryTags,
 }: {
   projectId: string;
   filter: FilterList;
   orderBy: OrderByState;
   pagination?: { limit: number; page: number };
   fields?: TraceFieldGroup[];
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const requestedFields = fields ?? TRACE_FIELD_GROUPS;
   const includeIO = requestedFields.includes("io");
@@ -2184,7 +2148,6 @@ export const generateTracesForPublicApi = async ({
     input: {
       params,
       tags: {
-        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "public-api",
@@ -2223,12 +2186,10 @@ export const getTracesCountForPublicApi = async ({
   projectId,
   filter,
   pagination,
-  clickHouseQueryTags,
 }: {
   projectId: string;
   filter: FilterList;
   pagination?: { limit: number; page: number };
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const appliedFilter = filter.apply();
 
@@ -2282,7 +2243,6 @@ export const getTracesCountForPublicApi = async ({
     input: {
       params,
       tags: {
-        ...clickHouseQueryTags,
         feature: "tracing",
         type: "trace",
         kind: "count",

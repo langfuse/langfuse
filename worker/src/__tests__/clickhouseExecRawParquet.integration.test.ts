@@ -27,7 +27,7 @@ describe("queryClickhouseExecRaw — FORMAT Parquet", () => {
       query: "SELECT number AS n FROM numbers(1000)",
       format: "Parquet",
       clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
-      tags: { feature: "batch-export", kind: "analytic" },
+      tags: { feature: "test", kind: "analytic" },
     });
 
     const buffer = await collect(stream);
@@ -53,7 +53,7 @@ describe("queryClickhouseExecRaw — FORMAT Parquet", () => {
           ...BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,
           output_format_parquet_row_group_size: "256",
         },
-        tags: { feature: "batch-export", kind: "analytic" },
+        tags: { feature: "test", kind: "analytic" },
       });
       return collect(stream);
     };

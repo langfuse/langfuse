@@ -706,10 +706,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const trace = await getTraceById({
-          traceId,
-          projectId,
-        });
+        const trace = await getTraceById({ traceId, projectId });
         expect(trace).toBeDefined();
         expect(trace!.id).toBe(traceId);
         expect(JSON.stringify(trace!.metadata)).toBe(
@@ -795,10 +792,7 @@ describe("/api/public/ingestion API Endpoint", () => {
       expect(response.status).toBe(207);
 
       await waitForExpect(async () => {
-        const score = await getScoreById({
-          projectId,
-          scoreId,
-        });
+        const score = await getScoreById({ projectId, scoreId });
         expect(score).toBeDefined();
         expect(score!.id).toBe(scoreId);
         expect(JSON.stringify(score!.metadata)).toBe(
@@ -844,10 +838,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response1.status).toBe(207);
 
     await waitForExpect(async () => {
-      const trace = await getTraceById({
-        traceId,
-        projectId,
-      });
+      const trace = await getTraceById({ traceId, projectId });
       expect(trace?.metadata).toEqual({
         step: 1,
         status: "started",
@@ -860,10 +851,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response2.status).toBe(207);
 
     await waitForExpect(async () => {
-      const trace = await getTraceById({
-        traceId,
-        projectId,
-      });
+      const trace = await getTraceById({ traceId, projectId });
       expect(trace).toBeDefined();
       expect(trace!.id).toBe(traceId);
       expect(trace!.projectId).toBe(projectId);
@@ -918,10 +906,7 @@ describe("/api/public/ingestion API Endpoint", () => {
     expect(response.status).toBe(207);
 
     await waitForExpect(async () => {
-      const score = await getScoreById({
-        projectId,
-        scoreId,
-      });
+      const score = await getScoreById({ projectId, scoreId });
       expect(score).toBeDefined();
       expect(score!.id).toBe(scoreId);
       expect(score!.projectId).toBe(projectId);

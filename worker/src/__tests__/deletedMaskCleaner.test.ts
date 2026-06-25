@@ -56,11 +56,6 @@ async function isEventsTableEnabled(): Promise<boolean> {
         database: env.CLICKHOUSE_DB,
         table: TEST_TABLE,
       },
-      tags: {
-        surface: "worker",
-        route: "DeletedMaskCleaner.test",
-        feature: "deletion",
-      },
     });
     eventsTableEnabled = Number(rows[0]?.count ?? 0) > 0;
   } catch {
@@ -135,11 +130,6 @@ async function hasCleanerCandidate(partitionToClean: string): Promise<boolean> {
       database: env.CLICKHOUSE_DB,
       tables: Array.from(DELETED_MASK_CLEANER_TABLES),
     },
-    tags: {
-      surface: "worker",
-      route: "DeletedMaskCleaner.test",
-      feature: "deletion",
-    },
   });
 
   return rows.some(
@@ -184,11 +174,6 @@ async function getActiveMutationCount(
     params: {
       database: env.CLICKHOUSE_DB,
       tables: [table],
-    },
-    tags: {
-      surface: "worker",
-      route: "DeletedMaskCleaner.test",
-      feature: "deletion",
     },
   });
 
@@ -269,11 +254,6 @@ async function createEventPatchParts(
       lightweight_delete_mode: "lightweight_update_force",
       update_parallel_mode: "sync",
       lightweight_deletes_sync: 2,
-    },
-    tags: {
-      surface: "worker",
-      route: "DeletedMaskCleaner.test",
-      feature: "deletion",
     },
   });
 

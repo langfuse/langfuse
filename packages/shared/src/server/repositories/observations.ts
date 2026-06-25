@@ -37,7 +37,6 @@ import {
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
 } from "../clickhouse/client";
-import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
 import {
   convertObservation,
   enrichObservationWithModelData,
@@ -143,7 +142,6 @@ export type GetObservationsForTraceOpts<IncludeIO extends boolean> = {
   projectId: string;
   timestamp?: Date;
   includeIO?: IncludeIO;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 };
 
@@ -155,7 +153,6 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
     projectId,
     timestamp,
     includeIO = false,
-    clickHouseQueryTags,
     preferredClickhouseService,
   } = opts;
 
@@ -211,7 +208,6 @@ export const getObservationsForTrace = async <IncludeIO extends boolean>(
         : {}),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "observation",
       kind: "list",
@@ -360,7 +356,6 @@ export const getObservationByIdFromObservationsTable = async ({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
-  clickHouseQueryTags,
   preferredClickhouseService,
 }: {
   id: string;
@@ -370,7 +365,6 @@ export const getObservationByIdFromObservationsTable = async ({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const records = await getObservationByIdInternal({
@@ -381,7 +375,6 @@ export const getObservationByIdFromObservationsTable = async ({
     type,
     traceId,
     renderingProps,
-    clickHouseQueryTags,
     preferredClickhouseService,
   });
   const mapped = records.map((record) =>
@@ -460,11 +453,6 @@ export const getObservationsById = async (
   const records = await queryClickhouse<ObservationRecordReadType>({
     query,
     params: { ids, projectId },
-    tags: {
-      feature: "tracing",
-      kind: "listByIds",
-      projectId,
-    },
   });
   return records.map((record) => convertObservation(record));
 };
@@ -477,7 +465,6 @@ const getObservationByIdInternal = async ({
   type,
   traceId,
   renderingProps = DEFAULT_RENDERING_PROPS,
-  clickHouseQueryTags,
   preferredClickhouseService,
 }: {
   id: string;
@@ -487,7 +474,6 @@ const getObservationByIdInternal = async ({
   type?: ObservationType;
   traceId?: string;
   renderingProps?: RenderingProps;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 }) => {
   const query = `
@@ -545,7 +531,6 @@ const getObservationByIdInternal = async ({
       ...(traceId ? { traceId } : {}),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "observation",
       kind: "byId",
@@ -1274,7 +1259,6 @@ export const getCostForTraces = async (
 export const deleteObservationsByTraceIds = async (
   projectId: string,
   traceIds: string[],
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const preflight = await queryClickhouse<{
     min_ts: string;
@@ -1294,7 +1278,6 @@ export const deleteObservationsByTraceIds = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "observation",
       kind: "delete-preflight",
@@ -1328,7 +1311,6 @@ export const deleteObservationsByTraceIds = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "observation",
       kind: "delete",
@@ -1337,10 +1319,7 @@ export const deleteObservationsByTraceIds = async (
   });
 };
 
-export const hasAnyObservation = async (
-  projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
-) => {
+export const hasAnyObservation = async (projectId: string) => {
   const query = `
     SELECT 1
     FROM observations
@@ -1352,7 +1331,6 @@ export const hasAnyObservation = async (
     query,
     params: { projectId },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "observation",
       kind: "hasAny",
@@ -1365,9 +1343,8 @@ export const hasAnyObservation = async (
 
 export const deleteObservationsByProjectId = async (
   projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyObservation(projectId, clickHouseQueryTags);
+  const hasData = await hasAnyObservation(projectId);
   if (!hasData) {
     return false;
   }
@@ -1377,7 +1354,6 @@ export const deleteObservationsByProjectId = async (
     WHERE project_id = {projectId: String};
   `;
   const tags = {
-    ...clickHouseQueryTags,
     feature: "tracing",
     type: "observation",
     kind: "delete",
@@ -1399,7 +1375,6 @@ export const deleteObservationsByProjectId = async (
 export const hasAnyObservationOlderThan = async (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     SELECT 1
@@ -1416,7 +1391,6 @@ export const hasAnyObservationOlderThan = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "observation",
       kind: "hasAnyOlderThan",
@@ -1430,13 +1404,8 @@ export const hasAnyObservationOlderThan = async (
 export const deleteObservationsOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyObservationOlderThan(
-    projectId,
-    beforeDate,
-    clickHouseQueryTags,
-  );
+  const hasData = await hasAnyObservationOlderThan(projectId, beforeDate);
   if (!hasData) {
     return false;
   }
@@ -1456,7 +1425,6 @@ export const deleteObservationsOlderThanDays = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "observation",
       kind: "delete",
@@ -1909,8 +1877,7 @@ const buildObservationsForBlobStorageExportQuery = (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
-      surface: "worker" as const,
-      feature: "batch-export",
+      feature: "blobstorage",
       type: "observation",
       kind: "analytic",
       projectId,
@@ -2047,7 +2014,7 @@ export const getGenerationsForAnalyticsIntegrations = async function* (
       maxTimestamp: convertDateToClickhouseDateTime(maxTimestamp),
     },
     tags: {
-      feature: "batch-export",
+      feature: "posthog",
       type: "observation",
       kind: "analytic",
       projectId,
@@ -2199,7 +2166,7 @@ export const getCostByEvaluatorIds = async (
       evaluatorIds,
     },
     tags: {
-      feature: "scores",
+      feature: "evals",
       type: "observation",
       kind: "analytic",
       projectId,

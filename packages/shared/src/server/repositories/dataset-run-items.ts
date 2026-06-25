@@ -24,7 +24,6 @@ import Decimal from "decimal.js";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { ScoreAggregate } from "../../features/scores";
-import { type ClickHouseQueryContextTags } from "../clickhouse/queryTags";
 
 type DatasetItemIdsByTraceIdQuery = {
   projectId: string;
@@ -1101,7 +1100,6 @@ export const getDatasetRunItemsCountByDatasetIdCh = async (
 
 export const hasAnyDatasetRunItem = async (
   projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
   const query = `
     SELECT 1
@@ -1114,7 +1112,6 @@ export const hasAnyDatasetRunItem = async (
     query,
     params: { projectId },
     tags: {
-      ...clickHouseQueryTags,
       feature: "datasets",
       type: "dataset-run-items",
       kind: "hasAny",
@@ -1127,9 +1124,8 @@ export const hasAnyDatasetRunItem = async (
 
 export const deleteDatasetRunItemsByProjectId = async (
   projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyDatasetRunItem(projectId, clickHouseQueryTags);
+  const hasData = await hasAnyDatasetRunItem(projectId);
   if (!hasData) {
     return false;
   }
@@ -1145,7 +1141,6 @@ export const deleteDatasetRunItemsByProjectId = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "datasets",
       type: "dataset-run-items",
       kind: "delete",
@@ -1159,11 +1154,9 @@ export const deleteDatasetRunItemsByProjectId = async (
 export const deleteDatasetRunItemsByDatasetId = async ({
   projectId,
   datasetId,
-  clickHouseQueryTags,
 }: {
   projectId: string;
   datasetId: string;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const query = `
   DELETE FROM dataset_run_items_rmt
@@ -1181,7 +1174,6 @@ export const deleteDatasetRunItemsByDatasetId = async ({
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "datasets",
       type: "dataset-run-items",
       kind: "delete",
@@ -1194,12 +1186,10 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
   projectId,
   datasetRunIds,
   datasetId,
-  clickHouseQueryTags,
 }: {
   projectId: string;
   datasetRunIds: string[];
   datasetId: string;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) => {
   const query = `
     DELETE FROM dataset_run_items_rmt
@@ -1219,7 +1209,6 @@ export const deleteDatasetRunItemsByDatasetRunIds = async ({
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "datasets",
       type: "dataset-run-items",
       kind: "delete",

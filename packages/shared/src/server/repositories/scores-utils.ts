@@ -1,6 +1,5 @@
 import { ScoreDataTypeType, ScoreDomain, ScoreSourceType } from "../../domain";
 import { PreferredClickhouseService } from "../clickhouse/client";
-import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
 import { queryClickhouse } from "./clickhouse";
 import { ScoreRecordReadType } from "./definitions";
 import { convertClickhouseScoreToDomain } from "./scores_converters";
@@ -17,7 +16,6 @@ export const _handleGetScoreById = async ({
   scoreScope,
   scoreDataTypes,
   preferredClickhouseService,
-  clickHouseQueryTags,
   apiVersion,
 }: {
   projectId: string;
@@ -26,7 +24,6 @@ export const _handleGetScoreById = async ({
   scoreScope: "traces_only" | "all";
   scoreDataTypes?: readonly ScoreDataTypeType[];
   preferredClickhouseService?: PreferredClickhouseService;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
   apiVersion?: "v1" | "v2";
 }): Promise<ScoreDomain | undefined> => {
   const query = `
@@ -53,7 +50,6 @@ export const _handleGetScoreById = async ({
         : {}),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "byId",
@@ -76,14 +72,12 @@ export const _handleGetScoresByIds = async ({
   source,
   scoreScope,
   dataTypes,
-  clickHouseQueryTags,
 }: {
   projectId: string;
   scoreId: string[];
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
   dataTypes?: readonly ScoreDataTypeType[];
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }): Promise<ScoreDomain[]> => {
   const query = `
   SELECT *
@@ -106,7 +100,6 @@ export const _handleGetScoresByIds = async ({
       ...(source !== undefined ? { source } : {}),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "byId",

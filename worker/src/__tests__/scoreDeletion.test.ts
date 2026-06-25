@@ -38,7 +38,7 @@ describe("score deletion", () => {
     await processClickhouseScoreDelete(projectId, [score.id]);
 
     // Then
-    const scores = await getScoresByIds(projectId, [score.id], undefined);
+    const scores = await getScoresByIds(projectId, [score.id]);
     expect(scores).toHaveLength(0);
   });
 

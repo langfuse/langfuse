@@ -24,7 +24,6 @@ import {
   parseClickhouseUTCDateTimeFormat,
   clickhouseCompliantRandomCharacters,
 } from "./clickhouse";
-import type { ClickHouseQueryContextTags } from "../clickhouse/queryTags";
 import {
   FilterList,
   orderByToClickhouseSql,
@@ -135,19 +134,16 @@ export const getScoreById = async ({
   projectId,
   scoreId,
   source,
-  clickHouseQueryTags,
 }: {
   projectId: string;
   scoreId: string;
   source?: ScoreSourceType;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }): Promise<ScoreDomain | undefined> => {
   return _handleGetScoreById({
     projectId,
     scoreId,
     source,
     scoreScope: "all",
-    clickHouseQueryTags,
   });
 };
 
@@ -155,7 +151,6 @@ export const getScoresByIds = async (
   projectId: string,
   scoreId: string[],
   source?: ScoreSourceType,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<ScoreDomain[]> => {
   return _handleGetScoresByIds({
     projectId,
@@ -163,7 +158,6 @@ export const getScoresByIds = async (
     source,
     scoreScope: "all",
     dataTypes: LISTABLE_SCORE_TYPES,
-    clickHouseQueryTags,
   });
 };
 
@@ -201,7 +195,6 @@ export type GetScoresForTracesProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
   preferredClickhouseService?: PreferredClickhouseService;
 };
 
@@ -216,7 +209,6 @@ type GetScoresForSessionsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 };
 
 type GetScoresForExperimentsProps<
@@ -230,7 +222,6 @@ type GetScoresForExperimentsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 };
 
 const formatMetadataSelect = (
@@ -261,7 +252,6 @@ export const getScoresForSessions = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
-    clickHouseQueryTags,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -288,8 +278,7 @@ export const getScoresForSessions = async <
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
-      ...clickHouseQueryTags,
-      feature: "tracing",
+      feature: "sessions",
       type: "score",
       kind: "list",
       projectId,
@@ -317,7 +306,6 @@ export const getScoresForExperiments = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
-    clickHouseQueryTags,
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
@@ -344,8 +332,7 @@ export const getScoresForExperiments = async <
       offset,
     },
     tags: {
-      ...clickHouseQueryTags,
-      feature: "tracing",
+      feature: "sessions",
       type: "score",
       kind: "list",
       projectId,
@@ -365,7 +352,6 @@ export const getScoresForExperiments = async <
 export const getTraceScoresForDatasetRuns = async (
   projectId: string,
   datasetRunIds: string[],
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<Array<{ dataset_run_id: string } & any>> => {
   if (datasetRunIds.length === 0) return [];
 
@@ -419,8 +405,7 @@ export const getTraceScoresForDatasetRuns = async (
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: {
-      ...clickHouseQueryTags,
-      feature: "datasets",
+      feature: "dataset-run-items",
       type: "trace-scores",
       kind: "list",
       projectId,
@@ -507,7 +492,7 @@ export const getScoresForExperimentItems = async (
       dataTypes: AGGREGATABLE_SCORE_TYPES,
     },
     tags: {
-      feature: "datasets",
+      feature: "experiments",
       type: "trace-scores",
       kind: "list",
       projectId,
@@ -546,7 +531,6 @@ const getScoresForTracesInternal = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
-    clickHouseQueryTags,
     preferredClickhouseService,
   } = props;
 
@@ -593,7 +577,6 @@ const getScoresForTracesInternal = async <
         : {}),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "list",
@@ -670,7 +653,6 @@ export type GetScoresForObservationsProps<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadata?: IncludeHasMetadata;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 };
 
 // Currently only used from the observations table, hence the exclusion of metadata without excludeMetadata flag
@@ -689,7 +671,6 @@ export const getScoresForObservations = async <
     clickhouseConfigs,
     excludeMetadata = false,
     includeHasMetadata = false,
-    clickHouseQueryTags,
   } = props;
 
   const select = [
@@ -735,7 +716,6 @@ export const getScoresForObservations = async <
         : {}),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "list",
@@ -1081,13 +1061,11 @@ export async function getScoresUiTable<
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: ExcludeMetadata;
   includeHasMetadataFlag?: IncludeHasMetadata;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
 }) {
   const {
     excludeMetadata = false,
     includeHasMetadataFlag = false,
     clickhouseConfigs,
-    clickHouseQueryTags,
     ...rest
   } = props;
 
@@ -1126,7 +1104,6 @@ export async function getScoresUiTable<
   }>({
     select: "rows",
     tags: { kind: "analytic" },
-    clickHouseQueryTags,
     excludeMetadata,
     includeHasMetadataFlag,
     clickhouseConfigs,
@@ -1164,7 +1141,6 @@ const getScoresUiGeneric = async <T>(props: {
   limit?: number;
   offset?: number;
   tags?: Record<string, string>;
-  clickHouseQueryTags?: ClickHouseQueryContextTags;
   clickhouseConfigs?: ClickHouseClientConfigOptions;
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
@@ -1176,7 +1152,6 @@ const getScoresUiGeneric = async <T>(props: {
     limit,
     offset,
     clickhouseConfigs,
-    clickHouseQueryTags,
     excludeMetadata = false,
     includeHasMetadataFlag = false,
   } = props;
@@ -1259,7 +1234,6 @@ const getScoresUiGeneric = async <T>(props: {
         offset: offset,
       },
       tags: {
-        ...clickHouseQueryTags,
         ...(props.tags ?? {}),
         feature: "tracing",
         type: "score",
@@ -1677,11 +1651,7 @@ export const getScoreStringValues = async (
   }));
 };
 
-export const deleteScores = async (
-  projectId: string,
-  scoreIds: string[],
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
-) => {
+export const deleteScores = async (projectId: string, scoreIds: string[]) => {
   const query = `
     DELETE FROM scores
     WHERE project_id = {projectId: String}
@@ -1697,7 +1667,6 @@ export const deleteScores = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "delete",
@@ -1709,7 +1678,6 @@ export const deleteScores = async (
 export const deleteScoresByTraceIds = async (
   projectId: string,
   traceIds: string[],
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     DELETE FROM scores
@@ -1726,7 +1694,6 @@ export const deleteScoresByTraceIds = async (
       request_timeout: 120_000, // 2 minutes
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "delete",
@@ -1737,9 +1704,8 @@ export const deleteScoresByTraceIds = async (
 
 export const deleteScoresByProjectId = async (
   projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyScore(projectId, clickHouseQueryTags);
+  const hasData = await hasAnyScore(projectId);
   if (!hasData) {
     return false;
   }
@@ -1749,7 +1715,6 @@ export const deleteScoresByProjectId = async (
     WHERE project_id = {projectId: String};
   `;
   const tags = {
-    ...clickHouseQueryTags,
     feature: "tracing",
     type: "score",
     kind: "delete",
@@ -1771,7 +1736,6 @@ export const deleteScoresByProjectId = async (
 export const hasAnyScoreOlderThan = async (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ) => {
   const query = `
     SELECT 1
@@ -1788,7 +1752,6 @@ export const hasAnyScoreOlderThan = async (
       cutoffDate: convertDateToClickhouseDateTime(beforeDate),
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "hasAnyOlderThan",
@@ -1802,13 +1765,8 @@ export const hasAnyScoreOlderThan = async (
 export const deleteScoresOlderThanDays = async (
   projectId: string,
   beforeDate: Date,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
 ): Promise<boolean> => {
-  const hasData = await hasAnyScoreOlderThan(
-    projectId,
-    beforeDate,
-    clickHouseQueryTags,
-  );
+  const hasData = await hasAnyScoreOlderThan(projectId, beforeDate);
   if (!hasData) {
     return false;
   }
@@ -1828,7 +1786,6 @@ export const deleteScoresOlderThanDays = async (
       request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "delete",
@@ -2124,8 +2081,7 @@ const buildScoresForBlobStorageExportQuery = (
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
-      surface: "worker" as const,
-      feature: "batch-export",
+      feature: "blobstorage",
       type: "score",
       kind: "analytic",
       projectId,
@@ -2236,7 +2192,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
       dataTypes: LISTABLE_SCORE_TYPES,
     },
     tags: {
-      feature: "batch-export",
+      feature: "posthog",
       type: "score",
       kind: "analytic",
       projectId,
@@ -2299,10 +2255,7 @@ export const getScoresForAnalyticsIntegrations = async function* (
   }
 };
 
-export const hasAnyScore = async (
-  projectId: string,
-  clickHouseQueryTags?: ClickHouseQueryContextTags,
-) => {
+export const hasAnyScore = async (projectId: string) => {
   const query = `    SELECT 1
     FROM scores
     WHERE project_id = {projectId: String}
@@ -2315,7 +2268,6 @@ export const hasAnyScore = async (
       projectId,
     },
     tags: {
-      ...clickHouseQueryTags,
       feature: "tracing",
       type: "score",
       kind: "hasAny",
@@ -2586,7 +2538,7 @@ export const _handleGenerateScoresForPublicApi = async ({
           : {}),
       },
       tags: {
-        feature: "scores",
+        feature: "scoring",
         type: "score",
         projectId,
         scoreScope,
@@ -2688,7 +2640,7 @@ export const _handleGetScoresCountForPublicApi = async ({
         projectId,
       },
       tags: {
-        feature: "scores",
+        feature: "scoring",
         type: "score",
         projectId,
         scoreScope,
@@ -3083,7 +3035,7 @@ export async function listScoresV3ForPublicApi(
         ...filterParams,
       },
       tags: {
-        feature: "scores",
+        feature: "scoring",
         type: "score",
         projectId: params.projectId,
         operation_name: "listScoresV3ForPublicApi",

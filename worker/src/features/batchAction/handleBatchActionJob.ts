@@ -89,9 +89,7 @@ async function processActionChunk(
         break;
 
       case "score-delete":
-        await processClickhouseScoreDelete(projectId, chunkIds, {
-          surface: "worker",
-        });
+        await processClickhouseScoreDelete(projectId, chunkIds);
         break;
 
       default:

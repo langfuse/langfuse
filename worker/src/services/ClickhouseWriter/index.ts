@@ -580,7 +580,9 @@ export class ClickhouseWriter {
         clickhouse_settings: {
           log_comment: buildClickHouseLogComment({
             surface: "worker",
-            feature: "ingestion",
+            ...(params.records.length > 0 && params.records[0].project_id
+              ? { projectId: params.records[0].project_id }
+              : {}),
           }),
         },
       })

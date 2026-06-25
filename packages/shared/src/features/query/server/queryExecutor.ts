@@ -2,7 +2,6 @@ import {
   queryClickhouse,
   type ClickhouseQueryOpts,
 } from "../../../server/repositories/clickhouse";
-import { type ClickHouseQueryTags } from "../../../server/clickhouse/queryTags";
 import { measureAndReturn } from "../../../server/clickhouse/measureAndReturn";
 import { type PreferredClickhouseService } from "../../../server/clickhouse/client";
 import { QueryBuilder } from "./queryBuilder";
@@ -13,7 +12,7 @@ export type PreparedQuery = {
   compiledQuery: string;
   parameters: Record<string, unknown>;
   preferredClickhouseService: PreferredClickhouseService | undefined;
-  tags: ClickHouseQueryTags;
+  tags: Record<string, string>;
   clickhouseSettings: Record<string, string>;
   usesTraceTable: boolean;
   fromTimestamp: string;
@@ -55,7 +54,7 @@ export async function prepareExecuteQuery(opts: {
     : undefined;
 
   const tags = {
-    feature: "custom-query",
+    feature: "custom-queries",
     type: query.view,
     kind: "analytic",
     projectId,

@@ -184,7 +184,7 @@ describe("/api/public/scores API Endpoint", () => {
       // Then
       expect(deleteResponse.status).toBe(202);
       await waitForExpect(async () => {
-        const scores = await getScoresByIds(projectId, [scoreId], undefined);
+        const scores = await getScoresByIds(projectId, [scoreId]);
         expect(scores).toHaveLength(0);
       });
     });
@@ -1318,11 +1318,7 @@ describe("/api/public/scores API Endpoint", () => {
         // Wait for scores to be available
         // Note: getScoresByIds only returns aggregatable scores, so we only check for the NUMERIC score
         await waitForExpect(async () => {
-          const checkScores = await getScoresByIds(
-            projectId,
-            [numericScoreId],
-            undefined,
-          );
+          const checkScores = await getScoresByIds(projectId, [numericScoreId]);
           expect(checkScores).toHaveLength(1);
         });
 
@@ -1375,11 +1371,9 @@ describe("/api/public/scores API Endpoint", () => {
 
         // Wait for score to be available
         await waitForExpect(async () => {
-          const checkScore = await getScoresByIds(
-            projectId,
-            [correctionScoreId],
-            undefined,
-          );
+          const checkScore = await getScoresByIds(projectId, [
+            correctionScoreId,
+          ]);
           expect(checkScore).toHaveLength(0);
         });
 
@@ -1419,10 +1413,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(response.body).toHaveProperty("id", scoreId);
 
       await waitForExpect(async () => {
-        const score = await getScoreById({
-          projectId,
-          scoreId,
-        });
+        const score = await getScoreById({ projectId, scoreId });
         expect(score).toBeDefined();
         expect(score!.id).toBe(scoreId);
         expect(score!.traceId).toBe(traceId);
@@ -1534,10 +1525,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(response.status).toBe(200);
 
       await waitForExpect(async () => {
-        const score = await getScoreById({
-          projectId,
-          scoreId,
-        });
+        const score = await getScoreById({ projectId, scoreId });
         expect(score).toBeDefined();
         expect(score!.source).toBe("API");
       });
@@ -1603,10 +1591,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(response.status).toBe(200);
 
       await waitForExpect(async () => {
-        const score = await getScoreById({
-          projectId,
-          scoreId,
-        });
+        const score = await getScoreById({ projectId, scoreId });
         expect(score).toBeDefined();
         expect(score!.source).toBe("ANNOTATION");
         expect(score!.configId).toBe(configId);
@@ -1664,10 +1649,7 @@ describe("/api/public/scores API Endpoint", () => {
 
       await waitForExpect(
         async () => {
-          const score = await getScoreById({
-            projectId,
-            scoreId,
-          });
+          const score = await getScoreById({ projectId, scoreId });
           expect(score).toBeDefined();
           expect(score!.source).toBe("ANNOTATION");
           expect(score!.dataType).toBe("CORRECTION");

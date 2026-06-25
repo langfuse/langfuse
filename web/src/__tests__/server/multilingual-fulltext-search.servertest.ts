@@ -404,10 +404,7 @@ describe("multilingual full-text search (issue #11538)", () => {
       expect(res.status).toBe(207);
       // wait for the worker (running as part of `pnpm run dev`) to flush it
       await waitForExpect(async () => {
-        const t = await getTraceById({
-          traceId,
-          projectId,
-        });
+        const t = await getTraceById({ traceId, projectId });
         expect(t).toBeDefined();
       }, 45_000);
       expect(await searchTraceIds("你好", ["id", "content"])).toContain(

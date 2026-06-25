@@ -192,10 +192,7 @@ describe("ProjectDeletionProcessingJob", () => {
     });
     expect(trace).toBeUndefined();
     expect(() =>
-      getObservationById({
-        id: `${baseId}-observation`,
-        projectId,
-      }),
+      getObservationById({ id: `${baseId}-observation`, projectId }),
     ).rejects.toThrowError("not found");
     const score = await getScoreById({
       projectId,
@@ -381,19 +378,13 @@ describe("ProjectDeletionProcessingJob", () => {
         createTrace({ id: traceId, project_id: projectId }),
       ]);
 
-      const traceBefore = await getTraceById({
-        traceId,
-        projectId,
-      });
+      const traceBefore = await getTraceById({ traceId, projectId });
       expect(traceBefore).toBeDefined();
 
       const result = await deleteTracesByProjectId(projectId);
       expect(result).toBe(true);
 
-      const traceAfter = await getTraceById({
-        traceId,
-        projectId,
-      });
+      const traceAfter = await getTraceById({ traceId, projectId });
       expect(traceAfter).toBeUndefined();
     });
 
@@ -411,20 +402,14 @@ describe("ProjectDeletionProcessingJob", () => {
       ]);
 
       await expect(
-        getObservationById({
-          id: observationId,
-          projectId,
-        }),
+        getObservationById({ id: observationId, projectId }),
       ).toBeDefined();
 
       const result = await deleteObservationsByProjectId(projectId);
       expect(result).toBe(true);
 
       await expect(
-        getObservationById({
-          id: observationId,
-          projectId,
-        }),
+        getObservationById({ id: observationId, projectId }),
       ).rejects.toThrowError("not found");
     });
 
@@ -441,19 +426,13 @@ describe("ProjectDeletionProcessingJob", () => {
         }),
       ]);
 
-      const scoreBefore = await getScoreById({
-        projectId,
-        scoreId,
-      });
+      const scoreBefore = await getScoreById({ projectId, scoreId });
       expect(scoreBefore).toBeDefined();
 
       const result = await deleteScoresByProjectId(projectId);
       expect(result).toBe(true);
 
-      const scoreAfter = await getScoreById({
-        projectId,
-        scoreId,
-      });
+      const scoreAfter = await getScoreById({ projectId, scoreId });
       expect(scoreAfter).toBeUndefined();
     });
   });
@@ -479,10 +458,7 @@ describe("ProjectDeletionProcessingJob", () => {
       expect(result).toBe(false);
 
       // Verify the newer trace is still there (retained)
-      const trace = await getTraceById({
-        traceId,
-        projectId,
-      });
+      const trace = await getTraceById({ traceId, projectId });
       expect(trace).toBeDefined();
     });
 
@@ -517,17 +493,11 @@ describe("ProjectDeletionProcessingJob", () => {
       expect(result).toBe(true);
 
       // Verify old trace is deleted
-      const oldTrace = await getTraceById({
-        traceId: oldTraceId,
-        projectId,
-      });
+      const oldTrace = await getTraceById({ traceId: oldTraceId, projectId });
       expect(oldTrace).toBeUndefined();
 
       // Verify new trace is retained
-      const newTrace = await getTraceById({
-        traceId: newTraceId,
-        projectId,
-      });
+      const newTrace = await getTraceById({ traceId: newTraceId, projectId });
       expect(newTrace).toBeDefined();
     });
 
@@ -601,10 +571,7 @@ describe("ProjectDeletionProcessingJob", () => {
 
       // Verify old observation is deleted
       await expect(
-        getObservationById({
-          id: oldObservationId,
-          projectId,
-        }),
+        getObservationById({ id: oldObservationId, projectId }),
       ).rejects.toThrowError("not found");
 
       // Verify new observation is retained
@@ -637,10 +604,7 @@ describe("ProjectDeletionProcessingJob", () => {
       expect(result).toBe(false);
 
       // Verify the newer score is still there (retained)
-      const score = await getScoreById({
-        projectId,
-        scoreId,
-      });
+      const score = await getScoreById({ projectId, scoreId });
       expect(score).toBeDefined();
     });
 
@@ -678,17 +642,11 @@ describe("ProjectDeletionProcessingJob", () => {
       expect(result).toBe(true);
 
       // Verify old score is deleted
-      const oldScore = await getScoreById({
-        projectId,
-        scoreId: oldScoreId,
-      });
+      const oldScore = await getScoreById({ projectId, scoreId: oldScoreId });
       expect(oldScore).toBeUndefined();
 
       // Verify new score is retained
-      const newScore = await getScoreById({
-        projectId,
-        scoreId: newScoreId,
-      });
+      const newScore = await getScoreById({ projectId, scoreId: newScoreId });
       expect(newScore).toBeDefined();
     });
   });

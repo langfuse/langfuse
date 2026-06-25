@@ -14,11 +14,6 @@ type HealthCheckInput = {
   failIfNoRecentEvents: boolean;
 };
 
-const healthCheckClickHouseTags = {
-  surface: "publicapi" as const,
-  route: "GET /api/public/health",
-};
-
 export type HealthCheckResult = {
   isHealthy: boolean;
   status: string;
@@ -73,8 +68,7 @@ export const runHealthCheck = async ({
                 `,
                 params,
                 tags: {
-                  ...healthCheckClickHouseTags,
-                  feature: "health",
+                  feature: "health-check",
                   type: "event",
                 },
               }),
@@ -105,8 +99,7 @@ export const runHealthCheck = async ({
                 `,
                 params,
                 tags: {
-                  ...healthCheckClickHouseTags,
-                  feature: "health",
+                  feature: "health-check",
                   type: "trace",
                 },
               }),
@@ -124,8 +117,7 @@ export const runHealthCheck = async ({
               now: clickhouseNow,
             },
             tags: {
-              ...healthCheckClickHouseTags,
-              feature: "health",
+              feature: "health-check",
               type: "observation",
             },
           });
