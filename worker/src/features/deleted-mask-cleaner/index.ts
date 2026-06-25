@@ -131,10 +131,6 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
         database: env.CLICKHOUSE_DB,
         tables: Array.from(DELETED_MASK_CLEANER_TABLES),
       },
-      tags: {
-        feature: "deleted-mask-cleaner",
-        operation: "get-candidates",
-      },
     });
 
     return rows;
@@ -155,10 +151,6 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
       params: {
         database: env.CLICKHOUSE_DB,
         tables,
-      },
-      tags: {
-        feature: "deleted-mask-cleaner",
-        operation: "get-mutation-counts",
       },
     });
   }
@@ -199,12 +191,6 @@ export class DeletedMaskCleaner extends PeriodicExclusiveRunner {
           mutations_sync: "0",
         },
         abortSignal: abortController.signal,
-        tags: {
-          feature: "deleted-mask-cleaner",
-          table: candidate.table,
-          partition: candidate.partition_to_clean,
-          operation: "apply-deleted-mask",
-        },
       });
 
       recordIncrement(`${METRIC_PREFIX}.commands_submitted`, 1, {
