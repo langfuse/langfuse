@@ -212,23 +212,25 @@ export function MembershipInvitesPage({
       <DataTable
         tableName={"membershipInvites"}
         columns={columns}
-        data={
-          invites.isLoading
-            ? { isLoading: true, isError: false }
-            : invites.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: invites.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(invites.data, "invitations", []).map((i) =>
-                    convertToTableRow(i),
-                  ),
-                }
-        }
+        data={(() => {
+          if (invites.isLoading) {
+            return { isLoading: true, isError: false };
+          }
+          if (invites.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: invites.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: safeExtract(invites.data, "invitations", []).map((i) =>
+              convertToTableRow(i),
+            ),
+          };
+        })()}
         pagination={{
           totalCount,
           onChange: setPaginationState,

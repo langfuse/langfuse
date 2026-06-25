@@ -159,13 +159,21 @@ export default withMiddlewares(
 
         const latencyMs =
           obsStartTimes.length > 0
-            ? obsEndTimes.length > 0
-              ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
-                obsStartTimes[0]!.getTime()
-              : obsStartTimes.length > 1
-                ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-                  obsStartTimes[0]!.getTime()
-                : undefined
+            ? (() => {
+                if (obsEndTimes.length > 0) {
+                  return (
+                    (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+                    obsStartTimes[0]!.getTime()
+                  );
+                }
+                if (obsStartTimes.length > 1) {
+                  return (
+                    obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+                    obsStartTimes[0]!.getTime()
+                  );
+                }
+                return undefined;
+              })()
             : undefined;
         return {
           ...trace,

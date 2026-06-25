@@ -156,11 +156,15 @@ export const getServerSideProps: GetServerSideProps<PageProps> = async () => {
         workos:
           env.AUTH_WORKOS_CLIENT_ID !== undefined &&
           env.AUTH_WORKOS_CLIENT_SECRET !== undefined
-            ? env.AUTH_WORKOS_ORGANIZATION_ID !== undefined
-              ? { organizationId: env.AUTH_WORKOS_ORGANIZATION_ID }
-              : env.AUTH_WORKOS_CONNECTION_ID !== undefined
-                ? { connectionId: env.AUTH_WORKOS_CONNECTION_ID }
-                : true
+            ? (() => {
+                if (env.AUTH_WORKOS_ORGANIZATION_ID !== undefined) {
+                  return { organizationId: env.AUTH_WORKOS_ORGANIZATION_ID };
+                }
+                if (env.AUTH_WORKOS_CONNECTION_ID !== undefined) {
+                  return { connectionId: env.AUTH_WORKOS_CONNECTION_ID };
+                }
+                return true;
+              })()
             : false,
         wordpress:
           env.AUTH_WORDPRESS_CLIENT_ID !== undefined &&

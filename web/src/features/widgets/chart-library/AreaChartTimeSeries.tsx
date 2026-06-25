@@ -114,7 +114,15 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                 dataKey={dimension}
                 stroke={`hsl(var(--chart-${(index % 8) + 1}))`}
                 fill={`hsl(var(--chart-${(index % 8) + 1}))`}
-                fillOpacity={isMuted ? 0.15 : subtleFill ? 0.3 : 0.75}
+                fillOpacity={(() => {
+                  if (isMuted) {
+                    return 0.15;
+                  }
+                  if (subtleFill) {
+                    return 0.3;
+                  }
+                  return 0.75;
+                })()}
                 strokeWidth={2.5}
                 strokeOpacity={isMuted ? 0.2 : 1}
                 connectNulls

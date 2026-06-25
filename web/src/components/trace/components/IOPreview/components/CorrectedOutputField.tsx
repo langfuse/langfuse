@@ -263,32 +263,40 @@ export function CorrectedOutputField({
             </div>
           </div>
 
-          {!hasContent && !isEditing ? (
-            <button
-              onClick={handleEdit}
-              disabled={!hasAccess}
-              className="text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors"
-            >
-              Click to add corrected output
-            </button>
-          ) : isEditing ? (
-            <CodeMirrorEditor
-              value={displayValue}
-              onChange={handleEditorChange}
-              mode={strictJsonMode ? "json" : "text"}
-              minHeight={200}
-              placeholder="Enter corrected output..."
-              className="bg-accent-light-green"
-            />
-          ) : (
-            <CodeMirrorEditor
-              value={displayValue}
-              mode={strictJsonMode ? "json" : "text"}
-              minHeight={200}
-              editable={false}
-              className="bg-accent-light-green"
-            />
-          )}
+          {(() => {
+            if (!hasContent && !isEditing) {
+              return (
+                <button
+                  onClick={handleEdit}
+                  disabled={!hasAccess}
+                  className="text-muted-foreground hover:bg-muted/50 w-full cursor-pointer rounded-md border px-3 py-4 text-center text-xs transition-colors"
+                >
+                  Click to add corrected output
+                </button>
+              );
+            }
+            if (isEditing) {
+              return (
+                <CodeMirrorEditor
+                  value={displayValue}
+                  onChange={handleEditorChange}
+                  mode={strictJsonMode ? "json" : "text"}
+                  minHeight={200}
+                  placeholder="Enter corrected output..."
+                  className="bg-accent-light-green"
+                />
+              );
+            }
+            return (
+              <CodeMirrorEditor
+                value={displayValue}
+                mode={strictJsonMode ? "json" : "text"}
+                minHeight={200}
+                editable={false}
+                className="bg-accent-light-green"
+              />
+            );
+          })()}
         </div>
       </div>
     </>

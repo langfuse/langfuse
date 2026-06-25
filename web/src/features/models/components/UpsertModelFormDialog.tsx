@@ -292,11 +292,15 @@ export const UpsertModelFormDialog = (({
       <DialogContent size="lg">
         <DialogHeader>
           <DialogTitle>
-            {props.action === "create"
-              ? "Create Model"
-              : props.action === "clone"
-                ? "Clone Model"
-                : "Edit Model"}
+            {(() => {
+              if (props.action === "create") {
+                return "Create Model";
+              }
+              if (props.action === "clone") {
+                return "Clone Model";
+              }
+              return "Edit Model";
+            })()}
           </DialogTitle>
           {props.action === "edit" && (
             <DialogDescription>{props.modelData.modelName}</DialogDescription>

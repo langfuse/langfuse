@@ -76,21 +76,23 @@ export const ExperimentCompareTable = ({
       columns={columns}
       peekView={peekView}
       noResultsMessage={noResultsMessage}
-      data={
-        isLoading
-          ? { isLoading: true, isError: false }
-          : isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: "",
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: rows,
-              }
-      }
+      data={(() => {
+        if (isLoading) {
+          return { isLoading: true, isError: false };
+        }
+        if (isError) {
+          return {
+            isLoading: false,
+            isError: true,
+            error: "",
+          };
+        }
+        return {
+          isLoading: false,
+          isError: false,
+          data: rows,
+        };
+      })()}
       pagination={pagination}
       rowSelection={rowSelection}
       setRowSelection={setRowSelection}

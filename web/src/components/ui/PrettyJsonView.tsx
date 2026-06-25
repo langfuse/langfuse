@@ -1324,127 +1324,140 @@ export function PrettyJsonView(props: {
 
   const body = (
     <>
-      {props.isLoading || props.isParsing ? (
-        <div className="io-message-content">
-          <div
-            className={cn(
-              getContainerClasses(
-                props.title,
-                props.scrollable,
-                props.codeClassName,
-              ),
-            )}
-          >
-            <div className="space-y-2 p-3">
-              <Skeleton className="h-3 w-3/4" />
-              <Skeleton className="h-3 w-1/2" />
-              <Skeleton className="h-3 w-2/3" />
-              {props.isParsing && (
-                <div className="text-muted-foreground mt-2 text-xs">
-                  Parsing in background...
+      {(() => {
+        if (props.isLoading || props.isParsing) {
+          return (
+            <div className="io-message-content">
+              <div
+                className={cn(
+                  getContainerClasses(
+                    props.title,
+                    props.scrollable,
+                    props.codeClassName,
+                  ),
+                )}
+              >
+                <div className="space-y-2 p-3">
+                  <Skeleton className="h-3 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-3 w-2/3" />
+                  {props.isParsing && (
+                    <div className="text-muted-foreground mt-2 text-xs">
+                      Parsing in background...
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        </div>
-      ) : emptyValueDisplay && isPrettyView ? (
-        <div className="io-message-content">
-          <div
-            className={cn(
-              "flex items-center",
-              getContainerClasses(
-                props.title,
-                props.scrollable,
-                props.codeClassName,
-              ),
-            )}
-          >
-            <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
-              {emptyValueDisplay}
-            </span>
-          </div>
-        </div>
-      ) : isMarkdownMode ? (
-        <div className="io-message-content">
-          {shouldRenderStandaloneMedia ? (
-            standaloneMediaReferenceStrings.map((referenceString, index) => (
-              <LangfuseMediaView
-                key={`${referenceString}-${index}`}
-                mediaReferenceString={referenceString}
-              />
-            ))
-          ) : (
-            <MarkdownView
-              markdown={markdownContent || ""}
-              media={props.media}
-            />
-          )}
-        </div>
-      ) : (
-        <>
-          {/* Always render JsonPrettyTable to preserve internal React Table state */}
-          <div
-            className="io-message-content"
-            style={{ display: shouldUseTableView ? "flex" : "none" }}
-          >
-            <div
-              className={getContainerClasses(
-                props.title,
-                props.scrollable,
-                props.codeClassName,
-                "flex text-xs wrap-break-word whitespace-pre-wrap",
-              )}
-            >
-              {props.isLoading ? (
-                <Skeleton className="m-3 h-3 w-3/4" />
+          );
+        }
+        if (emptyValueDisplay && isPrettyView) {
+          return (
+            <div className="io-message-content">
+              <div
+                className={cn(
+                  "flex items-center",
+                  getContainerClasses(
+                    props.title,
+                    props.scrollable,
+                    props.codeClassName,
+                  ),
+                )}
+              >
+                <span className={`font-mono ${PREVIEW_TEXT_CLASSES}`}>
+                  {emptyValueDisplay}
+                </span>
+              </div>
+            </div>
+          );
+        }
+        if (isMarkdownMode) {
+          return (
+            <div className="io-message-content">
+              {shouldRenderStandaloneMedia ? (
+                standaloneMediaReferenceStrings.map(
+                  (referenceString, index) => (
+                    <LangfuseMediaView
+                      key={`${referenceString}-${index}`}
+                      mediaReferenceString={referenceString}
+                    />
+                  ),
+                )
               ) : (
-                <JsonPrettyTable
-                  data={tableData}
-                  expandAllRef={expandAllRef}
-                  onExpandStateChange={setAllRowsExpanded}
-                  noBorder={true}
-                  expanded={
-                    actualExpansionState === false ? {} : actualExpansionState
-                  }
-                  onExpandedChange={handleTableExpandedChange}
-                  onLazyLoadChildren={handleLazyLoadChildren}
-                  onForceUpdate={handleForceUpdate}
-                  smartDefaultsLevel={null}
-                  expandedCells={expandedCells}
-                  toggleCellExpansion={toggleCellExpansion}
-                  stickyTopLevelKey={props.stickyTopLevelKey}
-                  showObservationTypeBadge={props.showObservationTypeBadge}
-                  metadataActions={props.metadataActions}
+                <MarkdownView
+                  markdown={markdownContent || ""}
+                  media={props.media}
                 />
               )}
             </div>
-          </div>
+          );
+        }
+        return (
+          <>
+            {/* Always render JsonPrettyTable to preserve internal React Table state */}
+            <div
+              className="io-message-content"
+              style={{ display: shouldUseTableView ? "flex" : "none" }}
+            >
+              <div
+                className={getContainerClasses(
+                  props.title,
+                  props.scrollable,
+                  props.codeClassName,
+                  "flex text-xs wrap-break-word whitespace-pre-wrap",
+                )}
+              >
+                {props.isLoading ? (
+                  <Skeleton className="m-3 h-3 w-3/4" />
+                ) : (
+                  <JsonPrettyTable
+                    data={tableData}
+                    expandAllRef={expandAllRef}
+                    onExpandStateChange={setAllRowsExpanded}
+                    noBorder={true}
+                    expanded={
+                      actualExpansionState === false ? {} : actualExpansionState
+                    }
+                    onExpandedChange={handleTableExpandedChange}
+                    onLazyLoadChildren={handleLazyLoadChildren}
+                    onForceUpdate={handleForceUpdate}
+                    smartDefaultsLevel={null}
+                    expandedCells={expandedCells}
+                    toggleCellExpansion={toggleCellExpansion}
+                    stickyTopLevelKey={props.stickyTopLevelKey}
+                    showObservationTypeBadge={props.showObservationTypeBadge}
+                    metadataActions={props.metadataActions}
+                  />
+                )}
+              </div>
+            </div>
 
-          {/* Always render JSONView to preserve its state too */}
-          <div
-            className="io-message-content"
-            style={{ display: shouldUseTableView ? "none" : "block" }}
-          >
-            <JSONView
-              // Use the unicode-decoded payload so that \uXXXX escapes from
-              // Python SDK ensure_ascii=True render as original characters.
-              // Pass a clone to avoid JSONView's internal deepParseJson
-              // mutating the shared parsedJson / rawChildData tree.
-              json={jsonViewInput}
-              title={props.title} // Title value used for background styling
-              hideTitle={true} // But hide the title, we display it
-              className=""
-              isLoading={props.isLoading}
-              codeClassName={props.codeClassName}
-              collapseStringsAfterLength={props.collapseStringsAfterLength}
-              media={props.media}
-              scrollable={props.scrollable}
-              externalJsonCollapsed={jsonIsCollapsed}
-              onToggleCollapse={handleJsonToggleCollapse}
-            />
-          </div>
-        </>
-      )}
+            {/* Always render JSONView to preserve its state too */}
+            <div
+              className="io-message-content"
+              style={{ display: shouldUseTableView ? "none" : "block" }}
+            >
+              <JSONView
+                // Use the unicode-decoded payload so that \uXXXX escapes from
+                // Python SDK ensure_ascii=True render as original characters.
+                // Pass a clone to avoid JSONView's internal deepParseJson
+                // mutating the shared parsedJson / rawChildData tree.
+                json={jsonViewInput}
+                title={props.title} // Title value used for background styling
+                hideTitle={true} // But hide the title, we display it
+                className=""
+                isLoading={props.isLoading}
+                codeClassName={props.codeClassName}
+                collapseStringsAfterLength={props.collapseStringsAfterLength}
+                media={props.media}
+                scrollable={props.scrollable}
+                externalJsonCollapsed={jsonIsCollapsed}
+                onToggleCollapse={handleJsonToggleCollapse}
+              />
+            </div>
+          </>
+        );
+      })()}
       {shouldRenderStandaloneMedia && remainingMarkdownMedia.length > 0 && (
         <>
           <div className="text-muted-foreground my-1 px-2 py-1 text-xs">
@@ -1538,22 +1551,28 @@ export function PrettyJsonView(props: {
         />
       ) : null}
       {props.afterHeader}
-      {props.scrollable ? (
-        <div
-          className={cn(
-            "flex h-full min-h-0 overflow-hidden",
-            isMarkdownMode ? getBackgroundColorClass() : "rounded-sm border",
-          )}
-        >
-          <div className="max-h-full min-h-0 w-full overflow-y-auto">
-            {body}
-          </div>
-        </div>
-      ) : isMarkdownMode ? (
-        <div className={getBackgroundColorClass()}>{body}</div>
-      ) : (
-        body
-      )}
+      {(() => {
+        if (props.scrollable) {
+          return (
+            <div
+              className={cn(
+                "flex h-full min-h-0 overflow-hidden",
+                isMarkdownMode
+                  ? getBackgroundColorClass()
+                  : "rounded-sm border",
+              )}
+            >
+              <div className="max-h-full min-h-0 w-full overflow-y-auto">
+                {body}
+              </div>
+            </div>
+          );
+        }
+        if (isMarkdownMode) {
+          return <div className={getBackgroundColorClass()}>{body}</div>;
+        }
+        return body;
+      })()}
     </div>
   );
 }

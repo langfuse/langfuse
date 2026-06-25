@@ -561,22 +561,28 @@ export function MarkdownView({
                   ? getSafeImageUrl(imageUrl)
                   : null;
 
-              return safeImageUrl ? (
-                <div key={index}>
-                  <ResizableImage src={safeImageUrl} />
-                </div>
-              ) : MediaReferenceStringSchema.safeParse(imageUrl).success ? (
-                <LangfuseMediaView mediaReferenceString={imageUrl} />
-              ) : (
-                <div className="grid grid-cols-[auto_1fr] items-center gap-2">
-                  <span title="<Base64 data URI>" className="h-4 w-4">
-                    <ImageOff className="h-4 w-4" />
-                  </span>
-                  <span className="truncate text-sm">
-                    {imageUrl.toString()}
-                  </span>
-                </div>
-              );
+              return (() => {
+                if (safeImageUrl) {
+                  return (
+                    <div key={index}>
+                      <ResizableImage src={safeImageUrl} />
+                    </div>
+                  );
+                }
+                if (MediaReferenceStringSchema.safeParse(imageUrl).success) {
+                  return <LangfuseMediaView mediaReferenceString={imageUrl} />;
+                }
+                return (
+                  <div className="grid grid-cols-[auto_1fr] items-center gap-2">
+                    <span title="<Base64 data URI>" className="h-4 w-4">
+                      <ImageOff className="h-4 w-4" />
+                    </span>
+                    <span className="truncate text-sm">
+                      {imageUrl.toString()}
+                    </span>
+                  </div>
+                );
+              })();
             }
 
             return content.type === "input_audio" ? (

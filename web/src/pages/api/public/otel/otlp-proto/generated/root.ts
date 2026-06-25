@@ -495,15 +495,18 @@ $root.opentelemetry = (function () {
                     ? String(message.intValue)
                     : message.intValue;
               else
-                object.intValue =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.intValue)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.intValue.low >>> 0,
-                          message.intValue.high >>> 0,
-                        ).toNumber()
-                      : message.intValue;
+                object.intValue = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(message.intValue);
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.intValue.low >>> 0,
+                      message.intValue.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.intValue;
+                })();
               if (options.oneofs) object.value = "intValue";
             }
             if (
@@ -542,16 +545,19 @@ $root.opentelemetry = (function () {
               message.bytesValue != null &&
               message.hasOwnProperty("bytesValue")
             ) {
-              object.bytesValue =
-                options.bytes === String
-                  ? $util.base64.encode(
-                      message.bytesValue,
-                      0,
-                      message.bytesValue.length,
-                    )
-                  : options.bytes === Array
-                    ? Array.prototype.slice.call(message.bytesValue)
-                    : message.bytesValue;
+              object.bytesValue = (() => {
+                if (options.bytes === String) {
+                  return $util.base64.encode(
+                    message.bytesValue,
+                    0,
+                    message.bytesValue.length,
+                  );
+                }
+                if (options.bytes === Array) {
+                  return Array.prototype.slice.call(message.bytesValue);
+                }
+                return message.bytesValue;
+              })();
               if (options.oneofs) object.value = "bytesValue";
             }
             return object;
@@ -3598,22 +3604,28 @@ $root.opentelemetry = (function () {
                 options.enums === String ? "SPAN_KIND_UNSPECIFIED" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else
                 object.startTimeUnixNano = options.longs === String ? "0" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.endTimeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.endTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else
                 object.endTimeUnixNano = options.longs === String ? "0" : 0;
               object.droppedAttributesCount = 0;
@@ -3622,27 +3634,33 @@ $root.opentelemetry = (function () {
               object.status = null;
             }
             if (message.traceId != null && message.hasOwnProperty("traceId"))
-              object.traceId =
-                options.bytes === String
-                  ? $util.base64.encode(
-                      message.traceId,
-                      0,
-                      message.traceId.length,
-                    )
-                  : options.bytes === Array
-                    ? Array.prototype.slice.call(message.traceId)
-                    : message.traceId;
+              object.traceId = (() => {
+                if (options.bytes === String) {
+                  return $util.base64.encode(
+                    message.traceId,
+                    0,
+                    message.traceId.length,
+                  );
+                }
+                if (options.bytes === Array) {
+                  return Array.prototype.slice.call(message.traceId);
+                }
+                return message.traceId;
+              })();
             if (message.spanId != null && message.hasOwnProperty("spanId"))
-              object.spanId =
-                options.bytes === String
-                  ? $util.base64.encode(
-                      message.spanId,
-                      0,
-                      message.spanId.length,
-                    )
-                  : options.bytes === Array
-                    ? Array.prototype.slice.call(message.spanId)
-                    : message.spanId;
+              object.spanId = (() => {
+                if (options.bytes === String) {
+                  return $util.base64.encode(
+                    message.spanId,
+                    0,
+                    message.spanId.length,
+                  );
+                }
+                if (options.bytes === Array) {
+                  return Array.prototype.slice.call(message.spanId);
+                }
+                return message.spanId;
+              })();
             if (
               message.traceState != null &&
               message.hasOwnProperty("traceState")
@@ -3652,16 +3670,19 @@ $root.opentelemetry = (function () {
               message.parentSpanId != null &&
               message.hasOwnProperty("parentSpanId")
             )
-              object.parentSpanId =
-                options.bytes === String
-                  ? $util.base64.encode(
-                      message.parentSpanId,
-                      0,
-                      message.parentSpanId.length,
-                    )
-                  : options.bytes === Array
-                    ? Array.prototype.slice.call(message.parentSpanId)
-                    : message.parentSpanId;
+              object.parentSpanId = (() => {
+                if (options.bytes === String) {
+                  return $util.base64.encode(
+                    message.parentSpanId,
+                    0,
+                    message.parentSpanId.length,
+                  );
+                }
+                if (options.bytes === Array) {
+                  return Array.prototype.slice.call(message.parentSpanId);
+                }
+                return message.parentSpanId;
+              })();
             if (message.name != null && message.hasOwnProperty("name"))
               object.name = message.name;
             if (message.kind != null && message.hasOwnProperty("kind"))
@@ -3685,17 +3706,20 @@ $root.opentelemetry = (function () {
                     ? String(message.startTimeUnixNano)
                     : message.startTimeUnixNano;
               else
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(
-                        message.startTimeUnixNano,
-                      )
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.startTimeUnixNano.low >>> 0,
-                          message.startTimeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.startTimeUnixNano;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.startTimeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.startTimeUnixNano.low >>> 0,
+                      message.startTimeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.startTimeUnixNano;
+                })();
             if (
               message.endTimeUnixNano != null &&
               message.hasOwnProperty("endTimeUnixNano")
@@ -3706,17 +3730,20 @@ $root.opentelemetry = (function () {
                     ? String(message.endTimeUnixNano)
                     : message.endTimeUnixNano;
               else
-                object.endTimeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(
-                        message.endTimeUnixNano,
-                      )
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.endTimeUnixNano.low >>> 0,
-                          message.endTimeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.endTimeUnixNano;
+                object.endTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.endTimeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.endTimeUnixNano.low >>> 0,
+                      message.endTimeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.endTimeUnixNano;
+                })();
             if (message.attributes && message.attributes.length) {
               object.attributes = [];
               for (var j = 0; j < message.attributes.length; ++j)
@@ -4112,12 +4139,15 @@ $root.opentelemetry = (function () {
               if (options.defaults) {
                 if ($util.Long) {
                   var long = new $util.Long(0, 0, false);
-                  object.timeUnixNano =
-                    options.longs === String
-                      ? long.toString()
-                      : options.longs === Number
-                        ? long.toNumber()
-                        : long;
+                  object.timeUnixNano = (() => {
+                    if (options.longs === String) {
+                      return long.toString();
+                    }
+                    if (options.longs === Number) {
+                      return long.toNumber();
+                    }
+                    return long;
+                  })();
                 } else object.timeUnixNano = options.longs === String ? "0" : 0;
                 object.name = "";
                 object.droppedAttributesCount = 0;
@@ -4132,15 +4162,20 @@ $root.opentelemetry = (function () {
                       ? String(message.timeUnixNano)
                       : message.timeUnixNano;
                 else
-                  object.timeUnixNano =
-                    options.longs === String
-                      ? $util.Long.prototype.toString.call(message.timeUnixNano)
-                      : options.longs === Number
-                        ? new $util.LongBits(
-                            message.timeUnixNano.low >>> 0,
-                            message.timeUnixNano.high >>> 0,
-                          ).toNumber()
-                        : message.timeUnixNano;
+                  object.timeUnixNano = (() => {
+                    if (options.longs === String) {
+                      return $util.Long.prototype.toString.call(
+                        message.timeUnixNano,
+                      );
+                    }
+                    if (options.longs === Number) {
+                      return new $util.LongBits(
+                        message.timeUnixNano.low >>> 0,
+                        message.timeUnixNano.high >>> 0,
+                      ).toNumber();
+                    }
+                    return message.timeUnixNano;
+                  })();
               if (message.name != null && message.hasOwnProperty("name"))
                 object.name = message.name;
               if (message.attributes && message.attributes.length) {
@@ -4534,27 +4569,33 @@ $root.opentelemetry = (function () {
                 object.droppedAttributesCount = 0;
               }
               if (message.traceId != null && message.hasOwnProperty("traceId"))
-                object.traceId =
-                  options.bytes === String
-                    ? $util.base64.encode(
-                        message.traceId,
-                        0,
-                        message.traceId.length,
-                      )
-                    : options.bytes === Array
-                      ? Array.prototype.slice.call(message.traceId)
-                      : message.traceId;
+                object.traceId = (() => {
+                  if (options.bytes === String) {
+                    return $util.base64.encode(
+                      message.traceId,
+                      0,
+                      message.traceId.length,
+                    );
+                  }
+                  if (options.bytes === Array) {
+                    return Array.prototype.slice.call(message.traceId);
+                  }
+                  return message.traceId;
+                })();
               if (message.spanId != null && message.hasOwnProperty("spanId"))
-                object.spanId =
-                  options.bytes === String
-                    ? $util.base64.encode(
-                        message.spanId,
-                        0,
-                        message.spanId.length,
-                      )
-                    : options.bytes === Array
-                      ? Array.prototype.slice.call(message.spanId)
-                      : message.spanId;
+                object.spanId = (() => {
+                  if (options.bytes === String) {
+                    return $util.base64.encode(
+                      message.spanId,
+                      0,
+                      message.spanId.length,
+                    );
+                  }
+                  if (options.bytes === Array) {
+                    return Array.prototype.slice.call(message.spanId);
+                  }
+                  return message.spanId;
+                })();
               if (
                 message.traceState != null &&
                 message.hasOwnProperty("traceState")
@@ -5725,12 +5766,15 @@ $root.opentelemetry = (function () {
               if (options.defaults) {
                 if ($util.Long) {
                   var long = new $util.Long(0, 0, false);
-                  object.rejectedSpans =
-                    options.longs === String
-                      ? long.toString()
-                      : options.longs === Number
-                        ? long.toNumber()
-                        : long;
+                  object.rejectedSpans = (() => {
+                    if (options.longs === String) {
+                      return long.toString();
+                    }
+                    if (options.longs === Number) {
+                      return long.toNumber();
+                    }
+                    return long;
+                  })();
                 } else
                   object.rejectedSpans = options.longs === String ? "0" : 0;
                 object.errorMessage = "";
@@ -5745,17 +5789,20 @@ $root.opentelemetry = (function () {
                       ? String(message.rejectedSpans)
                       : message.rejectedSpans;
                 else
-                  object.rejectedSpans =
-                    options.longs === String
-                      ? $util.Long.prototype.toString.call(
-                          message.rejectedSpans,
-                        )
-                      : options.longs === Number
-                        ? new $util.LongBits(
-                            message.rejectedSpans.low >>> 0,
-                            message.rejectedSpans.high >>> 0,
-                          ).toNumber()
-                        : message.rejectedSpans;
+                  object.rejectedSpans = (() => {
+                    if (options.longs === String) {
+                      return $util.Long.prototype.toString.call(
+                        message.rejectedSpans,
+                      );
+                    }
+                    if (options.longs === Number) {
+                      return new $util.LongBits(
+                        message.rejectedSpans.low >>> 0,
+                        message.rejectedSpans.high >>> 0,
+                      ).toNumber();
+                    }
+                    return message.rejectedSpans;
+                  })();
               if (
                 message.errorMessage != null &&
                 message.hasOwnProperty("errorMessage")
@@ -6658,12 +6705,15 @@ $root.opentelemetry = (function () {
               if (options.defaults) {
                 if ($util.Long) {
                   var long = new $util.Long(0, 0, false);
-                  object.rejectedDataPoints =
-                    options.longs === String
-                      ? long.toString()
-                      : options.longs === Number
-                        ? long.toNumber()
-                        : long;
+                  object.rejectedDataPoints = (() => {
+                    if (options.longs === String) {
+                      return long.toString();
+                    }
+                    if (options.longs === Number) {
+                      return long.toNumber();
+                    }
+                    return long;
+                  })();
                 } else
                   object.rejectedDataPoints =
                     options.longs === String ? "0" : 0;
@@ -6679,17 +6729,20 @@ $root.opentelemetry = (function () {
                       ? String(message.rejectedDataPoints)
                       : message.rejectedDataPoints;
                 else
-                  object.rejectedDataPoints =
-                    options.longs === String
-                      ? $util.Long.prototype.toString.call(
-                          message.rejectedDataPoints,
-                        )
-                      : options.longs === Number
-                        ? new $util.LongBits(
-                            message.rejectedDataPoints.low >>> 0,
-                            message.rejectedDataPoints.high >>> 0,
-                          ).toNumber()
-                        : message.rejectedDataPoints;
+                  object.rejectedDataPoints = (() => {
+                    if (options.longs === String) {
+                      return $util.Long.prototype.toString.call(
+                        message.rejectedDataPoints,
+                      );
+                    }
+                    if (options.longs === Number) {
+                      return new $util.LongBits(
+                        message.rejectedDataPoints.low >>> 0,
+                        message.rejectedDataPoints.high >>> 0,
+                      ).toNumber();
+                    }
+                    return message.rejectedDataPoints;
+                  })();
               if (
                 message.errorMessage != null &&
                 message.hasOwnProperty("errorMessage")
@@ -7563,12 +7616,15 @@ $root.opentelemetry = (function () {
               if (options.defaults) {
                 if ($util.Long) {
                   var long = new $util.Long(0, 0, false);
-                  object.rejectedLogRecords =
-                    options.longs === String
-                      ? long.toString()
-                      : options.longs === Number
-                        ? long.toNumber()
-                        : long;
+                  object.rejectedLogRecords = (() => {
+                    if (options.longs === String) {
+                      return long.toString();
+                    }
+                    if (options.longs === Number) {
+                      return long.toNumber();
+                    }
+                    return long;
+                  })();
                 } else
                   object.rejectedLogRecords =
                     options.longs === String ? "0" : 0;
@@ -7584,17 +7640,20 @@ $root.opentelemetry = (function () {
                       ? String(message.rejectedLogRecords)
                       : message.rejectedLogRecords;
                 else
-                  object.rejectedLogRecords =
-                    options.longs === String
-                      ? $util.Long.prototype.toString.call(
-                          message.rejectedLogRecords,
-                        )
-                      : options.longs === Number
-                        ? new $util.LongBits(
-                            message.rejectedLogRecords.low >>> 0,
-                            message.rejectedLogRecords.high >>> 0,
-                          ).toNumber()
-                        : message.rejectedLogRecords;
+                  object.rejectedLogRecords = (() => {
+                    if (options.longs === String) {
+                      return $util.Long.prototype.toString.call(
+                        message.rejectedLogRecords,
+                      );
+                    }
+                    if (options.longs === Number) {
+                      return new $util.LongBits(
+                        message.rejectedLogRecords.low >>> 0,
+                        message.rejectedLogRecords.high >>> 0,
+                      ).toNumber();
+                    }
+                    return message.rejectedLogRecords;
+                  })();
               if (
                 message.errorMessage != null &&
                 message.hasOwnProperty("errorMessage")
@@ -11041,22 +11100,28 @@ $root.opentelemetry = (function () {
             if (options.defaults) {
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else
                 object.startTimeUnixNano = options.longs === String ? "0" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.timeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.timeUnixNano = options.longs === String ? "0" : 0;
               object.flags = 0;
             }
@@ -11070,17 +11135,20 @@ $root.opentelemetry = (function () {
                     ? String(message.startTimeUnixNano)
                     : message.startTimeUnixNano;
               else
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(
-                        message.startTimeUnixNano,
-                      )
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.startTimeUnixNano.low >>> 0,
-                          message.startTimeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.startTimeUnixNano;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.startTimeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.startTimeUnixNano.low >>> 0,
+                      message.startTimeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.startTimeUnixNano;
+                })();
             if (
               message.timeUnixNano != null &&
               message.hasOwnProperty("timeUnixNano")
@@ -11091,15 +11159,20 @@ $root.opentelemetry = (function () {
                     ? String(message.timeUnixNano)
                     : message.timeUnixNano;
               else
-                object.timeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.timeUnixNano)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.timeUnixNano.low >>> 0,
-                          message.timeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.timeUnixNano;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.timeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.timeUnixNano.low >>> 0,
+                      message.timeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.timeUnixNano;
+                })();
             if (
               message.asDouble != null &&
               message.hasOwnProperty("asDouble")
@@ -11126,15 +11199,18 @@ $root.opentelemetry = (function () {
                     ? String(message.asInt)
                     : message.asInt;
               else
-                object.asInt =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.asInt)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.asInt.low >>> 0,
-                          message.asInt.high >>> 0,
-                        ).toNumber()
-                      : message.asInt;
+                object.asInt = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(message.asInt);
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.asInt.low >>> 0,
+                      message.asInt.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.asInt;
+                })();
               if (options.oneofs) object.value = "asInt";
             }
             if (message.attributes && message.attributes.length) {
@@ -11809,31 +11885,40 @@ $root.opentelemetry = (function () {
             if (options.defaults) {
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else
                 object.startTimeUnixNano = options.longs === String ? "0" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.timeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.timeUnixNano = options.longs === String ? "0" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.count =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.count = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.count = options.longs === String ? "0" : 0;
               object.flags = 0;
             }
@@ -11847,17 +11932,20 @@ $root.opentelemetry = (function () {
                     ? String(message.startTimeUnixNano)
                     : message.startTimeUnixNano;
               else
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(
-                        message.startTimeUnixNano,
-                      )
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.startTimeUnixNano.low >>> 0,
-                          message.startTimeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.startTimeUnixNano;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.startTimeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.startTimeUnixNano.low >>> 0,
+                      message.startTimeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.startTimeUnixNano;
+                })();
             if (
               message.timeUnixNano != null &&
               message.hasOwnProperty("timeUnixNano")
@@ -11868,15 +11956,20 @@ $root.opentelemetry = (function () {
                     ? String(message.timeUnixNano)
                     : message.timeUnixNano;
               else
-                object.timeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.timeUnixNano)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.timeUnixNano.low >>> 0,
-                          message.timeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.timeUnixNano;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.timeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.timeUnixNano.low >>> 0,
+                      message.timeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.timeUnixNano;
+                })();
             if (message.count != null && message.hasOwnProperty("count"))
               if (typeof message.count === "number")
                 object.count =
@@ -11884,15 +11977,18 @@ $root.opentelemetry = (function () {
                     ? String(message.count)
                     : message.count;
               else
-                object.count =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.count)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.count.low >>> 0,
-                          message.count.high >>> 0,
-                        ).toNumber()
-                      : message.count;
+                object.count = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(message.count);
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.count.low >>> 0,
+                      message.count.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.count;
+                })();
             if (message.sum != null && message.hasOwnProperty("sum")) {
               object.sum =
                 options.json && !isFinite(message.sum)
@@ -11909,17 +12005,20 @@ $root.opentelemetry = (function () {
                       ? String(message.bucketCounts[j])
                       : message.bucketCounts[j];
                 else
-                  object.bucketCounts[j] =
-                    options.longs === String
-                      ? $util.Long.prototype.toString.call(
-                          message.bucketCounts[j],
-                        )
-                      : options.longs === Number
-                        ? new $util.LongBits(
-                            message.bucketCounts[j].low >>> 0,
-                            message.bucketCounts[j].high >>> 0,
-                          ).toNumber()
-                        : message.bucketCounts[j];
+                  object.bucketCounts[j] = (() => {
+                    if (options.longs === String) {
+                      return $util.Long.prototype.toString.call(
+                        message.bucketCounts[j],
+                      );
+                    }
+                    if (options.longs === Number) {
+                      return new $util.LongBits(
+                        message.bucketCounts[j].low >>> 0,
+                        message.bucketCounts[j].high >>> 0,
+                      ).toNumber();
+                    }
+                    return message.bucketCounts[j];
+                  })();
             }
             if (message.explicitBounds && message.explicitBounds.length) {
               object.explicitBounds = [];
@@ -12710,41 +12809,53 @@ $root.opentelemetry = (function () {
             if (options.defaults) {
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else
                 object.startTimeUnixNano = options.longs === String ? "0" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.timeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.timeUnixNano = options.longs === String ? "0" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.count =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.count = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.count = options.longs === String ? "0" : 0;
               object.scale = 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.zeroCount =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.zeroCount = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.zeroCount = options.longs === String ? "0" : 0;
               object.positive = null;
               object.negative = null;
@@ -12770,17 +12881,20 @@ $root.opentelemetry = (function () {
                     ? String(message.startTimeUnixNano)
                     : message.startTimeUnixNano;
               else
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(
-                        message.startTimeUnixNano,
-                      )
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.startTimeUnixNano.low >>> 0,
-                          message.startTimeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.startTimeUnixNano;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.startTimeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.startTimeUnixNano.low >>> 0,
+                      message.startTimeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.startTimeUnixNano;
+                })();
             if (
               message.timeUnixNano != null &&
               message.hasOwnProperty("timeUnixNano")
@@ -12791,15 +12905,20 @@ $root.opentelemetry = (function () {
                     ? String(message.timeUnixNano)
                     : message.timeUnixNano;
               else
-                object.timeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.timeUnixNano)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.timeUnixNano.low >>> 0,
-                          message.timeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.timeUnixNano;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.timeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.timeUnixNano.low >>> 0,
+                      message.timeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.timeUnixNano;
+                })();
             if (message.count != null && message.hasOwnProperty("count"))
               if (typeof message.count === "number")
                 object.count =
@@ -12807,15 +12926,18 @@ $root.opentelemetry = (function () {
                     ? String(message.count)
                     : message.count;
               else
-                object.count =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.count)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.count.low >>> 0,
-                          message.count.high >>> 0,
-                        ).toNumber()
-                      : message.count;
+                object.count = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(message.count);
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.count.low >>> 0,
+                      message.count.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.count;
+                })();
             if (message.sum != null && message.hasOwnProperty("sum")) {
               object.sum =
                 options.json && !isFinite(message.sum)
@@ -12835,15 +12957,20 @@ $root.opentelemetry = (function () {
                     ? String(message.zeroCount)
                     : message.zeroCount;
               else
-                object.zeroCount =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.zeroCount)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.zeroCount.low >>> 0,
-                          message.zeroCount.high >>> 0,
-                        ).toNumber()
-                      : message.zeroCount;
+                object.zeroCount = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.zeroCount,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.zeroCount.low >>> 0,
+                      message.zeroCount.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.zeroCount;
+                })();
             if (message.positive != null && message.hasOwnProperty("positive"))
               object.positive =
                 $root.opentelemetry.proto.metrics.v1.ExponentialHistogramDataPoint.Buckets.toObject(
@@ -13170,17 +13297,20 @@ $root.opentelemetry = (function () {
                         ? String(message.bucketCounts[j])
                         : message.bucketCounts[j];
                   else
-                    object.bucketCounts[j] =
-                      options.longs === String
-                        ? $util.Long.prototype.toString.call(
-                            message.bucketCounts[j],
-                          )
-                        : options.longs === Number
-                          ? new $util.LongBits(
-                              message.bucketCounts[j].low >>> 0,
-                              message.bucketCounts[j].high >>> 0,
-                            ).toNumber(true)
-                          : message.bucketCounts[j];
+                    object.bucketCounts[j] = (() => {
+                      if (options.longs === String) {
+                        return $util.Long.prototype.toString.call(
+                          message.bucketCounts[j],
+                        );
+                      }
+                      if (options.longs === Number) {
+                        return new $util.LongBits(
+                          message.bucketCounts[j].low >>> 0,
+                          message.bucketCounts[j].high >>> 0,
+                        ).toNumber(true);
+                      }
+                      return message.bucketCounts[j];
+                    })();
               }
               return object;
             };
@@ -13663,31 +13793,40 @@ $root.opentelemetry = (function () {
             if (options.defaults) {
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else
                 object.startTimeUnixNano = options.longs === String ? "0" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.timeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.timeUnixNano = options.longs === String ? "0" : 0;
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.count =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.count = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.count = options.longs === String ? "0" : 0;
               object.sum = 0;
               object.flags = 0;
@@ -13702,17 +13841,20 @@ $root.opentelemetry = (function () {
                     ? String(message.startTimeUnixNano)
                     : message.startTimeUnixNano;
               else
-                object.startTimeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(
-                        message.startTimeUnixNano,
-                      )
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.startTimeUnixNano.low >>> 0,
-                          message.startTimeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.startTimeUnixNano;
+                object.startTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.startTimeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.startTimeUnixNano.low >>> 0,
+                      message.startTimeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.startTimeUnixNano;
+                })();
             if (
               message.timeUnixNano != null &&
               message.hasOwnProperty("timeUnixNano")
@@ -13723,15 +13865,20 @@ $root.opentelemetry = (function () {
                     ? String(message.timeUnixNano)
                     : message.timeUnixNano;
               else
-                object.timeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.timeUnixNano)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.timeUnixNano.low >>> 0,
-                          message.timeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.timeUnixNano;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.timeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.timeUnixNano.low >>> 0,
+                      message.timeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.timeUnixNano;
+                })();
             if (message.count != null && message.hasOwnProperty("count"))
               if (typeof message.count === "number")
                 object.count =
@@ -13739,15 +13886,18 @@ $root.opentelemetry = (function () {
                     ? String(message.count)
                     : message.count;
               else
-                object.count =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.count)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.count.low >>> 0,
-                          message.count.high >>> 0,
-                        ).toNumber()
-                      : message.count;
+                object.count = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(message.count);
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.count.low >>> 0,
+                      message.count.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.count;
+                })();
             if (message.sum != null && message.hasOwnProperty("sum"))
               object.sum =
                 options.json && !isFinite(message.sum)
@@ -14464,12 +14614,15 @@ $root.opentelemetry = (function () {
             if (options.defaults) {
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.timeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.timeUnixNano = options.longs === String ? "0" : 0;
               if (options.bytes === String) object.spanId = "";
               else {
@@ -14494,15 +14647,20 @@ $root.opentelemetry = (function () {
                     ? String(message.timeUnixNano)
                     : message.timeUnixNano;
               else
-                object.timeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.timeUnixNano)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.timeUnixNano.low >>> 0,
-                          message.timeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.timeUnixNano;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.timeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.timeUnixNano.low >>> 0,
+                      message.timeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.timeUnixNano;
+                })();
             if (
               message.asDouble != null &&
               message.hasOwnProperty("asDouble")
@@ -14514,27 +14672,33 @@ $root.opentelemetry = (function () {
               if (options.oneofs) object.value = "asDouble";
             }
             if (message.spanId != null && message.hasOwnProperty("spanId"))
-              object.spanId =
-                options.bytes === String
-                  ? $util.base64.encode(
-                      message.spanId,
-                      0,
-                      message.spanId.length,
-                    )
-                  : options.bytes === Array
-                    ? Array.prototype.slice.call(message.spanId)
-                    : message.spanId;
+              object.spanId = (() => {
+                if (options.bytes === String) {
+                  return $util.base64.encode(
+                    message.spanId,
+                    0,
+                    message.spanId.length,
+                  );
+                }
+                if (options.bytes === Array) {
+                  return Array.prototype.slice.call(message.spanId);
+                }
+                return message.spanId;
+              })();
             if (message.traceId != null && message.hasOwnProperty("traceId"))
-              object.traceId =
-                options.bytes === String
-                  ? $util.base64.encode(
-                      message.traceId,
-                      0,
-                      message.traceId.length,
-                    )
-                  : options.bytes === Array
-                    ? Array.prototype.slice.call(message.traceId)
-                    : message.traceId;
+              object.traceId = (() => {
+                if (options.bytes === String) {
+                  return $util.base64.encode(
+                    message.traceId,
+                    0,
+                    message.traceId.length,
+                  );
+                }
+                if (options.bytes === Array) {
+                  return Array.prototype.slice.call(message.traceId);
+                }
+                return message.traceId;
+              })();
             if (message.asInt != null && message.hasOwnProperty("asInt")) {
               if (typeof message.asInt === "number")
                 object.asInt =
@@ -14542,15 +14706,18 @@ $root.opentelemetry = (function () {
                     ? String(message.asInt)
                     : message.asInt;
               else
-                object.asInt =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.asInt)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.asInt.low >>> 0,
-                          message.asInt.high >>> 0,
-                        ).toNumber()
-                      : message.asInt;
+                object.asInt = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(message.asInt);
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.asInt.low >>> 0,
+                      message.asInt.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.asInt;
+                })();
               if (options.oneofs) object.value = "asInt";
             }
             if (
@@ -16217,12 +16384,15 @@ $root.opentelemetry = (function () {
             if (options.defaults) {
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.timeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else object.timeUnixNano = options.longs === String ? "0" : 0;
               object.severityNumber =
                 options.enums === String ? "SEVERITY_NUMBER_UNSPECIFIED" : 0;
@@ -16244,12 +16414,15 @@ $root.opentelemetry = (function () {
               }
               if ($util.Long) {
                 var long = new $util.Long(0, 0, false);
-                object.observedTimeUnixNano =
-                  options.longs === String
-                    ? long.toString()
-                    : options.longs === Number
-                      ? long.toNumber()
-                      : long;
+                object.observedTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return long.toString();
+                  }
+                  if (options.longs === Number) {
+                    return long.toNumber();
+                  }
+                  return long;
+                })();
               } else
                 object.observedTimeUnixNano =
                   options.longs === String ? "0" : 0;
@@ -16264,15 +16437,20 @@ $root.opentelemetry = (function () {
                     ? String(message.timeUnixNano)
                     : message.timeUnixNano;
               else
-                object.timeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(message.timeUnixNano)
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.timeUnixNano.low >>> 0,
-                          message.timeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.timeUnixNano;
+                object.timeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.timeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.timeUnixNano.low >>> 0,
+                      message.timeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.timeUnixNano;
+                })();
             if (
               message.severityNumber != null &&
               message.hasOwnProperty("severityNumber")
@@ -16315,27 +16493,33 @@ $root.opentelemetry = (function () {
             if (message.flags != null && message.hasOwnProperty("flags"))
               object.flags = message.flags;
             if (message.traceId != null && message.hasOwnProperty("traceId"))
-              object.traceId =
-                options.bytes === String
-                  ? $util.base64.encode(
-                      message.traceId,
-                      0,
-                      message.traceId.length,
-                    )
-                  : options.bytes === Array
-                    ? Array.prototype.slice.call(message.traceId)
-                    : message.traceId;
+              object.traceId = (() => {
+                if (options.bytes === String) {
+                  return $util.base64.encode(
+                    message.traceId,
+                    0,
+                    message.traceId.length,
+                  );
+                }
+                if (options.bytes === Array) {
+                  return Array.prototype.slice.call(message.traceId);
+                }
+                return message.traceId;
+              })();
             if (message.spanId != null && message.hasOwnProperty("spanId"))
-              object.spanId =
-                options.bytes === String
-                  ? $util.base64.encode(
-                      message.spanId,
-                      0,
-                      message.spanId.length,
-                    )
-                  : options.bytes === Array
-                    ? Array.prototype.slice.call(message.spanId)
-                    : message.spanId;
+              object.spanId = (() => {
+                if (options.bytes === String) {
+                  return $util.base64.encode(
+                    message.spanId,
+                    0,
+                    message.spanId.length,
+                  );
+                }
+                if (options.bytes === Array) {
+                  return Array.prototype.slice.call(message.spanId);
+                }
+                return message.spanId;
+              })();
             if (
               message.observedTimeUnixNano != null &&
               message.hasOwnProperty("observedTimeUnixNano")
@@ -16346,17 +16530,20 @@ $root.opentelemetry = (function () {
                     ? String(message.observedTimeUnixNano)
                     : message.observedTimeUnixNano;
               else
-                object.observedTimeUnixNano =
-                  options.longs === String
-                    ? $util.Long.prototype.toString.call(
-                        message.observedTimeUnixNano,
-                      )
-                    : options.longs === Number
-                      ? new $util.LongBits(
-                          message.observedTimeUnixNano.low >>> 0,
-                          message.observedTimeUnixNano.high >>> 0,
-                        ).toNumber()
-                      : message.observedTimeUnixNano;
+                object.observedTimeUnixNano = (() => {
+                  if (options.longs === String) {
+                    return $util.Long.prototype.toString.call(
+                      message.observedTimeUnixNano,
+                    );
+                  }
+                  if (options.longs === Number) {
+                    return new $util.LongBits(
+                      message.observedTimeUnixNano.low >>> 0,
+                      message.observedTimeUnixNano.high >>> 0,
+                    ).toNumber();
+                  }
+                  return message.observedTimeUnixNano;
+                })();
             return object;
           };
           /**

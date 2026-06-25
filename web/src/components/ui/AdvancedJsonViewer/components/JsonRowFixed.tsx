@@ -41,11 +41,15 @@ export function JsonRowFixed({
   isToggling = false,
 }: JsonRowFixedProps) {
   // Calculate background based on search match
-  const backgroundColor = isCurrentMatch
-    ? theme.searchCurrentBackground
-    : searchMatch
-      ? theme.searchMatchBackground
-      : "transparent";
+  const backgroundColor = (() => {
+    if (isCurrentMatch) {
+      return theme.searchCurrentBackground;
+    }
+    if (searchMatch) {
+      return theme.searchMatchBackground;
+    }
+    return "transparent";
+  })();
 
   return (
     <div

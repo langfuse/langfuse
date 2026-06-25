@@ -186,8 +186,15 @@ function PreviewCard({
   pathErrors = [],
   pathMisses = [],
 }: PreviewCardProps) {
-  const variant: IssueVariant | null =
-    pathErrors.length > 0 ? "error" : pathMisses.length > 0 ? "warning" : null;
+  const variant: IssueVariant | null = (() => {
+    if (pathErrors.length > 0) {
+      return "error";
+    }
+    if (pathMisses.length > 0) {
+      return "warning";
+    }
+    return null;
+  })();
   const Icon = variant ? issueIcons[variant] : null;
 
   return (

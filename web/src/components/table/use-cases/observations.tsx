@@ -1446,21 +1446,23 @@ export default function ObservationsTable({
               columns={columns}
               peekView={peekConfig}
               selectionStore={observationsTableStore}
-              data={
-                generations.isPending || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : generations.error
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: generations.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: rows,
-                      }
-              }
+              data={(() => {
+                if (generations.isPending || isViewLoading) {
+                  return { isLoading: true, isError: false };
+                }
+                if (generations.error) {
+                  return {
+                    isLoading: false,
+                    isError: true,
+                    error: generations.error.message,
+                  };
+                }
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: rows,
+                };
+              })()}
               pagination={
                 limitRows
                   ? undefined
@@ -1705,12 +1707,15 @@ const GenerationsDynamicCell = ({
     },
   );
 
-  const data =
-    col === "output"
-      ? observation.data?.output
-      : col === "input"
-        ? observation.data?.input
-        : observation.data?.metadata;
+  const data = (() => {
+    if (col === "output") {
+      return observation.data?.output;
+    }
+    if (col === "input") {
+      return observation.data?.input;
+    }
+    return observation.data?.metadata;
+  })();
 
   return (
     <MemoizedIOTableCell

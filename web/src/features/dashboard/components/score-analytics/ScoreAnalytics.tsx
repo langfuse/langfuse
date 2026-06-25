@@ -98,113 +98,121 @@ export function ScoreAnalytics(props: {
         )
       }
     >
-      {Boolean(scoreKeysAndProps.data?.scoreColumns.length) &&
-      Boolean(scoreAnalyticsValues.length) ? (
-        <div className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground grid grid-flow-row gap-4">
-          {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
-            const scoreData = scoreKeyToData.get(scoreKey);
-            if (!scoreData) return null;
-            const { name, dataType, source } = scoreData;
+      {(() => {
+        if (
+          Boolean(scoreKeysAndProps.data?.scoreColumns.length) &&
+          Boolean(scoreAnalyticsValues.length)
+        ) {
+          return (
+            <div className="[&_text]:fill-muted-foreground [&_tspan]:fill-muted-foreground grid grid-flow-row gap-4">
+              {scoreAnalyticsValues.map(({ key: scoreKey }, index) => {
+                const scoreData = scoreKeyToData.get(scoreKey);
+                if (!scoreData) return null;
+                const { name, dataType, source } = scoreData;
 
-            return (
-              <div key={scoreKey}>
-                <div>{`${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`}</div>
-                <div className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-4">
-                  {/* aggregate */}
-                  <div>
-                    <div className="text-muted-foreground mb-2 text-sm">
-                      Total aggregate scores
-                      {isNumericDataType(dataType) && (
-                        // TODO: v2 histogram aggregates all rows server-side (no 10k cap).
-                        // Make this tooltip conditional on metricsVersion.
-                        <DocPopup description="Aggregate of up to 10,000 scores" />
-                      )}
+                return (
+                  <div key={scoreKey}>
+                    <div>{`${getScoreDataTypeIcon(dataType)} ${name} (${source.toLowerCase()})`}</div>
+                    <div className="mt-2 grid gap-2 lg:grid-cols-2 lg:gap-4">
+                      {/* aggregate */}
+                      <div>
+                        <div className="text-muted-foreground mb-2 text-sm">
+                          Total aggregate scores
+                          {isNumericDataType(dataType) && (
+                            // TODO: v2 histogram aggregates all rows server-side (no 10k cap).
+                            // Make this tooltip conditional on metricsVersion.
+                            <DocPopup description="Aggregate of up to 10,000 scores" />
+                          )}
+                        </div>
+                        {isCategoricalDataType(dataType) && (
+                          <CategoricalScoreChart
+                            projectId={props.projectId}
+                            scoreData={scoreData}
+                            globalFilterState={props.globalFilterState}
+                            fromTimestamp={props.fromTimestamp}
+                            toTimestamp={props.toTimestamp}
+                            metricsVersion={props.metricsVersion}
+                            schedulerId={props.schedulerId}
+                          />
+                        )}
+                        {(isNumericDataType(dataType) ||
+                          isBooleanDataType(dataType)) && (
+                          <NumericScoreHistogram
+                            projectId={props.projectId}
+                            source={source}
+                            name={name}
+                            dataType={
+                              dataType as Extract<
+                                ScoreDataTypeType,
+                                "NUMERIC" | "BOOLEAN"
+                              >
+                            }
+                            globalFilterState={props.globalFilterState}
+                            metricsVersion={props.metricsVersion}
+                          />
+                        )}
+                      </div>
+                      {/* timeseries */}
+                      <div>
+                        <div className="text-muted-foreground mb-2 text-sm">
+                          {isNumericDataType(dataType)
+                            ? "Moving average over time"
+                            : "Scores over time"}
+                        </div>
+                        {isCategoricalDataType(dataType) && (
+                          <CategoricalScoreChart
+                            projectId={props.projectId}
+                            agg={props.agg}
+                            scoreData={scoreData}
+                            globalFilterState={props.globalFilterState}
+                            fromTimestamp={props.fromTimestamp}
+                            toTimestamp={props.toTimestamp}
+                            metricsVersion={props.metricsVersion}
+                            schedulerId={props.schedulerId}
+                          />
+                        )}
+                        {(isNumericDataType(dataType) ||
+                          isBooleanDataType(dataType)) && (
+                          <NumericScoreTimeSeriesChart
+                            agg={props.agg}
+                            source={source}
+                            name={name}
+                            dataType={
+                              dataType as Extract<
+                                ScoreDataTypeType,
+                                "NUMERIC" | "BOOLEAN"
+                              >
+                            }
+                            projectId={props.projectId}
+                            globalFilterState={props.globalFilterState}
+                            fromTimestamp={props.fromTimestamp}
+                            toTimestamp={props.toTimestamp}
+                            metricsVersion={props.metricsVersion}
+                            schedulerId={props.schedulerId}
+                          />
+                        )}
+                      </div>
                     </div>
-                    {isCategoricalDataType(dataType) && (
-                      <CategoricalScoreChart
-                        projectId={props.projectId}
-                        scoreData={scoreData}
-                        globalFilterState={props.globalFilterState}
-                        fromTimestamp={props.fromTimestamp}
-                        toTimestamp={props.toTimestamp}
-                        metricsVersion={props.metricsVersion}
-                        schedulerId={props.schedulerId}
-                      />
-                    )}
-                    {(isNumericDataType(dataType) ||
-                      isBooleanDataType(dataType)) && (
-                      <NumericScoreHistogram
-                        projectId={props.projectId}
-                        source={source}
-                        name={name}
-                        dataType={
-                          dataType as Extract<
-                            ScoreDataTypeType,
-                            "NUMERIC" | "BOOLEAN"
-                          >
-                        }
-                        globalFilterState={props.globalFilterState}
-                        metricsVersion={props.metricsVersion}
-                      />
+                    {scoreAnalyticsValues.length - 1 > index && (
+                      <Separator className="mt-6 opacity-70" />
                     )}
                   </div>
-                  {/* timeseries */}
-                  <div>
-                    <div className="text-muted-foreground mb-2 text-sm">
-                      {isNumericDataType(dataType)
-                        ? "Moving average over time"
-                        : "Scores over time"}
-                    </div>
-                    {isCategoricalDataType(dataType) && (
-                      <CategoricalScoreChart
-                        projectId={props.projectId}
-                        agg={props.agg}
-                        scoreData={scoreData}
-                        globalFilterState={props.globalFilterState}
-                        fromTimestamp={props.fromTimestamp}
-                        toTimestamp={props.toTimestamp}
-                        metricsVersion={props.metricsVersion}
-                        schedulerId={props.schedulerId}
-                      />
-                    )}
-                    {(isNumericDataType(dataType) ||
-                      isBooleanDataType(dataType)) && (
-                      <NumericScoreTimeSeriesChart
-                        agg={props.agg}
-                        source={source}
-                        name={name}
-                        dataType={
-                          dataType as Extract<
-                            ScoreDataTypeType,
-                            "NUMERIC" | "BOOLEAN"
-                          >
-                        }
-                        projectId={props.projectId}
-                        globalFilterState={props.globalFilterState}
-                        fromTimestamp={props.fromTimestamp}
-                        toTimestamp={props.toTimestamp}
-                        metricsVersion={props.metricsVersion}
-                        schedulerId={props.schedulerId}
-                      />
-                    )}
-                  </div>
-                </div>
-                {scoreAnalyticsValues.length - 1 > index && (
-                  <Separator className="mt-6 opacity-70" />
-                )}
-              </div>
-            );
-          })}
-        </div>
-      ) : Boolean(scoreKeysAndProps.data?.scoreColumns.length) ? (
-        <div className="flex min-h-36 w-full flex-1 items-center justify-center rounded-md border">
-          <p className="text-muted-foreground">
-            Select a score to view analytics
-          </p>
-        </div>
-      ) : (
-        <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />
-      )}
+                );
+              })}
+            </div>
+          );
+        }
+        if (Boolean(scoreKeysAndProps.data?.scoreColumns.length)) {
+          return (
+            <div className="flex min-h-36 w-full flex-1 items-center justify-center rounded-md border">
+              <p className="text-muted-foreground">
+                Select a score to view analytics
+              </p>
+            </div>
+          );
+        }
+        return <NoDataOrLoading isLoading={scoreKeysAndProps.isPending} />;
+      })()}
     </DashboardCard>
   );
 }

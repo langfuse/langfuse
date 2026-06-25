@@ -756,21 +756,23 @@ export default function ExperimentsTable({
                 key={`experiments-table-${dataUpdatedAt}`}
                 tableName={"experiments"}
                 columns={columns}
-                data={
-                  experiments.status === "loading" || isViewLoading
-                    ? { isLoading: true, isError: false }
-                    : experiments.status === "error"
-                      ? {
-                          isLoading: false,
-                          isError: true,
-                          error: "",
-                        }
-                      : {
-                          isLoading: false,
-                          isError: false,
-                          data: rows,
-                        }
-                }
+                data={(() => {
+                  if (experiments.status === "loading" || isViewLoading) {
+                    return { isLoading: true, isError: false };
+                  }
+                  if (experiments.status === "error") {
+                    return {
+                      isLoading: false,
+                      isError: true,
+                      error: "",
+                    };
+                  }
+                  return {
+                    isLoading: false,
+                    isError: false,
+                    data: rows,
+                  };
+                })()}
                 pagination={{
                   totalCount,
                   onChange: (updater) => {

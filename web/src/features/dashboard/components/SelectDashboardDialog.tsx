@@ -72,57 +72,68 @@ export function SelectDashboardDialog({
         </DialogHeader>
         <DialogBody>
           <div className="mt-4 max-h-[400px] overflow-y-auto">
-            {dashboards.isLoading ? (
-              <div className="py-8 text-center">Loading dashboards...</div>
-            ) : dashboards.isError ? (
-              <div className="text-destructive py-8 text-center">
-                Error: {dashboards.error.message}
-              </div>
-            ) : dashboards.data?.dashboards.length === 0 ? (
-              <div className="text-muted-foreground py-8 text-center">
-                No dashboards found.
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dashboards.data?.dashboards
-                    .filter((d) => d.owner === "PROJECT")
-                    .map((d) => (
-                      <TableRow
-                        key={d.id}
-                        onClick={() => setSelectedDashboardId(d.id)}
-                        className={`hover:bg-muted cursor-pointer ${
-                          selectedDashboardId === d.id ? "bg-muted" : ""
-                        }`}
-                      >
-                        <TableCell
-                          density="comfortable"
-                          className="font-medium"
+            {(() => {
+              if (dashboards.isLoading) {
+                return (
+                  <div className="py-8 text-center">Loading dashboards...</div>
+                );
+              }
+              if (dashboards.isError) {
+                return (
+                  <div className="text-destructive py-8 text-center">
+                    Error: {dashboards.error.message}
+                  </div>
+                );
+              }
+              if (dashboards.data?.dashboards.length === 0) {
+                return (
+                  <div className="text-muted-foreground py-8 text-center">
+                    No dashboards found.
+                  </div>
+                );
+              }
+              return (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>Updated</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboards.data?.dashboards
+                      .filter((d) => d.owner === "PROJECT")
+                      .map((d) => (
+                        <TableRow
+                          key={d.id}
+                          onClick={() => setSelectedDashboardId(d.id)}
+                          className={`hover:bg-muted cursor-pointer ${
+                            selectedDashboardId === d.id ? "bg-muted" : ""
+                          }`}
                         >
-                          {d.name}
-                        </TableCell>
-                        <TableCell
-                          density="comfortable"
-                          className="truncate"
-                          title={d.description}
-                        >
-                          {d.description}
-                        </TableCell>
-                        <TableCell density="comfortable">
-                          {new Date(d.updatedAt).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
-            )}
+                          <TableCell
+                            density="comfortable"
+                            className="font-medium"
+                          >
+                            {d.name}
+                          </TableCell>
+                          <TableCell
+                            density="comfortable"
+                            className="truncate"
+                            title={d.description}
+                          >
+                            {d.description}
+                          </TableCell>
+                          <TableCell density="comfortable">
+                            {new Date(d.updatedAt).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              );
+            })()}
           </div>
         </DialogBody>
         <DialogFooter className="mt-4 flex justify-between">

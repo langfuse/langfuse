@@ -558,14 +558,18 @@ export const llmApiKeyRouter = createTRPCRouter({
         const config = input.config ?? existingKey.config;
 
         // Never reuse stored headers across a destination change.
-        const extraHeaders =
-          input.extraHeaders !== undefined
-            ? input.extraHeaders
-            : isBaseURLChanged
-              ? undefined
-              : existingKey.extraHeaders
-                ? decryptAndParseExtraHeaders(existingKey.extraHeaders)
-                : undefined;
+        const extraHeaders = (() => {
+          if (input.extraHeaders !== undefined) {
+            return input.extraHeaders;
+          }
+          if (isBaseURLChanged) {
+            return undefined;
+          }
+          if (existingKey.extraHeaders) {
+            return decryptAndParseExtraHeaders(existingKey.extraHeaders);
+          }
+          return undefined;
+        })();
 
         return testLLMConnection({
           adapter,

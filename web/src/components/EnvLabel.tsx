@@ -18,11 +18,15 @@ export const EnvLabel = ({ className }: { className?: string }) => {
     <div
       className={cn(
         "flex cursor-pointer items-center gap-1 self-stretch rounded-md px-1 py-0.5 text-xs whitespace-nowrap",
-        region === "STAGING"
-          ? "bg-light-blue text-dark-blue"
-          : region === "DEV"
-            ? "bg-light-green text-dark-green"
-            : "bg-light-red text-dark-red",
+        (() => {
+          if (region === "STAGING") {
+            return "bg-light-blue text-dark-blue";
+          }
+          if (region === "DEV") {
+            return "bg-light-green text-dark-green";
+          }
+          return "bg-light-red text-dark-red";
+        })(),
         className,
       )}
       onClick={() => setIsHidden(true)}

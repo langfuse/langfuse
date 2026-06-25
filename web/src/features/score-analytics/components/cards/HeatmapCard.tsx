@@ -236,12 +236,15 @@ export function HeatmapCard() {
   // Calculate dynamic cell height based on available space
   // Magic number 230px represents approximate available height for grid
   // (card height minus header, labels, legend, gaps)
-  const numRows =
-    dataType === "NUMERIC"
-      ? 10
-      : heatmap && "rows" in heatmap
-        ? heatmap.rows
-        : 10;
+  const numRows = (() => {
+    if (dataType === "NUMERIC") {
+      return 10;
+    }
+    if (heatmap && "rows" in heatmap) {
+      return heatmap.rows;
+    }
+    return 10;
+  })();
   const calculatedCellHeight = Math.floor(200 / numRows);
 
   return (
@@ -281,20 +284,24 @@ export function HeatmapCard() {
             height="100%"
             cellHeight={calculatedCellHeight}
             data={heatmap.cells}
-            rows={
-              dataType === "NUMERIC"
-                ? 10
-                : "rows" in heatmap
-                  ? (heatmap.rows as number)
-                  : 0
-            }
-            cols={
-              dataType === "NUMERIC"
-                ? 10
-                : "cols" in heatmap
-                  ? (heatmap.cols as number)
-                  : 0
-            }
+            rows={(() => {
+              if (dataType === "NUMERIC") {
+                return 10;
+              }
+              if ("rows" in heatmap) {
+                return heatmap.rows as number;
+              }
+              return 0;
+            })()}
+            cols={(() => {
+              if (dataType === "NUMERIC") {
+                return 10;
+              }
+              if ("cols" in heatmap) {
+                return heatmap.cols as number;
+              }
+              return 0;
+            })()}
             rowLabels={heatmap.rowLabels}
             colLabels={heatmap.colLabels}
             xAxisLabel={`${score2?.name} (${score2?.source})`}
@@ -316,13 +323,15 @@ export function HeatmapCard() {
         ) : (
           <HeatmapSkeleton
             rows={numRows}
-            cols={
-              dataType === "NUMERIC"
-                ? 10
-                : heatmap && "cols" in heatmap
-                  ? (heatmap.cols as number)
-                  : 10
-            }
+            cols={(() => {
+              if (dataType === "NUMERIC") {
+                return 10;
+              }
+              if (heatmap && "cols" in heatmap) {
+                return heatmap.cols as number;
+              }
+              return 10;
+            })()}
             cellHeight={calculatedCellHeight}
             showLabels={true}
             showAxisLabels={true}

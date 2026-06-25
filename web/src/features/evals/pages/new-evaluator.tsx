@@ -121,13 +121,18 @@ export default function NewEvaluatorPage() {
     !hasDefaultModel &&
     !isCheckingDefaultModel,
   );
-  const step = !evaluatorId
-    ? "select"
-    : isCheckingDefaultModel
-      ? "loading"
-      : shouldSetupDefaultModel
-        ? "defaultModel"
-        : "run";
+  const step = (() => {
+    if (!evaluatorId) {
+      return "select";
+    }
+    if (isCheckingDefaultModel) {
+      return "loading";
+    }
+    if (shouldSetupDefaultModel) {
+      return "defaultModel";
+    }
+    return "run";
+  })();
   const selectedTemplateIsLlm = Boolean(
     currentTemplate && !isCodeEvalTemplate(currentTemplate),
   );

@@ -86,11 +86,15 @@ export const BreakdownTooltip = ({
     : details;
 
   const formatValueWithPadding = (value: number, maxDecimals: number) => {
-    return !value
-      ? "0"
-      : isCost
-        ? `$${value.toFixed(maxDecimals)}`
-        : value.toLocaleString();
+    return (() => {
+      if (!value) {
+        return "0";
+      }
+      if (isCost) {
+        return `$${value.toFixed(maxDecimals)}`;
+      }
+      return value.toLocaleString();
+    })();
   };
 
   const maxDecimals = isCost

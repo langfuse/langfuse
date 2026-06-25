@@ -589,12 +589,15 @@ async function getObservationsFromEventsTableInternal<T>(
     const key = positionFilter.key;
     const isFromEnd = key === "last" || key === "nthFromEnd";
     const direction = isFromEnd ? "DESC" : "ASC";
-    const position =
-      key === "last" || key === "first" || key === "root"
-        ? 1
-        : typeof positionFilter.value === "number"
-          ? positionFilter.value
-          : 1;
+    const position = (() => {
+      if (key === "last" || key === "first" || key === "root") {
+        return 1;
+      }
+      if (typeof positionFilter.value === "number") {
+        return positionFilter.value;
+      }
+      return 1;
+    })();
 
     // Build observation-only filter for CTE (no s.* or t.* references)
     const nativeFilter = new FilterList(

@@ -129,11 +129,17 @@ export const useEvaluatorTableData = ({
             lazyExecutionCounts.isLoading &&
             !lazyExecutionCounts.jobExecutionCountsByEvaluatorId[jobConfig.id],
           maintainer: jobConfig.evalTemplate
-            ? jobConfig.evalTemplate.projectId
-              ? "User maintained"
-              : jobConfig.evalTemplate.name.startsWith(RAGAS_TEMPLATE_PREFIX)
-                ? "Langfuse and Ragas maintained"
-                : "Langfuse maintained"
+            ? (() => {
+                if (jobConfig.evalTemplate.projectId) {
+                  return "User maintained";
+                }
+                if (
+                  jobConfig.evalTemplate.name.startsWith(RAGAS_TEMPLATE_PREFIX)
+                ) {
+                  return "Langfuse and Ragas maintained";
+                }
+                return "Langfuse maintained";
+              })()
             : "Not available",
           totalCost: costData,
           isLegacy: isLegacyEvalTarget(jobConfig.targetObject),

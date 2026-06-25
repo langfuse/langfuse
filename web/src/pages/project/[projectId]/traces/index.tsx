@@ -87,18 +87,22 @@ export default function Traces() {
               },
       }}
     >
-      {isInitializing ? (
-        <>
-          {/* Wait for the beta flag before mounting either table. Otherwise the
+      {(() => {
+        if (isInitializing) {
+          return (
+            <>
+              {/* Wait for the beta flag before mounting either table. Otherwise the
               legacy table can briefly mount, restore a v3 saved view, and
               promote its viewId into the URL before the correct mode
               resolves. */}
-        </>
-      ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
-      ) : (
-        <TracesTable projectId={projectId} />
-      )}
+            </>
+          );
+        }
+        if (isBetaEnabled) {
+          return <ObservationsEventsTable projectId={projectId} />;
+        }
+        return <TracesTable projectId={projectId} />;
+      })()}
     </Page>
   );
 }

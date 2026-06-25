@@ -510,16 +510,24 @@ export const getTraceByIdFromTracesTable = async ({
       tags: { projectId },
     },
     fn: (input) => {
-      const inputColumn = excludeInputOutput
-        ? "''"
-        : renderingProps.truncated
-          ? `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
-          : "input";
-      const outputColumn = excludeInputOutput
-        ? "''"
-        : renderingProps.truncated
-          ? `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`
-          : "output";
+      const inputColumn = (() => {
+        if (excludeInputOutput) {
+          return "''";
+        }
+        if (renderingProps.truncated) {
+          return `leftUTF8(input, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`;
+        }
+        return "input";
+      })();
+      const outputColumn = (() => {
+        if (excludeInputOutput) {
+          return "''";
+        }
+        if (renderingProps.truncated) {
+          return `leftUTF8(output, ${env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT})`;
+        }
+        return "output";
+      })();
       const metadataColumn = excludeMetadata ? "'{}'" : "metadata";
 
       const query = `

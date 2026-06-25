@@ -263,12 +263,15 @@ export const createEvalJobs = async ({
       cachedTrace = await getTraceById({
         traceId: event.traceId,
         projectId: event.projectId,
-        timestamp:
-          "exactTimestamp" in event && event.exactTimestamp
-            ? new Date(event.exactTimestamp)
-            : "timestamp" in event
-              ? new Date(event.timestamp)
-              : new Date(jobTimestamp),
+        timestamp: (() => {
+          if ("exactTimestamp" in event && event.exactTimestamp) {
+            return new Date(event.exactTimestamp);
+          }
+          if ("timestamp" in event) {
+            return new Date(event.timestamp);
+          }
+          return new Date(jobTimestamp);
+        })(),
         excludeInputOutput: true,
         excludeMetadata: false, // Metadata needed for in-memory filter evaluation
       });
@@ -935,13 +938,15 @@ export async function runLLMAsJudgeEvaluation({
       }
 
       logger.debug(
-        `Job ${jobExecutionId} received LLM output: ${
-          parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC
-            ? `score=${parsedLLMOutput.data.score}`
-            : parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN
-              ? `score=${parsedLLMOutput.data.score}`
-              : `matches=${parsedLLMOutput.data.matches.join(",")}`
-        }`,
+        `Job ${jobExecutionId} received LLM output: ${(() => {
+          if (parsedLLMOutput.data.dataType === ScoreDataTypeEnum.NUMERIC) {
+            return `score=${parsedLLMOutput.data.score}`;
+          }
+          if (parsedLLMOutput.data.dataType === ScoreDataTypeEnum.BOOLEAN) {
+            return `score=${parsedLLMOutput.data.score}`;
+          }
+          return `matches=${parsedLLMOutput.data.matches.join(",")}`;
+        })()}`,
       );
 
       const scores = toNormalizedScores({

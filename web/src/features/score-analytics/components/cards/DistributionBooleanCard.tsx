@@ -238,13 +238,15 @@ export function DistributionBooleanCard() {
                 ? `${score2.name} (${score2.source})`
                 : `${score1.name} (${score1.source})`
             }
-            score2Name={
-              activeTab === "score1" || activeTab === "score2"
-                ? undefined
-                : mode === "two" && score2
-                  ? `${score2.name} (${score2.source})`
-                  : undefined
-            }
+            score2Name={(() => {
+              if (activeTab === "score1" || activeTab === "score2") {
+                return undefined;
+              }
+              if (mode === "two" && score2) {
+                return `${score2.name} (${score2.source})`;
+              }
+              return undefined;
+            })()}
             colors={chartColors}
           />
         ) : (

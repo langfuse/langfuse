@@ -263,21 +263,23 @@ export function MonitorsTable() {
           <DataTable
             tableName="monitors"
             columns={columns}
-            data={
-              monitors.isLoading
-                ? { isLoading: true, isError: false }
-                : monitors.isError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: monitors.error.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: monitors.data?.monitors ?? [],
-                    }
-            }
+            data={(() => {
+              if (monitors.isLoading) {
+                return { isLoading: true, isError: false };
+              }
+              if (monitors.isError) {
+                return {
+                  isLoading: false,
+                  isError: true,
+                  error: monitors.error.message,
+                };
+              }
+              return {
+                isLoading: false,
+                isError: false,
+                data: monitors.data?.monitors ?? [],
+              };
+            })()}
             orderBy={orderByState}
             setOrderBy={setOrderByState}
             pagination={{

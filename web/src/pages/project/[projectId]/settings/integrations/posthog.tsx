@@ -64,12 +64,15 @@ export default function PosthogIntegrationSettings() {
     },
   );
 
-  const status =
-    state.isLoading || !hasAccess
-      ? undefined
-      : state.data?.enabled
-        ? "active"
-        : "inactive";
+  const status = (() => {
+    if (state.isLoading || !hasAccess) {
+      return undefined;
+    }
+    if (state.data?.enabled) {
+      return "active";
+    }
+    return "inactive";
+  })();
 
   return (
     <ContainerPage

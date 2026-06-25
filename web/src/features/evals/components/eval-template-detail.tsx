@@ -120,78 +120,84 @@ export const EvalTemplateDetail = () => {
         ),
       }}
     >
-      {allTemplates.isLoading || !allTemplates.data || !template.data ? (
-        <div className="p-3">Loading...</div>
-      ) : isEditing ? (
-        <div className="overflow-y-auto p-3 pt-1">
-          <EvalTemplateForm
-            useDialog={false}
-            projectId={projectId}
-            existingEvalTemplate={template.data}
-            isEditing={isEditing}
-            setIsEditing={setIsEditing}
-          />
-        </div>
-      ) : (
-        <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden contain-layout">
-          <div className="flex max-h-full min-h-0 flex-col overflow-y-auto px-3 pt-1">
-            <EvalTemplateForm
-              useDialog={false}
-              projectId={projectId}
-              existingEvalTemplate={template.data}
-              isEditing={isEditing}
-              setIsEditing={setIsEditing}
-            />
-          </div>
-          <SidePanel mobileTitle="Change history" id="change-history">
-            <SidePanelHeader>
-              <SidePanelTitle className="text-base font-semibold">
-                Change history
-              </SidePanelTitle>
-            </SidePanelHeader>
-            <SidePanelContent>
-              <Command className="flex flex-col gap-2 overflow-y-auto rounded-none font-medium focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
-                <div className="flex flex-col overflow-y-auto">
-                  {allTemplates.data.templates.map((template, index) => (
-                    <div
-                      key={template.id}
-                      className={`hover:bg-accent flex cursor-pointer flex-col rounded-md px-2 py-1.5 ${
-                        template.id === templateId ? "bg-accent" : ""
-                      }`}
-                      onClick={() => handleTemplateSelect(template)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          <Badge
-                            onClick={(e) => {
-                              e.stopPropagation();
-                            }}
-                            variant="outline"
-                            className="bg-background/50 h-6 shrink-0"
-                            data-version-trigger="false"
-                          >
-                            # {template.version}
-                          </Badge>
-                          {index === 0 && (
-                            <StatusBadge
-                              type="active"
-                              key="active"
-                              className="break-all sm:break-normal"
-                            />
-                          )}
+      {(() => {
+        if (allTemplates.isLoading || !allTemplates.data || !template.data) {
+          return <div className="p-3">Loading...</div>;
+        }
+        if (isEditing) {
+          return (
+            <div className="overflow-y-auto p-3 pt-1">
+              <EvalTemplateForm
+                useDialog={false}
+                projectId={projectId}
+                existingEvalTemplate={template.data}
+                isEditing={isEditing}
+                setIsEditing={setIsEditing}
+              />
+            </div>
+          );
+        }
+        return (
+          <div className="grid flex-1 grid-cols-[1fr_auto] overflow-hidden contain-layout">
+            <div className="flex max-h-full min-h-0 flex-col overflow-y-auto px-3 pt-1">
+              <EvalTemplateForm
+                useDialog={false}
+                projectId={projectId}
+                existingEvalTemplate={template.data}
+                isEditing={isEditing}
+                setIsEditing={setIsEditing}
+              />
+            </div>
+            <SidePanel mobileTitle="Change history" id="change-history">
+              <SidePanelHeader>
+                <SidePanelTitle className="text-base font-semibold">
+                  Change history
+                </SidePanelTitle>
+              </SidePanelHeader>
+              <SidePanelContent>
+                <Command className="flex flex-col gap-2 overflow-y-auto rounded-none font-medium focus:ring-0 focus:outline-hidden focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-hidden data-focus:ring-0">
+                  <div className="flex flex-col overflow-y-auto">
+                    {allTemplates.data.templates.map((template, index) => (
+                      <div
+                        key={template.id}
+                        className={`hover:bg-accent flex cursor-pointer flex-col rounded-md px-2 py-1.5 ${
+                          template.id === templateId ? "bg-accent" : ""
+                        }`}
+                        onClick={() => handleTemplateSelect(template)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Badge
+                              onClick={(e) => {
+                                e.stopPropagation();
+                              }}
+                              variant="outline"
+                              className="bg-background/50 h-6 shrink-0"
+                              data-version-trigger="false"
+                            >
+                              # {template.version}
+                            </Badge>
+                            {index === 0 && (
+                              <StatusBadge
+                                type="active"
+                                key="active"
+                                className="break-all sm:break-normal"
+                              />
+                            )}
+                          </div>
+                          <span className="text-muted-foreground text-xs">
+                            {template.createdAt.toLocaleDateString()}
+                          </span>
                         </div>
-                        <span className="text-muted-foreground text-xs">
-                          {template.createdAt.toLocaleDateString()}
-                        </span>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </Command>
-            </SidePanelContent>
-          </SidePanel>
-        </div>
-      )}
+                    ))}
+                  </div>
+                </Command>
+              </SidePanelContent>
+            </SidePanel>
+          </div>
+        );
+      })()}
     </Page>
   );
 };

@@ -59,13 +59,15 @@ export function LevelBadge({ level }: { level: string | null | undefined }) {
 
   return (
     <Badge
-      variant={
-        level === "ERROR"
-          ? "destructive"
-          : level === "WARNING"
-            ? "warning"
-            : "tertiary"
-      }
+      variant={(() => {
+        if (level === "ERROR") {
+          return "destructive";
+        }
+        if (level === "WARNING") {
+          return "warning";
+        }
+        return "tertiary";
+      })()}
     >
       {level}
     </Badge>

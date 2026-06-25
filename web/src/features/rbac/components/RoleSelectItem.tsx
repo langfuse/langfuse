@@ -40,24 +40,32 @@ export const RoleSelectItem = ({
       </HoverCardTrigger>
       <HoverCardPortal>
         <HoverCardContent hideWhenDetached={true} align="center" side="right">
-          {isProjectNoneRole ? (
-            <div className="text-xs">{projectNoneRoleComment}</div>
-          ) : isOrgNoneRole ? (
-            <div className="text-xs">{orgNoneRoleComment}</div>
-          ) : (
-            <>
-              <div className="font-bold">Role: {formatRole(role)}</div>
-              <p className="mt-2 text-xs font-semibold">Organization Scopes</p>
-              <ul className="list-inside list-disc text-xs">{orgScopes}</ul>
-              <p className="mt-2 text-xs font-semibold">Project Scopes</p>
-              <ul className="list-inside list-disc text-xs">{projectScopes}</ul>
-              <p className="mt-2 border-t pt-2 text-xs">
-                Note:{" "}
-                <span className="text-muted-foreground">Muted scopes</span> are
-                inherited from lower role.
-              </p>
-            </>
-          )}
+          {(() => {
+            if (isProjectNoneRole) {
+              return <div className="text-xs">{projectNoneRoleComment}</div>;
+            }
+            if (isOrgNoneRole) {
+              return <div className="text-xs">{orgNoneRoleComment}</div>;
+            }
+            return (
+              <>
+                <div className="font-bold">Role: {formatRole(role)}</div>
+                <p className="mt-2 text-xs font-semibold">
+                  Organization Scopes
+                </p>
+                <ul className="list-inside list-disc text-xs">{orgScopes}</ul>
+                <p className="mt-2 text-xs font-semibold">Project Scopes</p>
+                <ul className="list-inside list-disc text-xs">
+                  {projectScopes}
+                </ul>
+                <p className="mt-2 border-t pt-2 text-xs">
+                  Note:{" "}
+                  <span className="text-muted-foreground">Muted scopes</span>{" "}
+                  are inherited from lower role.
+                </p>
+              </>
+            );
+          })()}
         </HoverCardContent>
       </HoverCardPortal>
     </HoverCard>

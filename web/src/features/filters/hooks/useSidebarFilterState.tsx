@@ -553,12 +553,15 @@ export function useSidebarFilterState(
     [urlFilterState],
   );
 
-  const explicitFilterState: FilterState =
-    stateLocationType === "peekContext"
-      ? hookOptions.context.tableState.filters
-      : stateLocationType === "memory"
-        ? memoryFilterState
-        : urlFilterState;
+  const explicitFilterState: FilterState = (() => {
+    if (stateLocationType === "peekContext") {
+      return hookOptions.context.tableState.filters;
+    }
+    if (stateLocationType === "memory") {
+      return memoryFilterState;
+    }
+    return urlFilterState;
+  })();
 
   // LFE-10164: When arriving via a URL/deep link that already carries applied
   // filters, expand the sidebar sections that have an active filter. Sidebar

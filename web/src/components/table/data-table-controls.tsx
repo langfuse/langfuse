@@ -485,59 +485,70 @@ export function FilterAccordionItem({
         )}
       >
         <div className="flex grow items-center gap-1.5 pr-2">
-          {isDisabled && disabledReason ? (
-            <Tooltip delayDuration={80}>
-              <TooltipTrigger asChild>
-                <span className="flex grow items-baseline gap-1">
+          {(() => {
+            if (isDisabled && disabledReason) {
+              return (
+                <Tooltip delayDuration={80}>
+                  <TooltipTrigger asChild>
+                    <span className="flex grow items-baseline gap-1">
+                      {label}
+                      {filterKeyShort && (
+                        <code className="text-muted-foreground/70 hidden font-mono text-xs">
+                          {filterKeyShort}
+                        </code>
+                      )}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-80 text-xs">
+                    {disabledReason}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+            if (help) {
+              return (
+                <div className="flex grow items-center gap-1">
                   {label}
+                  <DocPopup description={help.description} href={help.href} />
                   {filterKeyShort && (
                     <code className="text-muted-foreground/70 hidden font-mono text-xs">
                       {filterKeyShort}
                     </code>
                   )}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-80 text-xs">
-                {disabledReason}
-              </TooltipContent>
-            </Tooltip>
-          ) : help ? (
-            <div className="flex grow items-center gap-1">
-              {label}
-              <DocPopup description={help.description} href={help.href} />
-              {filterKeyShort && (
-                <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                  {filterKeyShort}
-                </code>
-              )}
-            </div>
-          ) : tooltip ? (
-            <Tooltip delayDuration={80}>
-              <TooltipTrigger asChild>
-                <span className="flex grow items-center gap-1">
-                  {label}
-                  <InfoIcon className="text-muted-foreground h-3 w-3 shrink-0" />
-                  {filterKeyShort && (
-                    <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                      {filterKeyShort}
-                    </code>
-                  )}
-                </span>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-80 text-xs">
-                {tooltip}
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <span className="flex grow items-baseline gap-1">
-              {label}
-              {filterKeyShort && (
-                <code className="text-muted-foreground/70 hidden font-mono text-xs">
-                  {filterKeyShort}
-                </code>
-              )}
-            </span>
-          )}
+                </div>
+              );
+            }
+            if (tooltip) {
+              return (
+                <Tooltip delayDuration={80}>
+                  <TooltipTrigger asChild>
+                    <span className="flex grow items-center gap-1">
+                      {label}
+                      <InfoIcon className="text-muted-foreground h-3 w-3 shrink-0" />
+                      {filterKeyShort && (
+                        <code className="text-muted-foreground/70 hidden font-mono text-xs">
+                          {filterKeyShort}
+                        </code>
+                      )}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-80 text-xs">
+                    {tooltip}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            }
+            return (
+              <span className="flex grow items-baseline gap-1">
+                {label}
+                {filterKeyShort && (
+                  <code className="text-muted-foreground/70 hidden font-mono text-xs">
+                    {filterKeyShort}
+                  </code>
+                )}
+              </span>
+            );
+          })()}
           {isActive && onReset && (
             <div
               role="button"
@@ -799,127 +810,144 @@ export function CategoricalFacet({
             )}
 
             {/* Loading / Empty / Options */}
-            {loading ? (
-              <>
-                {[1, 2].map((i) => (
-                  <div key={i} className="relative flex items-center px-2">
-                    <div className="group/checkbox flex items-center rounded-sm p-1">
-                      <Skeleton className="h-4 w-4 rounded-sm" />
-                    </div>
-                    <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-1">
-                      <Skeleton className="h-3 w-24" />
-                      <Skeleton className="ml-auto h-3 w-8" />
-                    </div>
-                  </div>
-                ))}
-              </>
-            ) : visibleOptionValues.length === 0 ? (
-              <div className="text-muted-foreground py-1 text-xs">
-                {filterKey === "sessionId" ? (
-                  <span>
-                    Sessions group {tableName} together, which is useful for
-                    tracing multi-step workflows.{" "}
-                    <a
-                      href="https://langfuse.com/docs/observability/features/sessions"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground underline"
-                    >
-                      See docs
-                    </a>{" "}
-                    to learn how to add sessions to your {tableName}.
-                  </span>
-                ) : filterKey === "name" ? (
-                  <span>
-                    No {tableName} names found in the given time range.
-                  </span>
-                ) : filterKey === "tags" ? (
-                  <span>
-                    Tags let you filter {tableName} according to custom
-                    categories (e.g. feature flags).{" "}
-                    <a
-                      href="https://langfuse.com/docs/observability/features/tags"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground underline"
-                    >
-                      See docs
-                    </a>{" "}
-                    to learn how to add tags to your {tableName}.
-                  </span>
-                ) : (
-                  "No options found"
-                )}
-              </div>
-            ) : (
-              <>
-                {/* Search box for many options */}
-                {hasMoreOptions && (
-                  <div className="mb-2 px-2">
-                    <div className="relative">
-                      <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
-                      <Input
-                        placeholder="Filter values"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="h-8 pl-7 text-xs"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Checkbox list */}
-                {filteredOptions.length === 0 ? (
-                  <div className="text-muted-foreground py-1 text-center text-sm">
-                    No matches found
-                  </div>
-                ) : (
+            {(() => {
+              if (loading) {
+                return (
                   <>
-                    {/* Selected options, pinned to the top (long lists only) */}
-                    {visibleSelectedOptions.map(renderOption)}
-
-                    {/* Separator between the pinned selection and the rest */}
-                    {visibleSelectedOptions.length > 0 &&
-                      visibleRemainingOptions.length > 0 && (
-                        <div
-                          className="border-border/60 mx-3 my-1 border-t"
-                          aria-hidden
-                        />
-                      )}
-
-                    {/* Remaining (unselected) options, capped */}
-                    {visibleRemainingOptions.map(renderOption)}
-                    {hasMoreFilteredOptions && !showAll && (
-                      <div className="px-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setShowAll(true)}
-                          className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
-                        >
-                          Show more values
-                        </Button>
+                    {[1, 2].map((i) => (
+                      <div key={i} className="relative flex items-center px-2">
+                        <div className="group/checkbox flex items-center rounded-sm p-1">
+                          <Skeleton className="h-4 w-4 rounded-sm" />
+                        </div>
+                        <div className="group/label flex min-w-0 flex-1 items-center rounded-sm px-1 py-1">
+                          <Skeleton className="h-3 w-24" />
+                          <Skeleton className="ml-auto h-3 w-8" />
+                        </div>
                       </div>
-                    )}
+                    ))}
                   </>
-                )}
-                {filterKey === "environment" &&
-                visibleOptionValues.length === 1 &&
-                visibleOptionValues[0]?.toLowerCase() === "default" ? (
-                  <div className="text-muted-foreground mt-2 px-2 text-xs">
-                    <a
-                      href="https://langfuse.com/docs/observability/features/environments"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-foreground underline"
-                    >
-                      See docs
-                    </a>{" "}
-                    on how to add environments to your {tableName}.
+                );
+              }
+              if (visibleOptionValues.length === 0) {
+                return (
+                  <div className="text-muted-foreground py-1 text-xs">
+                    {(() => {
+                      if (filterKey === "sessionId") {
+                        return (
+                          <span>
+                            Sessions group {tableName} together, which is useful
+                            for tracing multi-step workflows.{" "}
+                            <a
+                              href="https://langfuse.com/docs/observability/features/sessions"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-foreground underline"
+                            >
+                              See docs
+                            </a>{" "}
+                            to learn how to add sessions to your {tableName}.
+                          </span>
+                        );
+                      }
+                      if (filterKey === "name") {
+                        return (
+                          <span>
+                            No {tableName} names found in the given time range.
+                          </span>
+                        );
+                      }
+                      if (filterKey === "tags") {
+                        return (
+                          <span>
+                            Tags let you filter {tableName} according to custom
+                            categories (e.g. feature flags).{" "}
+                            <a
+                              href="https://langfuse.com/docs/observability/features/tags"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:text-foreground underline"
+                            >
+                              See docs
+                            </a>{" "}
+                            to learn how to add tags to your {tableName}.
+                          </span>
+                        );
+                      }
+                      return "No options found";
+                    })()}
                   </div>
-                ) : null}
-              </>
-            )}
+                );
+              }
+              return (
+                <>
+                  {/* Search box for many options */}
+                  {hasMoreOptions && (
+                    <div className="mb-2 px-2">
+                      <div className="relative">
+                        <Search className="text-muted-foreground absolute top-1/2 left-2 h-3.5 w-3.5 -translate-y-1/2" />
+                        <Input
+                          placeholder="Filter values"
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="h-8 pl-7 text-xs"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Checkbox list */}
+                  {filteredOptions.length === 0 ? (
+                    <div className="text-muted-foreground py-1 text-center text-sm">
+                      No matches found
+                    </div>
+                  ) : (
+                    <>
+                      {/* Selected options, pinned to the top (long lists only) */}
+                      {visibleSelectedOptions.map(renderOption)}
+
+                      {/* Separator between the pinned selection and the rest */}
+                      {visibleSelectedOptions.length > 0 &&
+                        visibleRemainingOptions.length > 0 && (
+                          <div
+                            className="border-border/60 mx-3 my-1 border-t"
+                            aria-hidden
+                          />
+                        )}
+
+                      {/* Remaining (unselected) options, capped */}
+                      {visibleRemainingOptions.map(renderOption)}
+                      {hasMoreFilteredOptions && !showAll && (
+                        <div className="px-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setShowAll(true)}
+                            className="mt-1 h-auto w-full justify-start py-1 pl-7 text-xs"
+                          >
+                            Show more values
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {filterKey === "environment" &&
+                  visibleOptionValues.length === 1 &&
+                  visibleOptionValues[0]?.toLowerCase() === "default" ? (
+                    <div className="text-muted-foreground mt-2 px-2 text-xs">
+                      <a
+                        href="https://langfuse.com/docs/observability/features/environments"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-foreground underline"
+                      >
+                        See docs
+                      </a>{" "}
+                      on how to add environments to your {tableName}.
+                    </div>
+                  ) : null}
+                </>
+              );
+            })()}
           </div>
         )}
 

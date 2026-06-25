@@ -137,13 +137,15 @@ function ColumnVisibilityListItem<TData, TValue>({
             "text-sm capitalize",
             (!column.enableHiding || isFixedPosition) && "opacity-50",
           )}
-          title={
-            !column.enableHiding
-              ? "This column may not be hidden"
-              : isFixedPosition
-                ? "This column is fixed in position and cannot be hidden"
-                : undefined
-          }
+          title={(() => {
+            if (!column.enableHiding) {
+              return "This column may not be hidden";
+            }
+            if (isFixedPosition) {
+              return "This column is fixed in position and cannot be hidden";
+            }
+            return undefined;
+          })()}
         >
           {column.header && typeof column.header === "string"
             ? column.header

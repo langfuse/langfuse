@@ -160,15 +160,21 @@ const ButtonContent = React.forwardRef<
 ) {
   const content = (
     <>
-      {!hasAccess ? (
-        <Lock className="mr-1 h-4 w-4" />
-      ) : !hasEntitlement ? (
-        <AlertCircle className="mr-1 h-4 w-4" />
-      ) : hasReachedLimit ? (
-        <Sparkle className="mr-1 h-4 w-4" />
-      ) : icon ? (
-        <div className="mr-1">{icon}</div>
-      ) : null}
+      {(() => {
+        if (!hasAccess) {
+          return <Lock className="mr-1 h-4 w-4" />;
+        }
+        if (!hasEntitlement) {
+          return <AlertCircle className="mr-1 h-4 w-4" />;
+        }
+        if (hasReachedLimit) {
+          return <Sparkle className="mr-1 h-4 w-4" />;
+        }
+        if (icon) {
+          return <div className="mr-1">{icon}</div>;
+        }
+        return null;
+      })()}
       {children}
     </>
   );

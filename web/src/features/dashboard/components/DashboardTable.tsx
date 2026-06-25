@@ -285,21 +285,23 @@ export function DashboardTable() {
     <DataTable
       tableName={"dashboards"}
       columns={dashboardColumns}
-      data={
-        dashboards.isPending
-          ? { isLoading: true, isError: false }
-          : dashboards.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: dashboards.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: safeExtract(dashboards.data, "dashboards", []),
-              }
-      }
+      data={(() => {
+        if (dashboards.isPending) {
+          return { isLoading: true, isError: false };
+        }
+        if (dashboards.isError) {
+          return {
+            isLoading: false,
+            isError: true,
+            error: dashboards.error.message,
+          };
+        }
+        return {
+          isLoading: false,
+          isError: false,
+          data: safeExtract(dashboards.data, "dashboards", []),
+        };
+      })()}
       orderBy={orderByState}
       setOrderBy={setOrderByState}
       pagination={{

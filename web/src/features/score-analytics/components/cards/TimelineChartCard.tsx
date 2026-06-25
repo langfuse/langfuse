@@ -75,13 +75,18 @@ export function TimelineChartCard() {
 
     if (dataType !== "NUMERIC") {
       // Categorical logic: Use merged "all" and "allMatched" data with namespaced categories
-      return activeTab === "score1"
-        ? timeSeries.categorical.score1
-        : activeTab === "score2"
-          ? timeSeries.categorical.score2
-          : activeTab === "all"
-            ? timeSeries.categorical.all // Merged score1+score2 with namespaced categories
-            : timeSeries.categorical.allMatched; // Merged matched data with namespaced categories
+      return (() => {
+        if (activeTab === "score1") {
+          return timeSeries.categorical.score1;
+        }
+        if (activeTab === "score2") {
+          return timeSeries.categorical.score2;
+        }
+        if (activeTab === "all") {
+          return timeSeries.categorical.all;
+        }
+        return timeSeries.categorical.allMatched;
+      })(); // Merged matched data with namespaced categories
     }
 
     // Numeric: Transform data based on active tab
@@ -318,20 +323,24 @@ export function TimelineChartCard() {
           <ScoreTimeSeriesChart
             data={chartData}
             dataType={dataType}
-            score1Name={
-              activeTab === "score1"
-                ? `${score1.name} (${score1.source})`
-                : activeTab === "score2" && score2
-                  ? `${score2.name} (${score2.source})`
-                  : `${score1.name} (${score1.source})`
-            }
-            score2Name={
-              activeTab === "score1" || activeTab === "score2"
-                ? undefined
-                : mode === "two" && score2
-                  ? `${score2.name} (${score2.source})`
-                  : undefined
-            }
+            score1Name={(() => {
+              if (activeTab === "score1") {
+                return `${score1.name} (${score1.source})`;
+              }
+              if (activeTab === "score2" && score2) {
+                return `${score2.name} (${score2.source})`;
+              }
+              return `${score1.name} (${score1.source})`;
+            })()}
+            score2Name={(() => {
+              if (activeTab === "score1" || activeTab === "score2") {
+                return undefined;
+              }
+              if (mode === "two" && score2) {
+                return `${score2.name} (${score2.source})`;
+              }
+              return undefined;
+            })()}
             interval={interval}
             timeRange={timeRange}
             colors={chartColors}

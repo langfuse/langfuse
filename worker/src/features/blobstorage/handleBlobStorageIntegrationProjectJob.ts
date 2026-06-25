@@ -476,28 +476,40 @@ const processBlobStorageExport = async (config: {
           (config.table === "observations" ||
             config.table === "observations_v2");
 
-        const exportPath = parquetEligible
-          ? "parquet"
-          : passthroughEligible
-            ? "passthrough"
-            : "standard";
+        const exportPath = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (passthroughEligible) {
+            return "passthrough";
+          }
+          return "standard";
+        })();
 
         const timestamp = config.maxTimestamp
           .toISOString()
           .replace(/:/g, "-")
           .substring(0, 19);
         // Parquet: fixed `.parquet` extension (no `.gz`) and Parquet content type.
-        const extension = parquetEligible
-          ? "parquet"
-          : config.compressed
-            ? `${blobStorageProps.extension}.gz`
-            : blobStorageProps.extension;
+        const extension = (() => {
+          if (parquetEligible) {
+            return "parquet";
+          }
+          if (config.compressed) {
+            return `${blobStorageProps.extension}.gz`;
+          }
+          return blobStorageProps.extension;
+        })();
         const filePath = `${config.prefix ?? ""}${config.projectId}/${config.table}/${timestamp}.${extension}`;
-        const uploadContentType = parquetEligible
-          ? "application/vnd.apache.parquet"
-          : config.compressed
-            ? "application/gzip"
-            : blobStorageProps.contentType;
+        const uploadContentType = (() => {
+          if (parquetEligible) {
+            return "application/vnd.apache.parquet";
+          }
+          if (config.compressed) {
+            return "application/gzip";
+          }
+          return blobStorageProps.contentType;
+        })();
 
         const exportFieldGroups =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
@@ -1437,12 +1449,15 @@ function extractStorageErrorMessage(error: unknown): string {
   const errorDetails = (error as unknown as { Details?: unknown }).Details;
   const causeDetails = (cause as unknown as { Details?: unknown } | undefined)
     ?.Details;
-  const details =
-    typeof errorDetails === "string"
-      ? errorDetails
-      : typeof causeDetails === "string"
-        ? causeDetails
-        : undefined;
+  const details = (() => {
+    if (typeof errorDetails === "string") {
+      return errorDetails;
+    }
+    if (typeof causeDetails === "string") {
+      return causeDetails;
+    }
+    return undefined;
+  })();
 
   const full = details ? `${message} Details: ${details}` : message;
   return full.slice(0, 1000);

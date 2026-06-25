@@ -1022,12 +1022,15 @@ export function WidgetForm({
     const toTimestamp = dateRange ? dateRange.to : new Date();
 
     // Determine dimensions based on chart type
-    const queryDimensions =
-      selectedChartType === "PIVOT_TABLE"
-        ? pivotDimensions.map((field) => ({ field }))
-        : selectedDimension !== "none"
-          ? [{ field: selectedDimension }]
-          : [];
+    const queryDimensions = (() => {
+      if (selectedChartType === "PIVOT_TABLE") {
+        return pivotDimensions.map((field) => ({ field }));
+      }
+      if (selectedDimension !== "none") {
+        return [{ field: selectedDimension }];
+      }
+      return [];
+    })();
 
     // Determine metrics based on chart type
     const queryMetrics =
@@ -1359,12 +1362,15 @@ export function WidgetForm({
       return;
     }
 
-    const saveDimensions =
-      selectedChartType === "PIVOT_TABLE"
-        ? pivotDimensions.map((field) => ({ field }))
-        : selectedDimension !== "none"
-          ? [{ field: selectedDimension }]
-          : [];
+    const saveDimensions = (() => {
+      if (selectedChartType === "PIVOT_TABLE") {
+        return pivotDimensions.map((field) => ({ field }));
+      }
+      if (selectedDimension !== "none") {
+        return [{ field: selectedDimension }];
+      }
+      return [];
+    })();
     const saveMetrics =
       selectedChartType === "PIVOT_TABLE"
         ? validMetrics.map((metric) => ({
@@ -1386,31 +1392,34 @@ export function WidgetForm({
       metrics: saveMetrics,
       filters: normalizedUserFilters,
       chartType: selectedChartType as DashboardWidgetChartType,
-      chartConfig: isTimeSeriesChart(
-        selectedChartType as DashboardWidgetChartType,
-      )
-        ? { type: selectedChartType as DashboardWidgetChartType }
-        : selectedChartType === "HISTOGRAM"
-          ? {
-              type: selectedChartType as DashboardWidgetChartType,
-              bins: histogramBins,
-            }
-          : selectedChartType === "PIVOT_TABLE"
-            ? {
-                type: selectedChartType as DashboardWidgetChartType,
-                row_limit: rowLimit,
-                defaultSort:
-                  defaultSortColumn && defaultSortColumn !== "none"
-                    ? {
-                        column: defaultSortColumn,
-                        order: defaultSortOrder,
-                      }
-                    : undefined,
-              }
-            : {
-                type: selectedChartType as DashboardWidgetChartType,
-                row_limit: rowLimit,
-              },
+      chartConfig: (() => {
+        if (isTimeSeriesChart(selectedChartType as DashboardWidgetChartType)) {
+          return { type: selectedChartType as DashboardWidgetChartType };
+        }
+        if (selectedChartType === "HISTOGRAM") {
+          return {
+            type: selectedChartType as DashboardWidgetChartType,
+            bins: histogramBins,
+          };
+        }
+        if (selectedChartType === "PIVOT_TABLE") {
+          return {
+            type: selectedChartType as DashboardWidgetChartType,
+            row_limit: rowLimit,
+            defaultSort:
+              defaultSortColumn && defaultSortColumn !== "none"
+                ? {
+                    column: defaultSortColumn,
+                    order: defaultSortOrder,
+                  }
+                : undefined,
+          };
+        }
+        return {
+          type: selectedChartType as DashboardWidgetChartType,
+          row_limit: rowLimit,
+        };
+      })(),
       minVersion: requiresV2({
         view: selectedView,
         dimensions: saveDimensions,
@@ -1691,13 +1700,15 @@ export function WidgetForm({
                                 >
                                   <SelectTrigger id={`pivot-metric-${index}`}>
                                     <SelectValue
-                                      placeholder={
-                                        !isEnabled
-                                          ? "Select previous metric first"
-                                          : !canEdit
-                                            ? "No more measures available"
-                                            : "Select measure"
-                                      }
+                                      placeholder={(() => {
+                                        if (!isEnabled) {
+                                          return "Select previous metric first";
+                                        }
+                                        if (!canEdit) {
+                                          return "No more measures available";
+                                        }
+                                        return "Select measure";
+                                      })()}
                                     />
                                   </SelectTrigger>
                                   <SelectContent>
@@ -2213,57 +2224,65 @@ export function WidgetForm({
               {widgetDescription}
             </CardDescription>
           </CardHeader>
-          {!queryValidation.valid ? (
-            <CardContent>
-              <div className="flex h-[300px] items-center justify-center">
-                <Alert variant="destructive" className="max-w-sm">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Invalid query</AlertTitle>
-                  <AlertDescription>{queryValidation.reason}</AlertDescription>
-                </Alert>
-              </div>
-            </CardContent>
-          ) : queryResult.data || chartLoadingState.isLoading ? (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <div className="relative min-h-0 flex-1">
-                <Chart
-                  chartType={selectedChartType as DashboardWidgetChartType}
-                  data={transformedData}
-                  config={
-                    chartPresentation
-                      ? {
-                          metric: {
-                            label: chartPresentation.label,
-                          },
-                        }
-                      : undefined
-                  }
-                  rowLimit={rowLimit}
-                  chartConfig={
-                    selectedChartType === "PIVOT_TABLE"
-                      ? {
-                          type: selectedChartType as DashboardWidgetChartType,
-                          dimensions: pivotDimensions,
-                          row_limit: rowLimit,
-                          metrics: selectedMetrics.map((metric) => metric.id), // Pass metric field names
-                          units: selectedMetrics.map((metric) =>
-                            getResultUnit(
-                              selectedView,
-                              metric.measure,
-                              metric.aggregation,
-                              viewVersion,
+          {(() => {
+            if (!queryValidation.valid) {
+              return (
+                <CardContent>
+                  <div className="flex h-[300px] items-center justify-center">
+                    <Alert variant="destructive" className="max-w-sm">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Invalid query</AlertTitle>
+                      <AlertDescription>
+                        {queryValidation.reason}
+                      </AlertDescription>
+                    </Alert>
+                  </div>
+                </CardContent>
+              );
+            }
+            if (queryResult.data || chartLoadingState.isLoading) {
+              return (
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <div className="relative min-h-0 flex-1">
+                    <Chart
+                      chartType={selectedChartType as DashboardWidgetChartType}
+                      data={transformedData}
+                      config={
+                        chartPresentation
+                          ? {
+                              metric: {
+                                label: chartPresentation.label,
+                              },
+                            }
+                          : undefined
+                      }
+                      rowLimit={rowLimit}
+                      chartConfig={(() => {
+                        if (selectedChartType === "PIVOT_TABLE") {
+                          return {
+                            type: selectedChartType as DashboardWidgetChartType,
+                            dimensions: pivotDimensions,
+                            row_limit: rowLimit,
+                            metrics: selectedMetrics.map((metric) => metric.id), // Pass metric field names
+                            units: selectedMetrics.map((metric) =>
+                              getResultUnit(
+                                selectedView,
+                                metric.measure,
+                                metric.aggregation,
+                                viewVersion,
+                              ),
                             ),
-                          ),
-                          defaultSort:
-                            defaultSortColumn && defaultSortColumn !== "none"
-                              ? {
-                                  column: defaultSortColumn,
-                                  order: defaultSortOrder,
-                                }
-                              : undefined,
+                            defaultSort:
+                              defaultSortColumn && defaultSortColumn !== "none"
+                                ? {
+                                    column: defaultSortColumn,
+                                    order: defaultSortOrder,
+                                  }
+                                : undefined,
+                          };
                         }
-                      : selectedChartType === "HISTOGRAM"
-                        ? {
+                        if (selectedChartType === "HISTOGRAM") {
+                          return {
                             type: selectedChartType as DashboardWidgetChartType,
                             bins: histogramBins,
                             unit: getResultUnit(
@@ -2272,56 +2291,64 @@ export function WidgetForm({
                               selectedAggregation,
                               viewVersion,
                             ),
-                          }
-                        : {
-                            type: selectedChartType as DashboardWidgetChartType,
-                            row_limit: rowLimit,
-                            unit: getResultUnit(
-                              selectedView,
-                              selectedMeasure,
-                              selectedAggregation,
-                              viewVersion,
-                            ),
-                          }
-                  }
-                  sortState={
-                    selectedChartType === "PIVOT_TABLE"
-                      ? previewSortState
-                      : undefined
-                  }
-                  onSortChange={undefined}
-                  isLoading={queryResult.isPending}
-                  metricFormatter={chartPresentation?.metricFormatter}
-                />
-                <ChartLoadingState
-                  isLoading={chartLoadingState.isLoading}
-                  showSpinner={chartLoadingState.showSpinner}
-                  showHintImmediately={chartLoadingState.showHintImmediately}
-                  hintText={chartLoadingState.hintText}
-                  progress={loadingProgress}
-                  className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-                />
-              </div>
-            </div>
-          ) : (
-            <CardContent>
-              <div className="flex h-[300px] items-center justify-center">
-                {chartLoadingState.isLoading ? (
-                  <ChartLoadingState
-                    isLoading={chartLoadingState.isLoading}
-                    showSpinner={chartLoadingState.showSpinner}
-                    showHintImmediately={chartLoadingState.showHintImmediately}
-                    hintText={chartLoadingState.hintText}
-                    progress={loadingProgress}
-                  />
-                ) : (
-                  <p className="text-muted-foreground">
-                    Waiting for Input / Loading...
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          )}
+                          };
+                        }
+                        return {
+                          type: selectedChartType as DashboardWidgetChartType,
+                          row_limit: rowLimit,
+                          unit: getResultUnit(
+                            selectedView,
+                            selectedMeasure,
+                            selectedAggregation,
+                            viewVersion,
+                          ),
+                        };
+                      })()}
+                      sortState={
+                        selectedChartType === "PIVOT_TABLE"
+                          ? previewSortState
+                          : undefined
+                      }
+                      onSortChange={undefined}
+                      isLoading={queryResult.isPending}
+                      metricFormatter={chartPresentation?.metricFormatter}
+                    />
+                    <ChartLoadingState
+                      isLoading={chartLoadingState.isLoading}
+                      showSpinner={chartLoadingState.showSpinner}
+                      showHintImmediately={
+                        chartLoadingState.showHintImmediately
+                      }
+                      hintText={chartLoadingState.hintText}
+                      progress={loadingProgress}
+                      className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+                    />
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <CardContent>
+                <div className="flex h-[300px] items-center justify-center">
+                  {chartLoadingState.isLoading ? (
+                    <ChartLoadingState
+                      isLoading={chartLoadingState.isLoading}
+                      showSpinner={chartLoadingState.showSpinner}
+                      showHintImmediately={
+                        chartLoadingState.showHintImmediately
+                      }
+                      hintText={chartLoadingState.hintText}
+                      progress={loadingProgress}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground">
+                      Waiting for Input / Loading...
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            );
+          })()}
         </Card>
       </div>
     </div>

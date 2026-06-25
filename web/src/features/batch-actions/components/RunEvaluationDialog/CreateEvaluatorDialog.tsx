@@ -79,24 +79,32 @@ export function CreateEvaluatorDialog(props: CreateEvaluatorDialogProps) {
               <p className="text-muted-foreground text-sm">
                 Select an evaluator template to configure.
               </p>
-              {templatesQuery.isLoading ? (
-                <p className="text-muted-foreground text-sm">
-                  Loading templates...
-                </p>
-              ) : templatesQuery.isError ? (
-                <p className="text-destructive text-sm">
-                  Failed to load templates: {templatesQuery.error.message}
-                </p>
-              ) : (
-                <div className="max-h-[55vh] overflow-y-auto rounded-md border p-2">
-                  <EvaluatorSelector
-                    projectId={projectId}
-                    evalTemplates={templatesQuery.data?.templates ?? []}
-                    selectedTemplateId={undefined}
-                    onTemplateSelect={(id) => setTemplateId(id)}
-                  />
-                </div>
-              )}
+              {(() => {
+                if (templatesQuery.isLoading) {
+                  return (
+                    <p className="text-muted-foreground text-sm">
+                      Loading templates...
+                    </p>
+                  );
+                }
+                if (templatesQuery.isError) {
+                  return (
+                    <p className="text-destructive text-sm">
+                      Failed to load templates: {templatesQuery.error.message}
+                    </p>
+                  );
+                }
+                return (
+                  <div className="max-h-[55vh] overflow-y-auto rounded-md border p-2">
+                    <EvaluatorSelector
+                      projectId={projectId}
+                      evalTemplates={templatesQuery.data?.templates ?? []}
+                      selectedTemplateId={undefined}
+                      onTemplateSelect={(id) => setTemplateId(id)}
+                    />
+                  </div>
+                );
+              })()}
             </div>
           ) : (
             <div className="pb-1">

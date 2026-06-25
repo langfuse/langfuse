@@ -166,12 +166,15 @@ export function PromptTable() {
       const fullPath = prompt.id; // id now contains the full path (used for metrics join)
       // Extract just the name portion (last segment) for display
       const itemName = fullPath.split("/").pop() ?? fullPath;
-      const type =
-        isFolder || prompt.type === "folder"
-          ? "folder"
-          : prompt.type === "chat"
-            ? "chat"
-            : "text";
+      const type = (() => {
+        if (isFolder || prompt.type === "folder") {
+          return "folder";
+        }
+        if (prompt.type === "chat") {
+          return "chat";
+        }
+        return "text";
+      })();
 
       combinedRows.push(
         createRow({
@@ -447,31 +450,33 @@ export function PromptTable() {
             <DataTable
               tableName={"prompts"}
               columns={promptColumns}
-              data={
-                prompts.isLoading
-                  ? { isLoading: true, isError: false }
-                  : prompts.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: prompts.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: processedRowData.rows?.map((item) => ({
-                          id: item.id,
-                          name: item.name,
-                          fullPath: item.fullPath,
-                          version: item.version,
-                          createdAt: item.createdAt,
-                          type: item.type,
-                          labels: item.labels,
-                          numberOfObservations: item.numberOfObservations,
-                          tags: item.tags,
-                        })),
-                      }
-              }
+              data={(() => {
+                if (prompts.isLoading) {
+                  return { isLoading: true, isError: false };
+                }
+                if (prompts.isError) {
+                  return {
+                    isLoading: false,
+                    isError: true,
+                    error: prompts.error.message,
+                  };
+                }
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: processedRowData.rows?.map((item) => ({
+                    id: item.id,
+                    name: item.name,
+                    fullPath: item.fullPath,
+                    version: item.version,
+                    createdAt: item.createdAt,
+                    type: item.type,
+                    labels: item.labels,
+                    numberOfObservations: item.numberOfObservations,
+                    tags: item.tags,
+                  })),
+                };
+              })()}
               orderBy={orderByState}
               setOrderBy={setOrderByState}
               pagination={{

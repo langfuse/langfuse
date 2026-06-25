@@ -189,13 +189,15 @@ export function AnnotationQueueItemsTable({
         return (
           <div className="flex h-full items-center">
             <Checkbox
-              checked={
-                table.getIsAllPageRowsSelected()
-                  ? true
-                  : table.getIsSomePageRowsSelected()
-                    ? "indeterminate"
-                    : false
-              }
+              checked={(() => {
+                if (table.getIsAllPageRowsSelected()) {
+                  return true;
+                }
+                if (table.getIsSomePageRowsSelected()) {
+                  return "indeterminate";
+                }
+                return false;
+              })()}
               onCheckedChange={(value) => {
                 table.toggleAllPageRowsSelected(!!value);
                 if (!value) {
@@ -448,23 +450,25 @@ export function AnnotationQueueItemsTable({
       <DataTable
         tableName={"annotationQueueItems"}
         columns={columns}
-        data={
-          items.isLoading
-            ? { isLoading: true, isError: false }
-            : items.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: items.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(items.data, "queueItems", []).map((item) =>
-                    convertToTableRow(item),
-                  ),
-                }
-        }
+        data={(() => {
+          if (items.isLoading) {
+            return { isLoading: true, isError: false };
+          }
+          if (items.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: items.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: safeExtract(items.data, "queueItems", []).map((item) =>
+              convertToTableRow(item),
+            ),
+          };
+        })()}
         help={{
           description:
             "Add traces and/or observations to your annotation queue to have them annotated by your team across predefined dimensions.",

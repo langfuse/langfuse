@@ -438,42 +438,38 @@ const UsersTable = ({ isBetaEnabled }: { isBetaEnabled: boolean }) => {
       <DataTable
         tableName={"users"}
         columns={columns}
-        data={
-          users.isLoading
-            ? { isLoading: true, isError: false }
-            : users.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: users.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: userRowData.rows?.map((t) => {
-                    return {
-                      userId: t.id,
-                      environment: t.environment ?? undefined,
-                      firstEvent:
-                        t.firstTrace?.toLocaleString() ?? "No event yet",
-                      lastEvent:
-                        t.lastTrace?.toLocaleString() ?? "No event yet",
-                      totalEvents: compactNumberFormatter(
-                        isBetaEnabled
-                          ? Number(t.totalObservations ?? 0)
-                          : Number(t.totalTraces ?? 0) +
-                              Number(t.totalObservations ?? 0),
-                      ),
-                      totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
-                      totalCost: usdFormatter(
-                        t.sumCalculatedTotalCost ?? 0,
-                        2,
-                        2,
-                      ),
-                    };
-                  }),
-                }
-        }
+        data={(() => {
+          if (users.isLoading) {
+            return { isLoading: true, isError: false };
+          }
+          if (users.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: users.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: userRowData.rows?.map((t) => {
+              return {
+                userId: t.id,
+                environment: t.environment ?? undefined,
+                firstEvent: t.firstTrace?.toLocaleString() ?? "No event yet",
+                lastEvent: t.lastTrace?.toLocaleString() ?? "No event yet",
+                totalEvents: compactNumberFormatter(
+                  isBetaEnabled
+                    ? Number(t.totalObservations ?? 0)
+                    : Number(t.totalTraces ?? 0) +
+                        Number(t.totalObservations ?? 0),
+                ),
+                totalTokens: compactNumberFormatter(t.totalTokens ?? 0),
+                totalCost: usdFormatter(t.sumCalculatedTotalCost ?? 0, 2, 2),
+              };
+            }),
+          };
+        })()}
         pagination={{
           totalCount,
           onChange: setPaginationState,

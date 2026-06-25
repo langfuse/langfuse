@@ -505,12 +505,15 @@ const getScoresForTracesInternal = async <
   } = props;
 
   const select = formatMetadataSelect(excludeMetadata, includeHasMetadata);
-  const levelFilter =
-    level === "trace"
-      ? "AND s.observation_id IS NULL"
-      : level === "observation"
-        ? "AND s.observation_id IS NOT NULL"
-        : "";
+  const levelFilter = (() => {
+    if (level === "trace") {
+      return "AND s.observation_id IS NULL";
+    }
+    if (level === "observation") {
+      return "AND s.observation_id IS NOT NULL";
+    }
+    return "";
+  })();
 
   const query = `
       select
@@ -2097,13 +2100,18 @@ export const getScoresForAnalyticsIntegrations = async function* (
       langfuse_tags: record.trace_tags,
       langfuse_environment: record.environment,
       langfuse_event_version: "1.0.0",
-      langfuse_score_entity_type: record.score_trace_id
-        ? "trace"
-        : record.score_session_id
-          ? "session"
-          : record.score_dataset_run_id
-            ? "dataset_run"
-            : "unknown",
+      langfuse_score_entity_type: (() => {
+        if (record.score_trace_id) {
+          return "trace";
+        }
+        if (record.score_session_id) {
+          return "session";
+        }
+        if (record.score_dataset_run_id) {
+          return "dataset_run";
+        }
+        return "unknown";
+      })(),
       langfuse_dataset_run_id: record.score_dataset_run_id,
       posthog_session_id: record.posthog_session_id ?? null,
       mixpanel_session_id: record.mixpanel_session_id ?? null,

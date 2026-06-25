@@ -90,58 +90,72 @@ export function SelectWidgetDialog({
 
         <DialogBody>
           <div className="max-h-[400px] overflow-y-auto">
-            {widgets.isPending ? (
-              <div className="py-8 text-center">Loading widgets...</div>
-            ) : widgets.isError ? (
-              <div className="text-destructive py-8 text-center">
-                Error: {widgets.error.message}
-              </div>
-            ) : widgets.data?.widgets.length === 0 ? (
-              <div className="text-muted-foreground py-8 text-center">
-                No widgets found. Create a new widget to get started.
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>View Type</TableHead>
-                    <TableHead>Chart Type</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {widgets.data?.widgets.map((widget) => (
-                    <TableRow
-                      key={widget.id}
-                      onClick={() => setSelectedWidgetId(widget.id)}
-                      className={`hover:bg-muted cursor-pointer ${
-                        selectedWidgetId === widget.id ? "bg-muted" : ""
-                      }`}
-                    >
-                      <TableCell density="comfortable" className="font-medium">
-                        {widget.name}
-                      </TableCell>
-                      <TableCell
-                        density="comfortable"
-                        className="truncate"
-                        title={widget.description}
-                      >
-                        {widget.description}
-                      </TableCell>
-                      <TableCell density="comfortable">
-                        {startCase(widget.view.toLowerCase())}
-                      </TableCell>
-                      <TableCell density="comfortable">
-                        {getChartTypeDisplayName(
-                          widget.chartType as DashboardWidgetChartType,
-                        )}
-                      </TableCell>
+            {(() => {
+              if (widgets.isPending) {
+                return (
+                  <div className="py-8 text-center">Loading widgets...</div>
+                );
+              }
+              if (widgets.isError) {
+                return (
+                  <div className="text-destructive py-8 text-center">
+                    Error: {widgets.error.message}
+                  </div>
+                );
+              }
+              if (widgets.data?.widgets.length === 0) {
+                return (
+                  <div className="text-muted-foreground py-8 text-center">
+                    No widgets found. Create a new widget to get started.
+                  </div>
+                );
+              }
+              return (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Description</TableHead>
+                      <TableHead>View Type</TableHead>
+                      <TableHead>Chart Type</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
+                  </TableHeader>
+                  <TableBody>
+                    {widgets.data?.widgets.map((widget) => (
+                      <TableRow
+                        key={widget.id}
+                        onClick={() => setSelectedWidgetId(widget.id)}
+                        className={`hover:bg-muted cursor-pointer ${
+                          selectedWidgetId === widget.id ? "bg-muted" : ""
+                        }`}
+                      >
+                        <TableCell
+                          density="comfortable"
+                          className="font-medium"
+                        >
+                          {widget.name}
+                        </TableCell>
+                        <TableCell
+                          density="comfortable"
+                          className="truncate"
+                          title={widget.description}
+                        >
+                          {widget.description}
+                        </TableCell>
+                        <TableCell density="comfortable">
+                          {startCase(widget.view.toLowerCase())}
+                        </TableCell>
+                        <TableCell density="comfortable">
+                          {getChartTypeDisplayName(
+                            widget.chartType as DashboardWidgetChartType,
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              );
+            })()}
           </div>
         </DialogBody>
 

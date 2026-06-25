@@ -91,12 +91,15 @@ export function DashboardWidget({
   });
   // If widget requires v2 features (minVersion >= 2), must use v2.
   // Otherwise follow the beta toggle.
-  const metricsVersion: ViewVersion =
-    widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2
-      ? "v2"
-      : isBetaEnabled && (widget.data?.view ?? "traces") !== "traces"
-        ? "v2"
-        : "v1";
+  const metricsVersion: ViewVersion = (() => {
+    if (widgetRequiresV2 || (widget.data?.minVersion ?? 1) >= 2) {
+      return "v2";
+    }
+    if (isBetaEnabled && (widget.data?.view ?? "traces") !== "traces") {
+      return "v2";
+    }
+    return "v1";
+  })();
   const hasCUDAccess =
     useHasProjectAccess({ projectId, scope: "dashboards:CUD" }) &&
     dashboardOwner !== "LANGFUSE";
@@ -231,12 +234,15 @@ export function DashboardWidget({
     isV4Enabled: isBetaEnabled,
     version: metricsVersion,
   });
-  const loadingStateLayout =
-    placement.y_size <= 2
-      ? "tight"
-      : placement.x_size <= 4
-        ? "compact"
-        : "default";
+  const loadingStateLayout = (() => {
+    if (placement.y_size <= 2) {
+      return "tight";
+    }
+    if (placement.x_size <= 4) {
+      return "compact";
+    }
+    return "default";
+  })();
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,
     progress: queryResult.progress,
@@ -390,23 +396,31 @@ export function DashboardWidget({
                 size={16}
                 className="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
               />
-              {widget.data.owner === "PROJECT" ? (
-                <button
-                  onClick={handleEdit}
-                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Edit widget"
-                >
-                  <PencilIcon size={16} />
-                </button>
-              ) : widget.data.owner === "LANGFUSE" ? (
-                <button
-                  onClick={handleCopy}
-                  className="text-muted-foreground hover:text-foreground hidden group-hover:block"
-                  aria-label="Copy widget"
-                >
-                  <CopyIcon size={16} />
-                </button>
-              ) : null}
+              {(() => {
+                if (widget.data.owner === "PROJECT") {
+                  return (
+                    <button
+                      onClick={handleEdit}
+                      className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                      aria-label="Edit widget"
+                    >
+                      <PencilIcon size={16} />
+                    </button>
+                  );
+                }
+                if (widget.data.owner === "LANGFUSE") {
+                  return (
+                    <button
+                      onClick={handleCopy}
+                      className="text-muted-foreground hover:text-foreground hidden group-hover:block"
+                      aria-label="Copy widget"
+                    >
+                      <CopyIcon size={16} />
+                    </button>
+                  );
+                }
+                return null;
+              })()}
               <button
                 onClick={handleDelete}
                 className="text-muted-foreground hover:text-destructive hidden group-hover:block"

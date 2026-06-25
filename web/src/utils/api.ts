@@ -30,12 +30,15 @@ import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 setUpSuperjson();
 
 const getBaseUrl = () => {
-  const hostname =
-    typeof window !== "undefined"
-      ? window.location.origin
-      : process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : `http://localhost:${process.env.PORT ?? 3000}`;
+  const hostname = (() => {
+    if (typeof window !== "undefined") {
+      return window.location.origin;
+    }
+    if (process.env.VERCEL_URL) {
+      return `https://${process.env.VERCEL_URL}`;
+    }
+    return `http://localhost:${process.env.PORT ?? 3000}`;
+  })();
 
   return `${hostname}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 };

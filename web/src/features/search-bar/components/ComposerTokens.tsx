@@ -129,12 +129,15 @@ export function ComposerTokens({
     // overlay in SearchComposer), not the native browser title. Free text is a
     // full-text search — say so on hover so a standalone text chip explains
     // itself instead of looking like a stray block.
-    const title =
-      segment.kind === "invalid"
-        ? undefined
-        : segment.kind === "freeText"
-          ? `Full-text search — matches results containing "${segment.raw}". Searches ids, names, input and output by default; use input: or output: to search one payload, or name:/id: to narrow.`
-          : segment.raw;
+    const title = (() => {
+      if (segment.kind === "invalid") {
+        return undefined;
+      }
+      if (segment.kind === "freeText") {
+        return `Full-text search — matches results containing "${segment.raw}". Searches ids, names, input and output by default; use input: or output: to search one payload, or name:/id: to narrow.`;
+      }
+      return segment.raw;
+    })();
     out.push(
       <span
         key={segment.id}

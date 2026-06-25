@@ -331,11 +331,15 @@ export function SetPromptVersionLabels({
             className="w-full"
             onClick={handleSubmitLabels}
           >
-            {isPromotingToProduction
-              ? "Save and promote to production"
-              : isDemotingFromProduction
-                ? "Save and remove from production"
-                : "Save"}
+            {(() => {
+              if (isPromotingToProduction) {
+                return "Save and promote to production";
+              }
+              if (isDemotingFromProduction) {
+                return "Save and remove from production";
+              }
+              return "Save";
+            })()}
           </Button>
         </div>
       </PopoverContent>

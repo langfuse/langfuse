@@ -178,15 +178,26 @@ function FileViewer({
 
   const iconTile = (
     <div className="flex flex-col items-center gap-2">
-      {isImage ? (
-        <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : isAudio ? (
-        <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : isVideo ? (
-        <Video className="h-5 w-5 transition-transform group-hover:scale-110" />
-      ) : (
-        <File className="h-5 w-5 transition-transform group-hover:scale-110" />
-      )}
+      {(() => {
+        if (isImage) {
+          return (
+            <ImageIcon className="h-5 w-5 transition-transform group-hover:scale-110" />
+          );
+        }
+        if (isAudio) {
+          return (
+            <Volume2 className="h-5 w-5 transition-transform group-hover:scale-110" />
+          );
+        }
+        if (isVideo) {
+          return (
+            <Video className="h-5 w-5 transition-transform group-hover:scale-110" />
+          );
+        }
+        return (
+          <File className="h-5 w-5 transition-transform group-hover:scale-110" />
+        );
+      })()}
 
       <div className="flex flex-col items-center gap-1">
         <span className="text-sm font-medium">{fileExtension}</span>
@@ -197,20 +208,27 @@ function FileViewer({
     </div>
   );
 
-  const previewContent = isImage ? (
-    <ResizableImage
-      src={src}
-      alt={fileName}
-      isDefaultVisible={true}
-      shouldValidateImageSource={false}
-      fitContent
-      compactWidth={compactImageWidth}
-    />
-  ) : isAudio ? (
-    <AudioPlayer src={src} />
-  ) : isVideo ? (
-    <VideoPlayer src={src} />
-  ) : null;
+  const previewContent = (() => {
+    if (isImage) {
+      return (
+        <ResizableImage
+          src={src}
+          alt={fileName}
+          isDefaultVisible={true}
+          shouldValidateImageSource={false}
+          fitContent
+          compactWidth={compactImageWidth}
+        />
+      );
+    }
+    if (isAudio) {
+      return <AudioPlayer src={src} />;
+    }
+    if (isVideo) {
+      return <VideoPlayer src={src} />;
+    }
+    return null;
+  })();
 
   return (
     <div

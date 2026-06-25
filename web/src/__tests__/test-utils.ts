@@ -42,50 +42,59 @@ export const getQueues = () => {
       (queueName) => !listOfQueuesToIgnore.includes(queueName as QueueName),
     )
     .map((queueName) =>
-      queueName.startsWith(QueueName.IngestionQueue)
-        ? IngestionQueue.getInstance({ shardName: queueName })
-        : queueName.startsWith(QueueName.IngestionSecondaryQueue)
-          ? SecondaryIngestionQueue.getInstance({ shardName: queueName })
-          : queueName.startsWith(QueueName.EvaluationExecution)
-            ? EvalExecutionQueue.getInstance({ shardName: queueName })
-            : queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue)
-              ? SecondaryEvalExecutionQueue.getInstance({
-                  shardName: queueName,
-                })
-              : queueName.startsWith(QueueName.LLMAsJudgeExecution)
-                ? LLMAsJudgeExecutionQueue.getInstance({
-                    shardName: queueName,
-                  })
-                : queueName.startsWith(QueueName.CodeEvalExecution)
-                  ? CodeEvalExecutionQueue.getInstance({
-                      shardName: queueName,
-                    })
-                  : queueName.startsWith(QueueName.TraceUpsert)
-                    ? TraceUpsertQueue.getInstance({ shardName: queueName })
-                    : queueName.startsWith(
-                          QueueName.OtelIngestionSecondaryQueue,
-                        )
-                      ? SecondaryOtelIngestionQueue.getInstance({
-                          shardName: queueName,
-                        })
-                      : queueName.startsWith(QueueName.OtelIngestionQueue)
-                        ? OtelIngestionQueue.getInstance({
-                            shardName: queueName,
-                          })
-                        : getQueue(
-                            queueName as Exclude<
-                              QueueName,
-                              | QueueName.IngestionQueue
-                              | QueueName.IngestionSecondaryQueue
-                              | QueueName.EvaluationExecution
-                              | QueueName.EvaluationExecutionSecondaryQueue
-                              | QueueName.LLMAsJudgeExecution
-                              | QueueName.CodeEvalExecution
-                              | QueueName.TraceUpsert
-                              | QueueName.OtelIngestionQueue
-                              | QueueName.OtelIngestionSecondaryQueue
-                            >,
-                          ),
+      (() => {
+        if (queueName.startsWith(QueueName.IngestionQueue)) {
+          return IngestionQueue.getInstance({ shardName: queueName });
+        }
+        if (queueName.startsWith(QueueName.IngestionSecondaryQueue)) {
+          return SecondaryIngestionQueue.getInstance({ shardName: queueName });
+        }
+        if (queueName.startsWith(QueueName.EvaluationExecution)) {
+          return EvalExecutionQueue.getInstance({ shardName: queueName });
+        }
+        if (queueName.startsWith(QueueName.EvaluationExecutionSecondaryQueue)) {
+          return SecondaryEvalExecutionQueue.getInstance({
+            shardName: queueName,
+          });
+        }
+        if (queueName.startsWith(QueueName.LLMAsJudgeExecution)) {
+          return LLMAsJudgeExecutionQueue.getInstance({
+            shardName: queueName,
+          });
+        }
+        if (queueName.startsWith(QueueName.CodeEvalExecution)) {
+          return CodeEvalExecutionQueue.getInstance({
+            shardName: queueName,
+          });
+        }
+        if (queueName.startsWith(QueueName.TraceUpsert)) {
+          return TraceUpsertQueue.getInstance({ shardName: queueName });
+        }
+        if (queueName.startsWith(QueueName.OtelIngestionSecondaryQueue)) {
+          return SecondaryOtelIngestionQueue.getInstance({
+            shardName: queueName,
+          });
+        }
+        if (queueName.startsWith(QueueName.OtelIngestionQueue)) {
+          return OtelIngestionQueue.getInstance({
+            shardName: queueName,
+          });
+        }
+        return getQueue(
+          queueName as Exclude<
+            QueueName,
+            | QueueName.IngestionQueue
+            | QueueName.IngestionSecondaryQueue
+            | QueueName.EvaluationExecution
+            | QueueName.EvaluationExecutionSecondaryQueue
+            | QueueName.LLMAsJudgeExecution
+            | QueueName.CodeEvalExecution
+            | QueueName.TraceUpsert
+            | QueueName.OtelIngestionQueue
+            | QueueName.OtelIngestionSecondaryQueue
+          >,
+        );
+      })(),
     );
 };
 

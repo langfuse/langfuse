@@ -171,22 +171,36 @@ export const PromptReferenceButton = ({
       onClick={() =>
         window.open(getPromptReferenceUrl(projectId, promptRef), "_blank")
       }
-      title={`Open prompt: ${promptRef.name}${promptRef.type === "version" ? ` (v${promptRef.version})` : promptRef.label ? ` (${promptRef.label})` : ""}`}
+      title={`Open prompt: ${promptRef.name}${(() => {
+        if (promptRef.type === "version") {
+          return ` (v${promptRef.version})`;
+        }
+        if (promptRef.label) {
+          return ` (${promptRef.label})`;
+        }
+        return "";
+      })()}`}
     >
       <FileCode className="text-muted-foreground h-3 w-3 shrink-0" />
       <span className="truncate font-medium">
         {promptRef.name}
-        {promptRef.type === "version" ? (
-          <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
-            v{promptRef.version}
-          </Badge>
-        ) : promptRef.label ? (
-          <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
-            {promptRef.label}
-          </Badge>
-        ) : (
-          ""
-        )}
+        {(() => {
+          if (promptRef.type === "version") {
+            return (
+              <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
+                v{promptRef.version}
+              </Badge>
+            );
+          }
+          if (promptRef.label) {
+            return (
+              <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
+                {promptRef.label}
+              </Badge>
+            );
+          }
+          return "";
+        })()}
       </span>
     </Button>
   );

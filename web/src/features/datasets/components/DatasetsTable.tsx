@@ -601,21 +601,23 @@ export function DatasetsTable(props: { projectId: string }) {
         columns={columns}
         selectionStore={datasetsTableStore}
         highlightAllRows={selectAll}
-        data={
-          datasets.isLoading || isViewLoading
-            ? { isLoading: true, isError: false }
-            : datasets.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: datasets.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: processedRowData.rows,
-                }
-        }
+        data={(() => {
+          if (datasets.isLoading || isViewLoading) {
+            return { isLoading: true, isError: false };
+          }
+          if (datasets.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: datasets.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: processedRowData.rows,
+          };
+        })()}
         pagination={{
           totalCount: datasets.data?.totalDatasets ?? null,
           onChange: setPaginationAndFolderState,

@@ -66,20 +66,23 @@ export function tableColumnsToSqlFilter(
 
   const statements = internalFilters.map((filterAndColumn) => {
     const filter = filterAndColumn.condition;
-    const operatorPrisma =
-      filter.type === "arrayOptions"
-        ? Prisma.raw(
-            arrayOperatorReplacements[
-              filter.operator as keyof typeof arrayOperatorReplacements
-            ],
-          )
-        : filter.operator in operatorReplacements
-          ? Prisma.raw(
-              operatorReplacements[
-                filter.operator as keyof typeof operatorReplacements
-              ],
-            )
-          : Prisma.raw(filter.operator); //checked by zod
+    const operatorPrisma = (() => {
+      if (filter.type === "arrayOptions") {
+        return Prisma.raw(
+          arrayOperatorReplacements[
+            filter.operator as keyof typeof arrayOperatorReplacements
+          ],
+        );
+      }
+      if (filter.operator in operatorReplacements) {
+        return Prisma.raw(
+          operatorReplacements[
+            filter.operator as keyof typeof operatorReplacements
+          ],
+        );
+      }
+      return Prisma.raw(filter.operator);
+    })(); //checked by zod
 
     // Get prisma value
     let valuePrisma: Prisma.Sql;
@@ -194,15 +197,20 @@ export const datetimeFilterToPrismaSql = (
 export const datetimeFilterToPrisma = (
   timestampFilter: z.infer<typeof timeFilter>,
 ) => {
-  const prismaTimestampFilter =
-    timestampFilter.operator === ">="
-      ? { gte: timestampFilter.value }
-      : timestampFilter.operator === ">"
-        ? { gt: timestampFilter.value }
-        : timestampFilter.operator === "<="
-          ? { lte: timestampFilter.value }
-          : timestampFilter.operator === "<"
-            ? { lt: timestampFilter.value }
-            : {};
+  const prismaTimestampFilter = (() => {
+    if (timestampFilter.operator === ">=") {
+      return { gte: timestampFilter.value };
+    }
+    if (timestampFilter.operator === ">") {
+      return { gt: timestampFilter.value };
+    }
+    if (timestampFilter.operator === "<=") {
+      return { lte: timestampFilter.value };
+    }
+    if (timestampFilter.operator === "<") {
+      return { lt: timestampFilter.value };
+    }
+    return {};
+  })();
   return prismaTimestampFilter;
 };

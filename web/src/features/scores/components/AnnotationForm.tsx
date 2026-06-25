@@ -730,139 +730,157 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
                           </Popover>
                         </div>
                         <div className="grid grid-cols-[11fr_1fr] items-center py-1">
-                          {isTextDataType(score.dataType) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Textarea
-                                      {...field}
-                                      value={field.value ?? ""}
-                                      maxLength={TEXT_SCORE_MAX_LENGTH}
-                                      className="text-xs"
-                                      disabled={isInputDisabled(config)}
-                                      placeholder="Enter free form text..."
-                                      onBlur={() => handleTextUpsert(index)}
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : isNumericDataType(score.dataType) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.value`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Input
-                                      {...field}
-                                      value={field.value ?? ""}
-                                      onChange={(e) => {
-                                        const value = e.target.value;
-                                        if (value === "") {
-                                          return;
-                                        }
-                                        field.onChange(Number(value));
-                                      }}
-                                      type="number"
-                                      className="text-xs"
-                                      disabled={isInputDisabled(config)}
-                                      onBlur={() => handleNumericUpsert(index)}
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : config.categories && renderSelect(categories) ? (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <Combobox
-                                      name={field.name}
-                                      value={field.value ?? ""}
-                                      disabled={isInputDisabled(config)}
-                                      onValueChange={(value) => {
-                                        field.onChange(value);
-                                        handleCategoricalUpsert(index, value);
-                                      }}
-                                      options={categories.map((category) => ({
-                                        value: category.label,
-                                        disabled: category.isOutdated,
-                                      }))}
-                                      placeholder="Select category"
-                                      searchPlaceholder="Search categories..."
-                                      emptyText="No category found."
-                                    />
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          ) : (
-                            <FormField
-                              control={form.control}
-                              name={`scoreData.${index}.stringValue`}
-                              render={({ field }) => (
-                                <FormItem>
-                                  <FormControl>
-                                    <ToggleGroup
-                                      type="single"
-                                      value={field.value ?? ""}
-                                      disabled={isInputDisabled(config)}
-                                      className={`grid grid-cols-${categories.length}`}
-                                      onValueChange={(value) => {
-                                        field.onChange(value);
-                                        handleCategoricalUpsert(index, value);
-                                      }}
-                                    >
-                                      {categories.map((category) =>
-                                        category.isOutdated ? (
-                                          <ToggleGroupItem
-                                            key={category.value}
-                                            value={category.label}
-                                            disabled
-                                            variant="outline"
-                                            className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
-                                          >
-                                            <span
-                                              className="truncate"
-                                              title={category.label}
+                          {(() => {
+                            if (isTextDataType(score.dataType)) {
+                              return (
+                                <FormField
+                                  control={form.control}
+                                  name={`scoreData.${index}.stringValue`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormControl>
+                                        <Textarea
+                                          {...field}
+                                          value={field.value ?? ""}
+                                          maxLength={TEXT_SCORE_MAX_LENGTH}
+                                          className="text-xs"
+                                          disabled={isInputDisabled(config)}
+                                          placeholder="Enter free form text..."
+                                          onBlur={() => handleTextUpsert(index)}
+                                        />
+                                      </FormControl>
+                                      <FormMessage className="text-xs" />
+                                    </FormItem>
+                                  )}
+                                />
+                              );
+                            }
+                            if (isNumericDataType(score.dataType)) {
+                              return (
+                                <FormField
+                                  control={form.control}
+                                  name={`scoreData.${index}.value`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormControl>
+                                        <Input
+                                          {...field}
+                                          value={field.value ?? ""}
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            if (value === "") {
+                                              return;
+                                            }
+                                            field.onChange(Number(value));
+                                          }}
+                                          type="number"
+                                          className="text-xs"
+                                          disabled={isInputDisabled(config)}
+                                          onBlur={() =>
+                                            handleNumericUpsert(index)
+                                          }
+                                        />
+                                      </FormControl>
+                                      <FormMessage className="text-xs" />
+                                    </FormItem>
+                                  )}
+                                />
+                              );
+                            }
+                            if (config.categories && renderSelect(categories)) {
+                              return (
+                                <FormField
+                                  control={form.control}
+                                  name={`scoreData.${index}.stringValue`}
+                                  render={({ field }) => (
+                                    <FormItem>
+                                      <FormControl>
+                                        <Combobox
+                                          name={field.name}
+                                          value={field.value ?? ""}
+                                          disabled={isInputDisabled(config)}
+                                          onValueChange={(value) => {
+                                            field.onChange(value);
+                                            handleCategoricalUpsert(
+                                              index,
+                                              value,
+                                            );
+                                          }}
+                                          options={categories.map(
+                                            (category) => ({
+                                              value: category.label,
+                                              disabled: category.isOutdated,
+                                            }),
+                                          )}
+                                          placeholder="Select category"
+                                          searchPlaceholder="Search categories..."
+                                          emptyText="No category found."
+                                        />
+                                      </FormControl>
+                                      <FormMessage className="text-xs" />
+                                    </FormItem>
+                                  )}
+                                />
+                              );
+                            }
+                            return (
+                              <FormField
+                                control={form.control}
+                                name={`scoreData.${index}.stringValue`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormControl>
+                                      <ToggleGroup
+                                        type="single"
+                                        value={field.value ?? ""}
+                                        disabled={isInputDisabled(config)}
+                                        className={`grid grid-cols-${categories.length}`}
+                                        onValueChange={(value) => {
+                                          field.onChange(value);
+                                          handleCategoricalUpsert(index, value);
+                                        }}
+                                      >
+                                        {categories.map((category) =>
+                                          category.isOutdated ? (
+                                            <ToggleGroupItem
+                                              key={category.value}
+                                              value={category.label}
+                                              disabled
+                                              variant="outline"
+                                              className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap opacity-50"
                                             >
-                                              {category.label}
-                                            </span>
-                                            <span>{`(${category.value})`}</span>
-                                          </ToggleGroupItem>
-                                        ) : (
-                                          <ToggleGroupItem
-                                            key={category.value}
-                                            value={category.label}
-                                            variant="outline"
-                                            className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
-                                          >
-                                            <span
-                                              className="truncate"
-                                              title={category.label}
+                                              <span
+                                                className="truncate"
+                                                title={category.label}
+                                              >
+                                                {category.label}
+                                              </span>
+                                              <span>{`(${category.value})`}</span>
+                                            </ToggleGroupItem>
+                                          ) : (
+                                            <ToggleGroupItem
+                                              key={category.value}
+                                              value={category.label}
+                                              variant="outline"
+                                              className="grid grid-flow-col gap-1 px-1 text-xs font-normal text-nowrap"
                                             >
-                                              {category.label}
-                                            </span>
-                                          </ToggleGroupItem>
-                                        ),
-                                      )}
-                                    </ToggleGroup>
-                                  </FormControl>
-                                  <FormMessage className="text-xs" />
-                                </FormItem>
-                              )}
-                            />
-                          )}
+                                              <span
+                                                className="truncate"
+                                                title={category.label}
+                                              >
+                                                {category.label}
+                                              </span>
+                                            </ToggleGroupItem>
+                                          ),
+                                        )}
+                                      </ToggleGroup>
+                                    </FormControl>
+                                    <FormMessage className="text-xs" />
+                                  </FormItem>
+                                )}
+                              />
+                            );
+                          })()}
                           {config.isArchived ? (
                             <Popover>
                               <PopoverTrigger asChild>

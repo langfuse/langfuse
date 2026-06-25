@@ -454,12 +454,15 @@ export const convertPostgresTraceToInsert = (
     timestamp: trace.timestamp?.getTime(),
     name: trace.name,
     user_id: trace.user_id,
-    metadata:
-      typeof trace.metadata === "string"
-        ? { metadata: trace.metadata }
-        : Array.isArray(trace.metadata)
-          ? { metadata: trace.metadata }
-          : trace.metadata,
+    metadata: (() => {
+      if (typeof trace.metadata === "string") {
+        return { metadata: trace.metadata };
+      }
+      if (Array.isArray(trace.metadata)) {
+        return { metadata: trace.metadata };
+      }
+      return trace.metadata;
+    })(),
     environment: trace.environment,
     release: trace.release,
     version: trace.version,
@@ -494,28 +497,38 @@ export const convertPostgresDatasetRunItemToInsert = (
     // denormalized run data
     dataset_run_name: datasetRunItem.dataset_run_name,
     dataset_run_description: datasetRunItem.dataset_run_description,
-    dataset_run_metadata:
-      typeof datasetRunItem.dataset_run_metadata === "string" ||
-      typeof datasetRunItem.dataset_run_metadata === "number" ||
-      typeof datasetRunItem.dataset_run_metadata === "boolean"
-        ? { metadata: datasetRunItem.dataset_run_metadata }
-        : Array.isArray(datasetRunItem.dataset_run_metadata)
-          ? { metadata: datasetRunItem.dataset_run_metadata }
-          : (datasetRunItem.dataset_run_metadata ?? {}),
+    dataset_run_metadata: (() => {
+      if (
+        typeof datasetRunItem.dataset_run_metadata === "string" ||
+        typeof datasetRunItem.dataset_run_metadata === "number" ||
+        typeof datasetRunItem.dataset_run_metadata === "boolean"
+      ) {
+        return { metadata: datasetRunItem.dataset_run_metadata };
+      }
+      if (Array.isArray(datasetRunItem.dataset_run_metadata)) {
+        return { metadata: datasetRunItem.dataset_run_metadata };
+      }
+      return datasetRunItem.dataset_run_metadata ?? {};
+    })(),
     dataset_run_created_at: datasetRunItem.dataset_run_created_at?.getTime(),
     // denormalized item data
     dataset_item_input: JSON.stringify(datasetRunItem.dataset_item_input),
     dataset_item_expected_output: JSON.stringify(
       datasetRunItem.dataset_item_expected_output,
     ),
-    dataset_item_metadata:
-      typeof datasetRunItem.dataset_item_metadata === "string" ||
-      typeof datasetRunItem.dataset_item_metadata === "number" ||
-      typeof datasetRunItem.dataset_item_metadata === "boolean"
-        ? { metadata: datasetRunItem.dataset_item_metadata }
-        : Array.isArray(datasetRunItem.dataset_item_metadata)
-          ? { metadata: datasetRunItem.dataset_item_metadata }
-          : (datasetRunItem.dataset_item_metadata ?? {}),
+    dataset_item_metadata: (() => {
+      if (
+        typeof datasetRunItem.dataset_item_metadata === "string" ||
+        typeof datasetRunItem.dataset_item_metadata === "number" ||
+        typeof datasetRunItem.dataset_item_metadata === "boolean"
+      ) {
+        return { metadata: datasetRunItem.dataset_item_metadata };
+      }
+      if (Array.isArray(datasetRunItem.dataset_item_metadata)) {
+        return { metadata: datasetRunItem.dataset_item_metadata };
+      }
+      return datasetRunItem.dataset_item_metadata ?? {};
+    })(),
     event_ts: datasetRunItem.created_at?.getTime(),
     is_deleted: 0,
   };
@@ -545,12 +558,15 @@ export const convertPostgresObservationToInsert = (
     start_time: observation.start_time?.getTime(),
     end_time: observation.end_time?.getTime(),
     name: observation.name,
-    metadata:
-      typeof observation.metadata === "string"
-        ? { metadata: observation.metadata }
-        : Array.isArray(observation.metadata)
-          ? { metadata: observation.metadata }
-          : observation.metadata,
+    metadata: (() => {
+      if (typeof observation.metadata === "string") {
+        return { metadata: observation.metadata };
+      }
+      if (Array.isArray(observation.metadata)) {
+        return { metadata: observation.metadata };
+      }
+      return observation.metadata;
+    })(),
     level: observation.level,
     status_message: observation.status_message,
     version: observation.version,

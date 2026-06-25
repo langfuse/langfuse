@@ -77,11 +77,15 @@ const getMaintainerLabel = (maintainer: string) =>
 const getCodeEvalLanguageLabel = (
   sourceCodeLanguage?: EvalTemplate["sourceCodeLanguage"],
 ) =>
-  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-    ? "Python"
-    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-      ? "TypeScript"
-      : "Code";
+  (() => {
+    if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+      return "Python";
+    }
+    if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+      return "TypeScript";
+    }
+    return "Code";
+  })();
 
 const TemplateTypeBadge = ({
   type,
@@ -92,12 +96,15 @@ const TemplateTypeBadge = ({
 }) => {
   if (type === EvalTemplateType.CODE) {
     const label = getCodeEvalLanguageLabel(sourceCodeLanguage);
-    const Icon =
-      sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-        ? SiPython
-        : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-          ? SiTypescript
-          : null;
+    const Icon = (() => {
+      if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+        return SiPython;
+      }
+      if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+        return SiTypescript;
+      }
+      return null;
+    })();
 
     return (
       <Badge className="w-fit gap-1.5" variant="outline-solid">
@@ -499,28 +506,27 @@ export default function EvalsTemplateTable({
             // row at h-8 regardless
             rowHeight="s"
             customRowHeights={templateTableRowHeights}
-            data={
-              templates.isLoading
-                ? { isLoading: true, isError: false }
-                : templates.isError
-                  ? {
-                      isLoading: false,
-                      isError: true,
-                      error: templates.error.message,
-                    }
-                  : {
-                      isLoading: false,
-                      isError: false,
-                      data: safeExtract(templates.data, "templates", [])
-                        .filter((template) =>
-                          shouldShowEvalTemplate(
-                            template,
-                            codeEvalCapabilities,
-                          ),
-                        )
-                        .map((t) => convertToTableRow(t)),
-                    }
-            }
+            data={(() => {
+              if (templates.isLoading) {
+                return { isLoading: true, isError: false };
+              }
+              if (templates.isError) {
+                return {
+                  isLoading: false,
+                  isError: true,
+                  error: templates.error.message,
+                };
+              }
+              return {
+                isLoading: false,
+                isError: false,
+                data: safeExtract(templates.data, "templates", [])
+                  .filter((template) =>
+                    shouldShowEvalTemplate(template, codeEvalCapabilities),
+                  )
+                  .map((t) => convertToTableRow(t)),
+              };
+            })()}
             pagination={{
               totalCount,
               onChange: setPaginationState,

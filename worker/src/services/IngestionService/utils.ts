@@ -80,12 +80,15 @@ export function overwriteObject(
     return srcValue;
   });
 
-  result.metadata =
-    !a.metadata && b.metadata
-      ? b.metadata
-      : !b.metadata && a.metadata
-        ? a.metadata
-        : (merge(a.metadata, b.metadata) ?? {});
+  result.metadata = (() => {
+    if (!a.metadata && b.metadata) {
+      return b.metadata;
+    }
+    if (!b.metadata && a.metadata) {
+      return a.metadata;
+    }
+    return merge(a.metadata, b.metadata) ?? {};
+  })();
 
   if ("tags" in result) {
     result.tags = Array.from(

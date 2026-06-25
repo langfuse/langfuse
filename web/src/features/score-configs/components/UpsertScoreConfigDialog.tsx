@@ -234,179 +234,189 @@ export function UpsertScoreConfigDialog({
                     </FormItem>
                   )}
                 />
-                {isNumericDataType(form.getValues("dataType")) ? (
-                  <>
-                    <FormField
-                      control={form.control}
-                      name="minValue"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Minimum (optional) </FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ""}
-                              // manually manage controlled input state
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                field.onChange(
-                                  value === "" ? undefined : Number(value),
-                                );
-                              }}
-                              type="number"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="maxValue"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Maximum (optional)</FormLabel>
-                          <FormControl>
-                            <Input
-                              {...field}
-                              value={field.value ?? ""}
-                              // manually manage controlled input state
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                field.onChange(
-                                  value === "" ? undefined : Number(value),
-                                );
-                              }}
-                              type="number"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </>
-                ) : isTextDataType(form.getValues("dataType")) ? null : (
-                  <div className="grid grid-flow-row gap-2">
-                    <FormField
-                      control={form.control}
-                      name="categories"
-                      render={() => (
-                        <>
-                          {fields.length > 0 && (
-                            <div className="mb-2 grid grid-cols-[1fr_3fr] items-center gap-2 text-left sm:grid-cols-[1fr_7fr]">
-                              <FormLabel className="grid grid-flow-col">
-                                Value
-                                <DocPopup
-                                  description={`This is how the ${
-                                    isCategoricalDataType(
-                                      form.getValues("dataType"),
-                                    )
-                                      ? "category"
-                                      : "boolean"
-                                  } label is mapped to an integer value internally.`}
+                {(() => {
+                  if (isNumericDataType(form.getValues("dataType"))) {
+                    return (
+                      <>
+                        <FormField
+                          control={form.control}
+                          name="minValue"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Minimum (optional) </FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  value={field.value ?? ""}
+                                  // manually manage controlled input state
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    field.onChange(
+                                      value === "" ? undefined : Number(value),
+                                    );
+                                  }}
+                                  type="number"
                                 />
-                              </FormLabel>
-                              <FormLabel>Label</FormLabel>
-                            </div>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
                           )}
-                          {fields.map((category, index) => (
-                            <div
-                              key={`${category.id}-langfuseObject`}
-                              className="mb-2 grid grid-cols-[1fr_3fr] gap-2 text-left sm:grid-cols-[1fr_7fr]"
-                            >
-                              <FormField
-                                control={form.control}
-                                name={`categories.${index}.value`}
-                                render={({ field }) => (
-                                  <FormItem>
-                                    <FormControl>
-                                      <Input
-                                        {...field}
-                                        readOnly
-                                        disabled
-                                        inputMode="numeric"
-                                        className="text-center"
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                              <div className="grid grid-cols-[1fr_auto] gap-2">
+                        />
+                        <FormField
+                          control={form.control}
+                          name="maxValue"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Maximum (optional)</FormLabel>
+                              <FormControl>
+                                <Input
+                                  {...field}
+                                  value={field.value ?? ""}
+                                  // manually manage controlled input state
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    field.onChange(
+                                      value === "" ? undefined : Number(value),
+                                    );
+                                  }}
+                                  type="number"
+                                />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </>
+                    );
+                  }
+                  if (isTextDataType(form.getValues("dataType"))) {
+                    return null;
+                  }
+                  return (
+                    <div className="grid grid-flow-row gap-2">
+                      <FormField
+                        control={form.control}
+                        name="categories"
+                        render={() => (
+                          <>
+                            {fields.length > 0 && (
+                              <div className="mb-2 grid grid-cols-[1fr_3fr] items-center gap-2 text-left sm:grid-cols-[1fr_7fr]">
+                                <FormLabel className="grid grid-flow-col">
+                                  Value
+                                  <DocPopup
+                                    description={`This is how the ${
+                                      isCategoricalDataType(
+                                        form.getValues("dataType"),
+                                      )
+                                        ? "category"
+                                        : "boolean"
+                                    } label is mapped to an integer value internally.`}
+                                  />
+                                </FormLabel>
+                                <FormLabel>Label</FormLabel>
+                              </div>
+                            )}
+                            {fields.map((category, index) => (
+                              <div
+                                key={`${category.id}-langfuseObject`}
+                                className="mb-2 grid grid-cols-[1fr_3fr] gap-2 text-left sm:grid-cols-[1fr_7fr]"
+                              >
                                 <FormField
                                   control={form.control}
-                                  name={`categories.${index}.label`}
+                                  name={`categories.${index}.value`}
                                   render={({ field }) => (
                                     <FormItem>
                                       <FormControl>
                                         <Input
                                           {...field}
-                                          type="text"
-                                          onBlur={(e) =>
-                                            field.onChange(
-                                              e.target.value.trimEnd(),
-                                            )
-                                          }
-                                          readOnly={isBooleanDataType(
-                                            form.getValues("dataType"),
-                                          )}
+                                          readOnly
+                                          disabled
+                                          inputMode="numeric"
+                                          className="text-center"
                                         />
                                       </FormControl>
                                       <FormMessage />
                                     </FormItem>
                                   )}
                                 />
-                                {isCategoricalDataType(
-                                  form.getValues("dataType"),
-                                ) && (
-                                  <Button
-                                    onClick={() => remove(index)}
-                                    variant="outline"
-                                    size="icon"
-                                    disabled={
-                                      index === 0 || index !== fields.length - 1
-                                    }
-                                  >
-                                    <Trash className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                          {isCategoricalDataType(
-                            form.getValues("dataType"),
-                          ) && (
-                            <div className="grid">
-                              <Button
-                                type="button"
-                                variant="secondary"
-                                disabled={
-                                  isBooleanDataType(
+                                <div className="grid grid-cols-[1fr_auto] gap-2">
+                                  <FormField
+                                    control={form.control}
+                                    name={`categories.${index}.label`}
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <FormControl>
+                                          <Input
+                                            {...field}
+                                            type="text"
+                                            onBlur={(e) =>
+                                              field.onChange(
+                                                e.target.value.trimEnd(),
+                                              )
+                                            }
+                                            readOnly={isBooleanDataType(
+                                              form.getValues("dataType"),
+                                            )}
+                                          />
+                                        </FormControl>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                  {isCategoricalDataType(
                                     form.getValues("dataType"),
-                                  ) && fields.length === 2
-                                }
-                                onClick={() =>
-                                  append({
-                                    label: "",
-                                    value:
-                                      fields.length > 0
-                                        ? fields.reduce(
-                                            (max, f) => Math.max(max, f.value),
-                                            0,
-                                          ) + 1
-                                        : 0,
-                                  })
-                                }
-                              >
-                                Add category
-                              </Button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    />
-                  </div>
-                )}
+                                  ) && (
+                                    <Button
+                                      onClick={() => remove(index)}
+                                      variant="outline"
+                                      size="icon"
+                                      disabled={
+                                        index === 0 ||
+                                        index !== fields.length - 1
+                                      }
+                                    >
+                                      <Trash className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                            {isCategoricalDataType(
+                              form.getValues("dataType"),
+                            ) && (
+                              <div className="grid">
+                                <Button
+                                  type="button"
+                                  variant="secondary"
+                                  disabled={
+                                    isBooleanDataType(
+                                      form.getValues("dataType"),
+                                    ) && fields.length === 2
+                                  }
+                                  onClick={() =>
+                                    append({
+                                      label: "",
+                                      value:
+                                        fields.length > 0
+                                          ? fields.reduce(
+                                              (max, f) =>
+                                                Math.max(max, f.value),
+                                              0,
+                                            ) + 1
+                                          : 0,
+                                    })
+                                  }
+                                >
+                                  Add category
+                                </Button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      />
+                    </div>
+                  );
+                })()}
                 <FormField
                   control={form.control}
                   name="description"

@@ -877,41 +877,41 @@ export default function SessionsTable({
             <DataTable
               tableName={"sessions"}
               columns={columns}
-              data={
-                sessions.isPending || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : sessions.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: sessions.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: sessionRowData.rows?.map<SessionTableRow>(
-                          (session) => {
-                            return {
-                              id: session.id,
-                              createdAt: session.createdAt,
-                              bookmarked: session.bookmarked,
-                              userIds: session.userIds,
-                              countTraces: session.countTraces,
-                              sessionDuration: session.sessionDuration,
-                              inputCost: session.inputCost,
-                              outputCost: session.outputCost,
-                              totalCost: session.totalCost,
-                              inputTokens: session.promptTokens,
-                              outputTokens: session.completionTokens,
-                              totalTokens: session.totalTokens,
-                              traceTags: session.traceTags,
-                              environment: session.environment,
-                              scores: session.scores,
-                            };
-                          },
-                        ),
-                      }
-              }
+              data={(() => {
+                if (sessions.isPending || isViewLoading) {
+                  return { isLoading: true, isError: false };
+                }
+                if (sessions.isError) {
+                  return {
+                    isLoading: false,
+                    isError: true,
+                    error: sessions.error.message,
+                  };
+                }
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: sessionRowData.rows?.map<SessionTableRow>((session) => {
+                    return {
+                      id: session.id,
+                      createdAt: session.createdAt,
+                      bookmarked: session.bookmarked,
+                      userIds: session.userIds,
+                      countTraces: session.countTraces,
+                      sessionDuration: session.sessionDuration,
+                      inputCost: session.inputCost,
+                      outputCost: session.outputCost,
+                      totalCost: session.totalCost,
+                      inputTokens: session.promptTokens,
+                      outputTokens: session.completionTokens,
+                      totalTokens: session.totalTokens,
+                      traceTags: session.traceTags,
+                      environment: session.environment,
+                      scores: session.scores,
+                    };
+                  }),
+                };
+              })()}
               pagination={{
                 totalCount,
                 onChange: setPaginationState,

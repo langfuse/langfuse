@@ -170,11 +170,15 @@ export const DatasetItemDetailPage = ({
                       }
                       size="sm"
                     >
-                      {mutUpdate.isPending
-                        ? "Processing..."
-                        : item.data.status === DatasetStatus.ACTIVE
-                          ? "Archive"
-                          : "Unarchive"}
+                      {(() => {
+                        if (mutUpdate.isPending) {
+                          return "Processing...";
+                        }
+                        if (item.data.status === DatasetStatus.ACTIVE) {
+                          return "Archive";
+                        }
+                        return "Unarchive";
+                      })()}
                     </Button>
                   </div>
                 </PopoverContent>

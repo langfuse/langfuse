@@ -574,13 +574,15 @@ export default function TracesTable({
     setSelectedRows({});
   };
 
-  const displayCount = totalCountQuery.isPending ? (
-    <span className="inline-block font-mono">...</span>
-  ) : selectAll ? (
-    compactNumberFormatter(totalCountQuery.data?.totalCount)
-  ) : (
-    compactNumberFormatter(Object.keys(selectedRows).length)
-  );
+  const displayCount = (() => {
+    if (totalCountQuery.isPending) {
+      return <span className="inline-block font-mono">...</span>;
+    }
+    if (selectAll) {
+      return compactNumberFormatter(totalCountQuery.data?.totalCount);
+    }
+    return compactNumberFormatter(Object.keys(selectedRows).length);
+  })();
 
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
@@ -1494,21 +1496,23 @@ export default function TracesTable({
             <DataTable
               columns={columns}
               hidePagination={hideControls}
-              data={
-                traces.isPending || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : traces.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: traces.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: rows,
-                      }
-              }
+              data={(() => {
+                if (traces.isPending || isViewLoading) {
+                  return { isLoading: true, isError: false };
+                }
+                if (traces.isError) {
+                  return {
+                    isLoading: false,
+                    isError: true,
+                    error: traces.error.message,
+                  };
+                }
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: rows,
+                };
+              })()}
               pagination={
                 limitRows
                   ? undefined
@@ -1563,12 +1567,15 @@ const TracesDynamicCell = ({
     },
   );
 
-  const data =
-    col === "output"
-      ? trace.data?.output
-      : col === "input"
-        ? trace.data?.input
-        : trace.data?.metadata;
+  const data = (() => {
+    if (col === "output") {
+      return trace.data?.output;
+    }
+    if (col === "input") {
+      return trace.data?.input;
+    }
+    return trace.data?.metadata;
+  })();
 
   return (
     <MemoizedIOTableCell

@@ -68,11 +68,15 @@ export const toPrismaWhere = (
     }
     if (f.value.length === 0) continue;
     and.push(
-      f.operator === "any of"
-        ? { [f.column]: { hasSome: f.value } }
-        : f.operator === "all of"
-          ? { [f.column]: { hasEvery: f.value } }
-          : { NOT: { [f.column]: { hasSome: f.value } } },
+      (() => {
+        if (f.operator === "any of") {
+          return { [f.column]: { hasSome: f.value } };
+        }
+        if (f.operator === "all of") {
+          return { [f.column]: { hasEvery: f.value } };
+        }
+        return { NOT: { [f.column]: { hasSome: f.value } } };
+      })(),
     );
   }
   return { projectId, AND: and };

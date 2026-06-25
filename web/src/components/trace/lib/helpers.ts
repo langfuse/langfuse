@@ -123,11 +123,15 @@ export function calculateDisplayTotalCost(p: {
 
         const combinedCost = inputCost.plus(outputCost);
 
-        return prev
-          ? prev.plus(combinedCost)
-          : combinedCost.isZero()
-            ? undefined
-            : combinedCost;
+        return (() => {
+          if (prev) {
+            return prev.plus(combinedCost);
+          }
+          if (combinedCost.isZero()) {
+            return undefined;
+          }
+          return combinedCost;
+        })();
       }
 
       if (!curr.totalCost) return prev;

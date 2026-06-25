@@ -166,21 +166,23 @@ export function AuditLogsTable(props: AuditLogsTableProps) {
         <DataTable
           tableName={tableId}
           columns={columns}
-          data={
-            auditLogs.isPending
-              ? { isLoading: true, isError: false }
-              : auditLogs.isError
-                ? {
-                    isLoading: false,
-                    isError: true,
-                    error: auditLogs.error.message,
-                  }
-                : {
-                    isLoading: false,
-                    isError: false,
-                    data: safeExtract(auditLogs.data, "data", []),
-                  }
-          }
+          data={(() => {
+            if (auditLogs.isPending) {
+              return { isLoading: true, isError: false };
+            }
+            if (auditLogs.isError) {
+              return {
+                isLoading: false,
+                isError: true,
+                error: auditLogs.error.message,
+              };
+            }
+            return {
+              isLoading: false,
+              isError: false,
+              data: safeExtract(auditLogs.data, "data", []),
+            };
+          })()}
           pagination={{
             totalCount: auditLogs.data?.totalCount ?? 0,
             onChange: setPaginationState,

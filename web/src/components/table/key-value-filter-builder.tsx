@@ -288,115 +288,128 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
               </Button>
             </div>
 
-            {mode === "categorical" ? (
-              <>
-                {/* Operator select */}
-                <Select
-                  value={filter.operator}
-                  onValueChange={(value) =>
-                    handleFilterChange(index, {
-                      operator: value as "any of" | "none of",
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="any of">any of</SelectItem>
-                    <SelectItem value="none of">none of</SelectItem>
-                  </SelectContent>
-                </Select>
+            {(() => {
+              if (mode === "categorical") {
+                return (
+                  <>
+                    {/* Operator select */}
+                    <Select
+                      value={filter.operator}
+                      onValueChange={(value) =>
+                        handleFilterChange(index, {
+                          operator: value as "any of" | "none of",
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="any of">any of</SelectItem>
+                        <SelectItem value="none of">none of</SelectItem>
+                      </SelectContent>
+                    </Select>
 
-                {/* Values multi-select */}
-                <MultiSelect
-                  title="Values"
-                  options={availableValuesForKey.map((v) => ({ value: v }))}
-                  values={filter.value as string[]}
-                  onValueChange={(values) =>
-                    handleFilterChange(index, { value: values })
-                  }
-                  disabled={!filter.key}
-                />
-              </>
-            ) : mode === "numeric" ? (
-              <>
-                {/* Numeric operator select */}
-                <Select
-                  value={filter.operator}
-                  onValueChange={(value) =>
-                    handleFilterChange(index, {
-                      operator: value as "=" | ">" | "<" | ">=" | "<=",
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(NUMERIC_OPERATOR_LABELS).map(
-                      ([op, label]) => (
-                        <SelectItem key={op} value={op}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                    {/* Values multi-select */}
+                    <MultiSelect
+                      title="Values"
+                      options={availableValuesForKey.map((v) => ({ value: v }))}
+                      values={filter.value as string[]}
+                      onValueChange={(values) =>
+                        handleFilterChange(index, { value: values })
+                      }
+                      disabled={!filter.key}
+                    />
+                  </>
+                );
+              }
+              if (mode === "numeric") {
+                return (
+                  <>
+                    {/* Numeric operator select */}
+                    <Select
+                      value={filter.operator}
+                      onValueChange={(value) =>
+                        handleFilterChange(index, {
+                          operator: value as "=" | ">" | "<" | ">=" | "<=",
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(NUMERIC_OPERATOR_LABELS).map(
+                          ([op, label]) => (
+                            <SelectItem key={op} value={op}>
+                              {label}
+                            </SelectItem>
+                          ),
+                        )}
+                      </SelectContent>
+                    </Select>
 
-                {/* Numeric value input */}
-                <Input
-                  type="number"
-                  placeholder="Value"
-                  value={filter.value}
-                  onChange={(e) =>
-                    handleFilterChange(index, {
-                      value:
-                        e.target.value === "" ? "" : parseFloat(e.target.value),
-                    })
-                  }
-                  disabled={!filter.key}
-                />
-              </>
-            ) : (
-              <>
-                {/* String operator select */}
-                <Select
-                  value={filter.operator}
-                  onValueChange={(value) =>
-                    handleFilterChange(index, {
-                      operator: value as "=" | "contains" | "does not contain",
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(STRING_OPERATOR_LABELS).map(
-                      ([op, label]) => (
-                        <SelectItem key={op} value={op}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
+                    {/* Numeric value input */}
+                    <Input
+                      type="number"
+                      placeholder="Value"
+                      value={filter.value}
+                      onChange={(e) =>
+                        handleFilterChange(index, {
+                          value:
+                            e.target.value === ""
+                              ? ""
+                              : parseFloat(e.target.value),
+                        })
+                      }
+                      disabled={!filter.key}
+                    />
+                  </>
+                );
+              }
+              return (
+                <>
+                  {/* String operator select */}
+                  <Select
+                    value={filter.operator}
+                    onValueChange={(value) =>
+                      handleFilterChange(index, {
+                        operator: value as
+                          | "="
+                          | "contains"
+                          | "does not contain",
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(STRING_OPERATOR_LABELS).map(
+                        ([op, label]) => (
+                          <SelectItem key={op} value={op}>
+                            {label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
 
-                {/* String value input */}
-                <Input
-                  type="text"
-                  placeholder="Value"
-                  value={filter.value as string}
-                  onChange={(e) =>
-                    handleFilterChange(index, {
-                      value: e.target.value,
-                    })
-                  }
-                  disabled={!filter.key}
-                />
-              </>
-            )}
+                  {/* String value input */}
+                  <Input
+                    type="text"
+                    placeholder="Value"
+                    value={filter.value as string}
+                    onChange={(e) =>
+                      handleFilterChange(index, {
+                        value: e.target.value,
+                      })
+                    }
+                    disabled={!filter.key}
+                  />
+                </>
+              );
+            })()}
           </div>
         );
       })}

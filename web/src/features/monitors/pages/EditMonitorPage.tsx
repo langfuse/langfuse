@@ -52,13 +52,21 @@ function EditMonitorPageContent() {
         ],
       }}
     >
-      {isPending ? null : data ? (
-        <MonitorForm
-          projectId={projectId}
-          monitor={data}
-          onNameChange={setLiveName}
-        />
-      ) : null}
+      {(() => {
+        if (isPending) {
+          return null;
+        }
+        if (data) {
+          return (
+            <MonitorForm
+              projectId={projectId}
+              monitor={data}
+              onNameChange={setLiveName}
+            />
+          );
+        }
+        return null;
+      })()}
     </Page>
   );
 }

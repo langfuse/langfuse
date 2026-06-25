@@ -88,43 +88,52 @@ export function DeleteFolder({ folderPath }: { folderPath: string }) {
 
           <div className="bg-muted/50 rounded-md border p-4">
             <h4 className="mb-2 text-sm font-medium">Prompts to delete:</h4>
-            {prompts.isLoading ? (
-              <div className="flex items-center justify-center py-4">
-                <Spinner size="sm" variant="muted" />
-              </div>
-            ) : prompts.isError ? (
-              <div className="py-2 text-xs text-red-500">
-                Failed to load prompts: {prompts.error.message}
-              </div>
-            ) : (
-              <ul className="max-h-32 space-y-1 overflow-y-auto text-xs">
-                {prompts.data?.prompts.map((p) => (
-                  <li
-                    key={`${p.row_type}-${p.id}`}
-                    className="text-muted-foreground flex items-center gap-2"
-                  >
-                    {p.row_type === "folder" ? (
-                      <Folder className="h-3 w-3 text-blue-500" />
-                    ) : (
-                      <FileText className="h-3 w-3" />
-                    )}
-                    <span className="break-all">
-                      {folderPath}/{p.name}
-                    </span>
-                  </li>
-                ))}
-                {(prompts.data?.totalCount ?? 0) > 100 && (
-                  <li className="text-muted-foreground pt-1 italic">
-                    And {(prompts.data?.totalCount ?? 0) - 100} more prompts...
-                  </li>
-                )}
-                {prompts.data?.prompts.length === 0 && (
-                  <li className="text-muted-foreground italic">
-                    No prompts found in this folder.
-                  </li>
-                )}
-              </ul>
-            )}
+            {(() => {
+              if (prompts.isLoading) {
+                return (
+                  <div className="flex items-center justify-center py-4">
+                    <Spinner size="sm" variant="muted" />
+                  </div>
+                );
+              }
+              if (prompts.isError) {
+                return (
+                  <div className="py-2 text-xs text-red-500">
+                    Failed to load prompts: {prompts.error.message}
+                  </div>
+                );
+              }
+              return (
+                <ul className="max-h-32 space-y-1 overflow-y-auto text-xs">
+                  {prompts.data?.prompts.map((p) => (
+                    <li
+                      key={`${p.row_type}-${p.id}`}
+                      className="text-muted-foreground flex items-center gap-2"
+                    >
+                      {p.row_type === "folder" ? (
+                        <Folder className="h-3 w-3 text-blue-500" />
+                      ) : (
+                        <FileText className="h-3 w-3" />
+                      )}
+                      <span className="break-all">
+                        {folderPath}/{p.name}
+                      </span>
+                    </li>
+                  ))}
+                  {(prompts.data?.totalCount ?? 0) > 100 && (
+                    <li className="text-muted-foreground pt-1 italic">
+                      And {(prompts.data?.totalCount ?? 0) - 100} more
+                      prompts...
+                    </li>
+                  )}
+                  {prompts.data?.prompts.length === 0 && (
+                    <li className="text-muted-foreground italic">
+                      No prompts found in this folder.
+                    </li>
+                  )}
+                </ul>
+              );
+            })()}
           </div>
 
           <div className="space-y-2">

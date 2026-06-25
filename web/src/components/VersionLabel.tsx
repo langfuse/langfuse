@@ -74,12 +74,15 @@ export const VersionLabel = ({ className }: { className?: string }) => {
   const hasUpdate =
     !isLangfuseCloud && checkUpdate.data && checkUpdate.data.updateType;
 
-  const color =
-    checkUpdate.data?.updateType === "major"
-      ? "text-dark-red"
-      : checkUpdate.data?.updateType === "minor"
-        ? "text-dark-yellow"
-        : undefined;
+  const color = (() => {
+    if (checkUpdate.data?.updateType === "major") {
+      return "text-dark-red";
+    }
+    if (checkUpdate.data?.updateType === "minor") {
+      return "text-dark-yellow";
+    }
+    return undefined;
+  })();
 
   return (
     <DropdownMenu>
@@ -104,20 +107,30 @@ export const VersionLabel = ({ className }: { className?: string }) => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
-        {hasUpdate ? (
-          <>
-            <DropdownMenuLabel>
-              New {checkUpdate.data?.updateType} version:{" "}
-              {checkUpdate.data?.latestRelease}
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        ) : !isLangfuseCloud ? (
-          <>
-            <DropdownMenuLabel>This is the latest release</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-          </>
-        ) : null}
+        {(() => {
+          if (hasUpdate) {
+            return (
+              <>
+                <DropdownMenuLabel>
+                  New {checkUpdate.data?.updateType} version:{" "}
+                  {checkUpdate.data?.latestRelease}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+              </>
+            );
+          }
+          if (!isLangfuseCloud) {
+            return (
+              <>
+                <DropdownMenuLabel>
+                  This is the latest release
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+              </>
+            );
+          }
+          return null;
+        })()}
         {selfHostedPlanLabel && (
           <>
             <DropdownMenuLabel className="flex items-center font-normal">

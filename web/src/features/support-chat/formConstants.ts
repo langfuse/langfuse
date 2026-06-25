@@ -108,7 +108,15 @@ export const highestSupportPlan = (
   plans: Array<string | undefined>,
 ): string | undefined => {
   const rank = (plan?: string) =>
-    isHighTierSupportPlan(plan) ? 3 : canRaiseSeverity2(plan) ? 2 : 1;
+    (() => {
+      if (isHighTierSupportPlan(plan)) {
+        return 3;
+      }
+      if (canRaiseSeverity2(plan)) {
+        return 2;
+      }
+      return 1;
+    })();
   let best: string | undefined;
   let bestRank = 0;
   for (const plan of plans) {

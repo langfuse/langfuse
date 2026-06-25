@@ -839,12 +839,15 @@ export async function getAuthOptions(): Promise<NextAuthOptions> {
                       : undefined,
                     image: dbUser.image,
                     admin: dbUser.admin,
-                    v4BetaEnabled:
-                      v4WriteMode === "events_only"
-                        ? true
-                        : v4WriteMode === "dual" && dualPreviewAvailable
-                          ? dbUser.v4BetaEnabled
-                          : false,
+                    v4BetaEnabled: (() => {
+                      if (v4WriteMode === "events_only") {
+                        return true;
+                      }
+                      if (v4WriteMode === "dual" && dualPreviewAvailable) {
+                        return dbUser.v4BetaEnabled;
+                      }
+                      return false;
+                    })(),
                     canToggleV4:
                       v4WriteMode === "dual" && dualPreviewAvailable
                         ? isLangfuseCloud

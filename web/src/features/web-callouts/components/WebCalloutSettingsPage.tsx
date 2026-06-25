@@ -155,11 +155,15 @@ export function WebCalloutSettingsPage(props: { projectId: string }) {
 
   const configuredEndpoint = endpoints.data?.[0];
   const canCreateEndpoint = !configuredEndpoint;
-  const addEndpointDisabledReason = endpoints.isLoading
-    ? "Loading callout endpoint configuration."
-    : !canCreateEndpoint
-      ? "Currently you can only create one callout per project."
-      : undefined;
+  const addEndpointDisabledReason = (() => {
+    if (endpoints.isLoading) {
+      return "Loading callout endpoint configuration.";
+    }
+    if (!canCreateEndpoint) {
+      return "Currently you can only create one callout per project.";
+    }
+    return undefined;
+  })();
 
   const openCreateDialog = () => {
     setEditingEndpoint(null);

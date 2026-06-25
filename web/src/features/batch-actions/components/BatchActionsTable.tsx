@@ -186,21 +186,23 @@ export function BatchActionsTable(props: { projectId: string }) {
     <DataTable
       tableName={"batchActions"}
       columns={columns}
-      data={
-        batchActions.isPending
-          ? { isLoading: true, isError: false }
-          : batchActions.isError
-            ? {
-                isLoading: false,
-                isError: true,
-                error: batchActions.error.message,
-              }
-            : {
-                isLoading: false,
-                isError: false,
-                data: safeExtract(batchActions.data, "batchActions", []),
-              }
-      }
+      data={(() => {
+        if (batchActions.isPending) {
+          return { isLoading: true, isError: false };
+        }
+        if (batchActions.isError) {
+          return {
+            isLoading: false,
+            isError: true,
+            error: batchActions.error.message,
+          };
+        }
+        return {
+          isLoading: false,
+          isError: false,
+          data: safeExtract(batchActions.data, "batchActions", []),
+        };
+      })()}
       pagination={{
         totalCount: batchActions.data?.totalCount ?? 0,
         onChange: setPaginationState,

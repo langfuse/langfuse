@@ -319,12 +319,15 @@ export const InnerEvalTemplateForm = (props: {
   const isBooleanOutput = scoreDataType === ScoreDataTypeEnum.BOOLEAN;
   const shouldAllowMultipleMatches = form.watch("shouldAllowMultipleMatches");
   const categoriesError = form.formState.errors.categories;
-  const categoriesErrorMessage =
-    typeof categoriesError?.message === "string"
-      ? categoriesError.message
-      : typeof categoriesError?.root?.message === "string"
-        ? categoriesError.root.message
-        : undefined;
+  const categoriesErrorMessage = (() => {
+    if (typeof categoriesError?.message === "string") {
+      return categoriesError.message;
+    }
+    if (typeof categoriesError?.root?.message === "string") {
+      return categoriesError.root.message;
+    }
+    return undefined;
+  })();
 
   const applyDefaultOutputDefinitionCopy = (params: {
     scoreDataType:
@@ -467,23 +470,26 @@ export const InnerEvalTemplateForm = (props: {
       return;
     }
 
-    const outputDefinition =
-      values.scoreDataType === ScoreDataTypeEnum.CATEGORICAL
-        ? createCategoricalEvalOutputDefinition({
-            scoreDescription: values.scoreDescription ?? "",
-            reasoningDescription: values.reasoningDescription ?? "",
-            categories: values.categories.map((category) => category.value),
-            shouldAllowMultipleMatches: values.shouldAllowMultipleMatches,
-          })
-        : values.scoreDataType === ScoreDataTypeEnum.BOOLEAN
-          ? createBooleanEvalOutputDefinition({
-              scoreDescription: values.scoreDescription ?? "",
-              reasoningDescription: values.reasoningDescription ?? "",
-            })
-          : createNumericEvalOutputDefinition({
-              scoreDescription: values.scoreDescription ?? "",
-              reasoningDescription: values.reasoningDescription ?? "",
-            });
+    const outputDefinition = (() => {
+      if (values.scoreDataType === ScoreDataTypeEnum.CATEGORICAL) {
+        return createCategoricalEvalOutputDefinition({
+          scoreDescription: values.scoreDescription ?? "",
+          reasoningDescription: values.reasoningDescription ?? "",
+          categories: values.categories.map((category) => category.value),
+          shouldAllowMultipleMatches: values.shouldAllowMultipleMatches,
+        });
+      }
+      if (values.scoreDataType === ScoreDataTypeEnum.BOOLEAN) {
+        return createBooleanEvalOutputDefinition({
+          scoreDescription: values.scoreDescription ?? "",
+          reasoningDescription: values.reasoningDescription ?? "",
+        });
+      }
+      return createNumericEvalOutputDefinition({
+        scoreDescription: values.scoreDescription ?? "",
+        reasoningDescription: values.reasoningDescription ?? "",
+      });
+    })();
 
     const evalTemplate = {
       type: EvalTemplateType.LLM_AS_JUDGE,
@@ -903,11 +909,15 @@ export const InnerEvalTemplateForm = (props: {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {isCategoricalOutput
-                        ? "Category selection prompt"
-                        : isBooleanOutput
-                          ? "Boolean verdict prompt"
-                          : "Score output prompt"}
+                      {(() => {
+                        if (isCategoricalOutput) {
+                          return "Category selection prompt";
+                        }
+                        if (isBooleanOutput) {
+                          return "Boolean verdict prompt";
+                        }
+                        return "Score output prompt";
+                      })()}
                     </FormLabel>
                     <FormDescription>
                       {isCategoricalOutput

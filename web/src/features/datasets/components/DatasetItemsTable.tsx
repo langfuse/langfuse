@@ -419,23 +419,25 @@ export function DatasetItemsTable({
       <DataTable
         tableName={"datasetItems"}
         columns={columns}
-        data={
-          items.isPending
-            ? { isLoading: true, isError: false }
-            : items.isError
-              ? {
-                  isLoading: false,
-                  isError: true,
-                  error: items.error.message,
-                }
-              : {
-                  isLoading: false,
-                  isError: false,
-                  data: safeExtract(items.data, "datasetItems", []).map((t) =>
-                    convertToTableRow(t),
-                  ),
-                }
-        }
+        data={(() => {
+          if (items.isPending) {
+            return { isLoading: true, isError: false };
+          }
+          if (items.isError) {
+            return {
+              isLoading: false,
+              isError: true,
+              error: items.error.message,
+            };
+          }
+          return {
+            isLoading: false,
+            isError: false,
+            data: safeExtract(items.data, "datasetItems", []).map((t) =>
+              convertToTableRow(t),
+            ),
+          };
+        })()}
         pagination={{
           totalCount: items.data?.totalDatasetItems ?? null,
           onChange: setPaginationState,

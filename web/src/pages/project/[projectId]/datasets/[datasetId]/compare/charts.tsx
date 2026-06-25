@@ -183,85 +183,94 @@ export default function DatasetCompare() {
             />
           </div>
           <div className="overflow-y-auto">
-            {Boolean(selectedMetrics.length) && Boolean(chartDataMap?.size) ? (
-              <div className="grid w-full grid-cols-2 gap-4 xl:grid-cols-3">
-                {selectedMetrics.map((key) => {
-                  if (isLoading) {
-                    return <Skeleton key={key} className="h-52 w-full" />;
-                  }
+            {(() => {
+              if (
+                Boolean(selectedMetrics.length) &&
+                Boolean(chartDataMap?.size)
+              ) {
+                return (
+                  <div className="grid w-full grid-cols-2 gap-4 xl:grid-cols-3">
+                    {selectedMetrics.map((key) => {
+                      if (isLoading) {
+                        return <Skeleton key={key} className="h-52 w-full" />;
+                      }
 
-                  const adapter = new CompareViewAdapter(chartDataMap, key);
-                  const { chartData, chartLabels } = adapter.toChartData();
+                      const adapter = new CompareViewAdapter(chartDataMap, key);
+                      const { chartData, chartLabels } = adapter.toChartData();
 
-                  const scoreData = scoreKeyToData.get(key);
-                  const title = scoreData
-                    ? `${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`
-                    : (RESOURCE_METRICS.find((metric) => metric.key === key)
-                        ?.label ?? key);
+                      const scoreData = scoreKeyToData.get(key);
+                      const title = scoreData
+                        ? `${getScoreDataTypeIcon(scoreData.dataType)} ${scoreData.name} (${scoreData.source.toLowerCase()})`
+                        : (RESOURCE_METRICS.find((metric) => metric.key === key)
+                            ?.label ?? key);
 
-                  if (isEmptyChart({ data: chartData })) {
-                    return (
-                      <div
-                        key={key}
-                        className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
-                      >
-                        <span className="shrink-0 text-sm font-medium">
-                          {title}
-                        </span>
-                        <NoDataOrLoading
-                          isLoading={false}
-                          className="min-h-32 flex-1"
-                        />
-                      </div>
-                    );
-                  }
+                      if (isEmptyChart({ data: chartData })) {
+                        return (
+                          <div
+                            key={key}
+                            className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
+                          >
+                            <span className="shrink-0 text-sm font-medium">
+                              {title}
+                            </span>
+                            <NoDataOrLoading
+                              isLoading={false}
+                              className="min-h-32 flex-1"
+                            />
+                          </div>
+                        );
+                      }
 
-                  const dataPoints = compareViewChartDataToDataPoints(
-                    chartData,
-                    chartLabels,
-                    key,
-                  );
+                      const dataPoints = compareViewChartDataToDataPoints(
+                        chartData,
+                        chartLabels,
+                        key,
+                      );
 
-                  const chartType =
-                    chartLabels.length === 1
-                      ? "LINE_TIME_SERIES"
-                      : "BAR_TIME_SERIES";
+                      const chartType =
+                        chartLabels.length === 1
+                          ? "LINE_TIME_SERIES"
+                          : "BAR_TIME_SERIES";
 
-                  return (
-                    <div
-                      key={key}
-                      className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
-                    >
-                      <span className="shrink-0 text-sm font-medium">
-                        {title}
-                      </span>
-                      <div className="min-h-[200px] min-w-0 flex-1">
-                        <Chart
-                          chartType={chartType}
-                          data={dataPoints}
-                          rowLimit={Math.max(dataPoints.length, 1)}
-                          chartConfig={{
-                            type: chartType,
-                            unit: getCompareViewChartUnit(key),
-                          }}
-                          legendPosition={
-                            chartLabels.length > 1 ? "above" : "none"
-                          }
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : isLoading ? (
-              <Skeleton className="h-52 w-full" />
-            ) : (
-              <span className="text-muted-foreground -mt-2 text-sm">
-                {Boolean(chartDataMap?.size)
-                  ? "All charts hidden. Enable them in the Charts dropdown."
-                  : "Select more than one run to generate charts."}
-              </span>
-            )}
+                      return (
+                        <div
+                          key={key}
+                          className="flex min-h-[200px] max-w-full min-w-0 flex-col gap-2"
+                        >
+                          <span className="shrink-0 text-sm font-medium">
+                            {title}
+                          </span>
+                          <div className="min-h-[200px] min-w-0 flex-1">
+                            <Chart
+                              chartType={chartType}
+                              data={dataPoints}
+                              rowLimit={Math.max(dataPoints.length, 1)}
+                              chartConfig={{
+                                type: chartType,
+                                unit: getCompareViewChartUnit(key),
+                              }}
+                              legendPosition={
+                                chartLabels.length > 1 ? "above" : "none"
+                              }
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }
+              if (isLoading) {
+                return <Skeleton className="h-52 w-full" />;
+              }
+              return (
+                <span className="text-muted-foreground -mt-2 text-sm">
+                  {Boolean(chartDataMap?.size)
+                    ? "All charts hidden. Enable them in the Charts dropdown."
+                    : "Select more than one run to generate charts."}
+                </span>
+              );
+            })()}
           </div>
         </div>
         <SidePanel

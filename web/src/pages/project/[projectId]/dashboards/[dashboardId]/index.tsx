@@ -473,64 +473,70 @@ export default function DashboardDetail() {
           onSelectWidget={handleSelectWidget}
           dashboardId={dashboardId}
         />
-        {dashboard.isPending || !localDashboardDefinition ? (
-          <NoDataOrLoading isLoading={true} />
-        ) : dashboard.isError ? (
-          <div className="flex h-64 items-center justify-center">
-            <div className="text-destructive">
-              Error: {dashboard.error.message}
-            </div>
-          </div>
-        ) : (
-          <div>
-            <div className="my-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
-                <TimeRangePicker
-                  timeRange={timeRange}
-                  onTimeRangeChange={setTimeRange}
-                  timeRangePresets={dashboardTimeRangePresets}
-                  className="my-0 max-w-full overflow-x-auto"
-                  disabled={
-                    lookbackLimit
-                      ? {
-                          before: new Date(
-                            new Date().getTime() -
-                              lookbackLimit * 24 * 60 * 60 * 1000,
-                          ),
-                        }
-                      : undefined
-                  }
-                />
-                <PopoverFilterBuilder
-                  columns={filterColumns}
-                  filterState={currentFilters}
-                  onChange={setCurrentFilters}
-                />
+        {(() => {
+          if (dashboard.isPending || !localDashboardDefinition) {
+            return <NoDataOrLoading isLoading={true} />;
+          }
+          if (dashboard.isError) {
+            return (
+              <div className="flex h-64 items-center justify-center">
+                <div className="text-destructive">
+                  Error: {dashboard.error.message}
+                </div>
               </div>
+            );
+          }
+          return (
+            <div>
+              <div className="my-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-col gap-2 lg:flex-row lg:gap-3">
+                  <TimeRangePicker
+                    timeRange={timeRange}
+                    onTimeRangeChange={setTimeRange}
+                    timeRangePresets={dashboardTimeRangePresets}
+                    className="my-0 max-w-full overflow-x-auto"
+                    disabled={
+                      lookbackLimit
+                        ? {
+                            before: new Date(
+                              new Date().getTime() -
+                                lookbackLimit * 24 * 60 * 60 * 1000,
+                            ),
+                          }
+                        : undefined
+                    }
+                  />
+                  <PopoverFilterBuilder
+                    columns={filterColumns}
+                    filterState={currentFilters}
+                    onChange={setCurrentFilters}
+                  />
+                </div>
+              </div>
+              <DashboardGrid
+                widgets={localDashboardDefinition.widgets}
+                onChange={(updatedWidgets) => {
+                  setLocalDashboardDefinition({
+                    ...localDashboardDefinition,
+                    widgets: updatedWidgets,
+                  });
+                  saveDashboardChanges({
+                    ...localDashboardDefinition,
+                    widgets: updatedWidgets,
+                  });
+                }}
+                canEdit={hasCUDAccess}
+                dashboardId={dashboardId}
+                projectId={projectId}
+                dateRange={absoluteTimeRange}
+                filterState={currentFilters}
+                onDeleteWidget={handleDeleteWidget}
+                dashboardOwner={dashboard.data?.owner}
+                getWidgetSchedulerId={getWidgetSchedulerId}
+              />
             </div>
-            <DashboardGrid
-              widgets={localDashboardDefinition.widgets}
-              onChange={(updatedWidgets) => {
-                setLocalDashboardDefinition({
-                  ...localDashboardDefinition,
-                  widgets: updatedWidgets,
-                });
-                saveDashboardChanges({
-                  ...localDashboardDefinition,
-                  widgets: updatedWidgets,
-                });
-              }}
-              canEdit={hasCUDAccess}
-              dashboardId={dashboardId}
-              projectId={projectId}
-              dateRange={absoluteTimeRange}
-              filterState={currentFilters}
-              onDeleteWidget={handleDeleteWidget}
-              dashboardOwner={dashboard.data?.owner}
-              getWidgetSchedulerId={getWidgetSchedulerId}
-            />
-          </div>
-        )}
+          );
+        })()}
       </Page>
     </DashboardQuerySchedulerProvider>
   );

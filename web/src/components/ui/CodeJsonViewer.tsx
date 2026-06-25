@@ -103,48 +103,54 @@ export function JSONView(props: {
           props.codeClassName,
         )}
       >
-        {props.isLoading ? (
-          <Skeleton className="h-3 w-3/4" />
-        ) : promptReferenceProjectId && typeof parsedJson === "string" ? (
-          <code
-            className="max-w-full min-w-0 wrap-break-word whitespace-pre-wrap"
-            dir="auto"
-            style={{ unicodeBidi: "plaintext" }}
-          >
-            {renderRichPromptContent(parsedJson)}
-          </code>
-        ) : (
-          <div
-            className="max-w-full min-w-0 flex-1 overflow-hidden"
-            onClick={() => {
-              // If externally collapsed and user clicks to expand, sync the state
-              if (props.externalJsonCollapsed && props.onToggleCollapse) {
-                props.onToggleCollapse();
-              }
-            }}
-          >
-            <React18JsonView
-              src={parsedJson}
-              theme="github"
-              dark={resolvedTheme === "dark"}
-              collapsed={isCollapsed ? 1 : false}
-              collapseObjectsAfterLength={isCollapsed ? 0 : 20}
-              collapseStringsAfterLength={collapseStringsAfterLength}
-              collapseStringMode="word"
-              customizeCollapseStringUI={(fullSTring, truncated) =>
-                truncated ? (
-                  <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
-                ) : (
-                  ""
-                )
-              }
-              displaySize={isCollapsed ? "collapsed" : "expanded"}
-              matchesURL={true}
-              customizeCopy={(node) => stringifyJsonNode(node)}
-              className="w-full max-w-full min-w-0"
-            />
-          </div>
-        )}
+        {(() => {
+          if (props.isLoading) {
+            return <Skeleton className="h-3 w-3/4" />;
+          }
+          if (promptReferenceProjectId && typeof parsedJson === "string") {
+            return (
+              <code
+                className="max-w-full min-w-0 wrap-break-word whitespace-pre-wrap"
+                dir="auto"
+                style={{ unicodeBidi: "plaintext" }}
+              >
+                {renderRichPromptContent(parsedJson)}
+              </code>
+            );
+          }
+          return (
+            <div
+              className="max-w-full min-w-0 flex-1 overflow-hidden"
+              onClick={() => {
+                // If externally collapsed and user clicks to expand, sync the state
+                if (props.externalJsonCollapsed && props.onToggleCollapse) {
+                  props.onToggleCollapse();
+                }
+              }}
+            >
+              <React18JsonView
+                src={parsedJson}
+                theme="github"
+                dark={resolvedTheme === "dark"}
+                collapsed={isCollapsed ? 1 : false}
+                collapseObjectsAfterLength={isCollapsed ? 0 : 20}
+                collapseStringsAfterLength={collapseStringsAfterLength}
+                collapseStringMode="word"
+                customizeCollapseStringUI={(fullSTring, truncated) =>
+                  truncated ? (
+                    <div className="opacity-50">{`\n...expand (${Math.max(fullSTring.length - collapseStringsAfterLength, 0)} more characters)`}</div>
+                  ) : (
+                    ""
+                  )
+                }
+                displaySize={isCollapsed ? "collapsed" : "expanded"}
+                matchesURL={true}
+                customizeCopy={(node) => stringifyJsonNode(node)}
+                className="w-full max-w-full min-w-0"
+              />
+            </div>
+          );
+        })()}
       </div>
       {props.media && props.media.length > 0 && (
         <>

@@ -326,20 +326,24 @@ export function DistributionCategoricalCard() {
             }
             stackedDistribution={chartData.stackedDistribution}
             score2Categories={chartData.score2Categories}
-            score2Name={
-              activeTab === "score1" || activeTab === "score2"
-                ? undefined
-                : mode === "two" && score2
-                  ? `${score2.name} (${score2.source})`
-                  : undefined
-            }
-            score2Source={
-              activeTab === "score1" || activeTab === "score2"
-                ? undefined
-                : mode === "two" && score2
-                  ? score2.source
-                  : undefined
-            }
+            score2Name={(() => {
+              if (activeTab === "score1" || activeTab === "score2") {
+                return undefined;
+              }
+              if (mode === "two" && score2) {
+                return `${score2.name} (${score2.source})`;
+              }
+              return undefined;
+            })()}
+            score2Source={(() => {
+              if (activeTab === "score1" || activeTab === "score2") {
+                return undefined;
+              }
+              if (mode === "two" && score2) {
+                return score2.source;
+              }
+              return undefined;
+            })()}
             colors={chartColors}
           />
         ) : (

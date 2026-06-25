@@ -129,7 +129,15 @@ describe("selfServeDashboards", () => {
           trace_id: traceId,
           name: "gpt-4-turbo",
           type: "generation",
-          level: i === 0 ? "ERROR" : i === 1 ? "WARNING" : ("DEFAULT" as const),
+          level: (() => {
+            if (i === 0) {
+              return "ERROR";
+            }
+            if (i === 1) {
+              return "WARNING";
+            }
+            return "DEFAULT" as const;
+          })(),
           environment: "production",
           start_time: now.getTime() - i * 10000,
           completion_start_time: now.getTime() - i * 10000 + 800, // 800ms time to first token

@@ -486,21 +486,23 @@ export default function EvaluatorTable({ projectId }: { projectId: string }) {
               tableName={"evalConfigs"}
               columns={columns}
               peekView={peekConfig}
-              data={
-                evaluators.isLoading
-                  ? { isLoading: true, isError: false }
-                  : evaluators.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: evaluators.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: rows,
-                      }
-              }
+              data={(() => {
+                if (evaluators.isLoading) {
+                  return { isLoading: true, isError: false };
+                }
+                if (evaluators.isError) {
+                  return {
+                    isLoading: false,
+                    isError: true,
+                    error: evaluators.error.message,
+                  };
+                }
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: rows,
+                };
+              })()}
               pagination={{
                 totalCount,
                 onChange: setPaginationState,

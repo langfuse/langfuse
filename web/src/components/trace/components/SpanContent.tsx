@@ -60,12 +60,15 @@ export function SpanContent({
   // Use pre-computed cost from the TreeNode
   const totalCost = node.totalCost;
 
-  const duration =
-    node.endTime && node.startTime
-      ? node.endTime.getTime() - node.startTime.getTime()
-      : node.latency
-        ? node.latency * 1000
-        : undefined;
+  const duration = (() => {
+    if (node.endTime && node.startTime) {
+      return node.endTime.getTime() - node.startTime.getTime();
+    }
+    if (node.latency) {
+      return node.latency * 1000;
+    }
+    return undefined;
+  })();
 
   const shouldRenderDuration =
     showDuration && Boolean(duration || node.latency);
@@ -85,14 +88,17 @@ export function SpanContent({
   // - Top-level observations in rendered v4 tree (no TRACE node): show trace-level + observation-level scores
   // - All other observations: show only observation-level scores
   const isTopLevelTreeNode = roots.some((root) => root.id === node.id);
-  const nodeScores =
-    node.type === "TRACE"
-      ? mergedScores.filter((s) => s.observationId === null)
-      : isTopLevelTreeNode && !hasTraceNode
-        ? mergedScores.filter(
-            (s) => s.observationId === node.id || s.observationId === null,
-          )
-        : mergedScores.filter((s) => s.observationId === node.id);
+  const nodeScores = (() => {
+    if (node.type === "TRACE") {
+      return mergedScores.filter((s) => s.observationId === null);
+    }
+    if (isTopLevelTreeNode && !hasTraceNode) {
+      return mergedScores.filter(
+        (s) => s.observationId === node.id || s.observationId === null,
+      );
+    }
+    return mergedScores.filter((s) => s.observationId === node.id);
+  })();
 
   return (
     <button

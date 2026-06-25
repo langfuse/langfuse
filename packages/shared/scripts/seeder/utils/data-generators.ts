@@ -351,11 +351,15 @@ export class DataGenerator {
     for (const evalJobConfiguration of SEED_EVALUATOR_CONFIGS) {
       traces.forEach((trace, traceIndex) => {
         for (let i = 0; i < observationsPerTrace; i++) {
-          const obsType = this.randomBoolean(0.47)
-            ? "GENERATION"
-            : this.randomBoolean(0.94)
-              ? "SPAN"
-              : "EVENT";
+          const obsType = (() => {
+            if (this.randomBoolean(0.47)) {
+              return "GENERATION";
+            }
+            if (this.randomBoolean(0.94)) {
+              return "SPAN";
+            }
+            return "EVENT";
+          })();
 
           const observation: ObservationRecordInsertType = createObservation({
             id: generateEvalObservationId(
@@ -368,19 +372,27 @@ export class DataGenerator {
             project_id: projectId,
             parent_observation_id: undefined,
             type: obsType,
-            name:
-              obsType === "GENERATION"
-                ? this.randomElement(REALISTIC_GENERATION_NAMES)
-                : obsType === "SPAN"
-                  ? this.randomElement(REALISTIC_SPAN_NAMES)
-                  : `event_${i % 10}`,
-            level: this.randomBoolean(0.85)
-              ? "DEFAULT"
-              : this.randomBoolean(0.7)
-                ? "DEBUG"
-                : this.randomBoolean(0.3)
-                  ? "ERROR"
-                  : "WARNING",
+            name: (() => {
+              if (obsType === "GENERATION") {
+                return this.randomElement(REALISTIC_GENERATION_NAMES);
+              }
+              if (obsType === "SPAN") {
+                return this.randomElement(REALISTIC_SPAN_NAMES);
+              }
+              return `event_${i % 10}`;
+            })(),
+            level: (() => {
+              if (this.randomBoolean(0.85)) {
+                return "DEFAULT";
+              }
+              if (this.randomBoolean(0.7)) {
+                return "DEBUG";
+              }
+              if (this.randomBoolean(0.3)) {
+                return "ERROR";
+              }
+              return "WARNING";
+            })(),
             input:
               obsType === "GENERATION"
                 ? this.randomBoolean(0.4)
@@ -565,13 +577,18 @@ export class DataGenerator {
                   total: this.randomInt(2, 30) / 100000,
                 }
               : undefined,
-          level: this.randomBoolean(0.85)
-            ? "DEFAULT"
-            : this.randomBoolean(0.7)
-              ? "DEBUG"
-              : this.randomBoolean(0.5)
-                ? "WARNING"
-                : "ERROR",
+          level: (() => {
+            if (this.randomBoolean(0.85)) {
+              return "DEFAULT";
+            }
+            if (this.randomBoolean(0.7)) {
+              return "DEBUG";
+            }
+            if (this.randomBoolean(0.5)) {
+              return "WARNING";
+            }
+            return "ERROR";
+          })(),
           environment: trace.environment,
           metadata: this.buildNestedSeedMetadata(
             "synthetic-observation",

@@ -57,20 +57,25 @@ export default function Generations() {
       scrollable={showOnboarding}
     >
       {/* Show onboarding screen if user has no traces */}
-      {showOnboarding ? (
-        <TracesOnboarding projectId={projectId} />
-      ) : isInitializing ? (
-        <>
-          {/* Wait for the beta flag before mounting either table. Otherwise the
+      {(() => {
+        if (showOnboarding) {
+          return <TracesOnboarding projectId={projectId} />;
+        }
+        if (isInitializing) {
+          return (
+            <>
+              {/* Wait for the beta flag before mounting either table. Otherwise the
               legacy table can briefly mount, restore a v3 saved view, and
               promote its viewId into the URL before the correct mode
               resolves. */}
-        </>
-      ) : isBetaEnabled ? (
-        <ObservationsEventsTable projectId={projectId} />
-      ) : (
-        <ObservationsTable projectId={projectId} />
-      )}
+            </>
+          );
+        }
+        if (isBetaEnabled) {
+          return <ObservationsEventsTable projectId={projectId} />;
+        }
+        return <ObservationsTable projectId={projectId} />;
+      })()}
     </Page>
   );
 }

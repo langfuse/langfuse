@@ -992,21 +992,23 @@ export default function ScoresTable({
                   </a>
                 </div>
               }
-              data={
-                scores.isPending || isViewLoading
-                  ? { isLoading: true, isError: false }
-                  : scores.isError
-                    ? {
-                        isLoading: false,
-                        isError: true,
-                        error: scores.error.message,
-                      }
-                    : {
-                        isLoading: false,
-                        isError: false,
-                        data: enrichedScores ?? [],
-                      }
-              }
+              data={(() => {
+                if (scores.isPending || isViewLoading) {
+                  return { isLoading: true, isError: false };
+                }
+                if (scores.isError) {
+                  return {
+                    isLoading: false,
+                    isError: true,
+                    error: scores.error.message,
+                  };
+                }
+                return {
+                  isLoading: false,
+                  isError: false,
+                  data: enrichedScores ?? [],
+                };
+              })()}
               pagination={{
                 totalCount,
                 onChange: setPaginationState,

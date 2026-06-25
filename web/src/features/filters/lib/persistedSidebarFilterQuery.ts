@@ -29,12 +29,15 @@ export function parsePersistedSidebarFilterQueryState(
 
     if (!parsed || typeof parsed !== "object") return null;
 
-    const contextId =
-      "contextId" in parsed && typeof parsed.contextId === "string"
-        ? parsed.contextId
-        : "contextId" in parsed && parsed.contextId === null
-          ? null
-          : undefined;
+    const contextId = (() => {
+      if ("contextId" in parsed && typeof parsed.contextId === "string") {
+        return parsed.contextId;
+      }
+      if ("contextId" in parsed && parsed.contextId === null) {
+        return null;
+      }
+      return undefined;
+    })();
     const query =
       "query" in parsed && typeof parsed.query === "string"
         ? parsed.query

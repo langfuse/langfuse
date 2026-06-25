@@ -1456,21 +1456,28 @@ class OCIObjectStorageService implements StorageService {
       // UploadManager in the OCI SDK expects content shaped as one of:
       // { blob }, { filePath }, or { stream }.
       // To work reliably in Node, always provide { stream }.
-      const stream =
-        typeof data === "string"
-          ? Readable.from([data])
-          : data instanceof Readable
-            ? data
-            : Buffer.isBuffer(data as any)
-              ? Readable.from([data as any])
-              : Readable.from([String(data)]);
+      const stream = (() => {
+        if (typeof data === "string") {
+          return Readable.from([data]);
+        }
+        if (data instanceof Readable) {
+          return data;
+        }
+        if (Buffer.isBuffer(data as any)) {
+          return Readable.from([data as any]);
+        }
+        return Readable.from([String(data)]);
+      })();
 
-      const contentLength =
-        typeof data === "string"
-          ? Buffer.byteLength(data)
-          : Buffer.isBuffer(data as any)
-            ? (data as any).byteLength
-            : undefined;
+      const contentLength = (() => {
+        if (typeof data === "string") {
+          return Buffer.byteLength(data);
+        }
+        if (Buffer.isBuffer(data as any)) {
+          return (data as any).byteLength;
+        }
+        return undefined;
+      })();
 
       await uploadManager.upload({
         requestDetails: {

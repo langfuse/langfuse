@@ -53,13 +53,15 @@ function SelectionHeaderCheckbox<TData>({
   return (
     <div className="flex h-full items-center">
       <Checkbox
-        checked={
-          allPageRowsSelected
-            ? true
-            : somePageRowsSelected
-              ? "indeterminate"
-              : false
-        }
+        checked={(() => {
+          if (allPageRowsSelected) {
+            return true;
+          }
+          if (somePageRowsSelected) {
+            return "indeterminate";
+          }
+          return false;
+        })()}
         onCheckedChange={(value) => {
           const nextChecked = !!value;
           anchorRowIdRef.current = null;

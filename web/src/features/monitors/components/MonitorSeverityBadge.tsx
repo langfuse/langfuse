@@ -51,22 +51,28 @@ export function MonitorSeverityBadge({
         className,
       )}
     >
-      {severity === "PAUSED" ? (
-        <span className="inline-flex items-center gap-1">
-          <PauseCircle className="h-4 w-4" />
-          {severityLabel.PAUSED}
-        </span>
-      ) : severity === "UNKNOWN" ? (
-        <span className="inline-flex items-center gap-1.5">
-          <span
-            className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-200 border-t-gray-400"
-            aria-hidden="true"
-          />
-          {severityLabel.UNKNOWN}
-        </span>
-      ) : (
-        severityLabel[severity]
-      )}
+      {(() => {
+        if (severity === "PAUSED") {
+          return (
+            <span className="inline-flex items-center gap-1">
+              <PauseCircle className="h-4 w-4" />
+              {severityLabel.PAUSED}
+            </span>
+          );
+        }
+        if (severity === "UNKNOWN") {
+          return (
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-200 border-t-gray-400"
+                aria-hidden="true"
+              />
+              {severityLabel.UNKNOWN}
+            </span>
+          );
+        }
+        return severityLabel[severity];
+      })()}
     </Badge>
   );
 }

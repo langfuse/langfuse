@@ -133,12 +133,15 @@ export function BillingInvoiceTable() {
       cell: ({ row }) => {
         const status = (row.getValue("status") as string | null)?.toLowerCase();
         if (!status) return null;
-        const variant: NonNullable<BadgeProps["variant"]> =
-          status === "paid"
-            ? "secondary"
-            : status === "open"
-              ? "outline-solid"
-              : "default";
+        const variant: NonNullable<BadgeProps["variant"]> = (() => {
+          if (status === "paid") {
+            return "secondary";
+          }
+          if (status === "open") {
+            return "outline-solid";
+          }
+          return "default";
+        })();
         return <Badge variant={variant}>{status}</Badge>;
       },
     },

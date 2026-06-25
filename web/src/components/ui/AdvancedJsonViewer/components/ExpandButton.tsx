@@ -30,7 +30,15 @@ export function ExpandButton({
   }
 
   // Show spinner when toggling, otherwise show chevron
-  const Icon = isToggling ? Loader2 : isExpanded ? ChevronDown : ChevronRight;
+  const Icon = (() => {
+    if (isToggling) {
+      return Loader2;
+    }
+    if (isExpanded) {
+      return ChevronDown;
+    }
+    return ChevronRight;
+  })();
 
   return (
     <button
@@ -50,9 +58,15 @@ export function ExpandButton({
         padding: 0,
         opacity: isToggling ? 0.5 : 0.3,
       }}
-      aria-label={
-        isToggling ? "Processing..." : isExpanded ? "Collapse" : "Expand"
-      }
+      aria-label={(() => {
+        if (isToggling) {
+          return "Processing...";
+        }
+        if (isExpanded) {
+          return "Collapse";
+        }
+        return "Expand";
+      })()}
       disabled={isToggling}
     >
       <Icon size={14} />

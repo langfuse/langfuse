@@ -33,12 +33,15 @@ const CodeTemplateLanguageIcon = ({
 }: {
   sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"];
 }) => {
-  const language =
-    sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-      ? { Icon: SiTypescript, title: "TypeScript" }
-      : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-        ? { Icon: SiPython, title: "Python" }
-        : null;
+  const language = (() => {
+    if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+      return { Icon: SiTypescript, title: "TypeScript" };
+    }
+    if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+      return { Icon: SiPython, title: "Python" };
+    }
+    return null;
+  })();
 
   if (!language) return null;
 
@@ -58,11 +61,15 @@ const CodeTemplateLanguageIcon = ({
 const getCodeTemplateLanguageTitle = (
   sourceCodeLanguage: EvalTemplate["sourceCodeLanguage"],
 ) =>
-  sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON
-    ? "Python"
-    : sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT
-      ? "TypeScript"
-      : "Code";
+  (() => {
+    if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.PYTHON) {
+      return "Python";
+    }
+    if (sourceCodeLanguage === EvalTemplateSourceCodeLanguage.TYPESCRIPT) {
+      return "TypeScript";
+    }
+    return "Code";
+  })();
 
 const TemplatePreviewTooltipContent = ({
   template,

@@ -226,65 +226,73 @@ export function IOPreview({
        * Trade-off: scroll/expansion state is lost when toggling views,
        * but this eliminates UI freeze with large observations.
        */}
-      {selectedView === "json-beta" ? (
-        <IOPreviewJSON
-          input={input}
-          output={output}
-          metadata={metadata}
-          parsedInput={parsedInput}
-          parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
-          outputCorrection={outputCorrection}
-          isParsing={isParsing}
-          hideIfNull={hideIfNull}
-          hideInput={hideInput}
-          hideOutput={hideOutput}
-          media={media}
-          expansionState={advancedJsonExpansionState}
-          onExpansionChange={onAdvancedJsonExpansionChange}
-          onVirtualizationChange={onVirtualizationChange}
-          enableInlineComments={enableInlineComments}
-          onAddInlineComment={onAddInlineComment}
-          commentedPathsByField={commentedPathsByField}
-          observationId={observationId}
-          projectId={projectId}
-          traceId={traceId}
-          environment={environment}
-          showCorrections={showCorrections}
-        />
-      ) : selectedView === "json" ? (
-        <IOPreviewJSONSimple
-          input={input}
-          output={output}
-          metadata={metadata}
-          outputCorrection={outputCorrection}
-          parsedInput={parsedInput}
-          parsedOutput={parsedOutput}
-          parsedMetadata={parsedMetadata}
-          isLoading={isLoading}
-          isParsing={isParsing}
-          hideIfNull={hideIfNull}
-          hideInput={hideInput}
-          hideOutput={hideOutput}
-          media={media}
-          inputExpanded={jsonInputExpanded}
-          outputExpanded={jsonOutputExpanded}
-          metadataExpanded={jsonMetadataExpanded}
-          onInputExpandedChange={onJsonInputExpandedChange}
-          onOutputExpandedChange={onJsonOutputExpandedChange}
-          onMetadataExpandedChange={onJsonMetadataExpandedChange}
-          observationId={observationId}
-          projectId={projectId}
-          traceId={traceId}
-          environment={environment}
-        />
-      ) : (
-        <IOPreviewPretty
-          {...sharedProps}
-          observationName={observationName}
-          showMetadata={showMetadata}
-        />
-      )}
+      {(() => {
+        if (selectedView === "json-beta") {
+          return (
+            <IOPreviewJSON
+              input={input}
+              output={output}
+              metadata={metadata}
+              parsedInput={parsedInput}
+              parsedOutput={parsedOutput}
+              parsedMetadata={parsedMetadata}
+              outputCorrection={outputCorrection}
+              isParsing={isParsing}
+              hideIfNull={hideIfNull}
+              hideInput={hideInput}
+              hideOutput={hideOutput}
+              media={media}
+              expansionState={advancedJsonExpansionState}
+              onExpansionChange={onAdvancedJsonExpansionChange}
+              onVirtualizationChange={onVirtualizationChange}
+              enableInlineComments={enableInlineComments}
+              onAddInlineComment={onAddInlineComment}
+              commentedPathsByField={commentedPathsByField}
+              observationId={observationId}
+              projectId={projectId}
+              traceId={traceId}
+              environment={environment}
+              showCorrections={showCorrections}
+            />
+          );
+        }
+        if (selectedView === "json") {
+          return (
+            <IOPreviewJSONSimple
+              input={input}
+              output={output}
+              metadata={metadata}
+              outputCorrection={outputCorrection}
+              parsedInput={parsedInput}
+              parsedOutput={parsedOutput}
+              parsedMetadata={parsedMetadata}
+              isLoading={isLoading}
+              isParsing={isParsing}
+              hideIfNull={hideIfNull}
+              hideInput={hideInput}
+              hideOutput={hideOutput}
+              media={media}
+              inputExpanded={jsonInputExpanded}
+              outputExpanded={jsonOutputExpanded}
+              metadataExpanded={jsonMetadataExpanded}
+              onInputExpandedChange={onJsonInputExpandedChange}
+              onOutputExpandedChange={onJsonOutputExpandedChange}
+              onMetadataExpandedChange={onJsonMetadataExpandedChange}
+              observationId={observationId}
+              projectId={projectId}
+              traceId={traceId}
+              environment={environment}
+            />
+          );
+        }
+        return (
+          <IOPreviewPretty
+            {...sharedProps}
+            observationName={observationName}
+            showMetadata={showMetadata}
+          />
+        );
+      })()}
 
       {showEmptyState && (
         <div className="py-2">

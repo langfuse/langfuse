@@ -38,13 +38,15 @@ export default function ListMonitorsPage() {
 
   return (
     <MonitorPagePermissions scope="monitors:read">
-      {!projectId || isLoading ? (
-        <EmptyPage />
-      ) : isSuccess && hasMonitors ? (
-        <MainPage projectId={projectId} />
-      ) : (
-        <OnboardingPage projectId={projectId} />
-      )}
+      {(() => {
+        if (!projectId || isLoading) {
+          return <EmptyPage />;
+        }
+        if (isSuccess && hasMonitors) {
+          return <MainPage projectId={projectId} />;
+        }
+        return <OnboardingPage projectId={projectId} />;
+      })()}
     </MonitorPagePermissions>
   );
 }

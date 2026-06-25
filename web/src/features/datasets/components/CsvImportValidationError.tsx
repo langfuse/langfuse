@@ -60,11 +60,15 @@ export const CsvImportValidationError: React.FC<
                   </span>
                   <span className="text-sm font-medium">
                     CSV Row {error.itemIndex + 2}:{" "}
-                    {error.field === "input"
-                      ? "Input"
-                      : error.field === "metadata"
-                        ? "Metadata"
-                        : "Expected Output"}
+                    {(() => {
+                      if (error.field === "input") {
+                        return "Input";
+                      }
+                      if (error.field === "metadata") {
+                        return "Metadata";
+                      }
+                      return "Expected Output";
+                    })()}
                   </span>
                 </div>
 

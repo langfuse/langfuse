@@ -99,15 +99,21 @@ const getCommaArrayParam = (table: TableName) => ({
                   ? decodedValue === ""
                     ? undefined
                     : Number(decodedValue)
-                  : type === "stringOptions" ||
-                      type === "arrayOptions" ||
-                      type === "categoryOptions"
-                    ? splitOnUnescapedPipe(decodedValue).map(
-                        unescapePipeInValue,
-                      )
-                    : type === "boolean"
-                      ? decodedValue === "true"
-                      : decodedValue;
+                  : (() => {
+                      if (
+                        type === "stringOptions" ||
+                        type === "arrayOptions" ||
+                        type === "categoryOptions"
+                      ) {
+                        return splitOnUnescapedPipe(decodedValue).map(
+                          unescapePipeInValue,
+                        );
+                      }
+                      if (type === "boolean") {
+                        return decodedValue === "true";
+                      }
+                      return decodedValue;
+                    })();
 
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({

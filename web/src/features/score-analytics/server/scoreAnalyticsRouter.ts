@@ -117,14 +117,18 @@ export const scoreAnalyticsRouter = createTRPCRouter({
         estimates.score2Count >= ADAPTIVE_FINAL_THRESHOLD;
 
       // Estimate query time based on dataset size
-      const estimatedQueryTime =
-        estimates.estimatedMatchedCount > 1_000_000
-          ? "30-60s"
-          : estimates.estimatedMatchedCount > 500_000
-            ? "15-30s"
-            : estimates.estimatedMatchedCount > 100_000
-              ? "10-20s"
-              : "<10s";
+      const estimatedQueryTime = (() => {
+        if (estimates.estimatedMatchedCount > 1_000_000) {
+          return "30-60s";
+        }
+        if (estimates.estimatedMatchedCount > 500_000) {
+          return "15-30s";
+        }
+        if (estimates.estimatedMatchedCount > 100_000) {
+          return "10-20s";
+        }
+        return "<10s";
+      })();
 
       return {
         score1Count: estimates.score1Count,
