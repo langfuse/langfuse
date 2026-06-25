@@ -92,10 +92,7 @@ describe("v4TransitionRouter", () => {
       projectId,
       fromTimestamp: new Date("2026-06-24T00:00:00Z"),
       toTimestamp: new Date("2026-06-25T00:00:00Z"),
-      interval: {
-        count: 1,
-        unit: "day",
-      },
+      granularity: "auto",
     });
 
     expect(rows).toEqual([
@@ -112,7 +109,7 @@ describe("v4TransitionRouter", () => {
       "FROM clusterAllReplicas('test-cluster', 'system.query_log')",
     );
     expect(clickhouseQuery?.query).toContain(
-      "toStartOfInterval(event_time_microseconds, INTERVAL 1 DAY, 'UTC')",
+      "toStartOfInterval(event_time_microseconds, INTERVAL 1 HOUR, 'UTC') AS bucket_time",
     );
     expect(clickhouseQuery?.query).toContain(
       "splitByChar('?', JSONExtractString(log_comment, 'route'))[1]",

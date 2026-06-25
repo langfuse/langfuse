@@ -1,5 +1,4 @@
 import { z } from "zod/v4";
-import { type IntervalUnit } from "@/src/utils/date-range-utils";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -10,22 +9,36 @@ import {
   systemTableRef,
 } from "@langfuse/shared/src/server";
 
-const intervalUnitSchema = z.enum([
-  "second",
-  "minute",
-  "hour",
-  "day",
-  "month",
-  "year",
-] satisfies [IntervalUnit, ...IntervalUnit[]]);
+const timelineGranularity = z.literal("auto");
+type ResolvedTimelineGranularity = "minute" | "hour" | "day" | "week" | "month";
 
-const intervalUnitSql: Record<IntervalUnit, string> = {
-  second: "SECOND",
-  minute: "MINUTE",
-  hour: "HOUR",
-  day: "DAY",
-  month: "MONTH",
-  year: "YEAR",
+const resolveTimelineGranularity = (
+  fromTimestamp: Date,
+  toTimestamp: Date,
+): ResolvedTimelineGranularity => {
+  const diffMs = toTimestamp.getTime() - fromTimestamp.getTime();
+  const diffHours = diffMs / (1000 * 60 * 60);
+
+  if (diffHours < 2) return "minute";
+  if (diffHours < 72) return "hour";
+  if (diffHours < 1440) return "day";
+  if (diffHours < 8760) return "week";
+  return "month";
+};
+
+const getTimelineBucketSql = (
+  sql: string,
+  granularity: ResolvedTimelineGranularity,
+): string => {
+  const intervalByGranularity: Record<ResolvedTimelineGranularity, string> = {
+    minute: "1 MINUTE",
+    hour: "1 HOUR",
+    day: "1 DAY",
+    week: "1 WEEK",
+    month: "1 MONTH",
+  };
+
+  return `toStartOfInterval(${sql}, INTERVAL ${intervalByGranularity[granularity]}, 'UTC')`;
 };
 
 type LegacyApiUsageRow = {
@@ -41,22 +54,24 @@ export const v4TransitionRouter = createTRPCRouter({
         projectId: z.string(),
         fromTimestamp: z.date(),
         toTimestamp: z.date(),
-        interval: z.object({
-          count: z.number().int().positive().max(10_000),
-          unit: intervalUnitSchema,
-        }),
+        granularity: timelineGranularity.default("auto"),
       }),
     )
     .query(async ({ input }) => {
-      const intervalSql = `${input.interval.count} ${
-        intervalUnitSql[input.interval.unit]
-      }`;
+      const granularity = resolveTimelineGranularity(
+        input.fromTimestamp,
+        input.toTimestamp,
+      );
+      const bucketTimeSql = getTimelineBucketSql(
+        "event_time_microseconds",
+        granularity,
+      );
 
       const rows = await queryClickhouse<LegacyApiUsageRow>({
         query: `
 WITH selected AS (
   SELECT
-    toStartOfInterval(event_time_microseconds, INTERVAL ${intervalSql}, 'UTC') AS bucket_time,
+    ${bucketTimeSql} AS bucket_time,
     splitByChar('?', JSONExtractString(log_comment, 'route'))[1] AS route_path
   FROM ${systemTableRef("system.query_log")}
   WHERE
