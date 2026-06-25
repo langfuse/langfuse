@@ -9,7 +9,7 @@ export function DataTableSelectAllBanner({
   pageSize,
   totalCount,
 }: MultiSelect) {
-  const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : 0;
+  const totalPages = totalCount ? Math.ceil(totalCount / pageSize) : null;
 
   return (
     <div className="bg-light-blue/40 dark:bg-light-blue/50 @container mb-2 flex flex-wrap items-center justify-center gap-2 rounded-sm p-2">
@@ -17,7 +17,7 @@ export function DataTableSelectAllBanner({
         <span className="text-sm">
           All{" "}
           <span className="font-semibold">
-            {numberFormatter(totalCount ?? 0, 0)}
+            {totalCount === null ? "matching" : numberFormatter(totalCount, 0)}
           </span>{" "}
           items are selected.{" "}
           <Button
@@ -42,8 +42,12 @@ export function DataTableSelectAllBanner({
               setSelectAll(true);
             }}
           >
-            Select all {numberFormatter(totalCount ?? 0, 0)} items across{" "}
-            {numberFormatter(totalPages, 0)} pages
+            {totalCount === null || totalPages === null
+              ? "Select all matching items"
+              : `Select all ${numberFormatter(
+                  totalCount,
+                  0,
+                )} items across ${numberFormatter(totalPages, 0)} pages`}
           </Button>
         </span>
       )}

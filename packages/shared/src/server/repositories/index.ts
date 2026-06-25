@@ -18,6 +18,7 @@ export * from "./dataset-run-items-converters";
 export * from "./dataset-run-items";
 export * from "./dataset-items-columns";
 export * from "./dataset-items";
+export * from "./dataset-item-media";
 export * from "./comments";
 export * from "./experiments";
 export * from "./job-executions";

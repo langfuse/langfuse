@@ -713,26 +713,26 @@ export class IngestionService {
         `Skipping TraceUpsert queue for project ${projectId} - no job configs cached`,
       );
       return;
-    } else {
-      // Job configs present, so we add to the TraceUpsert queue.
-      const shardingKey = `${projectId}-${entityId}`;
-      const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
-      if (!traceUpsertQueue) {
-        logger.error("TraceUpsertQueue is not initialized");
-        return;
-      }
-      await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
-        payload: {
-          projectId,
-          traceId: entityId,
-          exactTimestamp: new Date(finalTraceRecord.timestamp),
-          traceEnvironment: finalTraceRecord.environment,
-        },
-        id: randomUUID(),
-        timestamp: new Date(),
-        name: QueueJobs.TraceUpsert as const,
-      });
     }
+
+    // Job configs present, so we add to the TraceUpsert queue.
+    const shardingKey = `${projectId}-${entityId}`;
+    const traceUpsertQueue = TraceUpsertQueue.getInstance({ shardingKey });
+    if (!traceUpsertQueue) {
+      logger.error("TraceUpsertQueue is not initialized");
+      return;
+    }
+    await traceUpsertQueue.add(QueueJobs.TraceUpsert, {
+      payload: {
+        projectId,
+        traceId: entityId,
+        exactTimestamp: new Date(finalTraceRecord.timestamp),
+        traceEnvironment: finalTraceRecord.environment,
+      },
+      id: randomUUID(),
+      timestamp: new Date(),
+      name: QueueJobs.TraceUpsert as const,
+    });
   }
 
   private async processObservationEventList(params: {

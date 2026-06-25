@@ -217,10 +217,7 @@ const shouldShowToast = (error: unknown): boolean => {
   return true;
 };
 
-const handleTrpcError = (
-  error: unknown,
-  shouldSilenceError: boolean = false,
-) => {
+const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;

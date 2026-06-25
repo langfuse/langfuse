@@ -295,7 +295,7 @@ export default function RemapEvaluatorPage() {
                         </DropdownMenu>
                       </div>
                       {formError ? (
-                        <p className="text-red w-full text-center">
+                        <p className="w-full text-center">
                           <span className="font-bold">Error:</span> {formError}
                         </p>
                       ) : null}
