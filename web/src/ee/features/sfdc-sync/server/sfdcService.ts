@@ -122,7 +122,6 @@ interface SfdcConfig {
   userUrl: string;
   orgUrl: string;
   basicAuthHeader: string;
-  /** Langfuse Cloud region (US/EU/…); sent on updateOrg as langfuseDataRegion. */
   dataRegion: string;
 }
 
@@ -148,7 +147,6 @@ export class SfdcService {
       userUrl: env.MULESOFT_SFDC_USER_URL,
       orgUrl: env.MULESOFT_SFDC_ORG_URL,
       basicAuthHeader,
-      // Guaranteed defined — the factory gates on this above.
       dataRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     });
   }
@@ -211,7 +209,6 @@ export class SfdcService {
         payload: {
           isLangfuse: true,
           type: "updateOrg" as const,
-          // Langfuse Cloud region the org lives in (US/EU/…).
           langfuseDataRegion: this.config.dataRegion,
           // The Mulesoft updateOrg flow runs `numServices* > 0` comparisons
           // and 500s on null — always send 0
