@@ -12,6 +12,7 @@ type PromptLinkingEditorProps = {
   onChange?: (value: string) => void;
   onBlur?: () => void;
   minHeight?: number | string;
+  maxHeight?: number | string;
   className?: string;
 };
 
@@ -20,6 +21,7 @@ export function PromptLinkingEditor({
   onChange,
   onBlur,
   minHeight,
+  maxHeight = "60vh",
   className,
 }: PromptLinkingEditorProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -61,6 +63,7 @@ export function PromptLinkingEditor({
         onBlur={onBlur}
         mode="prompt"
         minHeight={minHeight}
+        maxHeight={maxHeight}
         className={className}
         editorRef={editorRef}
       />

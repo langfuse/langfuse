@@ -136,21 +136,19 @@ export default async function chatCompletionHandler(req: NextRequest) {
             "Content-Type": "text/plain; charset=utf-8",
           },
         });
-      } else {
-        const completion = await fetchLLMCompletion({
-          ...fetchLLMCompletionParams,
-          streaming,
-        });
-
-        if (typeof completion === "string") {
-          return NextResponse.json({ content: completion });
-        } else {
-          return NextResponse.json({
-            content: completion.text,
-            reasoning: completion.reasoning,
-          });
-        }
       }
+      const completion = await fetchLLMCompletion({
+        ...fetchLLMCompletionParams,
+        streaming,
+      });
+
+      if (typeof completion === "string") {
+        return NextResponse.json({ content: completion });
+      }
+      return NextResponse.json({
+        content: completion.text,
+        reasoning: completion.reasoning,
+      });
     });
   } catch (err) {
     logger.error("Failed to handle chat completion", err);

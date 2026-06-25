@@ -16,10 +16,9 @@ export function ScoreAnalyticsNoticeBanner() {
       }, 1500);
 
       return () => clearTimeout(timer);
-    } else {
-      // Reset when loading completes
-      setShowLoadingBanner(false);
     }
+    // Reset when loading completes
+    setShowLoadingBanner(false);
   }, [isEstimating, estimate, isLoading]);
 
   // Don't show anything if we haven't started

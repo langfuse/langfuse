@@ -346,20 +346,19 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       },
       ...getClientConfig(provider.authConfig),
     });
-  else {
-    // Type check to ensure we handle all providers
 
-    const _: never = provider;
-    logger.error(
+  // Type check to ensure we handle all providers
+
+  const _: never = provider;
+  logger.error(
+    `Unrecognized SSO provider for domain ${(provider as any).domain}`,
+  );
+  traceException(
+    new Error(
       `Unrecognized SSO provider for domain ${(provider as any).domain}`,
-    );
-    traceException(
-      new Error(
-        `Unrecognized SSO provider for domain ${(provider as any).domain}`,
-      ),
-    );
-    return null;
-  }
+    ),
+  );
+  return null;
 };
 
 /**
@@ -397,7 +396,6 @@ export const findMultiTenantSsoConfig = async ({
 
   if (config) {
     return { isMultiTenantSsoProvider: true, domain: config.domain };
-  } else {
-    return { isMultiTenantSsoProvider: false, domain: null };
   }
+  return { isMultiTenantSsoProvider: false, domain: null };
 };

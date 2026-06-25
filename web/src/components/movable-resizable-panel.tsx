@@ -96,7 +96,6 @@ type MovableResizablePanelProps = {
   dragHandleSelector: string;
   ignoreOutsideInteraction?: boolean;
   style?: CSSProperties;
-  zIndex?: number;
 };
 
 const DEFAULT_BOUNDS_PADDING = 8;
@@ -521,7 +520,6 @@ export const MovableResizablePanel = forwardRef<
     handle,
     ignoreOutsideInteraction = false,
     style,
-    zIndex,
   },
   forwardedRef,
 ) {
@@ -678,7 +676,6 @@ export const MovableResizablePanel = forwardRef<
         top: renderedPanel.position.top,
         width: renderedPanel.size.width,
         height: renderedPanel.size.height,
-        zIndex,
         ...style,
       }}
       onPointerDown={handleMovePointerDown}

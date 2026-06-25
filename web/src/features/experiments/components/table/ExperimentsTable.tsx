@@ -62,6 +62,32 @@ import {
 import { ExperimentChartsGrid } from "../ExperimentChartsGrid";
 import { useExperimentChartsAccordion } from "../../hooks/useExperimentChartsAccordion";
 
+/**
+ * LFE-10460: the metadata column's default position moved from last to right
+ * after `description`. Both persistence paths (localStorage replay and saved
+ * table views) snapshot the pre-PR order with metadata trailing, so this pure
+ * transform repositions it to its new default slot ONLY when it is currently
+ * the last column (the stale pre-PR default). If a user has manually moved
+ * metadata anywhere else, their layout is left untouched.
+ *
+ * Reused as both the one-time `useColumnOrder` migration (localStorage path)
+ * and the `migrateColumnOrder` transform on saved-view payloads.
+ */
+const repositionTrailingMetadata = (order: string[]): string[] => {
+  const lastIndex = order.length - 1;
+  // Only act on the stale default: metadata sitting as the last column.
+  if (order[lastIndex] !== "metadata") return order;
+  // New default slot: immediately after the `description` column, matching the
+  // JS column definition (select, name, description, metadata...).
+  const descriptionIndex = order.indexOf("description");
+  const targetIndex = descriptionIndex === -1 ? 0 : descriptionIndex + 1;
+  if (targetIndex === lastIndex) return order; // already in place
+  const next = [...order];
+  next.splice(lastIndex, 1); // remove trailing metadata
+  next.splice(targetIndex, 0, "metadata"); // insert at new default slot
+  return next;
+};
+
 export default function ExperimentsTable({
   projectId,
   defaultFilter,
@@ -288,6 +314,21 @@ export default function ExperimentsTable({
       },
     },
     {
+      // Placed here (right after the identifying name/description columns) rather
+      // than last so it is never the trailing column. As the last column its right
+      // resize handle sat flush against the table edge and could not be dragged
+      // wider in a maximized browser (LFE-10460).
+      accessorKey: "metadata",
+      id: "metadata",
+      header: getExperimentsColumnName("metadata"),
+      size: 100,
+      enableHiding: true,
+      cell: ({ row }) => {
+        const value: Record<string, string> = row.getValue("metadata");
+        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
+      },
+    },
+    {
       accessorKey: "itemCount",
       id: "itemCount",
       header: getExperimentsColumnName("itemCount"),
@@ -460,17 +501,6 @@ export default function ExperimentsTable({
       },
       columns: experimentScoreColumns,
     },
-    {
-      accessorKey: "metadata",
-      id: "metadata",
-      header: getExperimentsColumnName("metadata"),
-      size: 100,
-      enableHiding: true,
-      cell: ({ row }) => {
-        const value: Record<string, string> = row.getValue("metadata");
-        return <IOTableCell data={value} singleLine={rowHeight === "s"} />;
-      },
-    },
   ];
 
   const [columnVisibility, setColumnVisibilityState] =
@@ -479,9 +509,28 @@ export default function ExperimentsTable({
       columns,
     );
 
+  // One-time migration for LFE-10460 on the localStorage replay path:
+  // useColumnOrder replays a returning user's stored order verbatim and never
+  // repositions an existing column, so without this metadata would stay the
+  // trailing column and the resize bug would persist. Guarded by a version flag
+  // so it runs once (won't re-fight a user who later moves metadata themselves).
+  // The saved-view persistence path is covered separately via
+  // `validationContext.migrateColumnOrder` below — both reuse
+  // `repositionTrailingMetadata`.
+  const columnOrderMigrations = useMemo(
+    () => [
+      {
+        versionKey: `experimentsColumnOrder-metadataReorder-v1-${projectId}`,
+        apply: repositionTrailingMetadata,
+      },
+    ],
+    [projectId],
+  );
+
   const [columnOrder, setColumnOrder] = useColumnOrder<ExperimentsTableRow>(
     `experimentsColumnOrder-${projectId}`,
     columns,
+    columnOrderMigrations,
   );
 
   const { isLoading: isViewLoading, ...viewControllers } = useTableViewManager({
@@ -498,6 +547,11 @@ export default function ExperimentsTable({
       columns,
       filterColumnDefinition: filterConfig.columnDefinitions,
       expandableFilterColumns: filterConfig.facets.map((facet) => facet.column),
+      // A pre-PR saved view persists its own metadata-last column order, which
+      // would otherwise re-introduce LFE-10460 after applying the view (the
+      // localStorage migration is one-shot and doesn't reach this path). Reuse
+      // the same "only reposition a stale default" transform here.
+      migrateColumnOrder: repositionTrailingMetadata,
     },
     currentFilterState: queryFilter.explicitFilterState,
     currentExpandedFilters: queryFilter.expanded,

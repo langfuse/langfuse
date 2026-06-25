@@ -137,9 +137,9 @@ export class DatasetItemValidator {
       if (opts?.sanitizeControlChars) {
         // Sanitize control characters from parsed value before sending to PostgreSQL
         return this.sanitizeJsonValue(parsed) as Prisma.InputJsonValue;
-      } else {
-        return parsed;
       }
+
+      return parsed;
     } catch (e) {
       logger.info(
         "[DatasetItemValidator.normalize] failed to parse dataset item data",

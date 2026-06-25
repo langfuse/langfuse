@@ -121,22 +121,21 @@ export function UpsertScoreConfigDialog({
           form.reset();
           onOpenChange(false);
         });
-    } else {
-      return createScoreConfig
-        .mutateAsync({
-          projectId,
-          ...values,
-          description: values.description ?? null,
-          categories: values.categories?.length ? values.categories : undefined,
-        })
-        .then(() => {
-          capture("score_configs:create_form_submit", {
-            dataType: values.dataType,
-          });
-          form.reset();
-          onOpenChange(false);
-        });
     }
+    return createScoreConfig
+      .mutateAsync({
+        projectId,
+        ...values,
+        description: values.description ?? null,
+        categories: values.categories?.length ? values.categories : undefined,
+      })
+      .then(() => {
+        capture("score_configs:create_form_submit", {
+          dataType: values.dataType,
+        });
+        form.reset();
+        onOpenChange(false);
+      });
   }
 
   return (

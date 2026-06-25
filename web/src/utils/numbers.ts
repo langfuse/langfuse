@@ -61,8 +61,8 @@ export const latencyFormatter = (milliseconds?: number): string => {
 
 export const usdFormatter = (
   number?: number | bigint | Decimal,
-  minimumFractionDigits: number = 2,
-  maximumFractionDigits: number = 6,
+  minimumFractionDigits = 2,
+  maximumFractionDigits = 6,
 ) => {
   const numberToFormat = number instanceof Decimal ? number.toNumber() : number;
   return new Intl.NumberFormat("en-US", {

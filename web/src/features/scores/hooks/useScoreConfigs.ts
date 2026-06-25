@@ -48,11 +48,10 @@ export function useAnnotationScoreConfigs({
       selectedConfigIds: configSelection.configs.map((c) => c.id),
       availableConfigs: configSelection.configs,
     };
-  } else {
-    return {
-      isLoading: configs.isLoading,
-      selectedConfigIds: emptySelectedConfigIds,
-      availableConfigs: configs.data?.configs ?? [],
-    };
   }
+  return {
+    isLoading: configs.isLoading,
+    selectedConfigIds: emptySelectedConfigIds,
+    availableConfigs: configs.data?.configs ?? [],
+  };
 }

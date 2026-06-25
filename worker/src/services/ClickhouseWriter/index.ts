@@ -465,15 +465,15 @@ export class ClickhouseWriter {
                 truncated: true,
               });
               return true;
-            } else {
-              logger.error(
-                `ClickHouse query failed with non-retryable error: ${error.message}`,
-                {
-                  error: error.message,
-                },
-              );
-              return false;
             }
+
+            logger.error(
+              `ClickHouse query failed with non-retryable error: ${error.message}`,
+              {
+                error: error.message,
+              },
+            );
+            return false;
           },
           startingDelay: 100,
           timeMultiple: 1,

@@ -5642,7 +5642,19 @@ paths:
       security: *ref_0
   /api/public/sessions:
     get:
-      description: Get sessions
+      description: >-
+        Get sessions.
+
+
+        This legacy endpoint is not recommended for new data extraction
+        workflows.
+
+        Use the v2 observations endpoint with a bounded time range and group
+        rows by
+
+        `sessionId` instead:
+
+        `GET /api/public/v2/observations?fromStartTime=<from>&toStartTime=<to>`.
       operationId: sessions_list
       tags:
         - Sessions
@@ -5730,9 +5742,18 @@ paths:
   /api/public/sessions/{sessionId}:
     get:
       description: >-
-        Get a session. Please note that `traces` on this endpoint are not
-        paginated, if you plan to fetch large sessions, consider `GET
-        /api/public/traces?sessionId=<sessionId>`
+        Get a session.
+
+
+        Please note that `traces` on this endpoint are not paginated. For large
+
+        sessions or new data extraction workflows, use the v2 observations
+        endpoint
+
+        with a URL-encoded `sessionId` filter and a bounded time range:
+
+        `GET /api/public/v2/observations?filter=<sessionId
+        filter>&fromStartTime=<from>&toStartTime=<to>`.
       operationId: sessions_get
       tags:
         - Sessions
@@ -7398,7 +7419,8 @@ components:
           nullable: true
           description: >-
             Custom start date for exports (required when exportMode is
-            FROM_CUSTOM_DATE)
+            FROM_CUSTOM_DATE). Must not be in the future (27 h tolerance for
+            timezone differences).
         compressed:
           type: boolean
           nullable: true
@@ -7564,6 +7586,7 @@ components:
       type: string
       enum:
         - idle
+        - running
         - queued
         - up_to_date
         - disabled
@@ -7575,10 +7598,12 @@ components:
 
         - `error` — last export failed (see `lastError` for details)
 
-        - `idle` — enabled but has never exported yet
+        - `running` — an export job is currently being processed
 
         - `queued` — next export is overdue (`nextSyncAt` is in the past) and
         waiting to be picked up by the worker
+
+        - `idle` — enabled but has never exported yet and no export is queued
 
         - `up_to_date` — all available data has been exported; next export is
         scheduled for the future

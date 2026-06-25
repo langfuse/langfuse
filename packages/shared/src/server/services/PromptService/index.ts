@@ -376,11 +376,11 @@ export class PromptService {
           seen.delete(currentPrompt.id);
 
           return JSON.parse(resolvedPrompt);
-        } else {
-          seen.delete(currentPrompt.id);
-
-          return currentPrompt.prompt;
         }
+
+        seen.delete(currentPrompt.id);
+
+        return currentPrompt.prompt;
       };
 
       const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
@@ -404,7 +404,7 @@ export class PromptService {
     logger.debug(`[PromptService] ${message}`, ...args);
   }
 
-  private incrementMetric(name: PromptServiceMetrics, value: number = 1) {
+  private incrementMetric(name: PromptServiceMetrics, value = 1) {
     try {
       this.metricIncrementer?.(name, value);
     } catch (e) {

@@ -71,7 +71,6 @@ type InAppAgentWindowShellProps = {
   floatingPanelHandle: MovableResizablePanelHandle;
   isExpanded: boolean;
   panelRef: RefObject<HTMLDivElement | null>;
-  zIndex: number;
 };
 
 export function InAppAgentWindowShell({
@@ -79,19 +78,22 @@ export function InAppAgentWindowShell({
   floatingPanelHandle,
   isExpanded,
   panelRef,
-  zIndex,
 }: InAppAgentWindowShellProps) {
   if (!isExpanded && !floatingPanelHandle.geometry) {
     return null;
   }
 
+  // The shell renders inside the `agent` overlay layer (see
+  // components/ui/layer.tsx), whose container is `pointer-events: none` so the
+  // rest of the app stays click-through. The panel is the interactive surface,
+  // so it opts pointer events back in via `pointer-events-auto`. No z-index:
+  // layer ORDER stacks the whole `agent` layer below every transient overlay.
   if (isExpanded) {
     return (
       <div
         ref={panelRef}
-        className="fixed inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3 origin-top-left"
+        className="pointer-events-auto fixed inset-x-3 top-[calc(var(--banner-offset)+0.75rem)] bottom-3 origin-top-left"
         data-ignore-outside-interaction
-        style={{ zIndex }}
       >
         <div
           data-ignore-outside-interaction
@@ -109,7 +111,7 @@ export function InAppAgentWindowShell({
       ignoreOutsideInteraction
       ref={panelRef}
       handle={floatingPanelHandle}
-      zIndex={zIndex}
+      className="pointer-events-auto"
     >
       <div
         data-ignore-outside-interaction

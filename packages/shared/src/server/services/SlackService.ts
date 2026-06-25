@@ -344,9 +344,9 @@ export class SlackService {
    */
   private async getChannelsRecursive(
     client: WebClient,
-    channelTypes: string = "public_channel,private_channel",
+    channelTypes = "public_channel,private_channel",
     cursor?: string,
-    fetchedRecords: number = 0,
+    fetchedRecords = 0,
   ): Promise<SlackChannel[]> {
     try {
       const result = await client.conversations.list({

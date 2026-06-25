@@ -142,6 +142,16 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(5),
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .default(4),
+  LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120 * 60),
   LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()

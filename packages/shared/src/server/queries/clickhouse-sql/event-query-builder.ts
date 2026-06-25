@@ -509,9 +509,9 @@ export type NoProjectIdType = typeof NoProjectId;
 abstract class AbstractQueryBuilder {
   protected whereClauses: string[] = [];
   protected havingClauses: string[] = [];
-  protected orderByClause: string = "";
-  protected limitByClause: string = "";
-  protected limitClause: string = "";
+  protected orderByClause = "";
+  protected limitByClause = "";
+  protected limitClause = "";
   protected params: Record<string, any> = {};
 
   /**
@@ -1005,7 +1005,7 @@ export class EventsQueryBuilder extends BaseEventsQueryBuilder<
   /**
    * Add IO fields with optional truncation
    */
-  selectIO(truncated: boolean = false, charLimit?: number): this {
+  selectIO(truncated = false, charLimit?: number): this {
     this.ioFields = { truncated, charLimit };
     return this;
   }
@@ -1174,7 +1174,7 @@ type AliasedColumns<
 export class EventsAggregationQueryBuilder extends BaseEventsQueryBuilder<
   typeof EVENTS_AGGREGATION_FIELDS
 > {
-  private truncated: boolean = true;
+  private truncated = true;
 
   constructor(options: { projectId: string }) {
     super(EVENTS_AGGREGATION_FIELDS, options);
@@ -1446,9 +1446,9 @@ export class CTEQueryBuilder<
   private cteSchemas: Map<string, CTESchema> = new Map();
   private joins: string[] = [];
   private selectExpressions: string[] = [];
-  private fromClause: string = "";
-  private fromAlias: string = "";
-  private groupByClause: string = "";
+  private fromClause = "";
+  private fromAlias = "";
+  private groupByClause = "";
 
   /**
    * Register a CTE with its schema

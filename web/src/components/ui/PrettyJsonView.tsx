@@ -728,7 +728,7 @@ function JsonPrettyTable({
   const expandRowsWithLazyLoading = useCallback(
     (
       rowFilter: (rows: Row<JsonTableRow>[]) => Row<JsonTableRow>[],
-      shouldCollapse: boolean = false,
+      shouldCollapse = false,
     ) => {
       if (shouldCollapse) {
         onExpandedChange({});
@@ -1139,9 +1139,8 @@ export function PrettyJsonView(props: {
     } else if (internalExpansionState === false) {
       // user collapsed all
       return false;
-    } else {
-      return finalState;
     }
+    return finalState;
   }, [finalExpansionState, internalExpansionState]);
 
   // table data with lazy-loaded children

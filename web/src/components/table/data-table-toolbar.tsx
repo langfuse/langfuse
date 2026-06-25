@@ -90,6 +90,7 @@ interface SearchConfig {
 interface TableViewControllers {
   applyViewState: (viewData: TableViewPresetState) => void;
   selectedViewId: string | null;
+  appliedViewId: string | null;
   handleSetViewId: (viewId: string | null) => void;
 }
 

@@ -683,49 +683,48 @@ describe("flattenTree", () => {
         }
 
         return nodes[0];
-      } else {
-        // Realistic: ~20% intermediate nodes, ~80% leaf nodes, max depth ~5
-        const intermediateNodeCount = Math.floor(count * 0.2);
-        const leafNodeCount = count - intermediateNodeCount;
-
-        const allNodes: TestNode[] = [];
-
-        // Create all nodes first
-        for (let i = 0; i < count; i++) {
-          allNodes.push({
-            id: `node-${i}`,
-            name: `Node ${i}`,
-            children: [],
-            startTime: new Date(`2024-01-01T00:00:${i % 60}.${i % 1000}Z`),
-          });
-        }
-
-        // Build realistic hierarchy
-        // Root nodes (10% of intermediate nodes)
-        const rootCount = Math.max(1, Math.floor(intermediateNodeCount * 0.1));
-        const roots: TestNode[] = allNodes.slice(0, rootCount);
-
-        // Remaining intermediate nodes attach to previous nodes
-        for (let i = rootCount; i < intermediateNodeCount; i++) {
-          const parentIndex = Math.floor(Math.random() * i);
-          allNodes[parentIndex].children.push(allNodes[i]);
-        }
-
-        // Leaf nodes attach to any intermediate node
-        for (let i = 0; i < leafNodeCount; i++) {
-          const nodeIndex = intermediateNodeCount + i;
-          const parentIndex = Math.floor(Math.random() * intermediateNodeCount);
-          allNodes[parentIndex].children.push(allNodes[nodeIndex]);
-        }
-
-        // Create root with all root-level nodes as children
-        return {
-          id: "root",
-          name: "Root",
-          children: roots,
-          startTime: new Date("2024-01-01T00:00:00.000Z"),
-        };
       }
+      // Realistic: ~20% intermediate nodes, ~80% leaf nodes, max depth ~5
+      const intermediateNodeCount = Math.floor(count * 0.2);
+      const leafNodeCount = count - intermediateNodeCount;
+
+      const allNodes: TestNode[] = [];
+
+      // Create all nodes first
+      for (let i = 0; i < count; i++) {
+        allNodes.push({
+          id: `node-${i}`,
+          name: `Node ${i}`,
+          children: [],
+          startTime: new Date(`2024-01-01T00:00:${i % 60}.${i % 1000}Z`),
+        });
+      }
+
+      // Build realistic hierarchy
+      // Root nodes (10% of intermediate nodes)
+      const rootCount = Math.max(1, Math.floor(intermediateNodeCount * 0.1));
+      const roots: TestNode[] = allNodes.slice(0, rootCount);
+
+      // Remaining intermediate nodes attach to previous nodes
+      for (let i = rootCount; i < intermediateNodeCount; i++) {
+        const parentIndex = Math.floor(Math.random() * i);
+        allNodes[parentIndex].children.push(allNodes[i]);
+      }
+
+      // Leaf nodes attach to any intermediate node
+      for (let i = 0; i < leafNodeCount; i++) {
+        const nodeIndex = intermediateNodeCount + i;
+        const parentIndex = Math.floor(Math.random() * intermediateNodeCount);
+        allNodes[parentIndex].children.push(allNodes[nodeIndex]);
+      }
+
+      // Create root with all root-level nodes as children
+      return {
+        id: "root",
+        name: "Root",
+        children: roots,
+        startTime: new Date("2024-01-01T00:00:00.000Z"),
+      };
     };
 
     const runPerformanceTest = (

@@ -267,8 +267,8 @@ export function verifyToolAnnotations(
  */
 export async function waitFor(
   condition: () => Promise<boolean>,
-  timeoutMs: number = 5000,
-  intervalMs: number = 100,
+  timeoutMs = 5000,
+  intervalMs = 100,
 ): Promise<void> {
   const startTime = Date.now();
 

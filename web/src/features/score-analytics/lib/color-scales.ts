@@ -32,9 +32,9 @@ export type HeatmapColorVariant = keyof typeof HEATMAP_BASE_COLORS;
  */
 export function generateMonoColorScale(
   baseColor: { l: number; c: number; h: number },
-  steps: number = 10,
-  minLightness: number = 30,
-  maxLightness: number = 95,
+  steps = 10,
+  minLightness = 30,
+  maxLightness = 95,
 ): string[] {
   const colors: string[] = [];
   const lightnessRange = maxLightness - minLightness;
@@ -63,7 +63,7 @@ export function getColorFromMonoScale(
   min: number,
   max: number,
   variant: HeatmapColorVariant = "chart1",
-  steps: number = 10,
+  steps = 10,
 ): string {
   const baseColor = HEATMAP_BASE_COLORS[variant];
   const scale = generateMonoColorScale(baseColor, steps);
@@ -105,7 +105,7 @@ export function getContrastColor(oklchColor: string): "black" | "white" {
  */
 export function getHoverColor(
   oklchColor: string,
-  chromaMultiplier: number = 2.5,
+  chromaMultiplier = 2.5,
 ): string {
   // Parse OKLCH color
   const match = oklchColor.match(
@@ -345,8 +345,8 @@ function mixColorsInOklab(
   baseColor: string,
   mixColor: string,
   percentage: number,
-  minPercentage: number = 0.1,
-  maxPercentage: number = 1.0,
+  minPercentage = 0.1,
+  maxPercentage = 1.0,
 ): string {
   // Clamp percentage to [min, max] range
   const clampedPercentage = Math.max(
@@ -374,9 +374,9 @@ function mixColorsInOklab(
 export function getMonochromeScale(
   baseColor: string,
   steps: number,
-  mixColor: string = "white",
-  minPercentage: number = 0.1,
-  maxPercentage: number = 1.0,
+  mixColor = "white",
+  minPercentage = 0.1,
+  maxPercentage = 1.0,
 ): string[] {
   const baseHex = extractHslToHex(baseColor);
   const colors: string[] = [];

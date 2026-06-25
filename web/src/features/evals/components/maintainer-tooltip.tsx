@@ -12,9 +12,8 @@ function MaintainerIcon({ maintainer }: { maintainer: string }) {
     return <RagasLogoIcon />;
   } else if (maintainer.includes("Langfuse")) {
     return <LangfuseIcon size={16} />;
-  } else {
-    return <UserCircle2Icon className="h-4 w-4" />;
   }
+  return <UserCircle2Icon className="h-4 w-4" />;
 }
 
 export function MaintainerTooltip({ maintainer }: { maintainer: string }) {

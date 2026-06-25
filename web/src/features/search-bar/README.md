@@ -247,6 +247,46 @@ encode/decode round-trip. The flat URL contract (`FilterState` + `searchQuery`
   interleave is preserved only in the recent-searches entry (`planCommit`'s
   `canonical`), not in the live bar.
 
+## AI filter mode (the "Ask AI" button)
+
+The bar is also the home of AI-assisted filtering on v4 (it replaces the legacy
+sidebar "✨ wand" — `EventsTable` now passes `filterWithAI={!searchBarMode}`, so
+the wand only survives on non-bar/embedded surfaces and the v3 traces table).
+
+- **Entry.** The **"Ask AI"** affordance opens AI mode — a plain button placed
+  AFTER the field in DOM order, always available (build from scratch OR refine
+  existing filters). Tab is deliberately NOT a shortcut: while typing it belongs
+  to autocomplete navigation, so forward-tab just moves focus from the field
+  onto the button. `EventsSearchBarRow` owns the `'grammar' | 'ai'` mode and
+  gates availability on `isLangfuseCloud && organization.aiFeaturesEnabled` (the
+  server enforces it too). `SearchComposer` only takes an `onActivateAi` callback
+  - renders the affordance; it stays grammar-only.
+- **The component.** `components/SearchBarAiPrompt.tsx` — a plain NL input (not
+  the contenteditable). Enter generates; Esc or the back arrow exits (no
+  blur-to-exit — leaving is explicit so a stray click never loses your prompt).
+- **The endpoint.** `server/router.ts` (`searchBar.generateFilter`), NOT the
+  legacy `naturalLanguageFilters.createCompletion`. Its prompt is built from
+  THIS registry (`server/buildFilterPrompt.ts`, derived from `FIELDS` +
+  `SCORE_COLUMNS`), so the model's vocabulary IS the grammar. It asks for a flat
+  `FilterState` (an array of `singleFilter`), then **round-trips it through
+  `filterStateToQueryText` server-side and returns only the filters that lower
+  to bar pills** — a hallucinated/non-v4 column lands in `skippedFilters` and is
+  dropped before it reaches the client. A unit test
+  (`__tests__/server/unit/searchBarFilterPrompt.servertest.ts`) asserts every
+  field's prompt-recommended `type` round-trips, so the prompt can't drift from
+  the reverse adapter.
+- **Apply-immediately.** The result is applied via `useEventsSearchBar`'s
+  `applyFilters` (it preserves grammar-less `skippedFilters` like a commit, then
+  writes `setFilterState`), so on returning to grammar mode `resetTo` re-derives
+  the generated filters as editable pills. There is no separate AI→bar sync path.
+- **Refine clears the free-text lane.** When opened with filters present, the
+  bar's full committed text (free text rendered inline) is the refine context
+  sent to the model, which returns the COMPLETE updated `FilterState`. So
+  `applyFilters` also clears `searchQuery` and resets `searchType` to
+  `DEFAULT_SEARCH_TYPE` — anything the model didn't re-emit is dropped, including
+  free text the user asked to remove. Without this, a stale `searchQuery` would
+  survive and `resetTo` would re-derive the dropped text back into the bar.
+
 ## Extending to other views (the universality contract)
 
 The bar is intended to become the primary filter interface for **every**
@@ -373,17 +413,30 @@ unused planners).
     strips redundant parens and would bail on a now-"invalid" paren) and
     removes documented top-level grouping — needs its own pass.
 - **Layer system**: the bar's in-flow overlays use a hardcoded local ladder (X
-  z-20 < autocomplete popover z-50, both drop into the table below the bar). The
-  **error tooltip is the exception**: when the popover is open it flips ABOVE
-  the bar, into the page header's band, where no in-flow z-index can win —
-  `#page > main` is `overflow:hidden` (clips anything above the bar) and the
-  header is inside the app's isolated stacking context. So that one tooltip
-  renders through the `"tooltip"` `<Layer>` (`components/ui/layer.tsx`), which
-  puts it in a `<body>`-level overlay layer that paints above the whole app by
-  DOM order — no z-index needed. `<Layer>` is the seed of an app-wide layer
-  system (one layer today, ordered by `LAYER_ORDER`). New overlays that must
-  escape clipping/stacking should reuse `<Layer>` rather than a one-off portal +
-  z-index.
+  z-20 < autocomplete popover z-50, both drop into the table below the bar).
+  These are genuinely local — they live inside the app's isolated `#__next`
+  stacking context, can't escape it, and never need to beat a body-level
+  overlay, so their z-index is fine. The **error tooltip is the exception**:
+  when the popover is open it flips ABOVE the bar, into the page header's band,
+  where no in-flow z-index can win — `#page > main` is `overflow:hidden` (clips
+  anything above the bar) and the header is inside the isolated stacking
+  context. So that one tooltip renders through the `"tooltip"` `<Layer>`
+  (`components/ui/layer.tsx`), which puts it in a `<body>`-level overlay layer
+  that paints above the whole app by DOM ORDER — no z-index needed.
+- **The app-wide layer system** (`components/ui/layer.tsx`): `<Layer>` is now
+  part of the full overlay band, not a one-off seed. `LAYER_ORDER` is
+  `["agent", "modal", "popover", "tooltip", "toast"]` — five `<body>`-level
+  layers (declared in `_document.tsx`), each its own isolated stacking context,
+  stacked by DOM ORDER (later = on top), carrying NO z-index of their own. ALL
+  overlays route through it: Radix/Vaul primitives via their `*.Portal`'s
+  `container` (use `useLayerContainer`), and bespoke
+  imperatively-positioned content (like this bar's error tooltip) via `<Layer>`.
+  No overlay carries a magic z-index to "escape to the top" anymore; the
+  `@repo/no-overlay-zindex` lint rule enforces this — it bans high z-index on
+  the `ui/*` overlay wrappers, and app-wide on any overlay _content_ element
+  (e.g. a `*Content` you put a stray `z-50` on). When adding a search-bar
+  overlay that must escape clipping/stacking, reach for `<Layer>` (bespoke) or a
+  layer-routed Radix primitive — never a one-off portal + z-index.
 - Optional: extract `SearchComposer`'s contenteditable selection/`beforeinput`
   machinery into a `useContentEditableController` hook to fully separate the
   imperative integration from the React component.

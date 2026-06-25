@@ -53,13 +53,12 @@ export function ScoreDistributionNumericChart({
             pv: item.count,
             uv: dist2Map.get(item.binIndex) ?? 0,
           };
-        } else {
-          // Single score mode - also use 'pv' for consistency with Bar dataKey
-          return {
-            dimension: label,
-            pv: item.count,
-          };
         }
+        // Single score mode - also use 'pv' for consistency with Bar dataKey
+        return {
+          dimension: label,
+          pv: item.count,
+        };
       });
   }, [distribution1, distribution2, binLabels, isComparisonMode]);
 

@@ -147,7 +147,6 @@ export type InAppAgentMessageProps = {
   content: InAppAgentMessageContent;
   isCompact?: boolean;
   isFeedbackDisabled?: boolean;
-  windowZIndex?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -159,7 +158,6 @@ export function InAppAgentMessage({
   content,
   isCompact = false,
   isFeedbackDisabled = false,
-  windowZIndex,
   onSubmitFeedback,
 }: InAppAgentMessageProps) {
   if (content.type === "redirectAction") {
@@ -191,7 +189,6 @@ export function InAppAgentMessage({
         content={content}
         isCompact={isCompact}
         isFeedbackDisabled={isFeedbackDisabled}
-        windowZIndex={windowZIndex}
         onSubmitFeedback={onSubmitFeedback}
       />
     );
@@ -249,13 +246,11 @@ function AssistantMessageWithFeedback({
   content,
   isCompact,
   isFeedbackDisabled,
-  windowZIndex,
   onSubmitFeedback,
 }: {
   content: Extract<InAppAgentMessageContent, { type: "text" }>;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
-  windowZIndex?: number;
   onSubmitFeedback?: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -292,16 +287,11 @@ function AssistantMessageWithFeedback({
                 feedback={content.feedback}
                 isCompact={isCompact}
                 isFeedbackDisabled={isFeedbackDisabled}
-                windowZIndex={windowZIndex}
                 onSubmitFeedback={onSubmitFeedback}
               />
             ) : null}
             {hasSources ? (
-              <SourcesPopover
-                sources={sources}
-                isCompact={isCompact}
-                windowZIndex={windowZIndex}
-              />
+              <SourcesPopover sources={sources} isCompact={isCompact} />
             ) : null}
           </div>
         </div>
@@ -314,13 +304,11 @@ function MessageFeedbackControls({
   feedback,
   isCompact,
   isFeedbackDisabled,
-  windowZIndex,
   onSubmitFeedback,
 }: {
   feedback?: InAppAgentMessageFeedback;
   isCompact: boolean;
   isFeedbackDisabled: boolean;
-  windowZIndex?: number;
   onSubmitFeedback: (params: {
     value: InAppAgentMessageFeedbackValue | null;
     comment?: string | null;
@@ -448,11 +436,6 @@ function MessageFeedbackControls({
           align="start"
           side="top"
           className="w-72 space-y-1.5 p-2"
-          style={
-            typeof windowZIndex === "number"
-              ? { zIndex: windowZIndex + 1 }
-              : undefined
-          }
         >
           <div>
             <textarea
@@ -486,11 +469,9 @@ function MessageFeedbackControls({
 function SourcesPopover({
   sources,
   isCompact,
-  windowZIndex,
 }: {
   sources: InAppAgentMessageSource[];
   isCompact: boolean;
-  windowZIndex?: number;
 }) {
   return (
     <Popover>
@@ -506,16 +487,7 @@ function SourcesPopover({
           Sources
         </button>
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="top"
-        className="w-72 p-1.5"
-        style={
-          typeof windowZIndex === "number"
-            ? { zIndex: windowZIndex + 1 }
-            : undefined
-        }
-      >
+      <PopoverContent align="start" side="top" className="w-72 p-1.5">
         <div className="space-y-0.5">
           {sources.map((source) => (
             <a

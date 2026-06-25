@@ -14,7 +14,7 @@ const maybeEventsTable =
     ? describe
     : describe.skip;
 
-const alphabeticSearchToken = (index: number, prefix: string = "needle") =>
+const alphabeticSearchToken = (index: number, prefix = "needle") =>
   `${prefix}${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + (index % 26))}`;
 
 const searchFixture = `

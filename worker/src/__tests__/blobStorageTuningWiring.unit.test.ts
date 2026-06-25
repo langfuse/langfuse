@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { Readable } from "stream";
 
 // Records of every uploadFileBuffered call so we can assert the resolved tuning
 // was threaded through. Hoisted so the module mock can close over it.
@@ -39,6 +40,28 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     getObservationsForBlobStorageExport: () => empty(),
     getScoresForBlobStorageExport: () => empty(),
     getEventsForBlobStorageExport: () => empty(),
+    // LFE-10463 Parquet path: each returns an already-resolved
+    // { stream } (the binary body) — a tiny Readable with the Parquet magic.
+    getTracesForBlobStorageExportParquet: async () => ({
+      queryId: "q",
+      stream: Readable.from([Buffer.from("PAR1")]),
+      responseHeaders: {},
+    }),
+    getScoresForBlobStorageExportParquet: async () => ({
+      queryId: "q",
+      stream: Readable.from([Buffer.from("PAR1")]),
+      responseHeaders: {},
+    }),
+    getObservationsForBlobStorageExportParquet: async () => ({
+      queryId: "q",
+      stream: Readable.from([Buffer.from("PAR1")]),
+      responseHeaders: {},
+    }),
+    getEventsForBlobStorageExportParquet: async () => ({
+      queryId: "q",
+      stream: Readable.from([Buffer.from("PAR1")]),
+      responseHeaders: {},
+    }),
     createModelCache: () => ({ getModel: async () => null }),
     blobStorageEndpointConnectionValidationOptions: () => undefined,
   };
@@ -127,6 +150,56 @@ describe("handleBlobStorageIntegrationProjectJob tuning wiring", () => {
       // backend keeps its native default (Azure 5, buffered S3 env, etc.).
       expect(call.maxConcurrentParts).toBeUndefined();
       expect(call.maxPartAttempts).toBeUndefined();
+    }
+  });
+
+  // LFE-10463: parquet tuning routes every table through the Parquet path,
+  // overriding fileType (CSV here) and the .gz suffix.
+  it("produces .parquet files with the parquet content type when parquet is enabled", async () => {
+    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue(
+      baseRow({ parquet: true }),
+    );
+
+    await handleBlobStorageIntegrationProjectJob(makeJob());
+
+    // exportSource TRACES_OBSERVATIONS → scores, traces, observations.
+    expect(uploadCalls.length).toBe(3);
+    for (const call of uploadCalls) {
+      expect(call.fileName.endsWith(".parquet")).toBe(true);
+      expect(call.fileName.endsWith(".gz")).toBe(false);
+      expect(call.fileType).toBe("application/vnd.apache.parquet");
+    }
+  });
+
+  it("ignores the compressed flag on the parquet path (no .gz suffix)", async () => {
+    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
+      ...baseRow({ parquet: true }),
+      compressed: true,
+      fileType: "JSONL",
+    });
+
+    await handleBlobStorageIntegrationProjectJob(makeJob());
+
+    expect(uploadCalls.length).toBe(3);
+    for (const call of uploadCalls) {
+      expect(call.fileName.endsWith(".parquet")).toBe(true);
+      expect(call.fileName).not.toContain(".gz");
+      expect(call.fileType).toBe("application/vnd.apache.parquet");
+    }
+  });
+
+  it("parquet takes precedence over rawPassthrough", async () => {
+    (prisma.blobStorageIntegration.findUnique as any).mockResolvedValue({
+      ...baseRow({ parquet: true, rawPassthrough: true }),
+      fileType: "JSONL",
+    });
+
+    await handleBlobStorageIntegrationProjectJob(makeJob());
+
+    expect(uploadCalls.length).toBe(3);
+    for (const call of uploadCalls) {
+      expect(call.fileName.endsWith(".parquet")).toBe(true);
+      expect(call.fileType).toBe("application/vnd.apache.parquet");
     }
   });
 });

@@ -17,7 +17,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { FilterState, TracingSearchType } from "@langfuse/shared";
 
-import { planCommit } from "@/src/features/search-bar/lib/commit";
+import {
+  DEFAULT_SEARCH_TYPE,
+  planCommit,
+} from "@/src/features/search-bar/lib/commit";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
   type ObservedOptions,
@@ -78,7 +81,11 @@ export function useEventsSearchBar({
   setFilterState: (filters: FilterState) => void;
   setSearchQuery: (query: string | null) => void;
   setSearchType: (type: TracingSearchType[]) => void;
-}): { store: SearchBarStore; commit: () => string | null } {
+}): {
+  store: SearchBarStore;
+  commit: () => string | null;
+  applyFilters: (filters: FilterState) => void;
+} {
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
   const observedRef = useRef(observed);
@@ -130,6 +137,40 @@ export function useEventsSearchBar({
   const searchTypeRef = useRef(searchType);
   searchTypeRef.current = searchType;
 
+  // Re-attach the filters the grammar can't represent so neither a grammar
+  // commit nor an AI apply ever drops them (no-silent-drop contract) — but drop
+  // any skipped filter whose (column, key) the new set just produced, so an
+  // explicit edit replaces it instead of duplicating the column in URL state.
+  const mergeWithSkipped = useCallback((filters: FilterState): FilterState => {
+    const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
+    const preserved = skippedFiltersRef.current.filter(
+      (f) => !producedKeys.has(filterIdentity(f)),
+    );
+    return preserved.length > 0 ? [...filters, ...preserved] : filters;
+  }, []);
+
+  // Apply an externally-produced filter set (the AI filter generator) the same
+  // way a commit does — preserving skipped filters — instead of a raw replace
+  // that would silently drop them. The model receives the bar's full committed
+  // text as refine context (free text rendered inline) and returns the COMPLETE
+  // updated FilterState, so applying it must write all three URL lanes like a
+  // grammar commit does: anything the model didn't re-emit is dropped, including
+  // the free text. Clearing searchQuery / resetting searchType to the default is
+  // what makes "drop the free text" actually stick — otherwise the stale
+  // searchQuery survives and resetTo re-derives it back into the bar.
+  const applyFilters = useCallback(
+    (filters: FilterState) => {
+      const { setFilterState, setSearchQuery, setSearchType } =
+        applyRef.current;
+      setFilterState(mergeWithSkipped(filters));
+      setSearchQuery(null);
+      if (!sameScopes(DEFAULT_SEARCH_TYPE, searchTypeRef.current)) {
+        setSearchType(DEFAULT_SEARCH_TYPE);
+      }
+    },
+    [mergeWithSkipped],
+  );
+
   const commit = useCallback((): string | null => {
     const result = planCommit(
       store.getState().draft,
@@ -141,15 +182,8 @@ export function useEventsSearchBar({
     }
     const { setFilterState, setSearchQuery, setSearchType } = applyRef.current;
     // Re-attach the filters the grammar can't represent so the commit never
-    // drops them (no-silent-drop contract) — but drop any skipped filter whose
-    // (column, key) the bar just produced, so an explicit bar edit replaces it
-    // instead of duplicating the column in URL state.
-    const producedKeys = new Set(result.filters.map((f) => filterIdentity(f)));
-    const preserved = skippedFiltersRef.current.filter(
-      (f) => !producedKeys.has(filterIdentity(f)),
-    );
-    const committedFilters =
-      preserved.length > 0 ? [...result.filters, ...preserved] : result.filters;
+    // drops them (no-silent-drop contract; shared with the AI apply path).
+    const committedFilters = mergeWithSkipped(result.filters);
     setFilterState(committedFilters);
     setSearchQuery(result.searchQuery);
     // Only write searchType when it actually changed. planCommit coerces a
@@ -174,7 +208,7 @@ export function useEventsSearchBar({
         searchType: result.searchType,
       }).text,
     );
-  }, [store, projectId]);
+  }, [store, projectId, mergeWithSkipped]);
 
-  return { store, commit };
+  return { store, commit, applyFilters };
 }

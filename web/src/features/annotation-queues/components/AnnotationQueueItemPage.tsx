@@ -104,10 +104,9 @@ export const AnnotationQueueItemPage: React.FC<{
 
   const relevantItem = useMemo(() => {
     if (isSingleItem) return seenItemData.data;
-    else
-      return progressIndex < seenItemIds.length
-        ? seenItemData.data
-        : nextItemData;
+    return progressIndex < seenItemIds.length
+      ? seenItemData.data
+      : nextItemData;
   }, [
     progressIndex,
     seenItemIds.length,

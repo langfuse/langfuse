@@ -54,15 +54,14 @@ const createObservationData = (
       end_time: data.end_time ? data.end_time : undefined,
       event_ts: data.event_ts ? data.event_ts : undefined,
     });
-  } else {
-    // Observations table: use milliseconds, requires internal_model_id
-    const { model_id, ...rest } = data;
-    return createObservation({
-      ...rest,
-      internal_model_id: model_id || data.internal_model_id,
-      // Timestamps already in milliseconds
-    });
   }
+  // Observations table: use milliseconds, requires internal_model_id
+  const { model_id, ...rest } = data;
+  return createObservation({
+    ...rest,
+    internal_model_id: model_id || data.internal_model_id,
+    // Timestamps already in milliseconds
+  });
 };
 
 // Helper to insert observations into the correct table

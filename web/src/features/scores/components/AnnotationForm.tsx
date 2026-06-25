@@ -952,15 +952,14 @@ export function AnnotationForm<Target extends ScoreTarget>({
     if (Array.isArray(serverScores)) {
       // Flat scores from trace/session detail
       return transformToAnnotationScores(serverScores, availableConfigs);
-    } else {
-      // Aggregates from compare view
-      return transformToAnnotationScores(
-        serverScores,
-        availableConfigs,
-        scoreTarget.type === "trace" ? scoreTarget.traceId : "",
-        scoreTarget.type === "trace" ? scoreTarget.observationId : undefined,
-      );
     }
+    // Aggregates from compare view
+    return transformToAnnotationScores(
+      serverScores,
+      availableConfigs,
+      scoreTarget.type === "trace" ? scoreTarget.traceId : "",
+      scoreTarget.type === "trace" ? scoreTarget.observationId : undefined,
+    );
   }, [serverScores, availableConfigs, scoreTarget]);
 
   // Step 2: Merge with cache

@@ -5,13 +5,22 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 
 import { cn } from "@/src/utils/tailwind";
 import { buttonVariants } from "@/src/components/ui/button";
+import { useLayerContainer } from "@/src/components/ui/layer";
 import motionStyles from "./dialog-motion.module.css";
 
 const AlertDialog = AlertDialogPrimitive.Root;
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
-const AlertDialogPortal = AlertDialogPrimitive.Portal;
+// Route the portal into the `modal` overlay layer (null until mounted →
+// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+const AlertDialogPortal = ({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Portal>) => {
+  const container = useLayerContainer("modal");
+  return <AlertDialogPrimitive.Portal container={container} {...props} />;
+};
+AlertDialogPortal.displayName = "AlertDialogPortal";
 
 const AlertDialogOverlay = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Overlay>,
@@ -20,7 +29,7 @@ const AlertDialogOverlay = React.forwardRef<
   <AlertDialogPrimitive.Overlay
     className={cn(
       motionStyles.overlay,
-      "fixed inset-0 z-50 bg-black/50 dark:bg-black/65",
+      "fixed inset-0 bg-black/50 dark:bg-black/65",
       className,
     )}
     {...props}
@@ -39,7 +48,7 @@ const AlertDialogContent = React.forwardRef<
       ref={ref}
       className={cn(
         motionStyles.content,
-        "bg-background fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-lg sm:rounded-lg",
+        "bg-background fixed top-[50%] left-[50%] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-lg sm:rounded-lg",
         className,
       )}
       {...props}

@@ -55,6 +55,7 @@ export default defineConfig({
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
       : ["default"],
+    silent: process.env.CI ? "passed-only" : false,
     globals: true,
     retry: process.env.CI ? 3 : 0,
     testTimeout: 30_000,

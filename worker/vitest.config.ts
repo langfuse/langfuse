@@ -10,6 +10,7 @@ export default defineConfig({
     reporters: process.env.CI
       ? ["default", new VitestCiReporter()]
       : ["default"],
+    silent: process.env.CI ? "passed-only" : false,
     retry: process.env.CI ? 3 : 0,
     dir: "./src",
     pool: "forks",

@@ -46,6 +46,13 @@ export const observationFilterConfig: FilterConfig = {
       label: "Trace Name",
     },
     {
+      // Tags are a primary, user-defined filter — keep them near the identity
+      // facets at the top of the sidebar rather than buried mid-list (LFE-10494).
+      type: "categorical" as const,
+      column: "tags",
+      label: "Trace Tags",
+    },
+    {
       type: "categorical" as const,
       column: "level",
       label: "Level",
@@ -64,11 +71,6 @@ export const observationFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "promptName",
       label: "Prompt Name",
-    },
-    {
-      type: "categorical" as const,
-      column: "tags",
-      label: "Trace Tags",
     },
     {
       type: "stringKeyValue" as const,

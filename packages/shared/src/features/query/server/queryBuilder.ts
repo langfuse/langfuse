@@ -531,7 +531,7 @@ export class QueryBuilder {
 
       // Normal dimension or special-case filter: build column mapping
       let clickhouseSelect: string;
-      let queryPrefix: string = "";
+      let queryPrefix = "";
       let clickhouseTableName: string = actualTableName;
       let type: string;
       let emptyEqualsNull: boolean | undefined;
@@ -883,15 +883,18 @@ export class QueryBuilder {
     // Choose appropriate granularity based on date range to get ~50 buckets
     if (diffHours < 2) {
       return "minute"; // Less than a 2h, use minutes
-    } else if (diffHours < 72) {
-      return "hour"; // Less than 3 days, use hours
-    } else if (diffHours < 1440) {
-      return "day"; // Less than 60 days, use days
-    } else if (diffHours < 8760) {
-      return "week"; // Less than a year, use weeks
-    } else {
-      return "month"; // Over a year, use months
     }
+    if (diffHours < 72) {
+      return "hour"; // Less than 3 days, use hours
+    }
+    if (diffHours < 1440) {
+      return "day"; // Less than 60 days, use days
+    }
+    if (diffHours < 8760) {
+      return "week"; // Less than a year, use weeks
+    }
+
+    return "month"; // Over a year, use months
   }
 
   private getTimeDimensionSql(
@@ -1514,7 +1517,7 @@ export class QueryBuilder {
   public async build(
     query: QueryType,
     projectId: string,
-    enableSingleLevelOptimization: boolean = false,
+    enableSingleLevelOptimization = false,
   ): Promise<{ query: string; parameters: Record<string, unknown> }> {
     // Run zod validation
     const parseResult = queryModel.safeParse(query);

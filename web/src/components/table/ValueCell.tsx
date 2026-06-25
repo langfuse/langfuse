@@ -100,32 +100,30 @@ function renderArrayValue(arr: unknown[]): JSX.Element {
           if (keys.length <= OBJECT_PREVIEW_KEYS) {
             const keyPreview = keys.map((k) => `"${k}": ...`).join(", ");
             return `{${keyPreview}}`;
-          } else {
-            return `{"${keys[0]}": ...}`;
           }
+          return `{"${keys[0]}": ...}`;
         }
         if (itemType === "array") return "...";
         return String(item);
       })
       .join(", ");
     return <span className={PREVIEW_TEXT_CLASSES}>[{displayItems}]</span>;
-  } else {
-    // Show truncated values for large arrays
-    const preview = arr
-      .slice(0, ARRAY_PREVIEW_ITEMS)
-      .map((item) => {
-        const itemType = getValueType(item);
-        if (itemType === "string") return `"${String(item)}"`;
-        if (itemType === "object" || itemType === "array") return "...";
-        return String(item);
-      })
-      .join(", ");
-    return (
-      <span className={PREVIEW_TEXT_CLASSES}>
-        [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
-      </span>
-    );
   }
+  // Show truncated values for large arrays
+  const preview = arr
+    .slice(0, ARRAY_PREVIEW_ITEMS)
+    .map((item) => {
+      const itemType = getValueType(item);
+      if (itemType === "string") return `"${String(item)}"`;
+      if (itemType === "object" || itemType === "array") return "...";
+      return String(item);
+    })
+    .join(", ");
+  return (
+    <span className={PREVIEW_TEXT_CLASSES}>
+      [{preview}, ...{arr.length - ARRAY_PREVIEW_ITEMS} more]
+    </span>
+  );
 }
 
 function renderObjectValue(obj: Record<string, unknown>): JSX.Element {

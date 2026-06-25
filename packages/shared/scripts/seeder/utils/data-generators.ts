@@ -64,7 +64,7 @@ export class DataGenerator {
     return array[Math.floor(Math.random() * array.length)];
   }
 
-  private randomBoolean(probability: number = 0.5): boolean {
+  private randomBoolean(probability = 0.5): boolean {
     return Math.random() < probability;
   }
 
@@ -343,7 +343,7 @@ export class DataGenerator {
 
   generateEvaluationObservations(
     traces: TraceRecordInsertType[],
-    observationsPerTrace: number = 5,
+    observationsPerTrace = 5,
     projectId: string,
   ): ObservationRecordInsertType[] {
     const observations: ObservationRecordInsertType[] = [];
@@ -450,7 +450,7 @@ export class DataGenerator {
    */
   generateSyntheticObservations(
     traces: TraceRecordInsertType[],
-    observationsPerTrace: number = 5,
+    observationsPerTrace = 5,
   ): ObservationRecordInsertType[] {
     const observations: ObservationRecordInsertType[] = [];
 
@@ -593,7 +593,7 @@ export class DataGenerator {
   generateSyntheticScores(
     traces: TraceRecordInsertType[],
     observations: ObservationRecordInsertType[],
-    scoresPerTrace: number = 2,
+    scoresPerTrace = 2,
   ): ScoreRecordInsertType[] {
     const scores: ScoreRecordInsertType[] = [];
 

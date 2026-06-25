@@ -277,12 +277,11 @@ export const PlaygroundProvider: React.FC<PlaygroundProviderProps> = ({
         } as ChatMessageWithId;
         setMessages((prev) => [...prev, placeholderMessage]);
         return placeholderMessage;
-      } else {
-        const newMessage = createEmptyMessage(message);
-        setMessages((prev) => [...prev, newMessage]);
-
-        return newMessage;
       }
+      const newMessage = createEmptyMessage(message);
+      setMessages((prev) => [...prev, newMessage]);
+
+      return newMessage;
     },
     [],
   );
@@ -728,7 +727,7 @@ async function getChatCompletionWithTools(
   messages: ChatMessageWithIdNoPlaceholders[],
   modelParams: UIModelParams,
   tools: unknown[],
-  streaming: boolean = false,
+  streaming = false,
 ): Promise<ToolCallResponse & { reasoning?: string }> {
   if (!projectId) throw Error("Project ID is not set");
 
@@ -773,7 +772,7 @@ async function getChatCompletionWithStructuredOutput(
   messages: ChatMessageWithId[],
   modelParams: UIModelParams,
   structuredOutputSchema: PlaygroundSchema | null,
-  streaming: boolean = false,
+  streaming = false,
 ): Promise<string> {
   if (!projectId) throw Error("Project ID is not set");
 
