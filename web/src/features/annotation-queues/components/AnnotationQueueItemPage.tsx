@@ -308,6 +308,11 @@ export const AnnotationQueueItemPage: React.FC<{
       )
         return;
 
+      // Don't hijack Alt+←/→ — that's the browser's back/forward on
+      // Windows/Linux/ChromeOS (hasModifier lets altKey through for AltGr-typed
+      // printables, but arrow keys are never AltGr-produced).
+      if (event.altKey) return;
+
       // Next item (skip — no completion).
       if (event.key === "ArrowRight") {
         if (isNextItemAvailable) {
