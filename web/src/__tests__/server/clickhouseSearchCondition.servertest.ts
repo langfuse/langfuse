@@ -14,7 +14,7 @@ const maybeEventsTable =
     ? describe
     : describe.skip;
 
-const alphabeticSearchToken = (index: number, prefix: string = "needle") =>
+const alphabeticSearchToken = (index: number, prefix = "needle") =>
   `${prefix}${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + (index % 26))}`;
 
 const searchFixture = `
@@ -61,11 +61,6 @@ const matchingIds = async (opts: {
     `,
     params: search.params,
     preferredClickhouseService: "EventsReadOnly",
-    tags: {
-      feature: "clickhouse-search-condition-test",
-      type: "events",
-      kind: "test",
-    },
   });
 
   return rows.map((row) => row.id);
@@ -191,11 +186,6 @@ describe("clickhouseSearchCondition", () => {
             ...search.params,
           },
           preferredClickhouseService: "EventsReadOnly",
-          tags: {
-            feature: "clickhouse-search-condition-test",
-            type: "events",
-            kind: "test",
-          },
         }),
       ).resolves.toEqual([{ count: 0 }]);
     });
@@ -284,11 +274,6 @@ describe("clickhouseSearchCondition", () => {
           escapedSpanId,
         },
         preferredClickhouseService: "EventsReadOnly",
-        tags: {
-          feature: "clickhouse-search-condition-test",
-          type: "events",
-          kind: "test",
-        },
       });
 
       expect(stored).toHaveLength(2);

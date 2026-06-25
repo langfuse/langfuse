@@ -44,6 +44,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   events: "startTime",
+  datasets: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt", // TODO: flip to validFrom once we write in new format
   audit_logs: "createdAt",
@@ -54,6 +55,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   events: "startTime",
+  datasets: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt",
   audit_logs: "createdAt",
@@ -88,9 +90,9 @@ export const getChunkWithFlattenedScores = <
           ...acc,
           [key]: value,
         };
-      } else {
-        return acc;
       }
+
+      return acc;
     }, emptyScoreColumns);
     return {
       ...data,
