@@ -162,6 +162,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
   private async stopMergesOnScratchTable(): Promise<void> {
     const engine = await this.detectScratchTableEngine();
     const isSharedMergeTree = engine.startsWith("Shared");
+    const isReplicatedMergeTree = engine.startsWith("Replicated");
 
     logger.info(
       `${this.logPrefix} Stopping merges on observations_pid_tid_sorting (engine=${engine || "unknown"})`,
@@ -179,6 +180,10 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
         },
       });
     } else {
+      // Self-hosted MergeTree. `SYSTEM STOP MERGES` takes an in-memory action
+      // lock (held by the ActionLocksManager) that is *not* persisted: it is
+      // reset on server restart, so on its own it is not a durable freeze
+      // across the M2 -> M3 gap.
       await commandClickhouse({
         query: `SYSTEM STOP MERGES ${onClusterClause()} observations_pid_tid_sorting`,
         tags: {
@@ -186,6 +191,22 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
           operation: "stopMerges",
         },
       });
+
+      // For the replicated engine, persist the freeze in table metadata on top
+      // of the in-memory lock so it survives restarts and holds on every
+      // replica: stop enqueuing new merges (`max_replicated_merges_in_queue=0`)
+      // and stop any replica from executing a merge locally
+      // (`always_fetch_merged_part=1`).
+      // See https://github.com/ClickHouse/ClickHouse/issues/22830.
+      if (isReplicatedMergeTree) {
+        await commandClickhouse({
+          query: `ALTER TABLE observations_pid_tid_sorting ${onClusterClause()} MODIFY SETTING max_replicated_merges_in_queue = 0, always_fetch_merged_part = 1`,
+          tags: {
+            feature: "background-migration",
+            operation: "stopMerges",
+          },
+        });
+      }
     }
   }
 
