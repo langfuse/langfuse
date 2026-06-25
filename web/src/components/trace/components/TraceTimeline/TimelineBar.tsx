@@ -3,7 +3,7 @@
  *
  * Pure time-coordinate concern: a colored duration box positioned at the node's
  * start offset, followed by a trailing metric label. Identity (badge, name) and
- * hierarchy (tree connectors) live in the gutter (TimelineRow) — never here — so
+ * hierarchy (tree connectors) live in the gutter (TimelineGutterRow) — not here — so
  * the bar can sit at its true time position without dragging the tree with it.
  */
 

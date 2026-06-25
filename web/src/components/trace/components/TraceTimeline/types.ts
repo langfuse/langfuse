@@ -26,7 +26,7 @@ export interface TimelineMetrics {
  * Props for TimelineBar component
  * Renders the gantt bar (duration) plus a trailing metric label, positioned on
  * the time axis. Hierarchy/identity (badge, name, connectors) lives in the
- * gutter (TimelineRow), not here.
+ * gutter (TimelineGutterRow), not here.
  */
 export interface TimelineBarProps {
   node: TreeNode;
@@ -61,10 +61,11 @@ export interface FlatTimelineItem {
 }
 
 /**
- * Props for TimelineRow component
- * Renders tree structure + timeline bar
+ * Props for TimelineGutterRow component
+ * Renders the left gutter: tree connectors + icon + name (the depth coordinate).
+ * Identity only — time/metrics live on the bar (TimelineBar) in the chart pane.
  */
-export interface TimelineRowProps {
+export interface TimelineGutterRowProps {
   item: FlatTimelineItem;
   isSelected: boolean;
   onSelect: () => void;
@@ -72,23 +73,6 @@ export interface TimelineRowProps {
   onToggleCollapse: () => void;
   hasChildren: boolean;
   isCollapsed: boolean;
-  // Split-waterfall layout geometry
-  /** Width of the fixed left gutter (name tree) in pixels */
-  gutterWidth: number;
-  /** Width of the right time track (gantt) in pixels */
-  trackWidth: number;
-  // View preferences
-  showDuration: boolean;
-  showCostTokens: boolean;
-  showScores: boolean;
-  showComments: boolean;
-  colorCodeMetrics: boolean;
-  // Heatmap context
-  parentTotalCost?: Decimal;
-  parentTotalDuration?: number;
-  // Optional data
-  commentCount?: number;
-  scores?: WithStringifiedMetadata<ScoreDomain>[];
 }
 
 /**

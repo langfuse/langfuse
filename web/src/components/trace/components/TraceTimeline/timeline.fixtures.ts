@@ -1,6 +1,6 @@
 /**
  * Small fixtures for TraceTimeline stories. Kept minimal — the smallest shape
- * that renders each state — and shared across the TimelineBar / TimelineRow
+ * that renders each state — and shared across the TimelineBar / TimelineGutterRow
  * stories so node construction lives in one place.
  */
 

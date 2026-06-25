@@ -1,26 +1,18 @@
 import { fn } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
-import { TimelineRow } from "./TimelineRow";
+import { TimelineGutterRow } from "./TimelineGutterRow";
 import { flattenTreeWithTimelineMetrics } from "./timeline-flattening";
 import { makeItem, makeTreeNode } from "./timeline.fixtures";
 
-// One row is exactly one virtualized slot tall; the showcase stacks several.
 const ROW_BOX =
-  "bg-background relative h-[42px] w-[740px] overflow-hidden rounded border";
-const PANEL_BOX = "bg-background w-[740px] overflow-hidden rounded border";
-
-// A row is exactly one virtualized slot tall; hosts the single-state stories.
-const rowBox = (Story: () => React.ReactElement) => (
-  <div className={ROW_BOX}>
-    <Story />
-  </div>
-);
+  "bg-background relative h-[42px] w-[320px] overflow-hidden rounded border";
+const PANEL_BOX = "bg-background w-[320px] overflow-hidden rounded border";
 
 // fn() gives Storybook actions; cast to the prop type so meta args and the
-// per-story decorators agree (the CSF factory types story-level decorators
-// against the component props, not the Mock-widened meta args).
+// per-story decorators agree (story-level decorators are typed against the
+// component props, not the Mock-widened meta args).
 const meta = preview.meta({
-  component: TimelineRow,
+  component: TimelineGutterRow,
   args: {
     item: makeItem({
       depth: 1,
@@ -34,17 +26,18 @@ const meta = preview.meta({
     onToggleCollapse: fn() as () => void,
     hasChildren: false,
     isCollapsed: false,
-    gutterWidth: 280,
-    trackWidth: 440,
-    showDuration: true,
-    showCostTokens: false,
-    showScores: false,
-    showComments: false,
-    colorCodeMetrics: false,
   },
 });
 
-export const Default = meta.story({ decorators: [rowBox] });
+export const Default = meta.story({
+  decorators: [
+    (Story) => (
+      <div className={ROW_BOX}>
+        <Story />
+      </div>
+    ),
+  ],
+});
 
 export const RootWithChildren = meta.story({
   args: {
@@ -56,7 +49,13 @@ export const RootWithChildren = meta.story({
     }),
     hasChildren: true,
   },
-  decorators: [rowBox],
+  decorators: [
+    (Story) => (
+      <div className={ROW_BOX}>
+        <Story />
+      </div>
+    ),
+  ],
 });
 
 export const NestedWithSiblingBelow = meta.story({
@@ -69,7 +68,13 @@ export const NestedWithSiblingBelow = meta.story({
     }),
     hasChildren: true,
   },
-  decorators: [rowBox],
+  decorators: [
+    (Story) => (
+      <div className={ROW_BOX}>
+        <Story />
+      </div>
+    ),
+  ],
 });
 
 export const NestedLastChild = meta.story({
@@ -81,12 +86,24 @@ export const NestedLastChild = meta.story({
       node: makeTreeNode({ name: "vector-search-shard-3", type: "SPAN" }),
     }),
   },
-  decorators: [rowBox],
+  decorators: [
+    (Story) => (
+      <div className={ROW_BOX}>
+        <Story />
+      </div>
+    ),
+  ],
 });
 
 export const Selected = meta.story({
   args: { isSelected: true },
-  decorators: [rowBox],
+  decorators: [
+    (Story) => (
+      <div className={ROW_BOX}>
+        <Story />
+      </div>
+    ),
+  ],
 });
 
 export const Collapsed = meta.story({
@@ -100,11 +117,17 @@ export const Collapsed = meta.story({
     hasChildren: true,
     isCollapsed: true,
   },
-  decorators: [rowBox],
+  decorators: [
+    (Story) => (
+      <div className={ROW_BOX}>
+        <Story />
+      </div>
+    ),
+  ],
 });
 
-// Design showcase: a stacked mini-tree built from the real flattening logic, so
-// the connectors connect parent→child across rows exactly as in the app.
+// Design showcase: a stacked mini-tree from the real flattening logic, so the
+// connectors connect parent→child across rows exactly as in the app.
 export const TreeShowcase = meta.story({
   decorators: [
     (Story) => (
@@ -187,7 +210,7 @@ export const TreeShowcase = meta.story({
       <>
         {items.map((item) => (
           <div key={item.node.id} className="h-[42px]">
-            <TimelineRow
+            <TimelineGutterRow
               item={item}
               isSelected={false}
               onSelect={args.onSelect}
@@ -195,13 +218,6 @@ export const TreeShowcase = meta.story({
               onToggleCollapse={args.onToggleCollapse}
               hasChildren={item.node.children.length > 0}
               isCollapsed={false}
-              gutterWidth={260}
-              trackWidth={460}
-              showDuration
-              showCostTokens={false}
-              showScores={false}
-              showComments={false}
-              colorCodeMetrics={false}
             />
           </div>
         ))}
