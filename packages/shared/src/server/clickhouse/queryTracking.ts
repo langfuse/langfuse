@@ -20,7 +20,7 @@ export function sleep(ms: number): Promise<void> {
  * when CH is deployed as a cluster. Single-node deployments (self-hosted) read
  * the local table directly.
  */
-function systemTableRef(
+export function systemTableRef(
   table: "system.processes" | "system.query_log",
 ): string {
   if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {

@@ -7,6 +7,7 @@ import {
 import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
+  systemTableRef,
 } from "@langfuse/shared/src/server";
 
 const intervalUnitSchema = z.enum([
@@ -57,7 +58,7 @@ WITH selected AS (
   SELECT
     toStartOfInterval(event_time_microseconds, INTERVAL ${intervalSql}) AS bucket_time,
     splitByChar('?', simpleJSONExtractString(log_comment, 'route'))[1] AS route_path
-  FROM system.query_log
+  FROM ${systemTableRef("system.query_log")}
   WHERE
     event_time >= {fromTimestamp: DateTime64(3)}
     AND event_time <= {toTimestamp: DateTime64(3)}
@@ -112,6 +113,9 @@ ORDER BY bucket_time ASC, legacy_route ASC
           route: "v4-legacy-api-usage",
         },
         preferredClickhouseService: "ReadOnly",
+        clickhouseSettings: {
+          skip_unavailable_shards: 1,
+        },
       });
 
       return rows.map((row) => ({
