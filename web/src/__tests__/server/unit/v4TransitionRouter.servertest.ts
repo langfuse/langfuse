@@ -117,6 +117,7 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).toContain(
       "splitByChar('?', JSONExtractString(log_comment, 'route'))[1]",
     );
+    expect(clickhouseQuery?.query).toContain("AND type = 'QueryFinish'");
     expect(clickhouseQuery?.query).toContain(
       "JSONExtractString(log_comment, 'tag_schema_version') = '1'",
     );
