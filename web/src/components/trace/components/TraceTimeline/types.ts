@@ -24,14 +24,14 @@ export interface TimelineMetrics {
 
 /**
  * Props for TimelineBar component
- * Renders individual Gantt bar with metrics and badges
+ * Renders the gantt bar (duration) plus a trailing metric label, positioned on
+ * the time axis. Hierarchy/identity (badge, name, connectors) lives in the
+ * gutter (TimelineRow), not here.
  */
 export interface TimelineBarProps {
   node: TreeNode;
   metrics: TimelineMetrics;
   isSelected: boolean;
-  onSelect: () => void;
-  onHover?: () => void;
   // View preferences
   showDuration: boolean;
   showCostTokens: boolean;
@@ -72,6 +72,11 @@ export interface TimelineRowProps {
   onToggleCollapse: () => void;
   hasChildren: boolean;
   isCollapsed: boolean;
+  // Split-waterfall layout geometry
+  /** Width of the fixed left gutter (name tree) in pixels */
+  gutterWidth: number;
+  /** Width of the right time track (gantt) in pixels */
+  trackWidth: number;
   // View preferences
   showDuration: boolean;
   showCostTokens: boolean;
