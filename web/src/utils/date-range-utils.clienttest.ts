@@ -31,6 +31,19 @@ describe("resolveTimeRange (presence-XOR)", () => {
     ).toEqual({ range: "last30Days" });
   });
 
+  it("degrades to the fallback when the URL preset is invalid for this view (does not fall through to storage)", () => {
+    // "6h" (last6Hours) is a table-only option, absent from the dashboard set.
+    // Because the URL is present it wins under XOR, so the stored "30d" must be
+    // ignored entirely and the result must be the fallback — never "30d".
+    expect(
+      resolveTimeRange(
+        { urlValue: "6h", storedValue: "30d" },
+        allowed,
+        fallback,
+      ),
+    ).toEqual({ range: fallback });
+  });
+
   it("treats an empty-string URL value as absent", () => {
     expect(
       resolveTimeRange({ urlValue: "", storedValue: "7d" }, allowed, fallback),

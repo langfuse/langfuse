@@ -1,7 +1,6 @@
 import { useQueryParams, StringParam } from "use-query-params";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/router";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import {
   rangeToString,
   resolveTimeRange,
@@ -18,6 +17,17 @@ export const GLOBAL_DATE_RANGE_STORAGE_KEY = "langfuse-global-date-range";
 export interface UseGlobalDateRangeOutput {
   timeRange: TimeRange;
   setTimeRange: (timeRange: TimeRange) => void;
+}
+
+/** Reads the persisted meta-format token for a project-scoped key. */
+function readStoredRange(storageKey: string | null): string | null {
+  if (!storageKey || typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw ? (JSON.parse(raw) as string) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -41,6 +51,11 @@ export interface UseGlobalDateRangeOutput {
  * read; absolute timestamps are stored only when the user picks a custom range.
  * Both the dashboard and table date-range hooks delegate here so the views
  * share a single contract.
+ *
+ * Storage is managed directly (rather than via `useLocalStorage`) so the
+ * project-scoped key is handled safely: we never read/write before the project
+ * is known, and we re-read on key change instead of clobbering the new key with
+ * the previous project's value when switching projects without a remount.
  */
 export function useGlobalDateRange<T extends string>({
   allowedRanges,
@@ -55,21 +70,43 @@ export function useGlobalDateRange<T extends string>({
       ? router.query.projectId
       : undefined;
 
+  // Per-project key. `null` until the project is known (e.g. before the router
+  // is ready) so we never touch an unscoped key that two projects could collide
+  // on.
   const storageKey = projectId
     ? `${GLOBAL_DATE_RANGE_STORAGE_KEY}-${projectId}`
-    : GLOBAL_DATE_RANGE_STORAGE_KEY;
+    : null;
 
-  // Per-user default in relative meta-format; `null` means "no preference yet".
-  const [storedValue, setStoredValue] = useLocalStorage<string | null>(
-    storageKey,
-    null,
+  // Per-user default in relative meta-format. Seeded synchronously on mount when
+  // the project is already known, and re-read whenever the scoped key changes
+  // (router becoming ready, or an in-app project switch without a remount) so we
+  // adopt the new project's value instead of overwriting it with the old one.
+  const [storedValue, setStoredValue] = useState<string | null>(() =>
+    readStoredRange(storageKey),
   );
+
+  useEffect(() => {
+    setStoredValue(readStoredRange(storageKey));
+  }, [storageKey]);
 
   // Read the param WITHOUT a default: presence is what distinguishes
   // "URL carries an explicit range" from "URL has none" for the XOR rule.
   const [queryParams, setQueryParams] = useQueryParams({
     dateRange: StringParam,
   });
+
+  const persist = useCallback(
+    (encoded: string) => {
+      setStoredValue(encoded);
+      if (!storageKey || typeof window === "undefined") return;
+      try {
+        window.localStorage.setItem(storageKey, JSON.stringify(encoded));
+      } catch {
+        // Ignore storage write failures (private mode, quota, …).
+      }
+    },
+    [storageKey],
+  );
 
   return useMemo(() => {
     const timeRange = resolveTimeRange(
@@ -83,7 +120,7 @@ export function useGlobalDateRange<T extends string>({
       // An explicit pick makes the URL authoritative (shareable) and becomes
       // the persisted per-user default for subsequent clean navigations.
       setQueryParams({ dateRange: encoded });
-      setStoredValue(encoded);
+      persist(encoded);
     };
 
     return { timeRange, setTimeRange };
@@ -93,6 +130,6 @@ export function useGlobalDateRange<T extends string>({
     allowedRanges,
     fallback,
     setQueryParams,
-    setStoredValue,
+    persist,
   ]);
 }
