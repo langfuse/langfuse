@@ -5,6 +5,10 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  AnalyticsIntegrationExportSource,
+  Prisma,
+} from "@langfuse/shared/src/db";
+import {
   convertDateToClickhouseDateTime,
   queryClickhouse,
   systemTableRef,
@@ -28,13 +32,172 @@ const intervalUnitSql: Record<IntervalUnit, string> = {
   year: "YEAR",
 };
 
+const postgresDateBinIntervalUnit: Partial<Record<IntervalUnit, string>> = {
+  second: "seconds",
+  minute: "minutes",
+  hour: "hours",
+  day: "days",
+};
+
+const legacyIntegrationExportSources =
+  new Set<AnalyticsIntegrationExportSource>([
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS,
+    AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS_EVENTS,
+  ]);
+
+const TRACE_EVAL_TARGET = "trace";
+
+const isLegacyIntegrationExportSource = (
+  exportSource: AnalyticsIntegrationExportSource | null | undefined,
+) => exportSource != null && legacyIntegrationExportSources.has(exportSource);
+
+const getPostgresBucketExpression = (interval: {
+  count: number;
+  unit: IntervalUnit;
+}): Prisma.Sql => {
+  if (interval.unit === "month") {
+    return Prisma.sql`make_timestamp(
+      extract(year from je.created_at)::int,
+      ((floor(((extract(month from je.created_at)::int - 1)::numeric) / ${interval.count})::int * ${interval.count}) + 1)::int,
+      1,
+      0,
+      0,
+      0
+    )`;
+  }
+
+  if (interval.unit === "year") {
+    return Prisma.sql`make_timestamp(
+      (floor((extract(year from je.created_at)::numeric) / ${interval.count})::int * ${interval.count})::int,
+      1,
+      1,
+      0,
+      0,
+      0
+    )`;
+  }
+
+  const unit = postgresDateBinIntervalUnit[interval.unit];
+  if (!unit) {
+    throw new Error(`Unsupported interval unit: ${interval.unit}`);
+  }
+
+  return Prisma.sql`date_bin(${`${interval.count} ${unit}`}::interval, je.created_at, TIMESTAMP '1970-01-01 00:00:00')`;
+};
+
 type LegacyApiUsageRow = {
   time: string;
   entrypoint: string;
   count: string | number;
 };
 
+type TraceLevelEvalExecutionTimeSeriesRow = {
+  time: string;
+  status: string;
+  count: bigint | number;
+};
+
 export const v4TransitionRouter = createTRPCRouter({
+  summary: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      const [
+        traceLevelEvalCount,
+        posthogIntegration,
+        mixpanelIntegration,
+        blobStorageIntegration,
+      ] = await Promise.all([
+        ctx.prisma.jobConfiguration.count({
+          where: {
+            projectId: input.projectId,
+            jobType: "EVAL",
+            targetObject: TRACE_EVAL_TARGET,
+          },
+        }),
+        ctx.prisma.posthogIntegration.findUnique({
+          where: { projectId: input.projectId },
+          select: { exportSource: true },
+        }),
+        ctx.prisma.mixpanelIntegration.findUnique({
+          where: { projectId: input.projectId },
+          select: { exportSource: true },
+        }),
+        ctx.prisma.blobStorageIntegration.findUnique({
+          where: { projectId: input.projectId },
+          select: { exportSource: true },
+        }),
+      ]);
+
+      const legacyIntegrations = {
+        posthog: isLegacyIntegrationExportSource(
+          posthogIntegration?.exportSource,
+        ),
+        mixpanel: isLegacyIntegrationExportSource(
+          mixpanelIntegration?.exportSource,
+        ),
+        blobStorage: isLegacyIntegrationExportSource(
+          blobStorageIntegration?.exportSource,
+        ),
+      };
+
+      return {
+        traceLevelEvalCount,
+        legacyIntegrationCount:
+          Object.values(legacyIntegrations).filter(Boolean).length,
+        legacyIntegrations,
+      };
+    }),
+
+  traceLevelEvalExecutionsTimeSeries: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        fromTimestamp: z.date(),
+        toTimestamp: z.date(),
+        interval: z.object({
+          count: z.number().int().positive().max(10_000),
+          unit: intervalUnitSchema,
+        }),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const bucketExpression = getPostgresBucketExpression(input.interval);
+
+      const rows = await ctx.prisma.$queryRaw<
+        TraceLevelEvalExecutionTimeSeriesRow[]
+      >(Prisma.sql`
+WITH selected AS (
+  SELECT
+    ${bucketExpression} AS bucket_time,
+    je.status::text AS status
+  FROM job_executions je
+  INNER JOIN job_configurations jc ON jc.id = je.job_configuration_id
+    AND jc.project_id = je.project_id
+  WHERE je.project_id = ${input.projectId}
+    AND jc.project_id = ${input.projectId}
+    AND jc.job_type = 'EVAL'
+    AND jc.target_object = ${TRACE_EVAL_TARGET}
+    AND je.status != 'CANCELLED'
+    AND je.created_at >= ${input.fromTimestamp}
+    AND je.created_at <= ${input.toTimestamp}
+)
+
+SELECT
+  to_char(bucket_time, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time,
+  status,
+  COUNT(*)::bigint AS count
+FROM selected
+GROUP BY bucket_time, status
+ORDER BY bucket_time ASC, status ASC
+      `);
+
+      return rows.map((row) => ({
+        time: row.time,
+        status: row.status,
+        count: Number(row.count),
+      }));
+    }),
+
   timeSeriesByEntrypoint: protectedProjectProcedure
     .input(
       z.object({
