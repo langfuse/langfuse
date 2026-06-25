@@ -9,6 +9,7 @@ export type ObservationIoParserSourceData = {
   input?: unknown;
   output?: unknown;
   metadata?: unknown;
+  conversation?: unknown;
 };
 
 export type JsonPathValidationResult =

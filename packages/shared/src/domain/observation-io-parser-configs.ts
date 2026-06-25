@@ -5,6 +5,12 @@ export const ObservationIoParserSourceSchema = z.enum([
   "input",
   "output",
   "metadata",
+  "conversation",
+]);
+
+export const ObservationIoParserSourceRepresentationSchema = z.enum([
+  "normalized_chat",
+  "raw_json",
 ]);
 
 export const ObservationIoParserDisplaySchema = z.enum([
@@ -25,10 +31,25 @@ export const ObservationIoParserFieldInstructionSchema = z.object({
   display: ObservationIoParserDisplaySchema.default("auto"),
 });
 
-export const ObservationIoParserInstructionsSchema = z.object({
-  version: z.literal(1),
-  fields: z.array(ObservationIoParserFieldInstructionSchema).min(1).max(50),
-});
+export const ObservationIoParserInstructionsSchema = z
+  .object({
+    version: z.literal(1),
+    sourceRepresentation: ObservationIoParserSourceRepresentationSchema,
+    fields: z.array(ObservationIoParserFieldInstructionSchema).min(1).max(50),
+  })
+  .superRefine((instructions, ctx) => {
+    if (instructions.sourceRepresentation !== "raw_json") return;
+
+    instructions.fields.forEach((field, index) => {
+      if (field.source !== "conversation") return;
+
+      ctx.addIssue({
+        code: "custom",
+        message: "conversation source is only available for normalized chat",
+        path: ["fields", index, "source"],
+      });
+    });
+  });
 
 export const ObservationIoParserConfigDomainSchema = z.object({
   id: z.string(),
@@ -134,6 +155,9 @@ export const ParsedObservationIoResponseSchema = z.discriminatedUnion("mode", [
 
 export type ObservationIoParserSource = z.infer<
   typeof ObservationIoParserSourceSchema
+>;
+export type ObservationIoParserSourceRepresentation = z.infer<
+  typeof ObservationIoParserSourceRepresentationSchema
 >;
 export type ObservationIoParserDisplay = z.infer<
   typeof ObservationIoParserDisplaySchema

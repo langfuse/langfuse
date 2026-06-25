@@ -6,6 +6,8 @@ import {
   OBSERVATION_IO_PARSER_SUPPORTED_FILTER_COLUMNS,
   type ColumnDefinition,
   type FilterState,
+  type ObservationIoParserSource,
+  type ObservationIoParserSourceRepresentation,
   type TimeFilter,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
@@ -54,7 +56,7 @@ type ObservationIoParserConfig =
 
 type ParserFieldDraft = {
   id: string;
-  source: "input" | "output" | "metadata";
+  source: ObservationIoParserSource;
   jsonPath: string;
   display: "auto" | "json" | "markdown";
 };
@@ -65,14 +67,19 @@ type ParserDraft = {
   description: string;
   enabled: boolean;
   priority: number;
+  sourceRepresentation: ObservationIoParserSourceRepresentation;
   filters: FilterState;
   fields: ParserFieldDraft[];
 };
 
-const newFieldDraft = (): ParserFieldDraft => ({
+const newFieldDraft = (
+  sourceRepresentation: ObservationIoParserSourceRepresentation = "normalized_chat",
+): ParserFieldDraft => ({
   id: `${Date.now()}-${Math.random()}`,
-  source: "output",
-  jsonPath: "$",
+  source:
+    sourceRepresentation === "normalized_chat" ? "conversation" : "output",
+  jsonPath:
+    sourceRepresentation === "normalized_chat" ? "$.lastText" : "$.quality",
   display: "auto",
 });
 
@@ -84,8 +91,9 @@ const createDraft = (
   description: "",
   enabled: true,
   priority,
+  sourceRepresentation: "normalized_chat",
   filters: currentFilters,
-  fields: [newFieldDraft()],
+  fields: [newFieldDraft("normalized_chat")],
 });
 
 const draftFromConfig = (config: ObservationIoParserConfig): ParserDraft => ({
@@ -94,6 +102,7 @@ const draftFromConfig = (config: ObservationIoParserConfig): ParserDraft => ({
   description: config.description ?? "",
   enabled: config.enabled,
   priority: config.priority,
+  sourceRepresentation: config.instructions.sourceRepresentation,
   filters: config.filters,
   fields: config.instructions.fields.map((field) => ({
     source: field.source,
@@ -138,6 +147,13 @@ const customSelectFilterColumns = [
   "toolNames",
   "calledToolNames",
 ];
+
+const getParserSourceOptions = (
+  sourceRepresentation: ObservationIoParserSourceRepresentation,
+): ObservationIoParserSource[] =>
+  sourceRepresentation === "normalized_chat"
+    ? ["conversation", "input", "output", "metadata"]
+    : ["input", "output", "metadata"];
 
 const getFilterOptionValues = (
   options: RouterOutputs["events"]["filterOptions"] | undefined,
@@ -344,6 +360,7 @@ export function ObservationIoParserDrawer({
       filters: draftFiltersRef.current ?? draft.filters,
       instructions: {
         version: 1 as const,
+        sourceRepresentation: draft.sourceRepresentation,
         fields: draft.fields.map(({ id: _id, ...field }) => field),
       },
     };
@@ -622,6 +639,46 @@ export function ObservationIoParserDrawer({
               <Separator />
 
               <div className="grid gap-3">
+                <label className="grid gap-1 md:max-w-xs">
+                  <span className="text-xs font-medium">Source</span>
+                  <Select
+                    value={draft.sourceRepresentation}
+                    onValueChange={(value) => {
+                      const sourceRepresentation =
+                        value as ObservationIoParserSourceRepresentation;
+                      const fields = draft.fields.map((field) =>
+                        sourceRepresentation === "raw_json" &&
+                        field.source === "conversation"
+                          ? {
+                              ...field,
+                              source: "output" as const,
+                              jsonPath:
+                                field.jsonPath === "$.lastText"
+                                  ? "$.quality"
+                                  : field.jsonPath,
+                            }
+                          : field,
+                      );
+
+                      setDraft({
+                        ...draft,
+                        sourceRepresentation,
+                        fields,
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="normalized_chat">
+                        Normalized chat
+                      </SelectItem>
+                      <SelectItem value="raw_json">Raw JSON</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Fields</span>
                   <Button
@@ -631,7 +688,10 @@ export function ObservationIoParserDrawer({
                     onClick={() =>
                       setDraft({
                         ...draft,
-                        fields: [...draft.fields, newFieldDraft()],
+                        fields: [
+                          ...draft.fields,
+                          newFieldDraft(draft.sourceRepresentation),
+                        ],
                       })
                     }
                   >
@@ -660,9 +720,13 @@ export function ObservationIoParserDrawer({
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="input">input</SelectItem>
-                          <SelectItem value="output">output</SelectItem>
-                          <SelectItem value="metadata">metadata</SelectItem>
+                          {getParserSourceOptions(
+                            draft.sourceRepresentation,
+                          ).map((source) => (
+                            <SelectItem key={source} value={source}>
+                              {source}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <Input

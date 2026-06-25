@@ -78,6 +78,8 @@ type ParsedObservationIoPreview = {
   metadata?: Prisma.JsonValue;
 };
 
+type ParsedObservationIoPreviewSection = keyof ParsedObservationIoPreview;
+
 const getParsedFieldPreviewValue = (
   field: ParsedObservationIo["fields"][number],
 ): Prisma.JsonValue => {
@@ -128,9 +130,17 @@ const getParsedObservationIoPreview = (
     output: new Set<string>(),
     metadata: new Set<string>(),
   };
+  const getPreviewSection = (
+    field: ParsedObservationIo["fields"][number],
+  ): ParsedObservationIoPreviewSection => {
+    if (field.source === "metadata") return "metadata";
+    if (field.source === "input") return "input";
+    return "output";
+  };
 
   parsedObservationIo.fields.forEach((field) => {
-    sections[field.source][getUniquePreviewKey(field, usedKeys[field.source])] =
+    const section = getPreviewSection(field);
+    sections[section][getUniquePreviewKey(field, usedKeys[section])] =
       getParsedFieldPreviewValue(field);
   });
 

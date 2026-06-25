@@ -26,6 +26,7 @@ describe("executeObservationIoParserInstructions", () => {
     const result = executeObservationIoParserInstructions({
       instructions: {
         version: 1,
+        sourceRepresentation: "raw_json",
         fields: [
           {
             source: "input",
@@ -70,6 +71,7 @@ describe("executeObservationIoParserInstructions", () => {
     const result = executeObservationIoParserInstructions({
       instructions: {
         version: 1,
+        sourceRepresentation: "raw_json",
         fields: [
           {
             source: "output",
@@ -99,6 +101,7 @@ describe("executeObservationIoParserInstructions", () => {
     const result = executeObservationIoParserInstructions({
       instructions: {
         version: 1,
+        sourceRepresentation: "raw_json",
         fields: [
           {
             source: "output",

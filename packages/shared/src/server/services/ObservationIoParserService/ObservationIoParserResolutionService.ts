@@ -7,8 +7,8 @@ import {
 import {
   executeObservationIoParserInstructions,
   OBSERVATION_IO_PARSER_MAX_SERIALIZED_RESULT_SIZE,
-  type ObservationIoParserSourceData as JsonPathObservationIoParserSourceData,
 } from "../../../features/observation-io-parsers/jsonPath";
+import { buildObservationIoParserSourceData } from "../../../features/observation-io-parsers/sourceData";
 import { LangfuseNotFoundError } from "../../../errors";
 import { logger } from "../../logger";
 import {
@@ -235,9 +235,15 @@ export class ObservationIoParserResolutionService {
     const parseStart = performance.now();
 
     try {
+      const parserSourceData = buildObservationIoParserSourceData({
+        instructions: matchingConfig.instructions,
+        sourceData,
+        observationName: observation.name,
+      });
+
       const parsed = executeObservationIoParserInstructions({
         instructions: matchingConfig.instructions,
-        sourceData: sourceData as JsonPathObservationIoParserSourceData,
+        sourceData: parserSourceData,
       });
 
       if (
