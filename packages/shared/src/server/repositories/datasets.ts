@@ -1,4 +1,4 @@
-import { type Dataset, prisma, type Prisma } from "../../db";
+import { prisma, type Prisma } from "../../db";
 import { type BatchActionQuery } from "../../features/batchAction/types";
 import { escapeSqlLikePattern } from "../utils/sqlLike";
 
@@ -11,7 +11,33 @@ function buildDatasetFolderWhere(folderPath: string): Prisma.DatasetWhereInput {
   return { name: { startsWith: `${escapeSqlLikePattern(folderPath)}/` } };
 }
 
-function buildDatasetBatchDeleteWhere({
+export async function findDatasetsForDeletion({
+  client = prisma,
+  datasetIds,
+  folderPaths,
+  projectId,
+}: {
+  client?: PrismaClientOrTransaction;
+  datasetIds: string[];
+  folderPaths: string[];
+  projectId: string;
+}) {
+  if (datasetIds.length === 0 && folderPaths.length === 0) return [];
+
+  const explicitDeleteWhere: Prisma.DatasetWhereInput[] = [
+    { id: { in: datasetIds } },
+    ...folderPaths.map(buildDatasetFolderWhere),
+  ];
+
+  return client.dataset.findMany({
+    where: {
+      projectId,
+      OR: explicitDeleteWhere,
+    },
+  });
+}
+
+export async function findDatasetIdsForBatchDeletion({
   cutoffCreatedAt,
   projectId,
   query,
@@ -19,7 +45,7 @@ function buildDatasetBatchDeleteWhere({
   cutoffCreatedAt: Date;
   projectId: string;
   query: BatchActionQuery;
-}): Prisma.DatasetWhereInput {
+}): Promise<Array<{ id: string }>> {
   const where: Prisma.DatasetWhereInput = {
     projectId,
     createdAt: { lte: cutoffCreatedAt },
@@ -39,50 +65,8 @@ function buildDatasetBatchDeleteWhere({
     where.AND = [buildDatasetFolderWhere(query.pathPrefix)];
   }
 
-  return where;
-}
-
-export async function findDatasetsForDeletion({
-  client = prisma,
-  datasetIds,
-  folderPaths,
-  projectId,
-}: {
-  client?: PrismaClientOrTransaction;
-  datasetIds: string[];
-  folderPaths: string[];
-  projectId: string;
-}): Promise<Dataset[]> {
-  const explicitDeleteWhere: Prisma.DatasetWhereInput[] = [
-    ...(datasetIds.length > 0 ? [{ id: { in: datasetIds } }] : []),
-    ...folderPaths.map(buildDatasetFolderWhere),
-  ];
-
-  if (explicitDeleteWhere.length === 0) return [];
-
-  return client.dataset.findMany({
-    where: {
-      projectId,
-      OR: explicitDeleteWhere,
-    },
-  });
-}
-
-export async function findDatasetIdsForBatchDeletion({
-  cutoffCreatedAt,
-  projectId,
-  query,
-}: {
-  cutoffCreatedAt: Date;
-  projectId: string;
-  query: BatchActionQuery;
-}): Promise<Array<{ id: string }>> {
   return prisma.dataset.findMany({
-    where: buildDatasetBatchDeleteWhere({
-      cutoffCreatedAt,
-      projectId,
-      query,
-    }),
+    where,
     select: { id: true },
   });
 }
