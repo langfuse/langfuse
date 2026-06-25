@@ -42,18 +42,21 @@ export class WorkerManager {
 
   private static resolveMetricInfo(queueName: QueueName): {
     baseMetric: string;
+    clickHouseRoute: string;
     shardTag: { shard: string } | undefined;
   } {
     for (const base of SHARDED_QUEUE_BASE_NAMES) {
       if (queueName.startsWith(base)) {
         return {
           baseMetric: convertQueueNameToMetricName(base),
+          clickHouseRoute: base,
           shardTag: { shard: queueName },
         };
       }
     }
     return {
       baseMetric: convertQueueNameToMetricName(queueName),
+      clickHouseRoute: queueName,
       shardTag: undefined,
     };
   }
@@ -63,7 +66,8 @@ export class WorkerManager {
     queueName: QueueName,
   ): Processor {
     const oldMetric = convertQueueNameToMetricName(queueName);
-    const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+    const { baseMetric, clickHouseRoute, shardTag } =
+      WorkerManager.resolveMetricInfo(queueName);
 
     return async (job: Job) => {
       const startTime = Date.now();
@@ -88,6 +92,7 @@ export class WorkerManager {
         projectId: WorkerManager.extractProjectId(job),
         clickhouse: {
           surface: "worker",
+          route: clickHouseRoute,
         },
       });
       const result = await otelContext.with(clickHouseCtx, () =>
