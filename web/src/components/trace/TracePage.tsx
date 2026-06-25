@@ -1,10 +1,8 @@
-import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { ErrorPage } from "@/src/components/error-page";
-import { DeleteTraceButton } from "@/src/components/deleteButton";
+import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 import Page from "@/src/components/layouts/page";
 import { Trace } from "@/src/components/trace/Trace";
 import { useSession } from "next-auth/react";
@@ -165,25 +163,6 @@ export function TracePage({
         showSidebarTrigger: !showPublicIndicators,
         leadingControl,
         breadcrumbBadges: sharedBadge,
-        actionButtonsLeft: (
-          <div className="ml-1 flex items-center gap-1">
-            <div className="flex items-center gap-0">
-              <StarTraceDetailsToggle
-                traceId={trace.data.id}
-                projectId={trace.data.projectId}
-                value={trace.data.bookmarked}
-                size="icon-xs"
-              />
-              <PublishTraceSwitch
-                traceId={trace.data.id}
-                projectId={trace.data.projectId}
-                timestamp={timestamp}
-                isPublic={trace.data.public}
-                size="icon-xs"
-              />
-            </div>
-          </div>
-        ),
         actionButtonsRight: (
           <>
             <DetailPageNav
@@ -211,12 +190,14 @@ export function TracePage({
               }}
               listKey="traces"
             />
-            <DeleteTraceButton
-              itemId={traceId}
+            <TraceDetailActions
+              traceId={trace.data.id}
               projectId={trace.data.projectId}
-              redirectUrl={`/project/${router.query.projectId as string}/traces`}
-              deleteConfirmation={trace.data.name ?? ""}
-              icon
+              bookmarked={trace.data.bookmarked}
+              isPublic={trace.data.public}
+              name={trace.data.name}
+              timestamp={timestamp}
+              deleteRedirectUrl={`/project/${router.query.projectId as string}/traces`}
             />
           </>
         ),

@@ -1,6 +1,7 @@
 import { TablePeekView } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
 import { Trace } from "@/src/components/trace/Trace";
+import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { useRouter } from "next/router";
 
@@ -65,6 +66,19 @@ export const TablePeekViewObservationDetail = (
             ? `${trace.data.name}: ${trace.data.id}`
             : trace.data.id
           : traceId
+      }
+      actions={
+        trace.data ? (
+          <TraceDetailActions
+            traceId={trace.data.id}
+            projectId={trace.data.projectId}
+            bookmarked={trace.data.bookmarked}
+            isPublic={trace.data.public}
+            name={trace.data.name}
+            timestamp={timestamp}
+            onAfterDelete={props.closePeek}
+          />
+        ) : undefined
       }
     >
       <PeekViewObservationDetail trace={trace} peekId={peekId} />
