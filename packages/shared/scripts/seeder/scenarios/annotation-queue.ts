@@ -300,11 +300,16 @@ const run = async (
   const scores: ScoreRecordInsertType[] = [];
   const events: EventRecordInsertType[] = [];
 
+  // Spread all traces (core + the 8 edge traces) across the window; derive the
+  // step from the real total so timestamps never spill past the UTC-day anchor
+  // (the seeder contract), even with a large --core-items.
+  const totalTraces = coreItems + 8;
+  const stepMs = windowMs / totalTraces;
   let traceIndex = 0;
   const newTrace = (id: string, opts?: { sessionId?: string }) => {
     const timestamp =
       startMs +
-      Math.floor((traceIndex * windowMs) / 40) +
+      Math.floor(traceIndex * stepMs) +
       jitter(ctx.seed, traceIndex, 1000);
     traceIndex += 1;
     const i = traceIndex;

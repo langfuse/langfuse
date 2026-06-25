@@ -718,6 +718,10 @@ function InnerAnnotationForm<Target extends ScoreTarget>({
       // into a text field — so navigation is never trapped).
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         if (rowEls.length < 2) return;
+        // Navigate from a focused row, or enter from the body — but NOT from an
+        // in-form non-row control (e.g. the config-picker trigger), which would
+        // otherwise teleport focus to a row.
+        if (currentPos < 0 && active !== document.body) return;
         event.preventDefault();
         const delta = event.key === "ArrowDown" ? 1 : -1;
         const nextPos =
