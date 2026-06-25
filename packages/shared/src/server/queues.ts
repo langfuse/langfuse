@@ -151,6 +151,15 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       type: z.enum(BatchActionType),
     }),
     z.object({
+      actionId: z.literal("dataset-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
       actionId: z.literal("trace-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
