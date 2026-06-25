@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildS3RequestDiagnostics,
+  isS3DiagnosableError,
   summarizeS3Error,
 } from "./s3SigningDiagnostics";
 
@@ -94,5 +95,45 @@ describe("buildS3RequestDiagnostics", () => {
     const diagnostics = buildS3RequestDiagnostics(undefined, "boom", context);
     expect(diagnostics.request.method).toBeUndefined();
     expect(diagnostics.error.message).toBe("boom");
+  });
+});
+
+describe("isS3DiagnosableError", () => {
+  const summarize = (code: string, httpStatusCode?: number) =>
+    summarizeS3Error(
+      Object.assign(new Error(code), {
+        name: code,
+        Code: code,
+        $metadata: { httpStatusCode },
+      }),
+    );
+
+  it("logs signing/authorization failures", () => {
+    for (const code of [
+      "SignatureDoesNotMatch",
+      "InvalidSignatureException",
+      "AuthorizationHeaderMalformed",
+      "RequestTimeTooSkewed",
+      "InvalidAccessKeyId",
+    ]) {
+      expect(isS3DiagnosableError(summarize(code, 403))).toBe(true);
+    }
+  });
+
+  it("logs backend-configuration errors (e.g. GCS storage-class mismatch)", () => {
+    expect(isS3DiagnosableError(summarize("InvalidArgument", 400))).toBe(true);
+    expect(isS3DiagnosableError(summarize("NotImplemented", 501))).toBe(true);
+  });
+
+  it("skips transient throttling and expected app-level errors", () => {
+    for (const code of [
+      "SlowDown",
+      "ServiceUnavailable",
+      "RequestTimeout",
+      "NoSuchKey",
+      "AccessDenied",
+    ]) {
+      expect(isS3DiagnosableError(summarize(code))).toBe(false);
+    }
   });
 });

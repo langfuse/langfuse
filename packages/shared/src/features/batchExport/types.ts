@@ -46,20 +46,33 @@ export const exportOptions: Record<
   },
 } as const;
 
-export const BatchExportQuerySchema = z.object({
-  tableName: z.enum(BatchTableNames),
-  filter: z.array(singleFilter).nullable(),
-  searchQuery: z.string().optional(),
-  searchType: z.array(TracingSearchType).optional(),
-  orderBy,
-  limit: z.number().optional(),
-  page: z.number().optional(),
-  // Snapshotted at dispatch time from the user's v4 beta flag. When true, the
-  // sessions export reads from the ClickHouse events table instead of the
-  // legacy traces path. Persisted in the job's query column so the worker reads
-  // the snapshot, never the live user record.
-  useEventsTable: z.boolean().optional(),
-});
+export const BatchExportQuerySchema = z
+  .object({
+    tableName: z.enum(BatchTableNames),
+    filter: z.array(singleFilter).nullable(),
+    searchQuery: z.string().optional(),
+    searchType: z.array(TracingSearchType).optional(),
+    orderBy,
+    limit: z.number().optional(),
+    page: z.number().optional(),
+    // Snapshotted at dispatch time from the user's v4 beta flag. When true, the
+    // sessions export reads from the ClickHouse events table instead of the
+    // legacy traces path. Persisted in the job's query column so the worker reads
+    // the snapshot, never the live user record.
+    useEventsTable: z.boolean().optional(),
+  })
+  // Reject `datasets` at runtime, not by narrowing the `tableName` enum:
+  // BatchExportQueryType is shared with the batch-action read stream (which
+  // handles every table), so a narrowed type breaks the worker typecheck.
+  .superRefine((query, ctx) => {
+    if (query.tableName === BatchTableNames.Datasets) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["tableName"],
+        message: "datasets cannot be exported",
+      });
+    }
+  });
 
 export type BatchExportQueryType = z.infer<typeof BatchExportQuerySchema>;
 

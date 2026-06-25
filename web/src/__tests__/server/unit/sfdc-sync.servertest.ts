@@ -34,6 +34,9 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
           async (): Promise<{ sfdcOrgId: string | null } | null> => null,
         ),
         update: vi.fn(async () => ({})),
+        create: vi.fn(
+          async (): Promise<unknown> => ({ id: "org-new", name: "New Org" }),
+        ),
       },
       organizationMembership: {
         findFirst: vi.fn(async (): Promise<unknown> => null),
@@ -44,6 +47,12 @@ const { envMock, prismaMock, loggerMock, fetchMock } = vi.hoisted(() => {
       auditLog: {
         create: vi.fn(async () => ({})),
       },
+      // tRPC organizations.create wraps its writes in a transaction; run the
+      // callback with prismaMock standing in for the tx client.
+      $transaction: vi.fn(
+        async (cb: (tx: unknown) => Promise<unknown>): Promise<unknown> =>
+          cb(prismaMock),
+      ),
     },
     loggerMock: {
       trace: vi.fn(),
@@ -637,6 +646,44 @@ describe("call site: admin API handleUpdateMembership", () => {
       userId: "member-1",
       email: "member@test.com",
       role: "DEVELOPER",
+    });
+  });
+});
+
+describe("call site: tRPC organizations.create", () => {
+  // upsertOrg creates the SFDC Account but does not link the creator; the
+  // create flow must also fire setUserRole to establish the OWNER bridge.
+  it("creates the account AND links the OWNER (upsertOrg + setUserRole)", async () => {
+    prismaMock.organization.create.mockResolvedValueOnce({
+      id: "org-new",
+      name: "New Org",
+    });
+    // [0] upsertOrg (Account), [1] setUserRole (OWNER member bridge)
+    fetchMock
+      .mockResolvedValueOnce(emptyOkResponse())
+      .mockResolvedValueOnce(emptyOkResponse());
+
+    await createOwnerCaller("org-1").organizations.create({ name: "New Org" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const upsertOrgBody = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(upsertOrgBody).toMatchObject({
+      type: "updateOrg",
+      orgId: "org-new",
+      orgName: "New Org",
+      userId: "owner-user",
+      email: "owner@test.com",
+      role: "ADMIN", // OWNER -> ADMIN
+    });
+
+    const setRoleBody = JSON.parse(fetchMock.mock.calls[1][1].body as string);
+    expect(setRoleBody).toMatchObject({
+      type: "setUserRole",
+      orgId: "org-new",
+      userId: "owner-user",
+      email: "owner@test.com",
+      role: "ADMIN",
     });
   });
 });

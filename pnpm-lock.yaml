@@ -193,6 +193,9 @@ importers:
       '@clickhouse/client':
         specifier: ^1.18.5
         version: 1.18.5
+      '@clickhouse/client-common':
+        specifier: ^1.18.5
+        version: 1.18.5
       '@google-cloud/storage':
         specifier: ^7.19.0
         version: 7.19.0
@@ -386,6 +389,9 @@ importers:
       '@astral-sh/ruff-wasm-web':
         specifier: 0.15.13
         version: 0.15.13
+      '@aws-crypto/sha256-browser':
+        specifier: ^5.2.0
+        version: 5.2.0
       '@aws-sdk/credential-providers':
         specifier: 3.1056.0
         version: 3.1056.0

@@ -270,9 +270,19 @@ jobs:
       - name: install dependencies
         run: |
           pnpm install
-      - name: Load default env
+      - name: Load default env (for prisma generate)
         run: |
           cp .env.dev.example .env
+      - name: generate prisma client
+        # The Storybook Vitest browser project imports the real production cell
+        # components, which transitively pull in `@langfuse/shared` modules that
+        # build Zod schemas from Prisma enums at import time (e.g.
+        # packages/shared/src/features/monitors/types.ts: `z.enum(MonitorSeverity)`).
+        # Without a generated `@prisma/client`, those enums are `undefined` and
+        # the story file fails to import ("Cannot convert undefined or null to
+        # object"). Mirror `tests-shared`, which generates the client for the
+        # same reason. `prisma generate` only reads the schema; it needs no DB.
+        run: pnpm --filter=shared run db:generate
       - name: Install playwright
         run: pnpm --filter=web exec playwright install --with-deps --only-shell chromium
       - name: run Storybook tests

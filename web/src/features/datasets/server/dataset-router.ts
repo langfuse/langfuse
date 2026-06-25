@@ -27,6 +27,11 @@ import {
   LangfuseNotFoundError,
   InvalidRequestError,
   datasetItemMediaFields,
+  DatasetNameSchema,
+  BatchActionQuerySchema,
+  ActionId,
+  BatchActionType,
+  BatchExportTableName,
 } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import { TRPCError } from "@trpc/server";
@@ -80,6 +85,8 @@ import {
   fetchWithSecureRedirects,
   whitelistFromEnv,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
+  deleteDatasetsByIds,
+  findDatasetsForDeletion,
 } from "@langfuse/shared/src/server";
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
@@ -88,6 +95,7 @@ import {
 } from "@/src/features/datasets/server/actions/createDataset";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 import { v4 } from "uuid";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 
 // Batch size kept small (100) as items may have large input/output/metadata JSON
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
@@ -242,12 +250,12 @@ const generateDatasetQuery = ({
     FROM combined d
     ${orderAndLimit}
     `;
-  } else {
-    const baseColumns = Prisma.sql`id, name, description, metadata, project_id, updated_at, created_at, input_schema, expected_output_schema`;
+  }
+  const baseColumns = Prisma.sql`id, name, description, metadata, project_id, updated_at, created_at, input_schema, expected_output_schema`;
 
-    // When we're at the root level, show all individual datasets that don't have folders
-    // and one representative per folder for datasets that do have folders
-    return Prisma.sql`
+  // When we're at the root level, show all individual datasets that don't have folders
+  // and one representative per folder for datasets that do have folders
+  return Prisma.sql`
     WITH ${datasetsCTE},
     individual_datasets AS (
       /* Individual datasets without folders */
@@ -284,7 +292,6 @@ const generateDatasetQuery = ({
     FROM combined d
     ${orderAndLimit}
     `;
-  }
 };
 
 export const datasetRouter = createTRPCRouter({
@@ -608,30 +615,29 @@ export const datasetRouter = createTRPCRouter({
           totalRuns,
           runs,
         };
-      } else {
-        const [runs, totalRuns] = await Promise.all([
-          getDatasetRunsTableRowsCh({
-            projectId: input.projectId,
-            datasetId: input.datasetId,
-            filter: input.filter ?? [],
-            limit: isPresent(input.limit) ? input.limit : undefined,
-            offset:
-              isPresent(input.page) && isPresent(input.limit)
-                ? input.page * input.limit
-                : undefined,
-          }),
-          getDatasetRunsTableCountCh({
-            projectId: input.projectId,
-            datasetId: input.datasetId,
-            filter: input.filter ?? [],
-          }),
-        ]);
-
-        return {
-          totalRuns,
-          runs,
-        };
       }
+      const [runs, totalRuns] = await Promise.all([
+        getDatasetRunsTableRowsCh({
+          projectId: input.projectId,
+          datasetId: input.datasetId,
+          filter: input.filter ?? [],
+          limit: isPresent(input.limit) ? input.limit : undefined,
+          offset:
+            isPresent(input.page) && isPresent(input.limit)
+              ? input.page * input.limit
+              : undefined,
+        }),
+        getDatasetRunsTableCountCh({
+          projectId: input.projectId,
+          datasetId: input.datasetId,
+          filter: input.filter ?? [],
+        }),
+      ]);
+
+      return {
+        totalRuns,
+        runs,
+      };
     }),
 
   runsByDatasetIdMetrics: protectedProjectProcedure
@@ -1276,6 +1282,89 @@ export const datasetRouter = createTRPCRouter({
         throw error;
       }
     }),
+  deleteMany: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        datasetIds: z.array(z.string()).default([]),
+        folderPaths: z.array(DatasetNameSchema).default([]),
+        query: BatchActionQuerySchema.optional(),
+        isBatchAction: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "datasets:CUD",
+      });
+
+      if (input.isBatchAction && input.query) {
+        await createBatchActionJob({
+          projectId: input.projectId,
+          actionId: ActionId.DatasetDelete,
+          actionType: BatchActionType.Delete,
+          tableName: BatchExportTableName.Datasets,
+          session: ctx.session,
+          query: input.query,
+        });
+
+        return { deletedCount: null };
+      }
+
+      if (input.datasetIds.length === 0 && input.folderPaths.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Either datasetIds, folderPaths, or a batch action query must be provided to delete datasets.",
+        });
+      }
+
+      const deletedDatasets = await ctx.prisma.$transaction(async (tx) => {
+        const datasetsToDelete = await findDatasetsForDeletion({
+          client: tx,
+          projectId: input.projectId,
+          datasetIds: input.datasetIds,
+          folderPaths: input.folderPaths,
+        });
+
+        if (datasetsToDelete.length === 0) return [];
+
+        await deleteDatasetsByIds({
+          client: tx,
+          projectId: input.projectId,
+          datasetIds: datasetsToDelete.map((dataset) => dataset.id),
+        });
+
+        return datasetsToDelete;
+      });
+
+      await Promise.all(
+        deletedDatasets.map((dataset) =>
+          addToDeleteDatasetQueue({
+            deletionType: "dataset",
+            projectId: input.projectId,
+            datasetId: dataset.id,
+          }),
+        ),
+      );
+
+      await Promise.all(
+        deletedDatasets.map((dataset) =>
+          auditLog({
+            session: ctx.session,
+            resourceType: "dataset",
+            resourceId: dataset.id,
+            action: "delete",
+            before: dataset,
+          }),
+        ),
+      );
+
+      return {
+        deletedCount: deletedDatasets.length,
+      };
+    }),
 
   deleteDatasetItem: protectedProjectProcedure
     .input(
@@ -1352,7 +1441,7 @@ export const datasetRouter = createTRPCRouter({
           },
         })
       ).map((d) => d.name);
-      let counter: number = 0;
+      let counter = 0;
       const duplicateDatasetName = (pCounter: number) =>
         pCounter === 0
           ? `${dataset.name} (copy)`
