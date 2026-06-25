@@ -109,11 +109,5 @@ export function parseAskAi(query: string): ChartViewConfig {
   });
 }
 
-/** Canned prompts surfaced as one-tap suggestion chips in the Ask-AI bar. */
-export const ASK_AI_SUGGESTIONS: string[] = [
-  "p95 latency by model over time",
-  "total cost by model",
-  "request volume over time",
-  "errors over time by level",
-  "tokens by environment",
-];
+// The suggestion chips are shared with the production Ask-AI bar.
+export { ASK_AI_SUGGESTIONS } from "../vocab";

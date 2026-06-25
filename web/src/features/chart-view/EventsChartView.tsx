@@ -1,6 +1,8 @@
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
 import { type ChartViewConfig } from "./types";
 import {
   buildChartQuery,
@@ -8,6 +10,7 @@ import {
   toChartFilters,
 } from "./lib/buildChartQuery";
 import { ChartViewPanel } from "./components/ChartViewPanel";
+import { AskAiChartBar } from "./components/AskAiChartBar";
 
 /**
  * Production chart view for the v4 events table. Builds the observations
@@ -57,6 +60,19 @@ export function EventsChartView({
       "Couldn't build a chart for the current view.")
     : null;
 
+  // Mirror the search-bar "Ask AI" gate: Cloud + org-level AI features. The
+  // server enforces it too; this only governs whether the affordance shows.
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { organization } = useQueryProject();
+  const aiAvailable =
+    isLangfuseCloud && Boolean(organization?.aiFeaturesEnabled);
+
+  // Ask-AI emits a full spec — apply it as a complete replacement (coerced).
+  const applyAiConfig = useCallback(
+    (next: ChartViewConfig) => onConfigChange(next),
+    [onConfigChange],
+  );
+
   return (
     <ChartViewPanel
       config={config}
@@ -64,6 +80,11 @@ export function EventsChartView({
       data={data}
       isLoading={queryResult.isPending && !queryResult.isError}
       error={error}
+      aiSlot={
+        aiAvailable ? (
+          <AskAiChartBar projectId={projectId} onApply={applyAiConfig} />
+        ) : undefined
+      }
     />
   );
 }
