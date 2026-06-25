@@ -1,5 +1,6 @@
 import type { Session } from "next-auth";
 import type * as SharedServer from "@langfuse/shared/src/server";
+import type { PrismaClient } from "@langfuse/shared/src/db";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { queryClickhouse } from "@langfuse/shared/src/server";
@@ -20,6 +21,12 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 const mockedQueryClickhouse = vi.mocked(queryClickhouse);
 
 const projectId = "project-v4-transition";
+
+const createCaller = (prisma?: Partial<PrismaClient>) =>
+  v4TransitionRouter.createCaller({
+    ...createInnerTRPCContext({ session, headers: {} }),
+    ...(prisma ? { prisma: prisma as PrismaClient } : {}),
+  });
 
 const session: Session = {
   expires: "1",
@@ -84,9 +91,7 @@ describe("v4TransitionRouter", () => {
   });
 
   it("queries legacy public API usage with UTC buckets and route classification", async () => {
-    const caller = v4TransitionRouter.createCaller(
-      createInnerTRPCContext({ session, headers: {} }),
-    );
+    const caller = createCaller();
 
     const rows = await caller.timeSeriesByEntrypoint({
       projectId,
@@ -116,6 +121,9 @@ describe("v4TransitionRouter", () => {
     );
     expect(clickhouseQuery?.query).toContain(
       "sum(1.0 / clickhouse_queries_per_api_call) AS count",
+    );
+    expect(clickhouseQuery?.query).toContain(
+      "SETTINGS skip_unavailable_shards = 1",
     );
     expect(clickhouseQuery?.query).toContain("AND type = 'QueryFinish'");
     expect(clickhouseQuery?.query).toContain(
@@ -160,5 +168,193 @@ describe("v4TransitionRouter", () => {
     expect(clickhouseQuery?.query).toContain(
       "match(route_path, '^GET /api/public/traces/[^/?#]+$'), 3",
     );
+  });
+
+  it("summarizes trace-level evals and legacy integrations", async () => {
+    const mockPrisma = {
+      jobConfiguration: {
+        count: vi.fn().mockResolvedValue(3),
+      },
+      posthogIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: true,
+          exportSource: "TRACES_OBSERVATIONS",
+        }),
+      },
+      mixpanelIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: true,
+          exportSource: "EVENTS",
+        }),
+      },
+      blobStorageIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: true,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+        }),
+      },
+    };
+    const caller = createCaller(mockPrisma);
+
+    await expect(caller.summary({ projectId })).resolves.toEqual({
+      traceLevelEvalCount: 3,
+      legacyIntegrationCount: 2,
+      legacyIntegrations: {
+        posthog: true,
+        mixpanel: false,
+        blobStorage: true,
+      },
+    });
+
+    expect(mockPrisma.jobConfiguration.count).toHaveBeenCalledWith({
+      where: {
+        projectId,
+        jobType: "EVAL",
+        targetObject: "trace",
+      },
+    });
+    expect(mockPrisma.posthogIntegration.findUnique).toHaveBeenCalledWith({
+      where: { projectId },
+      select: { enabled: true, exportSource: true },
+    });
+    expect(mockPrisma.mixpanelIntegration.findUnique).toHaveBeenCalledWith({
+      where: { projectId },
+      select: { enabled: true, exportSource: true },
+    });
+    expect(mockPrisma.blobStorageIntegration.findUnique).toHaveBeenCalledWith({
+      where: { projectId },
+      select: { enabled: true, exportSource: true },
+    });
+  });
+
+  it("does not count disabled legacy integrations", async () => {
+    const mockPrisma = {
+      jobConfiguration: {
+        count: vi.fn().mockResolvedValue(0),
+      },
+      posthogIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: false,
+          exportSource: "TRACES_OBSERVATIONS",
+        }),
+      },
+      mixpanelIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: true,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+        }),
+      },
+      blobStorageIntegration: {
+        findUnique: vi.fn().mockResolvedValue({
+          enabled: false,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS",
+        }),
+      },
+    };
+    const caller = createCaller(mockPrisma);
+
+    await expect(caller.summary({ projectId })).resolves.toEqual({
+      traceLevelEvalCount: 0,
+      legacyIntegrationCount: 1,
+      legacyIntegrations: {
+        posthog: false,
+        mixpanel: true,
+        blobStorage: false,
+      },
+    });
+  });
+
+  it("queries trace-level eval execution counts by time bucket and generated score name", async () => {
+    const mockPrisma = {
+      $queryRaw: vi.fn().mockResolvedValue([
+        {
+          time: "2026-06-25T12:00:00Z",
+          scoreName: "toxicity",
+          count: 4n,
+        },
+        {
+          time: "2026-06-25T12:05:00Z",
+          scoreName: "helpfulness",
+          count: 2,
+        },
+      ]),
+    };
+    const caller = createCaller(mockPrisma);
+
+    const rows = await caller.traceLevelEvalExecutionsTimeSeries({
+      projectId,
+      fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+      toTimestamp: new Date("2026-06-25T13:00:00Z"),
+      granularity: "auto",
+    });
+
+    expect(rows).toHaveLength(122);
+    expect(rows.slice(0, 4)).toEqual([
+      {
+        time: "2026-06-25T12:00:00Z",
+        scoreName: "helpfulness",
+        count: 0,
+      },
+      {
+        time: "2026-06-25T12:00:00Z",
+        scoreName: "toxicity",
+        count: 4,
+      },
+      {
+        time: "2026-06-25T12:01:00Z",
+        scoreName: "helpfulness",
+        count: 0,
+      },
+      {
+        time: "2026-06-25T12:01:00Z",
+        scoreName: "toxicity",
+        count: 0,
+      },
+    ]);
+    expect(
+      rows.find(
+        (row) =>
+          row.time === "2026-06-25T12:05:00Z" &&
+          row.scoreName === "helpfulness",
+      ),
+    ).toEqual({
+      time: "2026-06-25T12:05:00Z",
+      scoreName: "helpfulness",
+      count: 2,
+    });
+    expect(rows.at(-1)).toEqual({
+      time: "2026-06-25T13:00:00Z",
+      scoreName: "toxicity",
+      count: 0,
+    });
+
+    expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+    const query = mockPrisma.$queryRaw.mock.calls[0]?.[0] as
+      | { sql?: string; text?: string; values?: unknown[] }
+      | undefined;
+    const queryText = query?.sql ?? query?.text ?? "";
+
+    expect(queryText).toContain("date_trunc(?, je.created_at)");
+    expect(queryText).toContain(
+      "INNER JOIN job_configurations jc ON jc.id = je.job_configuration_id",
+    );
+    expect(queryText).toContain("jc.score_name AS score_name");
+    expect(queryText).toContain('score_name AS "scoreName"');
+    expect(queryText).toContain("je.project_id = ?");
+    expect(queryText).toContain("jc.project_id = ?");
+    expect(queryText).toContain("jc.job_type = 'EVAL'");
+    expect(queryText).toContain("jc.target_object = ?");
+    expect(queryText).toContain("je.status != 'CANCELLED'");
+    expect(queryText).toContain("je.created_at >= ?");
+    expect(queryText).toContain("je.created_at <= ?");
+    expect(queryText).toContain("GROUP BY bucket_time, score_name");
+    expect(query?.values).toEqual([
+      "minute",
+      projectId,
+      projectId,
+      "trace",
+      new Date("2026-06-25T12:00:00Z"),
+      new Date("2026-06-25T13:00:00Z"),
+    ]);
   });
 });
