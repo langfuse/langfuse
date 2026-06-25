@@ -1,4 +1,9 @@
-import { EditorView, showTooltip, type Tooltip } from "@uiw/react-codemirror";
+import {
+  EditorView,
+  keymap,
+  showTooltip,
+  type Tooltip,
+} from "@uiw/react-codemirror";
 import {
   type EditorState,
   StateEffect,
@@ -127,6 +132,9 @@ export function planMagicPaste(
   pastedText: string,
 ): MagicPastePlan | null {
   if (pastedText === "") return null;
+  // Multi-cursor: a single transform would only fill the main range and drop the
+  // others, so defer to CodeMirror's native per-cursor paste.
+  if (state.selection.ranges.length > 1) return null;
   const sel = state.selection.main;
 
   // 1) Inside a JSON string → escape the fragment. The selection must start in a
@@ -148,12 +156,13 @@ export function planMagicPaste(
     };
   }
 
-  // 2) Empty/whitespace field, or the paste replaces the whole document, and the
-  //    paste isn't already valid JSON → wrap it as a quoted JSON string. Covers
-  //    "paste a blob into the empty input field".
+  // 2) Blank field whose paste isn't already valid JSON → wrap it as a quoted
+  //    JSON string. Covers "paste a blob into the empty input field". Limited to
+  //    a blank document so select-all-then-paste over existing content isn't
+  //    silently stringified (its structure would be lost behind valid-looking
+  //    JSON); that case falls through to normal paste.
   const docIsBlank = state.doc.toString().trim() === "";
-  const replacingWholeDoc = sel.from === 0 && sel.to === state.doc.length;
-  if ((docIsBlank || replacingWholeDoc) && !isValidJson(pastedText)) {
+  if (docIsBlank && !isValidJson(pastedText)) {
     return {
       kind: "wrap",
       from: 0,
@@ -185,17 +194,40 @@ const magicPasteTipField = StateField.define<ActiveTip | null>({
   },
   update(value, tr) {
     // A magic paste sets the tip in the same transaction it edits the doc, so
-    // the effect always wins over the dismiss-on-edit rule below.
+    // the effect always wins over the dismiss rule below.
     for (const effect of tr.effects) {
       if (effect.is(setMagicPasteTip)) return effect.value;
     }
-    // VS Code-style: the control goes away on the next edit or cursor move.
-    if (value && (tr.docChanged || tr.selection)) return null;
+    // Dismiss on the next real edit (not a bare cursor move) so the control
+    // survives navigation/reading; a blur handler clears it on focus-out.
+    if (value && tr.docChanged) return null;
     return value;
   },
   provide: (field) =>
     showTooltip.from(field, (tip) => (tip ? buildTooltip(tip) : null)),
 });
+
+const PASTE_RAW_KEY = "Mod-Shift-v";
+// `Mod` is Cmd on macOS, Ctrl elsewhere; mirror that in the displayed hint.
+// `navigator.userAgent` (not the deprecated `.platform`) matches repo convention.
+const PASTE_RAW_KEY_LABEL =
+  typeof navigator !== "undefined" && navigator.userAgent.includes("Mac")
+    ? "⇧⌘V"
+    : "Ctrl+Shift+V";
+
+/** Replace the transformed insert with the original raw text (the escape hatch). */
+function revertToRaw(view: EditorView, tip: ActiveTip): void {
+  const docLength = view.state.doc.length;
+  const from = Math.min(tip.from, docLength);
+  const to = Math.min(tip.to, docLength);
+  view.dispatch({
+    changes: { from, to, insert: tip.raw },
+    selection: { anchor: from + tip.raw.length },
+    effects: setMagicPasteTip.of(null),
+    userEvent: "input.paste",
+  });
+  view.focus();
+}
 
 function buildTooltip(tip: ActiveTip): Tooltip {
   return {
@@ -211,44 +243,52 @@ function buildTooltip(tip: ActiveTip): Tooltip {
     create(view) {
       const dom = document.createElement("div");
       dom.className = "cm-json-magic-paste";
-      // The post-paste control is otherwise silent to assistive tech.
-      dom.setAttribute("role", "status");
-      dom.setAttribute("aria-live", "polite");
 
+      // Announce only the status (not the button) to assistive tech.
       const label = document.createElement("span");
       label.className = "cm-json-magic-paste-label";
+      label.setAttribute("role", "status");
+      label.setAttribute("aria-live", "polite");
       label.textContent = tip.message;
 
+      // "Paste raw" is also reachable from the keyboard via PASTE_RAW_KEY (the
+      // tooltip itself isn't in the editor's tab order), advertised here.
       const button = document.createElement("button");
       button.type = "button";
       button.className = "cm-json-magic-paste-action";
       button.textContent = "Paste raw";
+      button.title = `Insert the original text, unescaped (${PASTE_RAW_KEY_LABEL})`;
       button.setAttribute(
         "aria-label",
-        "Replace with the original text, unescaped",
+        `Paste raw — insert the original text, unescaped`,
       );
+      button.setAttribute("aria-keyshortcuts", "Control+Shift+V");
       // Keep editor focus so the replace doesn't blur the editor first.
       button.addEventListener("mousedown", (event) => event.preventDefault());
-      button.addEventListener("click", () => {
-        const docLength = view.state.doc.length;
-        const from = Math.min(tip.from, docLength);
-        const to = Math.min(tip.to, docLength);
-        view.dispatch({
-          changes: { from, to, insert: tip.raw },
-          selection: { anchor: from + tip.raw.length },
-          effects: setMagicPasteTip.of(null),
-          userEvent: "input.paste",
-        });
-        view.focus();
-      });
+      button.addEventListener("click", () => revertToRaw(view, tip));
 
-      dom.append(label, button);
+      const hint = document.createElement("span");
+      hint.className = "cm-json-magic-paste-hint";
+      hint.setAttribute("aria-hidden", "true");
+      hint.textContent = PASTE_RAW_KEY_LABEL;
+
+      dom.append(label, button, hint);
       return { dom };
     },
   };
 }
 
 const magicPasteTheme = EditorView.baseTheme({
+  // Paint our own surface from app tokens (instead of inheriting CodeMirror's
+  // default tooltip background) so the foreground tokens keep their audited
+  // contrast in both themes.
+  ".cm-tooltip:has(.cm-json-magic-paste)": {
+    backgroundColor: "hsl(var(--popover))",
+    color: "hsl(var(--popover-foreground))",
+    border: "1px solid hsl(var(--border))",
+    borderRadius: "6px",
+    boxShadow: "0 2px 8px rgb(0 0 0 / 0.12)",
+  },
   ".cm-json-magic-paste": {
     display: "flex",
     alignItems: "center",
@@ -271,6 +311,10 @@ const magicPasteTheme = EditorView.baseTheme({
     cursor: "pointer",
     textDecoration: "underline",
   },
+  ".cm-json-magic-paste-hint": {
+    color: "hsl(var(--muted-foreground))",
+    opacity: "0.7",
+  },
 });
 
 /**
@@ -282,8 +326,30 @@ export function createJsonMagicPasteExtension(): Extension {
   return [
     magicPasteTipField,
     magicPasteTheme,
+    // Keyboard path for "Paste raw" (the tooltip button isn't in the tab order).
+    keymap.of([
+      {
+        key: PASTE_RAW_KEY,
+        run: (view) => {
+          const tip = view.state.field(magicPasteTipField, false);
+          if (!tip) return false; // no active transform → let the key fall through
+          revertToRaw(view, tip);
+          return true;
+        },
+      },
+    ]),
     EditorView.domEventHandlers({
+      // Clear the affordance when focus leaves so a stale tip can't linger behind
+      // the user (and two editors can't show one at once).
+      blur(_event, view) {
+        if (view.state.field(magicPasteTipField, false)) {
+          view.dispatch({ effects: setMagicPasteTip.of(null) });
+        }
+        return false;
+      },
       paste(event, view) {
+        // Let the editor's composition-aware paste handle IME composition.
+        if (view.composing) return false;
         const clipboard = event.clipboardData;
         if (!clipboard) return false;
         // Files belong to the media drop/paste handler. Use the same extractor it

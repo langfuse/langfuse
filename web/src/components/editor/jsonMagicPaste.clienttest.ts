@@ -1,4 +1,4 @@
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState } from "@codemirror/state";
 
 import {
   escapeForJsonStringBody,
@@ -114,10 +114,35 @@ describe("planMagicPaste", () => {
     expect(planMagicPaste(jsonState("", 0), '{"x": 1}')).toBeNull();
   });
 
-  it("wraps when the paste replaces the whole document", () => {
+  it("still wraps a blank (whitespace-only) field", () => {
+    const plan = planMagicPaste(jsonState("   \n  ", 0), "hi there");
+    expect(plan).toMatchObject({ kind: "wrap", insert: '"hi there"' });
+  });
+
+  it("does NOT wrap select-all-then-paste over existing content", () => {
+    // Wrapping a whole-doc replacement would silently stringify the user's
+    // existing structure; leave it to normal paste instead.
     const doc = '{"old": 1}';
-    const plan = planMagicPaste(jsonState(doc, 0, doc.length), "just text");
-    expect(plan).toMatchObject({ kind: "wrap", from: 0, to: doc.length });
+    expect(
+      planMagicPaste(jsonState(doc, 0, doc.length), "just text"),
+    ).toBeNull();
+  });
+
+  it("defers multi-cursor pastes to native per-cursor paste", () => {
+    const doc = '{"a":"","b":""}';
+    const a = doc.indexOf('""') + 1;
+    const b = doc.lastIndexOf('""') + 1;
+    const state = EditorState.create({
+      doc,
+      selection: EditorSelection.create([
+        EditorSelection.cursor(a),
+        EditorSelection.cursor(b),
+      ]),
+      // basicSetup enables this in the real editor; needed for >1 range to stick.
+      extensions: [EditorState.allowMultipleSelections.of(true)],
+    });
+    expect(state.selection.ranges.length).toBe(2);
+    expect(planMagicPaste(state, 'x"y')).toBeNull();
   });
 
   it("leaves a mid-document structural paste alone", () => {
