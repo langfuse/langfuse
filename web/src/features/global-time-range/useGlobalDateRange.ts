@@ -30,13 +30,22 @@ export interface UseGlobalDateRangeOutput {
  * timestamps are stored only for a user-selected custom range. Both the
  * dashboard and table date-range hooks delegate here so the views share one
  * contract.
+ *
+ * `persistAsDefault` (default true) marks a surface as the shared cross-view
+ * session filter. Pass `false` for an authoring/preview surface (e.g. the
+ * widget editor) whose picker is transient editor state, not the user's
+ * default: it then neither reads nor writes the shared default, and only syncs
+ * to the URL — so previewing a range never overwrites the default for
+ * Home/Traces/Sessions/etc.
  */
 export function useGlobalDateRange<T extends string>({
   allowedRanges,
   fallback,
+  persistAsDefault = true,
 }: {
   allowedRanges: readonly T[];
   fallback: T;
+  persistAsDefault?: boolean;
 }): UseGlobalDateRangeOutput {
   const router = useRouter();
   const projectId =
@@ -46,8 +55,11 @@ export function useGlobalDateRange<T extends string>({
 
   // Selector returns a primitive (this project's stored token, or null). Always
   // current — switching projects selects a different field of the same store.
+  // Page-local surfaces (persistAsDefault === false) ignore the shared default.
   const storedValue = useGlobalDateRangeStore((state) =>
-    projectId ? (state.defaultsByProject[projectId] ?? null) : null,
+    persistAsDefault && projectId
+      ? (state.defaultsByProject[projectId] ?? null)
+      : null,
   );
   const setProjectDefault = useGlobalDateRangeStore(
     (state) => state.actions.setProjectDefault,
@@ -63,11 +75,12 @@ export function useGlobalDateRange<T extends string>({
     (next: TimeRange) => {
       const encoded = rangeToString(next);
       // The URL becomes authoritative (shareable); the store default becomes the
-      // baseline for subsequent clean navigations.
+      // baseline for subsequent clean navigations — unless this surface is
+      // page-local (an authoring/preview picker), which never persists.
       setQueryParams({ dateRange: encoded });
-      if (projectId) setProjectDefault(projectId, encoded);
+      if (persistAsDefault && projectId) setProjectDefault(projectId, encoded);
     },
-    [projectId, setProjectDefault, setQueryParams],
+    [persistAsDefault, projectId, setProjectDefault, setQueryParams],
   );
 
   return useMemo(
