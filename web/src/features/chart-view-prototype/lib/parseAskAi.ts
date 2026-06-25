@@ -20,6 +20,15 @@ import { coerceConfig, DEFAULT_CONFIG } from "../vocab";
 const has = (q: string, ...needles: string[]): boolean =>
   needles.some((n) => q.includes(n));
 
+/**
+ * Whole-word match — used for short, collision-prone aggregation tokens so e.g.
+ * "min" doesn't fire on "minute" / "minutely".
+ */
+const hasWord = (q: string, ...words: string[]): boolean =>
+  words.some((w) =>
+    new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(q),
+  );
+
 function pickMetric(q: string): MetricKey {
   if (has(q, "cost", "spend", "$", "dollar", "usd")) return "totalCost";
   if (has(q, "token")) return "totalTokens";
@@ -31,13 +40,13 @@ function pickMetric(q: string): MetricKey {
 }
 
 function pickAggregation(q: string): AggregationFn {
-  if (has(q, "p99", "99th")) return "p99";
-  if (has(q, "p95", "95th")) return "p95";
-  if (has(q, "median", "p50", "50th")) return "p50";
-  if (has(q, "average", "avg", "mean")) return "avg";
-  if (has(q, "max", "slowest", "peak", "highest")) return "max";
-  if (has(q, "min", "fastest", "lowest")) return "min";
-  if (has(q, "total", "sum")) return "sum";
+  if (hasWord(q, "p99", "99th")) return "p99";
+  if (hasWord(q, "p95", "95th")) return "p95";
+  if (hasWord(q, "median", "p50", "50th")) return "p50";
+  if (hasWord(q, "average", "avg", "mean")) return "avg";
+  if (hasWord(q, "max", "maximum", "slowest", "peak", "highest")) return "max";
+  if (hasWord(q, "min", "minimum", "fastest", "lowest")) return "min";
+  if (hasWord(q, "total", "sum")) return "sum";
   return "count";
 }
 

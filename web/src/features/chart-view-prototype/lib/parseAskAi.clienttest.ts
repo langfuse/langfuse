@@ -45,6 +45,17 @@ describe("parseAskAi", () => {
     expect(getMetric(config.metric).aggregations).toContain(config.aggregation);
   });
 
+  it("does not misread 'minute' as the min aggregation", () => {
+    const config = parseAskAi("latency per minute");
+    expect(config.aggregation).not.toBe("min");
+    expect(config.timeGranularity).toBe("minute");
+  });
+
+  it("still maps an explicit min/fastest ask", () => {
+    expect(parseAskAi("fastest model latency").aggregation).toBe("min");
+    expect(parseAskAi("minimum latency").aggregation).toBe("min");
+  });
+
   it("falls back to the default config for an empty query", () => {
     expect(parseAskAi("   ")).toEqual(parseAskAi(""));
   });
