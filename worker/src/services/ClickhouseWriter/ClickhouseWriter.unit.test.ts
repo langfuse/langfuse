@@ -115,6 +115,60 @@ describe("ClickhouseWriter", () => {
     expect(mockInsert).toHaveBeenCalledTimes(1);
   });
 
+  it("should add the project id to log comments for single-project batches", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockResolvedValue();
+
+    writer.addToQueue(TableName.Traces, {
+      id: "1",
+      name: "test",
+      project_id: "project-1",
+    } as any);
+    writer.addToQueue(TableName.Traces, {
+      id: "2",
+      name: "test",
+      project_id: "project-1",
+    } as any);
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+
+    const logComment = JSON.parse(
+      mockInsert.mock.calls[0][0].clickhouse_settings.log_comment,
+    );
+    expect(logComment).toMatchObject({
+      surface: "worker",
+      projectId: "project-1",
+    });
+  });
+
+  it("should mark mixed-project batches in log comments", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockResolvedValue();
+
+    writer.addToQueue(TableName.Traces, {
+      id: "1",
+      name: "test",
+      project_id: "project-1",
+    } as any);
+    writer.addToQueue(TableName.Traces, {
+      id: "2",
+      name: "test",
+      project_id: "project-2",
+    } as any);
+
+    await vi.advanceTimersByTimeAsync(writer.writeInterval);
+
+    const logComment = JSON.parse(
+      mockInsert.mock.calls[0][0].clickhouse_settings.log_comment,
+    );
+    expect(logComment).toMatchObject({
+      surface: "worker",
+      projectId: "MULTI_PROJECT",
+    });
+  });
+
   it("should handle errors and retry", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")

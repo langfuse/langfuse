@@ -29,6 +29,7 @@ import { backOff } from "exponential-backoff";
 const DECIMAL_64_12_LIMIT = new Decimal("1e6");
 const DECIMAL_64_12_MAX_NUM = 999_999.999_999;
 const DECIMAL_64_12_MIN_NUM = -DECIMAL_64_12_MAX_NUM;
+const MULTI_PROJECT_LOG_COMMENT_PROJECT_ID = "MULTI_PROJECT";
 
 export class ClickhouseWriter {
   private static instance: ClickhouseWriter | null = null;
@@ -566,11 +567,30 @@ export class ClickhouseWriter {
     }
   }
 
+  private static getLogCommentProjectId<T extends TableName>(
+    records: RecordInsertType<T>[],
+  ): string | undefined {
+    const projectIds = new Set(
+      records
+        .map((record) => record.project_id)
+        .filter(
+          (projectId): projectId is string =>
+            typeof projectId === "string" && projectId.length > 0,
+        ),
+    );
+
+    if (projectIds.size === 0) return undefined;
+    if (projectIds.size > 1) return MULTI_PROJECT_LOG_COMMENT_PROJECT_ID;
+
+    return projectIds.values().next().value;
+  }
+
   private async writeToClickhouse<T extends TableName>(params: {
     table: T;
     records: RecordInsertType<T>[];
   }): Promise<void> {
     const startTime = Date.now();
+    const projectId = ClickhouseWriter.getLogCommentProjectId(params.records);
 
     await (ClickhouseWriter.client ?? clickhouseClient())
       .insert({
@@ -580,9 +600,7 @@ export class ClickhouseWriter {
         clickhouse_settings: {
           log_comment: buildClickHouseLogComment({
             surface: "worker",
-            ...(params.records.length > 0 && params.records[0].project_id
-              ? { projectId: params.records[0].project_id }
-              : {}),
+            ...(projectId ? { projectId } : {}),
           }),
         },
       })

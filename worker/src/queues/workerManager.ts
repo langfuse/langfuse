@@ -24,19 +24,15 @@ export class WorkerManager {
 
   private static extractProjectId(job: Job): string | undefined {
     const data = job.data as {
-      projectId?: unknown;
       payload?: {
         projectId?: unknown;
         authCheck?: { scope?: { projectId?: unknown } };
       };
-      authCheck?: { scope?: { projectId?: unknown } };
     };
 
     const candidates = [
-      data.projectId,
       data.payload?.projectId,
       data.payload?.authCheck?.scope?.projectId,
-      data.authCheck?.scope?.projectId,
     ];
 
     return candidates.find((candidate): candidate is string => {
