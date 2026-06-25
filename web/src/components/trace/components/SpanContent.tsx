@@ -24,7 +24,10 @@ import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { cn } from "@/src/utils/tailwind";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { usdFormatter, formatTokenCounts } from "@/src/utils/numbers";
-import { heatMapTextColor } from "@/src/components/trace/lib/helpers";
+import {
+  heatMapTextColor,
+  getSubtreeDurationOverflowMs,
+} from "@/src/components/trace/lib/helpers";
 import { useViewPreferences } from "../contexts/ViewPreferencesContext";
 import { useTraceData } from "../contexts/TraceDataContext";
 import type Decimal from "decimal.js";
@@ -70,13 +73,24 @@ export function SpanContent({
   const shouldRenderDuration =
     showDuration && Boolean(duration || node.latency);
 
+  // Wall-clock duration of the whole subtree, surfaced as a separate badge only
+  // when async descendants outlive the parent span (so the own-span duration
+  // above understates the real elapsed time). See LFE-10475.
+  const subtreeWallClockOverflowMs = showDuration
+    ? getSubtreeDurationOverflowMs(duration, node.subtreeWallClockDurationMs)
+    : null;
+  const shouldRenderSubtreeDuration = subtreeWallClockOverflowMs != null;
+
   const shouldRenderCostTokens =
     showCostTokens &&
     Boolean(
       node.inputUsage || node.outputUsage || node.totalUsage || totalCost,
     );
 
-  const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
+  const shouldRenderAnyMetrics =
+    shouldRenderDuration ||
+    shouldRenderSubtreeDuration ||
+    shouldRenderCostTokens;
 
   const hasTraceNode = roots.some((r) => r.type === "TRACE");
 
@@ -143,13 +157,13 @@ export function SpanContent({
         {/* Metrics row */}
         {shouldRenderAnyMetrics && (
           <div className="flex flex-wrap gap-x-2">
-            {/* Duration */}
+            {/* Duration (own span) */}
             {shouldRenderDuration && (duration || node.latency) ? (
               <span
                 title={
-                  node.children.length > 0 || node.type === "TRACE"
-                    ? "Aggregated duration of all child observations"
-                    : undefined
+                  node.type === "TRACE"
+                    ? "Total trace duration"
+                    : "Duration of this observation's own span (end − start)"
                 }
                 className={cn(
                   "text-muted-foreground text-xs",
@@ -165,6 +179,17 @@ export function SpanContent({
                 {formatIntervalSeconds(
                   (duration || (node.latency ? node.latency * 1000 : 0)) / 1000,
                 )}
+              </span>
+            ) : null}
+
+            {/* Subtree wall-clock duration — async descendants outlive the parent span */}
+            {shouldRenderSubtreeDuration ? (
+              <span
+                title="Wall-clock duration of this observation and all its descendants (last end − first start). Shown when async children outlive the parent span, making the own-span duration misleading."
+                className="text-muted-foreground text-xs"
+              >
+                {"∑ "}
+                {formatIntervalSeconds(subtreeWallClockOverflowMs / 1000)}
               </span>
             ) : null}
 

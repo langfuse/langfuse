@@ -184,6 +184,47 @@ export const heatMapTextColor = (p: {
   return "";
 };
 
+/**
+ * Margin thresholds for surfacing a node's subtree wall-clock duration as a
+ * distinct badge alongside its own-span duration (LFE-10475).
+ *
+ * Async children can outlive their parent span, so a parent's own
+ * (endTime − startTime) can wildly understate the real elapsed time of its
+ * subtree. We only surface the subtree badge when it meaningfully diverges from
+ * the own-span duration — both a relative AND an absolute threshold must be
+ * exceeded — to avoid noise on near-equal synchronous subtrees.
+ */
+export const SUBTREE_DURATION_RELATIVE_MARGIN = 0.1; // subtree must exceed own span by >10%
+export const SUBTREE_DURATION_ABSOLUTE_MARGIN_MS = 250; // ...and by >250ms
+
+/**
+ * Decides whether a node's subtree wall-clock duration should be shown as a
+ * separate badge, and returns that duration (ms) when it should.
+ *
+ * Returns null when there is no subtree duration, or when it is close enough to
+ * the node's own-span duration to be treated as noise. A missing own-span
+ * duration is treated as 0 so that nodes without a recorded end still surface a
+ * meaningful subtree duration.
+ *
+ * @param ownDurationMs - the node's own span duration (endTime − startTime), ms
+ * @param subtreeWallClockDurationMs - max(end) − min(start) across the subtree, ms
+ */
+export function getSubtreeDurationOverflowMs(
+  ownDurationMs: number | undefined | null,
+  subtreeWallClockDurationMs: number | undefined | null,
+): number | null {
+  if (subtreeWallClockDurationMs == null) return null;
+  const own = ownDurationMs ?? 0;
+  if (subtreeWallClockDurationMs - own <= SUBTREE_DURATION_ABSOLUTE_MARGIN_MS)
+    return null;
+  if (
+    subtreeWallClockDurationMs <=
+    own * (1 + SUBTREE_DURATION_RELATIVE_MARGIN)
+  )
+    return null;
+  return subtreeWallClockDurationMs;
+}
+
 // Helper function to unnest observations for cost calculation
 export const unnestObservation = (nestedObservation: NestedObservation) => {
   const unnestedObservations = [];
