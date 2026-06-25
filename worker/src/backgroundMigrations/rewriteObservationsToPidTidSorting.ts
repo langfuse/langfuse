@@ -26,8 +26,7 @@ const LOG_PREFIX = "[Backfill PidTid Sorting]";
 
 /**
  * Returns `ON CLUSTER <name>` when running against a clustered ClickHouse
- * deployment, an empty string otherwise. Self-hosters typically run a single
- * node and rely on `ReplacingMergeTree` instead of the replicated variant.
+ * deployment, an empty string otherwise.
  */
 function onClusterClause(): string {
   if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
@@ -39,8 +38,7 @@ function onClusterClause(): string {
 /**
  * Returns the engine clause for the scratch table. We use the replicated
  * variant only on clusters; single-node deployments use the unreplicated
- * engine, mirroring the production CH migrations under
- * `packages/shared/clickhouse/migrations/{clustered,unclustered}/`.
+ * engine.
  */
 function replacingMergeTreeEngine(): string {
   if (env.CLICKHOUSE_CLUSTER_ENABLED === "true") {
@@ -53,9 +51,6 @@ function replacingMergeTreeEngine(): string {
  * V4 chain step 2: copies `observations` into the
  * `observations_pid_tid_sorting` scratch table whose sort key is reordered to
  * `(project_id, trace_id, id)`, chunked by yyyymm observations partition.
- *
- * Intentionally has no predecessor guard: the rewrite has no data dependency
- * on M1 (createRootSpansFromTraces) and may run even if M1 failed.
  */
 export default class RewriteObservationsToPidTidSorting extends ChunkedClickhouseBackfillMigration {
   protected readonly migrationId = backgroundMigrationId;
@@ -75,12 +70,9 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
 
   /**
    * Creates `observations_pid_tid_sorting` if it does not exist. The schema
-   * mirrors `observations` (all columns through migration 0033) but the
+   * mirrors `observations` but the
    * sort key is reordered to `(project_id, trace_id, id)` so M3 can perform
    * a merge-sort join against this table without an explicit re-sort.
-   *
-   * Engine selection is cluster-aware so single-node self-hoster deployments
-   * use `ReplacingMergeTree` instead of the replicated variant.
    */
   private async ensureScratchTable(): Promise<void> {
     const ddl = `
@@ -120,9 +112,7 @@ export default class RewriteObservationsToPidTidSorting extends ChunkedClickhous
         \`created_at\` DateTime64(3) DEFAULT now(),
         \`updated_at\` DateTime64(3) DEFAULT now(),
         event_ts DateTime64(3),
-        is_deleted UInt8,
-        INDEX idx_id id TYPE bloom_filter() GRANULARITY 1,
-        INDEX idx_project_id project_id TYPE bloom_filter() GRANULARITY 1
+        is_deleted UInt8
       ) ENGINE = ${replacingMergeTreeEngine()}
       PARTITION BY toYYYYMM(start_time)
       PRIMARY KEY (project_id, trace_id)
