@@ -26,15 +26,28 @@ Dismissal:
   opened inside the peek do not close it (DismissableLayer stacking).
 - **Escape**, the close button, and (mobile) swipe-down also close.
 
-Panel state lives in [`usePeekPanelState`](./usePeekPanelState.ts), at the state
-altitudes from `frontend-large-feature-architecture`:
+Panel state follows the local-feature-state pattern from
+`frontend-large-feature-architecture`:
 
-| State       | Altitude                        | Where it lives                                                            |
-| ----------- | ------------------------------- | ------------------------------------------------------------------------- |
-| width       | cross-view persisted preference | `localStorage` (`peekViewWidthFraction`, a viewport fraction)             |
-| fullscreen  | ephemeral per open session      | React state — resets on close, so the peek never reopens stuck fullscreen |
-| resize drag | high-frequency transient        | local draft, committed to `localStorage` only on pointer-up               |
-| which item  | route                           | the `peek` URL param (see below)                                          |
+- [`store/peekPanelStore.ts`](./store/peekPanelStore.ts) — a per-mount vanilla
+  Zustand store (created once via lazy `useState`). All state lives here and is
+  mutated only through named `actions`. Selectors (`selectWidth`,
+  `selectIsFullscreen`, …) return primitives so subscriptions bail out cheaply.
+- [`actions/resizePeekPanel.ts`](./actions/resizePeekPanel.ts) — the drag
+  workflow (window pointer listeners → store actions; commits width on
+  pointer-up). It takes the store instance, not React hooks.
+- [`usePeekPanelState.ts`](./usePeekPanelState.ts) — the integration boundary:
+  owns the store, subscribes to slices, wires lifecycle effects, and exposes
+  thin callbacks that delegate to the actions.
+
+State altitudes:
+
+| State       | Altitude                        | Where it lives                                                                  |
+| ----------- | ------------------------------- | ------------------------------------------------------------------------------- |
+| width       | cross-view persisted preference | store `widthFraction`, mirrored to `localStorage` (`peekViewWidthFraction`)     |
+| fullscreen  | ephemeral per open session      | store `isFullscreen` — reset on close via `resetForVisibility`, never stuck     |
+| resize drag | high-frequency transient        | store `draftFraction` / `isResizing`, committed to `localStorage` on pointer-up |
+| which item  | route                           | the `peek` URL param (see below)                                                |
 
 ## Architecture
 
