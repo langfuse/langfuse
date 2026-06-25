@@ -71,7 +71,7 @@ type TablePeekViewProps = Pick<
 // dismiss it — clicking a selection checkbox is a selection action, not a
 // dismiss. Row checkboxes are already covered by the `[data-row-index]` check
 // below; this also covers the header "select all". Applied to every peek so
-// tables don't each have to re-declare it (which is easy to forget).
+// tables don't each have to redeclare it (which is easy to forget).
 const ALWAYS_KEEP_PEEK_OPEN_SELECTORS = ['[role="checkbox"]'];
 
 /**
