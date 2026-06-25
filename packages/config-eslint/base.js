@@ -46,6 +46,7 @@ export default tseslint.config(
     rules: {
       "no-void": "warn",
       "no-else-return": "warn",
+      "no-nested-ternary": "off",
       "no-redeclare": "off",
       "import/order": "off",
     },
@@ -101,6 +102,7 @@ export default tseslint.config(
     },
     rules: {
       "@repo/no-in-source-vitest": "warn",
+      "@repo/no-nested-ternary": "warn",
     },
   },
 );

@@ -84,6 +84,7 @@ export default [
     rules: {
       "no-void": "warn",
       "no-else-return": "warn",
+      "no-nested-ternary": "off",
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
@@ -119,6 +120,7 @@ export default [
     },
     rules: {
       "@repo/no-in-source-vitest": "warn",
+      "@repo/no-nested-ternary": "warn",
     },
   },
 ];
