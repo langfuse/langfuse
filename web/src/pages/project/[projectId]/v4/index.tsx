@@ -186,7 +186,7 @@ export default function V4Page() {
     () =>
       traceLevelEvalExecutions.data?.map((row) => ({
         time_dimension: row.time,
-        dimension: row.status,
+        dimension: row.scoreName,
         metric: row.count,
       })) ?? [],
     [traceLevelEvalExecutions.data],
@@ -213,7 +213,7 @@ export default function V4Page() {
         <div className="grid grid-cols-1 items-stretch gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(20rem,1fr)]">
           <DashboardCard
             title="Trace-level evals"
-            description="Trace-targeting evaluator configs and non-cancelled execution jobs in the selected range."
+            description="Trace-targeting evaluator configs and non-cancelled execution jobs by generated score name."
             isLoading={summary.isPending || traceLevelEvalExecutions.isPending}
             cardContentClassName="min-h-[30rem]"
             headerClassName="pr-12"

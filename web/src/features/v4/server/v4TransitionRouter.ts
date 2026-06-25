@@ -146,13 +146,13 @@ type LegacyApiUsageRow = {
 
 type TraceLevelEvalExecutionTimeSeriesRow = {
   time: string;
-  status: string;
+  scoreName: string;
   count: bigint | number;
 };
 
 type TraceLevelEvalExecutionTimeSeriesPoint = {
   time: string;
-  status: string;
+  scoreName: string;
   count: number;
 };
 
@@ -167,11 +167,15 @@ const fillTraceLevelEvalExecutionBuckets = ({
   toTimestamp: Date;
   granularity: ResolvedTimelineGranularity;
 }): TraceLevelEvalExecutionTimeSeriesPoint[] => {
-  const statuses = Array.from(new Set(rows.map((row) => row.status))).sort();
-  if (statuses.length === 0) return [];
+  const scoreNames = Array.from(
+    new Set(rows.map((row) => row.scoreName)),
+  ).sort();
+  if (scoreNames.length === 0) return [];
 
   const counts = new Map(
-    rows.map((row) => [`${row.time}\u0000${row.status}`, row.count] as const),
+    rows.map(
+      (row) => [`${row.time}\u0000${row.scoreName}`, row.count] as const,
+    ),
   );
   const endBucket = startOfTimelineBucket(toTimestamp, granularity);
   const filledRows: TraceLevelEvalExecutionTimeSeriesPoint[] = [];
@@ -183,11 +187,11 @@ const fillTraceLevelEvalExecutionBuckets = ({
   ) {
     const time = formatTimelineBucketTime(bucket);
 
-    for (const status of statuses) {
+    for (const scoreName of scoreNames) {
       filledRows.push({
         time,
-        status,
-        count: counts.get(`${time}\u0000${status}`) ?? 0,
+        scoreName,
+        count: counts.get(`${time}\u0000${scoreName}`) ?? 0,
       });
     }
   }
@@ -262,7 +266,7 @@ export const v4TransitionRouter = createTRPCRouter({
 WITH selected AS (
   SELECT
     ${bucketExpression} AS bucket_time,
-    je.status::text AS status
+    jc.score_name AS score_name
   FROM job_executions je
   INNER JOIN job_configurations jc ON jc.id = je.job_configuration_id
     AND jc.project_id = je.project_id
@@ -277,17 +281,17 @@ WITH selected AS (
 
 SELECT
   to_char(bucket_time, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS time,
-  status,
+  score_name AS "scoreName",
   COUNT(*)::bigint AS count
 FROM selected
-GROUP BY bucket_time, status
-ORDER BY bucket_time ASC, status ASC
+GROUP BY bucket_time, score_name
+ORDER BY bucket_time ASC, score_name ASC
       `);
 
       return fillTraceLevelEvalExecutionBuckets({
         rows: rows.map((row) => ({
           time: row.time,
-          status: row.status,
+          scoreName: row.scoreName,
           count: Number(row.count),
         })),
         fromTimestamp: input.fromTimestamp,

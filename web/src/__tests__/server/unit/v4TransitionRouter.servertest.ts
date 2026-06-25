@@ -261,17 +261,17 @@ describe("v4TransitionRouter", () => {
     });
   });
 
-  it("queries trace-level eval execution counts by time bucket and status", async () => {
+  it("queries trace-level eval execution counts by time bucket and generated score name", async () => {
     const mockPrisma = {
       $queryRaw: vi.fn().mockResolvedValue([
         {
           time: "2026-06-25T12:00:00Z",
-          status: "COMPLETED",
+          scoreName: "toxicity",
           count: 4n,
         },
         {
           time: "2026-06-25T12:05:00Z",
-          status: "ERROR",
+          scoreName: "helpfulness",
           count: 2,
         },
       ]),
@@ -289,37 +289,39 @@ describe("v4TransitionRouter", () => {
     expect(rows.slice(0, 4)).toEqual([
       {
         time: "2026-06-25T12:00:00Z",
-        status: "COMPLETED",
-        count: 4,
+        scoreName: "helpfulness",
+        count: 0,
       },
       {
         time: "2026-06-25T12:00:00Z",
-        status: "ERROR",
+        scoreName: "toxicity",
+        count: 4,
+      },
+      {
+        time: "2026-06-25T12:01:00Z",
+        scoreName: "helpfulness",
         count: 0,
       },
       {
         time: "2026-06-25T12:01:00Z",
-        status: "COMPLETED",
-        count: 0,
-      },
-      {
-        time: "2026-06-25T12:01:00Z",
-        status: "ERROR",
+        scoreName: "toxicity",
         count: 0,
       },
     ]);
     expect(
       rows.find(
-        (row) => row.time === "2026-06-25T12:05:00Z" && row.status === "ERROR",
+        (row) =>
+          row.time === "2026-06-25T12:05:00Z" &&
+          row.scoreName === "helpfulness",
       ),
     ).toEqual({
       time: "2026-06-25T12:05:00Z",
-      status: "ERROR",
+      scoreName: "helpfulness",
       count: 2,
     });
     expect(rows.at(-1)).toEqual({
       time: "2026-06-25T13:00:00Z",
-      status: "ERROR",
+      scoreName: "toxicity",
       count: 0,
     });
 
@@ -333,6 +335,8 @@ describe("v4TransitionRouter", () => {
     expect(queryText).toContain(
       "INNER JOIN job_configurations jc ON jc.id = je.job_configuration_id",
     );
+    expect(queryText).toContain("jc.score_name AS score_name");
+    expect(queryText).toContain('score_name AS "scoreName"');
     expect(queryText).toContain("je.project_id = ?");
     expect(queryText).toContain("jc.project_id = ?");
     expect(queryText).toContain("jc.job_type = 'EVAL'");
@@ -340,7 +344,7 @@ describe("v4TransitionRouter", () => {
     expect(queryText).toContain("je.status != 'CANCELLED'");
     expect(queryText).toContain("je.created_at >= ?");
     expect(queryText).toContain("je.created_at <= ?");
-    expect(queryText).toContain("GROUP BY bucket_time, status");
+    expect(queryText).toContain("GROUP BY bucket_time, score_name");
     expect(query?.values).toEqual([
       "minute",
       projectId,
