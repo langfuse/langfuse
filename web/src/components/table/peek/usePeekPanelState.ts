@@ -94,19 +94,20 @@ export function usePeekPanelState({
     [onExpandedChange],
   );
 
-  // While expanded, keep the panel at viewport − sidebar (sidebar stays
-  // visible). The peek portals into the `modal` layer, outside the sidebar's
-  // CSS-var scope, so the offset is measured live (re-measured on viewport /
-  // sidebar resize, which also covers the collapse/expand transition).
-  // Lazy-measured on mount (SSR-safe via the guard in readSidebarOffsetPx) so
-  // the FIRST expanded paint already uses the real offset — initializing to 0
-  // would paint calc(100vw - 0px) = full width for one frame, covering the
-  // sidebar, before the effect below measures and corrects it.
+  // While expanded the panel width is `calc(100vw - sidebarOffset)` so the
+  // sidebar stays visible. The peek portals into the `modal` layer, outside the
+  // sidebar's CSS-var scope, so the offset is measured from the DOM. Seeded
+  // synchronously on mount (lazy initializer, SSR-safe via the guard in
+  // readSidebarOffsetPx) so the first expanded paint already uses the real
+  // offset rather than calc(100vw - 0px) = full width for one frame.
   const [sidebarOffset, setSidebarOffset] = useState(() =>
     readSidebarOffsetPx(),
   );
+  // Track the sidebar continuously — NOT only while expanded — so a sidebar
+  // toggle/resize that happens while the peek is collapsed is still reflected
+  // by the next expand (no stale-offset flash). The observer is idle unless the
+  // sidebar actually resizes, and setSidebarOffset bails on an unchanged value.
   useEffect(() => {
-    if (!effectiveExpanded) return;
     const measure = () => setSidebarOffset(readSidebarOffsetPx());
     measure();
     window.addEventListener("resize", measure);
@@ -120,7 +121,7 @@ export function usePeekPanelState({
       window.removeEventListener("resize", measure);
       observer?.disconnect();
     };
-  }, [effectiveExpanded]);
+  }, []);
 
   const panelStyle: CSSProperties = {
     width: effectiveExpanded ? `calc(100vw - ${sidebarOffset}px)` : widgetWidth,

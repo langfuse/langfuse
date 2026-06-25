@@ -70,6 +70,9 @@ export function TraceDetailActions({
         }}
         deleteConfirmation={name ?? ""}
         icon
+        // Match Star/Publish so the three icons share one row height (the
+        // delete icon branch otherwise falls back to "icon" = 32px vs 24px).
+        size={size}
       />
     </div>
   );
