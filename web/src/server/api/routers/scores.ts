@@ -508,7 +508,6 @@ export const scoresRouter = createTRPCRouter({
         const clickhouseTrace = await getTraceById({
           traceId: inflatedParams.traceId,
           projectId: input.projectId,
-          clickhouseFeatureTag: "annotations-trpc",
         });
 
         if (!clickhouseTrace) {
@@ -678,7 +677,6 @@ export const scoresRouter = createTRPCRouter({
           const clickhouseTrace = await getTraceById({
             traceId: inflatedParams.traceId,
             projectId: input.projectId,
-            clickhouseFeatureTag: "annotations-trpc",
           });
 
           if (!clickhouseTrace) {
@@ -937,7 +935,6 @@ export const scoresRouter = createTRPCRouter({
       const clickhouseTrace = await getTraceById({
         traceId: input.traceId,
         projectId: input.projectId,
-        clickhouseFeatureTag: "annotations-trpc",
       });
 
       if (!clickhouseTrace) {

@@ -223,7 +223,11 @@ describe("withMiddlewares error handling", () => {
       const resourceError = new ClickHouseResourceError(
         "MEMORY_LIMIT",
         originalError,
-        { type: "events", kind: "publicApiRows" },
+        {
+          tag_schema_version: "1",
+          surface: "publicapi",
+          route: "GET /api/public/test",
+        },
       );
 
       const handler = withMiddlewares({
@@ -247,7 +251,11 @@ describe("withMiddlewares error handling", () => {
         "ClickHouse resource limit exceeded",
         expect.objectContaining({
           errorType: "MEMORY_LIMIT",
-          tags: { type: "events", kind: "publicApiRows" },
+          tags: {
+            tag_schema_version: "1",
+            surface: "publicapi",
+            route: "GET /api/public/test",
+          },
         }),
       );
     });
