@@ -41,16 +41,14 @@ export default class CreateRootSpansFromTraces extends ChunkedClickhouseBackfill
 
   /**
    * Builds the INSERT that materializes one virtual root span per trace into
-   * `events_full`. Mirrors the trace-side insert in
-   * `packages/shared/clickhouse/scripts/dev-tables.sh` but
+   * `events_full`. It
    *   - skips DRI-referenced traces entirely (M4 materializes those traces
    *     end-to-end, root + every observation, with experiment enrichment),
-   *   - uses backfill source attribution rather than dual-write,
    *   - is scoped to a single yyyymm partition so the scan is bounded.
    *
    * Unmerged duplicate trace rows are copied as-is: each carries its own
    * `event_ts`, so the ReplacingMergeTree semantics of `events_full` collapse
-   * them to the latest version — no dedup needed here (unlike M3's join).
+   * them to the latest version.
    */
   protected buildChunkQuery(todo: BaseChunkTodo): {
     query: string;
