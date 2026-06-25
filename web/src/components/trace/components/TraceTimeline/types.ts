@@ -18,6 +18,8 @@ export interface TimelineMetrics {
   itemWidth: number;
   /** Offset for first token time marker (for streaming LLMs, in pixels) */
   firstTokenTimeOffset?: number;
+  /** Time to first token in seconds (for streaming LLMs) */
+  timeToFirstToken?: number;
   /** Duration in seconds */
   latency?: number;
 }

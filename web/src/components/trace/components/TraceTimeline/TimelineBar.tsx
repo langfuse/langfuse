@@ -15,6 +15,11 @@ import {
   getSubtreeDurationOverflowMs,
 } from "@/src/components/trace/lib/helpers";
 import { isPresent } from "@langfuse/shared";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 const SUBTREE_DURATION_TITLE =
   "Subtree wall-clock duration (first start → last end)";
@@ -35,7 +40,7 @@ export function TimelineBar({
   commentCount,
   scores,
 }: TimelineBarProps) {
-  const { startOffset, itemWidth, firstTokenTimeOffset, latency } = metrics;
+  const { startOffset, itemWidth, firstTokenTimeOffset, timeToFirstToken, latency } = metrics;
   const duration = latency ? latency * 1000 : undefined;
   const hasChildren = node.children.length > 0;
 
@@ -72,14 +77,23 @@ export function TimelineBar({
           )}
           style={{ marginLeft: `${startOffset}px` }}
         >
-          {/* First token time bar (waiting period) */}
-          <div
-            className={cn(
-              "bg-muted flex h-8 items-center justify-start rounded-l-sm border-r border-gray-400 opacity-60",
-              itemWidth ? "" : "border border-dashed",
+          {/* First token time bar (waiting period) with TTFT tooltip on the split marker */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                className={cn(
+                  "bg-muted flex h-8 items-center justify-start rounded-l-sm border-r-2 border-blue-400 opacity-60",
+                  itemWidth ? "" : "border border-dashed",
+                )}
+                style={{ width: `${firstTokenWidth}px` }}
+              />
+            </TooltipTrigger>
+            {timeToFirstToken != null && (
+              <TooltipContent side="top">
+                Time to first token: {formatIntervalSeconds(timeToFirstToken)}
+              </TooltipContent>
             )}
-            style={{ width: `${firstTokenWidth}px` }}
-          />
+          </Tooltip>
 
           {/* Completion time bar */}
           <div
