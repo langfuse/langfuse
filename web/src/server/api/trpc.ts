@@ -509,7 +509,6 @@ const enforceTraceAccess = t.middleware(async (opts) => {
       truncated: verbosity === "truncated",
       shouldJsonParse: false, // we do not want to parse the input/output for tRPC
     },
-    clickhouseFeatureTag: "tracing-trpc",
   });
 
   if (!clickhouseTrace) {

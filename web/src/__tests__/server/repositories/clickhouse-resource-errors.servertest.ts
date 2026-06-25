@@ -20,7 +20,6 @@ describe("ClickHouse Resource Error Handling", () => {
                 surface: "trpc",
                 route: "test.resource-error",
                 projectId: "project-1",
-                test: "marker",
               },
             });
             fail(

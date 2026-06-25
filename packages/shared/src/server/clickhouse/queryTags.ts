@@ -16,7 +16,6 @@ export type ClickHouseQueryTags = {
   surface?: ClickHouseQuerySurface | (string & {});
   route?: string;
   projectId?: string;
-  [key: string]: unknown;
 };
 
 export type NormalizedClickHouseQueryTags = {
