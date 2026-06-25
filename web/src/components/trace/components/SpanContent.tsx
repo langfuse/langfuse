@@ -163,7 +163,7 @@ export function SpanContent({
                 title={
                   node.type === "TRACE"
                     ? "Total trace duration"
-                    : "Duration of this observation's own span"
+                    : "Own span duration"
                 }
                 className={cn(
                   "text-muted-foreground text-xs",
@@ -185,7 +185,7 @@ export function SpanContent({
             {/* Subtree wall-clock duration — async descendants outlive the parent span */}
             {shouldRenderSubtreeDuration ? (
               <span
-                title="Wall-clock duration of this observation and all its descendants (last end − first start). Shown when async children outlive the parent span, making the own-span duration misleading."
+                title="Subtree wall-clock duration (first start → last end)"
                 className="text-muted-foreground text-xs"
               >
                 {"∑ "}

@@ -9,10 +9,7 @@ import {
   removeHiddenNodes,
   getObservationLevels,
 } from "./tree-building";
-import {
-  getSubtreeDurationOverflowMs,
-  SUBTREE_DURATION_ABSOLUTE_MARGIN_MS,
-} from "./helpers";
+import { getSubtreeDurationOverflowMs } from "./helpers";
 import { type TreeNode } from "./types";
 import { type ObservationReturnType } from "@/src/server/api/routers/traces";
 import Decimal from "decimal.js";
@@ -2152,39 +2149,36 @@ describe("getSubtreeDurationOverflowMs", () => {
     expect(getSubtreeDurationOverflowMs(1000, null)).toBeNull();
   });
 
-  it("returns null when subtree exceeds own span by less than the absolute margin", () => {
-    // diff = 200ms (≤ 250ms) even though it's >10% relatively
-    expect(getSubtreeDurationOverflowMs(1000, 1200)).toBeNull();
+  it("does not flag leaf nodes whose subtree equals their own span", () => {
+    expect(getSubtreeDurationOverflowMs(1000, 1000)).toBeNull();
   });
 
-  it("returns null when subtree exceeds own span by less than the relative margin", () => {
-    // diff = 300ms (> 250ms) but 10300 ≤ 10000 * 1.1
-    expect(getSubtreeDurationOverflowMs(10000, 10300)).toBeNull();
+  it("returns null when the difference is below the rendered 0.01s precision", () => {
+    // 1.000s vs 1.004s both render as "1.00s" — no visible difference
+    expect(getSubtreeDurationOverflowMs(1000, 1004)).toBeNull();
   });
 
-  it("returns the subtree duration when both margins are exceeded", () => {
-    expect(getSubtreeDurationOverflowMs(1000, 1300)).toBe(1300);
-    expect(getSubtreeDurationOverflowMs(10000, 11500)).toBe(11500);
-    // The async-parent case: tiny own span, large subtree
+  it("returns the subtree duration on any difference visible at 0.01s precision", () => {
+    // 10ms is visible: "1.00s" vs "1.01s"
+    expect(getSubtreeDurationOverflowMs(1000, 1010)).toBe(1010);
+    // small absolute diffs that the old 250ms/10% margin would have hidden
+    expect(getSubtreeDurationOverflowMs(1000, 1200)).toBe(1200);
+    expect(getSubtreeDurationOverflowMs(10000, 10300)).toBe(10300);
+    // the async-parent case: tiny own span, large subtree
     expect(getSubtreeDurationOverflowMs(40, 12030)).toBe(12030);
   });
 
   it("treats a missing own-span duration as zero", () => {
-    expect(
-      getSubtreeDurationOverflowMs(
-        undefined,
-        SUBTREE_DURATION_ABSOLUTE_MARGIN_MS + 1,
-      ),
-    ).toBe(SUBTREE_DURATION_ABSOLUTE_MARGIN_MS + 1);
-    expect(
-      getSubtreeDurationOverflowMs(
-        undefined,
-        SUBTREE_DURATION_ABSOLUTE_MARGIN_MS,
-      ),
-    ).toBeNull();
+    // own = 0 → "0.00s"; any visibly non-zero subtree is shown
+    expect(getSubtreeDurationOverflowMs(undefined, 300)).toBe(300);
+    // sub-precision subtree (< 0.005s) rounds to "0.00s" → hidden
+    expect(getSubtreeDurationOverflowMs(undefined, 4)).toBeNull();
   });
 
-  it("does not flag leaf nodes whose subtree equals their own span", () => {
-    expect(getSubtreeDurationOverflowMs(1000, 1000)).toBeNull();
+  it("compares at the formatter's coarser resolution for minute-scale durations", () => {
+    // both render as "1m 04s" (sub-second diff invisible at this scale)
+    expect(getSubtreeDurationOverflowMs(64_000, 64_400)).toBeNull();
+    // a full second is visible: "1m 04s" vs "1m 05s"
+    expect(getSubtreeDurationOverflowMs(64_000, 65_000)).toBe(65_000);
   });
 });

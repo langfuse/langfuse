@@ -17,7 +17,7 @@ import {
 import { isPresent } from "@langfuse/shared";
 
 const SUBTREE_DURATION_TITLE =
-  "Wall-clock duration of this node and all its descendants (last end − first start). Shown when async children outlive the parent span, making the own-span duration misleading.";
+  "Subtree wall-clock duration (first start → last end)";
 
 export function TimelineBar({
   node,
