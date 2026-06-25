@@ -199,7 +199,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
 
   const body = (
     <PeekTableStateProvider>
-      <div className="flex max-h-full min-h-0 flex-1 flex-col">
+      <div className="flex max-h-full min-h-0 flex-1 flex-col overflow-hidden">
         <div className="flex-1 overflow-auto" key={itemId}>
           {children}
         </div>
@@ -257,7 +257,10 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           // another input); only pointer/Escape/close-button drive dismissal.
           onFocusOutside={(e) => e.preventDefault()}
           className={cn(
-            "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 overflow-hidden border-l",
+            // No overflow-hidden here: the resize handle straddles the left edge
+            // (overhangs onto the table) so it's grabbable from either side. The
+            // body clips its own content instead.
+            "bg-background top-banner-offset h-screen-with-banner fixed right-0 bottom-0 flex max-h-full min-h-0 max-w-none flex-col gap-0 border-l",
             // Soft shadow cast leftward (toward the table) to lift the peek off
             // the content behind it.
             "shadow-[-12px_0_32px_-16px_rgb(0_0_0_/_0.30)]",
@@ -270,21 +273,22 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
           </SheetPrimitive.Title>
           {header}
           {body}
-          {/* Rendered last so it is not the dialog's initial focus target; it
-              is absolutely positioned on the left edge regardless of DOM order. */}
+          {/* Rendered last so it is not the dialog's initial focus target. It
+              STRADDLES the left edge (−4px onto the table … +8px inside) so it's
+              an easy, grabbable target from either side; absolutely positioned,
+              so DOM order doesn't affect its placement. */}
           <div
             {...panel.resizeHandleProps}
-            className="group/resize absolute inset-y-0 left-0 z-10 flex w-2 cursor-ew-resize touch-none items-center justify-center focus-visible:outline-hidden"
+            className="group/resize absolute inset-y-0 -left-1 z-20 flex w-3 cursor-ew-resize touch-none justify-center focus-visible:outline-hidden"
           >
             <div
               aria-hidden="true"
               className={cn(
-                // Neutral, low-contrast affordance — the left border is the real
-                // edge; this only gently emphasizes it on hover/drag (no brand
-                // accent, in line with the cursor doing most of the signalling).
-                "h-full w-0.5 bg-transparent transition-colors",
-                "group-hover/resize:bg-muted-foreground/30 group-focus-visible/resize:bg-muted-foreground/40",
-                panel.isResizing && "bg-muted-foreground/50",
+                // Sits on the panel's left edge; subtle at rest, clearer on
+                // hover/drag (neutral, no brand accent — the cursor signals it).
+                "h-full w-1 rounded-full transition-colors",
+                "group-hover/resize:bg-muted-foreground/40 group-focus-visible/resize:bg-muted-foreground/50",
+                panel.isResizing ? "bg-muted-foreground/60" : "bg-transparent",
               )}
             />
           </div>
