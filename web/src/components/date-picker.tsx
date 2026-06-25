@@ -251,7 +251,10 @@ export function DatePickerWithRange({
             selected={internalDateRange}
             onSelect={(_, triggerDay) => onCalendarSelection(triggerDay)}
             numberOfMonths={2}
-            className="[&>div]:hidden sm:[&>div]:block [&>div:first-child]:block"
+            // react-day-picker v9 lays the two months out in a flex row; on
+            // narrow screens drop the second month rather than overriding that
+            // flex (the old `[&>div]` rule stacked them vertically). LFE-8156.
+            className="max-sm:[&>div>div:last-child]:hidden"
             disabled={disabled}
           />
           {/* Time pickers tune the boundaries of a *complete* range. During
