@@ -214,6 +214,11 @@ export function DatePickerWithRange({
           <Calendar
             autoFocus={true}
             mode="range"
+            // First click always starts a NEW range (clears the previous one);
+            // the next click sets the end. Without this, react-day-picker
+            // extends the existing range, which made the picker feel "sticky"
+            // (clicking a date became the end of the old range). See LFE-8156.
+            resetOnSelect
             defaultMonth={internalDateRange?.from}
             selected={internalDateRange}
             onSelect={onCalendarSelection}
@@ -451,6 +456,12 @@ export function TimeRangePicker({
             <>
               <Calendar
                 mode="range"
+                // First click always starts a NEW range (clears the previous
+                // one); the next click sets the end. Without this,
+                // react-day-picker extends the existing range, which made the
+                // picker feel "sticky" (clicking a date became the end of the
+                // old range). See LFE-8156.
+                resetOnSelect
                 defaultMonth={internalDateRange?.from || new Date()}
                 selected={internalDateRange}
                 onSelect={onCalendarSelection}
