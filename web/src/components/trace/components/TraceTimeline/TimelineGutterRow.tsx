@@ -24,6 +24,7 @@ const ICON_GAP = 6; // gap from a node's rail to its icon
 export function TimelineGutterRow({
   item,
   isSelected,
+  isHovered,
   onSelect,
   onHover,
   onToggleCollapse,
@@ -40,12 +41,18 @@ export function TimelineGutterRow({
   return (
     <div
       className={cn(
-        "group relative flex h-full w-full cursor-pointer items-center pr-2",
-        isSelected ? "bg-muted" : "hover:bg-muted/50",
+        "relative flex h-full w-full cursor-pointer items-center pr-2",
+        // Whole-row highlight is driven by shared state (so hovering the chart
+        // highlights the caption too). Selected stays distinct via the accent bar.
+        (isSelected || isHovered) && "bg-muted",
       )}
       onClick={onSelect}
       onMouseEnter={onHover}
     >
+      {/* Selected accent bar (no layout shift). */}
+      {isSelected && (
+        <div className="bg-primary-accent absolute inset-y-0 left-0 w-0.5" />
+      )}
       {/* Ancestor rails: continue through this row for ancestors with a sibling below. */}
       {treeLines
         .slice(0, Math.max(0, depth - 1))

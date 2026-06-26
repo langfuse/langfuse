@@ -29,6 +29,7 @@ export function TimelineBar({
   node,
   metrics,
   isSelected,
+  isHovered,
   showDuration,
   showCostTokens,
   showScores,
@@ -55,9 +56,13 @@ export function TimelineBar({
       )
     : null;
 
+  // Ring driven by shared row state (not group-hover) so it lights up whether
+  // the chart bar or the caption is hovered.
   const ringClass = isSelected
     ? "ring-primary-accent ring-2"
-    : "group-hover:ring-tertiary group-hover:ring-2";
+    : isHovered
+      ? "ring-tertiary ring-2"
+      : "";
 
   // Trailing label: rides just after the bar so metrics stay readable no matter
   // how thin the bar is. Respects the same view toggles as the tree.

@@ -32,6 +32,8 @@ export interface TimelineBarProps {
   node: TreeNode;
   metrics: TimelineMetrics;
   isSelected: boolean;
+  /** Row is hovered (driven by shared state so the whole row highlights). */
+  isHovered?: boolean;
   // View preferences
   showDuration: boolean;
   showCostTokens: boolean;
@@ -68,6 +70,8 @@ export interface FlatTimelineItem {
 export interface TimelineGutterRowProps {
   item: FlatTimelineItem;
   isSelected: boolean;
+  /** Row is hovered (shared state so the gutter + chart highlight together). */
+  isHovered?: boolean;
   onSelect: () => void;
   onHover?: () => void;
   onToggleCollapse: () => void;

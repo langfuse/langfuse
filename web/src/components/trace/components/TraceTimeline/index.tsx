@@ -53,6 +53,10 @@ export function TraceTimeline() {
   const chartRef = useRef<HTMLDivElement>(null);
   const scaleInnerRef = useRef<HTMLDivElement>(null);
 
+  // Hovered row, lifted to shared state so hovering either pane highlights the
+  // whole row (caption + chart), which CSS :hover can't do across two panes.
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
   // Resizable name gutter so users can trade name space for chart space.
   const [gutterWidth, setGutterWidth] = useState(GUTTER_WIDTH_DEFAULT);
   const startGutterResize = useCallback(
@@ -194,8 +198,14 @@ export function TraceTimeline() {
 
     const nodeId = item.node.id;
     const isSelected = selectedNodeId === nodeId;
+    const isHovered = hoveredNodeId === nodeId;
     const hasChildren = item.node.children.length > 0;
     const isCollapsed = collapsedNodes.has(nodeId);
+
+    const onEnter = () => {
+      setHoveredNodeId(nodeId);
+      handleHover(item.node);
+    };
 
     const baseStyle = {
       position: "absolute" as const,
@@ -211,8 +221,9 @@ export function TraceTimeline() {
           <TimelineGutterRow
             item={item}
             isSelected={isSelected}
+            isHovered={isHovered}
             onSelect={() => setSelectedNodeId(nodeId)}
-            onHover={() => handleHover(item.node)}
+            onHover={onEnter}
             onToggleCollapse={() => toggleCollapsed(nodeId)}
             hasChildren={hasChildren}
             isCollapsed={isCollapsed}
@@ -232,14 +243,18 @@ export function TraceTimeline() {
       <div
         key={nodeId}
         style={{ ...baseStyle, width: `${chartContentWidth}px` }}
-        className="group cursor-pointer"
+        className={cn(
+          "cursor-pointer",
+          (isSelected || isHovered) && "bg-muted",
+        )}
         onClick={() => setSelectedNodeId(nodeId)}
-        onMouseEnter={() => handleHover(item.node)}
+        onMouseEnter={onEnter}
       >
         <TimelineBar
           node={item.node}
           metrics={item.metrics}
           isSelected={isSelected}
+          isHovered={isHovered}
           showDuration={showDuration}
           showCostTokens={showCostTokens}
           showScores={showScores}
@@ -277,7 +292,10 @@ export function TraceTimeline() {
       </div>
 
       {/* Body: gutter pane | resizer | chart pane. */}
-      <div className="flex min-h-0 flex-1">
+      <div
+        className="flex min-h-0 flex-1"
+        onMouseLeave={() => setHoveredNodeId(null)}
+      >
         {/* Gutter pane — vertical scroll mirrored from the chart; scrollbar hidden. */}
         <div
           ref={gutterRef}
