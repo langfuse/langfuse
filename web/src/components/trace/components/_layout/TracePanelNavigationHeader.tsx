@@ -96,8 +96,8 @@ function TracePanelNavigationHeaderExpanded({
 
   // When the detail (info) panel is closed, the tree/timeline owns the whole
   // surface — so the left "collapse panel" toggle would only shrink the one
-  // thing on screen. Hide it, and offer a single "show detail" button at the
-  // right edge of the header instead (replacing the floating edge tab).
+  // thing on screen. Hide it. Re-opening the detail panel is handled by its own
+  // collapsed rail (see TraceLayoutDesktop), so the header needs no button.
   const layout = useDesktopLayoutContextOptional();
   const isDetailPanelCollapsed = layout?.isDetailPanelCollapsed ?? false;
 

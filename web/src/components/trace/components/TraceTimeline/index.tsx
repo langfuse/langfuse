@@ -38,8 +38,8 @@ import { cn } from "@/src/utils/tailwind";
 const GUTTER_WIDTH_DEFAULT = 200;
 const GUTTER_WIDTH_MIN = 160;
 const GUTTER_WIDTH_MAX = 560;
-// Dense waterfall rows (LFE-10539): the 20px bar / 16px name chip sit centered
-// with a few px of breathing room. Drives both the virtualizer estimate and the
+// Dense waterfall rows (LFE-10539): the 16px bar / 16px name chip sit centered
+// with ~5px of breathing room. Drives both the virtualizer estimate and the
 // rendered row height, so the two never drift.
 const ROW_HEIGHT = 26;
 
