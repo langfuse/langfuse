@@ -1,6 +1,11 @@
 import { StarIcon } from "lucide-react";
 
 import { Button } from "@/src/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { api } from "@/src/utils/api";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type RouterInput } from "@/src/utils/types";
@@ -14,7 +19,8 @@ export function StarToggle({
   onClick,
   size = "icon",
   isLoading,
-  label,
+  showLabel = false,
+  tooltip = false,
 }: {
   value: boolean;
   disabled?: boolean;
@@ -22,20 +28,34 @@ export function StarToggle({
   size?: "icon" | "icon-xs";
   isLoading: boolean;
   /** When set, render as a full-width labeled menu item instead of an icon. */
-  label?: string;
+  showLabel?: boolean;
+  /** When set, wrap the icon button in a hover tooltip announcing the state. */
+  tooltip?: boolean;
 }) {
-  return (
+  // Single source of truth for the accessible name, the menu label, AND the
+  // tooltip — all derived from `value`, so an optimistic flip updates the icon
+  // and every text surface together, and a screen reader always hears the real
+  // state in both the toolbar and the menu (LFE-10535).
+  const stateLabel = value ? "Remove bookmark" : "Bookmark";
+
+  const button = (
     <Button
       variant="ghost"
-      size={label ? "sm" : size}
-      className={label ? "w-full justify-start gap-2 font-normal" : undefined}
+      size={showLabel ? "sm" : size}
+      className={
+        showLabel ? "w-full justify-start gap-2 font-normal" : undefined
+      }
       onClick={(e) => {
         e.stopPropagation();
         onClick(!value);
       }}
       disabled={disabled}
       loading={isLoading}
-      aria-label="bookmark"
+      aria-label={stateLabel}
+      // Stable behaviour hook (decoupled from the human-facing label): the
+      // table marks this selector as "don't close the peek" so you can bookmark
+      // a row without dismissing the open peek.
+      data-bookmark-toggle="true"
     >
       <StarIcon
         className="h-4 w-4"
@@ -43,8 +63,19 @@ export function StarToggle({
         stroke={value ? "#ca8a04" : "currentColor"}
         strokeWidth={2}
       />
-      {label ? <span className="text-sm">{label}</span> : null}
+      {showLabel ? <span className="text-sm">{stateLabel}</span> : null}
     </Button>
+  );
+
+  if (!tooltip) return button;
+
+  // TooltipTrigger asChild wraps the real <Button> (not a <span>), so Radix puts
+  // aria-describedby on the focusable control and SR users hear the tooltip.
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>{stateLabel}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -131,13 +162,17 @@ export function StarTraceDetailsToggle({
   traceId,
   value,
   size = "icon",
-  label,
+  showLabel = false,
+  tooltip = false,
 }: {
   projectId: string;
   traceId: string;
   value: boolean;
   size?: "icon" | "icon-xs";
-  label?: string;
+  /** Render as a full-width labeled menu item (label tracks the optimistic state). */
+  showLabel?: boolean;
+  /** Wrap the icon button in a hover tooltip announcing the optimistic state. */
+  tooltip?: boolean;
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
@@ -170,7 +205,8 @@ export function StarTraceDetailsToggle({
     <StarToggle
       value={optimisticValue}
       size={size}
-      label={label}
+      showLabel={showLabel}
+      tooltip={tooltip}
       disabled={!hasAccess}
       isLoading={isLoading}
       onClick={(nextValue) => {
