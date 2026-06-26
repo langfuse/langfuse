@@ -3,6 +3,7 @@ import {
   deriveFilters,
   EventsQueryBuilder,
   ExperimentsAggregationQueryBuilder,
+  buildEventsFullTableSplitQuery,
   measureAndReturn,
   parseClickhouseUTCDateTimeFormat,
   publicApiExperimentItemColumnDefinitions,
@@ -14,6 +15,7 @@ import {
   queryClickhouse,
   queryScoreRecordsForExperimentItems,
   queryScoreRecordsForExperiments,
+  type QueryWithParams,
   type ScoreRecordReadType,
 } from "@langfuse/shared/src/server";
 import { type EventsTableFilterState } from "@langfuse/shared";
@@ -351,6 +353,7 @@ async function queryExperimentItemRowsForPublicApi(
     publicApiExperimentItemColumnDefinitions,
   );
 
+  const metadataFromFullTable = params.includeIo && params.includeMetadata;
   const queryBuilder = filterForItems(
     new EventsQueryBuilder({ projectId: params.projectId }).selectFieldSet(
       "publicApiExperimentItemCore",
@@ -363,13 +366,13 @@ async function queryExperimentItemRowsForPublicApi(
       ...(params.includeExperimentMetadata
         ? (["publicApiExperimentItemExperimentMetadata"] as const)
         : []),
-      ...(params.includeMetadata
+      ...(params.includeMetadata && !metadataFromFullTable
         ? (["publicApiExperimentItemMetadata"] as const)
         : []),
     ),
   )
     .when(params.includeIo, (b) =>
-      b.selectFieldSet("publicApiExperimentItemExpectedOutput").selectIO(false),
+      b.selectFieldSet("publicApiExperimentItemExpectedOutput"),
     )
     .when(Boolean(fromStartTime), (b) =>
       b.whereRaw("e.start_time >= {startTimeFrom: DateTime64(3)}", {
@@ -397,7 +400,16 @@ async function queryExperimentItemRowsForPublicApi(
     .orderBy(experimentItemOrderBy("e"))
     .limit(params.limit);
 
-  const { query, params: queryParams } = queryBuilder.buildWithParams();
+  const builder: QueryWithParams = params.includeIo
+    ? buildEventsFullTableSplitQuery({
+        projectId: params.projectId,
+        baseBuilder: queryBuilder,
+        includeIO: true,
+        includeMetadata: metadataFromFullTable,
+      }).orderBy(experimentItemOrderBy("b"))
+    : queryBuilder;
+
+  const { query, params: queryParams } = builder.buildWithParams();
 
   const rows = await measureAndReturn({
     operationName: "queryExperimentItemRowsForPublicApi",
