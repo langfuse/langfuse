@@ -175,10 +175,17 @@ TraceLayoutDesktop.DetailPanel = function Detail({
   children: ReactNode;
 }) {
   return (
-    // Pixel floor (not 50%) so the detail can shrink to a readable minimum and
-    // the navigation/timeline can take the rest — the same width the narrow peek
-    // already renders this content at. Below this it would start to break.
-    <Panel id={RESIZABLE_PANEL_PREVIEW_ID} defaultSize="70%" minSize="360px">
+    // Collapsible like the navigation panel: dragging it below the 360px floor
+    // snaps it shut (collapsedSize 0) so the timeline/tree can take the full
+    // width; drag the handle back out to restore. 360px is the readable minimum
+    // the narrow peek already renders this content at.
+    <Panel
+      id={RESIZABLE_PANEL_PREVIEW_ID}
+      defaultSize="70%"
+      collapsible={true}
+      collapsedSize="0px"
+      minSize="360px"
+    >
       {children}
     </Panel>
   );
