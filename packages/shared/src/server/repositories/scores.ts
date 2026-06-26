@@ -271,7 +271,7 @@ export const getScoresForSessions = async <
     clickhouseConfigs,
   });
 
-  const includeMetadataPayload = excludeMetadata ? false : true;
+  const includeMetadataPayload = !excludeMetadata;
   return rows.map((row) =>
     convertClickhouseScoreToDomain(row, includeMetadataPayload),
   );
@@ -320,7 +320,7 @@ export const getScoresForExperiments = async <
     clickhouseConfigs,
   });
 
-  const includeMetadataPayload = excludeMetadata ? false : true;
+  const includeMetadataPayload = !excludeMetadata;
   return rows.map((row) =>
     convertClickhouseScoreToDomain<ExcludeMetadata, AggregatableScoreDataType>(
       row,
@@ -551,7 +551,7 @@ const getScoresForTracesInternal = async <
     preferredClickhouseService,
   });
 
-  const includeMetadataPayload = excludeMetadata ? false : true;
+  const includeMetadataPayload = !excludeMetadata;
   return rows.map((row) => {
     const score = convertClickhouseScoreToDomain(
       {
@@ -684,7 +684,7 @@ export const getScoresForObservations = async <
     clickhouseConfigs,
   });
 
-  const includeMetadataPayload = excludeMetadata ? false : true;
+  const includeMetadataPayload = !excludeMetadata;
   return rows.map((row) => ({
     ...convertClickhouseScoreToDomain(
       {
@@ -1220,7 +1220,7 @@ export async function getScoresUiTable<
     ...rest,
   });
 
-  const includeMetadataPayload = excludeMetadata ? false : true;
+  const includeMetadataPayload = !excludeMetadata;
   return rows.map((row) => {
     const score = convertClickhouseScoreToDomain(
       {

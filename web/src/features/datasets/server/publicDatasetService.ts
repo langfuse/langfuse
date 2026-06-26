@@ -639,7 +639,7 @@ export const createDatasetItemForApi = async ({
       sourceObservationId: input.sourceObservationId ?? undefined,
       status: input.status ?? undefined,
       normalizeOpts: { sanitizeControlChars: true },
-      validateOpts: { normalizeUndefinedToNull: !!input.id ? false : true },
+      validateOpts: { normalizeUndefinedToNull: !input.id },
     });
 
     if (auditScope) {

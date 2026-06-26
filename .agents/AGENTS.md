@@ -26,6 +26,8 @@ evaluating, and debugging AI applications.
   cross-view extension playbook — the bar is intended to become the primary
   filter interface for every filterable view, so new filtering work extends it
   through that contract rather than forking it.
+- Do not add or widen ESLint disable comments or config overrides
+  without explicit user approval for the exact rule and scope.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 

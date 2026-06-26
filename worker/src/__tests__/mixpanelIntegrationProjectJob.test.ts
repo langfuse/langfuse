@@ -59,6 +59,7 @@ vi.mock("../features/mixpanel/mixpanelClient", () => ({
       h.timeline.push("flush");
     });
     getBatchSize = vi.fn().mockReturnValue(0);
+    getSerializedBytes = vi.fn().mockReturnValue(0);
     constructor() {
       h.constructed.push(this);
     }
@@ -102,6 +103,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 vi.mock("@langfuse/shared/src/server", () => ({
   QueueName: { MixpanelIntegrationProcessingQueue: "mixpanel" },
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+  recordIncrement: vi.fn(),
   getCurrentSpan: vi.fn(() => undefined),
   getTracesForAnalyticsIntegrations: vi.fn(() => h.fakeStream("traces")),
   getGenerationsForAnalyticsIntegrations: vi.fn(() =>
