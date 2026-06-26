@@ -28,6 +28,7 @@ import {
 import { TimelineScale } from "./TimelineScale";
 import { TimelineGutterRow } from "./TimelineGutterRow";
 import { TimelineBar } from "./TimelineBar";
+import { useDesktopLayoutContextOptional } from "../_layout/TraceLayoutDesktop";
 import { cn } from "@/src/utils/tailwind";
 
 // Width of the left name gutter. Resizable; these bound it.
@@ -48,6 +49,8 @@ export function TraceTimeline() {
     colorCodeMetrics,
   } = useViewPreferences();
   const { handleHover } = useHandlePrefetchObservation();
+  // Optional (null in the mobile layout): reopen the detail panel on select.
+  const layout = useDesktopLayoutContextOptional();
 
   const gutterRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
@@ -193,17 +196,22 @@ export function TraceTimeline() {
   const totalSize = rowVirtualizer.getTotalSize();
   const virtualItems = rowVirtualizer.getVirtualItems();
 
-  // The chart's horizontal scrollbar (classic scrollbars on Windows/Linux) eats
-  // ~15px of its vertical client area; the gutter hides its scrollbar and keeps
-  // the full height. Left unequal, their scrollable extents differ and the
-  // mirrored scrollTop clamps at the bottom, so captions drift from their bars.
-  // Pad the gutter's content by that exact amount (0 with macOS overlay bars).
-  const [chartScrollbarSize, setChartScrollbarSize] = useState(0);
+  // Classic scrollbars (Windows/Linux) on the chart pane consume client area
+  // the gutter/scale don't: its horizontal scrollbar eats ~15px of height, its
+  // vertical scrollbar ~15px of width. We reserve the matching amount on the
+  // gutter (bottom) and the scale strip (right) so the three panes share the
+  // same scrollable extent — otherwise mirrored scroll clamps at the bottom and
+  // a right-edge tick floats over the chart's scrollbar. Both are 0 with macOS
+  // overlay bars.
+  const [chartScrollbar, setChartScrollbar] = useState({ x: 0, y: 0 });
   useLayoutEffect(() => {
     const el = chartRef.current;
     if (!el) return;
     const measure = () =>
-      setChartScrollbarSize(el.offsetHeight - el.clientHeight);
+      setChartScrollbar({
+        x: el.offsetWidth - el.clientWidth,
+        y: el.offsetHeight - el.clientHeight,
+      });
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -227,6 +235,12 @@ export function TraceTimeline() {
       setHoveredNodeId(nodeId);
       handleHover(item.node);
     };
+    // Reopen the detail panel on any select — including re-clicking the
+    // already-selected row, where the URL param (and the effect) wouldn't fire.
+    const onSelectNode = () => {
+      setSelectedNodeId(nodeId);
+      layout?.expandDetailPanel();
+    };
 
     const baseStyle = {
       position: "absolute" as const,
@@ -243,7 +257,7 @@ export function TraceTimeline() {
             item={item}
             isSelected={isSelected}
             isHovered={isHovered}
-            onSelect={() => setSelectedNodeId(nodeId)}
+            onSelect={onSelectNode}
             onHover={onEnter}
             onToggleCollapse={() => toggleCollapsed(nodeId)}
             hasChildren={hasChildren}
@@ -268,7 +282,7 @@ export function TraceTimeline() {
           "cursor-pointer",
           (isSelected || isHovered) && "bg-muted",
         )}
-        onClick={() => setSelectedNodeId(nodeId)}
+        onClick={onSelectNode}
         onMouseEnter={onEnter}
       >
         <TimelineBar
@@ -301,7 +315,10 @@ export function TraceTimeline() {
           Name
         </div>
         <div className="bg-border/60 w-px shrink-0" />
-        <div className="flex-1 overflow-hidden">
+        <div
+          className="flex-1 overflow-hidden"
+          style={{ marginRight: `${chartScrollbar.x}px` }}
+        >
           <div ref={scaleInnerRef} style={{ width: `${chartContentWidth}px` }}>
             <TimelineScale
               traceDuration={traceDuration}
@@ -326,7 +343,7 @@ export function TraceTimeline() {
         >
           <div
             style={{
-              height: `${totalSize + chartScrollbarSize}px`,
+              height: `${totalSize + chartScrollbar.y}px`,
               position: "relative",
             }}
           >

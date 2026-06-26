@@ -15,6 +15,7 @@ import { SpanContent } from "./SpanContent";
 import { useTraceData } from "../contexts/TraceDataContext";
 import { useSelection } from "../contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservation";
+import { useDesktopLayoutContextOptional } from "./_layout/TraceLayoutDesktop";
 import { type TreeNode } from "../lib/types";
 
 export function TraceTree() {
@@ -22,6 +23,13 @@ export function TraceTree() {
   const { selectedNodeId, setSelectedNodeId, collapsedNodes, toggleCollapsed } =
     useSelection();
   const { handleHover } = useHandlePrefetchObservation();
+  // Optional (null on mobile): reopen the detail panel on select, including
+  // re-selecting the already-selected node.
+  const layout = useDesktopLayoutContextOptional();
+  const handleSelectNode = (id: string | null) => {
+    setSelectedNodeId(id);
+    layout?.expandDetailPanel();
+  };
 
   // TODO: Extract aggregation logic to shared utility - duplicated in tree-building.ts and TraceTimeline/index.tsx
   // Calculate aggregated totals across all roots for heatmap color scaling
@@ -46,7 +54,7 @@ export function TraceTree() {
       collapsedNodes={collapsedNodes}
       selectedNodeId={selectedNodeId}
       onToggleCollapse={toggleCollapsed}
-      onSelectNode={setSelectedNodeId}
+      onSelectNode={handleSelectNode}
       renderNode={({
         node,
         treeMetadata,

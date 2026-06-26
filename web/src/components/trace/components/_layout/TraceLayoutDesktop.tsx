@@ -55,6 +55,12 @@ export function useDesktopLayoutContext() {
   return useLayoutContext();
 }
 
+// Safe variant for components rendered in both desktop and mobile layouts
+// (mobile has no provider): returns null instead of throwing.
+export function useDesktopLayoutContextOptional() {
+  return useContext(LayoutContext);
+}
+
 export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   // Get current view mode from URL
   const [viewMode] = useQueryParam("view", StringParam);
@@ -72,15 +78,19 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   // Detail (info/preview) panel collapse state + control.
   const detailPanelRef = usePanelRef();
   const [isDetailPanelCollapsed, setIsDetailPanelCollapsed] = useState(false);
-  const expandDetailPanel = () => detailPanelRef.current?.expand();
+  // Guarded so it's a no-op (not a resize) when already open — safe to call on
+  // every row click, which is how re-selecting the same node reopens it.
+  const expandDetailPanel = () => {
+    if (detailPanelRef.current?.isCollapsed()) detailPanelRef.current.expand();
+  };
 
   // Selecting another node (timeline/tree) while the detail panel is collapsed
-  // reopens it — otherwise the selection would update nothing visible.
+  // reopens it. This covers selection CHANGES (incl. the search list); re-
+  // selecting the same node is handled at the row click via expandDetailPanel,
+  // since the URL param — and thus this effect — doesn't change on re-click.
   const { selectedNodeId } = useSelection();
   useEffect(() => {
-    if (selectedNodeId && detailPanelRef.current?.isCollapsed()) {
-      detailPanelRef.current.expand();
-    }
+    expandDetailPanel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId]);
 
