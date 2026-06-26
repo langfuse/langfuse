@@ -193,6 +193,23 @@ export function TraceTimeline() {
   const totalSize = rowVirtualizer.getTotalSize();
   const virtualItems = rowVirtualizer.getVirtualItems();
 
+  // The chart's horizontal scrollbar (classic scrollbars on Windows/Linux) eats
+  // ~15px of its vertical client area; the gutter hides its scrollbar and keeps
+  // the full height. Left unequal, their scrollable extents differ and the
+  // mirrored scrollTop clamps at the bottom, so captions drift from their bars.
+  // Pad the gutter's content by that exact amount (0 with macOS overlay bars).
+  const [chartScrollbarSize, setChartScrollbarSize] = useState(0);
+  useLayoutEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    const measure = () =>
+      setChartScrollbarSize(el.offsetHeight - el.clientHeight);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [chartContentWidth, totalSize, gutterWidth]);
+
   const renderRow = (
     virtualRow: (typeof virtualItems)[number],
     pane: "gutter" | "chart",
@@ -307,7 +324,12 @@ export function TraceTimeline() {
           className="shrink-0 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden"
           style={{ width: `${gutterWidth}px`, scrollbarWidth: "none" }}
         >
-          <div style={{ height: `${totalSize}px`, position: "relative" }}>
+          <div
+            style={{
+              height: `${totalSize + chartScrollbarSize}px`,
+              position: "relative",
+            }}
+          >
             {virtualItems.map((vr) => renderRow(vr, "gutter"))}
           </div>
         </div>

@@ -101,7 +101,11 @@ export function TimelineGutterRow({
         className="flex min-w-0 flex-1 items-center gap-2"
         style={{ paddingLeft: `${contentLeft}px` }}
       >
-        <ItemBadge type={node.type} isSmall className="shrink-0" />
+        {/* Wrap to keep the badge from flex-shrinking (ItemBadge's className
+            only reaches the inner icon, not the Badge wrapper). */}
+        <div className="shrink-0">
+          <ItemBadge type={node.type} isSmall />
+        </div>
         <span
           className="text-primary min-w-0 flex-1 truncate text-xs font-medium"
           title={node.name}
