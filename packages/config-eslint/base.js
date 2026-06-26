@@ -45,6 +45,8 @@ export default tseslint.config(
     },
     rules: {
       "no-void": "warn",
+      "no-else-return": "warn",
+      "no-unneeded-ternary": "warn",
       "no-redeclare": "off",
       "import/order": "off",
     },
@@ -88,6 +90,7 @@ export default tseslint.config(
         },
       ],
       "@typescript-eslint/no-deprecated": "warn",
+      "@typescript-eslint/no-inferrable-types": "warn",
     },
   },
 

@@ -1,12 +1,13 @@
 import { Rng } from "./rng";
 
-export type PayloadStyle = "json" | "text" | "malformed" | "unicode";
+export type PayloadStyle = "json" | "text" | "malformed" | "unicode" | "bignum";
 
 export const PAYLOAD_STYLES: PayloadStyle[] = [
   "json",
   "text",
   "malformed",
   "unicode",
+  "bignum",
 ];
 
 const WORDS = [
@@ -105,8 +106,43 @@ const buildUnicodePayload = (rng: Rng, targetBytes: number): string => {
 };
 
 /**
+ * Builds a JSON payload containing integers that exceed JavaScript's
+ * Number.MAX_SAFE_INTEGER (2^53-1), to reproduce precision loss in the
+ * JSON/IO viewer (issue #6628). `as_number` is the exact value from that
+ * report; native JSON.parse rounds it to 107505301260286110.
+ *
+ * CRITICAL: every large integer is emitted as literal digit text, never as a
+ * JS number literal. A literal like `107505301260286111` in this source would
+ * be rounded to a double by V8 before it could be stringified, so the seeded
+ * payload would already be wrong on disk. Hand-build the string instead.
+ */
+const buildBignumPayload = (targetBytes: number): string => {
+  const entries: string[] = [
+    `"as_number": 107505301260286111`, // exact value from #6628 (unsafe int64)
+    `"as_string": "107505301260286111"`, // control: must always render verbatim
+    `"int64_max": 9223372036854775807`, // int64 max, far beyond 2^53-1
+    `"safe_number": 42`, // safe integer, must be unaffected
+    `"nested": {"big": 1234567890123456789, "ok": 7}`, // recursive parse path
+    `"array": [100000000000000001, 100000000000000002, "100000000000000003"]`,
+  ];
+  // Pad deterministically toward targetBytes with more unsafe integers. Each
+  // filler is a 17-digit number (> 2^53), derived purely from its index so the
+  // payload is reproducible and never touches the rng stream.
+  let index = 0;
+  let size = entries.reduce((n, e) => n + e.length + 1, 2);
+  while (size < targetBytes) {
+    const entry = `"filler_${index}": 90071992547${String(index).padStart(6, "0")}`;
+    entries.push(entry);
+    size += entry.length + 1;
+    index++;
+  }
+  return `{${entries.join(",")}}`;
+};
+
+/**
  * Builds a payload string of approximately targetBytes. "malformed" returns
  * intentionally invalid JSON (truncated, unclosed) for JSON-viewer edge cases.
+ * "bignum" returns integers beyond 2^53-1 for number-precision edge cases.
  */
 export const buildPayload = (
   style: PayloadStyle,
@@ -120,6 +156,8 @@ export const buildPayload = (
       return buildTextPayload(rng, targetBytes);
     case "unicode":
       return buildUnicodePayload(rng, targetBytes);
+    case "bignum":
+      return buildBignumPayload(targetBytes);
     case "malformed": {
       const valid = buildJsonPayload(rng, targetBytes);
       return `${valid.slice(0, Math.floor(valid.length * 0.9))},"unclosed":"tr`;

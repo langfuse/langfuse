@@ -12,6 +12,38 @@ import {
   MonitorWindowSchema,
 } from "./types";
 
+describe("Monitor enum schemas", () => {
+  it("accepts the persisted severity values", () => {
+    expect(MonitorSeveritySchema.options).toEqual([
+      "PAUSED",
+      "UNKNOWN",
+      "NO_DATA",
+      "OK",
+      "WARNING",
+      "ALERT",
+    ]);
+  });
+
+  it("accepts the persisted status values", () => {
+    expect(MonitorStatusSchema.options).toEqual([
+      "PAUSED",
+      "ACTIVE",
+      "ERROR_BAD_QUERY",
+    ]);
+  });
+
+  it("accepts the persisted threshold operator values", () => {
+    expect(MonitorThresholdOperatorSchema.options).toEqual([
+      "GT",
+      "GTE",
+      "LT",
+      "LTE",
+      "EQ",
+      "NEQ",
+    ]);
+  });
+});
+
 // Minimal valid domain object. Tests override one field at a time.
 const validMonitorBase = {
   id: "mon_01",

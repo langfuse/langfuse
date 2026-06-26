@@ -1,13 +1,16 @@
-import {
-  EvalTargetObject,
-  type ColumnDefinition,
-  JobConfigState,
-} from "@langfuse/shared";
+import type { ColumnDefinition } from "@langfuse/shared";
 
-export const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
-  (value) => ({
-    value,
-  }),
+const EVAL_CONFIG_TARGET_VALUES = [
+  "trace",
+  "dataset",
+  "event",
+  "experiment",
+] as const;
+
+const JOB_CONFIG_STATE_VALUES = ["ACTIVE", "INACTIVE"] as const;
+
+export const evalConfigTargetOptions = EVAL_CONFIG_TARGET_VALUES.map(
+  (value) => ({ value }),
 );
 
 export const evalConfigTargetValues = evalConfigTargetOptions.map(
@@ -32,7 +35,7 @@ export const evalConfigFilterColumns: ColumnDefinition[] = [
     id: "status",
     type: "stringOptions",
     internal: evaluatorDisplayStatusSql,
-    options: [...Object.values(JobConfigState), "PAUSED"].map((value) => ({
+    options: [...JOB_CONFIG_STATE_VALUES, "PAUSED"].map((value) => ({
       value,
     })),
   },

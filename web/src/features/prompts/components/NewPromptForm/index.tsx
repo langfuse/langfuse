@@ -491,7 +491,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
         )}
       </form>
       {formError && (
-        <p className="text-red text-center">
+        <p className="text-center">
           <span className="font-bold">Error:</span> {formError}
         </p>
       )}

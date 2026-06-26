@@ -59,12 +59,7 @@ async function getExistingRunItemDatasetItemIds(
       runId,
       datasetId,
     },
-    tags: {
-      feature: "dataset-run-item",
-      type: "read",
-      kind: "list",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   return new Set(rows.map((row) => row.id));

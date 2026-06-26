@@ -96,10 +96,6 @@ export const handleEventPropagationJob = async (
         ORDER BY partition ASC
       `,
       params: lastProcessedPartition ? { lastProcessedPartition } : undefined,
-      tags: {
-        feature: "ingestion",
-        operation_name: "getNextPartition",
-      },
     });
 
     recordGauge(
@@ -294,11 +290,6 @@ export const handleEventPropagationJob = async (
         WHERE obs._partition_value = tuple('${partitionToProcess}')
         ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
-      tags: {
-        feature: "ingestion",
-        partition: partitionToProcess,
-        operation_name: "propagateObservationsToEvents",
-      },
       clickhouseConfigs: {
         request_timeout: 600000, // 10 minutes timeout
       },

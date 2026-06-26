@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getExperimentsFilterConfig } from "@/src/features/experiments/components/table/filter-config";
-import { evalLogFilterConfig } from "@/src/features/filters/config/eval-logs-config";
-import { evaluatorFilterConfig } from "@/src/features/filters/config/evaluators-config";
-import { monitorFilterConfig } from "@/src/features/filters/config/monitors-config";
-import { getScoreFilterConfig } from "@/src/features/filters/config/scores-config";
-import { getSessionFilterConfig } from "@/src/features/filters/config/sessions-config";
+import type { ColumnDefinition } from "@langfuse/shared";
 
 import { eventsSearchBarRegistry } from "./fields";
 import {
@@ -92,11 +87,336 @@ const filterOnlyFieldValues = [
   "a b",
 ];
 
+const SESSION_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "Session ID",
+    id: "id",
+    type: "string",
+    internal: "id",
+    nullable: true,
+  },
+  {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: "environment",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "User IDs",
+    id: "userIds",
+    type: "arrayOptions",
+    internal: "userIds",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Trace Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: "tags",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Session Duration",
+    id: "sessionDuration",
+    type: "number",
+    internal: "sessionDuration",
+    nullable: true,
+  },
+  {
+    name: "Trace Count",
+    id: "countTraces",
+    type: "number",
+    internal: "countTraces",
+    nullable: true,
+  },
+  {
+    name: "Input Tokens",
+    id: "inputTokens",
+    type: "number",
+    internal: "inputTokens",
+    nullable: true,
+  },
+  {
+    name: "Output Tokens",
+    id: "outputTokens",
+    type: "number",
+    internal: "outputTokens",
+    nullable: true,
+  },
+  {
+    name: "Total Tokens",
+    id: "totalTokens",
+    type: "number",
+    internal: "totalTokens",
+    nullable: true,
+  },
+  {
+    name: "Input Cost",
+    id: "inputCost",
+    type: "number",
+    internal: "inputCost",
+    nullable: true,
+  },
+  {
+    name: "Output Cost",
+    id: "outputCost",
+    type: "number",
+    internal: "outputCost",
+    nullable: true,
+  },
+  {
+    name: "Total Cost",
+    id: "totalCost",
+    type: "number",
+    internal: "totalCost",
+    nullable: true,
+  },
+  {
+    name: "Comment Count",
+    id: "commentCount",
+    type: "number",
+    internal: "commentCount",
+  },
+  {
+    name: "Comment Content",
+    id: "commentContent",
+    type: "string",
+    internal: "commentContent",
+    nullable: true,
+  },
+];
+
+const SCORE_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "Trace ID",
+    id: "traceId",
+    type: "string",
+    internal: "traceId",
+    nullable: true,
+  },
+  {
+    name: "Session ID",
+    id: "sessionId",
+    type: "string",
+    internal: "sessionId",
+    nullable: true,
+  },
+  {
+    name: "Observation ID",
+    id: "observationId",
+    type: "string",
+    internal: "observationId",
+    nullable: true,
+  },
+  {
+    name: "Environment",
+    id: "environment",
+    type: "stringOptions",
+    internal: "environment",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Name",
+    id: "name",
+    type: "stringOptions",
+    internal: "name",
+    options: [],
+  },
+  {
+    name: "Source",
+    id: "source",
+    type: "stringOptions",
+    internal: "source",
+    options: [],
+  },
+  {
+    name: "Data Type",
+    id: "dataType",
+    type: "stringOptions",
+    internal: "dataType",
+    options: [],
+  },
+  {
+    name: "Categorical Value",
+    id: "stringValue",
+    type: "stringOptions",
+    internal: "stringValue",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "User ID",
+    id: "userId",
+    type: "stringOptions",
+    internal: "userId",
+    options: [],
+    nullable: true,
+  },
+  {
+    name: "Trace Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: "tags",
+    options: [],
+    nullable: true,
+  },
+];
+
+const EXPERIMENT_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "Experiment ID",
+    id: "id",
+    type: "string",
+    internal: "id",
+  },
+  {
+    name: "Name",
+    id: "name",
+    type: "stringOptions",
+    internal: "name",
+    options: [],
+  },
+  {
+    name: "Dataset ID",
+    id: "experimentDatasetId",
+    type: "stringOptions",
+    internal: "experimentDatasetId",
+    options: [],
+  },
+  {
+    name: "Start Time",
+    id: "startTime",
+    type: "datetime",
+    internal: "startTime",
+  },
+  {
+    name: "Item Count",
+    id: "itemCount",
+    type: "number",
+    internal: "itemCount",
+  },
+  {
+    name: "Total Cost",
+    id: "totalCost",
+    type: "number",
+    internal: "totalCost",
+    nullable: true,
+  },
+  {
+    name: "Latency Average",
+    id: "latencyAvg",
+    type: "number",
+    internal: "latencyAvg",
+    nullable: true,
+  },
+  {
+    name: "Error Count",
+    id: "errorCount",
+    type: "number",
+    internal: "errorCount",
+  },
+  {
+    name: "Description",
+    id: "description",
+    type: "string",
+    internal: "description",
+    nullable: true,
+  },
+  {
+    name: "Metadata",
+    id: "metadata",
+    type: "stringObject",
+    internal: "metadata",
+  },
+];
+
+const EVALUATOR_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "Status",
+    id: "status",
+    type: "stringOptions",
+    internal: "status",
+    options: [],
+  },
+  {
+    name: "Target",
+    id: "target",
+    type: "stringOptions",
+    internal: "target",
+    options: [],
+  },
+  {
+    name: "Updated At",
+    id: "updatedAt",
+    type: "datetime",
+    internal: "updatedAt",
+    nullable: true,
+  },
+  {
+    name: "Created At",
+    id: "createdAt",
+    type: "datetime",
+    internal: "createdAt",
+  },
+];
+
+const EVAL_LOG_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "Status",
+    id: "status",
+    type: "stringOptions",
+    internal: "status",
+    options: [],
+  },
+  {
+    name: "Trace ID",
+    id: "traceId",
+    type: "string",
+    internal: "traceId",
+    nullable: true,
+  },
+  {
+    name: "Execution Trace ID",
+    id: "executionTraceId",
+    type: "string",
+    internal: "executionTraceId",
+    nullable: true,
+  },
+];
+
+const MONITOR_COLUMNS: ColumnDefinition[] = [
+  {
+    name: "Severity",
+    id: "severity",
+    type: "stringOptions",
+    internal: "severity",
+    options: [],
+  },
+  {
+    name: "Status",
+    id: "status",
+    type: "stringOptions",
+    internal: "status",
+    options: [],
+  },
+  {
+    name: "Tags",
+    id: "tags",
+    type: "arrayOptions",
+    internal: "tags",
+    options: [],
+    nullable: true,
+  },
+];
+
 const sessionsView: RegistryUnderTest = {
   name: "sessions v4",
-  registry: createSessionsSearchBarRegistry(
-    getSessionFilterConfig().columnDefinitions,
-  ),
+  registry: createSessionsSearchBarRegistry(SESSION_COLUMNS),
   extraKeys: ["scores.accuracy", "scores.feedback", "has:commentContent"],
   scoreContexts: [
     {
@@ -118,9 +438,7 @@ const sessionsView: RegistryUnderTest = {
 
 const scoresView: RegistryUnderTest = {
   name: "scores v4",
-  registry: createScoresSearchBarRegistry(
-    getScoreFilterConfig().columnDefinitions,
-  ),
+  registry: createScoresSearchBarRegistry(SCORE_COLUMNS),
   extraKeys: ["has:stringValue"],
   scoreContexts: [],
   fieldValues: filterOnlyFieldValues,
@@ -129,9 +447,7 @@ const scoresView: RegistryUnderTest = {
 
 const experimentsView: RegistryUnderTest = {
   name: "experiments",
-  registry: createExperimentsSearchBarRegistry(
-    getExperimentsFilterConfig().columnDefinitions,
-  ),
+  registry: createExperimentsSearchBarRegistry(EXPERIMENT_COLUMNS),
   extraKeys: [
     "metadata.region",
     "scores.accuracy",
@@ -158,9 +474,7 @@ const experimentsView: RegistryUnderTest = {
 
 const evaluatorsView: RegistryUnderTest = {
   name: "evaluators",
-  registry: createEvaluatorsSearchBarRegistry(
-    evaluatorFilterConfig.columnDefinitions,
-  ),
+  registry: createEvaluatorsSearchBarRegistry(EVALUATOR_COLUMNS),
   extraKeys: ["has:updatedAt"],
   scoreContexts: [],
   fieldValues: filterOnlyFieldValues,
@@ -169,9 +483,7 @@ const evaluatorsView: RegistryUnderTest = {
 
 const evalLogsView: RegistryUnderTest = {
   name: "eval logs",
-  registry: createEvalLogsSearchBarRegistry(
-    evalLogFilterConfig.columnDefinitions,
-  ),
+  registry: createEvalLogsSearchBarRegistry(EVAL_LOG_COLUMNS),
   extraKeys: ["has:traceId"],
   scoreContexts: [],
   fieldValues: filterOnlyFieldValues,
@@ -180,9 +492,7 @@ const evalLogsView: RegistryUnderTest = {
 
 const monitorsView: RegistryUnderTest = {
   name: "monitors",
-  registry: createMonitorsSearchBarRegistry(
-    monitorFilterConfig.columnDefinitions,
-  ),
+  registry: createMonitorsSearchBarRegistry(MONITOR_COLUMNS),
   extraKeys: ["has:tags"],
   scoreContexts: [],
   fieldValues: filterOnlyFieldValues,

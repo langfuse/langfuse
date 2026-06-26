@@ -51,6 +51,10 @@ interface ProcessingNode {
   inDegree: number; // Number of unprocessed children (for topological sort)
   depth: number; // Tree depth (calculated during graph building)
   treeNode?: TreeNode; // Set when node is processed
+  // Earliest start / latest end (epoch ms) across this node and all descendants.
+  // Tracked bottom-up to derive subtreeWallClockDurationMs (mirrors cost aggregation).
+  subtreeMinStartMs?: number;
+  subtreeMaxEndMs?: number;
 }
 
 /**
@@ -240,6 +244,30 @@ function buildTreeNodesBottomUp(
         ? nodeCost.plus(childrenTotalCost)
         : nodeCost || childrenTotalCost;
 
+    // Aggregate subtree wall-clock bounds bottom-up: earliest start and latest
+    // end across this node and every descendant. Children are already processed,
+    // so their bounds are available on the ProcessingNode registry.
+    // A missing endTime contributes only its start (zero-length interval).
+    let subtreeMinStartMs = obs.startTime.getTime();
+    let subtreeMaxEndMs = obs.endTime
+      ? obs.endTime.getTime()
+      : obs.startTime.getTime();
+    for (const childId of currentNode.childrenIds) {
+      const childNode = nodeRegistry.get(childId);
+      if (childNode?.subtreeMinStartMs != null) {
+        subtreeMinStartMs = Math.min(
+          subtreeMinStartMs,
+          childNode.subtreeMinStartMs,
+        );
+      }
+      if (childNode?.subtreeMaxEndMs != null) {
+        subtreeMaxEndMs = Math.max(subtreeMaxEndMs, childNode.subtreeMaxEndMs);
+      }
+    }
+    currentNode.subtreeMinStartMs = subtreeMinStartMs;
+    currentNode.subtreeMaxEndMs = subtreeMaxEndMs;
+    const subtreeWallClockDurationMs = subtreeMaxEndMs - subtreeMinStartMs;
+
     // Calculate temporal and structural properties
     const startTimeSinceTrace =
       obs.startTime.getTime() - traceStartTime.getTime();
@@ -283,6 +311,7 @@ function buildTreeNodesBottomUp(
       parentObservationId: obs.parentObservationId,
       traceId: obs.traceId,
       totalCost,
+      subtreeWallClockDurationMs,
       startTimeSinceTrace,
       startTimeSinceParentStart,
       depth,

@@ -184,9 +184,8 @@ export function convert12HourTo24Hour(hour: number, period: Period) {
   if (period === "PM") {
     if (hour <= 11) {
       return hour + 12;
-    } else {
-      return hour;
     }
+    return hour;
   } else if (period === "AM") {
     if (hour === 12) return 0;
     return hour;

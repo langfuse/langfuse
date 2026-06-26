@@ -1,6 +1,24 @@
-import { DashboardWidgetChartType, DashboardWidgetViews } from "@prisma/client";
 import { z } from "zod";
 import { singleFilter } from "../../../";
+
+export const DashboardWidgetViewsSchema = z.enum([
+  "TRACES",
+  "OBSERVATIONS",
+  "SCORES_NUMERIC",
+  "SCORES_CATEGORICAL",
+]);
+
+export const DashboardWidgetChartTypeSchema = z.enum([
+  "LINE_TIME_SERIES",
+  "AREA_TIME_SERIES",
+  "BAR_TIME_SERIES",
+  "HORIZONTAL_BAR",
+  "VERTICAL_BAR",
+  "PIE",
+  "NUMBER",
+  "HISTOGRAM",
+  "PIVOT_TABLE",
+]);
 
 export const BaseTimeSeriesChartConfig = z.object({});
 export const BaseTotalValueChartConfig = z.object({
@@ -122,11 +140,11 @@ export const WidgetDomainSchema = z.object({
   projectId: z.string().nullable(),
   name: z.string(),
   description: z.string(),
-  view: z.enum(DashboardWidgetViews),
+  view: DashboardWidgetViewsSchema,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
   filters: z.array(singleFilter),
-  chartType: z.enum(DashboardWidgetChartType),
+  chartType: DashboardWidgetChartTypeSchema,
   chartConfig: ChartConfigSchema,
   minVersion: z.number().int().default(1),
   owner: OwnerEnum,
@@ -136,11 +154,11 @@ export const WidgetDomainSchema = z.object({
 export const CreateWidgetInputSchema = z.object({
   name: z.string().min(1, "Widget name is required"),
   description: z.string(),
-  view: z.enum(DashboardWidgetViews),
+  view: DashboardWidgetViewsSchema,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
   filters: z.array(singleFilter),
-  chartType: z.enum(DashboardWidgetChartType),
+  chartType: DashboardWidgetChartTypeSchema,
   chartConfig: ChartConfigSchema,
   minVersion: z.number().int().optional(),
 });
