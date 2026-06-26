@@ -267,6 +267,7 @@ describe("GET /api/public/experiments/{experimentId}", () => {
       const { auth, projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
       const experimentId = `exp-${randomUUID()}`;
+      const scoreId = `score-${randomUUID()}`;
 
       await createEventsCh([
         createExperimentRootEvent({
