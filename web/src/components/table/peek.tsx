@@ -63,9 +63,10 @@ type TablePeekViewProps = Pick<
   | "detailNavigationKey"
   | "resolveDetailNavigationPath"
   | "closePeek"
-  // Accepted for back-compat (table consumers still pass it via expandConfig);
-  // the in-place URL "Expand" replaces the old open-in-tab behavior, so it is
-  // no longer rendered. expandConfig cleanup is a follow-up.
+  // Drives the header's "Open in new tab" button (wired via expandConfig). The
+  // in-place "Expand" is a separate control; this opens the standalone page in
+  // a new tab. The old "open in current tab" variant (expandPeek(false)) is no
+  // longer rendered.
   | "expandPeek"
   | "peekEventOptions"
 > & {
@@ -182,6 +183,13 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
 
   const resolvedTitle = title ?? itemId;
 
+  // Distinct from Expand (which widens in place via the URL): this opens the
+  // standalone detail page in a NEW tab, leaving the peek untouched — handy for
+  // comparing against the full-page view. Only when the consumer wired
+  // expandConfig (so expandPeek exists).
+  const expandPeek = props.expandPeek;
+  const openInNewTab = expandPeek ? () => expandPeek(true) : undefined;
+
   const header = (
     <PeekHeader
       itemType={props.itemType}
@@ -198,6 +206,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
               onToggle: panel.toggleExpanded,
             }
       }
+      openInNewTab={openInNewTab}
       onClose={props.closePeek}
     />
   );
