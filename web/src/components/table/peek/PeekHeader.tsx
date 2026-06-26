@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -15,6 +16,7 @@ import {
   MoreHorizontal,
   X,
 } from "lucide-react";
+import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   planToolbarOverflow,
@@ -60,6 +62,9 @@ const sameSet = (a: Set<OverflowUnit>, b: Set<OverflowUnit>) =>
  * The right control cluster is a priority-plus toolbar: it measures the header
  * and folds its lowest-priority controls into a "…" popover when space runs
  * out, so a narrow peek stays uncluttered and a wide one shows everything.
+ * `actions` is rendered once and portaled into either the inline slot or the
+ * popover, so folding moves its DOM without remounting it — an in-progress
+ * delete confirmation (or any action state) survives a width change.
  */
 export function PeekHeader({
   itemType,
@@ -73,11 +78,16 @@ export function PeekHeader({
   onClose,
 }: PeekHeaderProps) {
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
-  const actionsRef = useRef<HTMLDivElement>(null);
+  // Host elements are tracked as state (ref callbacks) so the actions portal
+  // re-targets when a host mounts/unmounts (e.g. the popover opening).
+  const [inlineActionsHost, setInlineActionsHost] =
+    useState<HTMLDivElement | null>(null);
+  const [popoverActionsHost, setPopoverActionsHost] =
+    useState<HTMLDivElement | null>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef<HTMLDivElement>(null);
-  // Cached widths survive a unit being folded away (it is unmounted from the
-  // bar then, so it can't be re-measured until it returns inline).
+  // Cached widths survive a unit being folded away (it can't be re-measured
+  // while hidden / in the closed popover).
   const widthsRef = useRef<Partial<Record<OverflowUnit, number>>>({});
   const pinnedWidthRef = useRef(0);
   const [overflow, setOverflow] = useState<Set<OverflowUnit>>(new Set());
@@ -85,17 +95,21 @@ export function PeekHeader({
   const hasActions = Boolean(actions);
   const hasOpenInTab = Boolean(openInNewTab);
   const hasNav = Boolean(detailNavigationKey && resolveDetailNavigationPath);
+  const actionsFolded = hasActions && overflow.has("actions");
+  const openInTabFolded = hasOpenInTab && overflow.has("openInTab");
 
-  useEffect(() => {
-    const width = headerSize?.width;
+  // Measure + plan in a layout effect (before paint), reading the width from
+  // the ref directly — useElementSize's state lands post-paint, which would
+  // otherwise flash everything inline for a frame before folding.
+  useLayoutEffect(() => {
+    const width =
+      headerRef.current?.getBoundingClientRect().width ?? headerSize?.width;
     if (!width) return;
 
-    // Measure the units currently inline (folded ones keep their cached width)
-    // and the pinned block, then plan which units must fold.
-    if (hasActions && !overflow.has("actions") && actionsRef.current) {
-      widthsRef.current.actions = actionsRef.current.offsetWidth;
+    if (hasActions && !actionsFolded && inlineActionsHost) {
+      widthsRef.current.actions = inlineActionsHost.offsetWidth;
     }
-    if (hasOpenInTab && !overflow.has("openInTab") && openInTabRef.current) {
+    if (hasOpenInTab && !openInTabFolded && openInTabRef.current) {
       widthsRef.current.openInTab = openInTabRef.current.offsetWidth;
     }
     if (pinnedRef.current)
@@ -115,10 +129,16 @@ export function PeekHeader({
       moreWidth: MORE_BUTTON_PX,
     });
     setOverflow((prev) => (sameSet(prev, next) ? prev : next));
-  }, [headerSize?.width, hasActions, hasOpenInTab, hasNav, overflow]);
-
-  const actionsInline = hasActions && !overflow.has("actions");
-  const openInTabInline = hasOpenInTab && !overflow.has("openInTab");
+  }, [
+    headerRef,
+    headerSize?.width,
+    hasActions,
+    hasOpenInTab,
+    hasNav,
+    actionsFolded,
+    openInTabFolded,
+    inlineActionsHost,
+  ]);
 
   const openInTabButton = openInNewTab ? (
     <Button
@@ -131,6 +151,14 @@ export function PeekHeader({
       <ExternalLink className="h-4 w-4" />
     </Button>
   ) : null;
+
+  // Where the single actions instance lives: the popover when folded-and-open,
+  // otherwise the inline slot (which stays mounted — hidden — when folded, so
+  // the actions keep their state until the popover takes over).
+  const actionsHost =
+    actionsFolded && popoverActionsHost
+      ? popoverActionsHost
+      : inlineActionsHost;
 
   return (
     <div
@@ -165,19 +193,35 @@ export function PeekHeader({
               align="end"
               className="flex w-auto min-w-0 flex-row items-center gap-1 p-1"
             >
-              {overflow.has("actions") ? actions : null}
-              {overflow.has("openInTab") ? openInTabButton : null}
+              {actionsFolded && (
+                <div
+                  ref={setPopoverActionsHost}
+                  className="flex flex-row items-center gap-1"
+                />
+              )}
+              {openInTabFolded ? openInTabButton : null}
             </PopoverContent>
           </Popover>
         )}
 
-        {/* Overflowable units (rendered inline only when they fit). */}
-        {actionsInline ? (
-          <div ref={actionsRef} className="flex flex-row items-center gap-1">
-            {actions}
-          </div>
-        ) : null}
-        {openInTabInline ? (
+        {/* Inline actions slot: always mounted when actions exist; hidden (not
+            unmounted) when folded so the portaled actions keep their state. */}
+        {hasActions && (
+          <div
+            ref={setInlineActionsHost}
+            className={cn(
+              "flex flex-row items-center gap-1",
+              actionsFolded && "hidden",
+            )}
+          />
+        )}
+        {/* The single actions instance, projected into the active host. Keyed so
+            React keeps the same subtree across host changes (no remount). */}
+        {hasActions &&
+          actionsHost &&
+          createPortal(actions, actionsHost, "peek-actions")}
+
+        {hasOpenInTab && !openInTabFolded ? (
           <div ref={openInTabRef}>{openInTabButton}</div>
         ) : null}
 
@@ -191,6 +235,7 @@ export function PeekHeader({
               currentId={itemId}
               path={resolveDetailNavigationPath!}
               listKey={detailNavigationKey!}
+              size="sm"
             />
           )}
           {expand && (

@@ -1,4 +1,4 @@
-import { Button } from "@/src/components/ui/button";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { InputCommandShortcut } from "@/src/components/ui/input-command";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import {
@@ -25,8 +25,10 @@ export const DetailPageNav = (props: {
   path: (entry: ListEntry) => string;
   listKey: string;
   onNavigate?: (entry: ListEntry) => void;
+  /** Button size; defaults to the cva default. Pass "sm" to match icon-xs rows. */
+  size?: ButtonProps["size"];
 }) => {
-  const { currentId, path, listKey, onNavigate } = props;
+  const { currentId, path, listKey, onNavigate, size } = props;
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
   const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
@@ -119,6 +121,7 @@ export const DetailPageNav = (props: {
             <Button
               variant="outline"
               type="button"
+              size={size}
               className={cn(
                 "gap-1.5 px-2 transition-[background-color,border-color,box-shadow,color] duration-150",
                 shortcutPulse === "previous" &&
@@ -147,6 +150,7 @@ export const DetailPageNav = (props: {
             <Button
               variant="outline"
               type="button"
+              size={size}
               className={cn(
                 "gap-1.5 px-2 transition-[background-color,border-color,box-shadow,color] duration-150",
                 shortcutPulse === "next" &&
