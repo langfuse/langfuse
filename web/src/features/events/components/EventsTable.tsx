@@ -109,6 +109,7 @@ import { toObservedOptions } from "@/src/features/search-bar/lib/observed-option
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import { useChartViewState } from "@/src/features/chart-view/lib/useChartViewState";
+import { chartCanReproduceFilters } from "@/src/features/chart-view/lib/buildChartQuery";
 
 export type EventsTableRow = {
   // Identity fields
@@ -337,6 +338,9 @@ export default function ObservationsEventsTable({
       utils.events.all.invalidate(),
       utils.events.countAll.invalidate(),
       utils.events.filterOptions.invalidate(),
+      // The chart runs dashboard.executeQuery; for absolute time ranges its
+      // query key is stable across refreshes, so invalidate it explicitly.
+      utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
 
@@ -353,19 +357,17 @@ export default function ObservationsEventsTable({
   // Chart view ("any view is a chart"): URL-driven table↔chart toggle + config.
   // Only offered on the full (non-embedded) events surface, which is already
   // v4-only (the page mounts this table only for v4 users), so v1/legacy users
-  // never see it. Also gated off when the data the table shows can't be
-  // reproduced by the aggregate query: a single-user/session scope ("User
-  // ID"/"Session ID" filter, not in SAFE_FILTER_COLUMNS) or active free-text
-  // search (which filters the table via api.events.all, but the aggregate query
-  // has no full-text field). In those cases the chart would silently aggregate
-  // ALL events, so we keep the table rather than misrepresent the data.
+  // never see it. `chartEnabled` (computed below, once filterState exists) also
+  // gates the chart off whenever the table's data can't be faithfully
+  // reproduced by the aggregate query — free-text search, or any filter column
+  // the query can't model — so the chart never silently disagrees with the
+  // table.
   const {
     viewMode: chartViewMode,
     setViewMode: setChartViewMode,
     config: chartConfig,
     setConfig: setChartConfig,
   } = useChartViewState();
-  const chartEnabled = !hideControls && !userId && !sessionId && !searchQuery;
   const chartTimeWindow = useMemo(
     () => ({
       from: dateRange?.from ?? new Date(Date.now() - 24 * 60 * 60 * 1000),
@@ -533,6 +535,18 @@ export default function ObservationsEventsTable({
 
   // Use external filter state if provided, otherwise use combined filter state
   const filterState = externalFilterState || combinedFilterState;
+
+  // Offer the chart only when it can exactly reproduce what the table shows:
+  // the full (v4) surface, no user/session scope, no free-text search, and no
+  // filter the aggregate query can't model (scores, metadata, isRootObservation
+  // — see chartCanReproduceFilters). Otherwise keep the table so the chart never
+  // silently aggregates a different dataset.
+  const chartEnabled =
+    !hideControls &&
+    !userId &&
+    !sessionId &&
+    !searchQuery &&
+    chartCanReproduceFilters(filterState);
 
   // Use the custom hook for observations data fetching
   const {

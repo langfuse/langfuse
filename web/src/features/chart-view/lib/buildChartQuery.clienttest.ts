@@ -1,5 +1,6 @@
 import {
   buildChartQuery,
+  chartCanReproduceFilters,
   metricField,
   rowsToDataPoints,
   toChartFilters,
@@ -120,6 +121,40 @@ describe("toChartFilters", () => {
     ];
     const result = toChartFilters(filters);
     expect(result.map((f) => f.column)).toEqual(["type", "environment"]);
+  });
+});
+
+describe("chartCanReproduceFilters", () => {
+  it("true when only forwardable + time filters are present", () => {
+    expect(
+      chartCanReproduceFilters([
+        {
+          column: "type",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["GENERATION"],
+        },
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">=",
+          value: new Date(),
+        },
+      ]),
+    ).toBe(true);
+  });
+
+  it("false when a filter the query can't model is present", () => {
+    expect(
+      chartCanReproduceFilters([
+        {
+          column: "isRootObservation",
+          type: "boolean",
+          operator: "=",
+          value: true,
+        },
+      ]),
+    ).toBe(false);
   });
 });
 

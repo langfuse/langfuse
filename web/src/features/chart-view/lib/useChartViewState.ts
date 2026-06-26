@@ -26,7 +26,9 @@ export function useChartViewState(): {
   setConfig: (patch: Partial<ChartViewConfig>) => void;
 } {
   const [params, setParams] = useQueryParams({
-    view: withDefault(StringParam, "table"),
+    // Namespaced ("eventsView", not bare "view") to avoid colliding with the
+    // trace-peek panel's `view=timeline` param, which shares this router/URL.
+    eventsView: withDefault(StringParam, "table"),
     chartMetric: withDefault(StringParam, DEFAULT_CONFIG.metric),
     chartAgg: withDefault(StringParam, DEFAULT_CONFIG.aggregation),
     chartBreakdown: withDefault(StringParam, DEFAULT_CONFIG.breakdown),
@@ -34,7 +36,7 @@ export function useChartViewState(): {
     chartGranularity: withDefault(StringParam, DEFAULT_CONFIG.timeGranularity),
   });
 
-  const viewMode: ViewMode = params.view === "chart" ? "chart" : "table";
+  const viewMode: ViewMode = params.eventsView === "chart" ? "chart" : "table";
 
   const config = useMemo<ChartViewConfig>(
     () =>
@@ -55,7 +57,7 @@ export function useChartViewState(): {
   );
 
   const setViewMode = useCallback(
-    (mode: ViewMode) => setParams({ view: mode }),
+    (mode: ViewMode) => setParams({ eventsView: mode }),
     [setParams],
   );
 

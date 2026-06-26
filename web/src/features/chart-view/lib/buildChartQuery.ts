@@ -24,12 +24,31 @@ const SAFE_FILTER_COLUMNS = new Set([
 ]);
 
 /**
+ * The time window is passed to the query as from/to, not as a filter — so a
+ * `startTime` filter is "reproducible" even though it isn't forwarded verbatim.
+ */
+const TIME_FILTER_COLUMNS = new Set(["startTime"]);
+
+/**
  * Narrows the events table's `FilterState` to the subset that maps cleanly onto
  * the observations query, so the chart reflects the table's filters without
  * choking on columns the query view doesn't model.
  */
 export function toChartFilters(filterState: FilterState): FilterState {
   return filterState.filter((f) => SAFE_FILTER_COLUMNS.has(f.column));
+}
+
+/**
+ * True only if EVERY active table filter can be faithfully reproduced by the
+ * chart query — i.e. nothing would be silently dropped. Callers hide the chart
+ * when this is false (e.g. an `isRootObservation` / scores / metadata filter is
+ * set) rather than show an aggregate that disagrees with the table.
+ */
+export function chartCanReproduceFilters(filterState: FilterState): boolean {
+  return filterState.every(
+    (f) =>
+      SAFE_FILTER_COLUMNS.has(f.column) || TIME_FILTER_COLUMNS.has(f.column),
+  );
 }
 
 /** The executeQuery column name for a metric, e.g. `p95_latency`, `count_count`. */

@@ -159,6 +159,7 @@ export const Chart = ({
             data={renderedData}
             config={resolvedConfig}
             metricFormatter={metricFormatter}
+            legendPosition={legendPosition}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
