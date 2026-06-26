@@ -63,6 +63,8 @@ export type Route = {
     organization: User["organizations"][number] | undefined;
   }) => boolean;
   group?: RouteGroup; // group this route belongs to (within a section)
+  /** If true, this route is visible to users with any role (including non-Owner/non-Admin). Defaults to false. */
+  visibleToNonAdmins?: boolean;
 };
 
 export const ROUTES: Route[] = [
@@ -91,6 +93,7 @@ export const ROUTES: Route[] = [
     pathname: `/project/[projectId]`,
     icon: Home,
     section: RouteSection.Main,
+    visibleToNonAdmins: true,
   },
   {
     title: "Dashboards",
@@ -106,6 +109,7 @@ export const ROUTES: Route[] = [
     group: RouteGroup.Observability,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/traces`,
+    visibleToNonAdmins: true,
   },
   {
     title: "Sessions",
@@ -131,6 +135,7 @@ export const ROUTES: Route[] = [
     productModule: "prompt-management",
     group: RouteGroup.PromptManagement,
     section: RouteSection.Main,
+    visibleToNonAdmins: true,
   },
   {
     title: "Playground",
@@ -139,6 +144,7 @@ export const ROUTES: Route[] = [
     productModule: "playground",
     group: RouteGroup.PromptManagement,
     section: RouteSection.Main,
+    visibleToNonAdmins: true,
   },
   {
     title: "Scores",
@@ -155,6 +161,7 @@ export const ROUTES: Route[] = [
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
     pathname: `/project/[projectId]/evals`,
+    visibleToNonAdmins: true,
   },
   {
     title: "Human Annotation",
@@ -171,6 +178,7 @@ export const ROUTES: Route[] = [
     productModule: "datasets",
     group: RouteGroup.Evaluation,
     section: RouteSection.Main,
+    visibleToNonAdmins: true,
   },
   {
     title: "Experiments",
