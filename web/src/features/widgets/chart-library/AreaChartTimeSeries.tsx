@@ -9,6 +9,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { type ChartProps } from "@/src/features/widgets/chart-library/chart-props";
 import {
   formatMetric,
+  getDimensionSummaries,
   getUniqueDimensions,
   groupDataByTimeDimension,
   toFullMetricString,
@@ -28,6 +29,7 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
   legendPosition = "none",
+  legendSummary = "none",
   subtleFill = false,
 }) => {
   const [highlightedDimension, setHighlightedDimension] = useState<
@@ -42,6 +44,10 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
     highlightedDimension && dimensions.includes(highlightedDimension)
       ? highlightedDimension
       : null;
+  const dimensionSummaries = useMemo(
+    () => (legendSummary === "none" ? null : getDimensionSummaries(data)),
+    [data, legendSummary],
+  );
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -61,6 +67,9 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
             {dimensions.map((dimension, index) => {
               const isActive = effectiveHighlight === dimension;
               const isMuted = effectiveHighlight !== null && !isActive;
+              // A `0` summary is a real value and must be shown; only a `null`
+              // summary (series with no data) is omitted. (LFE-10498)
+              const summary = dimensionSummaries?.get(dimension) ?? null;
               return (
                 <button
                   key={dimension}
@@ -83,6 +92,11 @@ export const AreaChartTimeSeries: React.FC<ChartProps> = ({
                     }}
                   />
                   <span className="text-muted-foreground">{dimension}</span>
+                  {summary !== null && (
+                    <span className="text-foreground font-medium">
+                      {tooltipFormatter(summary)}
+                    </span>
+                  )}
                 </button>
               );
             })}

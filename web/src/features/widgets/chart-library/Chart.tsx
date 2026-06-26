@@ -4,6 +4,7 @@ import {
   type MetricFormatterFunction,
   type DataPoint,
   type ChartThreshold,
+  type LegendSummaryMode,
 } from "@/src/features/widgets/chart-library/chart-props";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import { CardContent } from "@/src/components/ui/card";
@@ -37,6 +38,7 @@ export const Chart = ({
   onSortChange,
   isLoading = false,
   legendPosition,
+  legendSummary,
   overrideWarning = false,
   metricFormatter: metricFormatterOverride,
   thresholds,
@@ -62,6 +64,7 @@ export const Chart = ({
   onSortChange?: (sortState: OrderByState | null) => void;
   isLoading?: boolean;
   legendPosition?: "above" | "none";
+  legendSummary?: LegendSummaryMode;
   overrideWarning?: boolean;
   metricFormatter?: MetricFormatterFunction;
   thresholds?: ChartThreshold[];
@@ -139,6 +142,7 @@ export const Chart = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
+            legendSummary={legendSummary}
             showDataPointDots={chartConfig?.show_data_point_dots ?? true}
             thresholds={thresholds}
           />
@@ -150,6 +154,7 @@ export const Chart = ({
             config={resolvedConfig}
             metricFormatter={metricFormatter}
             legendPosition={legendPosition}
+            legendSummary={legendSummary}
             subtleFill={chartConfig?.subtle_fill}
           />
         );
