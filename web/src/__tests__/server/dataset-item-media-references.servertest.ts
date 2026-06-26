@@ -271,9 +271,12 @@ describe("Dataset item media tRPC procedures", () => {
 
     expect(result.mediaId).toBeDefined();
     expect(result.uploadUrl).toBeDefined();
-    expect(result.uploadHeaders).toEqual({
-      "x-amz-checksum-sha256": sha256Hash,
-    });
+    expect(result.uploadHeaders).toEqual(
+      getItemMediaUploadHeaders({
+        sha256Hash,
+        uploadUrl: result.uploadUrl,
+      }),
+    );
     // A pending (null validFrom) association is declared for the item.
     const pending = await prisma.datasetItemMedia.findFirst({
       where: { projectId, mediaId: result.mediaId, datasetItemValidFrom: null },
