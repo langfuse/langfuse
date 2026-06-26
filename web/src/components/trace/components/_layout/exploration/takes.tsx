@@ -50,7 +50,10 @@ const DEFAULT_SELECTED = "answer-llm";
 
 /** Shared per-take state: which view the nav shows + which node is selected. */
 function useExplorationState() {
-  const [view, setView] = useState<View>("timeline");
+  // Tree is the app's default view; the dense Timeline waterfall is one click
+  // away (and reveals the width tension — a wide waterfall in a narrow pane —
+  // that the position/visibility controls are there to relieve).
+  const [view, setView] = useState<View>("tree");
   const [selectedId, setSelectedId] = useState<string | null>(DEFAULT_SELECTED);
   return { view, setView, selectedId, setSelectedId };
 }
@@ -226,10 +229,18 @@ function RailBtn({
   );
 }
 
-export function TakeIconRail() {
+export function TakeIconRail({
+  initialNavCollapsed = false,
+  initialDetailCollapsed = false,
+}: {
+  initialNavCollapsed?: boolean;
+  initialDetailCollapsed?: boolean;
+} = {}) {
   const { view, setView, selectedId, setSelectedId } = useExplorationState();
-  const [navCollapsed, setNavCollapsed] = useState(false);
-  const [detailCollapsed, setDetailCollapsed] = useState(false);
+  const [navCollapsed, setNavCollapsed] = useState(initialNavCollapsed);
+  const [detailCollapsed, setDetailCollapsed] = useState(
+    initialDetailCollapsed,
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const width = useContainerWidth(containerRef);
   const [navW, setNavW] = useState(340);

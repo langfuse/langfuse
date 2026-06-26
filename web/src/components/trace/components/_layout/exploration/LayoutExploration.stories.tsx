@@ -13,7 +13,7 @@ import {
   TakePositionSwitcher,
   TakeSegmentedMode,
 } from "./takes";
-import { Stage, Triptych } from "./storyShell";
+import { IconRailTriptych, Stage, Triptych } from "./storyShell";
 
 const meta = preview.meta({
   title: "Trace/Layout Exploration",
@@ -33,7 +33,7 @@ export const APositionSwitcherLive = meta.story({
 // B · Icon Rail ----------------------------------------------------------------
 export const BIconRailCompare = meta.story({
   name: "B · Icon Rail — compare widths",
-  render: () => <Triptych take={TakeIconRail} />,
+  render: () => <IconRailTriptych />,
 });
 export const BIconRailLive = meta.story({
   name: "B · Icon Rail — live (resize the canvas)",
