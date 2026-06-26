@@ -35,21 +35,28 @@ export const TablePeekViewObservationDetail = (
     timestamp,
   });
 
+  const actionProps = trace.data
+    ? {
+        traceId: trace.data.id,
+        projectId: trace.data.projectId,
+        bookmarked: trace.data.bookmarked,
+        isPublic: trace.data.public,
+        name: trace.data.name,
+        timestamp,
+        onAfterDelete: props.closePeek,
+      }
+    : null;
+
   return (
     <TablePeekView
       {...props}
       title={traceDetailTitle(trace.data, traceId)}
       actions={
-        trace.data ? (
-          <TraceDetailActions
-            traceId={trace.data.id}
-            projectId={trace.data.projectId}
-            bookmarked={trace.data.bookmarked}
-            isPublic={trace.data.public}
-            name={trace.data.name}
-            timestamp={timestamp}
-            onAfterDelete={props.closePeek}
-          />
+        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
+      }
+      actionsMenu={
+        actionProps ? (
+          <TraceDetailActions {...actionProps} layout="menu" />
         ) : undefined
       }
     >

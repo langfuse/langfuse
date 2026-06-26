@@ -76,6 +76,11 @@ type TablePeekViewProps = Pick<
    * full detail page so the peek and the page expose the same controls.
    */
   actions?: React.ReactNode;
+  /**
+   * The same actions rendered as labeled menu rows — shown in the header's
+   * overflow "…" menu when the peek is too narrow for the inline icon row.
+   */
+  actionsMenu?: React.ReactNode;
   // Content
   /**
    * The content to display in the peek view.
@@ -198,6 +203,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
       detailNavigationKey={props.detailNavigationKey}
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}
       actions={props.actions}
+      actionsMenu={props.actionsMenu}
       expand={
         isMobile
           ? undefined

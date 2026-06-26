@@ -1,5 +1,4 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
@@ -16,7 +15,6 @@ import {
   MoreHorizontal,
   X,
 } from "lucide-react";
-import { cn } from "@/src/utils/tailwind";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   planPeekHeaderLayout,
@@ -29,8 +27,10 @@ type PeekHeaderProps = {
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
-  /** Item-specific actions (star / publish / delete …), shared with the page. */
+  /** Item actions (star / publish / delete …) as the inline icon row. */
   actions?: React.ReactNode;
+  /** The same actions as labeled rows for the overflow "…" menu. */
+  actionsMenu?: React.ReactNode;
   /** Expand-to-max-width toggle. Desktop only; hidden on mobile. */
   expand?: { isExpanded: boolean; onToggle: () => void };
   /** Open the standalone detail page in a new browser tab. Optional. */
@@ -68,10 +68,8 @@ const FULL: PeekHeaderPlan = {
  *
  * The header adapts to the PEEK's own width (measured, not screen breakpoints):
  * it keeps the title readable and, as the peek narrows, folds the trace actions
- * into a "…" popover, shrinks the type badge to icon-only, then folds
- * open-in-tab — see {@link planPeekHeaderLayout}. `actions` are rendered once
- * and portaled into the inline slot or the popover, so folding moves their DOM
- * without remounting (an in-progress delete confirmation survives a resize).
+ * into a labeled "…" menu, shrinks the type badge to icon-only, compacts the
+ * prev/next nav, then folds open-in-tab — see {@link planPeekHeaderLayout}.
  */
 export function PeekHeader({
   itemType,
@@ -80,18 +78,14 @@ export function PeekHeader({
   detailNavigationKey,
   resolveDetailNavigationPath,
   actions,
+  actionsMenu,
   expand,
   openInNewTab,
   onClose,
 }: PeekHeaderProps) {
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
   const badgeRef = useRef<HTMLDivElement>(null);
-  // Host elements as state (ref callbacks) so the actions portal re-targets
-  // when a host mounts/unmounts (e.g. the popover opening).
-  const [inlineActionsHost, setInlineActionsHost] =
-    useState<HTMLDivElement | null>(null);
-  const [popoverActionsHost, setPopoverActionsHost] =
-    useState<HTMLDivElement | null>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef<HTMLDivElement>(null);
@@ -122,14 +116,12 @@ export function PeekHeader({
     if (plan.badgeShowLabel && badgeRef.current) {
       widthsRef.current.badgeLabel = badgeRef.current.offsetWidth;
     }
-    if (hasActions && !plan.foldActions && inlineActionsHost) {
-      widthsRef.current.actions = inlineActionsHost.offsetWidth;
+    if (hasActions && !plan.foldActions && actionsRef.current) {
+      widthsRef.current.actions = actionsRef.current.offsetWidth;
     }
     if (hasOpenInTab && !plan.foldOpenInTab && openInTabRef.current) {
       widthsRef.current.openInTab = openInTabRef.current.offsetWidth;
     }
-    // Nav width depends on its mode (cache per mode); otherPinned (expand +
-    // close + divider) is mode-independent = the pinned block minus the nav.
     if (pinnedRef.current) {
       const navW = hasNav && navRef.current ? navRef.current.offsetWidth : 0;
       if (hasNav) {
@@ -158,15 +150,7 @@ export function PeekHeader({
         : undefined,
     });
     setPlan((prev) => (samePlan(prev, next) ? prev : next));
-  }, [
-    headerRef,
-    headerSize?.width,
-    hasActions,
-    hasOpenInTab,
-    hasNav,
-    plan,
-    inlineActionsHost,
-  ]);
+  }, [headerRef, headerSize?.width, hasActions, hasOpenInTab, hasNav, plan]);
 
   const openInTabButton = openInNewTab ? (
     <Button
@@ -181,13 +165,6 @@ export function PeekHeader({
   ) : null;
 
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
-  // The single actions instance lives in the popover when folded-and-open,
-  // otherwise the inline slot (kept mounted — hidden — when folded, so action
-  // state is preserved until the popover takes over).
-  const actionsHost =
-    plan.foldActions && popoverActionsHost
-      ? popoverActionsHost
-      : inlineActionsHost;
 
   return (
     <div
@@ -208,7 +185,7 @@ export function PeekHeader({
         </span>
       </div>
       <div className="flex shrink-0 flex-row items-center gap-1">
-        {/* Overflow popover collects whatever folded away, in display order. */}
+        {/* Overflow: a labeled menu of whatever folded away. */}
         {anyFolded && (
           <Popover>
             <PopoverTrigger asChild>
@@ -223,33 +200,28 @@ export function PeekHeader({
             </PopoverTrigger>
             <PopoverContent
               align="end"
-              className="flex w-auto min-w-0 flex-row items-center gap-1 p-1"
+              className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
             >
-              {plan.foldActions && (
-                <div
-                  ref={setPopoverActionsHost}
-                  className="flex flex-row items-center gap-1"
-                />
-              )}
-              {plan.foldOpenInTab ? openInTabButton : null}
+              {plan.foldActions ? actionsMenu : null}
+              {plan.foldOpenInTab && openInNewTab ? (
+                <button
+                  type="button"
+                  onClick={openInNewTab}
+                  className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open in new tab
+                </button>
+              ) : null}
             </PopoverContent>
           </Popover>
         )}
 
-        {/* Inline actions slot: always mounted when actions exist; hidden (not
-            unmounted) when folded so the portaled actions keep their state. */}
-        {hasActions && (
-          <div
-            ref={setInlineActionsHost}
-            className={cn(
-              "flex flex-row items-center gap-1",
-              plan.foldActions && "hidden",
-            )}
-          />
-        )}
-        {hasActions &&
-          actionsHost &&
-          createPortal(actions, actionsHost, "peek-actions")}
+        {hasActions && !plan.foldActions ? (
+          <div ref={actionsRef} className="flex flex-row items-center gap-1">
+            {actions}
+          </div>
+        ) : null}
 
         {hasOpenInTab && !plan.foldOpenInTab ? (
           <div ref={openInTabRef}>{openInTabButton}</div>
@@ -258,7 +230,7 @@ export function PeekHeader({
         {/* Pinned block: nav (keeps K/J live), expand, close. */}
         <div
           ref={pinnedRef}
-          className="flex h-full flex-row items-center gap-1 border-l pl-1"
+          className="flex h-full flex-row items-center gap-1"
         >
           {hasNav && (
             <div ref={navRef} className="flex flex-row items-center">
