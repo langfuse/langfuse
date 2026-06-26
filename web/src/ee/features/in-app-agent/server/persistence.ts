@@ -2,13 +2,24 @@ import { compactEvents } from "@ag-ui/client";
 import { EventType } from "@ag-ui/core";
 
 import { LangfuseConflictError, LangfuseNotFoundError } from "@langfuse/shared";
-import { logger } from "@langfuse/shared/src/server";
+import {
+  ChatMessageRole,
+  ChatMessageType,
+  LangfuseInternalTraceEnvironment,
+  logger,
+} from "@langfuse/shared/src/server";
 import type {
   InAppAgentConversation,
   Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
 
+import { env } from "@/src/env.mjs";
+import {
+  fetchLangfuseAICompletion,
+  getLangfuseAITraceSinkParams,
+} from "@/src/features/ai-features/server/bedrockCompletion";
+import { truncate } from "@/src/utils/string";
 import {
   AgUiMessageSchema,
   InAppAgentRedirectActionToolResultSchema,
@@ -103,7 +114,6 @@ export async function ensureOwnedConversation(params: {
       id: params.conversationId,
       projectId: params.projectId,
       createdByUserId: params.userId,
-      // TODO: we want to auto-generate titles based on content later
       title: getDefaultConversationTitle(new Date()),
     },
   });
@@ -310,6 +320,127 @@ export async function getConversationMessagesForReplay(params: {
   return sanitizeConversationMessagesForReplay(
     await getConversationMessages(params),
   );
+}
+
+export async function maybeInferAndPersistConversationTitle(params: {
+  prisma: PrismaClient;
+  projectId: string;
+  conversationId: string;
+  userId: string;
+  aiTelemetryEnabled: boolean;
+}) {
+  const model =
+    env.LANGFUSE_AWS_BEDROCK_SMALL_MODEL ?? env.LANGFUSE_AWS_BEDROCK_MODEL;
+
+  if (!model) {
+    return;
+  }
+
+  try {
+    const conversation = await params.prisma.inAppAgentConversation.findUnique({
+      where: {
+        id_projectId: {
+          id: params.conversationId,
+          projectId: params.projectId,
+        },
+      },
+      select: { title: true, renamedByUserAt: true, deletedAt: true },
+    });
+
+    if (!conversation || conversation.deletedAt) {
+      return;
+    }
+
+    if (conversation.renamedByUserAt) {
+      return;
+    }
+
+    const transcript = buildConversationTitleTranscript(
+      await getConversationMessages({
+        prisma: params.prisma,
+        projectId: params.projectId,
+        conversationId: params.conversationId,
+      }),
+    );
+
+    if (!transcript) {
+      return;
+    }
+
+    const completion = await fetchLangfuseAICompletion({
+      messages: [
+        {
+          role: ChatMessageRole.System,
+          content: `Generate a concise title for this Langfuse assistant conversation.
+
+Rules:
+- Use 3-6 words.
+- Preserve important product names, entities, or task intent.
+- Do not use quotes, markdown, trailing punctuation, or filler words.
+- Return only the title.`,
+          type: ChatMessageType.PublicAPICreated,
+        },
+        {
+          role: ChatMessageRole.User,
+          content: transcript,
+          type: ChatMessageType.PublicAPICreated,
+        },
+      ],
+      model,
+      maxTokens: 32,
+      traceSinkParams: params.aiTelemetryEnabled
+        ? getLangfuseAITraceSinkParams({
+            environment: LangfuseInternalTraceEnvironment.InAppAgent,
+            feature: "in-app-agent-conversation-title",
+            projectId: params.projectId,
+            traceName: "in-app-agent-conversation-title",
+            userId: params.userId,
+            metadata: {
+              conversation_id: params.conversationId,
+            },
+          })
+        : undefined,
+    });
+    const completionText =
+      typeof completion === "string" ? completion : completion.text;
+
+    if (!completionText) {
+      return;
+    }
+
+    const title = truncate(
+      completionText
+        .split("\n")[0]
+        ?.replace(/^title:\s*/i, "")
+        .replace(/^[`'"]+|[`'".!?:;]+$/g, "")
+        .replace(/\s+/g, " ")
+        .trim() ?? "",
+      80,
+    )
+      .replace(/[.!?:;]+$/g, "")
+      .trim();
+
+    if (!title) {
+      return;
+    }
+
+    await params.prisma.inAppAgentConversation.updateMany({
+      where: {
+        id: params.conversationId,
+        projectId: params.projectId,
+        title: conversation.title,
+        renamedByUserAt: null,
+        deletedAt: null,
+      },
+      data: { title },
+    });
+  } catch (error) {
+    logger.warn("Failed to infer in-app agent conversation title", {
+      error,
+      projectId: params.projectId,
+      conversationId: params.conversationId,
+    });
+  }
 }
 
 export function getMessagesFromEvents(events: readonly AgUiEvent[]) {
@@ -934,10 +1065,55 @@ function compactObject<T extends Record<string, unknown>>(value: T): T {
   ) as T;
 }
 
-function getDefaultConversationTitle(date: Date) {
+export function getDefaultConversationTitle(date: Date) {
   const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
   const hours = String(date.getHours()).padStart(2, "0");
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `Chat on ${weekday} at ${hours}:${minutes}`;
+}
+
+export function buildConversationTitleTranscript(
+  messages: readonly AgUiMessage[],
+): string | null {
+  const lines: string[] = [];
+
+  for (const message of messages) {
+    if (lines.length >= 6) {
+      break;
+    }
+
+    const text = getTextMessageContent(message);
+
+    if (!text) {
+      continue;
+    }
+
+    const line = `${message.role === "user" ? "User" : "Assistant"}: ${truncate(text, 800)}`;
+    lines.push(line);
+  }
+
+  const transcript = lines.join("\n").slice(0, 4_000).trim();
+  return transcript || null;
+}
+
+function getTextMessageContent(message: AgUiMessage): string | null {
+  if (message.role === "assistant") {
+    return message.content?.trim() || null;
+  }
+
+  if (message.role !== "user") {
+    return null;
+  }
+
+  if (typeof message.content === "string") {
+    return message.content.trim() || null;
+  }
+
+  const text = message.content
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
+    .join("\n")
+    .trim();
+
+  return text || null;
 }
