@@ -2,6 +2,11 @@ import { api } from "@/src/utils/api";
 import { StarTraceDetailsToggle } from "@/src/components/star-toggle";
 import { PublishTraceSwitch } from "@/src/components/publish-object-switch";
 import { DeleteTraceButton } from "@/src/components/deleteButton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 
 /**
  * Trace-level header actions (star / publish / delete) shared by the peek and
@@ -88,18 +93,31 @@ export function TraceDetailActions({
 
   return (
     <div className="flex flex-row items-center gap-1">
-      <StarTraceDetailsToggle
-        projectId={projectId}
-        traceId={traceId}
-        value={bookmarked}
-        size={size}
-      />
+      {/* Star/Share are plain icon buttons without their own tooltip, so wrap
+          them (delete's IconOnlyButton already has one). The span is the
+          tooltip trigger; the control inside keeps its own click behavior. */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="flex">
+            <StarTraceDetailsToggle
+              projectId={projectId}
+              traceId={traceId}
+              value={bookmarked}
+              size={size}
+            />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {bookmarked ? "Remove bookmark" : "Bookmark"}
+        </TooltipContent>
+      </Tooltip>
       <PublishTraceSwitch
         projectId={projectId}
         traceId={traceId}
         timestamp={timestamp}
         isPublic={isPublic}
         size={size}
+        tooltip={isPublic ? "Shared (public)" : "Share"}
       />
       <DeleteTraceButton
         itemId={traceId}

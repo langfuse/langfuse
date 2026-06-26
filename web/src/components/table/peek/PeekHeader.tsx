@@ -120,6 +120,10 @@ export function PeekHeader({
   onClose,
 }: PeekHeaderProps) {
   const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
+  // The header width equals the peek width and so doesn't change when the
+  // controls settle (or data loads) after the first measurement — observe the
+  // control cluster too, whose width does change, to re-trigger the plan.
+  const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
   const badgeRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
@@ -186,7 +190,15 @@ export function PeekHeader({
         : undefined,
     });
     setPlan((prev) => (samePlan(prev, next) ? prev : next));
-  }, [headerRef, headerSize?.width, hasActions, hasOpenInTab, hasNav, plan]);
+  }, [
+    headerRef,
+    headerSize?.width,
+    clusterSize?.width,
+    hasActions,
+    hasOpenInTab,
+    hasNav,
+    plan,
+  ]);
 
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
 
@@ -209,7 +221,10 @@ export function PeekHeader({
             {title}
           </span>
         </div>
-        <div className="flex shrink-0 flex-row items-center gap-1">
+        <div
+          ref={clusterRef}
+          className="flex shrink-0 flex-row items-center gap-1"
+        >
           {/* Overflow: a labeled menu of whatever folded away. */}
           {anyFolded && (
             <Popover>
