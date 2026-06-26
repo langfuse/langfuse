@@ -930,63 +930,69 @@ export const handleBlobStorageIntegrationProjectJob = async (
     return;
   }
 
-  await prisma.blobStorageIntegration.update({
-    where: { projectId },
-    data: { runStartedAt: new Date() },
-  });
-
-  // Sync between lastSyncAt and now - 30 minutes
-  // Cap the export to one frequency period to enable chunked historic exports
-  const minTimestamp = await getMinTimestampForExport(
-    projectId,
-    blobStorageIntegration.lastSyncAt,
-    blobStorageIntegration.exportMode,
-    blobStorageIntegration.exportStartDate,
-  );
-
-  logger.info(
-    `[BLOB INTEGRATION] Calculated minTimestamp for project ${projectId}: ${minTimestamp}, isValid: ${!isNaN(minTimestamp.getTime())}, getTime: ${minTimestamp.getTime()}, exportMode: ${blobStorageIntegration.exportMode}, lastSyncAt: ${blobStorageIntegration.lastSyncAt}, exportStartDate: ${blobStorageIntegration.exportStartDate}`,
-  );
-
-  const now = new Date();
-  const uncappedMaxTimestamp = new Date(
-    now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS,
-  );
-  const frequencyIntervalMs = getFrequencyIntervalMs(
-    blobStorageIntegration.exportFrequency,
-  );
-
-  // Cap maxTimestamp to one frequency period ahead of minTimestamp
-  // This ensures large historic exports are broken into manageable chunks
-  const maxTimestamp = new Date(
-    Math.min(
-      minTimestamp.getTime() + frequencyIntervalMs,
-      uncappedMaxTimestamp.getTime(),
-    ),
-  );
-
-  logger.info(
-    `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
-  );
-
-  // Skip export if the time window is empty or invalid
-  if (minTimestamp >= maxTimestamp) {
-    logger.info(
-      `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
-    );
+  try {
+    // The try starts here (not just around the export) so the circuit breaker
+    // also covers the lease update and export-window computation. A throw from
+    // getMinTimestampForExport — which queries ClickHouse on the first
+    // FULL_HISTORY sync — or from the runStartedAt update would otherwise skip
+    // the catch entirely, leaving a wedged project to retry forever without
+    // ever counting toward the breaker or notifying owners (LFE-10279).
     await prisma.blobStorageIntegration.update({
       where: { projectId },
-      data: {
-        runStartedAt: null,
-        nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
-        lastError: null,
-        lastErrorAt: null,
-      },
+      data: { runStartedAt: new Date() },
     });
-    return;
-  }
 
-  try {
+    // Sync between lastSyncAt and now - 30 minutes
+    // Cap the export to one frequency period to enable chunked historic exports
+    const minTimestamp = await getMinTimestampForExport(
+      projectId,
+      blobStorageIntegration.lastSyncAt,
+      blobStorageIntegration.exportMode,
+      blobStorageIntegration.exportStartDate,
+    );
+
+    logger.info(
+      `[BLOB INTEGRATION] Calculated minTimestamp for project ${projectId}: ${minTimestamp}, isValid: ${!isNaN(minTimestamp.getTime())}, getTime: ${minTimestamp.getTime()}, exportMode: ${blobStorageIntegration.exportMode}, lastSyncAt: ${blobStorageIntegration.lastSyncAt}, exportStartDate: ${blobStorageIntegration.exportStartDate}`,
+    );
+
+    const now = new Date();
+    const uncappedMaxTimestamp = new Date(
+      now.getTime() - BLOB_STORAGE_LAG_BUFFER_MS,
+    );
+    const frequencyIntervalMs = getFrequencyIntervalMs(
+      blobStorageIntegration.exportFrequency,
+    );
+
+    // Cap maxTimestamp to one frequency period ahead of minTimestamp
+    // This ensures large historic exports are broken into manageable chunks
+    const maxTimestamp = new Date(
+      Math.min(
+        minTimestamp.getTime() + frequencyIntervalMs,
+        uncappedMaxTimestamp.getTime(),
+      ),
+    );
+
+    logger.info(
+      `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
+    );
+
+    // Skip export if the time window is empty or invalid
+    if (minTimestamp >= maxTimestamp) {
+      logger.info(
+        `[BLOB INTEGRATION] Skipping export for project ${projectId}: time window is empty (min: ${minTimestamp.toISOString()}, max: ${maxTimestamp.toISOString()})`,
+      );
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: {
+          runStartedAt: null,
+          nextSyncAt: new Date(now.getTime() + frequencyIntervalMs),
+          lastError: null,
+          lastErrorAt: null,
+        },
+      });
+      return;
+    }
+
     // Fail loudly rather than export from unpopulated tables when an enriched
     // source survives on a deployment without the enriched path, e.g. after a
     // V4-preview rollback. The catch persists lastError and notifies admins
@@ -1148,24 +1154,32 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    // Update integration after successful processing
-    await prisma.blobStorageIntegration.update({
-      where: {
-        projectId,
-      },
-      data: {
-        lastSyncAt: maxTimestamp,
-        nextSyncAt,
-        lastError: null,
-        lastErrorAt: null,
-        runStartedAt: null,
-        // Reset the circuit breaker: this chunk succeeded (LFE-10279).
-        consecutiveFailures: 0,
-      },
-    });
+    // Update integration after successful processing. Gate on enabled: true so
+    // a concurrent worker that won the circuit-breaker disable claim isn't
+    // clobbered by this late-arriving success — otherwise we'd wipe the
+    // lastError/lastErrorAt it recorded and re-enable nothing, leaving admins a
+    // "paused" email pointing at an empty Review Settings page (LFE-10279).
+    const { count: successCount } =
+      await prisma.blobStorageIntegration.updateMany({
+        where: {
+          projectId,
+          enabled: true,
+        },
+        data: {
+          lastSyncAt: maxTimestamp,
+          nextSyncAt,
+          lastError: null,
+          lastErrorAt: null,
+          runStartedAt: null,
+          // Reset the circuit breaker: this chunk succeeded (LFE-10279).
+          consecutiveFailures: 0,
+        },
+      });
 
-    // If still catching up, immediately queue the next chunk job
-    if (!caughtUp) {
+    // If still catching up, immediately queue the next chunk job — but only if
+    // this success actually landed (the integration is still enabled), so we
+    // don't enqueue a successor for a just-disabled integration.
+    if (!caughtUp && successCount > 0) {
       const queue = BlobStorageIntegrationProcessingQueue.getInstance();
       if (queue) {
         const jobId = `${projectId}-${maxTimestamp.toISOString()}`;

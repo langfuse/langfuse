@@ -414,6 +414,66 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(row.enabled).toBe(true);
       expect(row.consecutiveFailures).toBe(0);
     });
+
+    it("drives the breaker for failures before the export starts", async () => {
+      (env as any).LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES = 3;
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          exportSource: "TRACES_OBSERVATIONS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      // Fail the runStartedAt lease update — a pre-export operation that used to
+      // run outside the try and so bypassed the circuit breaker entirely. The
+      // lease write is the only update carrying a Date runStartedAt; the catch's
+      // increment writes runStartedAt: null, so it passes through untouched.
+      const realUpdate = prisma.blobStorageIntegration.update.bind(
+        prisma.blobStorageIntegration,
+      );
+      const spy = vi
+        .spyOn(prisma.blobStorageIntegration, "update")
+        .mockImplementation(async (...callArgs) => {
+          const data = (callArgs[0] as any)?.data;
+          if (data?.runStartedAt instanceof Date) {
+            throw new Error("simulated lease-update failure before export");
+          }
+          return realUpdate(...callArgs);
+        });
+
+      try {
+        await expect(
+          handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job),
+        ).rejects.toThrow(/lease-update failure/i);
+      } finally {
+        spy.mockRestore();
+      }
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // The pre-export failure now counts: without the relocated try the catch
+      // never ran and consecutiveFailures stayed at 0.
+      expect(row.consecutiveFailures).toBe(1);
+      expect(row.lastError).toMatch(/lease-update failure/i);
+    });
   });
 
   it("should not process when blob storage integration is disabled", async () => {
