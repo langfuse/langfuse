@@ -274,7 +274,7 @@ export function TraceTimeline() {
       {/* Header: name label + time scale (scale transform-synced, no scrollbar). */}
       <div className="flex shrink-0">
         <div
-          className="bg-background text-muted-foreground flex shrink-0 items-end pb-2 pl-2 text-xs font-medium"
+          className="bg-background text-muted-foreground flex shrink-0 items-start pt-0.5 pl-2 text-xs font-medium"
           style={{ width: `${gutterWidth}px` }}
         >
           Name

@@ -22,7 +22,7 @@ import {
   Download,
   Loader2,
   ListTree,
-  GanttChart,
+  GanttChartSquare,
   type LucideIcon,
 } from "lucide-react";
 import { StringParam, useQueryParam } from "use-query-params";
@@ -220,7 +220,7 @@ function ViewModeSwitch({
   onSelect: (timeline: boolean) => void;
 }) {
   return (
-    <div className="bg-muted/60 inline-flex h-7 shrink-0 items-center rounded-lg border p-0.5">
+    <div className="bg-muted/60 ml-2 inline-flex h-7 shrink-0 items-center rounded-md border p-0.5">
       <ViewModeSegment
         active={!isTimelineView}
         onClick={() => onSelect(false)}
@@ -230,7 +230,7 @@ function ViewModeSwitch({
       <ViewModeSegment
         active={isTimelineView}
         onClick={() => onSelect(true)}
-        icon={GanttChart}
+        icon={GanttChartSquare}
         label="Timeline"
       />
     </div>
