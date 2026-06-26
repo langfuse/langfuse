@@ -201,6 +201,10 @@ export const GenerationLatencyChart = ({
                         show_data_point_dots: false,
                       }}
                       legendPosition="above"
+                      // Latency percentiles are not additive across buckets;
+                      // summarize each model with its mean percentile rather
+                      // than an inflated sum. (LFE-10498)
+                      legendSummary="average"
                     />
                   </div>
                 ) : (

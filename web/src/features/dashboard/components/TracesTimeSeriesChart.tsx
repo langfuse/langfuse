@@ -216,6 +216,9 @@ export const TracesAndObservationsTimeSeriesChart = ({
                         show_data_point_dots: false,
                       }}
                       legendPosition="above"
+                      // Counts are additive: the legend total reconciles with
+                      // the card headline. (LFE-10498)
+                      legendSummary="sum"
                     />
                   </div>
                 ) : (

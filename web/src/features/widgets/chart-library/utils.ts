@@ -2,6 +2,7 @@ import {
   type DataPoint,
   type FormatMetricOptions,
   type FormattedMetric,
+  type LegendSummaryMode,
 } from "./chart-props";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
@@ -48,40 +49,59 @@ export const getUniqueDimensions = (data: DataPoint[]) => {
 };
 
 /**
- * Computes a per-dimension summary value (the sum of a series' numeric metric
- * values) for use in chart legends.
+ * Computes a per-dimension summary value for use in chart legends, aggregating
+ * each series' finite numeric metric values across its time buckets.
+ *
+ * The `mode` reflects whether the underlying metric is additive, which is a
+ * property of its aggregation and so must be supplied by the caller:
+ * - `"sum"` (default): the additive total — correct for counts, token totals,
+ *   and cost, and reconciles with the card headline.
+ * - `"average"`: the mean of the finite bucket values — a representative
+ *   central value for non-additive metrics (latency percentiles, average
+ *   scores) where a cross-bucket sum would be a meaningless, inflated number.
  *
  * The null/0 handling is deliberate and is the crux of LFE-10498: a `0` is a
- * REAL value, so a series whose data points sum to `0` keeps its `0` summary.
+ * REAL value, so a series whose data is genuinely `0` keeps its `0` summary.
  * A series with no real data point (no finite numeric metric anywhere) is
  * reported as `null` so the legend can omit a misleading number rather than
- * inventing a `0`. Non-finite values (NaN/Infinity) and the histogram tuple
- * shape are ignored.
+ * inventing one. Non-finite values (NaN/Infinity), missing buckets, and the
+ * histogram tuple shape are ignored — `"average"` divides only by the count of
+ * finite values, never by the number of buckets.
  *
  * @returns a Map keyed by dimension; value is the numeric summary or `null`
  *   when the series has no data.
  */
 export const getDimensionSummaries = (
   data: DataPoint[],
+  mode: Exclude<LegendSummaryMode, "none"> = "sum",
 ): Map<string, number | null> => {
-  const summaries = new Map<string, number | null>();
+  // Accumulate the running sum and the count of finite values per dimension in
+  // a single pass, so either aggregation mode is derivable without re-scanning.
+  const accumulators = new Map<string, { sum: number; count: number }>();
 
   for (const item of data) {
     if (!item.dimension) continue;
 
-    const existing = summaries.has(item.dimension)
-      ? summaries.get(item.dimension)!
-      : null;
+    let accumulator = accumulators.get(item.dimension);
+    if (!accumulator) {
+      accumulator = { sum: 0, count: 0 };
+      accumulators.set(item.dimension, accumulator);
+    }
 
     const metric = item.metric;
-    const hasValue = typeof metric === "number" && Number.isFinite(metric);
-
-    if (hasValue) {
-      summaries.set(item.dimension, (existing ?? 0) + metric);
-    } else if (!summaries.has(item.dimension)) {
-      // Track the dimension so it still appears, but without a value yet.
-      summaries.set(item.dimension, null);
+    if (typeof metric === "number" && Number.isFinite(metric)) {
+      accumulator.sum += metric;
+      accumulator.count += 1;
     }
+  }
+
+  const summaries = new Map<string, number | null>();
+  for (const [dimension, { sum, count }] of accumulators) {
+    // No finite value anywhere: omit a number rather than invent a `0`.
+    summaries.set(
+      dimension,
+      count === 0 ? null : mode === "average" ? sum / count : sum,
+    );
   }
 
   return summaries;

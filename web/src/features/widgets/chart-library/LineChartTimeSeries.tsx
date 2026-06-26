@@ -179,6 +179,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
   accessibilityLayer = true,
   metricFormatter = (value, options) => formatMetric(value, options),
   legendPosition = "none",
+  legendSummary = "none",
   showDataPointDots = true,
   thresholds,
 }) => {
@@ -189,7 +190,13 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
 
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
-  const dimensionSummaries = useMemo(() => getDimensionSummaries(data), [data]);
+  const dimensionSummaries = useMemo(
+    () =>
+      legendSummary === "none"
+        ? null
+        : getDimensionSummaries(data, legendSummary),
+    [data, legendSummary],
+  );
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
@@ -210,7 +217,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
               const isMuted = highlightedDimension !== null && !isHighlighted;
               // A `0` summary is a real value and must be shown; only a `null`
               // summary (series with no data) is omitted. (LFE-10498)
-              const summary = dimensionSummaries.get(dimension) ?? null;
+              const summary = dimensionSummaries?.get(dimension) ?? null;
               return (
                 <button
                   key={dimension}

@@ -258,4 +258,62 @@ describe("getDimensionSummaries", () => {
     expect(summaries.has("")).toBe(false);
     expect(summaries.get("histo")).toBeNull();
   });
+
+  it("defaults to sum mode when no mode is passed", () => {
+    const summaries = getDimensionSummaries([
+      point("t1", "service_a", 2),
+      point("t2", "service_a", 4),
+    ]);
+
+    expect(summaries.get("service_a")).toBe(3 + 3); // 6, the sum (not the avg 3)
+  });
+
+  describe("average mode (non-additive metrics)", () => {
+    it("averages finite values per series instead of summing", () => {
+      const summaries = getDimensionSummaries(
+        [
+          // e.g. per-bucket p95 latencies that must not be summed.
+          point("t1", "gpt-4o", 200),
+          point("t2", "gpt-4o", 400),
+          point("t3", "gpt-4o", 300),
+        ],
+        "average",
+      );
+
+      expect(summaries.get("gpt-4o")).toBe(300);
+    });
+
+    it("divides only by the count of finite values, ignoring missing buckets", () => {
+      const summaries = getDimensionSummaries(
+        [
+          point("t1", "score", 0.8),
+          // A missing bucket (no finite value) must not drag the average toward 0.
+          point("t2", "score", NaN),
+          point("t3", "score", 0.6),
+        ],
+        "average",
+      );
+
+      // (0.8 + 0.6) / 2, not / 3.
+      expect(summaries.get("score")).toBeCloseTo(0.7);
+    });
+
+    it("keeps a genuine 0 average as 0, not null (LFE-10498)", () => {
+      const summaries = getDimensionSummaries(
+        [point("t1", "score", 0), point("t2", "score", 0)],
+        "average",
+      );
+
+      expect(summaries.get("score")).toBe(0);
+    });
+
+    it("reports a series with no finite value as null", () => {
+      const summaries = getDimensionSummaries(
+        [point("t1", "score", NaN), point("t2", "score", Infinity)],
+        "average",
+      );
+
+      expect(summaries.get("score")).toBeNull();
+    });
+  });
 });

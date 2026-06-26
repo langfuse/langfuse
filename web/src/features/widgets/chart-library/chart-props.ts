@@ -9,6 +9,20 @@ export interface DataPoint {
 
 export type LegendPosition = "above" | "none";
 
+/**
+ * How a chart legend summarizes each series across its time buckets:
+ * - `"sum"`: additive total (event counts, token totals, cost) — reconciles
+ *   with the card's headline number.
+ * - `"average"`: a representative central value for non-additive metrics
+ *   (latency percentiles, average scores) where a cross-bucket sum would be
+ *   meaningless.
+ * - `"none"`: no per-series summary (default).
+ *
+ * The mode is chosen by each call-site because additivity is a property of the
+ * metric's aggregation, which is decided upstream of the chart. (LFE-10498)
+ */
+export type LegendSummaryMode = "sum" | "average" | "none";
+
 export interface FormattedMetric {
   negative?: boolean;
   prefix?: string;
@@ -55,6 +69,7 @@ export interface ChartProps {
   accessibilityLayer?: boolean;
   metricFormatter?: MetricFormatterFunction;
   legendPosition?: LegendPosition;
+  legendSummary?: LegendSummaryMode;
   showValueLabels?: boolean;
   showDataPointDots?: boolean;
   subtleFill?: boolean;
