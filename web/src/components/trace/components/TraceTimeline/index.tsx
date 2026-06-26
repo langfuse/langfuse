@@ -133,11 +133,15 @@ export function TraceTimeline() {
   }, [flattenedItems]);
 
   // Virtualizer drives off the chart pane; the gutter mirrors its vertical scroll.
+  // overscan is a ROW COUNT (not px): keep it small so a long trace re-renders
+  // only a few dozen rows per scroll step instead of ~1000 (the old "500" — a
+  // px-vs-items mix-up — made big traces stutter). ~16 rows ≈ half a viewport of
+  // headroom, enough to avoid blank rows on a normal scroll.
   const rowVirtualizer = useVirtualizer({
     count: flattenedItems.length,
     getScrollElement: () => chartRef.current,
     estimateSize: () => ROW_HEIGHT,
-    overscan: 500,
+    overscan: 16,
   });
 
   // Auto-scroll to selected node on initial load (URL-based navigation only).
