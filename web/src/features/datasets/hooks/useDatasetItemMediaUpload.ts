@@ -112,13 +112,15 @@ export function useDatasetItemMediaUpload({
         // uploadUrl is null when the content already exists (dedupe by hash)
         if (uploadUrl) {
           const uploadStart = Date.now();
+          const headers = new Headers({ "Content-Type": file.type });
+          Object.entries(uploadHeaders).forEach(([key, value]) => {
+            if (value) headers.set(key, value);
+          });
+
           const response = await fetch(uploadUrl, {
             method: "PUT",
             body: file,
-            headers: {
-              "Content-Type": file.type,
-              ...uploadHeaders,
-            },
+            headers,
           });
 
           await markUploadComplete.mutateAsync({
