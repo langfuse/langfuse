@@ -33,6 +33,13 @@ export type TreeNode = {
   totalCost?: Decimal;
   // Duration in seconds. Set on TRACE wrapper nodes (v3) or root observation nodes (v4 events-based traces).
   latency?: number;
+  // Wall-clock duration of this node's subtree, in milliseconds:
+  // max(end time) − min(start time) across this node and ALL its descendants.
+  // Calculated bottom-up during tree construction (mirrors totalCost). Lets the UI
+  // surface async children that outlive their parent span, whose own
+  // (endTime − startTime) badge would otherwise understate the real elapsed time.
+  // Undefined on TRACE wrapper nodes (which already render trace-level latency).
+  subtreeWallClockDurationMs?: number;
   // Observation-specific properties (when type !== 'TRACE')
   parentObservationId?: string | null;
   traceId?: string;

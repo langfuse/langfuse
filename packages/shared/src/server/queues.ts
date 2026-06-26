@@ -13,10 +13,11 @@ import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
   type MonitorQueueEvent,
+  type MonitorQueueEventInput,
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
 
-export type { MonitorQueueEvent };
+export type { MonitorQueueEvent, MonitorQueueEventInput };
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -607,7 +608,7 @@ export type TQueueJobTypes = {
   [QueueName.MonitorQueue]: {
     timestamp: Date;
     id: string;
-    payload: MonitorQueueEvent;
+    payload: MonitorQueueEventInput;
     name: QueueJobs.MonitorJob;
   };
 };

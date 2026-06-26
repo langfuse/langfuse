@@ -1,5 +1,5 @@
 import { AST_NODE_TYPES, type TSESTree } from "@typescript-eslint/utils";
-import { createComponentPropTypeVisitors } from "../component-prop-types.js";
+import { createComponentPropTypeVisitors } from "../react-components.js";
 import { createRule } from "../util.js";
 
 const FORBIDDEN_PROP_NAMES = new Set(["className", "style"]);

@@ -14,6 +14,8 @@ import {
   getTracesIdentifierForSessionFromEvents,
   getEventsFilterOptionsForColumns,
   getEventsFilterOptionValuesPage,
+  createScoresCh,
+  createTraceScore,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -611,6 +613,65 @@ describe("Clickhouse Events Repository Test", () => {
 
         expect(explicitLevels).toContain(recentLevel);
         expect(explicitLevels).toContain(oldLevel);
+      });
+    });
+
+    it("only loads requested filter option columns", async () => {
+      const uniqueProjectId = randomUUID();
+      const traceId = randomUUID();
+      const now = Date.now();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          type: "SPAN",
+          name: "unrequested-filter-option-name",
+          level: "WARNING",
+          tags: ["unrequested-filter-option-tag"],
+          start_time: now * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-score",
+          data_type: "NUMERIC",
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+        createTraceScore({
+          project_id: uniqueProjectId,
+          trace_id: traceId,
+          name: "unrequested-filter-option-category",
+          data_type: "CATEGORICAL",
+          string_value: "unrequested-category-value",
+          value: 1,
+          timestamp: now,
+          event_ts: now,
+          created_at: now,
+          updated_at: now,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const options = await getEventFilterOptions({
+          projectId: uniqueProjectId,
+          columns: ["level"],
+        });
+
+        expect(options.level.map((level) => level.value)).toContain("WARNING");
+        expect(options.name).toEqual([]);
+        expect(options.traceTags).toEqual([]);
+        expect(options.scores_avg).toEqual([]);
+        expect(options.score_categories).toEqual([]);
+        expect(options.trace_scores_avg).toEqual([]);
+        expect(options.trace_score_categories).toEqual([]);
       });
     });
 

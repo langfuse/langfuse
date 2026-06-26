@@ -122,6 +122,7 @@ interface SfdcConfig {
   userUrl: string;
   orgUrl: string;
   basicAuthHeader: string;
+  dataRegion: string;
 }
 
 export class SfdcService {
@@ -146,6 +147,7 @@ export class SfdcService {
       userUrl: env.MULESOFT_SFDC_USER_URL,
       orgUrl: env.MULESOFT_SFDC_ORG_URL,
       basicAuthHeader,
+      dataRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     });
   }
 
@@ -207,6 +209,7 @@ export class SfdcService {
         payload: {
           isLangfuse: true,
           type: "updateOrg" as const,
+          langfuseDataRegion: this.config.dataRegion,
           // The Mulesoft updateOrg flow runs `numServices* > 0` comparisons
           // and 500s on null — always send 0
           numServicesAws: 0,

@@ -40,12 +40,7 @@ export const getEnvironmentsForProject = async (
       fromTimestamp,
       dataTypes: LISTABLE_SCORE_TYPES,
     },
-    tags: {
-      feature: "tracing",
-      type: "environment",
-      kind: "byId",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "ReadOnly",
   });
   // Always add default environment to list

@@ -15,9 +15,18 @@ export class MixpanelClient {
   private config: MixpanelClientConfig;
   private batch: MixpanelEvent[] = [];
   private batchSize = 1000; // Similar to PostHog's flushAt setting
+  // Gzipped on-wire bytes sent so far, for the export-volume metric.
+  private serializedBytes = 0;
 
   constructor(config: MixpanelClientConfig) {
     this.config = config;
+  }
+
+  /**
+   * Total gzipped on-wire bytes sent to Mixpanel across all flushes.
+   */
+  public getSerializedBytes(): number {
+    return this.serializedBytes;
   }
 
   /**
@@ -58,6 +67,8 @@ export class MixpanelClient {
 
     // Compress the body with gzip
     const compressedBody = gzipSync(body);
+    // Count the gzipped payload as on-wire export volume (sent below).
+    this.serializedBytes += compressedBody.length;
 
     // Create Basic Auth header (token as username, empty password)
     const authHeader = `Basic ${Buffer.from(`${this.config.projectToken}:`).toString("base64")}`;

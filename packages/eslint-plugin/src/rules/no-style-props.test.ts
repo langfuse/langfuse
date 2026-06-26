@@ -63,6 +63,11 @@ ruleTester.run("no-style-props", rule, {
     `const Button = forwardRef((props: { variant?: "primary" }) => <div />);`,
     `interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> { variant?: "primary"; }
      function Button(props: ButtonProps) { return <div />; }`,
+    `interface ButtonProps {}
+     function Button(props: ButtonProps) { return <div />; }`,
+    `interface BaseProps { variant?: "primary"; }
+     interface ButtonProps extends BaseProps { size?: "sm"; }
+     const Button = (props: ButtonProps) => <div />;`,
   ],
   invalid: [
     {

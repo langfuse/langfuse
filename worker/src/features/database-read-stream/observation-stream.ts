@@ -274,12 +274,7 @@ export const getObservationStream = async (
       ...search.params,
     },
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "observation",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   // Helper function to process a single observation row
@@ -554,12 +549,7 @@ const getObservationStreamFromEvents = async (
     query,
     params: queryParams,
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "observation",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 

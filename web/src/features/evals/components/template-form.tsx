@@ -215,7 +215,7 @@ export const InnerEvalTemplateForm = (props: {
   // If existing template has no provider, it was using default model
   const shouldUseDefaultModel =
     props.preFilledFormValues?.shouldUseDefaultModel ??
-    (props.preFilledFormValues?.selectedModel ? false : true);
+    !props.preFilledFormValues?.selectedModel;
 
   const { data: defaultModel } = api.defaultLlmModel.fetchDefaultModel.useQuery(
     { projectId: props.projectId },

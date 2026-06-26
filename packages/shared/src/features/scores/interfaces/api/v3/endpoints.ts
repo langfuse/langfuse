@@ -3,6 +3,11 @@ import {
   ScoreDataTypeArray,
   ScoreSourceArray,
 } from "../../../../../domain/scores";
+import {
+  commaSeparatedEnumArray,
+  optionalCommaSeparatedStringArray,
+  publicApiPaginationLimitZod,
+} from "../../../../../utils/zod";
 import { APIScoreSchemaV3 } from "./schemas";
 
 export const SCORE_FIELD_GROUPS_V3 = [
@@ -13,21 +18,7 @@ export const SCORE_FIELD_GROUPS_V3 = [
 ] as const;
 export type ScoreFieldGroupV3 = (typeof SCORE_FIELD_GROUPS_V3)[number];
 
-const fieldsParam = z
-  .string()
-  .optional()
-  .transform((val) => (val ? val.split(",").map((g) => g.trim()) : ["core"]))
-  .pipe(z.array(z.enum(SCORE_FIELD_GROUPS_V3)));
-
-const csvStringParam = z
-  .string()
-  .transform((val) =>
-    val
-      .split(",")
-      .map((v) => v.trim())
-      .filter((v) => v.length > 0),
-  )
-  .optional();
+const fieldsParam = commaSeparatedEnumArray(SCORE_FIELD_GROUPS_V3, ["core"]);
 
 // Accepts case-insensitive input for uppercase enum allowedValues (e.g. "api"
 // or "API" both parse to "API"). Downstream code only sees the canonical form.
@@ -62,19 +53,19 @@ const csvEnumParam = <T extends readonly string[]>(
 // cross-field superRefine validation lives in the handler.
 export const GetScoresQueryV3 = z
   .object({
-    limit: z.coerce.number().int().positive().max(100).default(50),
+    limit: publicApiPaginationLimitZod,
     fields: fieldsParam,
     // Identifier filters (multi-value, comma-separated)
-    id: csvStringParam,
-    name: csvStringParam,
+    id: optionalCommaSeparatedStringArray,
+    name: optionalCommaSeparatedStringArray,
     source: csvEnumParam(ScoreSourceArray, "source"),
     dataType: csvEnumParam(ScoreDataTypeArray, "dataType"),
-    environment: csvStringParam,
-    configId: csvStringParam,
-    queueId: csvStringParam,
-    authorUserId: csvStringParam,
+    environment: optionalCommaSeparatedStringArray,
+    configId: optionalCommaSeparatedStringArray,
+    queueId: optionalCommaSeparatedStringArray,
+    authorUserId: optionalCommaSeparatedStringArray,
     // Value filters
-    value: csvStringParam,
+    value: optionalCommaSeparatedStringArray,
     // Treat empty string as absent so `?valueMin=` doesn't silently coerce to 0
     // and narrow results to `value >= 0`. Zod 4 rejects ±Infinity / NaN out of
     // the box, so `.finite()` is not needed.
@@ -87,10 +78,10 @@ export const GetScoresQueryV3 = z
       z.coerce.number().optional(),
     ),
     // Entity-bounded filters
-    traceId: csvStringParam,
-    sessionId: csvStringParam,
-    observationId: csvStringParam,
-    experimentId: csvStringParam,
+    traceId: optionalCommaSeparatedStringArray,
+    sessionId: optionalCommaSeparatedStringArray,
+    observationId: optionalCommaSeparatedStringArray,
+    experimentId: optionalCommaSeparatedStringArray,
     // Timestamp filters — preprocess empty string to undefined so ?fromTimestamp=
     // from a templating system is treated as absent, consistent with valueMin/valueMax.
     fromTimestamp: z.preprocess(

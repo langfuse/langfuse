@@ -26,6 +26,10 @@ evaluating, and debugging AI applications.
   cross-view extension playbook — the bar is intended to become the primary
   filter interface for every filterable view, so new filtering work extends it
   through that contract rather than forking it.
+- Do not add or widen ESLint disable comments or config overrides
+  without explicit user approval for the exact rule and scope.
+- Always quote file paths in shell commands, or use `noglob` for path-heavy
+  commands, to avoid zsh glob expansion issues with dynamic Next.js routes.
 - Never commit secrets or credentials. Keep `.env*.example` files in
   sync with required env vars.
 

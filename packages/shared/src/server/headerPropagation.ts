@@ -1,12 +1,20 @@
 import * as opentelemetry from "@opentelemetry/api";
 import type { IncomingHttpHeaders } from "http";
 import { env } from "../env";
+import {
+  CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS,
+  type ClickHouseQuerySurface,
+} from "./clickhouse/queryTags";
 
 export type LangfuseContextProps = {
   headers?: IncomingHttpHeaders;
   userId?: string;
   projectId?: string;
   apiKeyId?: string;
+  clickhouse?: {
+    surface: ClickHouseQuerySurface;
+    route?: string;
+  };
 };
 
 /**
@@ -59,6 +67,16 @@ export const contextWithLangfuseProps = (
     baggage = baggage.setEntry("langfuse.api_key.id", {
       value: props.apiKeyId,
     });
+  }
+  if (props.clickhouse) {
+    baggage = baggage.setEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.surface, {
+      value: props.clickhouse.surface,
+    });
+    if (props.clickhouse.route?.trim()) {
+      baggage = baggage.setEntry(CLICKHOUSE_QUERY_TAG_BAGGAGE_KEYS.route, {
+        value: props.clickhouse.route,
+      });
+    }
   }
 
   return opentelemetry.propagation.setBaggage(ctx, baggage);

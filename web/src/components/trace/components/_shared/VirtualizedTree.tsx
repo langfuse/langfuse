@@ -39,7 +39,10 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
   onToggleCollapse,
   onSelectNode,
   estimateSize,
-  overscan = 500,
+  // overscan is a ROW COUNT, not pixels: keep it small so a long tree mounts
+  // only a few dozen extra rows per scroll step instead of ~1000 (the old "500"
+  // mistook it for pixels). ~16 rows ≈ half a viewport of headroom.
+  overscan = 16,
   defaultRowHeight = 37,
   className,
 }: VirtualizedTreeProps<T>) {

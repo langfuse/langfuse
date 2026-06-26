@@ -5,11 +5,17 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { cn } from "@/src/utils/tailwind";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { type RouterInput } from "@/src/utils/types";
 import { CheckIcon, Globe, Link, Share2 } from "lucide-react";
@@ -21,6 +27,10 @@ export const PublishTraceSwitch = (props: {
   timestamp?: Date;
   isPublic: boolean;
   size?: "icon" | "icon-xs";
+  /** When set, render as a full-width labeled menu item instead of an icon. */
+  label?: string;
+  /** Hover tooltip for the icon button (suppressed while the popover is open). */
+  tooltip?: string;
 }) => {
   const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();
@@ -103,6 +113,8 @@ export const PublishTraceSwitch = (props: {
       itemName="trace"
       isPublic={props.isPublic}
       size={props.size}
+      label={props.label}
+      tooltip={props.tooltip}
       onChange={(val) => {
         capture("trace_detail:publish_button_click");
         return mut.mutateAsync({
@@ -164,6 +176,8 @@ const Base = (props: {
   isPublic: boolean;
   disabled?: boolean;
   size?: "icon" | "icon-xs";
+  label?: string;
+  tooltip?: string;
 }) => {
   const [isCopied, setIsCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -181,34 +195,54 @@ const Base = (props: {
   };
 
   return (
-    <div className="flex items-center gap-1">
-      <div className="text-sm font-semibold">
+    <div className={cn("flex items-center gap-1", props.label && "w-full")}>
+      <div className={cn("text-sm font-semibold", props.label && "w-full")}>
         <Popover
           open={isOpen}
           onOpenChange={(open) => {
             if (!props.isLoading) setIsOpen(open);
           }}
         >
-          <PopoverTrigger asChild>
-            <Button
-              id="publish-trace"
-              variant="ghost"
-              size={props.size}
-              loading={props.isLoading}
-              disabled={props.disabled}
-            >
-              {props.isPublic ? (
-                <Globe
-                  className="h-4 w-4"
-                  fill="#b3d9ff"
-                  stroke="#4d94ff"
-                  strokeWidth={2}
-                />
-              ) : (
-                <Share2 className="h-4 w-4" />
-              )}
-            </Button>
-          </PopoverTrigger>
+          {(() => {
+            const trigger = (
+              <PopoverTrigger asChild>
+                <Button
+                  id="publish-trace"
+                  variant="ghost"
+                  size={props.label ? "sm" : props.size}
+                  className={
+                    props.label
+                      ? "w-full justify-start gap-2 font-normal"
+                      : undefined
+                  }
+                  loading={props.isLoading}
+                  disabled={props.disabled}
+                >
+                  {props.isPublic ? (
+                    <Globe
+                      className="h-4 w-4"
+                      fill="#b3d9ff"
+                      stroke="#4d94ff"
+                      strokeWidth={2}
+                    />
+                  ) : (
+                    <Share2 className="h-4 w-4" />
+                  )}
+                  {props.label ? (
+                    <span className="text-sm">{props.label}</span>
+                  ) : null}
+                </Button>
+              </PopoverTrigger>
+            );
+            if (!props.tooltip) return trigger;
+            // Suppress the hover tooltip while the share popover is open.
+            return (
+              <Tooltip open={isOpen ? false : undefined}>
+                <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+                <TooltipContent>{props.tooltip}</TooltipContent>
+              </Tooltip>
+            );
+          })()}
           <PopoverContent className="flex flex-col gap-3">
             {props.isPublic ? (
               <>

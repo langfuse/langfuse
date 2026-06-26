@@ -213,11 +213,6 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
     const results = await queryClickhouse<ProjectCount>({
       query,
       params: { projectIds },
-      tags: {
-        feature: "batch-project-cleaner",
-        table: this.tableName,
-        operation: "count",
-      },
     });
 
     const counts = new Map<string, number>();
@@ -243,11 +238,6 @@ export class BatchProjectCleaner extends PeriodicExclusiveRunner {
       params: { projectIds },
       clickhouseConfigs: {
         request_timeout: env.LANGFUSE_BATCH_PROJECT_CLEANER_DELETE_TIMEOUT_MS,
-      },
-      tags: {
-        feature: "batch-project-cleaner",
-        table: this.tableName,
-        operation: "delete",
       },
     });
   }

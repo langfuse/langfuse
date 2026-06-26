@@ -32,6 +32,20 @@ Comprehensive guidance for ClickHouse covering schema design, query optimization
   you first confirm the query builder cannot express the query.
 - Never use `FINAL` on the `events` table; it is designed so `FINAL` is not
   required and the keyword hurts performance.
+- ClickHouse query attribution is stored in `system.query_log.log_comment` as
+  JSON from `packages/shared/src/server/clickhouse/queryTags.ts`. Parse it with
+  `JSONExtractString(log_comment, 'surface')`,
+  `JSONExtractString(log_comment, 'route')`, and
+  `JSONExtractString(log_comment, 'projectId')`. Known `surface` values are
+  `trpc`, `publicapi`, `worker`, `mcp`, and `unknown`; ClickhouseWriter inserts
+  use `projectId = "MULTI_PROJECT"`.
+- Query attribution is propagated through OpenTelemetry baggage. Entry points
+  call `contextWithLangfuseProps(...)` from
+  `packages/shared/src/server/headerPropagation.ts`, setting ClickHouse
+  `surface`, optional `route`, and optional `projectId`. The ClickHouse
+  repository layer then reads baggage via `normalizeClickHouseQueryTags(...)`
+  and writes it to `log_comment`. Prefer setting attribution at entry points
+  rather than passing tags through every repository call.
 - Any migration in `packages/shared/clickhouse/migrations/clustered/**` with
   more than one `ALTER` on the same table must end every metadata `ALTER`
   (`ADD/DROP/MODIFY COLUMN`, `ADD/DROP INDEX`) with `SETTINGS alter_sync = 2`,

@@ -295,12 +295,28 @@ describe("SfdcService.upsertOrg", () => {
       userId: "user-1",
       email: "u@example.com",
       role: "ADMIN",
+      // Cloud region the org lives in, sourced from NEXT_PUBLIC_LANGFUSE_CLOUD_REGION.
+      langfuseDataRegion: "STAGING",
       // Mulesoft's updateOrg flow 500s when the CH service counts are
       // missing (null > 0 comparison in DataWeave) — must always be sent.
       numServicesAws: 0,
       numServicesGcp: 0,
       numServicesAzure: 0,
     });
+  });
+
+  it("sends langfuseDataRegion from NEXT_PUBLIC_LANGFUSE_CLOUD_REGION", async () => {
+    envMock.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    fetchMock.mockResolvedValueOnce(emptyOkResponse());
+    await SfdcService.tryCreate()!.upsertOrg({
+      orgId: "org-1",
+      orgName: "Org One",
+      userId: "user-1",
+      email: "u@example.com",
+      role: "OWNER",
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.langfuseDataRegion).toBe("EU");
   });
 
   it("persists sfdcOrgId on 2xx with id in response", async () => {

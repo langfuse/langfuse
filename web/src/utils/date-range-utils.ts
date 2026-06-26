@@ -643,6 +643,41 @@ export function rangeFromString<T extends string>(
 }
 
 /**
+ * Resolves the active time range from its two possible sources using the
+ * presence-XOR rule (no merging):
+ * - If the URL carries an explicit `dateRange` value, it wins outright — shared
+ *   links are authoritative and we ignore the persisted preference.
+ * - Otherwise we fall back to the per-user stored default (relative
+ *   meta-format), so clean navigations keep the last chosen range.
+ * - Otherwise the view's fallback preset.
+ *
+ * A stored value that is not valid for this view's `allowedRanges` (e.g. a
+ * table-only preset surfacing on a dashboard) degrades to the fallback rather
+ * than merging.
+ */
+export function resolveTimeRange<T extends string>(
+  sources: { urlValue?: string | null; storedValue?: string | null },
+  allowedRanges: readonly T[],
+  fallback: T,
+): TimeRange {
+  const fromUrl =
+    sources.urlValue != null && sources.urlValue !== ""
+      ? sources.urlValue
+      : null;
+  const fromStorage =
+    sources.storedValue != null && sources.storedValue !== ""
+      ? sources.storedValue
+      : null;
+
+  const source = fromUrl ?? fromStorage;
+  if (source == null) {
+    return { range: fallback };
+  }
+
+  return rangeFromString(source, allowedRanges, fallback);
+}
+
+/**
  * =======================
  * Chart Formatting
  * =======================

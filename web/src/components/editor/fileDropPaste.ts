@@ -3,9 +3,13 @@ import { type Extension } from "@codemirror/state";
 
 /**
  * Collects files from a drop/paste transfer, falling back to `items` for
- * sources (e.g. clipboard images) that don't populate `files`.
+ * sources (e.g. clipboard images) that don't populate `files`. Exported so other
+ * paste handlers (e.g. magic paste) can detect a file paste with the exact same
+ * definition, avoiding a gap where both handlers defer and the default fires.
  */
-function extractTransferFiles(data: DataTransfer | null | undefined): File[] {
+export function extractTransferFiles(
+  data: DataTransfer | null | undefined,
+): File[] {
   if (!data) return [];
   if (data.files.length > 0) return Array.from(data.files);
   const files: File[] = [];

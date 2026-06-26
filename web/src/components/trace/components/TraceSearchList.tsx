@@ -11,6 +11,7 @@ import { useTraceData } from "../contexts/TraceDataContext";
 import { useSearch } from "../contexts/SearchContext";
 import { useSelection } from "../contexts/SelectionContext";
 import { useHandlePrefetchObservation } from "../hooks/useHandlePrefetchObservation";
+import { useDesktopLayoutContextOptional } from "./_layout/TraceLayoutDesktop";
 import { VirtualizedList } from "./_shared/VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
@@ -21,6 +22,13 @@ export function TraceSearchList() {
   const { searchQuery, setSearchInputValue } = useSearch();
   const { selectedNodeId, setSelectedNodeId } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
+  // Optional (null on mobile): reopen the detail panel on select, including
+  // re-selecting the already-selected result.
+  const layout = useDesktopLayoutContextOptional();
+  const handleSelectItem = (id: string | null) => {
+    setSelectedNodeId(id);
+    layout?.expandDetailPanel();
+  };
 
   // Co-located filtering - only this component re-renders on search query change
   const searchResults = useMemo(() => {
@@ -63,10 +71,9 @@ export function TraceSearchList() {
     <VirtualizedList
       items={searchResults}
       selectedItemId={selectedNodeId}
-      onSelectItem={setSelectedNodeId}
+      onSelectItem={handleSelectItem}
       getItemId={(item) => item.node.id}
       estimatedItemSize={48}
-      overscan={500}
       renderItem={({ item, isSelected, onSelect }) => (
         <TraceSearchListItem
           item={item}

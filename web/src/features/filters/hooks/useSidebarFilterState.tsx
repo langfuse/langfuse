@@ -811,7 +811,7 @@ export function useSidebarFilterState(
               column,
               type: "boolean" as const,
               operator: "=" as const,
-              value: invert ? false : true,
+              value: !invert,
             },
           ];
         }
@@ -822,7 +822,7 @@ export function useSidebarFilterState(
               column,
               type: "boolean" as const,
               operator: "=" as const,
-              value: invert ? true : false,
+              value: !!invert,
             },
           ];
         }

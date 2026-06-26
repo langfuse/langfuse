@@ -19,6 +19,7 @@ import {
 } from "./transformers";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
 
 type PostHogExecutionConfig = {
   projectId: string;
@@ -31,11 +32,42 @@ type PostHogExecutionConfig = {
   // `grace_hash` (slower, but spills to disk) on retries so an OOM on the first
   // attempt recovers without manual intervention while healthy syncs stay fast.
   useGraceHash: boolean;
+  // Shared accumulator for gzipped on-wire upload volume, written by the
+  // fetch wrapper on each client and read once the run succeeds.
+  volume: { bytes: number };
 };
 
 const postHogSettings = {
   flushAt: 1000,
 };
+
+type PostHogClientOptions = NonNullable<
+  ConstructorParameters<typeof PostHog>[1]
+>;
+
+// Wrap the SDK's fetch transport to count gzipped on-wire upload volume for
+// the export-volume metric. The SDK gzips the /batch/ body by default and also
+// calls /flags/, so only /batch/ request bodies are measured (LFE-10508).
+export const countingFetch =
+  (volume: { bytes: number }): PostHogClientOptions["fetch"] =>
+  (url, options) => {
+    if (url.endsWith("/batch/")) {
+      const body = options.body;
+      if (typeof body === "string") {
+        volume.bytes += Buffer.byteLength(body);
+      } else if (body instanceof Blob) {
+        volume.bytes += body.size;
+      } else {
+        // The SDK sends gzipped Blob bodies today; warn (rather than silently
+        // counting 0) if a future SDK version uses another body type, so the
+        // export-volume under-reporting is observable.
+        logger.warn(
+          `[POSTHOG] Unexpected /batch/ body type "${typeof body}"; export volume under-reported`,
+        );
+      }
+    }
+    return globalThis.fetch(url, options as RequestInit);
+  };
 
 const processPostHogTraces = async (config: PostHogExecutionConfig) => {
   const traces = getTracesForAnalyticsIntegrations(
@@ -54,6 +86,7 @@ const processPostHogTraces = async (config: PostHogExecutionConfig) => {
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
     host: config.postHogHost,
     ...postHogSettings,
+    fetch: countingFetch(config.volume),
   });
 
   let sendError: Error | undefined;
@@ -102,6 +135,7 @@ const processPostHogGenerations = async (config: PostHogExecutionConfig) => {
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
     host: config.postHogHost,
     ...postHogSettings,
+    fetch: countingFetch(config.volume),
   });
 
   let sendError: Error | undefined;
@@ -150,6 +184,7 @@ const processPostHogScores = async (config: PostHogExecutionConfig) => {
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
     host: config.postHogHost,
     ...postHogSettings,
+    fetch: countingFetch(config.volume),
   });
 
   let sendError: Error | undefined;
@@ -197,6 +232,7 @@ const processPostHogEvents = async (config: PostHogExecutionConfig) => {
   const posthog = new PostHog(config.decryptedPostHogApiKey, {
     host: config.postHogHost,
     ...postHogSettings,
+    fetch: countingFetch(config.volume),
   });
 
   let sendError: Error | undefined;
@@ -324,6 +360,7 @@ export const handlePostHogIntegrationProjectJob = async (
     decryptedPostHogApiKey: decrypt(postHogIntegration.encryptedPosthogApiKey),
     postHogHost: postHogIntegration.posthogHostName,
     useGraceHash: job.attemptsMade > 0,
+    volume: { bytes: 0 },
   };
 
   try {
@@ -361,6 +398,12 @@ export const handlePostHogIntegrationProjectJob = async (
       data: {
         lastSyncAt: executionConfig.maxTimestamp,
       },
+    });
+    // Record gzipped on-wire export volume once the run has succeeded.
+    recordExportVolume({
+      integration: "posthog",
+      bytes: executionConfig.volume.bytes,
+      projectId,
     });
     logger.info(
       `[POSTHOG] PostHog integration processing complete for project ${projectId}`,

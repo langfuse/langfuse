@@ -39,15 +39,19 @@ export const jsonSchema: z.ZodType<Json> = z.lazy(() =>
   ]),
 );
 
+export const paginationLimitZod = z.preprocess(
+  (x) => (x === "" ? undefined : x),
+  z.coerce.number().int().gte(1).lte(100).default(50),
+);
+
+export const publicApiPaginationLimitZod = paginationLimitZod;
+
 export const paginationZod = {
   page: z.preprocess(
     (x) => (x === "" ? undefined : x),
     z.coerce.number().nonnegative().default(1),
   ),
-  limit: z.preprocess(
-    (x) => (x === "" ? undefined : x),
-    z.coerce.number().gte(1).lte(100).default(50),
-  ),
+  limit: paginationLimitZod,
 };
 
 export const publicApiPaginationZod = {
@@ -55,11 +59,65 @@ export const publicApiPaginationZod = {
     (x) => (x === "" ? undefined : x),
     z.coerce.number().gt(0).default(1),
   ),
-  limit: z.preprocess(
-    (x) => (x === "" ? undefined : x),
-    z.coerce.number().gte(1).lte(100).default(50),
-  ),
+  limit: publicApiPaginationLimitZod,
 };
+
+const splitCommaSeparatedQueryParam = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+
+export const optionalCommaSeparatedStringArray = z
+  .string()
+  .nullish()
+  .transform((value) => {
+    if (!value) return undefined;
+
+    const values = splitCommaSeparatedQueryParam(value);
+    return values.length > 0 ? values : undefined;
+  });
+
+type CommaSeparatedEnumArrayOptions = {
+  unknownValues?: "reject" | "filter";
+};
+
+type CommaSeparatedEnumArrayOutput<
+  TValues extends readonly [string, ...string[]],
+  TDefault extends Array<TValues[number]> | null,
+> = TDefault extends null
+  ? Array<TValues[number]> | null
+  : Array<TValues[number]>;
+
+export function commaSeparatedEnumArray<
+  const TValues extends readonly [string, ...string[]],
+  const TDefault extends Array<TValues[number]> | null,
+>(
+  values: TValues,
+  defaultValue: TDefault,
+  options?: CommaSeparatedEnumArrayOptions,
+): z.ZodType<CommaSeparatedEnumArrayOutput<TValues, TDefault>> {
+  const arraySchema = z.array(z.enum(values));
+  const schema =
+    defaultValue === null
+      ? arraySchema.nullable().default(null)
+      : arraySchema.default(defaultValue);
+
+  return z.preprocess((value) => {
+    if (value === null || value === undefined || value === "") return undefined;
+    if (typeof value !== "string") return value;
+
+    const items = splitCommaSeparatedQueryParam(value);
+
+    if (options?.unknownValues === "filter") {
+      return items.filter((item): item is TValues[number] =>
+        values.includes(item as TValues[number]),
+      );
+    }
+
+    return items;
+  }, schema) as z.ZodType<CommaSeparatedEnumArrayOutput<TValues, TDefault>>;
+}
 
 export const optionalPaginationZod = {
   page: z

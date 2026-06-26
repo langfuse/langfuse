@@ -1,3 +1,4 @@
+import { annotationQueueScenario } from "./annotation-queue";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
 import { scoredTracesScenario } from "./scored-traces";
@@ -12,6 +13,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "scored-traces": scoredTracesScenario,
+  "annotation-queue": annotationQueueScenario,
 };
 
 export * from "./types";

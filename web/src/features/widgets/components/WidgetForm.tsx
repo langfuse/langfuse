@@ -439,9 +439,12 @@ export function WidgetForm({
     initialDefaultSort?.order ?? "DESC",
   );
 
-  // Filter state
+  // Filter state. The picker here is a transient PREVIEW control — the widget
+  // does not own a time range (the host dashboard supplies one at render time),
+  // so it must not write the user's shared cross-view default.
   const { timeRange, setTimeRange } = useDashboardDateRange({
     defaultRelativeAggregation: "last7Days",
+    persistAsDefault: false,
   });
 
   // Convert timeRange to absolute date range for compatibility

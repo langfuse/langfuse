@@ -106,7 +106,6 @@ async function getAuthorizedTrace(params: {
       truncated: true,
       shouldJsonParse: false,
     },
-    clickhouseFeatureTag: "tracing-download",
   });
 
   if (!clickhouseTrace) {

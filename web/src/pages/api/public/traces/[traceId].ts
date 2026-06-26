@@ -63,7 +63,6 @@ export default withMiddlewares(
         const trace = await getTraceById({
           traceId,
           projectId: auth.scope.projectId,
-          clickhouseFeatureTag: "tracing-public-api",
           preferredClickhouseService: "ReadOnly",
           excludeInputOutput: !includeIO,
           excludeMetadata: !includeIO,

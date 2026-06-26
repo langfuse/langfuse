@@ -1,32 +1,15 @@
-import { TablePeekView } from "@/src/components/table/peek";
+import {
+  TablePeekView,
+  shouldClosePeekAfterDelete,
+} from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { Trace } from "@/src/components/trace/Trace";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import {
+  TraceDetailBody,
+  traceDetailTitle,
+} from "@/src/components/trace/TraceDetailBody";
+import { TraceDetailActions } from "@/src/components/trace/TraceDetailActions";
 import { useRouter } from "next/router";
-
-const PeekViewObservationDetail = ({
-  peekId,
-  trace,
-}: {
-  peekId: string | undefined;
-  trace: ReturnType<typeof usePeekData>;
-}) => {
-  if (!peekId || !trace.data) {
-    return <Skeleton className="h-full w-full rounded-none" />;
-  }
-
-  return (
-    <Trace
-      key={`${trace.data.id}-${peekId}`}
-      trace={trace.data}
-      scores={trace.data.scores}
-      corrections={trace.data.corrections}
-      projectId={trace.data.projectId}
-      observations={trace.data.observations}
-      context="peek"
-    />
-  );
-};
+import { useRef } from "react";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -50,24 +33,48 @@ export const TablePeekViewObservationDetail = (
 
   const traceId = router.query.traceId as string | undefined;
 
+  // Live handle on the peeked observation's trace id: an in-flight delete that
+  // resolves after K/J-navigation reads the CURRENT trace here, so it only
+  // closes the peek when it still shows the trace that was deleted (LFE-10535).
+  const traceIdRef = useRef(traceId);
+  traceIdRef.current = traceId;
+
   const trace = usePeekData({
     projectId,
     traceId,
     timestamp,
   });
 
+  const actionProps = trace.data
+    ? {
+        traceId: trace.data.id,
+        projectId: trace.data.projectId,
+        bookmarked: trace.data.bookmarked,
+        isPublic: trace.data.public,
+        name: trace.data.name,
+        timestamp,
+        onAfterDelete: (deletedTraceId: string) => {
+          if (shouldClosePeekAfterDelete(traceIdRef.current, deletedTraceId)) {
+            props.closePeek();
+          }
+        },
+      }
+    : null;
+
   return (
     <TablePeekView
       {...props}
-      title={
-        trace.data
-          ? trace.data.name
-            ? `${trace.data.name}: ${trace.data.id}`
-            : trace.data.id
-          : traceId
+      title={traceDetailTitle(trace.data, traceId)}
+      actions={
+        actionProps ? <TraceDetailActions {...actionProps} /> : undefined
+      }
+      actionsMenu={
+        actionProps ? (
+          <TraceDetailActions {...actionProps} layout="menu" />
+        ) : undefined
       }
     >
-      <PeekViewObservationDetail trace={trace} peekId={peekId} />
+      <TraceDetailBody trace={trace.data} context="peek" keySuffix={peekId} />
     </TablePeekView>
   );
 };

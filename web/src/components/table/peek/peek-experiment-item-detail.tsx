@@ -1,7 +1,6 @@
 import { useRouter } from "next/router";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { Trace } from "@/src/components/trace/Trace";
-import { Skeleton } from "@/src/components/ui/skeleton";
+import { TraceDetailBody } from "@/src/components/trace/TraceDetailBody";
 import { TablePeekView } from "@/src/components/table/peek";
 
 const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
@@ -23,20 +22,8 @@ const PeekViewExperimentItemDetail = ({ projectId }: { projectId: string }) => {
     timestamp,
   });
 
-  if (!peekId || !trace.data) {
-    return <Skeleton className="h-full w-full rounded-none" />;
-  }
-
   return (
-    <Trace
-      key={`${trace.data.id}-${peekId}`}
-      trace={trace.data}
-      scores={trace.data.scores}
-      corrections={trace.data.corrections}
-      projectId={trace.data.projectId}
-      observations={trace.data.observations}
-      context="peek"
-    />
+    <TraceDetailBody trace={trace.data} context="peek" keySuffix={peekId} />
   );
 };
 

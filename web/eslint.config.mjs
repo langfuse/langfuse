@@ -72,13 +72,21 @@ export default [
     },
   },
 
-  // Design-system component APIs must use explicit variants instead of styling escape hatches.
   {
-    name: "langfuse/web/design-system-no-style-props",
+    name: "langfuse/web/design-system-rules",
     files: ["src/components/design-system/**/*.{ts,tsx}"],
     ignores: ["src/components/design-system/**/*.stories.tsx"],
     rules: {
+      // Design-system component APIs must use explicit variants instead of styling escape hatches.
       "@repo/no-style-props": "error",
+
+      // Margin makes components harder to compose and should therefore be applied by the parent.
+      // See: https://mxstbr.com/thoughts/margin for a discussion of this pattern.
+      // TODO: Consider expanding this rule beyond design-system components
+      "@repo/no-margin-on-root-elements": [
+        "warn",
+        { classNameFunctions: ["cn", "clsx"] },
+      ],
     },
   },
 

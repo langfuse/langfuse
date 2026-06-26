@@ -15,8 +15,10 @@ export function TimelineScale({
   const numMarkers = Math.ceil(scaleWidth / STEP_SIZE) + 1;
 
   return (
-    <div className="mb-2 ml-2">
-      <div className="relative mr-2 h-8" style={{ width: `${scaleWidth}px` }}>
+    // No left margin: the 0s tick must sit exactly at the track origin so the
+    // ticks line up with the bars (which start at startOffset = 0 there).
+    <div className="mb-2">
+      <div className="relative h-8" style={{ width: `${scaleWidth}px` }}>
         {Array.from({ length: numMarkers }).map((_, index) => {
           const timeValue = stepSize * index;
 

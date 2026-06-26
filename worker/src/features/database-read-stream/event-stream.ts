@@ -221,12 +221,7 @@ export const getEventsStream = async (props: {
     query,
     params: queryParams,
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "event",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -448,12 +443,7 @@ export const getEventsStreamForDataset = async (props: {
         http_receive_timeout: 300,
       },
     },
-    tags: {
-      feature: "batch-add-to-dataset",
-      type: "event",
-      kind: "dataset",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -555,12 +545,7 @@ export const getEventsStreamForAnnotationQueue = async (props: {
         http_receive_timeout: 300,
       },
     },
-    tags: {
-      feature: "batch-add-to-annotation-queue",
-      type: "event",
-      kind: "annotation",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 

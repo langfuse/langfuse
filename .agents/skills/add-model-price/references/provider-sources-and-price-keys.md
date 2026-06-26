@@ -33,6 +33,15 @@ Always fetch pricing from the provider's official docs before editing.
   `gemini-2.5-flash-preview-09-2025`, and `gemini-2.5-flash-lite-preview-09-2025` are
   in the selectable model lists but have no standalone pricing entry on official pages.
   Do not add pricing for them without explicit official evidence.
+- **Gemini 2.0 Flash** — `gemini-2.0-flash` and `gemini-2.0-flash-001` are in the
+  selectable model lists and have pricing entries in the file, but as of June 2026
+  these models are no longer listed on the official AI Studio pricing page. Treat the
+  existing prices as the last known values; do not update without a concrete official
+  source.
+- **Gemini 3 Pro Preview** — `gemini-3-pro-preview` is in the selectable model lists
+  and the pricing file but is NOT listed on the official AI Studio pricing page as of
+  June 2026. Its prices ($2.00/≤200k, $4.00/>200k input; $12.00/$18.00 output) were
+  set when the model was first added; do not update without explicit official evidence.
 - **Gemini cache-read ratio** — Google Gemini models consistently price cached input at
   10% of the base input price (e.g. Gemini 2.5 Flash: $0.30/MTok input → $0.03/MTok
   cached). If a cache-read price in the file diverges from this ratio, treat it as

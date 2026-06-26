@@ -30,7 +30,10 @@ export function VirtualizedList<T>({
   onSelectItem,
   getItemId,
   estimatedItemSize = 48,
-  overscan = 500,
+  // overscan is a ROW COUNT, not pixels: keep it small so a long list mounts
+  // only a few dozen extra rows per scroll step instead of ~1000 (the old "500"
+  // mistook it for pixels). ~16 rows ≈ half a viewport of headroom.
+  overscan = 16,
 }: VirtualizedListProps<T>) {
   const parentRef = useRef<HTMLDivElement>(null);
 

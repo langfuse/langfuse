@@ -216,12 +216,7 @@ maybe("evals.testRunCodeEval", () => {
     const scoreCount = await queryClickhouse<{ count: string }>({
       query: `SELECT count() as count FROM scores WHERE project_id = {projectId: String}`,
       params: { projectId: project.id },
-      tags: {
-        feature: "evals",
-        type: "scores",
-        kind: "testRunCodeEvalNoScores",
-        projectId: project.id,
-      },
+      tags: { projectId: project.id },
     });
 
     expect(Number(scoreCount[0]?.count ?? 0)).toBe(0);
@@ -534,12 +529,7 @@ maybe("evals.testRunCodeEval", () => {
       }>({
         query: `SELECT environment, metadata['code_eval_source_code'] as sourceCode FROM traces WHERE project_id = {projectId: String} AND id = {traceId: String} LIMIT 1`,
         params: { projectId: project.id, traceId: executionTraceId },
-        tags: {
-          feature: "evals",
-          type: "traces",
-          kind: "testRunCodeEvalTrace",
-          projectId: project.id,
-        },
+        tags: { projectId: project.id },
       });
       return rows[0];
     };

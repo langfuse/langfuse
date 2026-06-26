@@ -130,7 +130,6 @@ export const getExperimentsCountFromEvents = async (props: {
     orderBy: props.orderBy,
     limit: props.limit,
     page: props.page,
-    tags: { kind: "count" },
   });
 
   return rows.length > 0 ? Number(rows[0].count) : 0;
@@ -151,7 +150,6 @@ export const getExperimentsFromEvents = async (props: {
       orderBy: props.orderBy,
       limit: props.limit,
       page: props.page,
-      tags: { kind: "list" },
     });
 
   return rows.map((row) => ({
@@ -189,12 +187,7 @@ export const getExperimentMetricsFromEvents = async (props: {
     projectId: props.projectId,
     input: {
       params,
-      tags: {
-        feature: "experiments",
-        type: "experiments-table",
-        projectId: props.projectId,
-        operation_name: "getExperimentMetricsFromEvents",
-      },
+      tags: { projectId: props.projectId },
     },
     fn: async (input) => {
       return queryClickhouse<ExperimentMetricsReturnType>({
@@ -352,13 +345,7 @@ const getExperimentsFromEventsGeneric = async <T>(
     projectId,
     input: {
       params: finalParams,
-      tags: {
-        ...(props.tags ?? {}),
-        feature: "experiments",
-        type: "experiments-table",
-        projectId,
-        operation_name: `getExperimentsFromEventsGeneric-${select}`,
-      },
+      tags: { ...(props.tags ?? {}), projectId },
     },
     fn: async (input) => {
       return queryClickhouse<T>({
@@ -467,11 +454,7 @@ export const getExperimentItemsCountFromEvents = async (
   const rows = await queryClickhouse<{ count: string }>({
     query,
     params,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-count",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -678,23 +661,13 @@ const getExperimentItemScoreOptionsByLevel = async ({
     queryClickhouse<ScoreFilterOptionsRow>({
       query: traceQuery.query,
       params: traceQuery.params,
-      tags: {
-        feature: "experiments",
-        type: "filter-options",
-        kind: "trace-scores",
-        projectId,
-      },
+      tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
     queryClickhouse<ScoreFilterOptionsRow>({
       query: obsQuery.query,
       params: obsQuery.params,
-      tags: {
-        feature: "experiments",
-        type: "filter-options",
-        kind: "observation-scores",
-        projectId,
-      },
+      tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
   ]);
@@ -756,23 +729,13 @@ const getExperimentScoreOptionsByLevel = async ({
     queryClickhouse<ScoreFilterOptionsRow>({
       query: obsQuery.query,
       params: obsQuery.params,
-      tags: {
-        feature: "experiments",
-        type: "filter-options",
-        kind: "observation-scores",
-        projectId,
-      },
+      tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
     queryClickhouse<ScoreFilterOptionsRow>({
       query: runQuery.query,
       params: runQuery.params,
-      tags: {
-        feature: "experiments",
-        type: "filter-options",
-        kind: "run-scores",
-        projectId,
-      },
+      tags: { projectId },
       preferredClickhouseService: "ReadOnly",
     }),
   ]);
@@ -1058,11 +1021,7 @@ export const getExperimentItemsFromEvents = async (
   const itemIdsResult = await queryClickhouse<{ item_id: string }>({
     query: itemIdsQuery,
     params: itemIdsParams,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-filter",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -1103,11 +1062,7 @@ export const getExperimentItemsFromEvents = async (
   const rows = await queryClickhouse<ExperimentItemEventsDataReturnType>({
     query: dataQuery,
     params: dataParams,
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-data",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -1211,11 +1166,7 @@ export const getExperimentItemsBatchIO = async (props: {
       ...params,
       truncateLength: IO_TRUNCATE_LENGTH,
     },
-    tags: {
-      feature: "experiments",
-      type: "experiment-items-batch-io",
-      projectId,
-    },
+    tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 
@@ -1294,12 +1245,7 @@ export const getExperimentNamesFromEvents = async (props: {
   }>({
     query,
     params,
-    tags: {
-      feature: "tracing",
-      type: "events",
-      kind: "analytic",
-      projectId: props.projectId,
-    },
+    tags: { projectId: props.projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
 

@@ -220,12 +220,7 @@ export const getTraceStream = async (props: {
       ...search.params,
     },
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "trace",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   // Helper function to process a single trace row

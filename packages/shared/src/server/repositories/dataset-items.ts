@@ -1876,10 +1876,6 @@ export async function getDatasetVersionForRun(params: {
           datasetId: params.datasetId,
           runId: params.runId,
         },
-        tags: {
-          feature: "datasets",
-          operation: "getDatasetVersionForRun",
-        },
       });
 
       const maxCreatedAt = maxCreatedAtResult[0]?.max_created_at ?? null;

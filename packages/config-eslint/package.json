@@ -6,13 +6,19 @@
   "type": "module",
   "exports": {
     ".": "./index.js",
-    "./base": "./base.js",
+    "./library": "./library.js",
+    "./shared": "./shared.js",
     "./next": "./next.js"
   },
   "files": [
     "index.js",
-    "base.js",
-    "next.js"
+    "index.d.ts",
+    "library.js",
+    "library.d.ts",
+    "shared.js",
+    "shared.d.ts",
+    "next.js",
+    "next.d.ts"
   ],
   "dependencies": {
     "@eslint/js": "^9.39.2",

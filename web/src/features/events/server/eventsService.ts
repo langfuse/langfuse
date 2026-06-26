@@ -71,6 +71,7 @@ interface GetObservationsFilterOptionsParams {
   isRootObservation?: boolean;
   hasParentObservation?: boolean;
   observationType?: string;
+  columns?: readonly EventFilterOptionsColumn[];
 }
 
 type EventFilterValueOption = {
@@ -99,6 +100,20 @@ const EVENT_FILTER_OPTION_COLUMNS = [
   "toolNames",
   "calledToolNames",
 ] as const satisfies readonly EventFilterOptionColumn[];
+
+const EVENT_SCORE_FILTER_OPTION_COLUMNS = [
+  "scores_avg",
+  "score_categories",
+  "trace_scores_avg",
+  "trace_score_categories",
+] as const;
+
+export const EVENT_FILTER_OPTIONS_COLUMNS = [
+  ...EVENT_FILTER_OPTION_COLUMNS,
+  ...EVENT_SCORE_FILTER_OPTION_COLUMNS,
+] as const;
+
+type EventFilterOptionsColumn = (typeof EVENT_FILTER_OPTIONS_COLUMNS)[number];
 
 const OBSERVATIONS_TO_TRACE_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
 const SCORE_TO_TRACE_OBSERVATIONS_INTERVAL_MS = 60 * 60 * 1000;
@@ -527,9 +542,20 @@ export async function getEventFilterOptions(
   params: GetObservationsFilterOptionsParams,
 ) {
   const scopedParams = ensureStartTimeFilterForEventFilterOptions(params);
-  const { projectId } = scopedParams;
+  const { projectId, columns = EVENT_FILTER_OPTIONS_COLUMNS } = scopedParams;
   const { eventsFilter, traceTimestampFilters, traceScoreTimestampFilters } =
     getEventFilterOptionsScope(scopedParams);
+  const requestedColumns = new Set<EventFilterOptionsColumn>(columns);
+  const eventColumns = EVENT_FILTER_OPTION_COLUMNS.filter((column) =>
+    requestedColumns.has(column),
+  );
+  const shouldLoadScoresAvg = requestedColumns.has("scores_avg");
+  const shouldLoadScoreCategories =
+    requestedColumns.has("score_categories") ||
+    requestedColumns.has("trace_score_categories");
+  const shouldLoadTraceScores =
+    requestedColumns.has("trace_scores_avg") ||
+    requestedColumns.has("trace_score_categories");
 
   const [
     numericScoreNames,
@@ -537,17 +563,25 @@ export async function getEventFilterOptions(
     traceScoreColumns,
     eventFilterOptions,
   ] = await Promise.all([
-    getNumericScoresGroupedByName(projectId, traceTimestampFilters),
-    getCategoricalScoresGroupedByName(projectId, traceTimestampFilters),
-    getScoresGroupedByNameSourceType({
-      projectId,
-      filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
-    }),
-    getEventsFilterOptionsForColumns({
-      projectId,
-      filter: eventsFilter,
-      columns: EVENT_FILTER_OPTION_COLUMNS,
-    }),
+    shouldLoadScoresAvg
+      ? getNumericScoresGroupedByName(projectId, traceTimestampFilters)
+      : Promise.resolve([]),
+    shouldLoadScoreCategories
+      ? getCategoricalScoresGroupedByName(projectId, traceTimestampFilters)
+      : Promise.resolve([]),
+    shouldLoadTraceScores
+      ? getScoresGroupedByNameSourceType({
+          projectId,
+          filter: [...TRACE_SCORE_SCOPE_FILTER, ...traceScoreTimestampFilters],
+        })
+      : Promise.resolve([]),
+    eventColumns.length > 0
+      ? getEventsFilterOptionsForColumns({
+          projectId,
+          filter: eventsFilter,
+          columns: eventColumns,
+        })
+      : Promise.resolve([]),
   ]);
   const traceNumericScoreNames = Array.from(
     new Set(
@@ -569,12 +603,20 @@ export async function getEventFilterOptions(
 
   return {
     ...eventFilterOptionsByColumn,
-    scores_avg: numericScoreNames.map((score) => score.name),
-    score_categories: categoricalScoreNames,
-    trace_scores_avg: traceNumericScoreNames,
-    trace_score_categories: categoricalScoreNames.filter((score) =>
-      traceCategoricalScoreNames.has(score.label),
-    ),
+    scores_avg: shouldLoadScoresAvg
+      ? numericScoreNames.map((score) => score.name)
+      : [],
+    score_categories: requestedColumns.has("score_categories")
+      ? categoricalScoreNames
+      : [],
+    trace_scores_avg: requestedColumns.has("trace_scores_avg")
+      ? traceNumericScoreNames
+      : [],
+    trace_score_categories: requestedColumns.has("trace_score_categories")
+      ? categoricalScoreNames.filter((score) =>
+          traceCategoricalScoreNames.has(score.label),
+        )
+      : [],
   };
 }
 

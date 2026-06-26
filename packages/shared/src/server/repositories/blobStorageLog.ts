@@ -26,11 +26,7 @@ export const getBlobStorageByProjectAndEntityId = async (
       entityType,
       entityId,
     },
-    tags: {
-      feature: "eventLog",
-      kind: "byID",
-      projectId,
-    },
+    tags: { projectId },
   });
 };
 
@@ -48,11 +44,7 @@ export const getBlobStorageByProjectId = (
     params: {
       projectId,
     },
-    tags: {
-      feature: "eventLog",
-      kind: "list",
-      projectId,
-    },
+    tags: { projectId },
   });
 };
 
@@ -73,11 +65,7 @@ export const getBlobStorageByProjectIdBeforeDate = (
       projectId,
       beforeDate: convertDateToClickhouseDateTime(beforeDate),
     },
-    tags: {
-      feature: "eventLog",
-      kind: "list",
-      projectId,
-    },
+    tags: { projectId },
   });
 };
 
@@ -104,11 +92,7 @@ export const getBlobStorageByProjectIdAndEntityIds = (
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
     },
-    tags: {
-      feature: "eventLog",
-      kind: "list",
-      projectId,
-    },
+    tags: { projectId },
   });
 };
 
@@ -170,11 +154,7 @@ export const getBlobStorageByProjectIdAndTraceIds = (
     clickhouseConfigs: {
       request_timeout: 120_000, // 2 minutes
     },
-    tags: {
-      feature: "eventLog",
-      kind: "list",
-      projectId,
-    },
+    tags: { projectId },
   });
 };
 
@@ -208,10 +188,6 @@ export const insertIntoS3RefsTableFromEventLog = async (
     params: {
       limit,
       offset,
-    },
-    tags: {
-      feature: "backgroundMigration",
-      kind: "list",
     },
   });
 };

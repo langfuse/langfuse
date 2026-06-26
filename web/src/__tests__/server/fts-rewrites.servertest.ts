@@ -89,11 +89,6 @@ const matchingIds = async (filter: FilterResult) => {
     `,
     params: filter.params,
     preferredClickhouseService: "EventsReadOnly",
-    tags: {
-      feature: "fts-rewrites-test",
-      type: "events",
-      kind: "test",
-    },
   });
 
   return rows.map((row) => row.id);
