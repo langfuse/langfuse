@@ -211,9 +211,10 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
         >
           {children}
         </Group>
-        {/* When the detail panel is collapsed, the navigation header surfaces a
-            "show detail panel" button at its right edge (TracePanelNavigationHeader)
-            — no floating edge tab. */}
+        {/* When the detail panel is collapsed it renders its own collapsed rail
+            with a "Show detail panel" button (see DetailPanel below) — the
+            navigation header carries no re-open button, and there's no floating
+            edge tab. */}
       </div>
     </LayoutContext.Provider>
   );
