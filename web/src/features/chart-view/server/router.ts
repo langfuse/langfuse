@@ -95,8 +95,11 @@ export const chartViewRouter = createTRPCRouter({
         const config = chartCompletionSchema.parse(completion);
         return { config };
       } catch (error) {
-        logger.error("Failed to generate chart config from prompt", error);
+        // Already-shaped rejections (FORBIDDEN / PRECONDITION_FAILED / NOT_FOUND
+        // / RBAC) are expected control flow, not backend faults — rethrow them
+        // without ERROR-level noise. Only unexpected errors get logged + masked.
         if (error instanceof TRPCError) throw error;
+        logger.error("Failed to generate chart config from prompt", error);
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message:
