@@ -1086,18 +1086,6 @@ export const handleBlobStorageIntegrationProjectJob = async (
     `[BLOB INTEGRATION] Calculated maxTimestamp for project ${projectId}: ${maxTimestamp}, isValid: ${!isNaN(maxTimestamp.getTime())}, getTime: ${maxTimestamp.getTime()}, frequencyIntervalMs: ${frequencyIntervalMs}`,
   );
 
-  // How far behind real-time this project's export frontier is. maxTimestamp is
-  // the end of the window this job advances to, so lag ≈ the export buffer when
-  // caught up and grows during historic catch-up. Per-job emit, so it goes stale
-  // if the exporter stops entirely for a project (see LFE-10521).
-  if (!isNaN(maxTimestamp.getTime())) {
-    recordGauge(
-      "langfuse.blobstorage.export_delay_seconds",
-      (now.getTime() - maxTimestamp.getTime()) / 1000,
-      { projectId },
-    );
-  }
-
   // Skip export if the time window is empty or invalid
   if (minTimestamp >= maxTimestamp) {
     logger.info(
