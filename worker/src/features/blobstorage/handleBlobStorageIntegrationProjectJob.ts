@@ -1202,6 +1202,10 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
+    // Wall-clock spent exporting this one window's data, used to detect
+    // exporters that can't keep up (see metric emit below).
+    const exportStartedAt = Date.now();
+
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
       logger.info(
@@ -1248,8 +1252,35 @@ export const handleBlobStorageIntegrationProjectJob = async (
       await Promise.all(processPromises);
     }
 
+    const exportDurationMs = Date.now() - exportStartedAt;
+
     // Determine if we've caught up with present-day data
     const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
+
+    // Falling-behind signal: how long it took to export one window's data
+    // relative to that window's scheduling cadence (the frequency interval).
+    // A ratio > 1 means a single run takes longer than the period it covers, so
+    // the exporter cannot keep up and lag grows over time. frequencyIntervalMs
+    // is the stable denominator the user reasons about ("exports every 20 min")
+    // — the actual data window collapses toward zero near the lag buffer in
+    // steady state and would make the ratio meaningless (LFE-10521). caughtUp
+    // is tagged so steady-state lag can be separated from expected back-to-back
+    // catch-up runs.
+    const durationTags = {
+      projectId,
+      exportFrequency: blobStorageIntegration.exportFrequency,
+      caughtUp: String(caughtUp),
+    };
+    recordHistogram(
+      "langfuse.blobstorage.window_export_duration_seconds",
+      exportDurationMs / 1000,
+      durationTags,
+    );
+    recordGauge(
+      "langfuse.blobstorage.window_export_duration_ratio",
+      exportDurationMs / frequencyIntervalMs,
+      durationTags,
+    );
 
     let nextSyncAt: Date;
     if (caughtUp) {
