@@ -4,6 +4,7 @@
  */
 
 import type { Route } from "@/src/components/layouts/routes";
+import { RouteSection } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -157,6 +158,39 @@ export const filters = {
   },
 
   /**
+   * Filter routes based on the user's project role.
+   * Owner and Admin see all routes. Other roles (Member, Viewer, etc.) only
+   * see routes explicitly marked as visibleToNonAdmins.
+   * Only applies to Main-section routes scoped to a project.
+   */
+  roleBasedVisibility: (
+    route: Route,
+    ctx: NavigationFilterContext,
+  ): Route | null => {
+    // Only restrict main-section project-scoped routes
+    if (
+      route.section !== RouteSection.Main ||
+      !route.pathname.includes("[projectId]") ||
+      !ctx.routerProjectId
+    ) {
+      return route;
+    }
+
+    // Derive project role from session
+    const projectRole = ctx.session?.user?.organizations
+      ?.flatMap((org) => org.projects)
+      ?.find((proj) => proj.id === ctx.routerProjectId)?.role;
+
+    // Owner and Admin see everything
+    if (!projectRole || projectRole === "OWNER" || projectRole === "ADMIN") {
+      return route;
+    }
+
+    // All other roles only see explicitly allowed routes
+    return route.visibleToNonAdmins ? route : null;
+  },
+
+  /**
    * Filter routes based on custom show function
    * Allows routes to implement custom visibility logic
    */
@@ -192,6 +226,7 @@ function applyFiltersToRoute(
     filters.entitlements,
     filters.projectRbac,
     filters.organizationRbac,
+    filters.roleBasedVisibility,
     (r: Route) => filters.customShow(r, ctx, organization),
   ];
 
