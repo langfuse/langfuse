@@ -15,6 +15,7 @@ import {
   type MetricKey,
   type TimeGranularity,
 } from "./types";
+import { METRIC_AGGREGATIONS } from "./metricAggregations";
 
 /**
  * The chart-view vocabulary: a trimmed, faithful subset of the real widget
@@ -41,27 +42,27 @@ export const METRICS: MetricDef[] = [
     key: "count",
     label: "Count",
     measure: "count",
-    aggregations: ["count"],
+    aggregations: METRIC_AGGREGATIONS.count,
   },
   {
     key: "latency",
     label: "Latency",
     measure: "latency",
     unit: "millisecond",
-    aggregations: ["avg", "p50", "p95", "p99", "max", "min"],
+    aggregations: METRIC_AGGREGATIONS.latency,
   },
   {
     key: "totalCost",
     label: "Cost",
     measure: "totalCost",
     unit: "USD",
-    aggregations: ["sum", "avg", "p95", "max"],
+    aggregations: METRIC_AGGREGATIONS.totalCost,
   },
   {
     key: "totalTokens",
     label: "Tokens",
     measure: "totalTokens",
-    aggregations: ["sum", "avg", "p95", "max"],
+    aggregations: METRIC_AGGREGATIONS.totalTokens,
   },
 ];
 

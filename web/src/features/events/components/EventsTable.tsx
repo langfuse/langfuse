@@ -353,17 +353,19 @@ export default function ObservationsEventsTable({
   // Chart view ("any view is a chart"): URL-driven table↔chart toggle + config.
   // Only offered on the full (non-embedded) events surface, which is already
   // v4-only (the page mounts this table only for v4 users), so v1/legacy users
-  // never see it. Also gated off when the table is scoped to a single user or
-  // session: that scope is a "User ID"/"Session ID" filter the aggregate query
-  // can't forward (not in SAFE_FILTER_COLUMNS), so the chart would silently
-  // show ALL data instead of the scoped subset.
+  // never see it. Also gated off when the data the table shows can't be
+  // reproduced by the aggregate query: a single-user/session scope ("User
+  // ID"/"Session ID" filter, not in SAFE_FILTER_COLUMNS) or active free-text
+  // search (which filters the table via api.events.all, but the aggregate query
+  // has no full-text field). In those cases the chart would silently aggregate
+  // ALL events, so we keep the table rather than misrepresent the data.
   const {
     viewMode: chartViewMode,
     setViewMode: setChartViewMode,
     config: chartConfig,
     setConfig: setChartConfig,
   } = useChartViewState();
-  const chartEnabled = !hideControls && !userId && !sessionId;
+  const chartEnabled = !hideControls && !userId && !sessionId && !searchQuery;
   const chartTimeWindow = useMemo(
     () => ({
       from: dateRange?.from ?? new Date(Date.now() - 24 * 60 * 60 * 1000),
