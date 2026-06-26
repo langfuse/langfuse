@@ -31,11 +31,15 @@ import { TimelineBar } from "./TimelineBar";
 import { useDesktopLayoutContextOptional } from "../_layout/TraceLayoutDesktop";
 import { cn } from "@/src/utils/tailwind";
 
-// Width of the left name gutter. Resizable; these bound it.
-const GUTTER_WIDTH_DEFAULT = 240;
+// Width of the left name gutter. Resizable; these bound it. Kept slim so the
+// waterfall (the point of the timeline) gets the central space.
+const GUTTER_WIDTH_DEFAULT = 200;
 const GUTTER_WIDTH_MIN = 160;
 const GUTTER_WIDTH_MAX = 560;
-const ROW_HEIGHT = 42;
+// Dense waterfall rows (LFE-10539): the 20px bar / 16px name chip sit centered
+// with a few px of breathing room. Drives both the virtualizer estimate and the
+// rendered row height, so the two never drift.
+const ROW_HEIGHT = 26;
 
 export function TraceTimeline() {
   const { roots, serverScores: scores, comments } = useTraceData();

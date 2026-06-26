@@ -19,7 +19,9 @@ import { Button } from "@/src/components/ui/button";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/components/trace/contexts/SelectionContext";
 
-const RESIZABLE_PANEL_GROUP_ID = "trace-layout";
+// v2: the default split now gives the trace (tree/timeline) the central space
+// with a slimmer detail panel. Bumped so a stale saved layout doesn't mask it.
+const RESIZABLE_PANEL_GROUP_ID = "trace-layout-v2";
 const RESIZABLE_PANEL_HANDLE_ID = "trace-layout-handle";
 const RESIZABLE_PANEL_NAVIGATION_ID = "trace-layout-panel-navigation";
 const RESIZABLE_PANEL_PREVIEW_ID = "trace-layout-panel-preview";
@@ -187,7 +189,7 @@ TraceLayoutDesktop.NavigationPanel = function Navigation({
       collapsible={true}
       collapsedSize="40px"
       minSize="260px"
-      defaultSize="450px"
+      defaultSize="60%"
       onResize={() => {
         setIsNavigationPanelCollapsed(panelRef.current?.isCollapsed() ?? false);
       }}
@@ -232,7 +234,7 @@ TraceLayoutDesktop.DetailPanel = function Detail({
     <Panel
       id={RESIZABLE_PANEL_PREVIEW_ID}
       panelRef={detailPanelRef}
-      defaultSize="70%"
+      defaultSize="40%"
       collapsible={true}
       collapsedSize="40px"
       minSize="360px"
