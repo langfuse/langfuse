@@ -370,6 +370,13 @@ const assertOrgAdminOrOwner = (role: Role) => {
   });
 };
 
+const protectedOrgAdminProcedure = protectedOrganizationProcedure.use(
+  ({ ctx, next }) => {
+    assertOrgAdminOrOwner(ctx.session.orgRole);
+    return next();
+  },
+);
+
 const getLegacyIntegrations = ({
   posthogIntegration,
   mixpanelIntegration,
@@ -438,11 +445,9 @@ export const v4TransitionRouter = createTRPCRouter({
       };
     }),
 
-  summaryByProject: protectedOrganizationProcedure
+  summaryByProject: protectedOrgAdminProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ input, ctx }) => {
-      assertOrgAdminOrOwner(ctx.session.orgRole);
-
       const projects = await ctx.prisma.project.findMany({
         where: {
           orgId: input.orgId,
@@ -587,11 +592,9 @@ ORDER BY bucket_time ASC, score_name ASC
       });
     }),
 
-  traceLevelEvalExecutionsTimeSeriesByProject: protectedOrganizationProcedure
+  traceLevelEvalExecutionsTimeSeriesByProject: protectedOrgAdminProcedure
     .input(organizationTimelineInputSchema)
     .query(async ({ input, ctx }) => {
-      assertOrgAdminOrOwner(ctx.session.orgRole);
-
       const projects = await ctx.prisma.project.findMany({
         where: {
           orgId: input.orgId,
@@ -772,11 +775,9 @@ SETTINGS skip_unavailable_shards = 1
             .sort(compareTimelineRows);
     }),
 
-  timeSeriesByEntrypointByProject: protectedOrganizationProcedure
+  timeSeriesByEntrypointByProject: protectedOrgAdminProcedure
     .input(organizationTimelineInputSchema)
     .query(async ({ input, ctx }) => {
-      assertOrgAdminOrOwner(ctx.session.orgRole);
-
       const projects = await ctx.prisma.project.findMany({
         where: {
           orgId: input.orgId,

@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { ArrowRight } from "lucide-react";
 import Page from "@/src/components/layouts/page";
 import { ErrorPage } from "@/src/components/error-page";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -16,7 +15,6 @@ import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDa
 import { api } from "@/src/utils/api";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { Button } from "@/src/components/ui/button";
 import {
   Table,
   TableBody,
@@ -108,21 +106,6 @@ const getProjectActionCount = (
   project.traceLevelEvalCount +
   project.legacyIntegrationCount +
   legacyApiUsageCount;
-
-const ProjectActionLink = ({
-  href,
-  children,
-}: {
-  href: string | { pathname: string; query: Record<string, string> };
-  children: React.ReactNode;
-}) => (
-  <Button asChild variant="outline" size="sm">
-    <Link href={href}>
-      {children}
-      <ArrowRight className="ml-1 h-3.5 w-3.5" />
-    </Link>
-  </Button>
-);
 
 export default function OrganizationV4Page() {
   const router = useRouter();
@@ -308,21 +291,21 @@ export default function OrganizationV4Page() {
                         </TableCell>
                         <TableCell density="comfortable">
                           <div className="flex flex-wrap gap-2">
-                            <ProjectActionLink
+                            <ProductLinkButton
                               href={`/project/${project.projectId}/v4`}
                             >
                               V4 page
-                            </ProjectActionLink>
-                            <ProjectActionLink
+                            </ProductLinkButton>
+                            <ProductLinkButton
                               href={getTraceLevelEvalsHref(project.projectId)}
                             >
                               Evals
-                            </ProjectActionLink>
-                            <ProjectActionLink
+                            </ProductLinkButton>
+                            <ProductLinkButton
                               href={`/project/${project.projectId}/settings/integrations`}
                             >
                               Integrations
-                            </ProjectActionLink>
+                            </ProductLinkButton>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -347,9 +330,6 @@ export default function OrganizationV4Page() {
                 <h2 className="truncate text-xl font-semibold">
                   {project.projectName}
                 </h2>
-                <p className="text-muted-foreground text-sm">
-                  Project-level migration data
-                </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <ProductLinkButton href={`/project/${project.projectId}/v4`}>

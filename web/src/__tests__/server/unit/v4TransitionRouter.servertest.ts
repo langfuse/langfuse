@@ -676,6 +676,26 @@ describe("v4TransitionRouter", () => {
     await expect(caller.summaryByProject({ orgId })).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+    await expect(
+      caller.traceLevelEvalExecutionsTimeSeriesByProject({
+        orgId,
+        fromTimestamp: new Date("2026-06-25T12:00:00Z"),
+        toTimestamp: new Date("2026-06-25T13:00:00Z"),
+        granularity: "auto",
+      }),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    await expect(
+      caller.timeSeriesByEntrypointByProject({
+        orgId,
+        fromTimestamp: new Date("2026-06-24T00:00:00Z"),
+        toTimestamp: new Date("2026-06-25T00:00:00Z"),
+        granularity: "auto",
+      }),
+    ).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
   });
 
   it("queries trace-level eval execution counts with the same 2 minute buckets as the legacy API timeline", async () => {
