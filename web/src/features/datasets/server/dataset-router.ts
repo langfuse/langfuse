@@ -7,6 +7,7 @@ import { Prisma, type Dataset } from "@langfuse/shared/src/db";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
+import { getRequiredUploadHeaders } from "@/src/features/media/server/getRequiredUploadHeaders";
 import {
   datasetItemMediaReferenceKey,
   resolveDatasetItemMediaReferences,
@@ -856,7 +857,7 @@ export const datasetRouter = createTRPCRouter({
           `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
         );
 
-      return createMediaUploadUrl({
+      const { mediaId, uploadUrl } = await createMediaUploadUrl({
         projectId: input.projectId,
         body: {
           contentType: input.contentType,
@@ -867,6 +868,11 @@ export const datasetRouter = createTRPCRouter({
           field: input.field,
         },
       });
+
+      // The client PUTs the file straight to blob storage, so it must send the
+      // headers that storage requires (Azure rejects a Put Blob without
+      // x-ms-blob-type). Surfacing them here keeps the client storage-agnostic.
+      return { mediaId, uploadUrl, uploadHeaders: getRequiredUploadHeaders() };
     }),
   markItemMediaUploadComplete: protectedProjectProcedure
     .input(
