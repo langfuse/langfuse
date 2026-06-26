@@ -90,7 +90,9 @@ export function TraceLayoutDesktop({ children }: { children: ReactNode }) {
   // since the URL param — and thus this effect — doesn't change on re-click.
   const { selectedNodeId } = useSelection();
   useEffect(() => {
-    expandDetailPanel();
+    // Guard on selectedNodeId so a deliberately-collapsed panel isn't reopened
+    // on mount/refresh when there's no selection (effects always run once).
+    if (selectedNodeId) expandDetailPanel();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedNodeId]);
 

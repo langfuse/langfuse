@@ -280,7 +280,9 @@ export function TraceTimeline() {
         style={{ ...baseStyle, width: `${chartContentWidth}px` }}
         className={cn(
           "cursor-pointer",
-          (isSelected || isHovered) && "bg-muted",
+          // Selected = accent tint so the neutral bar (bg-muted) stays visible
+          // against the row; hover stays neutral.
+          isSelected ? "bg-primary-accent/10" : isHovered ? "bg-muted" : "",
         )}
         onClick={onSelectNode}
         onMouseEnter={onEnter}

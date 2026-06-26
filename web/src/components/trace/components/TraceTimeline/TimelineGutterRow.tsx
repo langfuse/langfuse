@@ -43,8 +43,10 @@ export function TimelineGutterRow({
       className={cn(
         "relative flex h-full w-full cursor-pointer items-center pr-2",
         // Whole-row highlight is driven by shared state (so hovering the chart
-        // highlights the caption too). Selected stays distinct via the accent bar.
-        (isSelected || isHovered) && "bg-muted",
+        // highlights the caption too). Selected uses an accent tint so it stays
+        // distinct from the neutral bar (bg-muted) — otherwise the bar vanishes
+        // into the selected row; hover stays neutral.
+        isSelected ? "bg-primary-accent/10" : isHovered ? "bg-muted" : "",
       )}
       onClick={onSelect}
       onMouseEnter={onHover}
