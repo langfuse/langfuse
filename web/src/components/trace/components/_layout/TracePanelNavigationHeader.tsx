@@ -16,7 +16,15 @@ import { useTraceGraphData } from "../../contexts/TraceGraphDataContext";
 import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
 import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
-import { FoldVertical, UnfoldVertical, Download, Loader2 } from "lucide-react";
+import {
+  FoldVertical,
+  UnfoldVertical,
+  Download,
+  Loader2,
+  ListTree,
+  GanttChart,
+  type LucideIcon,
+} from "lucide-react";
 import { StringParam, useQueryParam } from "use-query-params";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback } from "react";
@@ -137,7 +145,7 @@ function TracePanelNavigationHeaderExpanded({
 
   return (
     <Command className="mt-1 flex h-auto shrink-0 flex-col gap-1 overflow-hidden rounded-none border-b">
-      <div className="flex flex-row justify-between pr-2 pl-1">
+      <div className="@container/navheader flex flex-row justify-between pr-2 pl-1">
         {/* Panel Toggle Button; special p-0.5 offset to pixel align with closed version */}
         <div className="flex flex-row items-center p-0.5">
           <TracePanelNavigationButton
@@ -192,20 +200,69 @@ function TracePanelNavigationHeaderExpanded({
             )}
           </Button>
 
-          {/* Timeline Toggle Button */}
-          <Button
-            variant={isTimelineView ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setViewMode(isTimelineView ? null : "timeline")}
-            className={cn(
-              "h-7 shrink-0 px-2 text-xs",
-              isTimelineView && "bg-primary text-primary-foreground",
-            )}
-          >
-            <span className="text-xs">Timeline</span>
-          </Button>
+          {/* Tree / Timeline segmented switch (labels collapse to icons when
+              the panel is narrow — see @container/navheader). */}
+          <ViewModeSwitch
+            isTimelineView={isTimelineView}
+            onSelect={(timeline) => setViewMode(timeline ? "timeline" : null)}
+          />
         </div>
       </div>
     </Command>
+  );
+}
+
+function ViewModeSwitch({
+  isTimelineView,
+  onSelect,
+}: {
+  isTimelineView: boolean;
+  onSelect: (timeline: boolean) => void;
+}) {
+  return (
+    <div className="bg-muted/60 inline-flex h-7 shrink-0 items-center rounded-lg border p-0.5">
+      <ViewModeSegment
+        active={!isTimelineView}
+        onClick={() => onSelect(false)}
+        icon={ListTree}
+        label="Tree"
+      />
+      <ViewModeSegment
+        active={isTimelineView}
+        onClick={() => onSelect(true)}
+        icon={GanttChart}
+        label="Timeline"
+      />
+    </div>
+  );
+}
+
+function ViewModeSegment({
+  active,
+  onClick,
+  icon: Icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: LucideIcon;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={label}
+      className={cn(
+        "flex h-6 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors",
+        active
+          ? "bg-primary text-primary-foreground shadow-sm"
+          : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span className="@max-[360px]/navheader:hidden">{label}</span>
+    </button>
   );
 }
