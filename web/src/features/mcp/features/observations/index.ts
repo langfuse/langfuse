@@ -16,6 +16,10 @@ import {
   handleGetObservationFilterValues,
 } from "./tools/getObservationFilterValues";
 import {
+  getObservationFilterMetadataKeysTool,
+  handleGetObservationFilterMetadataKeys,
+} from "./tools/getObservationFilterMetadataKeys";
+import {
   listObservationsTool,
   handleListObservations,
 } from "./tools/listObservations";
@@ -49,6 +53,11 @@ export const observationsFeature: McpFeatureModule = {
     {
       definition: getObservationFilterValuesTool,
       handler: handleGetObservationFilterValues,
+      allowInAppAgentKey: true,
+    },
+    {
+      definition: getObservationFilterMetadataKeysTool,
+      handler: handleGetObservationFilterMetadataKeys,
       allowInAppAgentKey: true,
     },
   ],

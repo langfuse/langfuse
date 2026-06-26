@@ -1884,6 +1884,89 @@ const queryEventsFilterOptionsForColumns = async (params: {
   return queryEventsFilterOptionRows(params.projectId, queryWithParams);
 };
 
+export const getObservationMetadataKeysFromEventsTable = async (params: {
+  projectId: string;
+  observationIds?: string[];
+  traceId?: string;
+  fromStartTime?: Date;
+  toStartTime?: Date;
+  type?: ObservationType;
+  limit: number;
+  offset: number;
+}): Promise<Array<{ key: string; count: number }>> => {
+  const queryParams: Record<string, unknown> = {
+    projectId: params.projectId,
+    limit: params.limit,
+    offset: params.offset,
+  };
+  const whereClauses = ["e.project_id = {projectId: String}"];
+
+  if (params.observationIds && params.observationIds.length > 0) {
+    whereClauses.push("e.span_id IN ({observationIds: Array(String)})");
+    queryParams.observationIds = params.observationIds;
+  }
+
+  if (params.traceId) {
+    whereClauses.push("xxHash32(e.trace_id) = xxHash32({traceId: String})");
+    whereClauses.push("e.trace_id = {traceId: String}");
+    queryParams.traceId = params.traceId;
+  }
+
+  if (params.fromStartTime) {
+    whereClauses.push("e.start_time >= {fromStartTime: DateTime64(6)}");
+    queryParams.fromStartTime = convertDateToClickhouseDateTime(
+      params.fromStartTime,
+    );
+  }
+
+  if (params.toStartTime) {
+    whereClauses.push("e.start_time < {toStartTime: DateTime64(6)}");
+    queryParams.toStartTime = convertDateToClickhouseDateTime(
+      params.toStartTime,
+    );
+  }
+
+  if (params.type) {
+    whereClauses.push("e.type = {type: String}");
+    queryParams.type = params.type;
+  }
+
+  const query = `
+SELECT
+  key,
+  count() AS count
+FROM (
+  SELECT arrayJoin(arrayDistinct(e.metadata_names)) AS key
+  FROM (
+    SELECT
+      e.project_id,
+      e.span_id,
+      e.metadata_names,
+      e.is_deleted
+    FROM events_core e
+    WHERE ${whereClauses.join("\n      AND ")}
+    ORDER BY e.project_id DESC, e.span_id DESC, e.event_ts DESC
+    LIMIT 1 BY e.project_id, e.span_id
+  ) e
+  WHERE e.is_deleted = 0
+    AND length(e.metadata_names) > 0
+)
+WHERE length(key) > 0
+GROUP BY key
+ORDER BY count DESC, key ASC
+LIMIT {limit: Int32} OFFSET {offset: Int32}
+`.trim();
+
+  const rows = await queryClickhouse<{ key: string; count: string }>({
+    query,
+    params: queryParams,
+    tags: { projectId: params.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({ key: row.key, count: Number(row.count) }));
+};
+
 const queryEventsFilterOptionColumn = async (params: {
   projectId: string;
   filter: FilterState;

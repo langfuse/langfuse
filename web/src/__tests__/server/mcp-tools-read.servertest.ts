@@ -76,6 +76,10 @@ import {
   handleGetObservationFilterValues,
 } from "@/src/features/mcp/features/observations/tools/getObservationFilterValues";
 import {
+  getObservationFilterMetadataKeysTool,
+  handleGetObservationFilterMetadataKeys,
+} from "@/src/features/mcp/features/observations/tools/getObservationFilterMetadataKeys";
+import {
   listObservationsTool,
   handleListObservations,
 } from "@/src/features/mcp/features/observations/tools/listObservations";
@@ -596,6 +600,12 @@ describe("MCP Read Tools", () => {
       expect(result.resource).toBe("observation");
       expect(result.columns.providedModelName.type).toBe("stringOptions");
       expect(result.columns.tags.type).toBe("arrayOptions");
+      expect(result.columns.metadata).toEqual(
+        expect.objectContaining({
+          type: "stringObject",
+          requiresKey: true,
+        }),
+      );
       expect(result.columns.traceTags).toBeUndefined();
       expect(result.columns.comments).toBeUndefined();
       expect(result.columns.scores).toBeUndefined();
@@ -704,8 +714,63 @@ describe("MCP Read Tools", () => {
           operator: expect.objectContaining({ type: "string" }),
           value: expect.any(Object),
           type: expect.objectContaining({ type: "string" }),
+          key: expect.objectContaining({ type: "string" }),
         }),
       );
+    });
+
+    it("should filter by metadata advanced filters", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-metadata-match-${nanoid()}`,
+        metadata: { region: "us-east", tenant: "acme" },
+      });
+      const nonMatchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        name: `mcp-filter-metadata-miss-${nanoid()}`,
+        metadata: { region: "eu-west", tenant: "acme" },
+      });
+
+      await createEventsCh([matchingObservation, nonMatchingObservation]);
+
+      const result = (await handleListObservations(
+        {
+          filter: [
+            {
+              type: "stringOptions",
+              column: "id",
+              operator: "any of",
+              value: [matchingObservation.id, nonMatchingObservation.id],
+            },
+            {
+              type: "stringObject",
+              column: "metadata",
+              key: "region",
+              operator: "contains",
+              value: "us-",
+            },
+          ],
+          fields: ["id", "name"],
+          limit: 100,
+        },
+        context,
+      )) as { data: Array<{ id: string; name: string; url: string }> };
+
+      expect(result.data).toEqual([
+        {
+          id: matchingObservation.id,
+          name: matchingObservation.name,
+          url: buildObservationUrl({
+            projectId,
+            traceId,
+            observationId: matchingObservation.id,
+          }),
+        },
+      ]);
     });
 
     it("should list observations with compact default projection", async () => {
@@ -1225,6 +1290,178 @@ describe("MCP Read Tools", () => {
 
       expect(result1.data.map((item) => item.id)).toContain(observation.id);
       expect(result2.data).toEqual([]);
+    });
+  });
+
+  maybeEventsTable("getObservationFilterMetadataKeys tool", () => {
+    it("should have readOnlyHint annotation", () => {
+      verifyToolAnnotations(getObservationFilterMetadataKeysTool, {
+        readOnlyHint: true,
+      });
+    });
+
+    it("should be available to in-app agent keys", async () => {
+      const context = mockServerContext({ isInAppAgentKey: true });
+
+      await expect(
+        toolRegistry.getEnabledTool(
+          getObservationFilterMetadataKeysTool.name,
+          context,
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it("should expose selective scope inputs in the tool schema", () => {
+      expect(
+        getObservationFilterMetadataKeysTool.inputSchema.properties,
+      ).toEqual(
+        expect.objectContaining({
+          observationIds: expect.any(Object),
+          traceId: expect.any(Object),
+          fromStartTime: expect.any(Object),
+          toStartTime: expect.any(Object),
+          type: expect.any(Object),
+          limit: expect.any(Object),
+          cursor: expect.any(Object),
+        }),
+      );
+    });
+
+    it("should reject metadata key discovery without a selective scope", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleGetObservationFilterMetadataKeys({ limit: 100 }, context),
+      ).rejects.toThrow(
+        /observationIds, traceId, or a bounded start time range/i,
+      );
+    });
+
+    it("should reject metadata key discovery with a too-wide time range", async () => {
+      const { context } = await createMcpTestSetup();
+
+      await expect(
+        handleGetObservationFilterMetadataKeys(
+          {
+            fromStartTime: "2026-01-01T00:00:00.000Z",
+            toStartTime: "2026-01-03T00:00:00.000Z",
+            limit: 100,
+          },
+          context,
+        ),
+      ).rejects.toThrow(/24 hours/i);
+    });
+
+    it("should return metadata keys scoped by observation ids", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const traceId = randomUUID();
+      const matchingObservation = createObservationEvent({
+        projectId,
+        traceId,
+        metadata: { region: "us-east", tenant: "acme" },
+      });
+      const otherObservation = createObservationEvent({
+        projectId,
+        traceId,
+        metadata: { outside: "scope" },
+      });
+
+      await createEventsCh([matchingObservation, otherObservation]);
+
+      const result = (await handleGetObservationFilterMetadataKeys(
+        { observationIds: [matchingObservation.id], limit: 100 },
+        context,
+      )) as { keys: Array<{ key: string; count: number }>; meta: object };
+
+      expect(result.keys).toEqual([
+        { key: "region", count: 1 },
+        { key: "tenant", count: 1 },
+      ]);
+      expect(result.meta).toEqual({});
+    });
+
+    it("should paginate metadata keys", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const observation = createObservationEvent({
+        projectId,
+        metadata: { alpha: "1", beta: "2", gamma: "3" },
+      });
+
+      await createEventsCh([observation]);
+
+      const firstPage = (await handleGetObservationFilterMetadataKeys(
+        { observationIds: [observation.id], limit: 2 },
+        context,
+      )) as {
+        keys: Array<{ key: string; count: number }>;
+        meta: { cursor?: string };
+      };
+
+      expect(firstPage.keys).toEqual([
+        { key: "alpha", count: 1 },
+        { key: "beta", count: 1 },
+      ]);
+      expect(
+        JSON.parse(
+          Buffer.from(firstPage.meta.cursor ?? "", "base64").toString("utf-8"),
+        ),
+      ).toEqual({ offset: 2 });
+
+      const secondPage = (await handleGetObservationFilterMetadataKeys(
+        {
+          observationIds: [observation.id],
+          limit: 2,
+          cursor: firstPage.meta.cursor,
+        },
+        context,
+      )) as {
+        keys: Array<{ key: string; count: number }>;
+        meta: { cursor?: string };
+      };
+
+      expect(secondPage.keys).toEqual([{ key: "gamma", count: 1 }]);
+      expect(secondPage.meta).toEqual({});
+    });
+
+    it("should ignore deleted metadata key versions", async () => {
+      const { context, projectId } = await createMcpTestSetup();
+      const deletedObservationId = randomUUID();
+      const traceId = randomUUID();
+      const activeVersion = createObservationEvent({
+        projectId,
+        traceId,
+        observationId: deletedObservationId,
+        metadata: { staleKey: "true" },
+      });
+      const deletedVersion = createObservationEvent({
+        projectId,
+        traceId,
+        observationId: deletedObservationId,
+        metadata: {},
+      });
+      const liveObservation = createObservationEvent({
+        projectId,
+        traceId,
+        metadata: { liveKey: "true" },
+      });
+
+      await createEventsCh([
+        activeVersion,
+        {
+          ...deletedVersion,
+          is_deleted: 1,
+          event_ts: activeVersion.event_ts + 1,
+        },
+        liveObservation,
+      ]);
+
+      const result = (await handleGetObservationFilterMetadataKeys(
+        { traceId, limit: 100 },
+        context,
+      )) as { keys: Array<{ key: string; count: number }>; meta: object };
+
+      expect(result.keys).toEqual([{ key: "liveKey", count: 1 }]);
+      expect(result.meta).toEqual({});
     });
   });
 
