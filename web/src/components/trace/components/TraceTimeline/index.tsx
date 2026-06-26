@@ -2,10 +2,12 @@
  * TraceTimeline - Gantt waterfall: a fixed name-gutter + a scrollable chart.
  *
  * Two panes, side by side, sharing the virtualized rows:
- *  - Gutter pane (fixed, resizable): the indented name tree. Never scrolls
- *    horizontally; its vertical scroll is mirrored from the chart.
- *  - Chart pane (flex-1): the gantt bars. Owns the only horizontal scrollbar
- *    (and the vertical one). It is the virtualizer's scroll element.
+ *  - Gutter pane (fixed, resizable): the indented name tree. It never scrolls
+ *    itself — its content is a one-way translateY projection of the chart's
+ *    vertical scroll, so the two panes can't drift; wheeling over it drives the
+ *    chart.
+ *  - Chart pane (flex-1): the gantt bars. Owns the only scrollbars (horizontal
+ *    and vertical) and is the virtualizer's scroll element.
  *
  * The time scale sits in an overflow-hidden header strip whose inner is
  * transform-synced to the chart's horizontal scroll, so the scale stays aligned
@@ -186,11 +188,20 @@ export function TraceTimeline() {
   }, []);
 
   // The gutter doesn't scroll itself; wheeling over it drives the chart, which
-  // then projects back onto the gutter via handleChartScroll.
+  // then projects back onto the gutter via handleChartScroll. Normalize the
+  // delta to pixels first: Firefox (and classic mouse wheels) report deltaMode
+  // in lines (1) or pages (2), not pixels (0) — without this, a line-mode wheel
+  // moves ~1px per notch and the gutter feels stuck.
   const handleGutterWheel = useCallback((e: React.WheelEvent) => {
     const chart = chartRef.current;
     if (!chart) return;
-    chart.scrollTop += e.deltaY;
+    const unit =
+      e.deltaMode === 1
+        ? ROW_HEIGHT
+        : e.deltaMode === 2
+          ? chart.clientHeight
+          : 1;
+    chart.scrollTop += e.deltaY * unit;
   }, []);
 
   // Parent totals for heatmap coloring (aggregate across all roots).
@@ -219,11 +230,15 @@ export function TraceTimeline() {
   useLayoutEffect(() => {
     const el = chartRef.current;
     if (!el) return;
-    const measure = () =>
-      setChartScrollbar({
-        x: el.offsetWidth - el.clientWidth,
-        y: el.offsetHeight - el.clientHeight,
-      });
+    const measure = () => {
+      const x = el.offsetWidth - el.clientWidth;
+      const y = el.offsetHeight - el.clientHeight;
+      // Only re-render when the measurement actually changes — the observer
+      // fires on every content resize, but the scrollbar size rarely moves.
+      setChartScrollbar((prev) =>
+        prev.x === x && prev.y === y ? prev : { x, y },
+      );
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
@@ -359,7 +374,11 @@ export function TraceTimeline() {
           <div
             ref={gutterInnerRef}
             style={{
-              height: `${totalSize}px`,
+              // Match the chart's scrollable extent, including the height its
+              // horizontal scrollbar steals on classic (Windows/Linux) bars, so
+              // the projected rows line up to the very bottom (0 on macOS overlay
+              // bars).
+              height: `${totalSize + chartScrollbar.y}px`,
               position: "relative",
               willChange: "transform",
             }}

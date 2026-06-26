@@ -16,6 +16,7 @@ import {
 } from "react";
 import { PanelRightOpen } from "lucide-react";
 import { Button } from "@/src/components/ui/button";
+import { cn } from "@/src/utils/tailwind";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/components/trace/contexts/SelectionContext";
 
@@ -244,7 +245,13 @@ TraceLayoutDesktop.DetailPanel = function Detail({
         );
       }}
     >
-      {isDetailPanelCollapsed ? (
+      {/* Keep the detail content MOUNTED while collapsed (just hidden), so its
+          scroll position, local state, and in-progress comment/annotation
+          drafts survive a collapse → expand round-trip. */}
+      <div className={cn("h-full w-full", isDetailPanelCollapsed && "hidden")}>
+        {children}
+      </div>
+      {isDetailPanelCollapsed && (
         <div className="flex h-full w-full flex-col items-center p-2">
           <Button
             variant="ghost"
@@ -257,8 +264,6 @@ TraceLayoutDesktop.DetailPanel = function Detail({
             <PanelRightOpen className="h-3.5 w-3.5" />
           </Button>
         </div>
-      ) : (
-        children
       )}
     </Panel>
   );
