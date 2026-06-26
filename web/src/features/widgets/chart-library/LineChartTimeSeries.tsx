@@ -188,12 +188,21 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
 
   const groupedData = useMemo(() => groupDataByTimeDimension(data), [data]);
   const dimensions = useMemo(() => getUniqueDimensions(data), [data]);
+  // Ignore a highlight that no longer matches a rendered series (data/breakdown
+  // changed) — otherwise every series reads as muted until the next click.
+  const effectiveHighlight =
+    highlightedDimension && dimensions.includes(highlightedDimension)
+      ? highlightedDimension
+      : null;
 
   const tooltipFormatter = (value: number) =>
     toFullMetricString(metricFormatter(value, { style: "compact" }));
 
   const handleLegendClick = (dimension: string) => {
-    setHighlightedDimension((prev) => (prev === dimension ? null : dimension));
+    setHighlightedDimension((prev) => {
+      const current = prev && dimensions.includes(prev) ? prev : null;
+      return current === dimension ? null : dimension;
+    });
   };
 
   return (
@@ -202,10 +211,8 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
         <div className="min-w-0 shrink-0 overflow-x-auto pb-3">
           <div className="flex w-max min-w-full flex-nowrap justify-end gap-4">
             {dimensions.map((dimension, index) => {
-              const isHighlighted =
-                highlightedDimension === null ||
-                highlightedDimension === dimension;
-              const isMuted = highlightedDimension !== null && !isHighlighted;
+              const isActive = effectiveHighlight === dimension;
+              const isMuted = effectiveHighlight !== null && !isActive;
               return (
                 <button
                   key={dimension}
@@ -216,9 +223,9 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
                     "cursor-pointer hover:opacity-80",
                     isMuted && "opacity-40",
                   )}
-                  aria-pressed={isHighlighted}
+                  aria-pressed={isActive}
                   aria-label={
-                    isHighlighted ? `Show only ${dimension}` : "Show all series"
+                    isActive ? "Show all series" : `Show only ${dimension}`
                   }
                 >
                   <div
@@ -258,8 +265,7 @@ export const LineChartTimeSeries: React.FC<ChartProps> = ({
           />
           {dimensions.map((dimension, index) => {
             const isMuted =
-              highlightedDimension !== null &&
-              highlightedDimension !== dimension;
+              effectiveHighlight !== null && effectiveHighlight !== dimension;
             return (
               <Line
                 key={dimension}
