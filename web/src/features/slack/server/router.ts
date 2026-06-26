@@ -88,7 +88,7 @@ export const slackRouter = createTRPCRouter({
    * Get channels for a project's Slack integration
    */
   getChannels: protectedProjectProcedure
-    .input(z.object({ projectId: z.string() }))
+    .input(z.object({ projectId: z.string(), cursor: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -112,20 +112,27 @@ export const slackRouter = createTRPCRouter({
         const client = await slackService.getWebClientForProject(
           input.projectId,
         );
-        const { channels, hasPrivateChannelAccess } =
-          await slackService.getChannels(client);
+        const { channels, hasPrivateChannelAccess, nextCursor } =
+          await slackService.getChannels(client, input.cursor);
 
-        await auditLog({
-          session: ctx.session,
-          resourceType: "slackIntegration",
-          resourceId: integration.id,
-          action: "read",
-          after: { action: "channels_fetched", channelCount: channels.length },
-        });
+        if (!input.cursor) {
+          await auditLog({
+            session: ctx.session,
+            resourceType: "slackIntegration",
+            resourceId: integration.id,
+            action: "read",
+            after: {
+              action: "channels_fetched",
+              channelCount: channels.length,
+              hasNextPage: Boolean(nextCursor),
+            },
+          });
+        }
 
         return {
           channels,
           hasPrivateChannelAccess,
+          nextCursor,
           teamId: integration.teamId,
           teamName: integration.teamName,
         };

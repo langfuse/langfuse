@@ -581,6 +581,7 @@ export class ClickhouseWriter {
         clickhouse_settings: {
           log_comment: buildClickHouseLogComment({
             surface: "worker",
+            route: "clickhouse-writer",
             projectId: MULTI_PROJECT_LOG_COMMENT_PROJECT_ID,
           }),
         },
