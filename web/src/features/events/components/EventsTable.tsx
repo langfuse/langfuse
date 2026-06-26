@@ -323,15 +323,6 @@ export default function ObservationsEventsTable({
 
   const [refreshTick, setRefreshTick] = useState(0);
 
-  // Auto-increment refresh tick to force date range recalculation
-  useEffect(() => {
-    if (!refreshInterval) return;
-    const id = setInterval(() => {
-      setRefreshTick((t) => t + 1);
-    }, refreshInterval);
-    return () => clearInterval(id);
-  }, [refreshInterval]);
-
   const handleRefresh = useCallback(() => {
     setRefreshTick((t) => t + 1);
     Promise.all([
@@ -343,6 +334,17 @@ export default function ObservationsEventsTable({
       utils.dashboard.executeQuery.invalidate(),
     ]);
   }, [utils]);
+
+  // Auto-refresh: run the same invalidations as the manual button (incl. the
+  // chart query), not just a refreshTick bump — otherwise the chart serves
+  // stale data on absolute date ranges whose query key doesn't change.
+  useEffect(() => {
+    if (!refreshInterval) return;
+    const id = setInterval(() => {
+      handleRefresh();
+    }, refreshInterval);
+    return () => clearInterval(id);
+  }, [refreshInterval, handleRefresh]);
 
   // Convert timeRange to absolute date range for compatibility
   // Include refreshTick to force recalculation on refresh
@@ -538,15 +540,17 @@ export default function ObservationsEventsTable({
 
   // Offer the chart only when it can exactly reproduce what the table shows:
   // the full (v4) surface, no user/session scope, no free-text search, and no
-  // filter the aggregate query can't model (scores, metadata, isRootObservation
-  // — see chartCanReproduceFilters). Otherwise keep the table so the chart never
-  // silently aggregates a different dataset.
+  // sidebar/search filter the aggregate query can't model (scores, metadata,
+  // isRootObservation, or a search-bar startTime:>X bound — see
+  // chartCanReproduceFilters). The check runs on effectiveFilterState, NOT the
+  // combined state: the date-range picker's own startTime is reproduced via the
+  // chart's from/to window, so it must not count against reproducibility.
   const chartEnabled =
     !hideControls &&
     !userId &&
     !sessionId &&
     !searchQuery &&
-    chartCanReproduceFilters(filterState);
+    chartCanReproduceFilters(queryFilter.effectiveFilterState);
 
   // Use the custom hook for observations data fetching
   const {

@@ -125,7 +125,7 @@ describe("toChartFilters", () => {
 });
 
 describe("chartCanReproduceFilters", () => {
-  it("true when only forwardable + time filters are present", () => {
+  it("true when only forwardable dimension filters are present", () => {
     expect(
       chartCanReproduceFilters([
         {
@@ -135,16 +135,16 @@ describe("chartCanReproduceFilters", () => {
           value: ["GENERATION"],
         },
         {
-          column: "startTime",
-          type: "datetime",
-          operator: ">=",
-          value: new Date(),
+          column: "environment",
+          type: "string",
+          operator: "=",
+          value: "production",
         },
       ]),
     ).toBe(true);
   });
 
-  it("false when a filter the query can't model is present", () => {
+  it("false for a filter the query can't model (isRootObservation)", () => {
     expect(
       chartCanReproduceFilters([
         {
@@ -152,6 +152,19 @@ describe("chartCanReproduceFilters", () => {
           type: "boolean",
           operator: "=",
           value: true,
+        },
+      ]),
+    ).toBe(false);
+  });
+
+  it("false for a search-bar startTime bound (not the date picker)", () => {
+    expect(
+      chartCanReproduceFilters([
+        {
+          column: "startTime",
+          type: "datetime",
+          operator: ">",
+          value: new Date(),
         },
       ]),
     ).toBe(false);
