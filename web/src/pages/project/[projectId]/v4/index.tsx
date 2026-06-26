@@ -2,50 +2,15 @@ import { useMemo } from "react";
 import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import {
-  DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
-  toAbsoluteTimeRange,
-  type AbsoluteTimeRange,
-  type TimeRange,
-} from "@/src/utils/date-range-utils";
+import { DEFAULT_DASHBOARD_AGGREGATION_SELECTION } from "@/src/utils/date-range-utils";
 import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
 import { api } from "@/src/utils/api";
 import { V4MigrationProjectCards } from "@/src/features/v4/components/V4MigrationProjectCards";
-
-const V4_TIME_RANGE_PRESETS = [
-  "last5Minutes",
-  "last30Minutes",
-  "last1Hour",
-  "last3Hours",
-  "last1Day",
-  "last7Days",
-  "last30Days",
-] as const;
-
-const MAX_V4_TIMELINE_RANGE_MS = 30 * 24 * 60 * 60 * 1000;
-
-const getCappedAbsoluteTimeRange = (
-  timeRange: TimeRange,
-): AbsoluteTimeRange => {
-  const absoluteRange =
-    toAbsoluteTimeRange(timeRange) ??
-    ({
-      from: new Date(Date.now() - 24 * 60 * 60 * 1000),
-      to: new Date(),
-    } satisfies AbsoluteTimeRange);
-
-  if (
-    absoluteRange.to.getTime() - absoluteRange.from.getTime() <=
-    MAX_V4_TIMELINE_RANGE_MS
-  ) {
-    return absoluteRange;
-  }
-
-  return {
-    from: new Date(absoluteRange.to.getTime() - MAX_V4_TIMELINE_RANGE_MS),
-    to: absoluteRange.to,
-  };
-};
+import {
+  getCappedAbsoluteTimeRange,
+  MAX_V4_TIMELINE_RANGE_MS,
+  V4_TIME_RANGE_PRESETS,
+} from "@/src/features/v4/utils";
 
 export default function V4Page() {
   const router = useRouter();
@@ -108,7 +73,7 @@ export default function V4Page() {
       withPadding
       scrollable
       headerProps={{
-        title: "V4",
+        title: "Migrate to v4",
         breadcrumb: [{ name: "Home", href: `/project/${projectId}` }],
         actionButtonsLeft: (
           <TimeRangePicker
