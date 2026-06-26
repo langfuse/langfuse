@@ -7,9 +7,9 @@
 // one source of truth). Keeping it pure makes the commit semantics unit-
 // testable without rendering anything.
 
-import type { FilterState, TracingSearchType } from "@langfuse/shared";
+import type { FilterInput, TracingSearchType } from "@langfuse/shared";
 
-import { astToFilterState, type ScoreTypeContext } from "./adapter";
+import { astToFilterInput, type ScoreTypeContext } from "./adapter";
 import { serialize, type Diagnostic } from "./langQ";
 import { validateQuery } from "./validate";
 
@@ -23,7 +23,9 @@ export const DEFAULT_SEARCH_TYPE: TracingSearchType[] = ["id", "content"];
 export type CommitResult =
   | {
       status: "committed";
-      filters: FilterState;
+      /** Flat FilterState array, or a nested FilterExpression tree when the
+       *  query has a cross-field OR / bracket group (Search/Filter v2). */
+      filterInput: FilterInput | null;
       searchQuery: string | null;
       searchType: TracingSearchType[];
       /** Canonical serialization of the committed query (for recent searches). */
@@ -34,7 +36,7 @@ export type CommitResult =
 /**
  * Validate and lower `draftText`. `committed` carries everything the table
  * needs; `invalid` carries the span-tagged diagnostics for the editor to show.
- * `validateQuery` and `astToFilterState` agree by construction, so a valid
+ * `validateQuery` and `astToFilterInput` agree by construction, so a valid
  * draft always lowers without errors. `scoreTypes` (observed score names by
  * type) lets `scores.<name>:<value>` lower to the right column.
  */
@@ -46,7 +48,7 @@ export function planCommit(
   if (!res.valid) {
     return { status: "invalid", diagnostics: res.diagnostics };
   }
-  const { filters, searchQuery, searchType, errors } = astToFilterState(
+  const { filterInput, searchQuery, searchType, errors } = astToFilterInput(
     res.ast,
     scoreTypes,
   );
@@ -67,7 +69,7 @@ export function planCommit(
   }
   return {
     status: "committed",
-    filters,
+    filterInput,
     searchQuery,
     searchType: searchType ?? DEFAULT_SEARCH_TYPE,
     canonical: serialize(res.ast),

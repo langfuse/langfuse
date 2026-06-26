@@ -20,7 +20,12 @@
 // - NOT lowers at this boundary (none-of / does-not-contain / inverted
 //   comparisons / inverted booleans); gaps error via fields.negationIssue.
 
-import { type FilterState, type TracingSearchType } from "@langfuse/shared";
+import {
+  type FilterExpression,
+  type FilterInput,
+  type FilterState,
+  type TracingSearchType,
+} from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
 import {
@@ -134,6 +139,173 @@ export function astToFilterState(
     filters: ctx.filters,
     searchQuery: ctx.searchTerms.length > 0 ? ctx.searchTerms.join(" ") : null,
     // The bar has no scope tokens; the caller (commit.ts) applies the default.
+    searchType: null,
+    errors: ctx.errors,
+  };
+}
+
+// ---- Nested boolean lowering (Search/Filter v2) ----
+//
+// The flat astToFilterState above rejects cross-field OR and bracket groups.
+// astToFilterInput lowers the SAME AST into a `FilterInput`: a flat
+// `FilterState` array when the query is a pure AND of leaves (so the facet
+// sidebar still owns it), or a nested `FilterExpression` tree when it contains
+// a cross-field OR or a bracket group. The per-leaf lowering is shared with
+// astToFilterState (both call `lowerFilter`), so they cannot drift; only the
+// combiner differs (implicit-AND array vs. recursive tree). This is the commit
+// gate's lowering — validate.ts runs the same function for parity.
+//
+// Free text stays GLOBAL (searchQuery, AND-ed with the whole tree by the
+// backend): it is only valid at the top-level AND context, never inside an OR
+// or under a NOT. NOT-of-a-group still errors (the backend has no general NOT;
+// negation is De-Morgan'd to inverse leaf operators).
+
+export type AstToFilterInputResult = {
+  filterInput: FilterInput | null;
+  searchQuery: string | null;
+  searchType: TracingSearchType[] | null;
+  errors: string[];
+};
+
+type ExpressionContext = {
+  searchTerms: string[];
+  errors: string[];
+  scoreTypes?: ScoreTypeContext;
+};
+
+function leavesToExpression(
+  leaves: SingleEventsFilter[],
+): FilterExpression | null {
+  if (leaves.length === 0) return null;
+  if (leaves.length === 1) return leaves[0]!;
+  return { type: "group", operator: "AND", conditions: leaves };
+}
+
+// Build an AND/OR group, flattening same-operator children and collapsing the
+// 0/1-child degenerate cases (a single child needs no group wrapper).
+function combineExpressions(
+  operator: "AND" | "OR",
+  parts: FilterExpression[],
+): FilterExpression | null {
+  const flat = parts.flatMap((part) =>
+    part.type === "group" && part.operator === operator
+      ? part.conditions
+      : [part],
+  );
+  if (flat.length === 0) return null;
+  if (flat.length === 1) return flat[0]!;
+  return { type: "group", operator, conditions: flat };
+}
+
+function lowerFilterToExpression(
+  node: FilterNode,
+  negated: boolean,
+  ctx: ExpressionContext,
+): FilterExpression | null {
+  const out: SingleEventsFilter[] = [];
+  lowerFilter(node, negated, out, ctx.errors, ctx.scoreTypes);
+  return leavesToExpression(out);
+}
+
+function lowerToExpression(
+  node: ASTNode,
+  negated: boolean,
+  ctx: ExpressionContext,
+  allowFreeText: boolean,
+): FilterExpression | null {
+  switch (node.kind) {
+    case "text":
+      if (negated) {
+        ctx.errors.push(
+          `Free text "${node.value}" cannot be negated — search text is global`,
+        );
+        return null;
+      }
+      if (!allowFreeText) {
+        ctx.errors.push(
+          `Free text "${node.value}" cannot be combined with OR — search applies to the whole query`,
+        );
+        return null;
+      }
+      if (!node.quoted && isDanglingDotPrefix(node.value)) {
+        ctx.errors.push(
+          `Incomplete field "${node.value}" — add a key after the dot (e.g. metadata.region:eu)`,
+        );
+        return null;
+      }
+      ctx.searchTerms.push(node.value);
+      return null;
+    case "not":
+      return lowerToExpression(node.child, !negated, ctx, allowFreeText);
+    case "and": {
+      if (negated) {
+        // NOT(a AND b) would need OR-of-negations — no general NOT downstream.
+        ctx.errors.push(
+          "Negated groups are not supported — negate individual filters instead (e.g. -env:dev)",
+        );
+        return null;
+      }
+      const parts: FilterExpression[] = [];
+      for (const child of node.children) {
+        const lowered = lowerToExpression(child, false, ctx, allowFreeText);
+        if (lowered !== null) parts.push(lowered);
+      }
+      return combineExpressions("AND", parts);
+    }
+    case "or": {
+      // Same-field single-value OR collapses to one any-of / none-of leaf, the
+      // same way astToFilterState routes it — so `level:ERROR OR level:WARNING`
+      // stays a single leaf rather than an OR group.
+      const collapsed = collapseSameFieldOr(node);
+      if (collapsed !== null) {
+        return lowerFilterToExpression(collapsed, negated, ctx);
+      }
+      if (negated) {
+        ctx.errors.push(
+          "Negated groups are not supported — negate individual filters instead (e.g. -env:dev)",
+        );
+        return null;
+      }
+      const parts: FilterExpression[] = [];
+      for (const child of node.children) {
+        // Free text cannot live inside an OR branch — it is a global AND term.
+        const lowered = lowerToExpression(child, false, ctx, false);
+        if (lowered !== null) parts.push(lowered);
+      }
+      return combineExpressions("OR", parts);
+    }
+    case "filter":
+      return lowerFilterToExpression(node, negated, ctx);
+  }
+}
+
+// A pure-AND tree of leaves flattens to a flat FilterState array (the facet
+// sidebar can own it); anything with an OR or a nested group stays a tree.
+function expressionToFilterInput(
+  expression: FilterExpression | null,
+): FilterInput | null {
+  if (expression === null) return null;
+  if (expression.type !== "group") return [expression];
+  if (expression.operator === "AND") {
+    const leaves = expression.conditions.filter(
+      (condition): condition is SingleEventsFilter =>
+        condition.type !== "group",
+    );
+    if (leaves.length === expression.conditions.length) return leaves;
+  }
+  return expression;
+}
+
+export function astToFilterInput(
+  ast: ASTNode | null,
+  scoreTypes?: ScoreTypeContext,
+): AstToFilterInputResult {
+  const ctx: ExpressionContext = { searchTerms: [], errors: [], scoreTypes };
+  const expression =
+    ast === null ? null : lowerToExpression(ast, false, ctx, true);
+  return {
+    filterInput: expressionToFilterInput(expression),
+    searchQuery: ctx.searchTerms.length > 0 ? ctx.searchTerms.join(" ") : null,
     searchType: null,
     errors: ctx.errors,
   };

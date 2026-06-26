@@ -29,6 +29,10 @@ export type BatchExportTableButtonProps = {
   filterState: any;
   searchQuery?: any;
   searchType?: any;
+  /** Disable export (e.g. the active filter can't be expressed for export). */
+  disabled?: boolean;
+  /** Tooltip shown on the disabled trigger. */
+  disabledReason?: string;
 };
 
 export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
@@ -96,8 +100,13 @@ export const BatchExportTableButton: React.FC<BatchExportTableButtonProps> = (
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="icon" title="Export">
+      <DropdownMenuTrigger asChild disabled={props.disabled}>
+        <Button
+          variant="outline"
+          size="icon"
+          disabled={props.disabled}
+          title={props.disabled ? props.disabledReason : "Export"}
+        >
           {isExporting ? (
             <Spinner size="sm" />
           ) : (

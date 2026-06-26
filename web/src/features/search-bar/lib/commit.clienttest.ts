@@ -5,7 +5,7 @@ describe("planCommit", () => {
     const r = planCommit("  level:ERROR timeout  ");
     expect(r.status).toBe("committed");
     if (r.status !== "committed") return;
-    expect(r.filters).toEqual([
+    expect(r.filterInput).toEqual([
       {
         type: "stringOptions",
         column: "level",
@@ -32,13 +32,38 @@ describe("planCommit", () => {
     const r = planCommit("   ");
     expect(r.status).toBe("committed");
     if (r.status !== "committed") return;
-    expect(r.filters).toEqual([]);
+    expect(r.filterInput).toBeNull();
     expect(r.searchQuery).toBeNull();
     expect(r.canonical).toBe("");
   });
 
-  it("returns invalid with diagnostics for unrepresentable queries", () => {
+  it("commits a cross-field OR to a nested expression tree", () => {
     const r = planCommit("level:ERROR OR env:dev");
+    expect(r.status).toBe("committed");
+    if (r.status !== "committed") return;
+    expect(r.filterInput).toEqual({
+      type: "group",
+      operator: "OR",
+      conditions: [
+        {
+          type: "stringOptions",
+          column: "level",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+        {
+          type: "stringOptions",
+          column: "environment",
+          operator: "any of",
+          value: ["dev"],
+        },
+      ],
+    });
+  });
+
+  it("returns invalid with diagnostics for unrepresentable queries", () => {
+    // A negated group has no flat or tree form (the backend has no general NOT).
+    const r = planCommit("NOT (level:ERROR env:dev)");
     expect(r.status).toBe("invalid");
     if (r.status !== "invalid") return;
     expect(r.diagnostics.length).toBeGreaterThan(0);

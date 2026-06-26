@@ -18,7 +18,7 @@ import * as React from "react";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { useStore } from "zustand";
 
-import { type FilterState } from "@langfuse/shared";
+import { type FilterInput } from "@langfuse/shared";
 import { KeyboardShortcut } from "@/src/components/ui/keyboard-shortcut";
 import type { SearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 import { api } from "@/src/utils/api";
@@ -37,8 +37,9 @@ export function SearchBarAiPrompt({
   /** Observed values + metadata keys + result count, so the model maps to the
    *  project's real columns/values instead of guessing. */
   dataContext?: string;
-  /** Apply generated filters via the bar's setFilterState (apply-immediately). */
-  onApply: (filters: FilterState) => void;
+  /** Apply the generated filter — a flat list or a nested OR/grouped tree — via
+   *  the bar's setFilterState (apply-immediately). */
+  onApply: (filterInput: FilterInput) => void;
   /** Leave AI mode and restore the grammar composer. */
   onExit: () => void;
 }) {
@@ -109,11 +110,16 @@ export function SearchBarAiPrompt({
         setError("Filters changed while generating — try again.");
         return;
       }
-      if (result.filters.length === 0) {
+      // Empty = nothing applicable. A tree is never empty (the server returns a
+      // flat [] when it can't build one), so an empty array is the only "nothing".
+      if (
+        Array.isArray(result.filterInput) &&
+        result.filterInput.length === 0
+      ) {
         setError("Couldn't build filters from that — try rephrasing.");
         return;
       }
-      onApply(result.filters as FilterState);
+      onApply(result.filterInput);
       onExit();
     } catch {
       if (cancelledRef.current) return;

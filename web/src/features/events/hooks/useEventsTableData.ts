@@ -1,7 +1,7 @@
 import { api, sendAsPostOption } from "@/src/utils/api";
 import { useMemo } from "react";
 import {
-  type FilterState,
+  type FilterInput,
   AnnotationQueueObjectType,
   type TracingSearchType,
   type ScoreAggregate,
@@ -18,7 +18,8 @@ type FullEventsObservation = FullEventsObservations[number] & {
 
 type UseEventsTableDataParams = {
   projectId: string;
-  filterState: FilterState;
+  /** Flat FilterState OR a nested FilterExpression tree (Search/Filter v2). */
+  filterState: FilterInput;
   paginationState: {
     page: number;
     limit: number;
@@ -222,7 +223,11 @@ export function useEventsTableData({
       queueId: targetId,
       isBatchAction: selectAll,
       query: {
-        filter: filterState,
+        // Bulk "select all matching" actions consume a flat FilterState; a
+        // nested tree (cross-field OR) is not yet supported on this path, so it
+        // falls back to no user filter. Selection-based actions (specific rows)
+        // are unaffected. TODO(LFE-10421 follow-up): widen batch actions to FilterInput.
+        filter: Array.isArray(filterState) ? filterState : [],
         orderBy: orderByState,
       },
     });

@@ -15,13 +15,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { FilterState, TracingSearchType } from "@langfuse/shared";
+import {
+  combineFilterInputsWithAnd,
+  type FilterInput,
+  type FilterState,
+  getFilterExpressionLeafFilters,
+  type TracingSearchType,
+} from "@langfuse/shared";
 
 import {
   DEFAULT_SEARCH_TYPE,
   planCommit,
 } from "@/src/features/search-bar/lib/commit";
-import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { filterInputToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 import {
   type ObservedOptions,
   scoreTypeContextFromObserved,
@@ -62,29 +68,30 @@ function filterIdentity(f: FilterState[number]): string {
 export function useEventsSearchBar({
   projectId,
   enabled,
-  filterState,
+  filterExpression,
   searchQuery,
   searchType,
   observed,
-  setFilterState,
+  setFilterExpression,
   setSearchQuery,
   setSearchType,
 }: {
   projectId: string;
   enabled: boolean;
-  /** The user's explicit facet filters (sidebar `explicitFilterState`). */
-  filterState: FilterState;
+  /** The user's explicit filter — flat array OR a nested tree (v2)
+   *  (sidebar `explicitFilterExpression`). */
+  filterExpression: FilterInput;
   searchQuery: string | null;
   searchType: TracingSearchType[];
   /** Observed filter options — used to route `scores.<name>` by score type. */
   observed: ObservedOptions | undefined;
-  setFilterState: (filters: FilterState) => void;
+  setFilterExpression: (filterInput: FilterInput) => void;
   setSearchQuery: (query: string | null) => void;
   setSearchType: (type: TracingSearchType[]) => void;
 }): {
   store: SearchBarStore;
   commit: () => string | null;
-  applyFilters: (filters: FilterState) => void;
+  applyFilters: (filterInput: FilterInput) => void;
 } {
   // Latest observed options, read inside commit and by the store's draft
   // validation so both route `scores.<name>` by the same observed score type.
@@ -101,8 +108,8 @@ export function useEventsSearchBar({
   // are filters that have no grammar form — the bar can't show them, so they
   // must be preserved across a commit instead of being silently wiped.
   const derived = useMemo(
-    () => filterStateToQueryText(filterState, { searchQuery, searchType }),
-    [filterState, searchQuery, searchType],
+    () => filterInputToQueryText(filterExpression, { searchQuery, searchType }),
+    [filterExpression, searchQuery, searchType],
   );
   const committedText = restingDraft(derived.text);
   const skippedFiltersRef = useRef(derived.skippedFilters);
@@ -130,8 +137,12 @@ export function useEventsSearchBar({
   }, [enabled, observed, store]);
 
   // Latest applied-state setters, read inside commit without rebuilding it.
-  const applyRef = useRef({ setFilterState, setSearchQuery, setSearchType });
-  applyRef.current = { setFilterState, setSearchQuery, setSearchType };
+  const applyRef = useRef({
+    setFilterExpression,
+    setSearchQuery,
+    setSearchType,
+  });
+  applyRef.current = { setFilterExpression, setSearchQuery, setSearchType };
 
   // Latest searchType, so commit can skip writing an unchanged value.
   const searchTypeRef = useRef(searchType);
@@ -139,30 +150,45 @@ export function useEventsSearchBar({
 
   // Re-attach the filters the grammar can't represent so neither a grammar
   // commit nor an AI apply ever drops them (no-silent-drop contract) — but drop
-  // any skipped filter whose (column, key) the new set just produced, so an
+  // any skipped filter whose (column, key) the new input just produced, so an
   // explicit edit replaces it instead of duplicating the column in URL state.
-  const mergeWithSkipped = useCallback((filters: FilterState): FilterState => {
-    const producedKeys = new Set(filters.map((f) => filterIdentity(f)));
-    const preserved = skippedFiltersRef.current.filter(
-      (f) => !producedKeys.has(filterIdentity(f)),
-    );
-    return preserved.length > 0 ? [...filters, ...preserved] : filters;
-  }, []);
+  // Works for a flat array OR a tree: the input's leaves are the produced set,
+  // and combineFilterInputsWithAnd ANDs the preserved leaves on as a single outer
+  // AND (never inside a user OR) and flattens AND-of-AND to spare the depth budget.
+  const mergeWithSkipped = useCallback(
+    (filterInput: FilterInput | null | undefined): FilterInput => {
+      const producedLeaves =
+        filterInput == null
+          ? []
+          : Array.isArray(filterInput)
+            ? filterInput
+            : getFilterExpressionLeafFilters(filterInput);
+      const producedKeys = new Set(
+        producedLeaves.map((f) => filterIdentity(f)),
+      );
+      const preserved = skippedFiltersRef.current.filter(
+        (f) => !producedKeys.has(filterIdentity(f)),
+      );
+      return (
+        combineFilterInputsWithAnd(filterInput ?? undefined, preserved) ?? []
+      );
+    },
+    [],
+  );
 
-  // Apply an externally-produced filter set (the AI filter generator) the same
-  // way a commit does — preserving skipped filters — instead of a raw replace
-  // that would silently drop them. The model receives the bar's full committed
-  // text as refine context (free text rendered inline) and returns the COMPLETE
-  // updated FilterState, so applying it must write all three URL lanes like a
-  // grammar commit does: anything the model didn't re-emit is dropped, including
-  // the free text. Clearing searchQuery / resetting searchType to the default is
-  // what makes "drop the free text" actually stick — otherwise the stale
-  // searchQuery survives and resetTo re-derives it back into the bar.
+  // Apply an externally-produced filter (the AI filter generator) the same way a
+  // commit does — preserving skipped filters — instead of a raw replace that
+  // would silently drop them. The model returns the COMPLETE updated filter (a
+  // flat list OR a nested OR/grouped tree), so applying it writes all three URL
+  // lanes like a grammar commit: anything the model didn't re-emit is dropped,
+  // including the free text. Clearing searchQuery / resetting searchType to the
+  // default is what makes "drop the free text" actually stick — otherwise the
+  // stale searchQuery survives and resetTo re-derives it back into the bar.
   const applyFilters = useCallback(
-    (filters: FilterState) => {
-      const { setFilterState, setSearchQuery, setSearchType } =
+    (filterInput: FilterInput) => {
+      const { setFilterExpression, setSearchQuery, setSearchType } =
         applyRef.current;
-      setFilterState(mergeWithSkipped(filters));
+      setFilterExpression(mergeWithSkipped(filterInput));
       setSearchQuery(null);
       if (!sameScopes(DEFAULT_SEARCH_TYPE, searchTypeRef.current)) {
         setSearchType(DEFAULT_SEARCH_TYPE);
@@ -180,11 +206,14 @@ export function useEventsSearchBar({
       store.getState().actions.revealInvalid();
       return null;
     }
-    const { setFilterState, setSearchQuery, setSearchType } = applyRef.current;
-    // Re-attach the filters the grammar can't represent so the commit never
-    // drops them (no-silent-drop contract; shared with the AI apply path).
-    const committedFilters = mergeWithSkipped(result.filters);
-    setFilterState(committedFilters);
+    const { setFilterExpression, setSearchQuery, setSearchType } =
+      applyRef.current;
+    // Re-attach the grammar-less (skipped) filters, dropping any whose column the
+    // bar just re-produced — the same no-silent-drop merge the AI apply uses. It
+    // ANDs the preserved leaves on as an outer AND (never inside a user OR) and
+    // stays a flat array when everything is a leaf.
+    const committedFilterInput = mergeWithSkipped(result.filterInput);
+    setFilterExpression(committedFilterInput);
     setSearchQuery(result.searchQuery);
     // Only write searchType when it actually changed. planCommit coerces a
     // draft with no scope token to the default (`["id","content"]` — ids+names
@@ -203,7 +232,7 @@ export function useEventsSearchBar({
     // so the echo string-compares equal and the space survives even when the
     // commit reorders the query (e.g. `refund level:ERROR` → `level:ERROR refund`).
     return restingDraft(
-      filterStateToQueryText(committedFilters, {
+      filterInputToQueryText(committedFilterInput, {
         searchQuery: result.searchQuery,
         searchType: result.searchType,
       }).text,

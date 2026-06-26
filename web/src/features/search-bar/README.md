@@ -53,9 +53,22 @@ Generally available on the v4 events tables (no opt-in). Based on the
 - `has:endTime` / `-has:endTime` null checks
 - full-text search (see below): bare text, or `input:`/`output:`/`name:`/`id:`
 
-Cross-field OR, negated groups, and other shapes the flat contract cannot
-represent are commit-blocking diagnostics, not silent drops. There is no
+Cross-field `OR` and bracket grouping are supported (Search/Filter v2): they
+lower to a nested `FilterExpression` tree (`astToFilterInput`) instead of the
+flat `FilterState`, and the events tRPC `filter` input accepts both via
+`filterInput`. A query that is a pure AND of leaves still lowers to a flat
+`FilterState` (so the facet sidebar owns it); only a cross-field OR / bracket
+group produces a tree, which puts the facet sidebar into a read-only "advanced
+filter" state (the bar is the editor). Negated groups (`NOT (...)`) and free
+text inside an OR remain commit-blocking diagnostics, not silent drops — the
+backend has no general NOT, and free text is a global AND term. There is no
 FTS `*` operator: the events tRPC filter contract has none.
+
+`OR`/`AND` are **case-insensitive** operators — a user typing `or` means the
+operator, and the bar canonicalizes it to uppercase on commit (`canonicalizeKeywords`)
+so the operator is visible. To search the literal word, quote it (`"or"`). `NOT`
+stays uppercase-only; lowercase `not` and `!` are reserved and point the user at
+the `-field:value` exclusion form.
 
 **Full-text search.** It matches as a **contiguous substring** server-side
 (`clickhouse-sql/search.ts`, `ILIKE %query%`) and is expressed field-style:
@@ -97,12 +110,13 @@ two remaining multi-scope states still drop their id channel on the next commit:
 two without a real per-column "all fields" scope — deferred past beta. Trigger is
 narrow (a legacy URL from the old dropdown + the bar enabled + a commit).
 
-Operator-looking tokens that aren't supported yet are **reserved** — they emit
-an explicit "not supported yet" diagnostic instead of silently becoming free
-text: `!`, lowercase `not`/`or`/`and` (use `-field:value` to exclude;
-`field:(A OR B)` for one field's values). Quote a reserved word (`"or"`) to
-search for it as literal text. (Top-level grouping with `(` `)` is tracked as a
-follow-up.)
+`or`/`and` are case-insensitive operators (lowercase is canonicalized to uppercase
+on commit — see Query language above). The remaining operator-looking tokens that
+aren't supported are **reserved** — they emit an explicit "not supported"
+diagnostic instead of silently becoming free text: `!` and lowercase `not` (both
+point at `-field:value` to exclude). Quote a word (`"or"`, `"not"`) to search for
+it as literal text. Top-level grouping with `( )` and cross-field `OR` lower to a
+nested expression tree (see Query language above).
 
 ## Data flow (one source of truth, one direction)
 
@@ -267,21 +281,27 @@ the wand only survives on non-bar/embedded surfaces and the v3 traces table).
 - **The endpoint.** `server/router.ts` (`searchBar.generateFilter`), NOT the
   legacy `naturalLanguageFilters.createCompletion`. Its prompt is built from
   THIS registry (`server/buildFilterPrompt.ts`, derived from `FIELDS` +
-  `SCORE_COLUMNS`), so the model's vocabulary IS the grammar. It asks for a flat
-  `FilterState` (an array of `singleFilter`), then **round-trips it through
-  `filterStateToQueryText` server-side and returns only the filters that lower
-  to bar pills** — a hallucinated/non-v4 column lands in `skippedFilters` and is
-  dropped before it reaches the client. A unit test
+  `SCORE_COLUMNS`), so the model's vocabulary IS the grammar. It returns a
+  `FilterInput`: a flat `FilterState` (plain AND — the default) OR a nested
+  `{type:"group",operator,conditions}` tree when the request needs cross-field OR
+  or bracketing. `parseGeneratedFilters` **round-trips the output through the
+  reverse adapter server-side and returns only what lowers to bar pills.** Flat
+  arrays are filtered per element (one bad filter never discards the valid
+  siblings); a tree is **all-or-nothing** (dropping a leaf would change the OR's
+  meaning) and is also rejected if it exceeds the depth/node bounds. A unit test
   (`__tests__/server/unit/searchBarFilterPrompt.servertest.ts`) asserts every
   field's prompt-recommended `type` round-trips, so the prompt can't drift from
-  the reverse adapter.
+  the reverse adapter; `parseFilterCompletion.servertest.ts` covers both paths.
 - **Apply-immediately.** The result is applied via `useEventsSearchBar`'s
   `applyFilters` (it preserves grammar-less `skippedFilters` like a commit, then
-  writes `setFilterState`), so on returning to grammar mode `resetTo` re-derives
-  the generated filters as editable pills. There is no separate AI→bar sync path.
+  writes `setFilterExpression`), so on returning to grammar mode `resetTo`
+  re-derives the generated filters as editable pills (a tree renders as
+  parenthesized OR text). `applyFilters` and `commit` share one merge helper:
+  it ANDs the preserved skipped leaves onto the result (`combineFilterInputsWithAnd`),
+  so they never widen a user OR. There is no separate AI→bar sync path.
 - **Refine clears the free-text lane.** When opened with filters present, the
   bar's full committed text (free text rendered inline) is the refine context
-  sent to the model, which returns the COMPLETE updated `FilterState`. So
+  sent to the model, which returns the COMPLETE updated filter (flat or tree). So
   `applyFilters` also clears `searchQuery` and resets `searchType` to
   `DEFAULT_SEARCH_TYPE` — anything the model didn't re-emit is dropped, including
   free text the user asked to remove. Without this, a stale `searchQuery` would

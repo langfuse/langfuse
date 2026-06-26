@@ -11,6 +11,8 @@
 
 import {
   eventsTableCols,
+  type FilterExpression,
+  type FilterInput,
   type FilterState,
   type TracingSearchType,
 } from "@langfuse/shared";
@@ -299,6 +301,85 @@ export function filterStateToQueryText(
   // misleadingly read as independent AND terms, disagree with the scope-rewrite
   // suggestions (which serialize the whole phrase), and strip a user's own
   // quotes on every derive.
+  const searchQuery = options.searchQuery?.trim() ?? "";
+  if (searchQuery.length > 0) {
+    const scopeField = scopedSearchField(options.searchType);
+    if (scopeField !== null) {
+      nodes.push({
+        kind: "filter",
+        key: scopeField,
+        op: "=",
+        values: [searchQuery],
+      });
+    } else {
+      nodes.push({ kind: "text", value: searchQuery });
+    }
+  }
+
+  const ast: ASTNode | null =
+    nodes.length === 0
+      ? null
+      : nodes.length === 1
+        ? nodes[0]!
+        : { kind: "and", children: nodes };
+  return { text: serialize(ast), skipped, skippedFilters };
+}
+
+// Build an editor AST from a nested FilterExpression (Search/Filter v2). Leaves
+// reuse `lowerSingle`; AND/OR groups become and/or nodes. The serializer is
+// precedence-aware (parenthesizes OR inside AND), so the produced text reparses
+// to an equivalent tree. A leaf with no grammar form is reported in `skipped`
+// (bar-produced trees never contain one — this is defensive for hand-authored
+// or saved-view trees).
+function expressionToAst(
+  expression: FilterExpression,
+  skipped: string[],
+  skippedFilters: FilterState,
+): ASTNode | null {
+  if (expression.type !== "group") {
+    const node = lowerSingle(expression);
+    if (node === null) {
+      skipped.push(
+        `${expression.column} (${expression.type} ${expression.operator})`,
+      );
+      skippedFilters.push(expression);
+      return null;
+    }
+    return node;
+  }
+
+  const children = expression.conditions
+    .map((condition) => expressionToAst(condition, skipped, skippedFilters))
+    .filter((node): node is ASTNode => node !== null);
+
+  if (children.length === 0) return null;
+  if (children.length === 1) return children[0]!;
+  return {
+    kind: expression.operator === "OR" ? "or" : "and",
+    children,
+  };
+}
+
+/**
+ * Reverse adapter for the v2 contract: a `FilterInput` (flat array OR a nested
+ * `FilterExpression`) plus full-text search → query text. Flat arrays delegate
+ * to {@link filterStateToQueryText}; trees render via {@link expressionToAst}
+ * + the precedence-aware serializer. Free text stays a global top-level AND
+ * term, exactly as in the flat path.
+ */
+export function filterInputToQueryText(
+  filterInput: FilterInput | null | undefined,
+  options: FilterStateToQueryOptions = {},
+): FilterStateToQueryResult {
+  if (filterInput == null || Array.isArray(filterInput)) {
+    return filterStateToQueryText(filterInput ?? [], options);
+  }
+
+  const skipped: string[] = [];
+  const skippedFilters: FilterState = [];
+  const treeNode = expressionToAst(filterInput, skipped, skippedFilters);
+  const nodes: ASTNode[] = treeNode === null ? [] : [treeNode];
+
   const searchQuery = options.searchQuery?.trim() ?? "";
   if (searchQuery.length > 0) {
     const scopeField = scopedSearchField(options.searchType);

@@ -1,5 +1,8 @@
 import {
+  type FilterExpression,
+  type FilterInput,
   type FilterState,
+  filterExpression,
   singleFilter,
   type SingleValueOption,
 } from "@langfuse/shared";
@@ -215,4 +218,52 @@ export function decodeFiltersGeneric(query: string): FilterState {
   }
 
   return filters;
+}
+
+// Search/Filter v2: the URL `filter` param can hold either the legacy flat
+// delimited FilterState (above) OR a nested FilterExpression tree. A tree is
+// encoded as JSON, which always begins with `{` — a character the delimited
+// format (which starts with a column name) never produces — so the two are
+// unambiguously distinguishable on decode. Flat arrays keep using the compact
+// delimited encoding, so every existing URL and saved view is unchanged.
+
+function isFilterTree(input: FilterInput): input is FilterExpression {
+  return !Array.isArray(input);
+}
+
+/**
+ * Encode a {@link FilterInput} for the URL `filter` param. Flat arrays use the
+ * legacy delimited format; a nested tree uses JSON (Date values serialize to
+ * ISO strings and re-coerce on decode via the timeFilter schema).
+ */
+export function encodeFilterInput(
+  input: FilterInput | null | undefined,
+): string {
+  if (input == null) return "";
+  if (isFilterTree(input)) {
+    return JSON.stringify(input);
+  }
+  return encodeFiltersGeneric(input);
+}
+
+/**
+ * Decode the URL `filter` param to a {@link FilterInput}. A leading `{` marks a
+ * JSON-encoded tree (validated structurally via the filterExpression schema);
+ * anything else is the legacy delimited flat format.
+ */
+export function decodeFilterInput(query: string): FilterInput {
+  if (!query.trim()) return [];
+
+  if (query.trimStart().startsWith("{")) {
+    try {
+      const parsed = filterExpression.safeParse(JSON.parse(query));
+      if (parsed.success) return parsed.data;
+      console.warn("Invalid filter expression skipped:", parsed.error);
+    } catch (error) {
+      console.warn("Error decoding filter expression:", error);
+    }
+    return [];
+  }
+
+  return decodeFiltersGeneric(query);
 }

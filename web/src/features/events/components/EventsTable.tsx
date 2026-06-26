@@ -26,8 +26,10 @@ import {
 } from "@/src/components/table/loading-cells";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import {
+  combineFilterInputsWithAnd,
   type ObservationLevelType,
   type FilterState,
+  type FilterInput,
   BatchExportTableName,
   type ObservationType,
   TableViewPresetTableName,
@@ -435,8 +437,9 @@ export default function ObservationsEventsTable({
   const queryFilterRef = useRef(queryFilter);
   queryFilterRef.current = queryFilter;
 
-  const setFiltersWrapper = useCallback(
-    (filters: FilterState) => queryFilterRef.current?.setFilterState(filters),
+  const setFilterExpressionWrapper = useCallback(
+    (filterInput: FilterInput) =>
+      queryFilterRef.current?.setFilterExpression(filterInput),
     [],
   );
 
@@ -452,11 +455,11 @@ export default function ObservationsEventsTable({
   } = useEventsSearchBar({
     projectId,
     enabled: searchBarMode,
-    filterState: queryFilter.explicitFilterState,
+    filterExpression: queryFilter.explicitFilterExpression,
     searchQuery,
     searchType,
     observed: observedOptions,
-    setFilterState: setFiltersWrapper,
+    setFilterExpression: setFilterExpressionWrapper,
     setSearchQuery,
     setSearchType,
   });
@@ -497,15 +500,34 @@ export default function ObservationsEventsTable({
       ]
     : [];
 
-  // The sidebar's effective filter state is the single source of truth in both
-  // modes — the search bar syncs into it rather than replacing it.
-  const combinedFilterState = queryFilter.effectiveFilterState
-    .concat(dateRangeFilter)
+  // The sidebar's effective filter is the single source of truth in both modes
+  // — the search bar syncs into it rather than replacing it. It may be a nested
+  // tree (v2), so the page-scope filters (time range, userId, sessionId) are
+  // AND-conjoined as an OUTER AND wrapping it, never spliced inside (which would
+  // widen a user OR). combineFilterInputsWithAnd flattens AND-of-AND (so the
+  // depth budget isn't wasted) and stays a flat array for a flat filter.
+  const pageScopeFilters: FilterState = dateRangeFilter
     .concat(userIdFilter)
     .concat(sessionIdFilter);
+  const combinedFilterState: FilterInput =
+    combineFilterInputsWithAnd(
+      queryFilter.effectiveFilterExpression,
+      pageScopeFilters,
+    ) ?? [];
 
   // Use external filter state if provided, otherwise use combined filter state
-  const filterState = externalFilterState || combinedFilterState;
+  const filterState: FilterInput = externalFilterState || combinedFilterState;
+
+  // Bulk "select all matching" actions consume a flat FilterState; they cannot
+  // express a nested tree (cross-field OR / group). When an advanced filter is
+  // active we DISABLE those actions (see isAdvancedFilterActive) rather than
+  // ship an empty filter that would silently widen scope to every row.
+  // Selection-based actions over explicitly-checked rows stay enabled.
+  const isAdvancedFilterActive =
+    !externalFilterState && queryFilter.isAdvancedFilter === true;
+  const batchActionFilterState: FilterState = Array.isArray(filterState)
+    ? filterState
+    : [];
 
   // Use the custom hook for observations data fetching
   const {
@@ -651,6 +673,13 @@ export default function ObservationsEventsTable({
     : isTotalCountError
       ? "Could not count selected observations. Clear selection and try again."
       : undefined;
+  // "Select all matching" ships the filter to the backend, which can't yet
+  // express a nested tree — so block it when an advanced filter is active to
+  // avoid silently widening scope to every row. Explicit row selection (which
+  // ships ids, not the filter) stays enabled.
+  const selectAllBlockedByAdvancedFilter = selectAll && isAdvancedFilterActive;
+  const advancedFilterSelectAllReason =
+    "Select-all isn't available with an advanced (OR / grouped) filter yet — select specific rows, or switch to flat filters.";
   const tableActions: TableAction[] = [
     ...(hasTraceDeletionEntitlement
       ? [
@@ -679,6 +708,10 @@ export default function ObservationsEventsTable({
       description: "Add selected observations to an annotation queue.",
       targetLabel: "Annotation Queue",
       execute: handleAddToAnnotationQueue,
+      disabled: selectAllBlockedByAdvancedFilter,
+      disabledReason: selectAllBlockedByAdvancedFilter
+        ? advancedFilterSelectAllReason
+        : undefined,
       accessCheck: {
         scope: "annotationQueues:CUD",
       },
@@ -689,8 +722,10 @@ export default function ObservationsEventsTable({
       label: "Add to Dataset",
       description: "Add selected observations to a dataset",
       customDialog: true,
-      disabled: isSelectAllCountUnavailable,
-      disabledReason: selectAllCountUnavailableReason,
+      disabled: isSelectAllCountUnavailable || selectAllBlockedByAdvancedFilter,
+      disabledReason: selectAllBlockedByAdvancedFilter
+        ? advancedFilterSelectAllReason
+        : selectAllCountUnavailableReason,
       accessCheck: {
         scope: "datasets:CUD",
       },
@@ -702,8 +737,10 @@ export default function ObservationsEventsTable({
       description: "Run evaluations on selected observations.",
       customDialog: true,
       icon: <LightbulbIcon className="h-4 w-4 sm:mr-2" />,
-      disabled: isSelectAllCountUnavailable,
-      disabledReason: selectAllCountUnavailableReason,
+      disabled: isSelectAllCountUnavailable || selectAllBlockedByAdvancedFilter,
+      disabledReason: selectAllBlockedByAdvancedFilter
+        ? advancedFilterSelectAllReason
+        : selectAllCountUnavailableReason,
       accessCheck: {
         scope: "evalJob:CUD",
       },
@@ -1351,7 +1388,7 @@ export default function ObservationsEventsTable({
     projectId,
     stateUpdaters: {
       setOrderBy: setOrderByState,
-      setFilters: setFiltersWrapper,
+      setFilters: setFilterExpressionWrapper,
       setExpandedFilters: queryFilter.onExpandedChange,
       setColumnOrder: setColumnOrder,
       setColumnVisibility: setColumnVisibilityState,
@@ -1569,12 +1606,14 @@ export default function ObservationsEventsTable({
                 <BatchExportTableButton
                   {...{
                     projectId,
-                    filterState,
+                    filterState: batchActionFilterState,
                     orderByState,
                     searchQuery,
                     searchType,
                   }}
                   tableName={BatchExportTableName.Events}
+                  disabled={isAdvancedFilterActive}
+                  disabledReason="Export can't yet apply an advanced (OR / grouped) filter. Switch to flat filters to export."
                   key="batchExport"
                 />,
                 selectedObservationIds.length > 0 || selectAll ? (
@@ -1744,7 +1783,7 @@ export default function ObservationsEventsTable({
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
-            filter: filterState,
+            filter: batchActionFilterState,
             orderBy: orderByState,
             searchQuery: searchQuery ?? undefined,
             searchType,
@@ -1765,7 +1804,7 @@ export default function ObservationsEventsTable({
           projectId={projectId}
           selectedObservationIds={selectedObservationIds}
           query={{
-            filter: filterState,
+            filter: batchActionFilterState,
             orderBy: orderByState,
             searchQuery: searchQuery ?? undefined,
             searchType,

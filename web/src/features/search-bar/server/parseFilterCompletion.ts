@@ -1,16 +1,25 @@
 // Pure post-processing for the v4 AI filter endpoint: turn a raw LLM completion
-// string into the `FilterState` the bar can apply. Kept separate from the tRPC
-// procedure (which owns auth, gating, telemetry, and the LLM call) so this — the
-// part with real branching logic — is unit-testable without a live model. This
-// mirrors the search-bar feature's own lib/ (pure) vs I/O split.
+// string into the `FilterInput` the bar can apply — a flat `FilterState` (plain
+// AND) or a nested AND/OR tree (cross-field OR / brackets). Kept separate from
+// the tRPC procedure (which owns auth, gating, telemetry, and the LLM call) so
+// this — the part with real branching logic — is unit-testable without a live
+// model. This mirrors the search-bar feature's own lib/ (pure) vs I/O split.
 
 import {
   eventsTableCols,
+  filterExpression,
+  type FilterExpression,
+  type FilterInput,
   type FilterState,
+  getFilterExpressionBoundsIssue,
+  getFilterExpressionLeafFilters,
   singleFilter,
 } from "@langfuse/shared";
 
-import { filterStateToQueryText } from "../lib/filter-state-to-query";
+import {
+  filterInputToQueryText,
+  filterStateToQueryText,
+} from "../lib/filter-state-to-query";
 
 // Mirrors COMPATIBLE_FILTER_TYPES in
 // packages/shared/src/server/queries/clickhouse-sql/filterTypeCompatibility.ts —
@@ -48,49 +57,55 @@ function isEventsContractCompatible(f: FilterState[number]): boolean {
 }
 
 /**
- * Extract a `FilterState` from the model's completion. Tries the whole string,
- * then the widest bracketed array (greedy, so it survives nested objects), and
- * tolerates a `{ "filters": [...] }` wrapper. Returns the structurally-valid
- * filters plus `rawCount` (how many elements the model actually emitted), so
- * the caller can count the malformed ones as dropped. `rawCount` is 0 when
- * nothing parses.
+ * Pull the first JSON value out of the model completion. Tries the whole string,
+ * then the widest bracketed array (a flat `FilterState`), then the widest brace
+ * object (a `{type:"group",…}` tree or a `{filters:[…]}` wrapper). Greedy so it
+ * survives nested objects/groups. Returns the parsed value, or null if nothing
+ * parses.
  */
-function parseFilterArray(completion: string): {
-  filters: FilterState;
-  rawCount: number;
-} {
-  const arrayMatch = completion.match(/\[[\s\S]*\]/)?.[0];
-  const candidates = [completion, arrayMatch].filter((c): c is string =>
-    Boolean(c),
-  );
+function extractJsonValue(completion: string): unknown {
+  const candidates = [
+    completion,
+    completion.match(/\[[\s\S]*\]/)?.[0],
+    completion.match(/\{[\s\S]*\}/)?.[0],
+  ].filter((c): c is string => Boolean(c));
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(candidate);
-      const raw = Array.isArray(parsed) ? parsed : parsed.filters;
-      if (!Array.isArray(raw)) continue;
-      // Parse PER ELEMENT, not the whole array: `z.array(singleFilter).parse`
-      // is all-or-nothing, so one off-spec element (wrong operator, missing
-      // key, value-as-string, unknown type — common on weaker models) would
-      // discard the valid siblings and surface a misleading "couldn't build
-      // filters". Keep the structurally-valid ones; the rejects show up in the
-      // dropped count below, mirroring the per-element keep/drop the two
-      // downstream guardrails already use.
-      const kept: FilterState = [];
-      for (const item of raw) {
-        const result = singleFilter.safeParse(item);
-        if (result.success) kept.push(result.data);
-      }
-      return { filters: kept, rawCount: raw.length };
+      return JSON.parse(candidate);
     } catch {
       // try the next candidate
     }
   }
-  return { filters: [], rawCount: 0 };
+  return null;
+}
+
+/** A `{type:"group",…}` node — the shape the model emits for OR / bracketed logic. */
+function isGroupShape(value: unknown): value is { conditions?: unknown[] } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    (value as { type?: unknown }).type === "group"
+  );
+}
+
+/** Best-effort count of the leaf (non-group) conditions the model emitted, used
+ *  only for the dropped-count telemetry when a tree is rejected wholesale. */
+function countRawLeaves(value: unknown): number {
+  if (Array.isArray(value))
+    return value.reduce<number>((n, v) => n + countRawLeaves(v), 0);
+  if (isGroupShape(value))
+    return (value.conditions ?? []).reduce<number>(
+      (n, c) => n + countRawLeaves(c),
+      0,
+    );
+  return value != null ? 1 : 0;
 }
 
 export type GeneratedFilters = {
-  /** Filters that round-trip to bar grammar — safe to apply and show as pills. */
-  filters: FilterState;
+  /** Filter input that round-trips to bar grammar — a flat `FilterState` or a
+   *  nested AND/OR tree — safe to apply and re-render in the bar. */
+  filterInput: FilterInput;
   /** The derived bar query text (for display / telemetry). */
   queryText: string;
   /** How many model filters were dropped — malformed shape, hallucinated, or
@@ -98,26 +113,83 @@ export type GeneratedFilters = {
   droppedCount: number;
 };
 
+const EMPTY: GeneratedFilters = {
+  filterInput: [],
+  queryText: "",
+  droppedCount: 0,
+};
+
 /**
- * Parse the model completion and keep only the filters that round-trip to bar
- * grammar. A hallucinated or non-v4 column lands in `skippedFilters` and is
- * dropped here, so a caller can never apply a filter the bar can't show as an
- * editable pill.
+ * Flat-array path (the default, and what every model emits for plain AND
+ * filters): parse PER ELEMENT, not the whole array. `z.array(singleFilter)` is
+ * all-or-nothing, so one off-spec element (wrong operator, missing key,
+ * value-as-string — common on weaker models) would discard the valid siblings
+ * and surface a misleading "couldn't build filters". Keep the structurally-valid
+ * ones; the rejects show up in the dropped count.
  */
-export function parseGeneratedFilters(completion: string): GeneratedFilters {
-  // `rawCount` is what the model emitted; `parsed` already excludes elements
-  // that failed `singleFilter`, so the drop count is measured against rawCount.
-  const { filters: parsed, rawCount } = parseFilterArray(completion);
+function parseFlat(raw: unknown[]): GeneratedFilters {
+  const kept: FilterState = [];
+  for (const item of raw) {
+    const result = singleFilter.safeParse(item);
+    if (result.success) kept.push(result.data);
+  }
   // Guardrail 1: drop filters whose type the events contract would reject.
-  const compatible = parsed.filter(isEventsContractCompatible);
+  const compatible = kept.filter(isEventsContractCompatible);
   // Guardrail 2: drop anything that doesn't round-trip to bar grammar (unknown /
   // non-representable columns land in skippedFilters).
   const { text, skippedFilters } = filterStateToQueryText(compatible);
   const skipped = new Set(skippedFilters);
   const filters = compatible.filter((f) => !skipped.has(f));
   return {
-    filters,
+    filterInput: filters,
     queryText: text,
-    droppedCount: rawCount - filters.length,
+    droppedCount: raw.length - filters.length,
   };
+}
+
+/**
+ * Tree path (cross-field OR / bracketed logic). Unlike the flat path, tolerance
+ * is ALL-OR-NOTHING: dropping one leaf from an OR changes the boolean meaning of
+ * the whole expression, so a tree is applied only if it parses, fits the depth/
+ * node bounds, and EVERY leaf is contract-compatible and round-trips to grammar.
+ * Otherwise the whole tree is rejected (and the caller shows "couldn't build").
+ */
+function parseTree(value: unknown): GeneratedFilters {
+  const result = filterExpression.safeParse(value);
+  if (!result.success) return { ...EMPTY, droppedCount: countRawLeaves(value) };
+  const tree: FilterExpression = result.data;
+  // Mirror the tRPC boundary's depth/node caps here so an oversized AI tree is
+  // rejected as "couldn't build" rather than 400ing when the table applies it.
+  if (getFilterExpressionBoundsIssue(tree) !== null)
+    return { ...EMPTY, droppedCount: countRawLeaves(value) };
+  const leaves = getFilterExpressionLeafFilters(tree);
+  const allCompatible = leaves.every(isEventsContractCompatible);
+  const { text, skippedFilters } = filterInputToQueryText(tree);
+  if (!allCompatible || skippedFilters.length > 0)
+    return { ...EMPTY, droppedCount: leaves.length };
+  return { filterInput: tree, queryText: text, droppedCount: 0 };
+}
+
+/**
+ * Parse the model completion into a `FilterInput` and keep only what round-trips
+ * to bar grammar, so a caller can never apply a filter the bar can't show as an
+ * editable pill. A flat array (plain AND) is filtered per element; a
+ * `{type:"group"}` tree (OR / brackets) is accepted all-or-nothing.
+ */
+export function parseGeneratedFilters(completion: string): GeneratedFilters {
+  const parsed = extractJsonValue(completion);
+  if (parsed == null) return EMPTY;
+  // Unwrap a `{filters:[…]}` / `{filterInput:…}` envelope (some models add one),
+  // but never a real group node (which carries `type:"group"`, not these keys).
+  const value =
+    !isGroupShape(parsed) &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed) &&
+    ("filters" in parsed || "filterInput" in parsed)
+      ? ((parsed as Record<string, unknown>).filters ??
+        (parsed as Record<string, unknown>).filterInput)
+      : parsed;
+
+  if (isGroupShape(value)) return parseTree(value);
+  return parseFlat(Array.isArray(value) ? value : []);
 }
