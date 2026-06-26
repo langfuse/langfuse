@@ -75,7 +75,11 @@ function getToolCallName(toolCall: unknown): string | undefined {
 function getToolCallArguments(toolCall: unknown): unknown {
   if (!toolCall || typeof toolCall !== "object") return undefined;
 
-  return (toolCall as Record<string, unknown>).arguments;
+  const toolCallRecord = toolCall as Record<string, unknown>;
+
+  return (
+    toolCallRecord.arguments ?? toolCallRecord.args ?? toolCallRecord.input
+  );
 }
 
 /**
