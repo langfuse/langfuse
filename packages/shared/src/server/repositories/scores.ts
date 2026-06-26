@@ -699,6 +699,173 @@ export const getScoresForObservations = async <
   }));
 };
 
+const uniqueNonEmptyStrings = (values: string[]) =>
+  [...new Set(values)].filter(Boolean);
+
+const scoreRecordReadSelect = [
+  "id",
+  "project_id",
+  "trace_id",
+  "session_id",
+  "observation_id",
+  "dataset_run_id",
+  "environment",
+  "name",
+  "value",
+  "source",
+  "comment",
+  "metadata",
+  "author_user_id",
+  "config_id",
+  "data_type",
+  "string_value",
+  "long_string_value",
+  "queue_id",
+  "execution_trace_id",
+  "is_deleted",
+  "created_at",
+  "updated_at",
+  "timestamp",
+  "event_ts",
+]
+  .map((column) => `s.${column}`)
+  .join(",\n              ");
+
+export async function queryScoreRecordsForExperimentItems({
+  projectId,
+  traceIds,
+  observationIds,
+  min,
+  max,
+  scoreLimit,
+}: {
+  projectId: string;
+  traceIds: string[];
+  observationIds: string[];
+  min: Date;
+  max: Date;
+  scoreLimit: number;
+}) {
+  const uniqueTraceIds = uniqueNonEmptyStrings(traceIds);
+  const uniqueObservationIds = uniqueNonEmptyStrings(observationIds);
+
+  if (uniqueTraceIds.length === 0 && uniqueObservationIds.length === 0) {
+    return [];
+  }
+
+  return await measureAndReturn({
+    operationName: "queryScoreRecordsForExperimentItems",
+    projectId,
+    input: {
+      params: {
+        projectId,
+        traceIds: uniqueTraceIds,
+        observationIds: uniqueObservationIds,
+        minStartTime: convertDateToClickhouseDateTime(min),
+        maxStartTime: convertDateToClickhouseDateTime(max),
+        scoreLimit,
+        dataTypes: LISTABLE_SCORE_TYPES.map((type) => type.toString()),
+      },
+      tags: {
+        projectId,
+        operation_name: "queryScoreRecordsForExperimentItems",
+      },
+    },
+    fn: async (input) =>
+      await queryClickhouse<ScoreRecordReadType>({
+        query: `
+          SELECT
+            ${scoreRecordReadSelect}
+          FROM (
+            SELECT
+              ${scoreRecordReadSelect}
+            FROM scores s
+            WHERE s.project_id = {projectId: String}
+              AND s.timestamp >= {minStartTime: DateTime64(3)}
+              AND s.timestamp <= {maxStartTime: DateTime64(3)} + ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}
+              AND s.data_type IN ({dataTypes: Array(String)})
+              AND (
+                s.observation_id IN ({observationIds: Array(String)})
+                OR (
+                  s.trace_id IN ({traceIds: Array(String)})
+                  AND s.observation_id IS NULL
+                  AND s.session_id IS NULL
+                  AND s.dataset_run_id IS NULL
+                )
+              )
+            ORDER BY s.event_ts DESC
+            LIMIT 1 BY s.id
+          ) s
+          ORDER BY ifNull(s.observation_id, s.trace_id) ASC, s.event_ts DESC
+          LIMIT {scoreLimit: UInt32} BY ifNull(s.observation_id, s.trace_id)
+        `,
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      }),
+  });
+}
+
+export async function queryScoreRecordsForExperiments({
+  projectId,
+  experimentIds,
+  fromTimestamp,
+  scoreLimit,
+}: {
+  projectId: string;
+  experimentIds: string[];
+  fromTimestamp: Date;
+  scoreLimit: number;
+}) {
+  const uniqueExperimentIds = uniqueNonEmptyStrings(experimentIds);
+
+  if (uniqueExperimentIds.length === 0) {
+    return [];
+  }
+
+  return await measureAndReturn({
+    operationName: "queryScoreRecordsForExperiments",
+    projectId,
+    input: {
+      params: {
+        projectId,
+        experimentIds: uniqueExperimentIds,
+        startTimeFrom: convertDateToClickhouseDateTime(fromTimestamp),
+        scoreLimit,
+      },
+      tags: {
+        projectId,
+        operation_name: "queryScoreRecordsForExperiments",
+      },
+    },
+    fn: async (input) =>
+      await queryClickhouse<ScoreRecordReadType>({
+        query: `
+          SELECT
+            ${scoreRecordReadSelect}
+          FROM (
+            SELECT
+              ${scoreRecordReadSelect}
+            FROM scores s
+            WHERE s.project_id = {projectId: String}
+              AND s.timestamp >= {startTimeFrom: DateTime64(3)}
+              AND s.dataset_run_id IN ({experimentIds: Array(String)})
+              AND s.trace_id IS NULL
+              AND s.observation_id IS NULL
+              AND s.session_id IS NULL
+            ORDER BY s.event_ts DESC
+            LIMIT 1 BY s.id
+          ) s
+          ORDER BY s.dataset_run_id ASC, s.event_ts DESC
+          LIMIT {scoreLimit: UInt32} BY s.dataset_run_id
+        `,
+        params: input.params,
+        tags: input.tags,
+        preferredClickhouseService: "ReadOnly",
+      }),
+  });
+}
+
 /**
  * Event/experiment column mappings for building WHERE filters inside the events CTE.
  * Maps to actual events_proto columns with the "e" prefix used by EventsQueryBuilder.

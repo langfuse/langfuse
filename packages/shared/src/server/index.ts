@@ -118,6 +118,7 @@ export * from "./queries";
 export * from "./queries/clickhouse-sql/orderby-factory";
 export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
+export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
 export { scoreDomainToV3 } from "./repositories/scores";
 export * from "./repositories/observations";
 export * from "./repositories/traces";

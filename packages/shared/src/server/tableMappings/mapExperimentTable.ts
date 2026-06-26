@@ -156,3 +156,64 @@ export const publicApiExperimentColumnDefinitions: ColumnDefinition[] =
       ...(nullable ? { nullable: true } : {}),
     };
   });
+
+const publicApiExperimentItemFilterColumns = [
+  { id: "experimentId", preAggId: "id", nullable: false },
+  { id: "experimentName", preAggId: "name", nullable: true },
+  { id: "experimentItemId", preAggId: "experimentItemId", nullable: false },
+  { id: "datasetId", preAggId: "experimentDatasetId", nullable: true },
+] as const;
+
+const getPublicApiExperimentItemFilterColumn = (
+  preAggId: (typeof publicApiExperimentItemFilterColumns)[number]["preAggId"],
+) => {
+  if (preAggId === "experimentItemId") {
+    return {
+      uiTableName: "Experiment Item ID",
+      uiTableId: "experimentItemId",
+      clickhouseTableName: "events_proto",
+      clickhouseSelect: "e.experiment_item_id",
+    };
+  }
+
+  return getPublicApiExperimentFilterColumn(preAggId);
+};
+
+export const publicApiExperimentItemSimpleFilterMappings: ApiColumnMapping[] =
+  publicApiExperimentItemFilterColumns.map(({ id, preAggId }) => {
+    const column = getPublicApiExperimentItemFilterColumn(preAggId);
+
+    return {
+      id,
+      clickhouseSelect: column.clickhouseSelect.replace(/^e\./, ""),
+      clickhouseTable: column.clickhouseTableName,
+      filterType: "StringOptionsFilter",
+      clickhousePrefix: "e",
+    };
+  });
+
+export const publicApiExperimentItemColumnMappings: UiColumnMappings =
+  publicApiExperimentItemFilterColumns.map(({ id, preAggId }) => {
+    const column = getPublicApiExperimentItemFilterColumn(preAggId);
+
+    return {
+      uiTableName: column.uiTableName,
+      uiTableId: id,
+      clickhouseTableName: column.clickhouseTableName,
+      clickhouseSelect: column.clickhouseSelect,
+    };
+  });
+
+export const publicApiExperimentItemColumnDefinitions: ColumnDefinition[] =
+  publicApiExperimentItemFilterColumns.map(({ id, preAggId, nullable }) => {
+    const column = getPublicApiExperimentItemFilterColumn(preAggId);
+
+    return {
+      name: column.uiTableName,
+      id,
+      type: "stringOptions",
+      internal: column.clickhouseSelect,
+      options: [],
+      ...(nullable ? { nullable: true } : {}),
+    };
+  });

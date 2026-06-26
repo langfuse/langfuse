@@ -54,6 +54,59 @@ service:
               JSON string containing an array of structured filter conditions.
               Supported columns are `id`, `name`, and `datasetId`.
       response: ExperimentsResponse
+    listItems:
+      method: GET
+      path: /experiment-items
+      docs: |
+        List root experiment-item spans from the events table with cursor-based
+        pagination. Use this endpoint to export experiment item inputs, outputs,
+        expected outputs, metadata, and optionally item/trace scores.
+
+        `fromStartTime` is required unless `experimentId` is provided.
+      request:
+        name: ListExperimentItemsRequest
+        query-parameters:
+          fields:
+            type: optional<string>
+            docs: |
+              Comma-separated list of field groups to include. Available groups:
+              `core`, `dataset`, `io`, `metadata`, `itemMetadata`,
+              `experimentMetadata`, `scores`. If omitted, `core,dataset` is
+              returned.
+          limit:
+            type: optional<integer>
+            docs: Number of experiment items to return per page. Maximum 100, default 50.
+          scoreLimit:
+            type: optional<integer>
+            docs: Number of scores to return per experiment item or trace when `fields=scores` is requested. Maximum 50, default 50.
+          cursor:
+            type: optional<string>
+            docs: Versioned base64url cursor from the previous response page.
+          fromStartTime:
+            type: optional<datetime>
+            docs: Retrieve only experiment item root spans with a start time on or after this datetime. Required unless `experimentId` is provided.
+          toStartTime:
+            type: optional<datetime>
+            docs: Retrieve only experiment item root spans with a start time before this datetime.
+          experimentId:
+            type: optional<string>
+            docs: Comma-separated list of experiment IDs.
+          experimentName:
+            type: optional<string>
+            docs: Comma-separated list of experiment names.
+          experimentItemId:
+            type: optional<string>
+            docs: Comma-separated list of experiment item IDs.
+          datasetId:
+            type: optional<string>
+            docs: Comma-separated list of dataset IDs.
+          filter:
+            type: optional<string>
+            docs: |
+              JSON string containing an array of structured filter conditions.
+              Supported columns are `experimentId`, `experimentName`,
+              `experimentItemId`, and `datasetId`.
+      response: ExperimentItemsResponse
 
 types:
   ExperimentsResponse:
@@ -81,3 +134,50 @@ types:
       scores:
         type: optional<list<scoresV3.ScoreV3>>
         docs: Included only when `fields=scores` is requested. Contains scores directly attached to the experiment.
+
+  ExperimentItemsResponse:
+    properties:
+      data: list<ExperimentItem>
+      meta: ExperimentsResponseMeta
+
+  ExperimentItem:
+    properties:
+      id: string
+      traceId: string
+      startTime: datetime
+      endTime: nullable<datetime>
+      level: string
+      environment: string
+      experimentId: string
+      experimentName: string
+      experimentItemId: string
+      experimentDatasetId:
+        type: optional<nullable<string>>
+        docs: Included when `fields=dataset` is requested.
+      experimentItemVersion:
+        type: optional<nullable<datetime>>
+        docs: Included when `fields=dataset` is requested.
+      input:
+        type: optional<unknown>
+        docs: Included when `fields=io` is requested.
+      output:
+        type: optional<unknown>
+        docs: Included when `fields=io` is requested.
+      expectedOutput:
+        type: optional<unknown>
+        docs: Included when `fields=io` is requested.
+      metadata:
+        type: optional<unknown>
+        docs: Included when `fields=metadata` is requested.
+      experimentItemMetadata:
+        type: optional<unknown>
+        docs: Included when `fields=itemMetadata` is requested.
+      experimentMetadata:
+        type: optional<unknown>
+        docs: Included when `fields=experimentMetadata` is requested.
+      experimentDescription:
+        type: optional<nullable<string>>
+        docs: Included when `fields=experimentMetadata` is requested.
+      scores:
+        type: optional<list<scoresV3.ScoreV3>>
+        docs: Included only when `fields=scores` is requested. Contains item and trace scores only; experiment-level scores are returned by the experiments endpoint.

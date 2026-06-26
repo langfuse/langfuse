@@ -6,11 +6,19 @@ import {
   createEventsCh,
   createOrgProjectAndApiKey,
   createScoresCh,
+  createTraceScore,
   parseClickhouseUTCDateTimeFormat,
 } from "@langfuse/shared/src/server";
 
 import { env } from "@/src/env.mjs";
-import { queryExperimentSummariesForPublicApi } from "@/src/features/experiments/server/public/repository";
+import {
+  listExperimentItemsForPublicApi,
+  listExperimentsForPublicApi,
+} from "@/src/features/experiments/server/public";
+import {
+  queryExperimentItemsForPublicApi,
+  queryExperimentSummariesForPublicApi,
+} from "@/src/features/experiments/server/public/repository";
 
 const maybe =
   env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
@@ -26,7 +34,13 @@ const createExperimentRootEvent = ({
   traceId = randomUUID(),
   spanId = randomUUID(),
   metadata = {},
+  observationMetadata = {},
+  itemMetadata = {},
   experimentItemId = randomUUID(),
+  expectedOutput = null,
+  input = "Hello World",
+  output = "Hello John",
+  experimentDescription = `${experimentName} description`,
 }: {
   projectId: string;
   experimentId: string;
@@ -36,7 +50,13 @@ const createExperimentRootEvent = ({
   traceId?: string;
   spanId?: string;
   metadata?: Record<string, string>;
+  observationMetadata?: Record<string, string>;
+  itemMetadata?: Record<string, string>;
   experimentItemId?: string;
+  expectedOutput?: string | null;
+  input?: string;
+  output?: string;
+  experimentDescription?: string | null;
 }) =>
   createEvent({
     id: spanId,
@@ -45,14 +65,21 @@ const createExperimentRootEvent = ({
     project_id: projectId,
     name: `${experimentName}-root`,
     type: "SPAN",
+    input,
+    output,
     start_time: startTimeMs * 1000,
     end_time: (startTimeMs + 100) * 1000,
+    metadata_names: Object.keys(observationMetadata),
+    metadata_values: Object.values(observationMetadata),
     experiment_id: experimentId,
     experiment_name: experimentName,
-    experiment_description: `${experimentName} description`,
+    experiment_description: experimentDescription,
     experiment_dataset_id: datasetId,
     experiment_item_id: experimentItemId,
     experiment_item_root_span_id: spanId,
+    experiment_item_expected_output: expectedOutput,
+    experiment_item_metadata_names: Object.keys(itemMetadata),
+    experiment_item_metadata_values: Object.values(itemMetadata),
     experiment_metadata_names: Object.keys(metadata),
     experiment_metadata_values: Object.values(metadata),
   });
@@ -94,7 +121,6 @@ describe("Public API experiments repository", () => {
         projectId,
         fromStartTime: new Date(startTimeMs - 1_000),
         includeMetadata: true,
-        includeScores: false,
         limit: 10,
       });
 
@@ -129,7 +155,6 @@ describe("Public API experiments repository", () => {
         projectId,
         fromStartTime: new Date(startTimeMs - 1_000),
         includeMetadata: false,
-        includeScores: false,
         limit: 10,
       });
 
@@ -156,7 +181,6 @@ describe("Public API experiments repository", () => {
         projectId,
         fromStartTime: new Date(startTimeMs - 1_000),
         includeMetadata: false,
-        includeScores: false,
         limit: 10,
       });
 
@@ -192,7 +216,6 @@ describe("Public API experiments repository", () => {
         id: [matchingId, "missing"],
         fromStartTime,
         includeMetadata: false,
-        includeScores: false,
         limit: 10,
       });
 
@@ -203,7 +226,6 @@ describe("Public API experiments repository", () => {
         projectId,
         fromStartTime,
         includeMetadata: false,
-        includeScores: false,
         advancedFilters: [
           {
             type: "stringOptions",
@@ -221,13 +243,11 @@ describe("Public API experiments repository", () => {
       );
     });
 
-    it("returns experiment scores without multiplying event aggregates", async () => {
+    it("attaches experiment scores without multiplying event aggregates", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const startTimeMs = Date.now();
       const experimentId = `exp-${randomUUID()}`;
       const scoreId = `score-${randomUUID()}`;
-      const traceScopedScoreId = `score-${randomUUID()}`;
-      const otherExperimentScoreId = `score-${randomUUID()}`;
 
       await createEventsCh([
         createExperimentRootEvent({
@@ -248,80 +268,24 @@ describe("Public API experiments repository", () => {
           updated_at: startTimeMs + 1_000,
           event_ts: startTimeMs + 1_000,
         }),
-        {
-          ...createDatasetRunScore({
-            id: traceScopedScoreId,
-            project_id: projectId,
-            dataset_run_id: experimentId,
-          }),
-          trace_id: randomUUID(),
-        },
-        createDatasetRunScore({
-          id: otherExperimentScoreId,
-          project_id: projectId,
-          dataset_run_id: `exp-${randomUUID()}`,
-        }),
       ]);
 
-      const rows = await queryExperimentSummariesForPublicApi({
+      const response = await listExperimentsForPublicApi({
         projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
-        includeMetadata: false,
-        includeScores: true,
-        limit: 10,
+        query: {
+          fields: ["core", "scores"],
+          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
+          limit: 10,
+          scoreLimit: 50,
+        },
       });
 
-      const row = rows.find((item) => item.experiment_id === experimentId);
+      const row = response.data.find((item) => item.id === experimentId);
       expect(row).toMatchObject({
-        experiment_id: experimentId,
-        item_count: 1,
+        id: experimentId,
+        itemCount: 1,
       });
       expect(row?.scores?.map((score) => score.id)).toEqual([scoreId]);
-      expect(row?.scores?.map((score) => score.id)).not.toContain(
-        traceScopedScoreId,
-      );
-      expect(row?.scores?.map((score) => score.id)).not.toContain(
-        otherExperimentScoreId,
-      );
-    });
-
-    it("limits scores per experiment", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const startTimeMs = Date.now();
-      const experimentId = `exp-${randomUUID()}`;
-
-      await createEventsCh([
-        createExperimentRootEvent({
-          projectId,
-          experimentId,
-          startTimeMs,
-        }),
-      ]);
-      await createScoresCh(
-        Array.from({ length: 3 }, (_, index) =>
-          createDatasetRunScore({
-            id: `score-${randomUUID()}`,
-            project_id: projectId,
-            dataset_run_id: experimentId,
-            timestamp: startTimeMs + index,
-            created_at: startTimeMs + index,
-            updated_at: startTimeMs + index,
-            event_ts: startTimeMs + index,
-          }),
-        ),
-      );
-
-      const rows = await queryExperimentSummariesForPublicApi({
-        projectId,
-        fromStartTime: new Date(startTimeMs - 1_000),
-        includeMetadata: false,
-        includeScores: true,
-        limit: 10,
-        scoreLimit: 2,
-      });
-
-      const row = rows.find((item) => item.experiment_id === experimentId);
-      expect(row?.scores).toHaveLength(2);
     });
 
     it("paginates tied start times by cursor tuple order", async () => {
@@ -352,7 +316,6 @@ describe("Public API experiments repository", () => {
         projectId,
         fromStartTime,
         includeMetadata: false,
-        includeScores: false,
         limit: 1,
       });
 
@@ -369,7 +332,6 @@ describe("Public API experiments repository", () => {
         projectId,
         fromStartTime,
         includeMetadata: false,
-        includeScores: false,
         cursor: {
           lastStartTime: parseClickhouseUTCDateTimeFormat(firstRow.start_time),
           lastTraceId: firstRow.cursor_trace_id,
@@ -384,6 +346,193 @@ describe("Public API experiments repository", () => {
       );
       expect(secondPage.map((row) => row.experiment_id)).not.toContain(
         firstExperimentId,
+      );
+    });
+  });
+
+  maybe("queryExperimentItemsForPublicApi", () => {
+    it("returns only root experiment item spans with requested fields", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const experimentId = `exp-${randomUUID()}`;
+      const rootSpanId = `span-${randomUUID()}`;
+      const childSpanId = `span-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId,
+          experimentName: "items experiment",
+          datasetId: "dataset-items",
+          startTimeMs,
+          traceId: "trace-items",
+          spanId: rootSpanId,
+          experimentItemId: "item-1",
+          observationMetadata: { obs: "meta" },
+          itemMetadata: { difficulty: "easy" },
+          metadata: { owner: "evals" },
+          expectedOutput: "expected answer",
+          input: "question",
+          output: "answer",
+        }),
+        createEvent({
+          id: childSpanId,
+          span_id: childSpanId,
+          trace_id: "trace-items",
+          project_id: projectId,
+          name: "child",
+          type: "SPAN",
+          start_time: (startTimeMs + 10) * 1000,
+          experiment_id: experimentId,
+          experiment_name: "items experiment",
+          experiment_dataset_id: "dataset-items",
+          experiment_item_id: "item-1",
+          experiment_item_root_span_id: rootSpanId,
+        }),
+      ]);
+
+      const rows = await queryExperimentItemsForPublicApi({
+        projectId,
+        fromStartTime: new Date(startTimeMs - 1_000),
+        includeDataset: true,
+        includeIo: true,
+        includeMetadata: true,
+        includeItemMetadata: true,
+        includeExperimentMetadata: true,
+        limit: 10,
+      });
+
+      expect(rows.map((row) => row.id)).toEqual([rootSpanId]);
+      expect(rows[0]).toMatchObject({
+        trace_id: "trace-items",
+        experiment_id: experimentId,
+        experiment_name: "items experiment",
+        experiment_dataset_id: "dataset-items",
+        experiment_item_id: "item-1",
+        input: "question",
+        output: "answer",
+        experiment_item_expected_output: "expected answer",
+        metadata: { obs: "meta" },
+        experiment_item_metadata: { difficulty: "easy" },
+        experiment_metadata: { owner: "evals" },
+        experiment_description: "items experiment description",
+      });
+    });
+
+    it("paginates tied experiment item rows by the experiment cursor tuple", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const traceId = `trace-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId: "exp-a",
+          startTimeMs,
+          traceId,
+          spanId: "span-z",
+        }),
+        createExperimentRootEvent({
+          projectId,
+          experimentId: "exp-b",
+          startTimeMs,
+          traceId,
+          spanId: "span-a",
+        }),
+      ]);
+
+      const firstPage = await queryExperimentItemsForPublicApi({
+        projectId,
+        fromStartTime: new Date(startTimeMs - 1_000),
+        includeDataset: true,
+        includeIo: false,
+        includeMetadata: false,
+        includeItemMetadata: false,
+        includeExperimentMetadata: false,
+        limit: 1,
+      });
+
+      expect(firstPage).toHaveLength(1);
+      const firstRow = firstPage[0];
+      if (!firstRow) throw new Error("expected first experiment item row");
+
+      const secondPage = await queryExperimentItemsForPublicApi({
+        projectId,
+        fromStartTime: new Date(startTimeMs - 1_000),
+        includeDataset: true,
+        includeIo: false,
+        includeMetadata: false,
+        includeItemMetadata: false,
+        includeExperimentMetadata: false,
+        cursor: {
+          lastStartTime: parseClickhouseUTCDateTimeFormat(firstRow.start_time),
+          lastTraceId: firstRow.trace_id,
+          lastId: firstRow.id,
+          lastExperimentId: firstRow.experiment_id,
+        },
+        limit: 10,
+      });
+
+      expect(secondPage.map((row) => row.id)).not.toContain(firstRow.id);
+      expect(secondPage).toHaveLength(1);
+    });
+
+    it("attaches flat item and trace scores", async () => {
+      const { projectId } = await createOrgProjectAndApiKey();
+      const startTimeMs = Date.now();
+      const traceId = `trace-${randomUUID()}`;
+      const spanId = `span-${randomUUID()}`;
+      const experimentId = `exp-${randomUUID()}`;
+      const itemScoreId = `score-${randomUUID()}`;
+      const traceScoreId = `score-${randomUUID()}`;
+
+      await createEventsCh([
+        createExperimentRootEvent({
+          projectId,
+          experimentId,
+          startTimeMs,
+          traceId,
+          spanId,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          id: itemScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: spanId,
+          name: "item score",
+          timestamp: startTimeMs + 1,
+          created_at: startTimeMs + 1,
+          updated_at: startTimeMs + 1,
+          event_ts: startTimeMs + 1,
+        }),
+        createTraceScore({
+          id: traceScoreId,
+          project_id: projectId,
+          trace_id: traceId,
+          observation_id: null,
+          name: "trace score",
+          timestamp: startTimeMs + 2,
+          created_at: startTimeMs + 2,
+          updated_at: startTimeMs + 2,
+          event_ts: startTimeMs + 2,
+        }),
+      ]);
+
+      const response = await listExperimentItemsForPublicApi({
+        projectId,
+        query: {
+          fields: ["core", "scores"],
+          limit: 10,
+          scoreLimit: 50,
+          fromStartTime: new Date(startTimeMs - 1_000).toISOString(),
+        },
+      });
+
+      expect(response.data).toHaveLength(1);
+      expect(response.data[0]?.scores?.map((score) => score.id).sort()).toEqual(
+        [itemScoreId, traceScoreId].sort(),
       );
     });
   });

@@ -27,7 +27,6 @@ export const measureAndReturn = async <T, Y>(args: {
   projectId: string;
   input: T;
   fn: (input: T) => Promise<Y>;
-  spanAttributes?: opentelemetry.Attributes;
 }): Promise<Y> => {
   return instrumentAsync(
     {
@@ -36,9 +35,6 @@ export const measureAndReturn = async <T, Y>(args: {
     },
     async (currentSpan) => {
       const { input, fn } = args;
-      if (args.spanAttributes) {
-        currentSpan.setAttributes(args.spanAttributes);
-      }
 
       // When we want do to multiple executions for A/B testing or canary releases,
       // or some other form of a more complex wrapper we used to try-catch

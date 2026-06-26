@@ -1,2 +1,8 @@
-export { listExperimentsForPublicApi } from "./service";
-export type { ListExperimentsPublicQuery } from "./service";
+export {
+  listExperimentItemsForPublicApi,
+  listExperimentsForPublicApi,
+} from "./service";
+export type {
+  ListExperimentItemsPublicQuery,
+  ListExperimentsPublicQuery,
+} from "./service";

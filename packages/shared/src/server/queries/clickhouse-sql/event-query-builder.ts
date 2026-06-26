@@ -125,7 +125,10 @@ const EVENTS_FIELDS = {
   // Experiment fields (denormalized on events table)
   experimentId: 'e.experiment_id as "experiment_id"',
   experimentName: 'e.experiment_name as "experiment_name"',
+  experimentDescription: 'e.experiment_description as "experiment_description"',
   experimentDatasetId: 'e.experiment_dataset_id as "experiment_dataset_id"',
+  experimentMetadata:
+    "mapFromArrays(e.experiment_metadata_names, e.experiment_metadata_values) as experiment_metadata",
 
   // Experiment item fields
   experimentItemId: 'e.experiment_item_id as "experiment_item_id"',
@@ -240,6 +243,33 @@ const FIELD_SETS = {
   trace_context: ["tags", "release", "traceName"],
   model_export: ["providedModelName", "modelId", "modelParameters"],
   eventTs: ["eventTs"],
+  publicApiExperimentItemCore: [
+    "id",
+    "traceId",
+    "startTime",
+    "endTime",
+    "level",
+    "environment",
+    "experimentId",
+    "experimentName",
+    "experimentItemId",
+  ],
+  publicApiExperimentItemDataset: [
+    "experimentDatasetId",
+    "experimentItemVersion",
+  ],
+  publicApiExperimentItemIo: [
+    "input",
+    "output",
+    "experimentItemExpectedOutput",
+  ],
+  publicApiExperimentItemExpectedOutput: ["experimentItemExpectedOutput"],
+  publicApiExperimentItemMetadata: ["metadata"],
+  publicApiExperimentItemMetadataFields: ["experimentItemMetadata"],
+  publicApiExperimentItemExperimentMetadata: [
+    "experimentMetadata",
+    "experimentDescription",
+  ],
 
   // getById field sets (reuse the same fields - all queries use `FROM events_<type> e`)
   byIdBase: [
@@ -550,6 +580,34 @@ abstract class AbstractQueryBuilder {
   applyFilters(filterList: FilterList): this {
     this.where(filterList.apply());
     return this;
+  }
+
+  /**
+   * Add cursor support for experiment APIs.
+   *
+   * The cursor is applied to raw event rows before any optional aggregation.
+   * This keeps pagination on the same event-level ordering key for experiment
+   * summaries and experiment items.
+   */
+  withCursor(cursor?: {
+    lastStartTime: string;
+    lastTraceId: string;
+    lastId: string;
+    lastExperimentId: string;
+  }): this {
+    return this.when(Boolean(cursor), (b) => {
+      if (!cursor) return b;
+
+      return b.whereRaw(
+        "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
+        {
+          lastStartTime: cursor.lastStartTime,
+          lastTraceId: cursor.lastTraceId,
+          lastId: cursor.lastId,
+          lastExperimentId: cursor.lastExperimentId,
+        },
+      );
+    });
   }
 
   /**
@@ -1904,34 +1962,6 @@ export class ExperimentsAggregationQueryBuilder extends BaseEventsQueryBuilder<
         startTimeTo,
       }),
     );
-  }
-
-  /**
-   * Add cursor support for experiment summaries.
-   *
-   * When a cursor is provided, it is applied to raw events before aggregation.
-   * This can split an experiment across pages, but keeps the cursor predicate on
-   * the event-level ordering key.
-   */
-  withCursor(cursor?: {
-    lastStartTime: string;
-    lastTraceId: string;
-    lastId: string;
-    lastExperimentId: string;
-  }): this {
-    return this.when(Boolean(cursor), (b) => {
-      if (!cursor) return b;
-
-      return b.whereRaw(
-        "e.start_time <= {lastStartTime: DateTime64(6)} AND (e.start_time, xxHash32(e.trace_id), e.span_id, e.experiment_id) < ({lastStartTime: DateTime64(6)}, xxHash32({lastTraceId: String}), {lastId: String}, {lastExperimentId: String})",
-        {
-          lastStartTime: cursor.lastStartTime,
-          lastTraceId: cursor.lastTraceId,
-          lastId: cursor.lastId,
-          lastExperimentId: cursor.lastExperimentId,
-        },
-      );
-    });
   }
 
   /**
