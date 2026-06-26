@@ -54,6 +54,9 @@ export const observationRecordBaseSchema = z.object({
   prompt_id: z.string().nullish(),
   prompt_name: z.string().nullish(),
   prompt_version: z.number().nullish(),
+  ingestion_api_key: z.string().optional(),
+  ingestion_sdk_name: z.string().optional(),
+  ingestion_sdk_version: z.string().optional(),
   tool_definitions: z.record(z.string(), z.string()).optional(),
   tool_calls: z.array(z.string()).optional(),
   tool_call_names: z.array(z.string()).optional(),
@@ -227,6 +230,9 @@ export const scoreRecordBaseSchema = z.object({
   long_string_value: z.string(),
   queue_id: z.string().nullish(),
   execution_trace_id: z.string().nullish(),
+  ingestion_api_key: z.string().optional(),
+  ingestion_sdk_name: z.string().optional(),
+  ingestion_sdk_version: z.string().optional(),
   is_deleted: z.number(),
 });
 
@@ -709,6 +715,9 @@ export const eventRecordBaseSchema = z.object({
 
   // Source metadata (Instrumentation)
   source: z.string(),
+  ingestion_api_key: z.string().optional(),
+  ingestion_sdk_name: z.string().optional(),
+  ingestion_sdk_version: z.string().optional(),
   service_name: z.string().nullish(),
   service_version: z.string().nullish(),
   scope_name: z.string().nullish(),

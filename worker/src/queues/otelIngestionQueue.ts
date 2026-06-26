@@ -212,6 +212,11 @@ export const otelIngestionQueueProcessorBuilder = (
       const publicKey = job.data.payload.data.publicKey;
       const fileKey = job.data.payload.data.fileKey;
       const auth = job.data.payload.authCheck;
+      const attribution = {
+        ingestionApiKey: publicKey ?? "",
+        ingestionSdkName: job.data.payload.sdkName ?? "",
+        ingestionSdkVersion: job.data.payload.sdkVersion ?? "",
+      };
 
       const span = getCurrentSpan();
       if (span) {
@@ -301,6 +306,9 @@ export const otelIngestionQueueProcessorBuilder = (
       const processor = new OtelIngestionProcessor({
         projectId,
         publicKey,
+        sdkName: attribution.ingestionSdkName,
+        sdkVersion: attribution.ingestionSdkVersion,
+        ingestionVersion: job.data.payload.ingestionVersion,
       });
       const events: IngestionEventType[] =
         await processor.processToIngestionEvents(parsedSpans);
@@ -443,6 +451,7 @@ export const otelIngestionQueueProcessorBuilder = (
               new Date(), // Use the current timestamp as event time
               [observation],
               shouldForwardToEventsTable,
+              attribution,
             ),
           ),
         );
@@ -454,6 +463,7 @@ export const otelIngestionQueueProcessorBuilder = (
             delay: 0,
             source: "otel",
             forwardToEventsTable: shouldForwardToEventsTable,
+            attribution,
           }),
         ]);
       }

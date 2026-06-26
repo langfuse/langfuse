@@ -37,6 +37,7 @@ interface TraceState {
 export interface OtelIngestionProcessorConfig {
   projectId: string;
   publicKey?: string;
+  ingestionApiKey?: string;
   orgId?: string;
   propagatedHeaders?: Record<string, string>;
   sdkName?: string;
@@ -479,6 +480,9 @@ export class OtelIngestionProcessor {
 
                   // Instrumentation metadata
                   source: "otel",
+                  ingestionApiKey: this.publicKey,
+                  ingestionSdkName: this.sdkName,
+                  ingestionSdkVersion: this.sdkVersion,
                   serviceName,
                   serviceVersion,
                   scopeName,

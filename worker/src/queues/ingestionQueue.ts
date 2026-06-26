@@ -270,6 +270,17 @@ export const ingestionQueueProcessorBuilder = (
       const forwardToEventsTable =
         job.data.payload.data.forwardToEventsTable ??
         v4WritesToEventsTable(env);
+      const attribution =
+        job.data.payload.data.ingestionApiKey !== undefined ||
+        job.data.payload.data.ingestionSdkName !== undefined ||
+        job.data.payload.data.ingestionSdkVersion !== undefined
+          ? {
+              ingestionApiKey: job.data.payload.data.ingestionApiKey ?? "",
+              ingestionSdkName: job.data.payload.data.ingestionSdkName ?? "",
+              ingestionSdkVersion:
+                job.data.payload.data.ingestionSdkVersion ?? "",
+            }
+          : undefined;
 
       // Recover the canonical entity id from the downloaded event body, not
       // from the queue payload. On replay, `payload.data.eventBodyId` is the
@@ -315,6 +326,7 @@ export const ingestionQueueProcessorBuilder = (
         firstS3WriteTime,
         events,
         forwardToEventsTable,
+        attribution,
       );
     } catch (e) {
       // Check if this is a SlowDown error and mark the project for secondary queue

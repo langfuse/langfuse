@@ -50,6 +50,7 @@ import {
   normalizeToolsForObservation,
   hasNoEvalConfigsCache,
   buildClickHouseLogComment,
+  type IngestionAttribution,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -153,6 +154,7 @@ export class IngestionService {
     createdAtTimestamp: Date,
     events: IngestionEventType[],
     forwardToEventsTable: boolean,
+    attribution?: Partial<IngestionAttribution>,
   ): Promise<void> {
     logger.debug(
       `Merging ingestion ${eventType} event for project ${projectId} and event ${entityId}`,
@@ -166,6 +168,7 @@ export class IngestionService {
           createdAtTimestamp,
           traceEventList: events as TraceEventType[],
           createEventTraceRecord: forwardToEventsTable,
+          attribution,
         });
       case "observation":
         return await this.processObservationEventList({
@@ -174,6 +177,7 @@ export class IngestionService {
           createdAtTimestamp,
           observationEventList: events as ObservationEvent[],
           writeToStagingTables: forwardToEventsTable,
+          attribution,
         });
       case "score": {
         return await this.processScoreEventList({
@@ -181,6 +185,7 @@ export class IngestionService {
           entityId,
           createdAtTimestamp,
           scoreEventList: events as ScoreEventType[],
+          attribution,
         });
       }
       case "dataset_run_item": {
@@ -248,6 +253,7 @@ export class IngestionService {
               provided_model_name: eventData.modelName,
               provided_usage_details: eventData.providedUsageDetails ?? {},
               provided_cost_details: eventData.providedCostDetails ?? {},
+              level: undefined,
               input,
               output,
             },
@@ -344,6 +350,9 @@ export class IngestionService {
 
       // Source/instrumentation metadata
       source: eventData.source,
+      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_sdk_name: eventData.ingestionSdkName ?? "",
+      ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
       service_name: eventData.serviceName,
       service_version: eventData.serviceVersion,
       scope_name: eventData.scopeName,
@@ -492,8 +501,15 @@ export class IngestionService {
     entityId: string;
     createdAtTimestamp: Date;
     scoreEventList: ScoreEventType[];
+    attribution?: Partial<IngestionAttribution>;
   }) {
-    const { projectId, entityId, createdAtTimestamp, scoreEventList } = params;
+    const {
+      projectId,
+      entityId,
+      createdAtTimestamp,
+      scoreEventList,
+      attribution,
+    } = params;
     if (scoreEventList.length === 0) return;
 
     const timeSortedEvents =
@@ -551,6 +567,14 @@ export class IngestionService {
               long_string_value: validatedScore.longStringValue,
               execution_trace_id: validatedScore.executionTraceId,
               queue_id: validatedScore.queueId ?? null,
+              ...(attribution
+                ? {
+                    ingestion_api_key: attribution.ingestionApiKey ?? "",
+                    ingestion_sdk_name: attribution.ingestionSdkName ?? "",
+                    ingestion_sdk_version:
+                      attribution.ingestionSdkVersion ?? "",
+                  }
+                : {}),
               created_at: Date.now(),
               updated_at: Date.now(),
               event_ts: new Date(scoreEvent.timestamp).getTime(),
@@ -596,6 +620,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     traceEventList: TraceEventType[];
     createEventTraceRecord: boolean;
+    attribution?: Partial<IngestionAttribution>;
   }) {
     const {
       projectId,
@@ -603,6 +628,7 @@ export class IngestionService {
       createdAtTimestamp,
       traceEventList,
       createEventTraceRecord,
+      attribution,
     } = params;
     if (traceEventList.length === 0) return;
 
@@ -696,6 +722,14 @@ export class IngestionService {
         finalTraceRecord,
         this.getPartitionAwareTimestamp(createdAtTimestamp),
       );
+      if (attribution) {
+        traceAsStagingObservation.ingestion_api_key =
+          attribution.ingestionApiKey ?? "";
+        traceAsStagingObservation.ingestion_sdk_name =
+          attribution.ingestionSdkName ?? "";
+        traceAsStagingObservation.ingestion_sdk_version =
+          attribution.ingestionSdkVersion ?? "";
+      }
       this.clickHouseWriter.addToQueue(
         TableName.ObservationsBatchStaging,
         traceAsStagingObservation,
@@ -741,6 +775,7 @@ export class IngestionService {
     createdAtTimestamp: Date;
     observationEventList: ObservationEvent[];
     writeToStagingTables: boolean;
+    attribution?: Partial<IngestionAttribution>;
   }) {
     const {
       projectId,
@@ -748,6 +783,7 @@ export class IngestionService {
       createdAtTimestamp,
       observationEventList,
       writeToStagingTables,
+      attribution,
     } = params;
     if (observationEventList.length === 0) return;
 
@@ -848,6 +884,13 @@ export class IngestionService {
     const finalObservationRecord = {
       ...mergedObservationRecord,
       ...generationUsage,
+      ...(attribution
+        ? {
+            ingestion_api_key: attribution.ingestionApiKey ?? "",
+            ingestion_sdk_name: attribution.ingestionSdkName ?? "",
+            ingestion_sdk_version: attribution.ingestionSdkVersion ?? "",
+          }
+        : {}),
     };
 
     // Backward compat: create wrapper trace for SDK < 2.0.0 events that do not have a traceId

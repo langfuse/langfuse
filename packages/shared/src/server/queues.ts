@@ -26,6 +26,9 @@ export const IngestionEvent = z.object({
     fileKey: z.string().optional(),
     skipS3List: z.boolean().optional(),
     forwardToEventsTable: z.boolean().optional(),
+    ingestionApiKey: z.string().optional(),
+    ingestionSdkName: z.string().optional(),
+    ingestionSdkVersion: z.string().optional(),
     // Absolute S3 key prefix the producer used (ends with "/"). Set so the
     // consumer never reconstructs the path and therefore can't drift from
     // the producer when env values differ across containers. Optional for
