@@ -56,7 +56,9 @@ export function TraceTimeline() {
   // Optional (null in the mobile layout): reopen the detail panel on select.
   const layout = useDesktopLayoutContextOptional();
 
-  const gutterRef = useRef<HTMLDivElement>(null);
+  // The chart is the single vertical scroller; the gutter content is a one-way
+  // transform projection of it (gutterInnerRef), so the two panes can't drift.
+  const gutterInnerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<HTMLDivElement>(null);
   const scaleInnerRef = useRef<HTMLDivElement>(null);
 
@@ -168,25 +170,27 @@ export function TraceTimeline() {
     }
   }, [selectedNodeId, flattenedItems, rowVirtualizer]);
 
-  // Vertical scroll sync (chart ⇄ gutter) + horizontal sync (chart → scale).
-  // Guard with !== so mirroring doesn't loop (setting an equal value is a no-op).
+  // The chart owns the only vertical scroll. The gutter and the time scale are
+  // one-way projections of it (translateY / translateX) updated in the same
+  // scroll frame — no second scroll container to fight the chart's momentum,
+  // which is what made the two panes drift apart.
   const handleChartScroll = useCallback(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    if (gutterRef.current && gutterRef.current.scrollTop !== chart.scrollTop) {
-      gutterRef.current.scrollTop = chart.scrollTop;
+    if (gutterInnerRef.current) {
+      gutterInnerRef.current.style.transform = `translateY(${-chart.scrollTop}px)`;
     }
     if (scaleInnerRef.current) {
       scaleInnerRef.current.style.transform = `translateX(${-chart.scrollLeft}px)`;
     }
   }, []);
 
-  const handleGutterScroll = useCallback(() => {
-    const gutter = gutterRef.current;
-    if (!gutter) return;
-    if (chartRef.current && chartRef.current.scrollTop !== gutter.scrollTop) {
-      chartRef.current.scrollTop = gutter.scrollTop;
-    }
+  // The gutter doesn't scroll itself; wheeling over it drives the chart, which
+  // then projects back onto the gutter via handleChartScroll.
+  const handleGutterWheel = useCallback((e: React.WheelEvent) => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.scrollTop += e.deltaY;
   }, []);
 
   // Parent totals for heatmap coloring (aggregate across all roots).
@@ -344,17 +348,20 @@ export function TraceTimeline() {
         className="flex min-h-0 flex-1"
         onMouseLeave={() => setHoveredNodeId(null)}
       >
-        {/* Gutter pane — vertical scroll mirrored from the chart; scrollbar hidden. */}
+        {/* Gutter pane — a one-way projection of the chart's vertical scroll
+            (translateY), never its own scroll container, so it stays locked to
+            the chart. Wheeling over it drives the chart. */}
         <div
-          ref={gutterRef}
-          onScroll={handleGutterScroll}
-          className="shrink-0 overflow-x-hidden overflow-y-auto [&::-webkit-scrollbar]:hidden"
-          style={{ width: `${gutterWidth}px`, scrollbarWidth: "none" }}
+          onWheel={handleGutterWheel}
+          className="shrink-0 overflow-hidden"
+          style={{ width: `${gutterWidth}px` }}
         >
           <div
+            ref={gutterInnerRef}
             style={{
-              height: `${totalSize + chartScrollbar.y}px`,
+              height: `${totalSize}px`,
               position: "relative",
+              willChange: "transform",
             }}
           >
             {virtualItems.map((vr) => renderRow(vr, "gutter"))}
