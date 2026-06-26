@@ -74,7 +74,9 @@ export function buildChartQuery({
     dimensions,
     metrics: [{ measure: metric.measure, aggregation: config.aggregation }],
     filters,
-    timeDimension: isTimeSeries ? { granularity: "auto" } : null,
+    timeDimension: isTimeSeries
+      ? { granularity: config.timeGranularity }
+      : null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
     orderBy: isCategoricalBreakdown

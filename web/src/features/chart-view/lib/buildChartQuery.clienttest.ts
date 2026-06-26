@@ -20,7 +20,7 @@ const build = (config: Partial<ChartViewConfig>) =>
   });
 
 describe("buildChartQuery", () => {
-  it("builds a time-series count-by-model query with an auto time dimension", () => {
+  it("builds a time-series count-by-model query honoring the granularity", () => {
     const q = build({
       metric: "count",
       aggregation: "count",
@@ -30,9 +30,15 @@ describe("buildChartQuery", () => {
     expect(q.view).toBe("observations");
     expect(q.dimensions).toEqual([{ field: "providedModelName" }]);
     expect(q.metrics).toEqual([{ measure: "count", aggregation: "count" }]);
-    expect(q.timeDimension).toEqual({ granularity: "auto" });
+    expect(q.timeDimension).toEqual({ granularity: "hour" });
     expect(q.orderBy).toBeNull();
     expect(q.fromTimestamp).toBe("2026-06-25T00:00:00.000Z");
+
+    const daily = build({
+      chartType: "LINE_TIME_SERIES",
+      timeGranularity: "day",
+    });
+    expect(daily.timeDimension).toEqual({ granularity: "day" });
   });
 
   it("builds a categorical query with top-N ordering and a row limit", () => {
@@ -63,7 +69,7 @@ describe("buildChartQuery", () => {
   it("omits dimensions for a no-breakdown time series", () => {
     const q = build({ breakdown: "none", chartType: "AREA_TIME_SERIES" });
     expect(q.dimensions).toEqual([]);
-    expect(q.timeDimension).toEqual({ granularity: "auto" });
+    expect(q.timeDimension).toEqual({ granularity: "hour" });
   });
 
   it("names the metric column as aggregation_measure", () => {
