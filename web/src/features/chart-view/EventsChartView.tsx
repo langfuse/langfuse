@@ -44,10 +44,15 @@ export function EventsChartView({
     [config, filters, fromTimestamp, toTimestamp],
   );
 
+  // A degenerate window (from === to, or from > to from independent time picks)
+  // can't be charted; the query is disabled, which react-query keeps at
+  // isPending forever — so surface a hint instead of an endless spinner.
+  const validRange = fromTimestamp < toTimestamp;
+
   const queryResult = api.dashboard.executeQuery.useQuery(
     { projectId, query, version: "v2" },
     {
-      enabled: fromTimestamp < toTimestamp,
+      enabled: validRange,
       meta: { silentHttpCodes: [422] },
       trpc: { context: { skipBatch: true } },
     },
@@ -58,10 +63,12 @@ export function EventsChartView({
     [queryResult.data, config],
   );
 
-  const error = queryResult.isError
-    ? (queryResult.error?.message ??
-      "Couldn't build a chart for the current view.")
-    : null;
+  const error = !validRange
+    ? "Pick a wider time range to chart."
+    : queryResult.isError
+      ? (queryResult.error?.message ??
+        "Couldn't build a chart for the current view.")
+      : null;
 
   // Mirror the search-bar "Ask AI" gate (Cloud + org AI features) AND the
   // server's RBAC scope (`prompts:CUD`), so a VIEWER who can't call the endpoint
@@ -87,7 +94,7 @@ export function EventsChartView({
       config={config}
       onConfigChange={onConfigChange}
       data={data}
-      isLoading={queryResult.isPending && !queryResult.isError}
+      isLoading={validRange && queryResult.isPending && !queryResult.isError}
       error={error}
       aiSlot={
         aiAvailable ? (
