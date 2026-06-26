@@ -14,17 +14,21 @@ export function StarToggle({
   onClick,
   size = "icon",
   isLoading,
+  label,
 }: {
   value: boolean;
   disabled?: boolean;
   onClick: (value: boolean) => Promise<unknown>;
   size?: "icon" | "icon-xs";
   isLoading: boolean;
+  /** When set, render as a full-width labeled menu item instead of an icon. */
+  label?: string;
 }) {
   return (
     <Button
       variant="ghost"
-      size={size}
+      size={label ? "sm" : size}
+      className={label ? "w-full justify-start gap-2 font-normal" : undefined}
       onClick={(e) => {
         e.stopPropagation();
         onClick(!value);
@@ -39,6 +43,7 @@ export function StarToggle({
         stroke={value ? "#ca8a04" : "currentColor"}
         strokeWidth={2}
       />
+      {label ? <span className="text-sm">{label}</span> : null}
     </Button>
   );
 }
@@ -126,11 +131,13 @@ export function StarTraceDetailsToggle({
   traceId,
   value,
   size = "icon",
+  label,
 }: {
   projectId: string;
   traceId: string;
   value: boolean;
   size?: "icon" | "icon-xs";
+  label?: string;
 }) {
   const utils = api.useUtils();
   const hasAccess = useHasProjectAccess({
@@ -163,6 +170,7 @@ export function StarTraceDetailsToggle({
     <StarToggle
       value={optimisticValue}
       size={size}
+      label={label}
       disabled={!hasAccess}
       isLoading={isLoading}
       onClick={(nextValue) => {

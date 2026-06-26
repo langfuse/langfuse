@@ -21,6 +21,8 @@ export const PublishTraceSwitch = (props: {
   timestamp?: Date;
   isPublic: boolean;
   size?: "icon" | "icon-xs";
+  /** When set, render as a full-width labeled menu item instead of an icon. */
+  label?: string;
 }) => {
   const { isBetaEnabled } = useV4Beta();
   const capture = usePostHogClientCapture();
@@ -103,6 +105,7 @@ export const PublishTraceSwitch = (props: {
       itemName="trace"
       isPublic={props.isPublic}
       size={props.size}
+      label={props.label}
       onChange={(val) => {
         capture("trace_detail:publish_button_click");
         return mut.mutateAsync({
@@ -164,6 +167,7 @@ const Base = (props: {
   isPublic: boolean;
   disabled?: boolean;
   size?: "icon" | "icon-xs";
+  label?: string;
 }) => {
   const [isCopied, setIsCopied] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -193,7 +197,12 @@ const Base = (props: {
             <Button
               id="publish-trace"
               variant="ghost"
-              size={props.size}
+              size={props.label ? "sm" : props.size}
+              className={
+                props.label
+                  ? "w-full justify-start gap-2 font-normal"
+                  : undefined
+              }
               loading={props.isLoading}
               disabled={props.disabled}
             >
@@ -207,6 +216,9 @@ const Base = (props: {
               ) : (
                 <Share2 className="h-4 w-4" />
               )}
+              {props.label ? (
+                <span className="text-sm">{props.label}</span>
+              ) : null}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="flex flex-col gap-3">

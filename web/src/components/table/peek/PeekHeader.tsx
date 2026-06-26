@@ -5,6 +5,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
 import { ItemBadge, type LangfuseItemType } from "@/src/components/ItemBadge";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { type ListEntry } from "@/src/features/navigate-detail-pages/context";
@@ -60,6 +66,36 @@ const FULL: PeekHeaderPlan = {
   badgeShowLabel: true,
   navCompact: false,
 };
+
+// Header tooltips appear quickly and share one style (Radix Tooltip, not the
+// slow/inconsistent native `title`).
+const TOOLTIP_DELAY_MS = 300;
+
+function HeaderIconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          aria-label={label}
+          onClick={onClick}
+        >
+          {children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  );
+}
 
 /**
  * Visible peek chrome shared by the desktop sheet and the mobile drawer. The
@@ -152,122 +188,111 @@ export function PeekHeader({
     setPlan((prev) => (samePlan(prev, next) ? prev : next));
   }, [headerRef, headerSize?.width, hasActions, hasOpenInTab, hasNav, plan]);
 
-  const openInTabButton = openInNewTab ? (
-    <Button
-      variant="ghost"
-      size="icon-xs"
-      aria-label="Open in new tab"
-      title="Open in new tab"
-      onClick={openInNewTab}
-    >
-      <ExternalLink className="h-4 w-4" />
-    </Button>
-  ) : null;
-
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
 
   return (
-    <div
-      ref={headerRef}
-      className="bg-header flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
-    >
-      <div className="flex min-w-0 flex-row items-center gap-2">
-        {/* Badge never truncates: it shows the full label or just the icon. */}
-        <div ref={badgeRef} className="shrink-0">
-          <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
-        </div>
-        <span
-          className="truncate text-sm font-medium focus:outline-hidden"
-          tabIndex={0}
-          title={typeof title === "string" ? title : undefined}
-        >
-          {title}
-        </span>
-      </div>
-      <div className="flex shrink-0 flex-row items-center gap-1">
-        {/* Overflow: a labeled menu of whatever folded away. */}
-        {anyFolded && (
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                aria-label="More actions"
-                title="More"
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
-            >
-              {plan.foldActions ? actionsMenu : null}
-              {plan.foldOpenInTab && openInNewTab ? (
-                <button
-                  type="button"
-                  onClick={openInNewTab}
-                  className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Open in new tab
-                </button>
-              ) : null}
-            </PopoverContent>
-          </Popover>
-        )}
-
-        {hasActions && !plan.foldActions ? (
-          <div ref={actionsRef} className="flex flex-row items-center gap-1">
-            {actions}
+    <TooltipProvider delayDuration={TOOLTIP_DELAY_MS}>
+      <div
+        ref={headerRef}
+        className="bg-header flex min-h-11 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden px-2 py-1"
+      >
+        <div className="flex min-w-0 flex-row items-center gap-2">
+          {/* Badge never truncates: it shows the full label or just the icon. */}
+          <div ref={badgeRef} className="shrink-0">
+            <ItemBadge type={itemType} showLabel={plan.badgeShowLabel} />
           </div>
-        ) : null}
-
-        {hasOpenInTab && !plan.foldOpenInTab ? (
-          <div ref={openInTabRef}>{openInTabButton}</div>
-        ) : null}
-
-        {/* Pinned block: nav (keeps K/J live), expand, close. */}
-        <div
-          ref={pinnedRef}
-          className="flex h-full flex-row items-center gap-1"
-        >
-          {hasNav && (
-            <div ref={navRef} className="flex flex-row items-center">
-              <DetailPageNav
-                currentId={itemId}
-                path={resolveDetailNavigationPath!}
-                listKey={detailNavigationKey!}
-                compact={plan.navCompact}
-              />
-            </div>
-          )}
-          {expand && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={expand.isExpanded ? "Collapse peek" : "Expand peek"}
-              title={expand.isExpanded ? "Collapse" : "Expand"}
-              onClick={expand.onToggle}
-            >
-              {expand.isExpanded ? (
-                <Minimize2 className="h-4 w-4" />
-              ) : (
-                <Maximize2 className="h-4 w-4" />
-              )}
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Close"
-            title="Close"
-            onClick={onClose}
+          <span
+            className="truncate text-sm font-medium focus:outline-hidden"
+            tabIndex={0}
+            title={typeof title === "string" ? title : undefined}
           >
-            <X className="h-4 w-4" />
-          </Button>
+            {title}
+          </span>
+        </div>
+        <div className="flex shrink-0 flex-row items-center gap-1">
+          {/* Overflow: a labeled menu of whatever folded away. */}
+          {anyFolded && (
+            <Popover>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      aria-label="More actions"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </PopoverTrigger>
+                </TooltipTrigger>
+                <TooltipContent>More</TooltipContent>
+              </Tooltip>
+              <PopoverContent
+                align="end"
+                className="flex w-auto min-w-44 flex-col gap-0.5 p-1"
+              >
+                {plan.foldActions ? actionsMenu : null}
+                {plan.foldOpenInTab && openInNewTab ? (
+                  <button
+                    type="button"
+                    onClick={openInNewTab}
+                    className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open in new tab
+                  </button>
+                ) : null}
+              </PopoverContent>
+            </Popover>
+          )}
+
+          {hasActions && !plan.foldActions ? (
+            <div ref={actionsRef} className="flex flex-row items-center gap-1">
+              {actions}
+            </div>
+          ) : null}
+
+          {hasOpenInTab && !plan.foldOpenInTab && openInNewTab ? (
+            <div ref={openInTabRef}>
+              <HeaderIconButton label="Open in new tab" onClick={openInNewTab}>
+                <ExternalLink className="h-4 w-4" />
+              </HeaderIconButton>
+            </div>
+          ) : null}
+
+          {/* Pinned block: nav (keeps K/J live), expand, close. */}
+          <div
+            ref={pinnedRef}
+            className="flex h-full flex-row items-center gap-1"
+          >
+            {hasNav && (
+              <div ref={navRef} className="flex flex-row items-center">
+                <DetailPageNav
+                  currentId={itemId}
+                  path={resolveDetailNavigationPath!}
+                  listKey={detailNavigationKey!}
+                  compact={plan.navCompact}
+                />
+              </div>
+            )}
+            {expand && (
+              <HeaderIconButton
+                label={expand.isExpanded ? "Collapse" : "Expand"}
+                onClick={expand.onToggle}
+              >
+                {expand.isExpanded ? (
+                  <Minimize2 className="h-4 w-4" />
+                ) : (
+                  <Maximize2 className="h-4 w-4" />
+                )}
+              </HeaderIconButton>
+            )}
+            <HeaderIconButton label="Close" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </HeaderIconButton>
+          </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   );
 }
