@@ -115,17 +115,19 @@ export const slackRouter = createTRPCRouter({
         const { channels, hasPrivateChannelAccess, nextCursor } =
           await slackService.getChannels(client, input.cursor);
 
-        await auditLog({
-          session: ctx.session,
-          resourceType: "slackIntegration",
-          resourceId: integration.id,
-          action: "read",
-          after: {
-            action: "channels_fetched",
-            channelCount: channels.length,
-            hasNextPage: Boolean(nextCursor),
-          },
-        });
+        if (!input.cursor) {
+          await auditLog({
+            session: ctx.session,
+            resourceType: "slackIntegration",
+            resourceId: integration.id,
+            action: "read",
+            after: {
+              action: "channels_fetched",
+              channelCount: channels.length,
+              hasNextPage: Boolean(nextCursor),
+            },
+          });
+        }
 
         return {
           channels,

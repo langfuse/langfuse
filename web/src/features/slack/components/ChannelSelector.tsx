@@ -46,6 +46,7 @@ interface ChannelSelectorProps {
 }
 
 const ITEM_HEIGHT = 32;
+const MAX_SLACK_CHANNEL_PAGES = 20;
 
 const useSlackChannels = (projectId: string) => {
   const {
@@ -61,7 +62,10 @@ const useSlackChannels = (projectId: string) => {
     { projectId },
     {
       enabled: !!projectId,
-      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      getNextPageParam: (lastPage, allPages) =>
+        allPages.length >= MAX_SLACK_CHANNEL_PAGES
+          ? undefined
+          : lastPage.nextCursor,
       staleTime: 5 * 60 * 1000,
     },
   );
