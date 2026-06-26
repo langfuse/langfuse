@@ -24,7 +24,6 @@ import {
   ListTree,
   GanttChartSquare,
   MoreHorizontal,
-  PanelRightOpen,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -270,21 +269,9 @@ function TracePanelNavigationHeaderExpanded({
             isTimelineView={isTimelineView}
             onSelect={(timeline) => setViewMode(timeline ? "timeline" : null)}
           />
-
-          {/* Re-open the detail panel — shown at the header's right edge only
-              while the panel is closed (replaces the floating edge tab). */}
-          {isDetailPanelCollapsed && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => layout?.expandDetailPanel()}
-              title="Show detail panel"
-              aria-label="Show detail panel"
-              className="ml-1 h-7 w-7 shrink-0"
-            >
-              <PanelRightOpen className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          {/* When the detail panel is closed it shows its own collapsed rail +
+              expand button on the right edge (mirrors the navigation panel), so
+              the header needs no re-open button — see TraceLayoutDesktop. */}
         </div>
       </div>
     </Command>

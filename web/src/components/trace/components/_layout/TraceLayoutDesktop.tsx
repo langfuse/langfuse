@@ -14,6 +14,8 @@ import {
   useContext,
   type ReactNode,
 } from "react";
+import { PanelRightOpen } from "lucide-react";
+import { Button } from "@/src/components/ui/button";
 import { useViewPreferences } from "@/src/components/trace/contexts/ViewPreferencesContext";
 import { useSelection } from "@/src/components/trace/contexts/SelectionContext";
 
@@ -214,19 +216,25 @@ TraceLayoutDesktop.DetailPanel = function Detail({
 }: {
   children: ReactNode;
 }) {
-  const { detailPanelRef, setIsDetailPanelCollapsed } = useLayoutContext();
+  const {
+    detailPanelRef,
+    setIsDetailPanelCollapsed,
+    isDetailPanelCollapsed,
+    expandDetailPanel,
+  } = useLayoutContext();
 
   return (
     // Collapsible like the navigation panel: dragging it below the 360px floor
-    // snaps it shut (collapsedSize 0) so the timeline/tree can take the full
-    // width. A tab on the right edge (rendered by TraceLayoutDesktop) brings it
-    // back. 360px is the readable minimum the narrow peek already renders at.
+    // snaps it to a 40px rail (collapsedSize) so the timeline/tree takes the
+    // rest of the width while a "show detail panel" button on the rail brings it
+    // back — mirroring the navigation panel's collapsed strip. 360px is the
+    // readable minimum the narrow peek already renders at.
     <Panel
       id={RESIZABLE_PANEL_PREVIEW_ID}
       panelRef={detailPanelRef}
       defaultSize="70%"
       collapsible={true}
-      collapsedSize="0px"
+      collapsedSize="40px"
       minSize="360px"
       onResize={() => {
         setIsDetailPanelCollapsed(
@@ -234,7 +242,22 @@ TraceLayoutDesktop.DetailPanel = function Detail({
         );
       }}
     >
-      {children}
+      {isDetailPanelCollapsed ? (
+        <div className="flex h-full w-full flex-col items-center p-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            title="Show detail panel"
+            aria-label="Show detail panel"
+            onClick={expandDetailPanel}
+            className="h-7 w-7 shrink-0"
+          >
+            <PanelRightOpen className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ) : (
+        children
+      )}
     </Panel>
   );
 };
