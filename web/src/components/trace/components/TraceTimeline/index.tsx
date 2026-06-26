@@ -226,8 +226,15 @@ export function TraceTimeline() {
     const drag = dragRef.current;
     const chart = chartRef.current;
     if (!drag || drag.pointerId !== e.pointerId || !chart) return;
+    // Clamp-aware: only consume the scroll delta the browser actually applied.
+    // The browser clamps scrollTop to [0, maxScroll], so advancing lastY to
+    // e.clientY unconditionally would record finger motion past a boundary that
+    // scrollTop discarded; a later direction reversal would then resurface as
+    // phantom scroll with zero net finger travel. Advancing lastY by only the
+    // applied delta keeps over-the-boundary motion from leaking back in.
+    const prev = chart.scrollTop;
     chart.scrollTop -= e.clientY - drag.lastY;
-    drag.lastY = e.clientY;
+    drag.lastY += prev - chart.scrollTop;
   }, []);
   const handleGutterPointerEnd = useCallback((e: React.PointerEvent) => {
     if (dragRef.current?.pointerId !== e.pointerId) return;
