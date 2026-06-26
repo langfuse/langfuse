@@ -1193,11 +1193,23 @@ export const handleBlobStorageIntegrationProjectJob = async (
     const maxConsecutiveFailures =
       env.LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES;
 
-    // Circuit breaker (LFE-10279): count consecutive failures and auto-disable
-    // the integration once the threshold is reached, so a wedged or
-    // misconfigured chunk stops retrying forever. lastSyncAt only advances on
-    // success, so every failure here is a retry of the same
-    // (projectId, lastSyncAt) chunk.
+    // The queue retries each job up to `attempts` times with exponential
+    // backoff, so one scheduled run produces several catch passes. Only the
+    // final, retry-exhausted pass counts as one failed sync run for the circuit
+    // breaker; otherwise a transient blip absorbed by BullMQ would advance the
+    // counter multiple times within a single run and trip the breaker
+    // prematurely (LFE-10279). attemptsMade is 0-based during processing and is
+    // incremented after this handler returns, so the last allowed attempt has
+    // attemptsMade === attempts - 1.
+    const isFinalAttempt =
+      (job.attemptsMade ?? 0) >= (job.opts?.attempts ?? 1) - 1;
+
+    // Circuit breaker (LFE-10279): count consecutive failed sync runs and
+    // auto-disable the integration once the threshold is reached, so a wedged
+    // or misconfigured chunk stops retrying forever. lastSyncAt only advances on
+    // success, so every failed run here retries the same
+    // (projectId, lastSyncAt) chunk. lastError is recorded on every pass for
+    // live visibility, but the counter only advances once the run is exhausted.
     let paused = false;
     try {
       const { consecutiveFailures } =
@@ -1207,12 +1219,14 @@ export const handleBlobStorageIntegrationProjectJob = async (
             lastError: errorMessage,
             lastErrorAt: new Date(),
             runStartedAt: null,
-            consecutiveFailures: { increment: 1 },
+            ...(isFinalAttempt
+              ? { consecutiveFailures: { increment: 1 } }
+              : {}),
           },
           select: { consecutiveFailures: true },
         });
 
-      if (consecutiveFailures >= maxConsecutiveFailures) {
+      if (isFinalAttempt && consecutiveFailures >= maxConsecutiveFailures) {
         // Atomic claim on the enabled true→false transition. The increment
         // above is atomic, so two concurrent workers can both read a value at
         // or past the threshold; gating the disable on actually flipping the
@@ -1242,7 +1256,12 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    notifyBlobStorageExportFailedInBackground(projectId, paused);
+    // Notify only once the run is exhausted: a failure that BullMQ still
+    // recovers on a later retry is not a failed sync run, so it should not
+    // alert owners.
+    if (isFinalAttempt) {
+      notifyBlobStorageExportFailedInBackground(projectId, paused);
+    }
 
     const chain = formatErrorChain(error);
     logger.error(

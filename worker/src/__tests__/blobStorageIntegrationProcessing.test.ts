@@ -285,6 +285,61 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(row.consecutiveFailures).toBe(0);
       expect(row.enabled).toBe(true);
     });
+
+    it("only counts the final retry of a BullMQ job as one failed sync run", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES = 3;
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          // Enriched source + V4 preview off => the guard throws on every run.
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      // A job configured for 5 BullMQ attempts. attemptsMade is 0-based during
+      // processing, so the final allowed attempt is attemptsMade === 4.
+      const runAttempt = (attemptsMade: number) =>
+        handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+          attemptsMade,
+          opts: { attempts: 5 },
+        } as Job);
+
+      // Non-final retries record the error but do not advance the breaker.
+      for (const attempt of [0, 1, 2, 3]) {
+        await expect(runAttempt(attempt)).rejects.toThrow(/enriched/i);
+      }
+      let row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.lastError).toMatch(/enriched/i);
+      expect(row.consecutiveFailures).toBe(0);
+      expect(row.enabled).toBe(true);
+
+      // The retry-exhausted attempt counts as exactly one failed sync run.
+      await expect(runAttempt(4)).rejects.toThrow(/enriched/i);
+      row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      expect(row.consecutiveFailures).toBe(1);
+      expect(row.enabled).toBe(true);
+    });
   });
 
   it("should not process when blob storage integration is disabled", async () => {

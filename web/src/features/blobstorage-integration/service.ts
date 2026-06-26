@@ -186,8 +186,17 @@ export async function upsertBlobStorageIntegration(params: {
         ...(modeChanged ? { lastSyncAt: null, nextSyncAt: new Date() } : {}),
         runStartedAt: null,
         // Reset the circuit breaker on re-enable (see `reactivated` above).
+        // Clear lastFailureNotificationSentAt too: the auto-disable claim seeds
+        // it to dedupe the pause email, so leaving it set would suppress the
+        // first failure email after re-enable. Null matches a brand-new
+        // integration and restores the full cooldown grace (LFE-10279).
         ...(reactivated
-          ? { consecutiveFailures: 0, lastError: null, lastErrorAt: null }
+          ? {
+              consecutiveFailures: 0,
+              lastError: null,
+              lastErrorAt: null,
+              lastFailureNotificationSentAt: null,
+            }
           : {}),
       },
     });
