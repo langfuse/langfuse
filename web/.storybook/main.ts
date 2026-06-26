@@ -37,6 +37,10 @@ const config: StorybookConfig = {
       dirname(fileURLToPath(import.meta.url)),
       "../../packages/shared/src",
     );
+    const prismaBrowserStub = resolve(
+      dirname(fileURLToPath(import.meta.url)),
+      "./prisma-browser-stub.cjs",
+    );
     viteConfig.resolve = viteConfig.resolve ?? {};
     // Use the array form with regex `find`s for *exact* matching. The object
     // form is treated by Vite/Rollup as a literal prefix replacement, so an
@@ -54,6 +58,10 @@ const config: StorybookConfig = {
           replacement: replacement as string,
         }));
     viteConfig.resolve.alias = [
+      {
+        find: /^\.prisma\/client\/index-browser$/,
+        replacement: prismaBrowserStub,
+      },
       {
         find: /^@langfuse\/shared\/src\/(.*)$/,
         replacement: `${sharedSrc}/$1`,
