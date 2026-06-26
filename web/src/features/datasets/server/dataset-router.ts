@@ -4,6 +4,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { Prisma, type Dataset } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { createMediaUploadUrl } from "@/src/features/media/server/mediaService";
@@ -101,6 +102,51 @@ import { createBatchActionJob } from "@/src/features/table/server/createBatchAct
 const DUPLICATE_DATASET_ITEMS_BATCH_SIZE = 100;
 const REMOTE_EXPERIMENT_TIMEOUT_MS = 20_000;
 const REMOTE_EXPERIMENT_MAX_REDIRECTS = 10;
+
+const getAzureStorageVersionFromUploadUrl = (uploadUrl?: string | null) => {
+  if (!uploadUrl) return null;
+
+  try {
+    return new URL(uploadUrl).searchParams.get("sv");
+  } catch {
+    return null;
+  }
+};
+
+export const getItemMediaUploadHeaders = ({
+  sha256Hash,
+  uploadUrl,
+  useAzureBlob = sharedEnv.LANGFUSE_USE_AZURE_BLOB,
+  useGoogleCloudStorage = sharedEnv.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE,
+  useOciNativeObjectStorage = sharedEnv.LANGFUSE_USE_OCI_NATIVE_OBJECT_STORAGE,
+}: {
+  sha256Hash: string;
+  uploadUrl?: string | null;
+  useAzureBlob?: "true" | "false";
+  useGoogleCloudStorage?: "true" | "false";
+  useOciNativeObjectStorage?: "true" | "false";
+}) => {
+  if (
+    useGoogleCloudStorage === "true" ||
+    useOciNativeObjectStorage === "true"
+  ) {
+    return {};
+  }
+
+  if (useAzureBlob === "true") {
+    const azureStorageVersion = getAzureStorageVersionFromUploadUrl(uploadUrl);
+
+    return {
+      "x-amz-checksum-sha256": sha256Hash,
+      "x-ms-blob-type": "BlockBlob",
+      ...(azureStorageVersion ? { "x-ms-version": azureStorageVersion } : {}),
+    };
+  }
+
+  return {
+    "x-amz-checksum-sha256": sha256Hash,
+  };
+};
 
 /**
  * Adds a case-insensitive search condition to a query
@@ -856,7 +902,7 @@ export const datasetRouter = createTRPCRouter({
           `File size must be less than ${env.LANGFUSE_S3_MEDIA_MAX_CONTENT_LENGTH} bytes`,
         );
 
-      return createMediaUploadUrl({
+      const result = await createMediaUploadUrl({
         projectId: input.projectId,
         body: {
           contentType: input.contentType,
@@ -867,6 +913,14 @@ export const datasetRouter = createTRPCRouter({
           field: input.field,
         },
       });
+
+      return {
+        ...result,
+        uploadHeaders: getItemMediaUploadHeaders({
+          sha256Hash: input.sha256Hash,
+          uploadUrl: result.uploadUrl,
+        }),
+      };
     }),
   markItemMediaUploadComplete: protectedProjectProcedure
     .input(
