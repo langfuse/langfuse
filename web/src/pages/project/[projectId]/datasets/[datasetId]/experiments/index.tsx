@@ -150,7 +150,11 @@ export default function Dataset() {
   // For experiment evaluators, we only run on new data (not historic)
   const preprocessFormValues = useCallback((values: any) => values, []);
 
-  const breadcrumb = getDatasetBreadcrumb(projectId, dataset.data?.name);
+  const breadcrumb = getDatasetBreadcrumb(
+    projectId,
+    datasetId,
+    dataset.data?.name,
+  );
 
   if (isExperimentsBetaActive) {
     return (
