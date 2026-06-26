@@ -1202,9 +1202,11 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
-    // Wall-clock spent exporting this one window's data, used to detect
-    // exporters that can't keep up (see metric emit below).
-    const exportStartedAt = Date.now();
+    // Elapsed time spent exporting this one window's data, used to detect
+    // exporters that can't keep up (see metric emit below). Monotonic
+    // performance.now() — matches the file's other deltas and avoids a clock
+    // step (NTP/suspend) producing a negative duration.
+    const exportStartedAt = performance.now();
 
     if (isTraceOnlyProject) {
       // Only process traces table for projects in the trace-only list (legacy behavior)
@@ -1252,7 +1254,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       await Promise.all(processPromises);
     }
 
-    const exportDurationMs = Date.now() - exportStartedAt;
+    const exportDurationMs = performance.now() - exportStartedAt;
 
     // Determine if we've caught up with present-day data
     const caughtUp = maxTimestamp.getTime() >= uncappedMaxTimestamp.getTime();
