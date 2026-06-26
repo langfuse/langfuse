@@ -51,7 +51,10 @@ export const AnnotationProcessingLayout: React.FC<
         <ResizableHandle />
         <ResizablePanel
           className="col-span-1 flex h-full flex-col overflow-hidden"
-          minSize="30%"
+          // Pixel floor (not a %) so the annotate form never cramps at the default
+          // split on smaller screens — the score rows need a usable width to keep
+          // labels/options from wrapping to single characters. Still resizable.
+          minSize="400px"
         >
           {rightPanel}
         </ResizablePanel>
