@@ -32,6 +32,7 @@ import {
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
 import { autoScrollOnSelectionDrag } from "@/src/components/editor/autoScrollOnSelectionDrag";
+import { createJsonMagicPasteExtension } from "@/src/components/editor/jsonMagicPaste";
 
 // Custom language mode for prompts that highlights mustache variables and prompt dependency tags
 const promptLanguage = StreamLanguage.define({
@@ -509,6 +510,10 @@ export function CodeMirrorEditor({
         : []),
       ...(mode === "json" ? [json()] : []),
       ...(mode === "json" && linterEnabled ? [linter(jsonParseLinter())] : []),
+      // Magic paste: when editing JSON, escape pasted text inside a string (or
+      // wrap a blob pasted into a blank field) so the JSON stays valid, with a
+      // "Paste raw" escape hatch. Conservative — defers to normal paste otherwise.
+      ...(editable && mode === "json" ? [createJsonMagicPasteExtension()] : []),
       ...(mode === "prompt" ? [promptSupport, promptLinter] : []),
       ...(lineWrapping ? [EditorView.lineWrapping] : []),
       ...(additionalExtensions ?? []),

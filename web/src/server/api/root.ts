@@ -61,6 +61,7 @@ import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRou
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
 import { inAppAgentRouter } from "@/src/ee/features/in-app-agent/server/router";
 import { observationIoParsersRouter } from "@/src/features/observation-io-parsers/server/router";
+import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 
 /**
  * This is the primary router for your server.
@@ -130,6 +131,7 @@ export const appRouter = createTRPCRouter({
   webCallouts: webCalloutsRouter,
   inAppAgent: inAppAgentRouter,
   observationIoParsers: observationIoParsersRouter,
+  v4Transition: v4TransitionRouter,
 });
 
 // export type definition of API

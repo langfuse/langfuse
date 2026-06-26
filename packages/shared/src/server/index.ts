@@ -1,3 +1,9 @@
+import {
+  getObservationById as getObservationByIdRoutingWrapper,
+  getTraceById as getTraceByIdRoutingWrapper,
+  getTracesIdentifierForSession as getTracesIdentifierForSessionRoutingWrapper,
+} from "./repositories/events";
+
 export * from "./services/StorageService";
 export * from "./services/safeBlobKeySegment";
 export * from "./ingestion/eventBucketPath";
@@ -157,3 +163,31 @@ export * from "./utils/formatAuthProvider";
 export * from "./traceDeletionProcessor";
 export * from "./deletionGuard";
 export * from "./analytics-integrations/types";
+
+// Re-annotate these deprecated routing wrappers at the public server barrel.
+// They are otherwise exposed through multiple `export *` hops, where consumers
+// and lint tooling can lose the original JSDoc deprecation metadata.
+/**
+ * @deprecated Please prefer `getTraceByIdFromEventsTable` for new use-cases.
+ * This should be exclusively used for backwards compatibility if the write mode
+ * is events_only.
+ */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+export const getTraceById = getTraceByIdRoutingWrapper;
+
+/**
+ * @deprecated Please prefer `getObservationByIdFromEventsTable` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+// eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+export const getObservationById = getObservationByIdRoutingWrapper;
+
+/**
+ * @deprecated Please prefer `getTracesIdentifierForSessionFromEvents` for new
+ * use-cases. This should be exclusively used for backwards compatibility if the
+ * write mode is events_only.
+ */
+export const getTracesIdentifierForSession =
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Intentional public alias for the deprecated routing wrapper.
+  getTracesIdentifierForSessionRoutingWrapper;

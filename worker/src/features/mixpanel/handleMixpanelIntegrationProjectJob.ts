@@ -12,6 +12,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { decrypt } from "@langfuse/shared/encryption";
 import { MixpanelClient } from "./mixpanelClient";
+import { recordExportVolume } from "../../services/exportVolumeMetric";
 import {
   transformTraceForMixpanel,
   transformGenerationForMixpanel,
@@ -283,6 +284,12 @@ export const handleMixpanelIntegrationProjectJob = async (
       data: {
         lastSyncAt: executionConfig.maxTimestamp,
       },
+    });
+    // Record gzipped on-wire export volume once the run has succeeded.
+    recordExportVolume({
+      integration: "mixpanel",
+      bytes: mixpanel.getSerializedBytes(),
+      projectId,
     });
     logger.info(
       `[MIXPANEL] Mixpanel integration processing complete for project ${projectId}`,
