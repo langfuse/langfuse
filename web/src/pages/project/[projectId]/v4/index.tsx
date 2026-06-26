@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import Page from "@/src/components/layouts/page";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { DEFAULT_DASHBOARD_AGGREGATION_SELECTION } from "@/src/utils/date-range-utils";
-import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
 import { api } from "@/src/utils/api";
 import { V4MigrationProjectCards } from "@/src/features/v4/components/V4MigrationProjectCards";
 import {
@@ -15,8 +15,9 @@ import {
 export default function V4Page() {
   const router = useRouter();
   const projectId = router.query.projectId as string | undefined;
-  const { timeRange, setTimeRange } = useDashboardDateRange({
-    defaultRelativeAggregation: DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
+  const { timeRange, setTimeRange } = useGlobalDateRange({
+    allowedRanges: V4_TIME_RANGE_PRESETS,
+    fallback: DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
   });
 
   const absoluteTimeRange = useMemo(() => {

@@ -8,7 +8,7 @@ import Page from "@/src/components/layouts/page";
 import { ErrorPage } from "@/src/components/error-page";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { DEFAULT_DASHBOARD_AGGREGATION_SELECTION } from "@/src/utils/date-range-utils";
-import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
+import { useGlobalDateRange } from "@/src/features/global-time-range/useGlobalDateRange";
 import { api } from "@/src/utils/api";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Alert, AlertDescription } from "@/src/components/ui/alert";
@@ -82,8 +82,9 @@ export default function OrganizationV4Page() {
   const router = useRouter();
   const session = useSession();
   const organizationId = router.query.organizationId as string | undefined;
-  const { timeRange, setTimeRange } = useDashboardDateRange({
-    defaultRelativeAggregation: DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
+  const { timeRange, setTimeRange } = useGlobalDateRange({
+    allowedRanges: V4_TIME_RANGE_PRESETS,
+    fallback: DEFAULT_DASHBOARD_AGGREGATION_SELECTION,
   });
   const canViewOrgV4Page = useHasOrganizationAccess({
     organizationId,
@@ -204,6 +205,8 @@ export default function OrganizationV4Page() {
       { projectsNotMigrated: 0, actionCount: 0 },
     );
   }, [legacyApiUsageRowsByProjectId, projects]);
+  const isProjectReadinessLoading =
+    summaryByProject.isPending || legacyApiUsageByProject.isPending;
 
   useEffect(() => {
     if (
@@ -246,26 +249,27 @@ export default function OrganizationV4Page() {
       <div className="mx-auto flex w-full max-w-screen-xl flex-col gap-6">
         <DashboardCard
           title="Project readiness"
-          description={`${numberFormatter(
-            migrationSummary.projectsNotMigrated,
-            0,
-          )} of ${numberFormatter(
-            projects.length,
-            0,
-          )} projects not migrated - ${numberFormatter(
-            migrationSummary.actionCount,
-            0,
-          )} required changes`}
-          isLoading={
-            summaryByProject.isPending || legacyApiUsageByProject.isPending
+          description={
+            isProjectReadinessLoading
+              ? "Loading V4 migration data."
+              : `${numberFormatter(
+                  migrationSummary.projectsNotMigrated,
+                  0,
+                )} of ${numberFormatter(
+                  projects.length,
+                  0,
+                )} projects not migrated - ${numberFormatter(
+                  migrationSummary.actionCount,
+                  0,
+                )} required changes`
           }
+          isLoading={isProjectReadinessLoading}
         >
           {summaryByProject.error ? (
             <Alert>
               <AlertDescription>Failed to load projects.</AlertDescription>
             </Alert>
-          ) : summaryByProject.isPending ||
-            legacyApiUsageByProject.isPending ? (
+          ) : isProjectReadinessLoading ? (
             <div className="min-h-40" />
           ) : projects.length > 0 ? (
             <div className="overflow-x-auto">

@@ -491,9 +491,15 @@ export const V4MigrationProjectCards = ({
     [summary?.legacyIntegrations],
   );
 
+  const hasAnyError =
+    hasSummaryError ||
+    hasLegacyApiUsageError ||
+    hasTraceLevelEvalExecutionsError;
+  const traceLevelEvalCount =
+    summary?.traceLevelEvalCount ?? evalExecutionSeries.length;
   const activeTaskCount =
     legacyApiSeries.length +
-    (summary?.traceLevelEvalCount ?? 0) +
+    traceLevelEvalCount +
     legacyIntegrationLinks.length;
   const migrationStatus = getV4MigrationStatus(activeTaskCount);
   const isLoading =
@@ -507,12 +513,14 @@ export const V4MigrationProjectCards = ({
       description={
         isLoading
           ? "Loading V4 migration data."
-          : `${projectName ? `${projectName} - ` : ""}${numberFormatter(
-              activeTaskCount,
-              0,
-            )} required ${
-              activeTaskCount === 1 ? "change" : "changes"
-            } in the selected time range`
+          : hasAnyError
+            ? `${projectName ? `${projectName} - ` : ""}Some migration data could not be loaded.`
+            : `${projectName ? `${projectName} - ` : ""}${numberFormatter(
+                activeTaskCount,
+                0,
+              )} required ${
+                activeTaskCount === 1 ? "change" : "changes"
+              } in the selected time range`
       }
       isLoading={isLoading}
       headerRight={
@@ -522,10 +530,12 @@ export const V4MigrationProjectCards = ({
               {V4_DOCS_LINK.label}
             </InlineLink>
             <Badge
-              variant={migrationStatus.badgeVariant}
+              variant={
+                hasAnyError ? "outline-solid" : migrationStatus.badgeVariant
+              }
               className="whitespace-nowrap"
             >
-              {migrationStatus.label}
+              {hasAnyError ? "Unavailable" : migrationStatus.label}
             </Badge>
           </div>
         )
@@ -555,7 +565,7 @@ export const V4MigrationProjectCards = ({
 
           <Section
             title="Trace-level evals"
-            count={summary?.traceLevelEvalCount ?? evalExecutionSeries.length}
+            count={traceLevelEvalCount}
             detailsHref={traceLevelEvalsHref}
           >
             {hasSummaryError || hasTraceLevelEvalExecutionsError ? (
@@ -566,10 +576,10 @@ export const V4MigrationProjectCards = ({
                 series={evalExecutionSeries}
                 valueLabel="executions"
               />
-            ) : (summary?.traceLevelEvalCount ?? 0) > 0 ? (
+            ) : traceLevelEvalCount > 0 ? (
               <ActionRow
                 title={`${numberFormatter(
-                  summary?.traceLevelEvalCount ?? 0,
+                  traceLevelEvalCount,
                   0,
                 )} configured trace-level evals`}
                 detail="No executions found in the selected range."
