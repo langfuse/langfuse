@@ -25,7 +25,11 @@ import {
   deriveComposerSegments,
   type ComposerSegment,
 } from "@/src/features/search-bar/lib/composer-segments";
-import { serializeValue, termAt } from "@/src/features/search-bar/lib/langQ";
+import {
+  canonicalizeKeywords,
+  serializeValue,
+  termAt,
+} from "@/src/features/search-bar/lib/langQ";
 import {
   scoreTypeContextFromObserved,
   type ObservedOptions,
@@ -671,7 +675,10 @@ export function SearchComposer({
       // and rely on zustand's synchronous set so the commit reads the new value.
       let caretAtEnd = false;
       if (root !== null) {
-        const text = textFromRoot(root);
+        // Canonicalize bare or/and to uppercase OR/AND as we sync the DOM into
+        // the store, so a committed query VISIBLY shows the operator the user
+        // typed lowercase. Length-preserving, so the caret math below is intact.
+        const text = canonicalizeKeywords(textFromRoot(root));
         const sel = selectionOffsets(root);
         caretAtEnd =
           sel.start === sel.end && sel.end === text.length && text.length > 0;

@@ -11,9 +11,11 @@
 // render as pills. This is why a v4-native endpoint beats the legacy
 // trace-column prompt: there is no separate column list to drift out of sync.
 //
-// The model is asked for a flat Langfuse `FilterState` (an array of
-// `singleFilter` objects). Each field's allowed `type`/operators/value shape is
-// DERIVED from its `kind`/`syncMode` here, mirroring `lowerSingle` in
+// The model answers with a Langfuse `FilterInput`: a flat array of `singleFilter`
+// objects (implicit AND — the default) OR a nested `{type:"group",operator,
+// conditions}` tree when the request needs cross-field OR or bracketed logic.
+// Each field's allowed `type`/operators/value shape is DERIVED from its
+// `kind`/`syncMode` here, mirroring `lowerSingle` in
 // `../lib/filter-state-to-query.ts` (the reverse direction), so the two cannot
 // diverge.
 
@@ -110,7 +112,7 @@ The new request is an EDIT to this set, not a fresh start. Rules:
 - ADD a filter for whatever the request narrows down to.
 - Only modify or drop a filter the request actually targets.
 
-A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting array (existing filters that remain PLUS any new ones), never just the new delta.
+A phrase like "only X" / "just X" / "show me X" / "narrow to X" means ADD an X filter ON TOP OF the current ones — it does NOT mean discard the rest. Return the COMPLETE resulting filter (existing filters that remain PLUS any new ones), never just the new delta. If the existing filters are a group, or the edit introduces OR/branching, return the complete group.
 
 Worked example — current filters \`level:ERROR\`, request "only in production":
 you return BOTH filters, not just environment:
@@ -121,9 +123,9 @@ you return BOTH filters, not just environment:
   return `## Role
 
 You are the Langfuse filter generator for the observability (v4 events) table.
-Turn a natural-language request about LLM traces/observations into a flat
-Langfuse filter array in JSON, using the FULL filter surface — not just simple
-column matches. You can filter on:
+Turn a natural-language request about LLM traces/observations into a Langfuse
+filter in JSON, using the FULL filter surface — not just simple column matches.
+You can filter on:
 - catalog columns (below) with their operators,
 - custom **metadata** by key — BE WILLING to reach into metadata; many
   domain-specific attributes (queue, tenant, customer tier, feature flag, region,
@@ -131,7 +133,9 @@ column matches. You can filter on:
 - evaluation **scores** by name (numeric comparisons or categorical values),
 - **content search**: substring match on the input / output payload,
 - **null checks** (has / missing), tag groups (any / all / none of), and
-  **negation / exclusion**.
+  **negation / exclusion**,
+- **boolean logic**: combine conditions with AND (the default), OR, and bracketed
+  grouping when the request branches (see "Boolean logic" below).
 
 Prefer values, metadata keys, and score names that appear in the observed
 project data below (when provided) over inventing your own. Use real catalog
@@ -145,16 +149,22 @@ score names, thresholds, or values to satisfy it.
 
 ## Output format
 
-Respond with ONLY a JSON array of filter objects — no prose, no markdown fences.
-Each object has "type", "column", "operator", "value" (and "key" for metadata
-and score filters). If the request implies no filter, return [].
+Respond with ONLY JSON — no prose, no markdown fences. Two shapes:
 
-Example shape:
+1. **Flat array** (the DEFAULT — use it whenever every condition must hold, i.e.
+   plain AND). A JSON array of filter objects, each with "type", "column",
+   "operator", "value" (and "key" for metadata/score filters):
 
 [
   {"type": "stringOptions", "column": "level", "operator": "any of", "value": ["ERROR"]},
   {"type": "number", "column": "latency", "operator": ">", "value": 2}
 ]
+
+2. **Group** (ONLY when the request needs OR or bracketing — see "Boolean logic").
+   A single object \`{"type":"group","operator":"AND"|"OR","conditions":[…]}\`
+   whose conditions are filter objects or nested groups.
+
+If the request implies no filter, return [].
 
 ## Column catalog
 
@@ -210,6 +220,25 @@ contains X.
   / "with an X" → null "is not null".
 - Negated numbers use the inverse comparison ("not slower than 2s" → latency <= 2).
 
+## Boolean logic (AND / OR / grouping)
+
+A flat array is implicit AND — every filter must hold. Use a GROUP only when the
+request can't be expressed that way:
+
+- **OR across conditions** ("X or Y", "either … or …", "A, otherwise B"):
+  {"type":"group","operator":"OR","conditions":[<cond>, <cond>, …]}
+- **Bracketing / mixed AND+OR** ("A and (B or C)"): an outer AND group whose
+  conditions include an inner OR group (and vice-versa). Nest groups to mirror the
+  user's parentheses.
+
+Each entry in "conditions" is either a leaf filter object (same shape as the flat
+array) or another group. Within ONE field, prefer that field's multi-value
+operator over an OR of leaves: "level ERROR or WARNING" is one
+{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR","WARNING"]},
+NOT an OR group. Reserve OR groups for branching ACROSS different
+fields/operators. Keep it shallow — nest at most a few levels and well under ~60
+leaf conditions. If only one condition results, return the flat one-element array.
+
 ## Tag groups
 
 traceTags is an array. "tagged a or b" → any of [a, b]; "tagged BOTH a and b" →
@@ -232,8 +261,9 @@ ${refineSection}${dataSection}
 ## Examples
 
 These span the full surface — comparisons, scores, metadata, content search,
-null checks, tag groups, and negation. Match the user's intent to the closest
-capability; don't reduce everything to a name/type guess.
+null checks, tag groups, negation, and boolean grouping. Match the user's intent
+to the closest capability; don't reduce everything to a name/type guess. Most
+requests are a flat array — only branch into a group when there's a real OR.
 
 Input: "slow production traces from the last 24 hours"
 Output: [{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]},{"type":"number","column":"latency","operator":">","value":5},{"type":"datetime","column":"startTime","operator":">","value":"<24h before current datetime, ISO 8601>"}]
@@ -257,5 +287,14 @@ Input: "tagged both urgent and billing, not in dev"
 Output: [{"type":"arrayOptions","column":"traceTags","operator":"all of","value":["urgent","billing"]},{"type":"stringOptions","column":"environment","operator":"none of","value":["dev"]}]
 
 Input: "gpt-4 generations costing more than $0.50 that aren't errors"
-Output: [{"type":"stringOptions","column":"providedModelName","operator":"any of","value":["gpt-4"]},{"type":"stringOptions","column":"type","operator":"any of","value":["GENERATION"]},{"type":"number","column":"totalCost","operator":">","value":0.5},{"type":"stringOptions","column":"level","operator":"none of","value":["ERROR"]}]`;
+Output: [{"type":"stringOptions","column":"providedModelName","operator":"any of","value":["gpt-4"]},{"type":"stringOptions","column":"type","operator":"any of","value":["GENERATION"]},{"type":"number","column":"totalCost","operator":">","value":0.5},{"type":"stringOptions","column":"level","operator":"none of","value":["ERROR"]}]
+
+Input: "errors, or anything slower than 5 seconds" (cross-field OR → group)
+Output: {"type":"group","operator":"OR","conditions":[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"number","column":"latency","operator":">","value":5}]}
+
+Input: "production traces that either errored or cost more than a dollar" (AND of an OR → bracketing)
+Output: {"type":"group","operator":"AND","conditions":[{"type":"stringOptions","column":"environment","operator":"any of","value":["production"]},{"type":"group","operator":"OR","conditions":[{"type":"stringOptions","column":"level","operator":"any of","value":["ERROR"]},{"type":"number","column":"totalCost","operator":">","value":1}]}]}
+
+Input: "output mentions refund, or it's tagged billing" (cross-field OR → group)
+Output: {"type":"group","operator":"OR","conditions":[{"type":"string","column":"output","operator":"contains","value":"refund"},{"type":"arrayOptions","column":"traceTags","operator":"any of","value":["billing"]}]}`;
 }

@@ -3,11 +3,12 @@
 // Unlike the legacy `naturalLanguageFilters.createCompletion` (whose remotely
 // managed prompt targets the OLD trace columns), this procedure builds its
 // prompt from the search-bar field registry (`buildFilterSystemPrompt`), so the
-// model's vocabulary is exactly the v4 events grammar. It then ROUND-TRIPS the
-// model output through `filterStateToQueryText` and returns only the filters
-// that lower to bar pills — a hallucinated/unknown column can never reach the
-// client. The frontend applies the result via the bar's existing setFilterState
-// path (apply-immediately), and the bar re-derives the editable pills.
+// model's vocabulary is exactly the v4 events grammar. The model may answer with
+// a flat AND list OR a nested AND/OR group (cross-field OR + brackets). It then
+// ROUND-TRIPS the model output through the reverse adapter and returns only a
+// `filterInput` that lowers to bar pills — a hallucinated/unknown column can
+// never reach the client. The frontend applies the result via the bar's existing
+// apply-immediately path, and the bar re-derives the editable pills.
 
 import {
   createTRPCRouter,
@@ -175,9 +176,10 @@ export const searchBarRouter = createTRPCRouter({
           throw new Error("Expected LLM completion to be a string");
         }
 
-        // Parse the model output and keep only the filters that round-trip to
-        // bar grammar — a hallucinated/non-v4 column is dropped, never applied.
-        const { filters, queryText, droppedCount } =
+        // Parse the model output and keep only what round-trips to bar grammar —
+        // a hallucinated/non-v4 column is dropped, never applied. A flat list is
+        // filtered per element; a nested OR/grouped tree is all-or-nothing.
+        const { filterInput, queryText, droppedCount } =
           parseGeneratedFilters(llmCompletion);
 
         if (droppedCount > 0) {
@@ -190,7 +192,7 @@ export const searchBarRouter = createTRPCRouter({
           );
         }
 
-        return { filters, queryText };
+        return { filterInput, queryText };
       } catch (error) {
         // Already-shaped rejections (auth / precondition / not-found) are
         // expected control flow, not backend faults — rethrow them without

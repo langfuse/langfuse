@@ -15,7 +15,7 @@
 
 import * as React from "react";
 
-import { type FilterState } from "@langfuse/shared";
+import { type FilterInput } from "@langfuse/shared";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import type { ObservedOptions } from "@/src/features/search-bar/lib/observed-options";
@@ -37,11 +37,12 @@ export function EventsSearchBarRow({
   commit: () => string | null;
   observed: ObservedOptions | undefined;
   /**
-   * Applies AI-generated filters (apply-immediately); the bar re-derives them.
-   * Preserves filters the grammar can't represent (no-silent-drop contract) —
-   * comes from `useEventsSearchBar.applyFilters`, not a raw `setFilterState`.
+   * Applies an AI-generated filter — flat list or nested OR/grouped tree —
+   * (apply-immediately); the bar re-derives it. Preserves filters the grammar
+   * can't represent (no-silent-drop contract) — comes from
+   * `useEventsSearchBar.applyFilters`, not a raw `setFilterState`.
    */
-  onApplyFilters: (filters: FilterState) => void;
+  onApplyFilters: (filterInput: FilterInput) => void;
   /** Project data context (observed values + metadata keys + result count) for
    *  the AI prompt — built by EventsTable from filterOptions + visible rows. */
   aiDataContext?: string;

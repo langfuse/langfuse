@@ -7,7 +7,12 @@ describe("searchBarStore (draft-only)", () => {
     expect(store.getState().draft).toBe("level:ERROR");
     expect(store.getState().draftValid).toBe(true);
 
+    // A cross-field OR is now representable (lowers to a nested expression).
     store.getState().actions.setDraft("level:ERROR OR env:dev");
+    expect(store.getState().draftValid).toBe(true);
+
+    // A negated group still has no representable form.
+    store.getState().actions.setDraft("NOT (level:ERROR env:dev)");
     expect(store.getState().draftValid).toBe(false);
     expect(store.getState().draftDiagnostics.length).toBeGreaterThan(0);
   });

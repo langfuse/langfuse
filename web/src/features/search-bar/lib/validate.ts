@@ -7,11 +7,11 @@
 //
 // Parity with the adapter is by construction: each top-level node is lowered
 // through the real adapter and its errors become diagnostics at that node's
-// span. `valid === true` therefore guarantees astToFilterState() lowers the
+// span. `valid === true` therefore guarantees astToFilterInput() lowers the
 // whole query without errors.
 
 import type { ASTNode, Span } from "./ast";
-import { astToFilterState, type ScoreTypeContext } from "./adapter";
+import { astToFilterInput, type ScoreTypeContext } from "./adapter";
 import { nullableFields, resolveField } from "./fields";
 import { parse, type Diagnostic, type ParseResult } from "./langQ";
 
@@ -98,7 +98,7 @@ export function semanticDiagnostics(
   // routing and a clean validation hides an error the commit then drops.
   const topLevel: ASTNode[] = ast.kind === "and" ? ast.children : [ast];
   for (const node of topLevel) {
-    const { errors } = astToFilterState(node, scoreTypes);
+    const { errors } = astToFilterInput(node, scoreTypes);
     const span = nodeSpan(node, textLength);
     for (const message of errors) {
       out.push({ from: span.from, to: span.to, severity: "error", message });

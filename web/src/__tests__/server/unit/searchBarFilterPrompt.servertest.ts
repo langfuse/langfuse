@@ -73,6 +73,14 @@ describe("buildFilterSystemPrompt", () => {
     expect(prompt).toContain(SCORE_COLUMNS.trace.categorical);
   });
 
+  it("documents the nested group output shape for OR / bracketing", () => {
+    expect(prompt).toContain("Boolean logic");
+    expect(prompt).toContain(`"type":"group"`);
+    expect(prompt).toContain(`"operator":"AND"|"OR"`);
+    // a worked cross-field OR example the model can pattern-match
+    expect(prompt).toContain(`"operator":"OR"`);
+  });
+
   it("omits the refine section without a current query", () => {
     expect(prompt).not.toContain("Current filters");
   });

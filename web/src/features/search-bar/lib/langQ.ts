@@ -202,11 +202,37 @@ export function indexOfOutsideQuotes(s: string, ch: string): number {
 
 // ---- term classification ----
 
+// AND / OR are case-insensitive: a user typing `or` between filters means the
+// operator (we canonicalize it to uppercase on commit — see canonicalizeKeywords).
+// To search the literal word, quote it (`"or"`). NOT stays uppercase-only —
+// lowercase `not` is guided to the `-field:value` form by reservedTokenIssue.
 function isKeyword(raw: string): "and" | "or" | "not" | null {
-  if (raw === "AND") return "and";
-  if (raw === "OR") return "or";
+  const upper = raw.toUpperCase();
+  if (upper === "AND") return "and";
+  if (upper === "OR") return "or";
   if (raw === "NOT") return "not";
   return null;
+}
+
+/**
+ * Uppercase standalone AND/OR keyword tokens so a committed query shows the
+ * canonical operator (`level:A or level:B` → `level:A OR level:B`) — the visible
+ * half of "accept lowercase and convert it to the operator". Only BARE keyword
+ * tokens are touched: a quoted word (`"or"`) or field/value text (`name:or`) lexes
+ * as a non-keyword term and is left alone. Length-preserving (`or`→`OR` is the
+ * same width), so a caret resting at the draft's end stays put across the rewrite.
+ */
+export function canonicalizeKeywords(text: string): string {
+  const tokens = lex(text, []);
+  let result = "";
+  let cursor = 0;
+  for (const token of tokens) {
+    if (token.type === "term" && isKeyword(token.raw) !== null) {
+      result += text.slice(cursor, token.span.from) + token.raw.toUpperCase();
+      cursor = token.span.to;
+    }
+  }
+  return result + text.slice(cursor);
 }
 
 // Operator prefixes between ':' and the value. Longest first so '>=' wins
@@ -239,20 +265,16 @@ export function parseGlob(
   return { op, core };
 }
 
-// Operator-looking tokens we don't support yet. Rather than silently treat
-// them as free text (lowercase `not`/`or`/`and`) or as a cryptic "unknown
-// field" (`!foo:bar`), surface an explicit "not supported yet" error. Quoting
-// (`"or"`) escapes the word back into free text.
+// Operator-looking tokens we don't support yet. `or`/`and` ARE operators now
+// (case-insensitive, see isKeyword) and never reach here. `not`/`!` stay
+// unsupported as prefixes — rather than treat them as free text or a cryptic
+// "unknown field", point the user at the `-field:value` exclusion form.
 function reservedTokenIssue(raw: string): string | null {
   if (raw.startsWith("!")) {
     return '"!" is not supported yet — use -field:value to exclude (e.g. -env:dev)';
   }
-  const lower = raw.toLowerCase();
-  if (lower === "not") {
+  if (raw.toLowerCase() === "not") {
     return '"not" is not supported yet — use -field:value to exclude (e.g. -env:dev)';
-  }
-  if (lower === "or" || lower === "and") {
-    return `"${raw}" between filters is not supported yet — combine one field's values with field:(A OR B), or quote "${raw}" to search text`;
   }
   return null;
 }
@@ -476,14 +498,15 @@ function parseGroupedValues(
       continue;
     }
 
-    if (token.raw === "OR" || token.raw === "AND") {
-      const sep = token.raw === "OR" ? "or" : "and";
+    const sepKw = isKeyword(token.raw);
+    if (sepKw === "or" || sepKw === "and") {
+      const sep = sepKw;
       if (expectValue) {
         diagnostics.push({
           from: span.from,
           to: span.to,
           severity: "error",
-          message: `${token.raw} is missing a left-hand value`,
+          message: `${token.raw.toUpperCase()} is missing a left-hand value`,
         });
       }
       if (sawSeparator !== null && sawSeparator !== sep) {
@@ -497,7 +520,7 @@ function parseGroupedValues(
       sawSeparator = sep;
       valueOp = sep;
       expectValue = true;
-      lastSeparator = { span, raw: token.raw };
+      lastSeparator = { span, raw: token.raw.toUpperCase() };
       continue;
     }
 
@@ -506,8 +529,7 @@ function parseGroupedValues(
         from: span.from,
         to: span.to,
         severity: "error",
-        message:
-          "Expected uppercase OR (any of) or AND (all of) between grouped values",
+        message: "Expected OR (any of) or AND (all of) between grouped values",
       });
     }
 
@@ -524,16 +546,15 @@ function parseGroupedValues(
     } else {
       // A bare comma inside a group (`tags:(a,b)`) lexes as one token, so it
       // would otherwise become the literal value "a,b" with no diagnostic.
-      // Grouped values separate with uppercase OR/AND — flag it, but still push
-      // the value so parseTermNode doesn't stack a misleading "missing grouped
-      // value" on top of the comma error.
+      // Grouped values separate with OR/AND — flag it, but still push the value
+      // so parseTermNode doesn't stack a misleading "missing grouped value" on
+      // top of the comma error.
       if (indexOfOutsideQuotes(token.raw, ",") !== -1) {
         diagnostics.push({
           from: span.from,
           to: span.to,
           severity: "error",
-          message:
-            "Separate grouped values with uppercase OR or AND, not commas",
+          message: "Separate grouped values with OR or AND, not commas",
         });
       }
       values.push(value);

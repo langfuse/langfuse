@@ -2,7 +2,11 @@ import type React from "react";
 import { useCallback, useMemo, useEffect, useState } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 import {
+  combineFilterInputsWithAnd,
+  type FilterExpression,
+  type FilterInput,
   type FilterState,
+  getMandatoryFilterExpressionLeafFilters,
   singleFilter,
   type SingleValueOption,
   type ColumnDefinition,
@@ -11,6 +15,8 @@ import {
   computeSelectedValues,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
+  decodeFilterInput,
+  encodeFilterInput,
 } from "../lib/filter-query-encoding";
 import {
   buildSidebarFilterQueryStorageKey,
@@ -510,47 +516,60 @@ export function useSidebarFilterState(
   );
   const [memoryFilterState, setMemoryFilterState] = useState<FilterState>([]);
 
-  const urlFilterState: FilterState = useMemo(() => {
-    if (
-      stateLocationType !== "url" &&
-      stateLocationType !== "urlAndSessionStorage"
-    ) {
-      return [];
-    }
+  const usesUrlState =
+    stateLocationType === "url" || stateLocationType === "urlAndSessionStorage";
 
-    const rawQuery = (() => {
-      if (pendingFiltersQuery !== null) {
-        return pendingFiltersQuery;
-      }
-
-      if (typeof urlFiltersQuery === "string") {
-        return urlFiltersQuery;
-      }
-
-      if (stateLocationType === "urlAndSessionStorage") {
-        return storedFiltersQuery;
-      }
-
-      return "";
-    })();
-
-    return decodeAndNormalizeFilters(
-      rawQuery,
-      config.columnDefinitions,
-      config.migrateFilterState,
-    );
+  const rawFilterQuery = useMemo(() => {
+    if (!usesUrlState) return "";
+    if (pendingFiltersQuery !== null) return pendingFiltersQuery;
+    if (typeof urlFiltersQuery === "string") return urlFiltersQuery;
+    if (stateLocationType === "urlAndSessionStorage") return storedFiltersQuery;
+    return "";
   }, [
-    config.columnDefinitions,
-    config.migrateFilterState,
+    usesUrlState,
     stateLocationType,
     pendingFiltersQuery,
     urlFiltersQuery,
     storedFiltersQuery,
   ]);
 
+  // Search/Filter v2: the URL `filter` param may hold a nested FilterExpression
+  // tree (cross-field OR / brackets) the flat facet sidebar cannot represent.
+  // Decode it once; a tree puts the sidebar into the read-only "advanced filter"
+  // state (isAdvancedFilter) while the flat fields below stay empty — so every
+  // other table that never produces a tree is byte-for-byte unaffected.
+  const decodedFilterInput: FilterInput = useMemo(
+    () => (usesUrlState ? decodeFilterInput(rawFilterQuery) : []),
+    [usesUrlState, rawFilterQuery],
+  );
+  const isAdvancedFilter = !Array.isArray(decodedFilterInput);
+
+  const urlFilterState: FilterState = useMemo(() => {
+    if (!usesUrlState || isAdvancedFilter) {
+      return [];
+    }
+
+    return decodeAndNormalizeFilters(
+      rawFilterQuery,
+      config.columnDefinitions,
+      config.migrateFilterState,
+    );
+  }, [
+    config.columnDefinitions,
+    config.migrateFilterState,
+    usesUrlState,
+    isAdvancedFilter,
+    rawFilterQuery,
+  ]);
+
   const canonicalFiltersQuery = useMemo(
-    () => encodeFiltersGeneric(urlFilterState),
-    [urlFilterState],
+    // A tree is its own canonical form (re-encode the decoded value); the flat
+    // delimited canonicalization below must never run on it (it would wipe it).
+    () =>
+      isAdvancedFilter
+        ? encodeFilterInput(decodedFilterInput)
+        : encodeFiltersGeneric(urlFilterState),
+    [isAdvancedFilter, decodedFilterInput, urlFilterState],
   );
 
   const explicitFilterState: FilterState =
@@ -657,6 +676,37 @@ export function useSidebarFilterState(
     ],
   );
 
+  // The user's full filter, flat array OR nested tree (v2). Flat case is just
+  // the array; tree case is the decoded expression.
+  const explicitFilterExpression: FilterInput = isAdvancedFilter
+    ? (decodedFilterInput as FilterExpression)
+    : explicitFilterState;
+
+  // Effective filter for the query: managed-environment default applied. For a
+  // tree, the implicit hidden-env default wraps the user tree as an OUTER AND
+  // (never inside it) — unless the user already authored an env filter anywhere
+  // in the tree, in which case their selection stands.
+  const effectiveFilterExpression: FilterInput = useMemo(() => {
+    if (!isAdvancedFilter) return filterState;
+    const tree = decodedFilterInput as FilterExpression;
+    // Only an AND-reachable (mandatory) env filter is a guaranteed constraint.
+    // An env filter that holds only inside an OR branch must NOT suppress the
+    // implicit hidden-env default, or hidden environments leak.
+    const userAuthoredEnv = getMandatoryFilterExpressionLeafFilters(tree).some(
+      (leaf) => leaf.column === managedEnvironmentColumn,
+    );
+    const envDefaults = userAuthoredEnv ? [] : effectiveEnvironmentFilterState;
+    if (envDefaults.length === 0) return tree;
+    // Outer AND, flattened so an already-AND tree doesn't nest (depth budget).
+    return combineFilterInputsWithAnd(tree, envDefaults) ?? tree;
+  }, [
+    isAdvancedFilter,
+    decodedFilterInput,
+    filterState,
+    effectiveEnvironmentFilterState,
+    managedEnvironmentColumn,
+  ]);
+
   const setFilterState = useCallback(
     (newFilters: FilterState) => {
       const explicitFilters = stripImplicitEnvironmentFilterFromExplicitState({
@@ -693,6 +743,31 @@ export function useSidebarFilterState(
     ],
   );
 
+  // Write a FilterInput (flat array OR nested tree). A flat array routes through
+  // setFilterState (managed-env strip, delimited encoding) so the sidebar path is
+  // unchanged; a tree is JSON-encoded into the same `filter` param. Only the
+  // events search bar calls this; the facet sidebar still uses setFilterState.
+  const setFilterExpression = useCallback(
+    (input: FilterInput) => {
+      if (Array.isArray(input)) {
+        setFilterState(input);
+        return;
+      }
+      const encoded = encodeFilterInput(input);
+      setPendingFiltersQuery(encoded);
+      setUrlFiltersQuery(encoded || null);
+      if (stateLocationType === "urlAndSessionStorage") {
+        setStoredFiltersQuery(encoded);
+      }
+    },
+    [
+      setFilterState,
+      stateLocationType,
+      setUrlFiltersQuery,
+      setStoredFiltersQuery,
+    ],
+  );
+
   // Drop optimistic override once URL catches up to the requested value.
   useEffect(() => {
     if (
@@ -725,6 +800,10 @@ export function useSidebarFilterState(
 
     if (pendingFiltersQuery !== null) return;
 
+    // The flat delimited canonicalization does not apply to a JSON tree — it
+    // would re-encode it to "" and wipe it. The tree is already canonical.
+    if (isAdvancedFilter) return;
+
     if (typeof urlFiltersQuery === "string") {
       if (urlFiltersQuery !== canonicalFiltersQuery) {
         setPendingFiltersQuery(canonicalFiltersQuery);
@@ -754,6 +833,7 @@ export function useSidebarFilterState(
     canonicalFiltersQuery,
     setStoredFiltersQuery,
     setUrlFiltersQuery,
+    isAdvancedFilter,
   ]);
 
   // Mirror explicit URL filter state into session fallback storage.
@@ -1168,6 +1248,18 @@ export function useSidebarFilterState(
     const getFacetDisabledState = (
       facet: FilterConfig["facets"][number],
     ): { isDisabled: boolean; reason?: string } => {
+      // A nested tree (cross-field OR / brackets) can't be expressed as flat
+      // facets, so the sidebar is read-only while one is active — the search bar
+      // is the editor. We still render the facet value lists rather than hiding
+      // them behind a notice, just with their controls disabled.
+      if (isAdvancedFilter) {
+        return {
+          isDisabled: true,
+          reason:
+            "Editing happens in the search bar while an advanced (OR / grouped) filter is active.",
+        };
+      }
+
       const staticDisabled = facet.isDisabled ?? false;
 
       if (staticDisabled) {
@@ -1790,6 +1882,7 @@ export function useSidebarFilterState(
     loading,
     filterState,
     explicitFilterState,
+    isAdvancedFilter,
     updateFilter,
     updateFilterOnly,
     updateOperator,
@@ -1808,11 +1901,19 @@ export function useSidebarFilterState(
     effectiveFilterState: filterState,
     explicitFilterState,
     setFilterState,
+    // Search/Filter v2 (nested tree). For every flat query these mirror the flat
+    // fields above (explicitFilterExpression === explicitFilterState, etc.), so
+    // consumers that ignore them are unaffected. Only the events search bar +
+    // its sidebar opt in.
+    explicitFilterExpression,
+    effectiveFilterExpression,
+    isAdvancedFilter,
+    setFilterExpression,
     updateFilter,
     updateFilterOnly,
     updateOperator,
     clearAll,
-    isFiltered: explicitFilterState.length > 0,
+    isFiltered: isAdvancedFilter || explicitFilterState.length > 0,
     filters,
     expanded: expandedState,
     onExpandedChange,

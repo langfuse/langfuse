@@ -106,6 +106,14 @@ export interface QueryFilter {
   clearAll: () => void;
   isFiltered: boolean;
   setFilterState: (filters: FilterState) => void;
+  /**
+   * The active filter is a nested expression (cross-field OR / bracket group)
+   * the flat facet sidebar cannot represent (Search/Filter v2). When true the
+   * facets render READ-ONLY (value lists still shown, controls disabled) under a
+   * hint banner — the search bar is the editor for that filter; "Clear all"
+   * returns to editing facets here.
+   */
+  isAdvancedFilter?: boolean;
 }
 
 interface DataTableControlsProps {
@@ -188,6 +196,14 @@ export function DataTableControls({
         </div>
       </div>
       <div className="pb-10">
+        {queryFilter.isAdvancedFilter && (
+          <div className="text-muted-foreground border-b px-3 py-2.5 text-xs leading-relaxed">
+            An advanced filter (OR / grouped conditions) is active — facets are
+            read-only. Edit it in the search bar above, or use
+            <span className="font-medium"> Clear all</span> to return to editing
+            facets here.
+          </div>
+        )}
         <Accordion
           type="multiple"
           className="w-full"

@@ -1,5 +1,10 @@
 import type { ASTNode } from "@/src/features/search-bar/lib/ast";
-import { parse, serialize, termAt } from "@/src/features/search-bar/lib/langQ";
+import {
+  canonicalizeKeywords,
+  parse,
+  serialize,
+  termAt,
+} from "@/src/features/search-bar/lib/langQ";
 import {
   removeToken,
   tidyQueryText,
@@ -390,6 +395,8 @@ describe("validateQuery", () => {
       "isRootObservation:true",
       "-isRootObservation:true",
       "level:ERROR OR level:WARNING",
+      "level:ERROR OR env:dev", // cross-field OR (lowers to a nested expression)
+      "(level:ERROR OR name:checkout) -environment:prod", // grouped cross-field OR
     ]) {
       const r = validateQuery(text);
       expect(r.valid, `expected valid: ${text}`).toBe(true);
@@ -398,7 +405,6 @@ describe("validateQuery", () => {
 
   it("rejects forms the flat filter contract cannot represent", () => {
     for (const text of [
-      "level:ERROR OR env:dev", // cross-field OR
       "NOT (level:ERROR env:dev)", // negated group
       "-latency:2", // negated numeric equality
       "-input:prefix*", // negated starts-with
@@ -418,8 +424,6 @@ describe("validateQuery", () => {
       "level:(ERROR,WARNING)", // same, on an option field
       "not level:ERROR", // lowercase `not` reserved (use -field:value)
       "!level:ERROR", // `!` reserved (use -field:value)
-      "level:ERROR or env:dev", // lowercase `or` reserved
-      "level:ERROR and env:dev", // lowercase `and` reserved
     ]) {
       const r = validateQuery(text);
       expect(r.valid, `expected invalid: ${text}`).toBe(false);
@@ -453,7 +457,7 @@ describe("validateQuery", () => {
       (d) => d.severity === "error",
     );
     expect(errors).toHaveLength(1);
-    expect(errors[0]!.message).toMatch(/uppercase OR or AND/);
+    expect(errors[0]!.message).toMatch(/OR or AND/);
   });
 
   it("emits a single Unclosed-paren diagnostic for `level:(`", () => {
@@ -470,8 +474,34 @@ describe("validateQuery", () => {
         .join(" | ");
     expect(msgOf("not level:ERROR")).toMatch(/not.*not supported yet/i);
     expect(msgOf("!level:ERROR")).toMatch(/not supported yet/i);
-    expect(msgOf("level:ERROR or env:dev")).toMatch(/not supported yet/i);
     // quoting escapes the reserved word back into free text
     expect(validateQuery('"not" level:ERROR').valid).toBe(true);
+  });
+
+  it("accepts lowercase or/and as the OR/AND operator (case-insensitive)", () => {
+    // Cross-field OR / AND between filters — a user typing the obvious lowercase
+    // form lands on the working operator, not the old 'not supported yet' wall.
+    expect(validateQuery("level:ERROR or env:dev").valid).toBe(true);
+    expect(validateQuery("level:ERROR and env:dev").valid).toBe(true);
+    expect(validateQuery("level:ERROR Or env:dev").valid).toBe(true);
+    // inside a value group too
+    expect(validateQuery("level:(ERROR or WARNING)").valid).toBe(true);
+    // quoting still escapes the word back into free text search
+    expect(validateQuery('name:checkout "or" refund').valid).toBe(true);
+  });
+
+  it("canonicalizes bare or/and keyword tokens to uppercase, leaving text alone", () => {
+    expect(canonicalizeKeywords("level:ERROR or env:dev")).toBe(
+      "level:ERROR OR env:dev",
+    );
+    expect(canonicalizeKeywords("a and b or c")).toBe("a AND b OR c");
+    // a value/field word that merely contains a keyword is untouched
+    expect(canonicalizeKeywords("name:corner")).toBe("name:corner");
+    expect(canonicalizeKeywords("name:or")).toBe("name:or");
+    // a quoted keyword is literal text, not an operator
+    expect(canonicalizeKeywords('"or" "and"')).toBe('"or" "and"');
+    // length-preserving (caret-safe): same width before/after
+    const q = "level:ERROR or env:dev";
+    expect(canonicalizeKeywords(q).length).toBe(q.length);
   });
 });
