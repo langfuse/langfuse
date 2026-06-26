@@ -4,8 +4,8 @@
  * Two panes, side by side, sharing the virtualized rows:
  *  - Gutter pane (fixed, resizable): the indented name tree. It never scrolls
  *    itself — its content is a one-way translateY projection of the chart's
- *    vertical scroll, so the two panes can't drift; wheeling over it drives the
- *    chart.
+ *    vertical scroll, so the two panes can't drift; wheeling or touch-dragging
+ *    over it drives the chart.
  *  - Chart pane (flex-1): the gantt bars. Owns the only scrollbars (horizontal
  *    and vertical) and is the virtualizer's scroll element.
  *
@@ -204,6 +204,39 @@ export function TraceTimeline() {
     chart.scrollTop += e.deltaY * unit;
   }, []);
 
+  // Touch (and pen/mouse drag) over the gutter scrolls it too. WheelEvents are
+  // never synthesized on touch, so on touch-capable screens that render this
+  // desktop layout the wheel handler alone leaves the gutter stuck. Pointer
+  // events cover touch + pen + mouse uniformly: we drag-scroll the chart (move
+  // a finger up → content scrolls up, so scrollTop -= dy), and the chart
+  // projects straight back onto the gutter via handleChartScroll — same
+  // pixel-locked path as the wheel, so the two panes still can't drift.
+  const dragRef = useRef<{ pointerId: number; lastY: number } | null>(null);
+  const handleGutterPointerDown = useCallback((e: React.PointerEvent) => {
+    // Only drag-scroll for touch/pen. Leave the mouse to clicks (rows are
+    // clickable) and the wheel; a mouse drag here would otherwise hijack
+    // text selection / row clicks.
+    if (e.pointerType === "mouse") return;
+    const chart = chartRef.current;
+    if (!chart) return;
+    dragRef.current = { pointerId: e.pointerId, lastY: e.clientY };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+  const handleGutterPointerMove = useCallback((e: React.PointerEvent) => {
+    const drag = dragRef.current;
+    const chart = chartRef.current;
+    if (!drag || drag.pointerId !== e.pointerId || !chart) return;
+    chart.scrollTop -= e.clientY - drag.lastY;
+    drag.lastY = e.clientY;
+  }, []);
+  const handleGutterPointerEnd = useCallback((e: React.PointerEvent) => {
+    if (dragRef.current?.pointerId !== e.pointerId) return;
+    dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }, []);
+
   // Parent totals for heatmap coloring (aggregate across all roots).
   const parentTotalCost = useMemo(() => {
     return roots.reduce(
@@ -365,10 +398,16 @@ export function TraceTimeline() {
       >
         {/* Gutter pane — a one-way projection of the chart's vertical scroll
             (translateY), never its own scroll container, so it stays locked to
-            the chart. Wheeling over it drives the chart. */}
+            the chart. Wheeling or touch-dragging over it drives the chart.
+            touchAction:none stops the browser claiming the vertical pan gesture
+            (there's nothing to pan here) so our pointer-drag handlers fire. */}
         <div
           onWheel={handleGutterWheel}
-          className="shrink-0 overflow-hidden"
+          onPointerDown={handleGutterPointerDown}
+          onPointerMove={handleGutterPointerMove}
+          onPointerUp={handleGutterPointerEnd}
+          onPointerCancel={handleGutterPointerEnd}
+          className="shrink-0 touch-none overflow-hidden"
           style={{ width: `${gutterWidth}px` }}
         >
           <div

@@ -269,9 +269,10 @@ function TracePanelNavigationHeaderExpanded({
             isTimelineView={isTimelineView}
             onSelect={(timeline) => setViewMode(timeline ? "timeline" : null)}
           />
-          {/* When the detail panel is closed it shows its own collapsed rail +
-              expand button on the right edge (mirrors the navigation panel), so
-              the header needs no re-open button — see TraceLayoutDesktop. */}
+          {/* When the detail panel is closed it shows its own collapsed rail
+              with a "Show detail panel" button on the right edge (DetailPanel in
+              TraceLayoutDesktop, mirroring the navigation panel's rail), so the
+              header needs no re-open button of its own. */}
         </div>
       </div>
     </Command>
