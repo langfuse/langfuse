@@ -124,7 +124,6 @@ maybe("traces trpc (events_only write mode)", () => {
     const legacyTrace = await getTraceByIdFromTracesTable({
       traceId,
       projectId,
-      clickhouseFeatureTag: "tracing-test",
     });
     expect(legacyTrace).toBeUndefined();
 
@@ -185,7 +184,6 @@ maybe("traces trpc (events_only write mode)", () => {
     const legacyTrace = await getTraceByIdFromTracesTable({
       traceId,
       projectId,
-      clickhouseFeatureTag: "tracing-test",
     });
     expect(legacyTrace).toBeUndefined();
 

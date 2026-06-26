@@ -5,6 +5,10 @@ type PropTypeCallbacks = {
   onDestructuredProp?: (node: TSESTree.Property) => void;
 };
 
+type RootElementCallbacks = {
+  onRootElement: (node: TSESTree.JSXElement) => void;
+};
+
 const REACT_COMPONENT_TYPES = new Set([
   "FC",
   "FunctionComponent",
@@ -48,14 +52,21 @@ function expressionReturnsJsxOrNull(
 
   switch (node.type) {
     case AST_NODE_TYPES.ConditionalExpression:
-      return [node.consequent, node.alternate].some(expressionReturnsJsxOrNull);
-    case AST_NODE_TYPES.LogicalExpression:
-      return [node.left, node.right].some(expressionReturnsJsxOrNull);
-    case AST_NODE_TYPES.CallExpression:
       return (
-        isReactCreateElementCall(node) ||
-        node.arguments.some((argument) => expressionReturnsJsxOrNull(argument))
+        expressionReturnsJsxOrNull(node.consequent) ||
+        expressionReturnsJsxOrNull(node.alternate)
       );
+    case AST_NODE_TYPES.LogicalExpression:
+      return (
+        expressionReturnsJsxOrNull(node.left) ||
+        expressionReturnsJsxOrNull(node.right)
+      );
+    case AST_NODE_TYPES.CallExpression:
+      if (isReactCreateElementCall(node)) return true;
+      for (const argument of node.arguments) {
+        if (expressionReturnsJsxOrNull(argument)) return true;
+      }
+      return false;
     case AST_NODE_TYPES.ArrowFunctionExpression:
     case AST_NODE_TYPES.FunctionExpression:
       return functionReturnsJsxOrNull(node);
@@ -69,6 +80,98 @@ function expressionReturnsJsxOrNull(
   }
 }
 
+function visitRootElementsInExpression(
+  node: TSESTree.Node | null | undefined,
+  callbacks: RootElementCallbacks,
+): void {
+  if (!node) return;
+
+  switch (node.type) {
+    case AST_NODE_TYPES.JSXElement:
+      callbacks.onRootElement(node);
+      return;
+    case AST_NODE_TYPES.JSXFragment:
+      for (const child of node.children) {
+        if (child.type === AST_NODE_TYPES.JSXElement) {
+          callbacks.onRootElement(child);
+        } else if (child.type === AST_NODE_TYPES.JSXFragment) {
+          visitRootElementsInExpression(child, callbacks);
+        } else if (child.type === AST_NODE_TYPES.JSXExpressionContainer) {
+          visitRootElementsInExpression(child.expression, callbacks);
+        }
+      }
+      return;
+    case AST_NODE_TYPES.ConditionalExpression:
+      visitRootElementsInExpression(node.consequent, callbacks);
+      visitRootElementsInExpression(node.alternate, callbacks);
+      return;
+    case AST_NODE_TYPES.LogicalExpression:
+      visitRootElementsInExpression(node.left, callbacks);
+      visitRootElementsInExpression(node.right, callbacks);
+      return;
+    case AST_NODE_TYPES.TSAsExpression:
+    case AST_NODE_TYPES.TSNonNullExpression:
+    case AST_NODE_TYPES.TSSatisfiesExpression:
+      visitRootElementsInExpression(node.expression, callbacks);
+      return;
+    default:
+      return;
+  }
+}
+
+function visitRootElementsInStatement(
+  statement: TSESTree.Statement | null | undefined,
+  callbacks: RootElementCallbacks,
+): void {
+  if (!statement) return;
+
+  switch (statement.type) {
+    case AST_NODE_TYPES.ReturnStatement:
+      visitRootElementsInExpression(statement.argument, callbacks);
+      return;
+    case AST_NODE_TYPES.BlockStatement:
+      for (const child of statement.body) {
+        visitRootElementsInStatement(child, callbacks);
+      }
+      return;
+    case AST_NODE_TYPES.IfStatement:
+      visitRootElementsInStatement(statement.consequent, callbacks);
+      visitRootElementsInStatement(statement.alternate, callbacks);
+      return;
+    case AST_NODE_TYPES.SwitchStatement:
+      for (const switchCase of statement.cases) {
+        for (const child of switchCase.consequent) {
+          visitRootElementsInStatement(child, callbacks);
+        }
+      }
+      return;
+    case AST_NODE_TYPES.TryStatement:
+      visitRootElementsInStatement(statement.block, callbacks);
+      visitRootElementsInStatement(statement.handler?.body, callbacks);
+      visitRootElementsInStatement(statement.finalizer, callbacks);
+      return;
+    default:
+      return;
+  }
+}
+
+function visitRootElementsInFunction(
+  node:
+    | TSESTree.ArrowFunctionExpression
+    | TSESTree.FunctionDeclaration
+    | TSESTree.FunctionExpression,
+  callbacks: RootElementCallbacks,
+): void {
+  if (node.type === AST_NODE_TYPES.ArrowFunctionExpression && node.expression) {
+    visitRootElementsInExpression(node.body, callbacks);
+    return;
+  }
+
+  for (const statement of (node.body as TSESTree.BlockStatement).body) {
+    visitRootElementsInStatement(statement, callbacks);
+  }
+}
+
 function statementReturnsJsxOrNull(
   statement: TSESTree.Statement | null | undefined,
 ): boolean {
@@ -77,21 +180,28 @@ function statementReturnsJsxOrNull(
     case AST_NODE_TYPES.ReturnStatement:
       return expressionReturnsJsxOrNull(statement.argument);
     case AST_NODE_TYPES.BlockStatement:
-      return statement.body.some(statementReturnsJsxOrNull);
+      for (const child of statement.body) {
+        if (statementReturnsJsxOrNull(child)) return true;
+      }
+      return false;
     case AST_NODE_TYPES.IfStatement:
-      return [statement.consequent, statement.alternate].some(
-        statementReturnsJsxOrNull,
+      return (
+        statementReturnsJsxOrNull(statement.consequent) ||
+        statementReturnsJsxOrNull(statement.alternate)
       );
     case AST_NODE_TYPES.SwitchStatement:
-      return statement.cases.some((switchCase) =>
-        switchCase.consequent.some(statementReturnsJsxOrNull),
-      );
+      for (const switchCase of statement.cases) {
+        for (const child of switchCase.consequent) {
+          if (statementReturnsJsxOrNull(child)) return true;
+        }
+      }
+      return false;
     case AST_NODE_TYPES.TryStatement:
-      return [
-        statement.block,
-        statement.handler?.body,
-        statement.finalizer,
-      ].some(statementReturnsJsxOrNull);
+      return (
+        statementReturnsJsxOrNull(statement.block) ||
+        statementReturnsJsxOrNull(statement.handler?.body) ||
+        statementReturnsJsxOrNull(statement.finalizer)
+      );
     default:
       return false;
   }
@@ -107,9 +217,10 @@ function functionReturnsJsxOrNull(
     return expressionReturnsJsxOrNull(node.body);
   }
 
-  return (node.body as TSESTree.BlockStatement).body.some(
-    statementReturnsJsxOrNull,
-  );
+  for (const statement of (node.body as TSESTree.BlockStatement).body) {
+    if (statementReturnsJsxOrNull(statement)) return true;
+  }
+  return false;
 }
 
 function getTypeName(typeName: TSESTree.EntityName): string | null {
@@ -202,6 +313,41 @@ function unwrapComponentInit(node: TSESTree.Node): TSESTree.Node {
   return current;
 }
 
+export function createComponentRootElementVisitors(
+  callbacks: RootElementCallbacks,
+) {
+  function maybeVisitFunctionComponentRoots(
+    node:
+      | TSESTree.ArrowFunctionExpression
+      | TSESTree.FunctionDeclaration
+      | TSESTree.FunctionExpression,
+    name: string | null,
+  ): void {
+    if (name && !isCapitalizedName(name)) return;
+    if (!functionReturnsJsxOrNull(node)) return;
+    visitRootElementsInFunction(node, callbacks);
+  }
+
+  return {
+    FunctionDeclaration(node: TSESTree.FunctionDeclaration) {
+      maybeVisitFunctionComponentRoots(node, node.id?.name ?? null);
+    },
+    VariableDeclarator(node: TSESTree.VariableDeclarator) {
+      if (node.id.type !== AST_NODE_TYPES.Identifier) return;
+      if (!isCapitalizedName(node.id.name)) return;
+      if (!node.init) return;
+
+      const init = unwrapComponentInit(node.init);
+      if (
+        init.type === AST_NODE_TYPES.ArrowFunctionExpression ||
+        init.type === AST_NODE_TYPES.FunctionExpression
+      ) {
+        maybeVisitFunctionComponentRoots(init, node.id.name);
+      }
+    },
+  };
+}
+
 function getWrappedForwardRefPropsType(
   node: TSESTree.Node,
 ): TSESTree.TypeNode | null {
@@ -239,11 +385,11 @@ function visitDestructuredProps(
 ): void {
   const firstParam = node.params[0];
   if (firstParam?.type !== AST_NODE_TYPES.ObjectPattern) return;
-  firstParam.properties.forEach((property) => {
+  for (const property of firstParam.properties) {
     if (property.type === AST_NODE_TYPES.Property) {
       callbacks.onDestructuredProp?.(property);
     }
-  });
+  }
 }
 
 export function createComponentPropTypeVisitors(callbacks: PropTypeCallbacks) {
@@ -263,15 +409,17 @@ export function createComponentPropTypeVisitors(callbacks: PropTypeCallbacks) {
   ): void {
     switch (node.type) {
       case AST_NODE_TYPES.TSTypeLiteral:
-        node.members.forEach((member) => {
+        for (const member of node.members) {
           if (member.type === AST_NODE_TYPES.TSPropertySignature) {
             callbacks.onPropProperty(member);
           }
-        });
+        }
         return;
       case AST_NODE_TYPES.TSIntersectionType:
       case AST_NODE_TYPES.TSUnionType:
-        node.types.forEach((type) => visitTypeNode(type, seen));
+        for (const type of node.types) {
+          visitTypeNode(type, seen);
+        }
         return;
       case AST_NODE_TYPES.TSTypeReference: {
         const typeName = getTypeName(node.typeName);
@@ -308,19 +456,19 @@ export function createComponentPropTypeVisitors(callbacks: PropTypeCallbacks) {
     seen: Set<string>,
   ): void {
     if (declaration.type === AST_NODE_TYPES.TSInterfaceDeclaration) {
-      declaration.body.body.forEach((member) => {
+      for (const member of declaration.body.body) {
         if (member.type === AST_NODE_TYPES.TSPropertySignature) {
           callbacks.onPropProperty(member);
         }
-      });
-      declaration.extends?.forEach((heritage) => {
+      }
+      for (const heritage of declaration.extends) {
         const heritageTypeName = getHeritageName(
           heritage.expression as
             | TSESTree.Identifier
             | TSESTree.MemberExpression,
         );
         visitDeclarationByName(heritageTypeName, seen);
-      });
+      }
       return;
     }
     visitTypeNode(declaration.typeAnnotation, seen);
@@ -391,7 +539,9 @@ export function createComponentPropTypeVisitors(callbacks: PropTypeCallbacks) {
     },
     "Program:exit"() {
       const seen = new Set<string>();
-      propTypeRoots.forEach((typeNode) => visitTypeNode(typeNode, seen));
+      for (const typeNode of propTypeRoots) {
+        visitTypeNode(typeNode, seen);
+      }
     },
   };
 }
