@@ -6,13 +6,22 @@ import { X } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
+import { useLayerContainer } from "@/src/components/ui/layer";
 import motionStyles from "./dialog-motion.module.css";
 
 const Dialog = DialogPrimitive.Root;
 
 const DialogTrigger = DialogPrimitive.Trigger;
 
-const DialogPortal = DialogPrimitive.Portal;
+// Route the portal into the `modal` overlay layer (null until mounted →
+// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+const DialogPortal = ({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Portal>) => {
+  const container = useLayerContainer("modal");
+  return <DialogPrimitive.Portal container={container} {...props} />;
+};
+DialogPortal.displayName = "DialogPortal";
 
 const DialogClose = DialogPrimitive.Close;
 
@@ -34,7 +43,7 @@ const DialogOverlay = React.forwardRef<
     ref={ref}
     className={cn(
       motionStyles.overlay,
-      "fixed inset-0 z-50",
+      "fixed inset-0",
       dialogOverlayClasses[overlayMode],
       className,
     )}
@@ -44,7 +53,7 @@ const DialogOverlay = React.forwardRef<
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] overflow-hidden z-50 flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-background shadow-lg sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-background shadow-lg sm:rounded-lg",
   {
     variants: {
       size: {
@@ -142,15 +151,34 @@ const DialogContent = React.forwardRef<
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+const dialogHeaderVariants = cva(
+  "bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
+  {
+    variants: {
+      variant: {
+        default: "border-b",
+        // Borderless confirm dialogs drop the divider, so trim the bottom
+        // padding to keep title and body from drifting apart.
+        action: "pb-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const DialogHeader = ({
   className,
   children,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogHeaderVariants>) => (
   <div
     className={cn(
-      "dialog-header bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg border-b p-4",
-      className,
+      "dialog-header",
+      dialogHeaderVariants({ variant, className }),
     )}
     {...props}
   >
@@ -180,14 +208,33 @@ const DialogBody = React.forwardRef<
 ));
 DialogBody.displayName = "DialogBody";
 
+const dialogFooterVariants = cva(
+  "bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+  {
+    variants: {
+      variant: {
+        default: "border-t",
+        // Borderless confirm dialogs drop the divider, so trim the top padding
+        // to pull the buttons closer to the content.
+        action: "pt-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
 const DialogFooter = ({
   className,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogFooterVariants>) => (
   <div
     className={cn(
-      "dialog-footer bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg border-t p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
-      className,
+      "dialog-footer",
+      dialogFooterVariants({ variant, className }),
     )}
     {...props}
   />

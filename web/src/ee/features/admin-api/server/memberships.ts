@@ -2,6 +2,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { Role } from "@langfuse/shared";
 import { z } from "zod";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 
 // Schema for request body validation
 const MembershipSchema = z.object({
@@ -90,6 +91,13 @@ export async function handleUpdateMembership(
     },
   });
 
+  await getSfdcService()?.setUserRole({
+    orgId,
+    userId: membership.userId,
+    email: user.email,
+    role: membership.role,
+  });
+
   return res.status(200).json({
     userId: membership.userId,
     role: membership.role,
@@ -113,12 +121,25 @@ export async function handleDeleteMembership(
   }
 
   // Delete the membership (using deleteMany to avoid errors on not found)
-  await prisma.organizationMembership.deleteMany({
+  const { count } = await prisma.organizationMembership.deleteMany({
     where: {
       orgId,
       userId: validatedBody.data.userId,
     },
   });
+
+  // SFDC: remove the org-member bridge if a membership actually existed
+  if (count > 0) {
+    const user = await prisma.user.findUnique({
+      where: { id: validatedBody.data.userId },
+      select: { email: true },
+    });
+    await getSfdcService()?.removeUser({
+      orgId,
+      userId: validatedBody.data.userId,
+      email: user?.email,
+    });
+  }
 
   return res.status(200).json({
     message: "Membership deleted successfully",

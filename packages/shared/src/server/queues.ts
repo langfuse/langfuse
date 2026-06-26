@@ -13,10 +13,11 @@ import { EvalTargetObjectSchema } from "../features/evals/types";
 import { JobConfigExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
   type MonitorQueueEvent,
+  type MonitorQueueEventInput,
   MonitorWebhookQueueEventSchema,
 } from "../features/monitors/scheduler/types";
 
-export type { MonitorQueueEvent };
+export type { MonitorQueueEvent, MonitorQueueEventInput };
 
 export const IngestionEvent = z.object({
   data: z.object({
@@ -143,6 +144,15 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   [
     z.object({
       actionId: z.literal("score-delete"),
+      projectId: z.string(),
+      query: BatchActionQuerySchema,
+      tableName: z.enum(BatchTableNames),
+      cutoffCreatedAt: z.date(),
+      targetId: z.string().optional(),
+      type: z.enum(BatchActionType),
+    }),
+    z.object({
+      actionId: z.literal("dataset-delete"),
       projectId: z.string(),
       query: BatchActionQuerySchema,
       tableName: z.enum(BatchTableNames),
@@ -598,7 +608,7 @@ export type TQueueJobTypes = {
   [QueueName.MonitorQueue]: {
     timestamp: Date;
     id: string;
-    payload: MonitorQueueEvent;
+    payload: MonitorQueueEventInput;
     name: QueueJobs.MonitorJob;
   };
 };

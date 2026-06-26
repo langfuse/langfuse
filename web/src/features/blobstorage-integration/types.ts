@@ -9,6 +9,8 @@ import {
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  exportStartDateNotInFuture,
+  EXPORT_START_DATE_FUTURE_ERROR,
 } from "@/src/features/blobstorage-integration/validation";
 
 export const blobStorageIntegrationFormSchemaBase = z.object({
@@ -34,7 +36,13 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   exportMode: z
     .enum(BlobStorageExportMode)
     .default(BlobStorageExportMode.FULL_HISTORY),
-  exportStartDate: z.coerce.date().optional().nullable(),
+  exportStartDate: z.coerce
+    .date()
+    .refine(exportStartDateNotInFuture, {
+      message: EXPORT_START_DATE_FUTURE_ERROR,
+    })
+    .optional()
+    .nullable(),
   exportSource: z
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
@@ -43,6 +51,17 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .default([...OBSERVATION_FIELD_GROUPS_FULL]),
   compressed: z.boolean().default(true),
 });
+
+// True when the internal, DB-set `exportTuning.parquet` override is on (no UI
+// write path). Mirrors the worker resolver: only `{ parquet: true }` counts.
+export function parquetEnabledFromTuning(exportTuning: unknown): boolean {
+  return (
+    typeof exportTuning === "object" &&
+    exportTuning !== null &&
+    !Array.isArray(exportTuning) &&
+    (exportTuning as Record<string, unknown>).parquet === true
+  );
+}
 
 export const blobStorageIntegrationFormSchema =
   blobStorageIntegrationFormSchemaBase
@@ -55,6 +74,7 @@ export type BlobStorageIntegrationFormSchema = z.infer<
 
 export type BlobStorageSyncStatus =
   | "idle"
+  | "running"
   | "queued"
   | "up_to_date"
   | "disabled"

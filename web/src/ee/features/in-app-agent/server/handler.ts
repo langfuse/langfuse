@@ -8,6 +8,7 @@ import {
   createInAppAgentMessageId,
   createInAppAgentRunId,
 } from "@/src/ee/features/in-app-agent/ids";
+import { sanitizeInAppAgentContext } from "@/src/ee/features/in-app-agent/context";
 import {
   AgUiRunAgentInputSchema,
   type AgUiRunAgentInput,
@@ -176,7 +177,7 @@ export default async function handler(request: Request) {
       );
     }
 
-    const sanitizedInput = sanitizeAgentInput(input);
+    const sanitizedInput = sanitizeAgentInput(input, projectId);
     const awsProfile = env.LANGFUSE_IN_APP_AGENT_AWS_PROFILE;
     const bedrockModelId = env.LANGFUSE_AWS_BEDROCK_MODEL;
     const targetProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
@@ -427,7 +428,10 @@ export default async function handler(request: Request) {
                   ? {
                       targetProjectId,
                       environment: "langfuse-in-app-agent",
-                      userId: auth.userId,
+                      user: {
+                        id: auth.userId,
+                        email: auth.user.email,
+                      },
                       traceId: conversation.id,
                       metadata: {
                         langfuse_ai_feature: "in-app-agent",
@@ -667,7 +671,10 @@ function isResumeAgentInput(
   return "command" in input.forwardedProps;
 }
 
-function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
+function sanitizeAgentInput(
+  input: AgUiRunAgentInput,
+  projectId: string,
+): SanitizedAgentInput {
   const forwardedProps = input.forwardedProps;
 
   if (
@@ -679,7 +686,7 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
     throw new InvalidRequestError("Invalid forwarded props");
   }
 
-  if (forwardedProps && Object.keys(forwardedProps).length > 0) {
+  if (forwardedProps && "command" in forwardedProps) {
     const resumeForwardedProps =
       ResumeForwardedPropsSchema.safeParse(forwardedProps);
 
@@ -694,7 +701,7 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
       state: null,
       messages: [],
       tools: [],
-      context: input.context,
+      context: sanitizeInAppAgentContext(input.context, projectId),
       forwardedProps: resumeForwardedProps.data,
     };
   }
@@ -712,7 +719,7 @@ function sanitizeAgentInput(input: AgUiRunAgentInput): SanitizedAgentInput {
     state: null,
     messages: [{ ...lastUserMessage, id: createInAppAgentMessageId() }],
     tools: [],
-    context: input.context,
+    context: sanitizeInAppAgentContext(input.context, projectId),
     forwardedProps: {},
   };
 }
