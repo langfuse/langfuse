@@ -1238,8 +1238,17 @@ export const handleBlobStorageIntegrationProjectJob = async (
         // loser (paused=false) hits a fresh cooldown and is suppressed —
         // otherwise it could send a contradictory "failed" email alongside the
         // winner's "paused" email for the same trip.
+        // Re-check the counter in the where clause: the increment-read above and
+        // this claim are separate round-trips, so under READ COMMITTED a
+        // concurrent success can reset consecutiveFailures to 0 in between. The
+        // gte gate makes the claim a no-op in that case, avoiding a spurious
+        // disable + "paused" email for an integration that just succeeded.
         const { count } = await prisma.blobStorageIntegration.updateMany({
-          where: { projectId, enabled: true },
+          where: {
+            projectId,
+            enabled: true,
+            consecutiveFailures: { gte: maxConsecutiveFailures },
+          },
           data: { enabled: false, lastFailureNotificationSentAt: new Date() },
         });
         if (count > 0) {

@@ -340,6 +340,80 @@ describe("BlobStorageIntegrationProcessingJob", () => {
       expect(row.consecutiveFailures).toBe(1);
       expect(row.enabled).toBe(true);
     });
+
+    it("does not disable when a concurrent success resets the counter mid-trip", async () => {
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      (env as any).LANGFUSE_BLOB_STORAGE_MAX_CONSECUTIVE_FAILURES = 3;
+      const { projectId } = await createOrgProjectAndApiKey();
+      s3Prefix = projectId;
+
+      await prisma.blobStorageIntegration.create({
+        data: {
+          projectId,
+          type: BlobStorageIntegrationType.S3,
+          bucketName,
+          prefix: s3Prefix,
+          accessKeyId,
+          secretAccessKey: encrypt(secretAccessKey),
+          region: region ? region : "auto",
+          endpoint: endpoint ? endpoint : null,
+          forcePathStyle:
+            env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+          enabled: true,
+          exportFrequency: "daily",
+          // Enriched source + V4 preview off => the guard throws on every run.
+          exportSource: "EVENTS",
+          lastSyncAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+          // One short of the threshold: this run's increment reaches it.
+          consecutiveFailures: 2,
+        },
+      });
+
+      // Simulate a concurrent successful run (Worker B) committing its reset
+      // between this worker's increment-read and its disable claim. We hook the
+      // increment update (the only one carrying consecutiveFailures in its
+      // data) and zero the counter right after it commits. The gte-gated
+      // disable claim must then no-op instead of disabling a healthy
+      // integration (LFE-10279).
+      const realUpdate = prisma.blobStorageIntegration.update.bind(
+        prisma.blobStorageIntegration,
+      );
+      const spy = vi
+        .spyOn(prisma.blobStorageIntegration, "update")
+        .mockImplementation(async (...callArgs) => {
+          const result = await (realUpdate as any)(...callArgs);
+          const data = (callArgs[0] as any)?.data;
+          if (data?.consecutiveFailures !== undefined) {
+            await prisma.blobStorageIntegration.updateMany({
+              where: { projectId },
+              data: {
+                consecutiveFailures: 0,
+                lastError: null,
+                lastErrorAt: null,
+              },
+            });
+          }
+          return result;
+        });
+
+      try {
+        await expect(
+          handleBlobStorageIntegrationProjectJob({
+            data: { payload: { projectId } },
+          } as Job),
+        ).rejects.toThrow(/enriched/i);
+      } finally {
+        spy.mockRestore();
+      }
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+      });
+      // Stays enabled with the counter the concurrent success left behind:
+      // without the gte gate the stale increment-read would disable it here.
+      expect(row.enabled).toBe(true);
+      expect(row.consecutiveFailures).toBe(0);
+    });
   });
 
   it("should not process when blob storage integration is disabled", async () => {
